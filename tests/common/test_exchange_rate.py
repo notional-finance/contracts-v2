@@ -1,9 +1,15 @@
 import pytest
+from brownie.test import given, strategy
 
 
 @pytest.fixture(scope="module", autouse=True)
 def exchangeRate(MockExchangeRate, accounts):
     return accounts[0].deploy(MockExchangeRate)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def aggregator(MockAggregator, accounts):
+    return accounts[0].deploy(MockAggregator, 18)
 
 
 @pytest.fixture(autouse=True)
@@ -75,3 +81,14 @@ def test_fetch_exchange_rate_invert(accounts, MockAggregator, exchangeRate, deci
 
     # ETH is always the quote in the call above so mustInvert has no effect here
     assert rate == 10 ** decimals * 100
+
+
+@given(buffer=strategy("uint32", min_value=1e9, max_value=2e9))
+def test_convert_to_eth_buffer(aggregator, exchangeRate, buffer):
+    aggregator.setAnswer(1e18)
+
+    eth = exchangeRate.convertToETH(
+        (aggregator.address, aggregator.decimals(), False, buffer), 1e18, 1e18, True
+    )
+
+    assert eth == buffer * 1e9
