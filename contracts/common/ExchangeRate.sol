@@ -37,21 +37,21 @@ library ExchangeRate {
      */
     function _convertToETH(
         Rate memory er,
-        uint256 baseDecimals,
-        int256 balance,
+        uint baseDecimals,
+        int balance,
         bool buffer
-    ) internal view returns (int256) {
+    ) internal view returns (int) {
         // Fetches the latest answer from the chainlink oracle and buffer it by the apporpriate amount.
-        uint256 rate = _fetchExchangeRate(er, false);
-        uint128 absBalance = uint128(balance.abs());
-        uint256 rateDecimals = 10**er.rateDecimalsPlaces;
-        uint256 bufferFactor = buffer ? uint256(er.buffer).mul(BUFFER_DECIMALS) : ETH_DECIMALS;
+        uint rate = _fetchExchangeRate(er, false);
+        uint absBalance = uint(balance.abs());
+        uint rateDecimals = 10**er.rateDecimalsPlaces;
+        uint bufferFactor = buffer ? uint(er.buffer).mul(BUFFER_DECIMALS) : ETH_DECIMALS;
 
         // We are converting to ETH here so we know that it has 1e18 precision. The calculation here is:
         // baseDecimals * rateDecimals * bufferDecimals * bufferDecimals /  (rateDecimals * baseDecimals)
         // er.buffer is in Common.DECIMAL precision
         // We use uint256 to do the calculation and then cast back to int256 to avoid overflows.
-        int256 result = int256(
+        int result = int(
             SafeCast.toUint128(rate
                 .mul(absBalance)
                 // Buffer has 9 decimal places of precision
@@ -72,18 +72,18 @@ library ExchangeRate {
      */
     function _convertETHTo(
         Rate memory er,
-        uint256 baseDecimals,
-        int256 balance
-    ) internal view returns (int256) {
-        uint256 rate = _fetchExchangeRate(er, true);
-        uint128 absBalance = uint128(balance.abs());
-        uint256 rateDecimals = 10**er.rateDecimalsPlaces;
+        uint baseDecimals,
+        int balance
+    ) internal view returns (int) {
+        uint rate = _fetchExchangeRate(er, true);
+        uint absBalance = uint(balance.abs());
+        uint rateDecimals = 10**er.rateDecimalsPlaces;
 
         // We are converting from ETH here so we know that it has 1e18 precision. The calculation here is:
         // ethDecimals * rateDecimals * baseDecimals / (ethDecimals * rateDecimals)
         // er.buffer is in Common.DECIMAL precision
         // We use uint256 to do the calculation and then cast back to int256 to avoid overflows.
-        int256 result = int256(
+        int result = int(
             SafeCast.toUint128(rate
                 .mul(absBalance)
                 .mul(baseDecimals)
@@ -95,34 +95,34 @@ library ExchangeRate {
         return balance > 0 ? result : result.neg();
     }
 
-    function _fetchExchangeRate(Rate memory er, bool invert) internal view returns (uint256) {
+    function _fetchExchangeRate(Rate memory er, bool invert) internal view returns (uint) {
         (
             /* uint80 */,
-            int256 rate,
+            int rate,
             /* uint256 */,
             /* uint256 */,
             /* uint80 */
         ) = AggregatorV2V3Interface(er.rateOracle).latestRoundData();
         require(rate > 0, "ExchangeRate: invalid rate");
-        uint256 rateDecimals = 10**er.rateDecimalsPlaces;
+        uint rateDecimals = 10**er.rateDecimalsPlaces;
 
         if (invert || (er.mustInvert && !invert)) {
             // If the ER is inverted and we're NOT asking to invert then we need to invert the rate here.
-            return uint256(rateDecimals).mul(rateDecimals).div(uint256(rate));
+            return rateDecimals.mul(rateDecimals).div(uint(rate));
         }
 
-        return uint256(rate);
+        return uint(rate);
     }
 
     /**
      * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate.
      */
-    function _exchangeRate(Rate memory baseER, Rate memory quoteER, uint16 quote) internal view returns (uint256) {
-        uint256 rate = _fetchExchangeRate(baseER, false);
+    function _exchangeRate(Rate memory baseER, Rate memory quoteER, uint16 quote) internal view returns (uint) {
+        uint rate = _fetchExchangeRate(baseER, false);
 
         if (quote != 0) {
-            uint256 quoteRate = _fetchExchangeRate(quoteER, false);
-            uint256 rateDecimals = 10**quoteER.rateDecimalsPlaces;
+            uint quoteRate = _fetchExchangeRate(quoteER, false);
+            uint rateDecimals = 10**quoteER.rateDecimalsPlaces;
 
             rate = rate.mul(rateDecimals).div(quoteRate);
         }
@@ -140,22 +140,22 @@ contract MockExchangeRate {
         uint256 baseDecimals,
         int256 balance,
         bool buffer
-    ) external view returns (int256) {
+    ) external view returns (int) {
         return ExchangeRate._convertToETH(er, baseDecimals, balance, buffer);
     }
 
     function convertETHTo(
         ExchangeRate.Rate memory er,
-        uint256 baseDecimals,
-        int256 balance
-    ) external view returns (int256) {
+        uint baseDecimals,
+        int balance
+    ) external view returns (int) {
         return ExchangeRate._convertETHTo(er, baseDecimals, balance);
     }
 
     function fetchExchangeRate(
         ExchangeRate.Rate memory er,
         bool invert
-    ) external view returns (uint256) {
+    ) external view returns (uint) {
         return ExchangeRate._fetchExchangeRate(er, invert);
     }
 
