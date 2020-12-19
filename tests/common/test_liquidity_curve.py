@@ -54,7 +54,7 @@ def test_exchange_rate(liquidityCurve, fCashAmount, timeToMaturity, totalCurrent
     liquidityFee=strategy("uint256", min_value=BASIS_POINT, max_value=50 * BASIS_POINT),
     rateScalar=strategy("uint256", min_value=20, max_value=200),
 )
-@pytest.mark.only
+@pytest.mark.skip
 def test_rate_anchor_update(liquidityCurve, fCashAmount, proportion, liquidityFee, rateScalar):
     # test that for a given proportion and fCash amount, no matter what the time to maturity is
     # the implied rate before and after will be constant
@@ -67,7 +67,7 @@ def test_rate_anchor_update(liquidityCurve, fCashAmount, proportion, liquidityFe
     for timeToMaturity in timeToMaturities:
         # TODO: what should this be where timeToMaturity > than 5 years? we're getting
         # negative exchange rates
-        marketState = (totalfCash, totalCurrentCash, 0, 1.1e9, 0.1e9)
+        marketState = (totalfCash, totalCurrentCash, 0, 1.5e9, 0.5e9)
         cashGroup = (liquidityFee, rateScalar)
 
         (newMarketState, success) = liquidityCurve.tradeCalculation(
@@ -79,3 +79,12 @@ def test_rate_anchor_update(liquidityCurve, fCashAmount, proportion, liquidityFe
             postTradeImpliedRate = newMarketState[4]
         else:
             postTradeImpliedRate == approx(newMarketState[4], 5)
+
+
+@given(
+    rateAnchor=strategy("uint256", min_value=1e9, max_value=1.4e9, exclude=[1e9]),
+    timeToMaturity=strategy("uint256", min_value=1, max_value=SECONDS_IN_YEAR * 10),
+)
+def test_initialize_rate_anchor(liquidityCurve, rateAnchor, timeToMaturity):
+    newRateAnchor = liquidityCurve.initializeRateAnchor(rateAnchor, timeToMaturity)
+    assert newRateAnchor >= 1e9

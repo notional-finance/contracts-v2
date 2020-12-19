@@ -41,11 +41,31 @@ library LiquidityCurve {
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
+    int128 internal constant SECONDS_IN_YEAR_64x64 = 0x1e133800000000000000000;
 
     // Decimal precision of the proportion
     uint internal constant PROPORTION_PRECISION = 1e18;
     // LN_PROPORTION_PRECISION = ABDK64x64.ln(ABDK64x64.fromUint(PROPORTION_PRECISION))
     int64 internal constant LN_PROPORTION_PRECISION = 0x09a667e259;
+
+    /**
+     * Returns the initial value of the rate anchor which is a governance paramater stored
+     * as RATE_PRECISION + annualized rate. We normalize it to time to maturity using continuous
+     * compounding. The formula is:
+     * math.exp((timeToMaturity / SECONDS_IN_YEAR) * (gRateAnchor - 1))
+     *
+     * @return uint32 rateAnchor value that can be stored
+     */
+    function _initializeRateAnchor(uint gRateAnchor, uint timeToMaturity) internal pure returns (uint64) {
+        // NOTE: will need to worry about overflow at around 30 years time to maturity
+        int128 numerator = ABDKMath64x64.fromUInt(gRateAnchor.sub(RATE_PRECISION).mul(timeToMaturity));
+        int128 expValue = ABDKMath64x64.div(numerator, SECONDS_IN_YEAR_64x64);
+        int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
+        int128 expResult = ABDKMath64x64.exp(expValueScaled);
+        int128 expResultScaled = ABDKMath64x64.mul(expResult, RATE_PRECISION_64x64);
+
+        return ABDKMath64x64.toUInt(expResultScaled);
+    }
 
     /**
      * @notice Does the trade calculation and returns the new market state and cash amount
@@ -117,6 +137,8 @@ library LiquidityCurve {
         // Now calculate the implied rate, this will be used for future rolldown calculations.
         uint impliedRate;
         (impliedRate, success) = _getImpliedRate(marketState, cashGroup, timeToMaturity);
+
+        // Implied rates over 429% will overflow, this seems like a safe assumption
         if (impliedRate > type(uint32).max) return (marketState, 0);
         if (!success) return (marketState, 0);
 
@@ -158,7 +180,7 @@ library LiquidityCurve {
     }
 
     /**
-     * Calculates the current market implied rate
+     * Calculates the current market implied rate.
      *
      * @return the implied rate and a bool that is true on success
      */
@@ -172,26 +194,19 @@ library LiquidityCurve {
         if (!success) return (0, false);
         if (exchangeRate < RATE_PRECISION) return (0, false);
 
-        uint rate = uint(exchangeRate - RATE_PRECISION)
+        // Uses continuous compounding to calculate the implied rate:
+        // ln(exchangeRate) * SECONDS_IN_YEAR / timeToMaturity
+        int128 rate = ABDKMath64x64.fromUInt(exchangeRate);
+        int128 rateScaled = ABDKMath64x64.div(rate, RATE_PRECISION_64x64);
+        // We will not have a negative log here because we check that exchangeRate > 1e9 above
+        int128 lnRateScaled = ABDKMath64x64.ln(rateScaled);
+        uint lnRate = ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, RATE_PRECISION_64x64));
+
+        uint finalRate = lnRate
             .mul(SECONDS_IN_YEAR)
             .div(timeToMaturity);
 
-        return (rate, true);
-    }
-
-    function _calculateImpliedRate(
-        uint128 cash,
-        uint128 fCash,
-        uint timeToMaturity
-    ) internal view returns (uint32) {
-        uint exchangeRate = uint256(fCash).mul(RATE_PRECISION).div(cash);
-
-        return SafeCast.toUint32(
-            exchangeRate
-                .sub(RATE_PRECISION)
-                .mul(SECONDS_IN_YEAR)
-                .div(timeToMaturity)
-        );
+        return (finalRate, true);
     }
 
     /**
@@ -312,14 +327,6 @@ contract MockLiquidityCurve {
         return LiquidityCurve._getImpliedRate(marketState, cashGroup, timeToMaturity);
     }
 
-    function calculateImpliedRate(
-        uint128 cash,
-        uint128 fCash,
-        uint timeToMaturity
-    ) external view returns (uint32) {
-        return LiquidityCurve._calculateImpliedRate(cash, fCash, timeToMaturity);
-    }
-
     function getExchangeRate(
         Market memory marketState,
         CashGroup memory cashGroup,
@@ -331,6 +338,10 @@ contract MockLiquidityCurve {
 
     function abdkMath(uint proportion) external view returns (uint64, bool) {
         return LiquidityCurve._abdkMath(proportion);
+    }
+
+    function initializeRateAnchor(uint gRateAnchor, uint timeToMaturity) external view returns (uint64) {
+        return LiquidityCurve._initializeRateAnchor(gRateAnchor, timeToMaturity);
     }
 
 }
