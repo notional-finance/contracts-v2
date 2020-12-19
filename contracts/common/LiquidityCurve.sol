@@ -115,12 +115,12 @@ library LiquidityCurve {
         }
 
         // Now calculate the implied rate, this will be used for future rolldown calculations.
-        uint32 impliedRate;
+        uint impliedRate;
         (impliedRate, success) = _getImpliedRate(marketState, cashGroup, timeToMaturity);
-
+        if (impliedRate > type(uint32).max) return (marketState, 0);
         if (!success) return (marketState, 0);
 
-        marketState.lastAnnualizedRate = impliedRate;
+        marketState.lastAnnualizedRate = uint32(impliedRate);
 
         return (marketState, cash);
     }
@@ -139,10 +139,11 @@ library LiquidityCurve {
         CashGroup memory cashGroup,
         uint timeToMaturity
     ) internal view returns (uint32, bool) {
-        (uint32 impliedRate, bool success) = _getImpliedRate(marketState, cashGroup, timeToMaturity);
+        (uint impliedRate, bool success) = _getImpliedRate(marketState, cashGroup, timeToMaturity);
 
         if (!success) return (0, false);
         if (timeToMaturity > type(uint128).max) return (0, false);
+        if (impliedRate > type(uint128).max) return (0, false);
 
         int rateDifference = int(impliedRate)
             .sub(marketState.lastAnnualizedRate)
@@ -165,7 +166,7 @@ library LiquidityCurve {
         Market memory marketState,
         CashGroup memory cashGroup,
         uint timeToMaturity
-    ) internal view returns (uint32, bool) {
+    ) internal view returns (uint, bool) {
         (uint32 exchangeRate, bool success) = _getExchangeRate(marketState, cashGroup, timeToMaturity, 0);
 
         if (!success) return (0, false);
@@ -175,9 +176,7 @@ library LiquidityCurve {
             .mul(SECONDS_IN_YEAR)
             .div(timeToMaturity);
 
-        if (rate > type(uint32).max) return (0, false);
-
-        return (uint32(rate), true);
+        return (rate, true);
     }
 
     function _calculateImpliedRate(
@@ -215,6 +214,11 @@ library LiquidityCurve {
             return (0, false);
         }
 
+        if (fCashAmount >= marketState.totalCurrentCash) {
+            // This will result in negative interest rates
+            return (0, false);
+        }
+
         // This will always be positive, we do a check beforehand in _tradeCalculation
         uint numerator = uint(int(marketState.totalfCash).add(fCashAmount));
         // This is always less than PROPORTION_PRECISION
@@ -236,6 +240,7 @@ library LiquidityCurve {
         // The rate scalar will increase towards maturity, this will lower the impact of changes
         // to the proportion as we get towards maturity.
         int rateScalar = int(cashGroup.rateScalar).mul(int(SECONDS_IN_YEAR)).div(int(timeToMaturity));
+        if (rateScalar == 0) return (0, false);
         if (rateScalar > type(uint32).max) return (0, false);
 
         // This is ln(1e18), subtract this to scale proportion back. There is no potential for overflow
@@ -295,13 +300,15 @@ contract MockLiquidityCurve {
         uint timeToMaturity
     ) external view returns (uint32, bool) {
         return LiquidityCurve._getNewRateAnchor(marketState, cashGroup, timeToMaturity);
+        // assert newRateAnchor < oldRateAnchor
+        // assert newRateAnchor > RATE_PRECISION
     }
 
     function getImpliedRate(
         Market calldata marketState,
         CashGroup calldata cashGroup,
         uint timeToMaturity
-    ) external view returns (uint32, bool) {
+    ) external view returns (uint, bool) {
         return LiquidityCurve._getImpliedRate(marketState, cashGroup, timeToMaturity);
     }
 
