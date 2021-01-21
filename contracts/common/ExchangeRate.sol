@@ -7,195 +7,311 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
+/**
+ * @title ExchangeRate
+ * @notice Internal library for calculating exchange rates between different currencies
+ * and assets. Must be supplied a Rate struct with relevant parameters. Expects rate oracles
+ * to conform to the Chainlink AggregatorV2V3Interface.
+ */
 library ExchangeRate {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    uint public constant BUFFER_DECIMALS = 1e9;
-    uint public constant ETH_DECIMALS = 1e18;
+    int public constant MULTIPLIER_DECIMALS = 100;
+    int public constant ETH_DECIMALS = 1e18;
 
-    /** Exchange rates between currencies */
-    struct Rate {
-        // The address of the chainlink price oracle
+    /**
+     * @dev Exchange rate object as it is represented in storage. Total storage is 52 bytes.
+     */
+    struct RateStorage {
+        // Address of the rate oracle
         address rateOracle;
         // The decimal places of precision that the rate oracle uses
-        uint8 rateDecimalsPlaces;
+        uint8 rateDecimalPlaces;
         // True of the exchange rate must be inverted
         bool mustInvert;
-        // Amount of buffer to apply to the exchange rate, this defines the collateralization ratio
-        // between the two currencies. This must be stored with 9 decimal places of precision
-        uint32 buffer;
+
+        // NOTE: both of these governance values are set with BUFFER_DECIMALS precision
+        // Amount of buffer to apply to the exchange rate for negative balances.
+        uint8 buffer;
+        // Amount of haircut to apply to the exchange rate for positive balances
+        uint8 haircut;
     }
 
     /**
-     * @notice Converts a balance between token addresses.
+     * @dev Exchange rate object as stored in memory, these are cached optimistically
+     * when the transaction begins. This is not the same as the object in storage.
+     */ 
+    struct Rate {
+        // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
+        int rateDecimals;
+        // The decimals (i.e. 10^baseDecimals) of the base currency
+        int baseDecimals;
+        // The decimals (i.e. 10^quoteDecimals) of the quote currency
+        int quoteDecimals;
+        // The exchange rate from base to quote (if invert is required it is already done)
+        int rate;
+        // Amount of buffer to apply to the exchange rate for negative balances.
+        int buffer;
+        // Amount of haircut to apply to the exchange rate for positive balances
+        int haircut;
+    }
+
+    /**
+     * @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
+     * always applied in this method.
      *
      * @param er exchange rate object from base to ETH
-     * @param baseDecimals decimals for base currency
-     * @param balance amount to convert
      * @return the converted balance denominated in ETH with 18 decimal places
      */
     function _convertToETH(
         Rate memory er,
-        uint baseDecimals,
-        int balance,
-        bool buffer
-    ) internal view returns (int) {
-        // Fetches the latest answer from the chainlink oracle and buffer it by the apporpriate amount.
-        uint rate = _fetchExchangeRate(er, false);
-        uint absBalance = uint(balance.abs());
-        uint rateDecimals = 10**er.rateDecimalsPlaces;
-        uint bufferFactor = buffer ? uint(er.buffer).mul(BUFFER_DECIMALS) : ETH_DECIMALS;
+        int balance
+    ) internal pure returns (int) {
+        if (balance == 0) return 0;
+        int multiplier = balance > 0 ? er.haircut : er.buffer;
 
         // We are converting to ETH here so we know that it has 1e18 precision. The calculation here is:
-        // baseDecimals * rateDecimals * bufferDecimals * bufferDecimals /  (rateDecimals * baseDecimals)
-        // er.buffer is in Common.DECIMAL precision
-        // We use uint256 to do the calculation and then cast back to int256 to avoid overflows.
-        int result = int(
-            SafeCast.toUint128(rate
-                .mul(absBalance)
-                // Buffer has 9 decimal places of precision
-                .mul(bufferFactor)
-                .div(rateDecimals)
-                .div(baseDecimals)
-            )
-        );
+        // baseDecimals * rateDecimals * multiplier * ethDecimals /  (rateDecimals * baseDecimals * multiplierDecimals)
+        // Therefore the result is in ethDecimals
+        int result = balance
+            .mul(er.rate)
+            .mul(multiplier)
+            .mul(ETH_DECIMALS)
+            .div(MULTIPLIER_DECIMALS)
+            .div(er.rateDecimals)
+            .div(er.baseDecimals);
 
-        return balance > 0 ? result : result.neg();
+        return result;
     }
 
     /**
-     * @notice Converts the balance denominated in ETH to the equivalent value in base.
+     * @notice Converts the balance denominated in ETH to the equivalent value in a base currency.
+     * Buffers and haircuts ARE NOT applied in this method.
+     *
      * @param er exchange rate object from base to ETH
-     * @param baseDecimals decimals for base currency
      * @param balance amount (denominated in ETH) to convert
      */
     function _convertETHTo(
         Rate memory er,
-        uint baseDecimals,
         int balance
-    ) internal view returns (int) {
-        uint rate = _fetchExchangeRate(er, true);
-        uint absBalance = uint(balance.abs());
-        uint rateDecimals = 10**er.rateDecimalsPlaces;
+    ) internal pure returns (int) {
+        if (balance == 0) return 0;
 
         // We are converting from ETH here so we know that it has 1e18 precision. The calculation here is:
         // ethDecimals * rateDecimals * baseDecimals / (ethDecimals * rateDecimals)
-        // er.buffer is in Common.DECIMAL precision
-        // We use uint256 to do the calculation and then cast back to int256 to avoid overflows.
-        int result = int(
-            SafeCast.toUint128(rate
-                .mul(absBalance)
-                .mul(baseDecimals)
-                .div(ETH_DECIMALS)
-                .div(rateDecimals)
-            )
-        );
+        int result = balance
+            .mul(er.rateDecimals)
+            .mul(er.baseDecimals)
+            .div(er.rate)
+            .div(ETH_DECIMALS);
 
-        return balance > 0 ? result : result.neg();
+        return result;
     }
 
+    /**
+     * @notice Converts an asset value to its underlying token value. Buffers and haircuts ARE NOT
+     * applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance. Underlying
+     * is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
+     * in these exchange rates.
+     *
+     * @param er exchange rate object between asset and underlying
+     * @param assetBalance amount (denominated in asset value) to convert to underlying
+     */
     function _convertToUnderlying(
         Rate memory er,
-        uint underlyingDecimals,
-        int balance
-    ) internal view returns (int) {
-        uint assetRate = IConvertableOracle(er.rateOracle).getAssetRate();
-        uint absBalance = uint(balance.abs());
-        // assetRate * balance / assetRateDecimals
+        int assetBalance
+    ) internal pure returns (int) {
+        if (assetBalance == 0) return 0;
+        require(er.quoteDecimals > 0, "ExchangeRate: quote decimal");
 
-        int result = int(
-            SafeCast.toUint128(assetRate.mul(absBalance).div(assetRateDecimals))
-        )
+        // Calculation here represents:
+        // rateDecimals * baseDecimals * quoteDecimals / (rateDecimals * baseDecimals)
+        int underlyingBalance = er.rate
+            .mul(assetBalance)
+            .mul(er.quoteDecimals)
+            .div(er.rateDecimals)
+            .div(er.baseDecimals);
 
-        return balance > 0 ? result : result.neg();
+        return underlyingBalance;
     }
 
+    /**
+     * @notice Converts an underlying value to its asset token value. Buffers and haircuts ARE NOT
+     * applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance. Underlying
+     * is referred to as the base currency in these exchange rates.
+     *
+     * @param er exchange rate object between asset and underlying
+     * @param underlyingBalance amount (denominated in underlying value) to convert to asset value
+     */
     function _convertFromUnderlying(
         Rate memory er,
-        int balance
-    ) internal view returns (int) {
-        uint assetRate = IConvertableOracle(er.rateOracle).getAssetRate();
-        uint absBalance = uint(balance.abs());
+        int underlyingBalance
+    ) internal pure returns (int) {
+        if (underlyingBalance == 0) return 0;
+        require(er.quoteDecimals > 0, "ExchangeRate: quote decimal");
 
-        // assetRate * assetRateDecimals / balance
-        int result = int(
-            SafeCast.toUint128(assetRate.mul(assetRateDecimals).div(balance))
-        )
+        // Calculation here represents:
+        // rateDecimals * baseDecimals * quoteDecimals / (rateDecimals * baseDecimals)
+        int assetBalance = underlyingBalance
+            .mul(er.baseDecimals)
+            .mul(er.rateDecimals)
+            .div(er.rate)
+            .div(er.quoteDecimals);
 
-        return balance > 0 ? result : result.neg();
+        return assetBalance;
     }
 
-    function _fetchExchangeRate(Rate memory er, bool invert) internal view returns (uint) {
+    /**
+     * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate.
+     *
+     * @param baseER base exchange rate struct
+     * @param quoteER quote exchange rate struct
+     */
+    function _exchangeRate(Rate memory baseER, Rate memory quoteER) internal pure returns (int) {
+        return baseER.rate.mul(quoteER.rateDecimals).div(quoteER.rate);
+    }
+
+    /**
+     * @notice Given an exchange rate storage object, returns the in-memory exchange rate object
+     * that will be used in contract calculations.
+     *
+     * @param rateStorage rate storage object
+     */
+    function _fetchExchangeRate(
+        RateStorage memory rateStorage,
+        uint8 baseDecimalPlaces,
+        uint8 quoteDecimalPlaces
+    ) internal view returns (Rate memory) {
         (
             /* uint80 */,
             int rate,
             /* uint256 */,
             /* uint256 */,
             /* uint80 */
-        ) = AggregatorV2V3Interface(er.rateOracle).latestRoundData();
+        ) = AggregatorV2V3Interface(rateStorage.rateOracle).latestRoundData();
         require(rate > 0, "ExchangeRate: invalid rate");
-        uint rateDecimals = 10**er.rateDecimalsPlaces;
+        int rateDecimals = int(10**rateStorage.rateDecimalPlaces);
+        if (rateStorage.mustInvert) rate = rateDecimals.mul(rateDecimals).div(rate);
 
-        if (invert || (er.mustInvert && !invert)) {
-            // If the ER is inverted and we're NOT asking to invert then we need to invert the rate here.
-            return rateDecimals.mul(rateDecimals).div(uint(rate));
-        }
+        int baseDecimals = int(10**baseDecimalPlaces);
+        // If quoteDecimalPlaces is supplied as zero then we set this to zero
+        int quoteDecimals = quoteDecimalPlaces == 0 ? 0 : int(10**quoteDecimalPlaces);
 
-        return uint(rate);
-    }
-
-    /**
-     * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate.
-     */
-    function _exchangeRate(Rate memory baseER, Rate memory quoteER, uint16 quote) internal view returns (uint) {
-        uint rate = _fetchExchangeRate(baseER, false);
-
-        if (quote != 0) {
-            uint quoteRate = _fetchExchangeRate(quoteER, false);
-            uint rateDecimals = 10**quoteER.rateDecimalsPlaces;
-
-            rate = rate.mul(rateDecimals).div(quoteRate);
-        }
-
-        return rate;
+        return Rate({
+            rateDecimals: rateDecimals,
+            baseDecimals: baseDecimals,
+            quoteDecimals: quoteDecimals,
+            rate: rate,
+            buffer: rateStorage.buffer,
+            haircut: rateStorage.haircut
+        });
     }
 
 }
 
 
 contract MockExchangeRate {
+    using SafeInt256 for int256;
+
+    function assertBalanceSign(int balance, int result) private pure {
+        if (balance == 0) assert(result == 0);
+        else if (balance < 0) assert(result < 0);
+        else if (balance > 0) assert(result > 0);
+    }
+
+    // Prove that exchange rates move in the correct direction
+    function assertRateDirection(
+        int base,
+        int quote,
+        int baseDecimals,
+        int quoteDecimals,
+        ExchangeRate.Rate memory er
+    ) private pure {
+        require(er.rate > 0);
+        require(baseDecimals > 0);
+        require(quoteDecimals > 0);
+
+        if (base == 0) return;
+
+        int baseInQuoteDecimals = base.mul(quoteDecimals).div(baseDecimals).abs();
+        int quoteAbs = quote.abs();
+        if (er.rate == er.rateDecimals) {
+            assert(quoteAbs == baseInQuoteDecimals);
+        } else if (er.rate < er.rateDecimals) {
+            assert(quoteAbs < baseInQuoteDecimals);
+        } else if (er.rate > er.rateDecimals) {
+            assert(quoteAbs > baseInQuoteDecimals);
+        }
+    }
 
     function convertToETH(
         ExchangeRate.Rate memory er,
-        uint256 baseDecimals,
-        int256 balance,
-        bool buffer
-    ) external view returns (int) {
-        return ExchangeRate._convertToETH(er, baseDecimals, balance, buffer);
+        int balance
+    ) external pure returns (int) {
+        require(er.rate > 0);
+        int result = ExchangeRate._convertToETH(er, balance);
+        assertBalanceSign(balance, result);
+
+        return result;
     }
 
     function convertETHTo(
         ExchangeRate.Rate memory er,
-        uint baseDecimals,
         int balance
-    ) external view returns (int) {
-        return ExchangeRate._convertETHTo(er, baseDecimals, balance);
+    ) external pure returns (int) {
+        require(er.rate > 0);
+        int result = ExchangeRate._convertETHTo(er, balance);
+        assertBalanceSign(balance, result);
+        assertRateDirection(result, balance, er.baseDecimals, 1e18, er);
+
+        return result;
     }
 
-    function fetchExchangeRate(
+    function convertToUnderlying(
         ExchangeRate.Rate memory er,
-        bool invert
-    ) external view returns (uint) {
-        return ExchangeRate._fetchExchangeRate(er, invert);
+        int balance
+    ) external pure returns (int) {
+        require(er.rate > 0);
+        int result = ExchangeRate._convertToUnderlying(er, balance);
+        assertBalanceSign(balance, result);
+        assertRateDirection(balance, result, er.baseDecimals, er.quoteDecimals, er);
+
+        return result;
+    }
+
+    function convertFromUnderlying(
+        ExchangeRate.Rate memory er,
+        int balance
+    ) external pure returns (int) {
+        require(er.rate > 0);
+        int result = ExchangeRate._convertFromUnderlying(er, balance);
+        assertBalanceSign(balance, result);
+        assertRateDirection(result, balance, er.baseDecimals, er.quoteDecimals, er);
+
+        return result;
     }
 
     function exchangeRate(
         ExchangeRate.Rate memory baseER,
-        ExchangeRate.Rate memory quoteER,
-        uint16 quote
-    ) external view returns (uint256) {
-        return ExchangeRate._exchangeRate(baseER, quoteER, quote);
+        ExchangeRate.Rate memory quoteER
+    ) external pure returns (int) {
+        require(baseER.rate > 0);
+        require(quoteER.rate > 0);
+
+        int result = ExchangeRate._exchangeRate(baseER, quoteER);
+        assert(result > 0);
+
+        return result;
     }
+
+    function fetchExchangeRate(
+        ExchangeRate.RateStorage memory rateStorage,
+        uint8 baseDecimalPlaces,
+        uint8 quoteDecimalPlaces
+    ) external view returns (ExchangeRate.Rate memory) {
+        return ExchangeRate._fetchExchangeRate(rateStorage, baseDecimalPlaces, quoteDecimalPlaces);
+    }
+
 
 }

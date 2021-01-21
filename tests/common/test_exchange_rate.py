@@ -1,5 +1,6 @@
+from itertools import product
+
 import pytest
-from brownie.test import given, strategy
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,78 +18,135 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.mark.parametrize(
-    "decimals,mustInvert", [(6, True), (6, False), (8, True), (8, False), (18, True), (18, False)]
-)
-def test_convert_to_eth(accounts, MockAggregator, exchangeRate, decimals, mustInvert):
-    aggregator = accounts[0].deploy(MockAggregator, decimals)
-    aggregator.setAnswer(10 ** decimals / 100)
+parameterNames = "rateDecimals,baseDecimals,quoteDecimals,mustInvert"
+parameterValues = list(product([6, 8, 18], [6, 8, 18], [0, 6, 8, 18], [True, False]))
 
-    eth = exchangeRate.convertToETH(
-        (aggregator.address, aggregator.decimals(), mustInvert, 1e9),
-        10 ** decimals,
-        10 ** decimals,
-        False,
-    )
+
+@pytest.mark.parametrize(parameterNames, parameterValues)
+def test_fetch_exchange_rate(
+    accounts, MockAggregator, exchangeRate, rateDecimals, baseDecimals, quoteDecimals, mustInvert
+):
+    aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
+    aggregator.setAnswer(10 ** rateDecimals / 100)
+
+    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80)
+
+    (
+        erRateDecimals,
+        erBaseDecimals,
+        erQuoteDecimals,
+        erRate,
+        erBuffer,
+        erHaircut,
+    ) = exchangeRate.fetchExchangeRate(rateStorage, baseDecimals, quoteDecimals)
+
+    if quoteDecimals == 0:
+        assert erQuoteDecimals == 0
+    else:
+        assert erQuoteDecimals == 10 ** quoteDecimals
+
+    assert erRateDecimals == 10 ** rateDecimals
+    assert erBaseDecimals == 10 ** baseDecimals
 
     if mustInvert:
-        assert eth == 1e20
+        assert erRate == 10 ** rateDecimals * 100
     else:
-        assert eth == 1e16
+        assert erRate == 10 ** rateDecimals / 100
 
 
-@pytest.mark.parametrize(
-    "decimals,mustInvert", [(6, True), (6, False), (8, True), (8, False), (18, True), (18, False)]
-)
-def test_convert_eth_to_decimals(accounts, MockAggregator, exchangeRate, decimals, mustInvert):
-    aggregator = accounts[0].deploy(MockAggregator, decimals)
-    aggregator.setAnswer(10 ** decimals / 100)
+def test_convert_to_eth(exchangeRate):
+    rate = (1e18, 1e6, 0, 0.01e18, 120, 80)
 
-    base = exchangeRate.convertETHTo(
-        (aggregator.address, aggregator.decimals(), mustInvert, 1e9), 10 ** decimals, 1e18
-    )
+    eth = exchangeRate.convertToETH(rate, 0)
+    assert eth == 0
 
-    assert base == (10 ** decimals * 100)
+    eth = exchangeRate.convertToETH(rate, -100e6)
+    assert eth == -1.2e18
 
+    eth = exchangeRate.convertToETH(rate, 100e6)
+    assert eth == 0.8e18
 
-@pytest.mark.parametrize(
-    "decimals,mustInvert", [(6, True), (6, False), (8, True), (8, False), (18, True), (18, False)]
-)
-def test_fetch_exchange_rate(accounts, MockAggregator, exchangeRate, decimals, mustInvert):
-    aggregator = accounts[0].deploy(MockAggregator, decimals)
-    aggregator.setAnswer(10 ** decimals / 100)
+    rate = (1e8, 1e8, 0, 10e8, 120, 80)
 
-    rate = exchangeRate.fetchExchangeRate(
-        (aggregator.address, aggregator.decimals(), mustInvert, 1e9), False
-    )
+    eth = exchangeRate.convertToETH(rate, 0)
+    assert eth == 0
 
-    if mustInvert:
-        assert rate == 10 ** decimals * 100
-    else:
-        assert rate == 10 ** decimals / 100
+    eth = exchangeRate.convertToETH(rate, -1e8)
+    assert eth == -12e18
+
+    eth = exchangeRate.convertToETH(rate, 1e8)
+    assert eth == 8e18
 
 
-@pytest.mark.parametrize(
-    "decimals,mustInvert", [(6, True), (6, False), (8, True), (8, False), (18, True), (18, False)]
-)
-def test_fetch_exchange_rate_invert(accounts, MockAggregator, exchangeRate, decimals, mustInvert):
-    aggregator = accounts[0].deploy(MockAggregator, decimals)
-    aggregator.setAnswer(10 ** decimals / 100)
+def test_convert_eth_to(exchangeRate):
+    rate = (1e18, 1e6, 0, 0.01e18, 120, 80)
 
-    rate = exchangeRate.fetchExchangeRate(
-        (aggregator.address, aggregator.decimals(), mustInvert, 1e9), True
-    )
+    usdc = exchangeRate.convertETHTo(rate, 0)
+    assert usdc == 0
 
-    # ETH is always the quote in the call above so mustInvert has no effect here
-    assert rate == 10 ** decimals * 100
+    # No buffer or haircut on this function
+    usdc = exchangeRate.convertETHTo(rate, -1e18)
+    assert usdc == -100e6
+
+    usdc = exchangeRate.convertETHTo(rate, 1e18)
+    assert usdc == 100e6
+
+    rate = (1e18, 1e6, 0, 10e18, 120, 80)
+
+    usdc = exchangeRate.convertETHTo(rate, 0)
+    assert usdc == 0
+
+    # No buffer or haircut on this function
+    usdc = exchangeRate.convertETHTo(rate, -1e18)
+    assert usdc == -0.1e6
+
+    usdc = exchangeRate.convertETHTo(rate, 1e18)
+    assert usdc == 0.1e6
 
 
-@given(buffer=strategy("uint32", min_value=1e9, max_value=2e9))
-def test_convert_to_eth_buffer(aggregator, exchangeRate, buffer):
-    aggregator.setAnswer(1e18)
+def test_convert_to_underlying(exchangeRate):
+    rate = (1e8, 1e6, 1e8, 0.01e8, 120, 80)
 
-    eth = exchangeRate.convertToETH(
-        (aggregator.address, aggregator.decimals(), False, buffer), 1e18, 1e18, True
-    )
+    underlying = exchangeRate.convertToUnderlying(rate, 0)
+    assert underlying == 0
 
-    assert eth == buffer * 1e9
+    underlying = exchangeRate.convertToUnderlying(rate, -100e6)
+    assert underlying == -1e8
+
+    underlying = exchangeRate.convertToUnderlying(rate, 100e6)
+    assert underlying == 1e8
+
+    rate = (1e8, 1e6, 1e8, 10e8, 120, 80)
+
+    underlying = exchangeRate.convertToUnderlying(rate, 0)
+    assert underlying == 0
+
+    underlying = exchangeRate.convertToUnderlying(rate, -100e6)
+    assert underlying == -1000e8
+
+    underlying = exchangeRate.convertToUnderlying(rate, 100e6)
+    assert underlying == 1000e8
+
+
+def test_convert_from_underlying(exchangeRate):
+    rate = (1e8, 1e6, 1e8, 0.01e8, 120, 80)
+
+    asset = exchangeRate.convertFromUnderlying(rate, 0)
+    assert asset == 0
+
+    asset = exchangeRate.convertFromUnderlying(rate, -1e8)
+    assert asset == -100e6
+
+    asset = exchangeRate.convertFromUnderlying(rate, 1e8)
+    assert asset == 100e6
+
+    rate = (1e8, 1e6, 1e8, 10e8, 120, 80)
+
+    asset = exchangeRate.convertFromUnderlying(rate, 0)
+    assert asset == 0
+
+    asset = exchangeRate.convertFromUnderlying(rate, -1e8)
+    assert asset == -0.1e6
+
+    asset = exchangeRate.convertFromUnderlying(rate, 1e8)
+    assert asset == 0.1e6
