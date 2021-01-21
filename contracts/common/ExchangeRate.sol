@@ -11,8 +11,8 @@ library ExchangeRate {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    uint internal constant BUFFER_DECIMALS = 1e9;
-    uint internal constant ETH_DECIMALS = 1e18;
+    uint public constant BUFFER_DECIMALS = 1e9;
+    uint public constant ETH_DECIMALS = 1e18;
 
     /** Exchange rates between currencies */
     struct Rate {
@@ -91,6 +91,37 @@ library ExchangeRate {
                 .div(rateDecimals)
             )
         );
+
+        return balance > 0 ? result : result.neg();
+    }
+
+    function _convertToUnderlying(
+        Rate memory er,
+        uint underlyingDecimals,
+        int balance
+    ) internal view returns (int) {
+        uint assetRate = IConvertableOracle(er.rateOracle).getAssetRate();
+        uint absBalance = uint(balance.abs());
+        // assetRate * balance / assetRateDecimals
+
+        int result = int(
+            SafeCast.toUint128(assetRate.mul(absBalance).div(assetRateDecimals))
+        )
+
+        return balance > 0 ? result : result.neg();
+    }
+
+    function _convertFromUnderlying(
+        Rate memory er,
+        int balance
+    ) internal view returns (int) {
+        uint assetRate = IConvertableOracle(er.rateOracle).getAssetRate();
+        uint absBalance = uint(balance.abs());
+
+        // assetRate * assetRateDecimals / balance
+        int result = int(
+            SafeCast.toUint128(assetRate.mul(assetRateDecimals).div(balance))
+        )
 
         return balance > 0 ? result : result.neg();
     }

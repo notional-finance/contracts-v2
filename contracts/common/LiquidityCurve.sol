@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "../math/SafeUInt128.sol";
 import "../math/ABDKMath64x64.sol";
+import "../common/ExchangeRate.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 
@@ -26,6 +27,7 @@ struct Market {
 struct CashGroup {
     uint32 liquidityFee;
     uint16 rateScalar;
+    address assetOracle;
 }
 
 library LiquidityCurve {
@@ -118,7 +120,9 @@ library LiquidityCurve {
         }
 
         // cash = fCashAmount / exchangeRate
+        // TODO: need to convert to interest bearing token terms here
         uint128 cash = SafeCast.toUint128(uint(fCashAmount.abs()).mul(RATE_PRECISION).div(tradeExchangeRate));
+        uint128 convertedCash = ExchangeRate._convertFromUnderlying(CashGroup.assetOracle, cash);
 
         // Update the markets accordingly.
         if (fCashAmount > 0) {
@@ -236,10 +240,17 @@ library LiquidityCurve {
 
         // This will always be positive, we do a check beforehand in _tradeCalculation
         uint numerator = uint(int(marketState.totalfCash).add(fCashAmount));
+
+        uint128 totalCurrentCashUnderlying = ExchangeRate._convertToUnderlying(
+            CashGroup.assetOracle,
+            marketState.totalCurrentCash
+        );
+
         // This is always less than PROPORTION_PRECISION
         uint proportion = numerator
             .mul(PROPORTION_PRECISION)
-            .div(marketState.totalfCash.add(marketState.totalCurrentCash));
+            // TODO: convert totalCurrentCash into underlying terms
+            .div(marketState.totalfCash.add(totalCurrentCashUnderlying));
 
         // proportion' = proportion / (1 - proportion)
         proportion = proportion
