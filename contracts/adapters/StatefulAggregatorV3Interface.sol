@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.0;
 
-interface AggregatorV3Interface {
+/**
+ * @dev A modified aggregator interface when the latestRoundData call must modify
+ * state of the underlying contract
+ */
+interface StatefulAggregatorV3Interface {
 
   function decimals() external view returns (uint8);
   function description() external view returns (string memory);
@@ -23,7 +27,6 @@ interface AggregatorV3Interface {
 
   function latestRoundData()
     external
-    view
     returns (
       uint80 roundId,
       int256 answer,
