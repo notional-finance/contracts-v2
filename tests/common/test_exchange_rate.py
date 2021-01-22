@@ -23,7 +23,7 @@ parameterValues = list(product([6, 8, 18], [6, 8, 18], [0, 6, 8, 18], [True, Fal
 
 
 @pytest.mark.parametrize(parameterNames, parameterValues)
-def test_fetch_exchange_rate(
+def test_build_exchange_rate(
     accounts, MockAggregator, exchangeRate, rateDecimals, baseDecimals, quoteDecimals, mustInvert
 ):
     aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
@@ -38,7 +38,7 @@ def test_fetch_exchange_rate(
         erRate,
         erBuffer,
         erHaircut,
-    ) = exchangeRate.fetchExchangeRate(rateStorage, baseDecimals, quoteDecimals)
+    ) = exchangeRate.buildExchangeRate(rateStorage, baseDecimals, quoteDecimals)
 
     if quoteDecimals == 0:
         assert erQuoteDecimals == 0

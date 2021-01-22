@@ -8,7 +8,8 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 /**
- * @dev Exchange rate object as it is represented in storage. Total storage is 52 bytes.
+ * @dev Exchange rate object as it is represented in storage.
+ * Total storage is 24 bytes.
  */
 struct RateStorage {
     // Address of the rate oracle
@@ -178,7 +179,7 @@ library ExchangeRate {
      *
      * @param rateStorage rate storage object
      */
-    function fetchExchangeRate(
+    function buildExchangeRate(
         RateStorage memory rateStorage,
         uint8 baseDecimalPlaces,
         uint8 quoteDecimalPlaces
@@ -306,12 +307,12 @@ contract MockExchangeRate {
         return result;
     }
 
-    function fetchExchangeRate(
+    function buildExchangeRate(
         RateStorage memory rateStorage,
         uint8 baseDecimalPlaces,
         uint8 quoteDecimalPlaces
     ) external view returns (Rate memory) {
-        return ExchangeRate.fetchExchangeRate(rateStorage, baseDecimalPlaces, quoteDecimalPlaces);
+        return ExchangeRate.buildExchangeRate(rateStorage, baseDecimalPlaces, quoteDecimalPlaces);
     }
 
 
