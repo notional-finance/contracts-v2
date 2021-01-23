@@ -89,7 +89,7 @@ library ABDKMath64x64 {
      * @param y signed 64.64-bit fixed point number
      * @return signed 64.64-bit fixed point number
      */
-    function div (int128 x, int128 y) internal pure returns (int128) {
+    function div(int128 x, int128 y) internal pure returns (int128) {
         require (y != 0);
         int256 result = (int256 (x) << 64) / y;
         require (result >= MIN_64x64 && result <= MAX_64x64);

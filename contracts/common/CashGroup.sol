@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
-import "./LiquidityCurve.sol";
+import "./Market.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
@@ -231,7 +231,7 @@ library CashGroup {
        uint timeToMaturity
     ) internal pure returns (int) {
         int rateScalar = cashGroup.rateScalar
-            .mul(int(LiquidityCurve.NORMALIZED_RATE_TIME))
+            .mul(int(Market.IMPLIED_RATE_TIME))
             .div(int(timeToMaturity));
 
         require(rateScalar > 0, "CG: rate scalar underflow");
@@ -248,7 +248,7 @@ library CashGroup {
     ) internal pure returns (uint) {
         return cashGroup.liquidityFee
             .mul(timeToMaturity)
-            .div(LiquidityCurve.NORMALIZED_RATE_TIME);
+            .div(Market.IMPLIED_RATE_TIME);
     }
     // - getIncentives(timeToMaturity)
     // - getLiquidityHaircut(timeToMaturity)
@@ -297,7 +297,7 @@ library CashGroup {
     function buildCashGroup(
         CashGroupParameterStorage memory cashGroupStorage
     ) internal view returns (CashGroupParameters memory) {
-        uint liquidityFeeScaled = cashGroupStorage.liquidityFee * LiquidityCurve.BASIS_POINT;
+        uint liquidityFeeScaled = cashGroupStorage.liquidityFee * Market.BASIS_POINT;
         uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowDays * DAY;
 
         return CashGroupParameters({
