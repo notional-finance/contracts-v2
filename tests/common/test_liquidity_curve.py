@@ -105,3 +105,12 @@ def test_implied_rate(market, initRate, timeToMaturity):
 
         # The implied rate does decay on roll down do a small degree
         assert pytest.approx(newImpliedRate, rel=1e-5) == impliedRate
+
+
+# @given(
+#     initRate=strategy("uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION),
+#     # Days between 30 months and 20 years
+#     timeToMaturity=strategy("uint", min_value=90, max_value=7200),
+# )
+# def test_rate_oracle(market, timeWindow, previousTradeTime):
+#     pass

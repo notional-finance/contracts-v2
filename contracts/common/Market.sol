@@ -22,6 +22,10 @@ struct MarketParameters {
     uint totalLiquidity;
     // This is the implied rate that we use to smooth the anchor rate between trades.
     uint lastImpliedRate;
+    // This is the oracle rate used to value fCash and prevent flash loan attacks
+    uint oracleRate;
+    // This is the timestamp of the previous trade
+    uint previousTradeTime;
 }
 
 library Market {
@@ -167,6 +171,41 @@ library Market {
 
         return (marketState, netAssetCash, netCash);
     }
+    
+    /**
+     * @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
+     * on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
+     * a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
+     * Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
+     * be liquidated.
+     *
+     * The oracle rate is a lagged weighted average over a short term price window. The formula is:
+     * lastImpliedRatePostTrade * min((currentTs - previousTs) / timeWindow, 1) +
+     *      oracleRatePrevious * max(timeWindow - (currentTs - previousTs) / timeWindow, 0)
+     * 
+     */
+    function updateRateOracle(
+        MarketParameters memory marketState,
+        CashGroupParameters memory cashGroup,
+        uint blockTime
+    ) internal pure returns (MarketParameters memory) {
+        uint timeDiff = blockTime.sub(marketState.previousTradeTime);
+        uint weight = timeDiff
+            .mul(uint(RATE_PRECISION))
+            .div(cashGroup.rateOracleTimeWindow);
+        
+        uint newTradeWeight = weight < uint(RATE_PRECISION) ? weight : uint(RATE_PRECISION);
+        uint oracleWeight = timeDiff < cashGroup.rateOracleTimeWindow ?
+            cashGroup.rateOracleTimeWindow.mul(uint(RATE_PRECISION)).sub(weight) : 0;
+
+
+        marketState.oracleRate = marketState.lastImpliedRate.mul(newTradeWeight)
+            .add(marketState.oracleRate.mul(oracleWeight))
+            .div(uint(RATE_PRECISION));
+        marketState.previousTradeTime = blockTime;
+
+        return marketState;
+    }
 
     /**
      * @notice Rate anchors update as the market gets closer to maturity. Rate anchors are not comparable
@@ -199,6 +238,8 @@ library Market {
         int exchangeRate;
         {
             int128 expValue = ABDKMath64x64.fromUInt(
+                // There is a bit of imprecision from this division here but if we use
+                // int128 then we will get overflows so unclear how we can maintain the precision
                 lastImpliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME)
             );
             int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
