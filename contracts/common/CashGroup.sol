@@ -296,7 +296,7 @@ library CashGroup {
      */
     function buildCashGroup(
         CashGroupParameterStorage memory cashGroupStorage
-    ) internal view returns (CashGroupParameters memory) {
+    ) internal pure returns (CashGroupParameters memory) {
         uint liquidityFeeScaled = cashGroupStorage.liquidityFee * Market.BASIS_POINT;
         uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowDays * DAY;
 
