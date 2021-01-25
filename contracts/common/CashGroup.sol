@@ -262,25 +262,12 @@ library CashGroup {
         return annualizeUintValue(cashGroup.liquidityFee, timeToMaturity);
     }
 
-    function getPositivefCashHaircut(
-        CashGroupParameters memory cashGroup,
-        uint timeToMaturity
-    ) internal pure returns (uint) {
-        return annualizeUintValue(cashGroup.fCashHaircut, timeToMaturity);
-    }
-
-    function getNegativefCashBuffer(
-        CashGroupParameters memory cashGroup,
-        uint timeToMaturity
-    ) internal pure returns (uint) {
-        return annualizeUintValue(cashGroup.debtBuffer, timeToMaturity);
-    }
-
     function getLiquidityHaircut(
         CashGroupParameters memory cashGroup,
         uint timeToMaturity
     ) internal pure returns (uint) {
-        return annualizeUintValue(cashGroup.liquidityTokenHaircut, timeToMaturity);
+        // TODO: unclear how this should be calculated
+        return cashGroup.liquidityTokenHaircut;
     }
 
     /**

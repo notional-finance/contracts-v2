@@ -2,10 +2,7 @@ import math
 
 import pytest
 from brownie.test import given, strategy
-
-SECONDS_IN_DAY = 86400
-RATE_PRECISION = 1e9
-NORMALIZED_RATE_TIME = 31104000
+from common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -62,11 +59,7 @@ def test_exchange_rate_proportion(market, proportion):
     )
 
 
-@given(
-    initRate=strategy("uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION),
-    # Days between 30 months and 20 years
-    timeToMaturity=strategy("uint", min_value=90, max_value=7200),
-)
+@given(initRate=impliedRateStrategy, timeToMaturity=timeToMaturityStrategy)
 def test_implied_rate(market, initRate, timeToMaturity):
     totalfCash = 1e18
     totalCashUnderlying = 1e18

@@ -1,12 +1,7 @@
 import brownie
 import pytest
 from brownie.test import given, strategy
-
-# Jan 1 2021
-START_TIME = 1609459200
-SECONDS_IN_DAY = 86400
-SECONDS_IN_YEAR = SECONDS_IN_DAY * 360
-BASIS_POINT = 1e9 / 10000
+from common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,19 +12,6 @@ def cashGroup(MockCashGroup, accounts):
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
-
-
-BASE_CASH_GROUP = [
-    1,  # 0: cash group id
-    600,  # 1: time window, 10 min
-    30 * BASIS_POINT,  # 2: liquidity fee, 30 BPS
-    100,  # 3: rate scalar
-    8,  # 4: max market index
-    97,  # 5: liquidity token haircut (97%)
-    30 * BASIS_POINT,  # 6: debt buffer 30 bps
-    30 * BASIS_POINT,  # 7: fcash haircut 30 bps
-    (1e18, 1e18, 1e18, 1e18, 100, 100),  # asset rate, identity
-]
 
 
 def test_invalid_max_market(cashGroup):

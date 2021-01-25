@@ -36,7 +36,7 @@ library Asset {
      * @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
      * notional * e^(-rate * timeToMaturity).
      */
-    function getCompoundRate(
+    function getDiscountFactor(
         uint timeToMaturity,
         uint oracleRate
     ) internal pure returns (int) {
@@ -46,9 +46,9 @@ library Asset {
         expValue = ABDKMath64x64.div(expValue, Market.RATE_PRECISION_64x64);
         expValue = ABDKMath64x64.exp(expValue * -1);
         expValue = ABDKMath64x64.mul(expValue, Market.RATE_PRECISION_64x64);
-        int compoundRate = ABDKMath64x64.toInt(expValue);
+        int discountFactor = ABDKMath64x64.toInt(expValue);
 
-        return compoundRate;
+        return discountFactor;
     }
 
     /**
@@ -62,10 +62,10 @@ library Asset {
         if (fCash.notional == 0) return 0;
 
         uint timeToMaturity = fCash.maturity.sub(blockTime);
-        int compoundRate = getCompoundRate(timeToMaturity, oracleRate);
+        int discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
-        require(compoundRate >= Market.RATE_PRECISION, "A: negative compound rate");
-        return fCash.notional.mul(compoundRate).div(Market.RATE_PRECISION);
+        require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
+        return fCash.notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
     /**
@@ -83,22 +83,20 @@ library Asset {
 
         uint timeToMaturity = fCash.maturity.sub(blockTime);
 
-        int compoundRate;
+        int discountFactor;
         if (fCash.notional > 0) {
-            uint adjustment = cashGroup.getPositivefCashHaircut(timeToMaturity);
-            compoundRate = getCompoundRate(timeToMaturity, oracleRate.add(adjustment));
+            discountFactor = getDiscountFactor(timeToMaturity, oracleRate.add(cashGroup.fCashHaircut));
         } else {
-            uint adjustment = cashGroup.getNegativefCashBuffer(timeToMaturity);
             // If the adjustment exceeds the oracle rate we floor the value of the fCash
             // at the notional value. We don't want to require the account to hold more than
             // absolutely required.
-            if (adjustment >= oracleRate) return fCash.notional;
+            if (cashGroup.debtBuffer >= oracleRate) return fCash.notional;
 
-            compoundRate = getCompoundRate(timeToMaturity, oracleRate - adjustment);
+            discountFactor = getDiscountFactor(timeToMaturity, oracleRate - cashGroup.debtBuffer);
         }
 
-        require(compoundRate >= Market.RATE_PRECISION, "A: negative compound rate");
-        return fCash.notional.mul(compoundRate).div(Market.RATE_PRECISION);
+        require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
+        return fCash.notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
     /**
@@ -171,12 +169,8 @@ library Asset {
         uint maturity,
         MarketParameters[] memory marketStates
     ) internal pure returns (uint, bool) {
+        // This assumes that market states are sorted, will cause issues otherwise.
         for (uint i; i < marketStates.length; i++) {
-            require(
-                i != 0 && marketStates[i - 1].maturity > marketStates[i].maturity,
-                "A: marketStates not sorted"
-            );
-
             if (marketStates[i].maturity == maturity) return (i, false);
 
             // If this maturity is between two market maturities then it
@@ -197,19 +191,19 @@ library Asset {
      * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
      * interpolatedRate = slope * maturity + shortMarket.oracleRate
      */
-    function interloplateOracleRate(
+    function interpolateOracleRate(
         MarketParameters memory shortMarket,
         MarketParameters memory longMarket,
         uint maturity
     ) internal pure returns (uint) {
-        require(shortMarket.maturity < maturity, "A: interplation error");
-        require(maturity < longMarket.maturity, "A: interplation error");
+        require(shortMarket.maturity < maturity, "A: interpolation error");
+        require(maturity < longMarket.maturity, "A: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get underflows here so we check for that
         if (longMarket.oracleRate >= shortMarket.oracleRate) {
             return (longMarket.oracleRate - shortMarket.oracleRate)
-                .mul(maturity)
+                .mul(maturity - shortMarket.maturity)
                 // No underflow here, checked above
                 .div(longMarket.maturity - shortMarket.maturity)
                 .add(shortMarket.oracleRate);
@@ -219,7 +213,7 @@ library Asset {
             return shortMarket.oracleRate.sub(
                 // This is reversed to keep it it positive
                 (shortMarket.oracleRate - longMarket.oracleRate)
-                    .mul(maturity)
+                    .mul(maturity - shortMarket.maturity)
                     // No underflow here, checked above
                     .div(longMarket.maturity - shortMarket.maturity)
             );
@@ -328,7 +322,7 @@ library Asset {
                 marketStates[groupIndex]
             );
 
-            uint oracleRate = idiosyncractic ? interloplateOracleRate(
+            uint oracleRate = idiosyncractic ? interpolateOracleRate(
                 marketStates[groupIndex][marketIndex],
                 marketStates[groupIndex][marketIndex + 1],
                 fCashAssets[i].maturity
@@ -356,11 +350,11 @@ library Asset {
 contract MockAsset {
     using SafeInt256 for int256;
 
-    function getCompoundRate(
+    function getDiscountFactor(
         uint timeToMaturity,
         uint oracleRate
     ) public pure returns (int) {
-        uint rate = SafeCast.toUint256(Asset.getCompoundRate(timeToMaturity, oracleRate));
+        uint rate = SafeCast.toUint256(Asset.getDiscountFactor(timeToMaturity, oracleRate));
         assert(rate >= oracleRate);
 
         return int(rate);
@@ -389,7 +383,7 @@ contract MockAsset {
         int pv = getPresentValue(fCash, blockTime, oracleRate);
 
         assert(riskPv <= pv);
-        assert(riskPv.abs() < fCash.notional.abs());
+        assert(riskPv.abs() <= fCash.notional.abs());
         return riskPv;
     }
 
@@ -430,12 +424,12 @@ contract MockAsset {
         return Asset.findMarketIndex(maturity, marketStates);
     }
 
-    function interloplateOracleRate(
+    function interpolateOracleRate(
         MarketParameters memory shortMarket,
         MarketParameters memory longMarket,
         uint maturity
     ) public pure returns (uint) {
-        uint rate = Asset.interloplateOracleRate(shortMarket, longMarket, maturity);
+        uint rate = Asset.interpolateOracleRate(shortMarket, longMarket, maturity);
         if (shortMarket.oracleRate == longMarket.oracleRate) {
             assert(rate == shortMarket.oracleRate);
         } else if (shortMarket.oracleRate < longMarket.oracleRate) {
@@ -453,7 +447,7 @@ contract MockAsset {
         MarketParameters[] memory marketStates,
         fCashAsset[] memory fCashAssets,
         uint blockTime
-    ) public pure returns (int, int) {
+    ) public pure returns (int, int, fCashAsset[] memory) {
         (int assetValue, int pv) = Asset.getLiquidityTokenValue(
             liquidityToken,
             cashGroup,
@@ -462,7 +456,7 @@ contract MockAsset {
             blockTime
         );
 
-        return (assetValue, pv);
+        return (assetValue, pv, fCashAssets);
     }
 
     function getRiskAdjustedPortfolioValue(
