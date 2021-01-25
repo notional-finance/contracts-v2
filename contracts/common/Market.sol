@@ -14,12 +14,15 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
  * Market object as represented in memory
  */
 struct MarketParameters {
+    uint cashGroupId;
+    uint maturity;
+
     // Total amount of fCash available for purchase in the market.
     int totalfCash;
     // Total amount of cash available for purchase in the market.
     int totalCurrentCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    uint totalLiquidity;
+    int totalLiquidity;
     // This is the implied rate that we use to smooth the anchor rate between trades.
     uint lastImpliedRate;
     // This is the oracle rate used to value fCash and prevent flash loan attacks
@@ -62,16 +65,15 @@ library Market {
     function calculateTrade(
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
-        Rate memory assetRate,
         int fCashAmount,
         uint timeToMaturity
-    ) internal pure returns (MarketParameters memory, int, int) {
+    ) internal view returns (MarketParameters memory, int, int) {
         if (marketState.totalfCash + fCashAmount <= 0) {
             // We return false if there is not enough fCash to support this trade.
             return (marketState, 0, 0);
         }
         int rateScalar = cashGroup.getRateScalar(timeToMaturity);
-        int totalCashUnderlying = assetRate.convertToUnderlying(marketState.totalCurrentCash);
+        int totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(marketState.totalCurrentCash);
 
         // This will result in a divide by zero
         if (rateScalar == 0) return (marketState, 0, 0);
@@ -126,7 +128,7 @@ library Market {
 
         return getNewMarketState(
             marketState,
-            assetRate,
+            cashGroup.assetRate,
             totalCashUnderlying,
             rateAnchor,
             rateScalar,
@@ -145,7 +147,7 @@ library Market {
         int fCashAmount,
         int tradeExchangeRate,
         uint timeToMaturity
-    ) internal pure returns (MarketParameters memory, int, int) {
+    ) internal view returns (MarketParameters memory, int, int) {
         // cash = fCashAmount / exchangeRate
         // The net cash amount will be the opposite direction of the fCash amount, if we add
         // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
@@ -168,6 +170,8 @@ library Market {
             timeToMaturity
         );
         if (!success) return (marketState, 0, 0);
+        // Sets the trade time for the next oracle update
+        marketState.previousTradeTime = block.timestamp;
 
         return (marketState, netAssetCash, netCash);
     }
@@ -178,11 +182,12 @@ library Market {
      * a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
      * Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
      * be liquidated.
+     * 
+     * Oracle rates are calculated when the market is loaded from storage.
      *
      * The oracle rate is a lagged weighted average over a short term price window. The formula is:
-     * lastImpliedRatePostTrade * min((currentTs - previousTs) / timeWindow, 1) +
+     * lastImpliedRatePreTrade * min((currentTs - previousTs) / timeWindow, 1) +
      *      oracleRatePrevious * max(timeWindow - (currentTs - previousTs) / timeWindow, 0)
-     * 
      */
     function updateRateOracle(
         MarketParameters memory marketState,
@@ -190,19 +195,21 @@ library Market {
         uint blockTime
     ) internal pure returns (MarketParameters memory) {
         uint timeDiff = blockTime.sub(marketState.previousTradeTime);
+        // (currentTs - previousTs) / timeWindow
         uint weight = timeDiff
             .mul(uint(RATE_PRECISION))
             .div(cashGroup.rateOracleTimeWindow);
         
+        // min(weight, 1)
         uint newTradeWeight = weight < uint(RATE_PRECISION) ? weight : uint(RATE_PRECISION);
-        uint oracleWeight = timeDiff < cashGroup.rateOracleTimeWindow ?
+        // max((timeWindow - weight) / timeWindow, 0)
+        uint oracleWeight = timeDiff <= cashGroup.rateOracleTimeWindow ?
             cashGroup.rateOracleTimeWindow.mul(uint(RATE_PRECISION)).sub(weight) : 0;
 
-
-        marketState.oracleRate = marketState.lastImpliedRate.mul(newTradeWeight)
+        marketState.oracleRate = marketState.lastImpliedRate
+            .mul(newTradeWeight)
             .add(marketState.oracleRate.mul(oracleWeight))
             .div(uint(RATE_PRECISION));
-        marketState.previousTradeTime = blockTime;
 
         return marketState;
     }
@@ -433,13 +440,11 @@ contract MockMarket {
    function calculateTrade(
        MarketParameters calldata marketState,
        CashGroupParameters calldata cashGroup,
-       Rate calldata assetRate,
        int fCashAmount,
        uint timeToMaturity
    ) external view returns (MarketParameters memory, int, int) {
        return marketState.calculateTrade(
            cashGroup,
-           assetRate,
            fCashAmount,
            timeToMaturity
         );

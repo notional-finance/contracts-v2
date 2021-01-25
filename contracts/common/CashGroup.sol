@@ -32,23 +32,23 @@ struct CashGroupTokens {
  */
 struct CashGroupParameterStorage {
     /* Market Parameters */
-    // Time window in seconds that the rate oracle will be averaged over
-    uint8 rateOracleTimeWindowDays;
+    // Time window in minutes that the rate oracle will be averaged over
+    uint8 rateOracleTimeWindowMin;
     // Liquidity fee given to LPs per trade, specified in BPS
-    uint8 liquidityFee;
+    uint8 liquidityFeeBPS;
     // Rate scalar used to determine the slippage of the market
     uint16 rateScalar;
     // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
     // that is less than the longest AMM will be tradable.
     uint8 maxMarketIndex;
-    // Global rate anchor used when markets need to be initialized
-    uint32 globalRateAnchor;
 
     /* Risk Parameters */
-    // Liquidity token haircut applied
-    // uint8 liquidityTokenHaircut;
-    // uint8 debtBuffer;
-    // uint8 fCashHaircut;
+    // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
+    uint8 liquidityTokenHaircut;
+    // Debt buffer specified in BPS
+    uint8 debtBufferBPS;
+    // fCash haircut specified in BPS
+    uint8 fCashHaircutBPS;
 
     /* Liquidation Parameters */
     // uint8 settlementPenaltyRate;
@@ -60,11 +60,16 @@ struct CashGroupParameterStorage {
  * @dev Cash group when loaded into memory
  */
 struct CashGroupParameters {
+    uint cashGroupId;
     uint rateOracleTimeWindow;
     uint liquidityFee;
     int rateScalar;
     uint maxMarketIndex;
-    uint globalRateAnchor;
+    uint liquidityTokenHaircut;
+    uint debtBuffer;
+    uint fCashHaircut;
+
+    Rate assetRate;
 }
 
 library CashGroup {
@@ -86,6 +91,7 @@ library CashGroup {
     uint internal constant WEEK_BIT_OFFSET = 91;
     uint internal constant MONTH_BIT_OFFSET = 136;
     uint internal constant QUARTER_BIT_OFFSET = 196;
+    int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
 
 
     /**
@@ -227,8 +233,8 @@ library CashGroup {
      * maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
      */
     function getRateScalar(
-       CashGroupParameters memory cashGroup,
-       uint timeToMaturity
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
     ) internal pure returns (int) {
         int rateScalar = cashGroup.rateScalar
             .mul(int(Market.IMPLIED_RATE_TIME))
@@ -237,21 +243,45 @@ library CashGroup {
         require(rateScalar > 0, "CG: rate scalar underflow");
         return rateScalar;
     }
+
+    function annualizeUintValue(
+        uint value,
+        uint timeToMaturity
+    ) private pure returns (uint) {
+        return value.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME);
+    }
     
     /**
      * @notice Returns liquidity fees scaled by time to maturity. The liquidity fee is denominated
      * in basis points and will decrease with time to maturity.
      */
     function getLiquidityFee(
-       CashGroupParameters memory cashGroup,
-       uint timeToMaturity
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
     ) internal pure returns (uint) {
-        return cashGroup.liquidityFee
-            .mul(timeToMaturity)
-            .div(Market.IMPLIED_RATE_TIME);
+        return annualizeUintValue(cashGroup.liquidityFee, timeToMaturity);
     }
-    // - getIncentives(timeToMaturity)
-    // - getLiquidityHaircut(timeToMaturity)
+
+    function getPositivefCashHaircut(
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
+    ) internal pure returns (uint) {
+        return annualizeUintValue(cashGroup.fCashHaircut, timeToMaturity);
+    }
+
+    function getNegativefCashBuffer(
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
+    ) internal pure returns (uint) {
+        return annualizeUintValue(cashGroup.debtBuffer, timeToMaturity);
+    }
+
+    function getLiquidityHaircut(
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
+    ) internal pure returns (uint) {
+        return annualizeUintValue(cashGroup.liquidityTokenHaircut, timeToMaturity);
+    }
 
     /**
      * @notice Called if totalLiquidity is equal to zero. Will initialize the market with the
@@ -295,17 +325,25 @@ library CashGroup {
      * @notice Converts cash group storage object into memory object
      */
     function buildCashGroup(
-        CashGroupParameterStorage memory cashGroupStorage
+        uint cashGroupId,
+        CashGroupParameterStorage memory cashGroupStorage,
+        Rate memory assetRate
     ) internal pure returns (CashGroupParameters memory) {
-        uint liquidityFeeScaled = cashGroupStorage.liquidityFee * Market.BASIS_POINT;
-        uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowDays * DAY;
+        uint liquidityFee = cashGroupStorage.liquidityFeeBPS * Market.BASIS_POINT;
+        uint debtBuffer = cashGroupStorage.debtBufferBPS * Market.BASIS_POINT;
+        uint fCashHaircut = cashGroupStorage.fCashHaircutBPS * Market.BASIS_POINT;
+        uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowMin * 60;
 
         return CashGroupParameters({
+            cashGroupId: cashGroupId,
             rateOracleTimeWindow: rateOracleTimeWindowSeconds,
-            liquidityFee: liquidityFeeScaled,
+            liquidityFee: liquidityFee,
             rateScalar: cashGroupStorage.rateScalar,
             maxMarketIndex: cashGroupStorage.maxMarketIndex,
-            globalRateAnchor: cashGroupStorage.globalRateAnchor
+            liquidityTokenHaircut: cashGroupStorage.liquidityTokenHaircut,
+            debtBuffer: debtBuffer,
+            fCashHaircut: fCashHaircut,
+            assetRate: assetRate
         });
     }
 
@@ -352,8 +390,8 @@ contract MockCashGroup {
     }
 
     function getRateScalar(
-       CashGroupParameters memory cashGroup,
-       uint timeToMaturity
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
     ) public pure returns (int) {
         int rateScalar = cashGroup.getRateScalar(timeToMaturity);
 
@@ -361,8 +399,8 @@ contract MockCashGroup {
     }
 
     function getLiquidityFee(
-       CashGroupParameters memory cashGroup,
-       uint timeToMaturity
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
     ) public pure returns (uint) {
         uint fee = cashGroup.getLiquidityFee(timeToMaturity);
 
@@ -370,9 +408,11 @@ contract MockCashGroup {
     }
 
     function buildCashGroup(
-        CashGroupParameterStorage memory cashGroupStorage
+        uint cashGroupId,
+        CashGroupParameterStorage memory cashGroupStorage,
+        Rate memory assetRate
     ) public view returns (CashGroupParameters memory) {
-        return CashGroup.buildCashGroup(cashGroupStorage);
+        return CashGroup.buildCashGroup(cashGroupId, cashGroupStorage, assetRate);
     }
 
 }
