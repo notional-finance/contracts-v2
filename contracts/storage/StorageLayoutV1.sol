@@ -3,7 +3,42 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @dev Total storage is 8 bytes
+ * @dev Parameters for listed currencies, total storage is 24 bytes.
+ */
+struct CurrencyStorage {
+    // Address of asset token
+    address assetTokenAddress;
+    // If has transfer fees need to check balance before and after
+    bool tokenHasTransferFee;
+    // Decimal places of the asset token
+    uint8 tokenDecimalPlaces;
+    // Decimal places of the underlying token
+    uint8 underlyingDecimalPlaces;
+    // Liquidation discount for this currency, set as a percentage of the exchange rate where
+    // 105 would mean a 5% discount.
+    uint8 liquidationDiscount;
+}
+
+/**
+ * @dev Exchange rate object as it is represented in storage, total storage is 24 bytes.
+ */
+struct RateStorage {
+    // Address of the rate oracle
+    address rateOracle;
+    // The decimal places of precision that the rate oracle uses
+    uint8 rateDecimalPlaces;
+    // True of the exchange rate must be inverted
+    bool mustInvert;
+
+    // NOTE: both of these governance values are set with BUFFER_DECIMALS precision
+    // Amount of buffer to apply to the exchange rate for negative balances.
+    uint8 buffer;
+    // Amount of haircut to apply to the exchange rate for positive balances
+    uint8 haircut;
+}
+
+/**
+ * @dev Governance parameters for a cash group, total storage is 8 bytes.
  */
 struct CashGroupParameterStorage {
     /* Market Parameters */
@@ -28,7 +63,6 @@ struct CashGroupParameterStorage {
     /* Liquidation Parameters */
     // uint8 settlementPenaltyRateBPS;
     // uint8 liquidityRepoDiscount;
-    // uint8 liquidationDiscount;
 }
 
 /**
@@ -98,7 +132,16 @@ contract StorageLayoutV1 {
     /* End Non-Mapping storage slots */
 
     // Mapping of whitelisted currencies from currency id to object struct
-    // mapping(uint => CurrencyStorage) currencies;
+    mapping(uint => CurrencyStorage) currenciesMapping;
+    // Returns the exchange rate between an underlying currency and ETH for free
+    // collateral purposes. Mapping is from currency id to rate storage object.
+    mapping(uint => RateStorage) underlyingToETHRatesMapping;
+    // Returns the exchange rate between an underlying currency and asset for trading
+    // and free collateral. Mapping is from currency id to rate storage object.
+    mapping(uint => RateStorage) assetToUnderlyingRatesMapping;
+    // Returns the historical asset to underlying settlement rate.
+    // currency id => maturity => rate
+    mapping(uint => mapping(uint => uint)) assetToUnderlyingSettlementRatesMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
