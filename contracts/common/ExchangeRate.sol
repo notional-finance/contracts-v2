@@ -3,28 +3,11 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
+import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
-/**
- * @dev Exchange rate object as it is represented in storage.
- * Total storage is 24 bytes.
- */
-struct RateStorage {
-    // Address of the rate oracle
-    address rateOracle;
-    // The decimal places of precision that the rate oracle uses
-    uint8 rateDecimalPlaces;
-    // True of the exchange rate must be inverted
-    bool mustInvert;
-
-    // NOTE: both of these governance values are set with BUFFER_DECIMALS precision
-    // Amount of buffer to apply to the exchange rate for negative balances.
-    uint8 buffer;
-    // Amount of haircut to apply to the exchange rate for positive balances
-    uint8 haircut;
-}
 
 /**
  * @dev Exchange rate object as stored in memory, these are cached optimistically
@@ -180,9 +163,7 @@ library ExchangeRate {
      * @param rateStorage rate storage object
      */
     function buildExchangeRate(
-        RateStorage memory rateStorage,
-        uint8 baseDecimalPlaces,
-        uint8 quoteDecimalPlaces
+        RateStorage memory rateStorage
     ) internal view returns (Rate memory) {
         (
             /* uint80 */,
@@ -195,9 +176,10 @@ library ExchangeRate {
         int rateDecimals = int(10**rateStorage.rateDecimalPlaces);
         if (rateStorage.mustInvert) rate = rateDecimals.mul(rateDecimals).div(rate);
 
-        int baseDecimals = int(10**baseDecimalPlaces);
+        int baseDecimals = int(10**rateStorage.baseDecimalPlaces);
         // If quoteDecimalPlaces is supplied as zero then we set this to zero
-        int quoteDecimals = quoteDecimalPlaces == 0 ? 0 : int(10**quoteDecimalPlaces);
+        int quoteDecimals = rateStorage.quoteDecimalPlaces == 0 ?
+            0 : int(10**rateStorage.quoteDecimalPlaces);
 
         return Rate({
             rateDecimals: rateDecimals,
@@ -308,11 +290,9 @@ contract MockExchangeRate {
     }
 
     function buildExchangeRate(
-        RateStorage memory rateStorage,
-        uint8 baseDecimalPlaces,
-        uint8 quoteDecimalPlaces
+        RateStorage memory rateStorage
     ) external view returns (Rate memory) {
-        return ExchangeRate.buildExchangeRate(rateStorage, baseDecimalPlaces, quoteDecimalPlaces);
+        return ExchangeRate.buildExchangeRate(rateStorage);
     }
 
 

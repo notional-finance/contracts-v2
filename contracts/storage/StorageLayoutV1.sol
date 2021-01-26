@@ -35,12 +35,20 @@ struct RateStorage {
     uint8 buffer;
     // Amount of haircut to apply to the exchange rate for positive balances
     uint8 haircut;
+
+    // When rates are asset rates then quote refers to asset, otherwise it is ETH
+    uint8 quoteDecimalPlaces;
+    // When rates are asset rates then base refers to underlying
+    uint8 baseDecimalPlaces;
 }
 
 /**
- * @dev Governance parameters for a cash group, total storage is 8 bytes.
+ * @dev Governance parameters for a cash group, total storage is 10 bytes.
  */
 struct CashGroupParameterStorage {
+    // Currency ID that this cash group refers to
+    uint16 currencyId;
+
     /* Market Parameters */
     // Time window in minutes that the rate oracle will be averaged over
     uint8 rateOracleTimeWindowMin;
@@ -87,7 +95,7 @@ struct MarketStorage {
 
 /**
  * @dev Holds account level context information used to determine settlement and
- * free collateral actions. Total storage is 6 bytes + (maxCurrencyId / 8 + 1)
+ * free collateral actions. Total storage is 7 bytes + (maxCurrencyId / 8 + 1)
  *
  * WARNING: because activeCurrencies is a dynamically sized byte array we cannot
  * add more storage slots into this struct.
@@ -98,6 +106,8 @@ struct AccountStorage {
     // For lenders that never incur debt, we use this flag to skip the free
     // collateral check.
     bool hasDebt;
+    // If this account has bitmaps set
+    bool hasBitmap;
     // This is a tightly packed bitmap of the currenices that the account has a non
     // zero balance in. The highest order (left most) bit will refer to currency id=1
     // (currency id = 0 is unused) and so forth. This allows us to limit the number of
@@ -126,22 +136,26 @@ struct AssetStorage {
  */
 contract StorageLayoutV1 {
     uint8 public constant storageLayoutVersion = 1;
+    // Used for asset type enum
+    uint8 public constant FCASH_ASSET_TYPE = 1;
+    uint8 public constant LIQUIDITY_TOKEN_ASSET_TYPE = 2;
+
     /* Start Non-Mapping storage slots */
     uint16 maxCurrencyId;
     uint16 maxCashGroupId;
     /* End Non-Mapping storage slots */
 
     // Mapping of whitelisted currencies from currency id to object struct
-    mapping(uint => CurrencyStorage) currenciesMapping;
+    mapping(uint => CurrencyStorage) currencyMapping;
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) underlyingToETHRatesMapping;
+    mapping(uint => RateStorage) underlyingToETHRateMapping;
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) assetToUnderlyingRatesMapping;
+    mapping(uint => RateStorage) assetToUnderlyingRateMapping;
     // Returns the historical asset to underlying settlement rate.
     // currency id => maturity => rate
-    mapping(uint => mapping(uint => uint)) assetToUnderlyingSettlementRatesMapping;
+    mapping(uint => mapping(uint => uint)) assetToUnderlyingSettlementRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
@@ -169,8 +183,8 @@ contract StorageLayoutV1 {
     mapping(address => mapping(uint => bytes)) assetBitmapMapping;
     // address => cash group => maturity => ifCash value
     mapping(address => mapping(uint => mapping(uint => int))) ifCashMapping;
-    // address => token address => net balance
-    mapping(address => mapping(address => int)) accountBalanceMapping;
+    // address => currency id => net balance
+    mapping(address => mapping(uint => int)) accountBalanceMapping;
 
     // TODO: authorization mappings
     // TODO: function mappings
