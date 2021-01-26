@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "./Market.sol";
+import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
@@ -25,35 +26,6 @@ struct CashGroupTokens {
 
     // Perpetual liquidity token address for this cash group
     address perpetualLiquidityToken;
-}
-/**
- * @dev Cash group parameters as stored
- * Total storage is: 9 bytes
- */
-struct CashGroupParameterStorage {
-    /* Market Parameters */
-    // Time window in minutes that the rate oracle will be averaged over
-    uint8 rateOracleTimeWindowMin;
-    // Liquidity fee given to LPs per trade, specified in BPS
-    uint8 liquidityFeeBPS;
-    // Rate scalar used to determine the slippage of the market
-    uint16 rateScalar;
-    // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
-    // that is less than the longest AMM will be tradable.
-    uint8 maxMarketIndex;
-
-    /* Risk Parameters */
-    // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
-    uint8 liquidityTokenHaircut;
-    // Debt buffer specified in BPS
-    uint8 debtBufferBPS;
-    // fCash haircut specified in BPS
-    uint8 fCashHaircutBPS;
-
-    /* Liquidation Parameters */
-    // uint8 settlementPenaltyRate;
-    // uint8 liquidityRepoDiscount;
-    // uint8 liquidationDiscount;
 }
 
 /**

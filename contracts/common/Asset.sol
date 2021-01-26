@@ -292,7 +292,7 @@ library Asset {
 
         for (uint i; i < liquidityTokens.length; i++) {
             if (liquidityTokens[i].cashGroupId != cashGroups[groupIndex].cashGroupId) {
-                groupIndex++;
+                groupIndex += 1;
             }
 
             (int assetCashClaim, int pv) = getLiquidityTokenValue(
@@ -314,7 +314,7 @@ library Asset {
                 presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertFromUnderlying(
                     presentValueUnderlying[groupIndex]
                 );
-                groupIndex++;
+                groupIndex += 1;
             }
 
             (uint marketIndex, bool idiosyncractic) = findMarketIndex(
