@@ -46,9 +46,6 @@ struct RateStorage {
  * @dev Governance parameters for a cash group, total storage is 10 bytes.
  */
 struct CashGroupParameterStorage {
-    // Currency ID that this cash group refers to
-    uint16 currencyId;
-
     /* Market Parameters */
     // Time window in minutes that the rate oracle will be averaged over
     uint8 rateOracleTimeWindowMin;
@@ -109,18 +106,19 @@ struct AccountStorage {
     // If this account has bitmaps set
     bool hasBitmap;
     // This is a tightly packed bitmap of the currenices that the account has a non
-    // zero balance in. The highest order (left most) bit will refer to currency id=1
-    // (currency id = 0 is unused) and so forth. This allows us to limit the number of
-    // storage reads while expanding the number of currencies we support.
+    // zero balance in. This is stored in big-endian ordering so the highest order
+    // (left most) bit will refer to currency id=1 (currency id = 0 is unused) and
+    // so forth. This allows us to limit the number of storage reads while expanding
+    // the number of currencies we support.
     bytes activeCurrencies;
 }
 
 /**
- * @dev Asset stored in the asset array, total storage is 18 bytes.
+ * @dev Asset stored in the asset array, total storage is 19 bytes.
  */
 struct AssetStorage {
     // ID of the cash group this asset is contained in
-    uint8 cashGroupId;
+    uint16 currencyId;
     // Asset enum type
     uint8 assetType;
     // Timestamp of the maturity in seconds, this works up to year 3800 or something. uint32
@@ -128,6 +126,13 @@ struct AssetStorage {
     uint40 maturity;
     // Positive or negative notional amount
     int88 notional;
+}
+
+struct BalanceStorage {
+    // Asset token balance held by the account
+    int128 cashBalance;
+    // Perpetual liquidity tokens balance held by the account
+    uint128 perpetualTokenBalance;
 }
 
 /**
@@ -142,7 +147,6 @@ contract StorageLayoutV1 {
 
     /* Start Non-Mapping storage slots */
     uint16 maxCurrencyId;
-    uint16 maxCashGroupId;
     /* End Non-Mapping storage slots */
 
     // Mapping of whitelisted currencies from currency id to object struct
@@ -159,7 +163,7 @@ contract StorageLayoutV1 {
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
-    // cashGroupId => storage
+    // currencyId => storage
     mapping(uint => CashGroupParameterStorage) cashGroupMapping;
     // Contains current market state information
     // cashGroupId => maturity => storage
@@ -179,12 +183,12 @@ contract StorageLayoutV1 {
     // contain liquidity tokens
     // address => storage
     mapping(address => AssetStorage[]) assetArrayMapping;
-    // address => cash group => bitmap
+    // address => currency id => bitmap
     mapping(address => mapping(uint => bytes)) assetBitmapMapping;
-    // address => cash group => maturity => ifCash value
+    // address => currency id => maturity => ifCash value
     mapping(address => mapping(uint => mapping(uint => int))) ifCashMapping;
-    // address => currency id => net balance
-    mapping(address => mapping(uint => int)) accountBalanceMapping;
+    // address => currency id => (cash balance, perpetual token balance)
+    mapping(address => mapping(uint => BalanceStorage)) accountBalanceMapping;
 
     // TODO: authorization mappings
     // TODO: function mappings
