@@ -39,3 +39,12 @@ def test_set_bit_off(mockBitmap, bitmap):
     index = random.randint(1, len(bitmap) * 64)
     newBitmap = mockBitmap.setBit(bitmap, index, False)
     assert not mockBitmap.isBitSet(newBitmap, index)
+
+
+@given(bitmap=strategy("bytes"))
+def test_total_bits_set(mockBitmap, bitmap):
+    total = mockBitmap.totalBitsSet(bitmap)
+    bitstring = "{:08b}".format(int(bitmap.hex(), 16))
+    computedTotal = len([x for x in filter(lambda x: x == "1", list(bitstring))])
+
+    assert total == computedTotal

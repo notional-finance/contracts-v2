@@ -48,6 +48,24 @@ library Bitmap {
         bool isActive = (bitmap[byteOffset] & bitMask) != 0x00;
         return isActive;
     }
+    
+    function totalBitsSet(bytes memory bitmap) internal pure returns (uint) {
+        uint totalBits;
+        for (uint i; i < bitmap.length; i++) {
+            bytes1 bits = bitmap[i];
+            if (bits == 0x00) continue;
+            if (bits & 0x01 == 0x01) totalBits += 1;
+            if (bits & 0x02 == 0x02) totalBits += 1;
+            if (bits & 0x04 == 0x04) totalBits += 1;
+            if (bits & 0x08 == 0x08) totalBits += 1;
+            if (bits & 0x10 == 0x10) totalBits += 1;
+            if (bits & 0x20 == 0x20) totalBits += 1;
+            if (bits & 0x40 == 0x40) totalBits += 1;
+            if (bits & 0x80 == 0x80) totalBits += 1;
+        }
+
+        return totalBits;
+    }
 
 }
 
@@ -67,5 +85,11 @@ contract MockBitmap {
         bool setOn
     ) public pure returns (bytes memory) {
         return bitmap.setBit(index, setOn);
+    }
+
+    function totalBitsSet(
+        bytes memory bitmap
+    ) public pure returns (uint) {
+        return bitmap.totalBitsSet();
     }
 }
