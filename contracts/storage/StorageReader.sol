@@ -325,6 +325,8 @@ contract StorageReader is StorageLayoutV1 {
 }
 
 contract MockStorageReader is StorageReader {
+    using Bitmap for bytes;
+
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
     }
@@ -427,25 +429,43 @@ contract MockStorageReader is StorageReader {
     function _getBalanceContext(
         address account,
         uint currencyId,
-        bool willTransfer,
-        AccountStorage memory accountContext
-    ) internal view returns (BalanceContext memory) {
-        return getBalanceContext(
+        bool willTransfer
+    ) public view returns (
+        BalanceContext memory,
+        AccountStorage memory
+    ) {
+        AccountStorage memory accountContext = accountContextMapping[account];
+
+        BalanceContext memory balanceContext = getBalanceContext(
             account,
             currencyId,
             willTransfer,
             accountContext
         );
+
+        BalanceStorage memory s = accountBalanceMapping[account][currencyId];
+        assert(balanceContext.cashBalance == s.cashBalance);
+        assert(balanceContext.perpetualTokenBalance == s.perpetualTokenBalance);
+        assert(accountContext.activeCurrencies.isBitSet(currencyId) == false);
+
+        return (balanceContext, accountContext);
     }
 
     function _getRemainingActiveBalances(
         address account,
         bytes memory activeCurrencies
     ) public view returns (BalanceContext[] memory) {
-        return getRemainingActiveBalances(
+        BalanceContext[] memory bc = getRemainingActiveBalances(
             account,
             activeCurrencies
         );
+
+        assert(bc.length == activeCurrencies.totalBitsSet());
+        for(uint i; i < bc.length; i++) {
+            assert(bc[i].currencyId != 0);
+        }
+
+        return bc;
     }
 
     function _getTradeContext(
