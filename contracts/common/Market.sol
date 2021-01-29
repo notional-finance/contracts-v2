@@ -175,44 +175,6 @@ library Market {
 
         return (marketState, netAssetCash, netCash);
     }
-    
-    /**
-     * @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
-     * on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
-     * a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
-     * Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
-     * be liquidated.
-     * 
-     * Oracle rates are calculated when the market is loaded from storage.
-     *
-     * The oracle rate is a lagged weighted average over a short term price window. The formula is:
-     * lastImpliedRatePreTrade * min((currentTs - previousTs) / timeWindow, 1) +
-     *      oracleRatePrevious * max(timeWindow - (currentTs - previousTs) / timeWindow, 0)
-     */
-    function updateRateOracle(
-        MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup,
-        uint blockTime
-    ) internal pure returns (MarketParameters memory) {
-        uint timeDiff = blockTime.sub(marketState.previousTradeTime);
-        // (currentTs - previousTs) / timeWindow
-        uint weight = timeDiff
-            .mul(uint(RATE_PRECISION))
-            .div(cashGroup.rateOracleTimeWindow);
-        
-        // min(weight, 1)
-        uint newTradeWeight = weight < uint(RATE_PRECISION) ? weight : uint(RATE_PRECISION);
-        // max((timeWindow - weight) / timeWindow, 0)
-        uint oracleWeight = timeDiff <= cashGroup.rateOracleTimeWindow ?
-            cashGroup.rateOracleTimeWindow.mul(uint(RATE_PRECISION)).sub(weight) : 0;
-
-        marketState.oracleRate = marketState.lastImpliedRate
-            .mul(newTradeWeight)
-            .add(marketState.oracleRate.mul(oracleWeight))
-            .div(uint(RATE_PRECISION));
-
-        return marketState;
-    }
 
     /**
      * @notice Rate anchors update as the market gets closer to maturity. Rate anchors are not comparable
@@ -372,6 +334,81 @@ library Market {
 
         return (result, true);
     }
+    
+    /**
+     * @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
+     * on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
+     * a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
+     * Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
+     * be liquidated.
+     * 
+     * Oracle rates are calculated when the market is loaded from storage.
+     *
+     * The oracle rate is a lagged weighted average over a short term price window. If we are past
+     * the short term window then we just set the rate to the lastImpliedRate, otherwise we take the
+     * weighted average:
+     * lastImpliedRatePreTrade * (currentTs - previousTs) / timeWindow +
+     *      oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
+     */
+    function updateRateOracle(
+        uint previousTradeTime,
+        uint lastImpliedRate,
+        uint oracleRate,
+        uint rateOracleTimeWindow,
+        uint blockTime
+    ) private pure returns (uint) {
+        require(rateOracleTimeWindow > 0, "M: time window zero");
+
+        uint timeDiff = blockTime.sub(previousTradeTime);
+        if (timeDiff > rateOracleTimeWindow) {
+            // If past the time window just return the lastImpliedRate
+            return lastImpliedRate;
+        }
+
+        // (currentTs - previousTs) / timeWindow
+        uint lastTradeWeight = timeDiff
+            .mul(uint(RATE_PRECISION))
+            .div(rateOracleTimeWindow);
+        
+        // 1 - (currentTs - previousTs) / timeWindow
+        uint oracleWeight = uint(RATE_PRECISION).sub(lastTradeWeight);
+
+        uint newOracleRate = (
+            lastImpliedRate
+                .mul(lastTradeWeight)
+                .add(oracleRate.mul(oracleWeight))
+            ).div(uint(RATE_PRECISION));
+
+        return newOracleRate;
+    }
+
+    function buildMarket(
+        uint cashGroupId,
+        uint maturity,
+        int totalLiquidity,
+        uint rateOracleTimeWindow,
+        uint blockTime,
+        MarketStorage memory marketStorage
+    ) internal pure returns (MarketParameters memory) {
+        uint newOracleRate = updateRateOracle(
+            marketStorage.previousTradeTime,
+            marketStorage.lastImpliedRate,
+            marketStorage.oracleRate,
+            rateOracleTimeWindow,
+            blockTime
+        );
+
+        return MarketParameters({
+            cashGroupId: cashGroupId,
+            maturity: maturity,
+            totalfCash: marketStorage.totalfCash,
+            totalCurrentCash: marketStorage.totalCurrentCash,
+            totalLiquidity: totalLiquidity,
+            lastImpliedRate: marketStorage.lastImpliedRate,
+            oracleRate: newOracleRate,
+            previousTradeTime: marketStorage.previousTradeTime
+        });
+    }
 
 }
 
@@ -449,4 +486,23 @@ contract MockMarket {
            timeToMaturity
         );
    }
+
+   function buildMarket(
+        uint cashGroupId,
+        uint maturity,
+        int totalLiquidity,
+        uint rateOracleTimeWindow,
+        uint blockTime,
+        MarketStorage memory marketStorage
+    ) public pure returns (MarketParameters memory) {
+        return Market.buildMarket(
+            cashGroupId,
+            maturity,
+            totalLiquidity,
+            rateOracleTimeWindow,
+            blockTime,
+            marketStorage
+        );
+    }
+
 }

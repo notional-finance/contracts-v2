@@ -2,7 +2,7 @@ import math
 
 import pytest
 from brownie.test import given, strategy
-from common.params import *
+from tests.common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -100,10 +100,35 @@ def test_implied_rate(market, initRate, timeToMaturity):
         assert pytest.approx(newImpliedRate, rel=1e-5) == impliedRate
 
 
-# @given(
-#     initRate=strategy("uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION),
-#     # Days between 30 months and 20 years
-#     timeToMaturity=strategy("uint", min_value=90, max_value=7200),
-# )
-# def test_rate_oracle(market, timeWindow, previousTradeTime):
-#     pass
+@given(
+    lastImpliedRate=strategy(
+        "uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION
+    ),
+    oracleRate=strategy("uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION),
+    # Random previous times
+    previousTradeTime=strategy(
+        "uint", min_value=START_TIME, max_value=START_TIME + 30 * SECONDS_IN_YEAR
+    ),
+    # Next trade between 0 seconds and 2 hours
+    newBlockTime=strategy("uint", min_value=0, max_value=7200),
+    # From seconds to an hour
+    timeWindow=strategy("uint", min_value=30, max_value=3600),
+)
+def test_build_market(
+    market, timeWindow, previousTradeTime, newBlockTime, oracleRate, lastImpliedRate
+):
+    blockTime = previousTradeTime + newBlockTime
+    marketStorage = (1e18, 1e18, lastImpliedRate, oracleRate, previousTradeTime)
+
+    result = market.buildMarket(1, 90 * SECONDS_IN_DAY, 1e18, timeWindow, blockTime, marketStorage)
+
+    if newBlockTime > timeWindow:
+        # If past the time window, ensure that the oracle rate equals the last implied rate
+        assert result[6] == lastImpliedRate
+    else:
+        # It should be the weighted average of the two
+        weightedAvg = math.trunc(
+            newBlockTime / timeWindow * lastImpliedRate
+            + (1 - newBlockTime / timeWindow) * oracleRate
+        )
+        assert pytest.approx(weightedAvg, abs=10) == result[6]
