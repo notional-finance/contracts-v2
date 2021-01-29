@@ -46,7 +46,7 @@ def test_valid_maturity(cashGroup, quarters, blockTime, maxMarketIndex):
     maturity = tRef + quarters * (90 * SECONDS_IN_DAY)
     isValid = cashGroup.isValidMaturity(cg, maturity, blockTime)
 
-    validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex)]
+    validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]
     assert (maturity in validMarkets) == isValid
 
 

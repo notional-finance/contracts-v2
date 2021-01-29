@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
+import "./Market.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
@@ -94,54 +95,54 @@ library ExchangeRate {
     }
 
     /**
-     * @notice Converts an asset value to its underlying token value. Buffers and haircuts ARE NOT
-     * applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance. Underlying
-     * is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
+     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
+     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+     * externally from the system.
+     *
+     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
+     * Underlying is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
      * in these exchange rates.
      *
      * @param er exchange rate object between asset and underlying
      * @param assetBalance amount (denominated in asset value) to convert to underlying
      */
-    function convertToUnderlying(
+    function convertInternalToUnderlying(
         Rate memory er,
         int assetBalance
     ) internal pure returns (int) {
         if (assetBalance == 0) return 0;
-        require(er.quoteDecimals > 0, "ExchangeRate: quote decimal");
 
         // Calculation here represents:
-        // rateDecimals * baseDecimals * quoteDecimals / (rateDecimals * baseDecimals)
+        // rateDecimals * balance / rateDecimals
         int underlyingBalance = er.rate
             .mul(assetBalance)
-            .mul(er.quoteDecimals)
-            .div(er.rateDecimals)
-            .div(er.baseDecimals);
+            .div(er.rateDecimals);
 
         return underlyingBalance;
     }
 
     /**
-     * @notice Converts an underlying value to its asset token value. Buffers and haircuts ARE NOT
-     * applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance. Underlying
-     * is referred to as the base currency in these exchange rates.
+     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
+     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+     * externally from the system.
+     *
+     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
+     * underlyingBalance. Underlying is referred to as the quote currency in these exchange rates.
      *
      * @param er exchange rate object between asset and underlying
      * @param underlyingBalance amount (denominated in underlying value) to convert to asset value
      */
-    function convertFromUnderlying(
+    function convertInternalFromUnderlying(
         Rate memory er,
         int underlyingBalance
     ) internal pure returns (int) {
         if (underlyingBalance == 0) return 0;
-        require(er.quoteDecimals > 0, "ExchangeRate: quote decimal");
 
         // Calculation here represents:
-        // rateDecimals * baseDecimals * quoteDecimals / (rateDecimals * baseDecimals)
+        // rateDecimals * balance / rateDecimals
         int assetBalance = underlyingBalance
-            .mul(er.baseDecimals)
             .mul(er.rateDecimals)
-            .div(er.rate)
-            .div(er.quoteDecimals);
+            .div(er.rate);
 
         return assetBalance;
     }
@@ -252,26 +253,26 @@ contract MockExchangeRate {
         return result;
     }
 
-    function convertToUnderlying(
+    function convertInternalToUnderlying(
         Rate memory er,
         int balance
     ) external pure returns (int) {
         require(er.rate > 0);
-        int result = er.convertToUnderlying(balance);
+        int result = er.convertInternalToUnderlying(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(balance, result, er.baseDecimals, er.quoteDecimals, er);
+        assertRateDirection(balance, result, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
 
         return result;
     }
 
-    function convertFromUnderlying(
+    function convertInternalFromUnderlying(
         Rate memory er,
         int balance
     ) external pure returns (int) {
         require(er.rate > 0);
-        int result = er.convertFromUnderlying(balance);
+        int result = er.convertInternalFromUnderlying(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(result, balance, er.baseDecimals, er.quoteDecimals, er);
+        assertRateDirection(result, balance, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
 
         return result;
     }

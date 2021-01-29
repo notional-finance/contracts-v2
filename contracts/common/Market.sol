@@ -54,7 +54,8 @@ library Market {
     int128 internal constant IMPLIED_RATE_TIME_64x64 = 0x1da9c000000000000000000;
 
     /**
-     * @notice Does the trade calculation and returns the new market state and cash amount
+     * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
+     * cash amounts are all specified at RATE_PRECISION.
      *
      * @param marketState the current market state
      * @param cashGroup cash group configuration parameters
@@ -73,7 +74,7 @@ library Market {
             return (marketState, 0, 0);
         }
         int rateScalar = cashGroup.getRateScalar(timeToMaturity);
-        int totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(marketState.totalCurrentCash);
+        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
 
         // This will result in a divide by zero
         if (rateScalar == 0) return (marketState, 0, 0);
@@ -153,7 +154,7 @@ library Market {
         // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
         // is positive and greater than RATE_PRECISION here
         int netCash = fCashAmount.mul(RATE_PRECISION).div(tradeExchangeRate).neg();
-        int netAssetCash = assetRate.convertFromUnderlying(netCash);
+        int netAssetCash = assetRate.convertInternalFromUnderlying(netCash);
         
         // Underflow on netAssetCash
         if (marketState.totalCurrentCash + netAssetCash <= 0) return (marketState, 0, 0);

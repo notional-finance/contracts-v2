@@ -311,7 +311,7 @@ library Asset {
         for (uint i; i < fCashAssets.length; i++) {
             if (fCashAssets[i].cashGroupId != cashGroups[groupIndex].cashGroupId) {
                 // Convert the PV of the underlying values before we move to the next group index.
-                presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertFromUnderlying(
+                presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
                     presentValueUnderlying[groupIndex]
                 );
                 groupIndex += 1;
@@ -339,7 +339,7 @@ library Asset {
         }
 
         // This converts the last group which is not caught in the if statement above
-        presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertFromUnderlying(
+        presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
             presentValueUnderlying[groupIndex]
         );
 

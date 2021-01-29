@@ -4,7 +4,7 @@ import random
 import brownie
 import pytest
 from brownie.test import given
-from common.params import *
+from tests.common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)

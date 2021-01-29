@@ -36,9 +36,9 @@ struct RateStorage {
     // Amount of haircut to apply to the exchange rate for positive balances
     uint8 haircut;
 
-    // When rates are asset rates then quote refers to asset, otherwise it is ETH
+    // When rates are asset rates then base refers to asset, otherwise it is ETH
     uint8 quoteDecimalPlaces;
-    // When rates are asset rates then base refers to underlying
+    // When rates are asset rates then quote refers to underlying
     uint8 baseDecimalPlaces;
 }
 
@@ -77,6 +77,7 @@ struct CashGroupParameterStorage {
  * fCash and liquidity tokens can be safely denominated at 9 decimal places and then
  * converted to their appropriate decimal precision when they are settled. uint80
  * allows each market to have a quadrillion in fCash which seems reasonable.
+ * TODO: how high can cToken exchange rates go?
  *
  * Total storage: 32 bytes
  */

@@ -29,7 +29,15 @@ def test_build_exchange_rate(
     aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
     aggregator.setAnswer(10 ** rateDecimals / 100)
 
-    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80)
+    rateStorage = (
+        aggregator.address,
+        rateDecimals,
+        mustInvert,
+        120,
+        80,
+        quoteDecimals,
+        baseDecimals,
+    )
 
     (
         erRateDecimals,
@@ -38,7 +46,7 @@ def test_build_exchange_rate(
         erRate,
         erBuffer,
         erHaircut,
-    ) = exchangeRate.buildExchangeRate(rateStorage, baseDecimals, quoteDecimals)
+    ) = exchangeRate.buildExchangeRate(rateStorage)
 
     if quoteDecimals == 0:
         assert erQuoteDecimals == 0
@@ -104,49 +112,49 @@ def test_convert_eth_to(exchangeRate):
     assert usdc == 0.1e6
 
 
-def test_convert_to_underlying(exchangeRate):
-    rate = (1e8, 1e6, 1e8, 0.01e8, 120, 80)
+def test_convert_internal_to_underlying(exchangeRate):
+    rate = (1e8, 0, 0, 0.01e8, 120, 80)
 
-    underlying = exchangeRate.convertToUnderlying(rate, 0)
+    underlying = exchangeRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = exchangeRate.convertToUnderlying(rate, -100e6)
-    assert underlying == -1e8
+    underlying = exchangeRate.convertInternalToUnderlying(rate, -100e9)
+    assert underlying == -1e9
 
-    underlying = exchangeRate.convertToUnderlying(rate, 100e6)
-    assert underlying == 1e8
+    underlying = exchangeRate.convertInternalToUnderlying(rate, 100e9)
+    assert underlying == 1e9
 
-    rate = (1e8, 1e6, 1e8, 10e8, 120, 80)
+    rate = (1e8, 0, 0, 10e8, 120, 80)
 
-    underlying = exchangeRate.convertToUnderlying(rate, 0)
+    underlying = exchangeRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = exchangeRate.convertToUnderlying(rate, -100e6)
-    assert underlying == -1000e8
+    underlying = exchangeRate.convertInternalToUnderlying(rate, -100e9)
+    assert underlying == -1000e9
 
-    underlying = exchangeRate.convertToUnderlying(rate, 100e6)
-    assert underlying == 1000e8
+    underlying = exchangeRate.convertInternalToUnderlying(rate, 100e9)
+    assert underlying == 1000e9
 
 
 def test_convert_from_underlying(exchangeRate):
-    rate = (1e8, 1e6, 1e8, 0.01e8, 120, 80)
+    rate = (1e8, 0, 0, 0.01e8, 120, 80)
 
-    asset = exchangeRate.convertFromUnderlying(rate, 0)
+    asset = exchangeRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = exchangeRate.convertFromUnderlying(rate, -1e8)
-    assert asset == -100e6
+    asset = exchangeRate.convertInternalFromUnderlying(rate, -1e9)
+    assert asset == -100e9
 
-    asset = exchangeRate.convertFromUnderlying(rate, 1e8)
-    assert asset == 100e6
+    asset = exchangeRate.convertInternalFromUnderlying(rate, 1e9)
+    assert asset == 100e9
 
-    rate = (1e8, 1e6, 1e8, 10e8, 120, 80)
+    rate = (1e8, 0, 0, 10e8, 120, 80)
 
-    asset = exchangeRate.convertFromUnderlying(rate, 0)
+    asset = exchangeRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = exchangeRate.convertFromUnderlying(rate, -1e8)
-    assert asset == -0.1e6
+    asset = exchangeRate.convertInternalFromUnderlying(rate, -1e9)
+    assert asset == -0.1e9
 
-    asset = exchangeRate.convertFromUnderlying(rate, 1e8)
-    assert asset == 0.1e6
+    asset = exchangeRate.convertInternalFromUnderlying(rate, 1e9)
+    assert asset == 0.1e9
