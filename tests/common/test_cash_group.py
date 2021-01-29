@@ -1,7 +1,7 @@
 import brownie
 import pytest
 from brownie.test import given, strategy
-from common.params import *
+from tests.common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -18,7 +18,7 @@ def test_invalid_max_market(cashGroup):
     # Tests that we cant go above the max index
     with brownie.reverts():
         cg = list(BASE_CASH_GROUP)
-        cg[4] = 9
+        cg[4] = 10
         cashGroup.isValidMaturity(cg, 10000, 1)
 
 
@@ -37,7 +37,7 @@ def test_maturity_non_mod(cashGroup):
 @given(
     quarters=strategy("uint40", min_value=0, max_value=800),
     blockTime=strategy("uint40", min_value=START_TIME),
-    maxMarketIndex=strategy("uint8", min_value=0, max_value=8),
+    maxMarketIndex=strategy("uint8", min_value=1, max_value=9),
 )
 def test_valid_maturity(cashGroup, quarters, blockTime, maxMarketIndex):
     cg = list(BASE_CASH_GROUP)
@@ -46,14 +46,14 @@ def test_valid_maturity(cashGroup, quarters, blockTime, maxMarketIndex):
     maturity = tRef + quarters * (90 * SECONDS_IN_DAY)
     isValid = cashGroup.isValidMaturity(cg, maturity, blockTime)
 
-    validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(0, maxMarketIndex)]
+    validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex)]
     assert (maturity in validMarkets) == isValid
 
 
 @given(
     days=strategy("uint40", min_value=0, max_value=7500),
     blockTime=strategy("uint40", min_value=START_TIME),
-    maxMarketIndex=strategy("uint8", min_value=0, max_value=8),
+    maxMarketIndex=strategy("uint8", min_value=1, max_value=9),
 )
 def test_bit_number(cashGroup, days, blockTime, maxMarketIndex):
     tRef = blockTime - blockTime % (90 * SECONDS_IN_DAY)

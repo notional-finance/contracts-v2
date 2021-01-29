@@ -67,19 +67,22 @@ library CashGroup {
 
 
     /**
-     * @notice These are the predetermined market offsets for trading
+     * @notice These are the predetermined market offsets for trading, they are 1-indexed because
+     * the 0 index means that no markets are listed for the cash group.
      * @dev This is a function because array types are not allowed to be constants yet.
      */
     function getTradedMarket(uint index) internal pure returns (uint) {
-        if (index == 0) return QUARTER;
-        if (index == 1) return 2 * QUARTER;
-        if (index == 2) return YEAR;
-        if (index == 3) return 2 * YEAR;
-        if (index == 4) return 5 * YEAR;
-        if (index == 5) return 7 * YEAR;
-        if (index == 6) return 10 * YEAR;
-        if (index == 7) return 15 * YEAR;
-        if (index == 8) return 20 * YEAR;
+        assert (index != 0);
+
+        if (index == 1) return QUARTER;
+        if (index == 2) return 2 * QUARTER;
+        if (index == 3) return YEAR;
+        if (index == 4) return 2 * YEAR;
+        if (index == 5) return 5 * YEAR;
+        if (index == 6) return 7 * YEAR;
+        if (index == 7) return 10 * YEAR;
+        if (index == 8) return 15 * YEAR;
+        if (index == 9) return 20 * YEAR;
     }
 
     /**
@@ -105,12 +108,13 @@ library CashGroup {
        uint maturity,
        uint blockTime
     ) internal pure returns (bool) {
-        require(cashGroup.maxMarketIndex < 9, "CG: market index bound");
+        require(cashGroup.maxMarketIndex > 0, "CG: no markets listed");
+        require(cashGroup.maxMarketIndex < 10, "CG: market index bound");
 
         if (maturity % QUARTER != 0) return false;
         uint tRef = getReferenceTime(blockTime);
 
-        for (uint i; i < cashGroup.maxMarketIndex; i++) {
+        for (uint i = 1; i <= cashGroup.maxMarketIndex; i++) {
             if (maturity == tRef.add(getTradedMarket(i))) return true;
         }
 
