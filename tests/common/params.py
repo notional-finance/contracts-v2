@@ -15,7 +15,7 @@ BASE_CASH_GROUP = [
     600,  # 1: time window, 10 min
     30 * BASIS_POINT,  # 2: liquidity fee, 30 BPS
     100,  # 3: rate scalar
-    8,  # 4: max market index
+    9,  # 4: max market index
     97,  # 5: liquidity token haircut (97%)
     30 * BASIS_POINT,  # 6: debt buffer 30 bps
     30 * BASIS_POINT,  # 7: fcash haircut 30 bps
@@ -26,3 +26,9 @@ timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
 impliedRateStrategy = strategy(
     "uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION
 )
+
+ADD_LIQUIDITY = 0
+REMOVE_LIQUIDITY = 1
+TAKE_FCASH = 2
+TAKE_CURRENT_CASH = 3
+MINT_CASH_PAIR = 4

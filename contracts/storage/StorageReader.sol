@@ -242,9 +242,10 @@ contract StorageReader is StorageLayoutV1 {
         uint marketStateCount;
 
         for (uint i; i < tradeRequests.length; i++) {
+            uint maturity = tradeRequests[i].maturity;
             if (i > 0) {
                 require(
-                    tradeRequests[i - 1].maturity < tradeRequests[i].maturity,
+                    tradeRequests[i - 1].maturity <= maturity,
                     "R: trade requests unsorted"
                 );
             }
@@ -252,7 +253,7 @@ contract StorageReader is StorageLayoutV1 {
             if (tradeRequests[i].tradeAction == TradeAction.MintCashPair) {
                 // Check that the ifCash asset is valid as early as possible
                 require(
-                    cashGroup.getIdiosyncraticBitNumber(tradeRequests[i].maturity, blockTime) != 0,
+                    cashGroup.getIdiosyncraticBitNumber(maturity, blockTime) != 0,
                     "R: invalid maturity"
                 );
 
@@ -261,13 +262,13 @@ contract StorageReader is StorageLayoutV1 {
             }
 
             require(
-                cashGroup.isValidMaturity(tradeRequests[i].maturity, blockTime),
+                cashGroup.isValidMaturity(maturity, blockTime),
                 "R: invalid maturity"
             );
 
             // Don't update count for matching maturities, this can happen if someone is adding liquidity
             // and then borrowing in a single maturity.
-            if (i > 0 && tradeRequests[i - 1].maturity == tradeRequests[i].maturity) continue;
+            if (i > 0 && tradeRequests[i - 1].maturity == maturity) continue;
             marketStateCount += 1;
         }
 
@@ -277,16 +278,17 @@ contract StorageReader is StorageLayoutV1 {
         marketStateCount = 0;
         for (uint i; i < tradeRequests.length; i++) {
             if (tradeRequests[i].tradeAction == TradeAction.MintCashPair) continue;
+            uint maturity = tradeRequests[i].maturity;
 
-            if (i > 0 && tradeRequests[i - 1].maturity == tradeRequests[i].maturity) {
+            if (i > 0 && marketStateCount > 0 && tradeRequests[i - 1].maturity == maturity) {
                 // If the previous maturity matches this one, check if total liquidity is required
                 // and if so then set it (if not set already)
                 if ((tradeRequests[i].tradeAction == TradeAction.AddLiquidity ||
                      tradeRequests[i].tradeAction == TradeAction.RemoveLiquidity)
-                    && mp[marketStateCount].totalLiquidity == 0) {
+                    && mp[marketStateCount - 1].totalLiquidity == 0) {
                     
                     // Storage Read
-                    mp[marketStateCount].totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][tradeRequests[i].maturity];
+                    mp[marketStateCount - 1].totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][maturity];
                 }
 
                 continue;
@@ -296,17 +298,17 @@ contract StorageReader is StorageLayoutV1 {
             if (tradeRequests[i].tradeAction == TradeAction.AddLiquidity ||
                 tradeRequests[i].tradeAction == TradeAction.RemoveLiquidity) {
                 // Storage Read
-                totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][tradeRequests[i].maturity];
+                totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][maturity];
             }
 
             mp[marketStateCount] = Market.buildMarket(
                 cashGroup.cashGroupId,
-                tradeRequests[i].maturity,
+                maturity,
                 totalLiquidity,
                 cashGroup.rateOracleTimeWindow,
                 blockTime,
                 // Storage Read
-                marketStateMapping[cashGroup.cashGroupId][tradeRequests[i].maturity]
+                marketStateMapping[cashGroup.cashGroupId][maturity]
             );
             marketStateCount += 1;
         }
