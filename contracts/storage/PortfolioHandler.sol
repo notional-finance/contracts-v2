@@ -38,6 +38,7 @@ struct PortfolioState {
     uint lastNewAssetIndex;
     // Holds the length of stored assets after account for deleted assets
     uint storedAssetLength;
+    uint[] sortedIndex;
 }
 
 /**
@@ -208,6 +209,81 @@ library PortfolioHandler {
         portfolioState.storedAssetLength = portfolioState.storedAssetLength - 1;
     }
 
+    /**
+     * @dev These ids determine the sort order of assets
+     */
+    function getEncodedId(
+        PortfolioAsset memory asset
+    ) internal pure returns (uint) {
+        return uint(
+            bytes32(asset.currencyId) << 48 |
+            bytes32(asset.maturity) << 8 |
+            bytes32(asset.assetType)
+        );
+    }
+
+    /**
+     * @notice Calculates an index where portfolioState.storedAssets are sorted by
+     * cash group and maturity
+     */
+    function calculateSortedIndex(
+        PortfolioState memory portfolioState
+    ) internal pure {
+        // These are base cases that don't require looping
+        if (portfolioState.storedAssets.length == 0) return;
+        if (portfolioState.storedAssets.length == 1) {
+            portfolioState.sortedIndex = new uint[](1);
+            return;
+        }
+
+        if (portfolioState.storedAssets.length == 2) {
+            uint[] memory result = new uint[](2);
+            uint firstKey = getEncodedId(portfolioState.storedAssets[0]);
+            uint secondKey = getEncodedId(portfolioState.storedAssets[1]);
+
+            if (firstKey < secondKey) result[1] = 1;
+            else result[0] = 1;
+
+            portfolioState.sortedIndex = result;
+            return;
+        }
+
+        uint[] memory indexes = new uint[](portfolioState.storedAssets.length);
+        for (uint i; i < indexes.length; i++) indexes[i] = i;
+
+        _quickSort(portfolioState.storedAssets, indexes, int(0), int(indexes.length) - 1);
+        portfolioState.sortedIndex = indexes;
+    }
+
+    /**
+     * @dev Leaves the assets array in place and sorts the indexes.
+     */
+    function _quickSort(
+        PortfolioAsset[] memory assets,
+        uint[] memory indexes,
+        int left,
+        int right
+    ) internal pure {
+        if (left == right) return;
+        // TODO: make these uints and save the conversion here
+        int i = left;
+        int j = right;
+
+        uint pivot = getEncodedId(assets[indexes[uint(left + (right - left) / 2)]]);
+        while (i <= j) {
+            while (getEncodedId(assets[indexes[uint(i)]]) < pivot) i++;
+            while (pivot < getEncodedId(assets[indexes[uint(j)]])) j--;
+            if (i <= j) {
+                // Swap positions
+                (indexes[uint(i)], indexes[uint(j)]) = (indexes[uint(j)], indexes[uint(i)]);
+                i++;
+                j--;
+            }
+        }
+
+        if (left < j) _quickSort(assets, indexes, left, j);
+        if (i < right) _quickSort(assets, indexes, i, right);
+    }
 
     /**
      * @notice Builds a portfolio array from storage. The new assets hint parameter will
@@ -240,7 +316,9 @@ library PortfolioHandler {
             storedAssets: result,
             newAssets: new NewAsset[](newAssetsHint),
             lastNewAssetIndex: 0,
-            storedAssetLength: result.length
+            storedAssetLength: result.length,
+            // This index is initiated if required during settlement or FC
+            sortedIndex: new uint[](0)
         });
     }
 
@@ -300,6 +378,19 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         portfolioState.deleteAsset(index);
 
         return portfolioState;
+    }
+
+    function getEncodedId(
+        PortfolioAsset memory asset
+    ) public pure returns (uint) {
+        return PortfolioHandler.getEncodedId(asset);
+    }
+
+    function calculateSortedIndex(
+        PortfolioState memory portfolioState
+    ) public pure returns (uint[] memory) {
+        portfolioState.calculateSortedIndex();
+        return portfolioState.sortedIndex;
     }
 
     function buildPortfolioState(

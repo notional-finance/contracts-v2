@@ -30,6 +30,20 @@ def generate_random_asset():
 
 
 @given(num_assets=strategy("uint", min_value=0, max_value=40))
+def test_portfolio_sorting(portfolioHandler, accounts, num_assets):
+    storedPortfolio = [generate_random_asset() for i in range(0, num_assets)]
+    portfolioHandler.setAssetArray(accounts[1], storedPortfolio)
+    state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+
+    sortedIndexes = portfolioHandler.calculateSortedIndex(state)
+
+    pythonSorted = sorted(storedPortfolio, key=lambda x: (x[0], x[2], x[1]))
+    computedSort = tuple([state[0][i][0:3] for i in sortedIndexes])
+
+    assert computedSort == tuple([p[0:3] for p in pythonSorted])
+
+
+@given(num_assets=strategy("uint", min_value=0, max_value=40))
 def test_portfolio_handler(portfolioHandler, accounts, num_assets):
     storedPortfolio = [generate_random_asset() for i in range(0, num_assets)]
 
