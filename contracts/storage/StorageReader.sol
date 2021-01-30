@@ -42,15 +42,6 @@ struct BatchedTradeRequest {
     TradeRequest[] tradeRequests;
 }
 
-struct PortfolioAsset {
-    uint currencyId;
-    uint assetType;
-    uint maturity;
-    int notional;
-    uint storageArrayIndex;
-    bool mustUpdate;
-}
-
 /**
  * @dev Reads storage parameters and creates context structs for different actions.
  */
@@ -315,14 +306,6 @@ contract StorageReader is StorageLayoutV1 {
 
         return mp;
     }
-
-    // function getMergedPortfolioArray(
-    //     address account,
-    //     NetAssetChange[][] memory netAssetChanges,
-    //     PortfolioAsset[] memory portfolioAssets
-    // ) internal {
-    //     for ()
-    // }
 
 }
 
