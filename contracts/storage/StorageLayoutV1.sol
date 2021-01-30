@@ -165,45 +165,45 @@ contract StorageLayoutV1 {
     /* End Non-Mapping storage slots */
 
     // Mapping of whitelisted currencies from currency id to object struct
-    mapping(uint => CurrencyStorage) currencyMapping;
+    mapping(uint => CurrencyStorage) public currencyMapping;
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) underlyingToETHRateMapping;
+    mapping(uint => RateStorage) public underlyingToETHRateMapping;
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) assetToUnderlyingRateMapping;
+    mapping(uint => RateStorage) public assetToUnderlyingRateMapping;
     // Returns the historical asset to underlying settlement rate.
     // currency id => maturity => rate
-    mapping(uint => mapping(uint => SettlementRateStorage)) assetToUnderlyingSettlementRateMapping;
+    mapping(uint => mapping(uint => SettlementRateStorage)) public assetToUnderlyingSettlementRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
     // currencyId => storage
-    mapping(uint => CashGroupParameterStorage) cashGroupMapping;
+    mapping(uint => CashGroupParameterStorage) public cashGroupMapping;
     // Contains current market state information
     // currencyId => maturity => storage
-    mapping(uint => mapping(uint => MarketStorage)) marketStateMapping;
+    mapping(uint => mapping(uint => MarketStorage)) public marketStateMapping;
     // Keep total liquidity in a separate storage slot because it is not referenced
     // on every trade, only when adding or removing liquidity
     // currencyId => maturity => totalLiquditiy
-    mapping(uint => mapping(uint => uint80)) marketTotalLiquidityMapping;
+    mapping(uint => mapping(uint => uint80)) public marketTotalLiquidityMapping;
 
 
     /* Account Storage */
     // Mapping account context information used to determine how its assets and currencies
     // are laid out in storage
     // address => storage
-    mapping(address => AccountStorage) accountContextMapping;
+    mapping(address => AccountStorage) public accountContextMapping;
     // Asset arrays for accounts, if an account is using bitmaps then this may still
     // contain liquidity tokens
     // address => storage
     mapping(address => AssetStorage[]) assetArrayMapping;
     // address => currency id => bitmap
-    mapping(address => mapping(uint => bytes)) assetBitmapMapping;
+    mapping(address => mapping(uint => bytes)) public assetBitmapMapping;
     // address => currency id => maturity => ifCash value
-    mapping(address => mapping(uint => mapping(uint => int))) ifCashMapping;
+    mapping(address => mapping(uint => mapping(uint => int))) public ifCashMapping;
     // address => currency id => (cash balance, perpetual token balance)
-    mapping(address => mapping(uint => BalanceStorage)) accountBalanceMapping;
+    mapping(address => mapping(uint => BalanceStorage)) public accountBalanceMapping;
 
     // TODO: authorization mappings
     // TODO: function mappings
