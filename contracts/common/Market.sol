@@ -428,7 +428,7 @@ contract MockMarket {
         int rateAnchor,
         uint timeToMaturity,
         int fCashAmount
-    ) external view returns (int, bool) {
+    ) external pure returns (int, bool) {
         return Market.getExchangeRate(
             totalfCash,
             totalCashUnderlying,
@@ -449,7 +449,7 @@ contract MockMarket {
         int rateScalar,
         int rateAnchor,
         uint timeToMaturity
-    ) external view returns (uint, bool) {
+    ) external pure returns (uint, bool) {
         return Market.getImpliedRate(
             totalfCash,
             totalCashUnderlying,
@@ -465,7 +465,7 @@ contract MockMarket {
         int totalCashUnderlying,
         int rateScalar,
         uint timeToMaturity
-    ) external view returns (int, bool) {
+    ) external pure returns (int, bool) {
         return Market.getRateAnchor(
             totalfCash,
             lastImpliedRate,

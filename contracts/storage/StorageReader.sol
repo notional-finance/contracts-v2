@@ -6,13 +6,21 @@ import "./StorageLayoutV1.sol";
 import "../common/CashGroup.sol";
 import "../math/SafeInt256.sol";
 import "../math/Bitmap.sol";
+import "./PortfolioHandler.sol";
+
+// This should be a bitmap to handle both update more elegantly
+enum BalanceStorageState {
+    NoChange,
+    CashBalanceUpdate,
+    PerpetualTokenUpdate,
+    BothUpdate
+}
 
 struct BalanceContext {
     uint currencyId;
-    address assetTokenAddress;
-    bool tokenHasTransferFee;
     int cashBalance;
     uint perpetualTokenBalance;
+    BalanceStorageState storageState;
 }
 
 enum TradeAction {
@@ -55,16 +63,22 @@ contract StorageReader is StorageLayoutV1 {
      */
     function getInitializeContext(
         address account,
-        uint blockTime
-    ) internal view returns (AccountStorage memory) {
+        uint blockTime,
+        uint newAssetsHint
+    ) internal view returns (AccountStorage memory, PortfolioState memory) {
         // Storage Read
         AccountStorage memory accountContext = accountContextMapping[account];
-        if (accountContext.nextMaturingAsset <= blockTime) {
-            // TODO: call settle assets
-            // NOTE: this may be a stateful function!
+        PortfolioState memory portfolioState;
+
+        if (accountContext.nextMaturingAsset <= blockTime || newAssetsHint > 0) {
+            // We only fetch the portfolio state if there will be new assets added or if the account
+            // must be settled.
+            portfolioState = PortfolioHandler.buildPortfolioState(
+                assetArrayMapping[account], newAssetsHint
+            );
         }
 
-        return accountContext;
+        return (accountContext, portfolioState);
     }
 
     /**
@@ -73,26 +87,12 @@ contract StorageReader is StorageLayoutV1 {
     function getBalanceContext(
         address account,
         uint currencyId,
-        bool willTransfer,
         AccountStorage memory accountContext
     ) internal view returns (BalanceContext memory) {
-        CurrencyStorage memory currency;
         BalanceContext memory context;
         // Storage Read
         uint _maxCurrencyId = maxCurrencyId;
         require(currencyId <= _maxCurrencyId && currencyId != 0, "R: invalid currency id");
-
-        address assetTokenAddress;
-        bool tokenHasTransferFee;
-        // If the cash balance will not be transferred outside of the system then
-        // we can skip this storage read and leave the variables empty.
-        if (willTransfer) {
-            // Storage Read
-            currency = currencyMapping[currencyId];
-            assetTokenAddress = currency.assetTokenAddress;
-            tokenHasTransferFee = currency.tokenHasTransferFee;
-        }
-
         bool isActive = accountContext.activeCurrencies.isBitSet(currencyId);
 
         if (isActive) {
@@ -106,19 +106,17 @@ contract StorageReader is StorageLayoutV1 {
             BalanceStorage memory balance = accountBalanceMapping[account][currencyId];
             return BalanceContext({
                 currencyId: currencyId,
-                assetTokenAddress: assetTokenAddress,
-                tokenHasTransferFee: tokenHasTransferFee,
                 cashBalance: balance.cashBalance,
-                perpetualTokenBalance: balance.perpetualTokenBalance
+                perpetualTokenBalance: balance.perpetualTokenBalance,
+                storageState: BalanceStorageState.NoChange
             });
         }
 
         return BalanceContext({
             currencyId: currencyId,
-            assetTokenAddress: assetTokenAddress,
-            tokenHasTransferFee: tokenHasTransferFee,
             cashBalance: 0,
-            perpetualTokenBalance: 0
+            perpetualTokenBalance: 0,
+            storageState: BalanceStorageState.NoChange
         });
     }
 
@@ -131,11 +129,9 @@ contract StorageReader is StorageLayoutV1 {
         bytes memory activeCurrencies
     ) internal view returns (BalanceContext[] memory) {
         uint totalActive = activeCurrencies.totalBitsSet();
-        // Storage Read
-        uint _maxCurrencyId = maxCurrencyId;
-
         BalanceContext[] memory newBalanceContext = new BalanceContext[](totalActive);
         totalActive = 0;
+
         for (uint i; i < activeCurrencies.length; i++) {
             // Scan for the remaining balances in the active currencies list
             if (activeCurrencies[i] == 0x00) continue;
@@ -150,10 +146,9 @@ contract StorageReader is StorageLayoutV1 {
                     BalanceStorage memory balance = accountBalanceMapping[account][currencyId];
                     newBalanceContext[totalActive] = BalanceContext({
                         currencyId: currencyId,
-                        assetTokenAddress: address(0),
-                        tokenHasTransferFee: false,
                         cashBalance: balance.cashBalance,
-                        perpetualTokenBalance: balance.perpetualTokenBalance
+                        perpetualTokenBalance: balance.perpetualTokenBalance,
+                        storageState: BalanceStorageState.NoChange
                     });
                     totalActive += 1;
                 }
@@ -397,15 +392,15 @@ contract MockStorageReader is StorageReader {
 
     function _getInitializeContext(
         address account,
-        uint blockTime
-    ) public view returns (AccountStorage memory) {
-        return getInitializeContext(account, blockTime);
+        uint blockTime,
+        uint newAssetsHint
+    ) public view returns (AccountStorage memory, PortfolioState memory) {
+        return getInitializeContext(account, blockTime, newAssetsHint);
     }
 
     function _getBalanceContext(
         address account,
-        uint currencyId,
-        bool willTransfer
+        uint currencyId
     ) public view returns (
         BalanceContext memory,
         AccountStorage memory
@@ -415,7 +410,6 @@ contract MockStorageReader is StorageReader {
         BalanceContext memory balanceContext = getBalanceContext(
             account,
             currencyId,
-            willTransfer,
             accountContext
         );
 

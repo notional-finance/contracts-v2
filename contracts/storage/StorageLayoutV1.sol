@@ -20,7 +20,7 @@ struct CurrencyStorage {
 }
 
 /**
- * @dev Exchange rate object as it is represented in storage, total storage is 24 bytes.
+ * @dev Exchange rate object as it is represented in storage, total storage is 26 bytes.
  */
 struct RateStorage {
     // Address of the rate oracle
@@ -137,6 +137,20 @@ struct BalanceStorage {
 }
 
 /**
+ * @dev Settlement rate in storage, we store the rate decimal places here to save an additional
+ * storage read.
+ * TODO: is it possible to store all settlement rates in a single decimal precision?
+ */
+struct SettlementRateStorage {
+    // Settlement rate decimal places
+    uint8 rateDecimalPlaces;
+    // Timestamp of when the settlement rate was set
+    uint40 timestamp;
+    // Settlement rate
+    uint128 rate;
+}
+
+/**
  * @notice Storage layout for the system. Do not change this file once deployed, future storage
  * layouts must inherit this and increment the version number.
  */
@@ -160,7 +174,7 @@ contract StorageLayoutV1 {
     mapping(uint => RateStorage) assetToUnderlyingRateMapping;
     // Returns the historical asset to underlying settlement rate.
     // currency id => maturity => rate
-    mapping(uint => mapping(uint => uint)) assetToUnderlyingSettlementRateMapping;
+    mapping(uint => mapping(uint => SettlementRateStorage)) assetToUnderlyingSettlementRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information

@@ -28,13 +28,13 @@ def test_get_balance_context(storageReader, accounts):
     storageReader.setBalance(accounts[1], 7, (1e18, 7e18))
 
     # Assertions handled in mock
-    (bc, ac) = storageReader._getBalanceContext(accounts[1], 7, False)
+    (bc, ac) = storageReader._getBalanceContext(accounts[1], 7)
 
-    (bc, ac) = storageReader._getBalanceContext(accounts[1], 7, True)
+    (bc, ac) = storageReader._getBalanceContext(accounts[1], 7)
 
-    (bc, ac) = storageReader._getBalanceContext(accounts[1], 1, False)
+    (bc, ac) = storageReader._getBalanceContext(accounts[1], 1)
 
-    (bc, ac) = storageReader._getBalanceContext(accounts[1], 1, True)
+    (bc, ac) = storageReader._getBalanceContext(accounts[1], 1)
 
 
 @given(active_currencies=strategy("bytes", min_size=1, max_size=32))

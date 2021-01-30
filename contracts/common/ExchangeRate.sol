@@ -192,6 +192,22 @@ library ExchangeRate {
         });
     }
 
+    function buildSettlementRate(
+        int settlementRate,
+        uint rateDecimalPlaces
+    ) internal pure returns (Rate memory) {
+        int rateDecimals = int(10**rateDecimalPlaces);
+
+        return Rate({
+            rateDecimals: rateDecimals,
+            baseDecimals: 0,
+            quoteDecimals: 0,
+            rate: settlementRate,
+            buffer: 0,
+            haircut: 0
+        });
+    }
+
 }
 
 
