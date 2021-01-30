@@ -5,26 +5,9 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "../math/ABDKMath64x64.sol";
 import "./CashGroup.sol";
+import "../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
-
-struct fCashAsset {
-    // Notional value of the fCash asset, positive if a receiver and negative if a payer
-    int notional;
-    // Unix timestamp of the maturity in seconds
-    uint maturity;
-    // ID of the cash group this asset is contained in
-    uint cashGroupId;
-}
-
-struct LiquidityToken {
-    // Number of tokens contained in the asset
-    uint tokens;
-    // Unix timestamp of the maturity in seconds
-    uint maturity;
-    // ID of the cash group this asset is contained in
-    uint cashGroupId;
-}
 
 library Asset {
     using SafeMath for uint256;
@@ -55,17 +38,18 @@ library Asset {
      * @notice Present value of an fCash asset without any risk adjustments.
      */
     function getPresentValue(
-        fCashAsset memory fCash,
+        int notional,
+        uint maturity,
         uint blockTime,
         uint oracleRate
     ) internal pure returns (int) {
-        if (fCash.notional == 0) return 0;
+        if (notional == 0) return 0;
 
-        uint timeToMaturity = fCash.maturity.sub(blockTime);
+        uint timeToMaturity = maturity.sub(blockTime);
         int discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
         require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
-        return fCash.notional.mul(discountFactor).div(Market.RATE_PRECISION);
+        return notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
     /**
@@ -73,30 +57,29 @@ library Asset {
      * heavily than the oracle rate given and vice versa for negative fCash.
      */
     function getRiskAdjustedPresentValue(
-        fCashAsset memory fCash,
         CashGroupParameters memory cashGroup,
+        int notional,
+        uint maturity,
         uint blockTime,
         uint oracleRate
     ) internal pure returns (int) {
-        if (fCash.notional == 0) return 0;
-        require(fCash.cashGroupId == cashGroup.cashGroupId, "A: cash group mismatch");
-
-        uint timeToMaturity = fCash.maturity.sub(blockTime);
+        if (notional == 0) return 0;
+        uint timeToMaturity = maturity.sub(blockTime);
 
         int discountFactor;
-        if (fCash.notional > 0) {
+        if (notional > 0) {
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate.add(cashGroup.fCashHaircut));
         } else {
             // If the adjustment exceeds the oracle rate we floor the value of the fCash
             // at the notional value. We don't want to require the account to hold more than
             // absolutely required.
-            if (cashGroup.debtBuffer >= oracleRate) return fCash.notional;
+            if (cashGroup.debtBuffer >= oracleRate) return notional;
 
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate - cashGroup.debtBuffer);
         }
 
         require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
-        return fCash.notional.mul(discountFactor).div(Market.RATE_PRECISION);
+        return notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
     /**
@@ -105,15 +88,20 @@ library Asset {
      * @return (assetCash, fCash)
      */
     function getCashClaims(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
     ) internal pure returns (int, int) {
+        require(
+            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            "A: invalid asset in claims"
+        );
+
         int assetCash = marketState.totalCurrentCash
-            .mul(int(liquidityToken.tokens))
+            .mul(liquidityToken.notional)
             .div(marketState.totalLiquidity);
 
         int fCash = marketState.totalfCash
-            .mul(int(liquidityToken.tokens))
+            .mul(liquidityToken.notional)
             .div(marketState.totalLiquidity);
 
         return (assetCash, fCash);
@@ -138,26 +126,30 @@ library Asset {
      * @return (assetCash, fCash)
      */
     function getHaircutCashClaims(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
         uint blockTime
     ) internal pure returns (int, int) {
-        require(liquidityToken.cashGroupId == cashGroup.cashGroupId, "A: cash group mismatch");
+        require(
+            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            "A: invalid asset in claims"
+        );
+
+        require(liquidityToken.currencyId == cashGroup.currencyId, "A: cash group mismatch");
         uint timeToMaturity = liquidityToken.maturity.sub(blockTime);
         int haircut = SafeCast.toInt256(cashGroup.getLiquidityHaircut(timeToMaturity));
-        int tokens = SafeCast.toInt256(liquidityToken.tokens);
 
         int assetCash = calcToken(
             marketState.totalCurrentCash,
-            tokens,
+            liquidityToken.notional,
             haircut,
             marketState.totalLiquidity
         );
 
         int fCash = calcToken(
             marketState.totalfCash,
-            tokens,
+            liquidityToken.notional,
             haircut,
             marketState.totalLiquidity
         );
@@ -222,12 +214,17 @@ library Asset {
     }
 
     function getLiquidityTokenValue(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory marketStates,
-        fCashAsset[] memory fCashAssets,
+        PortfolioAsset[] memory fCashAssets,
         uint blockTime
     ) internal pure returns (int, int) {
+        require(
+            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            "A: invalid asset token value"
+        );
+
         (uint marketIndex, bool idiosyncratic) = findMarketIndex(
             liquidityToken.maturity,
             marketStates
@@ -245,7 +242,7 @@ library Asset {
         bool found;
         // Find the matching fCash asset and net off the value
         for (uint j; j < fCashAssets.length; j++) {
-            if (fCashAssets[j].cashGroupId == liquidityToken.cashGroupId &&
+            if (fCashAssets[j].currencyId == liquidityToken.currencyId &&
                 fCashAssets[j].maturity == liquidityToken.maturity) {
                 // Net off the fCashClaim here and we will discount it to present value in the second pass
                 fCashAssets[j].notional = fCashAssets[j].notional.add(fCashClaim);
@@ -258,12 +255,9 @@ library Asset {
         if (!found) {
             // If not matching fCash asset found then get the pv directly
             pv = getRiskAdjustedPresentValue(
-                fCashAsset({
-                    notional: fCashClaim,
-                    maturity: liquidityToken.maturity,
-                    cashGroupId: liquidityToken.cashGroupId
-                }),
                 cashGroup,
+                fCashClaim,
+                liquidityToken.maturity,
                 blockTime,
                 marketStates[marketIndex].oracleRate
             );
@@ -280,8 +274,8 @@ library Asset {
      * assumes that market states are sorted by maturity within each cash group.
      */
     function getRiskAdjustedPortfolioValue(
-        fCashAsset[] memory fCashAssets,
-        LiquidityToken[] memory liquidityTokens,
+        PortfolioAsset[] memory fCashAssets,
+        PortfolioAsset[] memory liquidityTokens,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
@@ -291,7 +285,7 @@ library Asset {
         uint groupIndex;
 
         for (uint i; i < liquidityTokens.length; i++) {
-            if (liquidityTokens[i].cashGroupId != cashGroups[groupIndex].cashGroupId) {
+            if (liquidityTokens[i].currencyId != cashGroups[groupIndex].currencyId) {
                 groupIndex += 1;
             }
 
@@ -309,28 +303,34 @@ library Asset {
 
         groupIndex = 0;
         for (uint i; i < fCashAssets.length; i++) {
-            if (fCashAssets[i].cashGroupId != cashGroups[groupIndex].cashGroupId) {
+            if (fCashAssets[i].currencyId != cashGroups[groupIndex].currencyId) {
                 // Convert the PV of the underlying values before we move to the next group index.
                 presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
                     presentValueUnderlying[groupIndex]
                 );
                 groupIndex += 1;
             }
+            uint maturity = fCashAssets[i].maturity;
+            uint oracleRate;
+            {
+                (uint marketIndex, bool idiosyncractic) = findMarketIndex(
+                    maturity,
+                    marketStates[groupIndex]
+                );
+                // TODO: if the asset is idiosyncratic under the lowest market maturity
+                // then we need to get the rate from the system
 
-            (uint marketIndex, bool idiosyncractic) = findMarketIndex(
-                fCashAssets[i].maturity,
-                marketStates[groupIndex]
-            );
-
-            uint oracleRate = idiosyncractic ? interpolateOracleRate(
-                marketStates[groupIndex][marketIndex],
-                marketStates[groupIndex][marketIndex + 1],
-                fCashAssets[i].maturity
-            ) : marketStates[groupIndex][marketIndex].oracleRate;
+                oracleRate = idiosyncractic ? interpolateOracleRate(
+                    marketStates[groupIndex][marketIndex],
+                    marketStates[groupIndex][marketIndex + 1],
+                    maturity
+                ) : marketStates[groupIndex][marketIndex].oracleRate;
+            }
 
             int pv = getRiskAdjustedPresentValue(
-                fCashAssets[i],
                 cashGroups[groupIndex],
+                fCashAssets[i].notional,
+                maturity,
                 blockTime,
                 oracleRate
             );
@@ -361,34 +361,36 @@ contract MockAsset {
     }
 
     function getPresentValue(
-        fCashAsset memory fCash,
+        int notional,
+        uint maturity,
         uint blockTime,
         uint oracleRate
     ) public pure returns (int) {
-        int pv = Asset.getPresentValue(fCash, blockTime, oracleRate);
-        if (fCash.notional > 0) assert(pv > 0);
-        if (fCash.notional < 0) assert(pv < 0);
+        int pv = Asset.getPresentValue(notional, maturity, blockTime, oracleRate);
+        if (notional > 0) assert(pv > 0);
+        if (notional < 0) assert(pv < 0);
 
-        assert(pv.abs() < fCash.notional.abs());
+        assert(pv.abs() < notional.abs());
         return pv;
     }
 
     function getRiskAdjustedPresentValue(
-        fCashAsset memory fCash,
         CashGroupParameters memory cashGroup,
+        int notional,
+        uint maturity,
         uint blockTime,
         uint oracleRate
     ) public pure returns (int) {
-        int riskPv = Asset.getRiskAdjustedPresentValue(fCash, cashGroup, blockTime, oracleRate);
-        int pv = getPresentValue(fCash, blockTime, oracleRate);
+        int riskPv = Asset.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
+        int pv = getPresentValue(notional, maturity, blockTime, oracleRate);
 
         assert(riskPv <= pv);
-        assert(riskPv.abs() <= fCash.notional.abs());
+        assert(riskPv.abs() <= notional.abs());
         return riskPv;
     }
 
     function getCashClaims(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
     ) public pure returns (int, int) {
         (int cash, int fCash) = Asset.getCashClaims(liquidityToken, marketState);
@@ -401,7 +403,7 @@ contract MockAsset {
     }
 
     function getHaircutCashClaims(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
         uint blockTime
@@ -442,12 +444,12 @@ contract MockAsset {
     }
 
     function getLiquidityTokenValue(
-        LiquidityToken memory liquidityToken,
+        PortfolioAsset memory liquidityToken,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory marketStates,
-        fCashAsset[] memory fCashAssets,
+        PortfolioAsset[] memory fCashAssets,
         uint blockTime
-    ) public pure returns (int, int, fCashAsset[] memory) {
+    ) public pure returns (int, int, PortfolioAsset[] memory) {
         (int assetValue, int pv) = Asset.getLiquidityTokenValue(
             liquidityToken,
             cashGroup,
@@ -460,8 +462,8 @@ contract MockAsset {
     }
 
     function getRiskAdjustedPortfolioValue(
-        fCashAsset[] memory fCashAssets,
-        LiquidityToken[] memory liquidityTokens,
+        PortfolioAsset[] memory fCashAssets,
+        PortfolioAsset[] memory liquidityTokens,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates
         // NOTE: removing this comment causes a stack error

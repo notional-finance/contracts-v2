@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
  * Market object as represented in memory
  */
 struct MarketParameters {
-    uint cashGroupId;
+    uint currencyId;
     uint maturity;
 
     // Total amount of fCash available for purchase in the market.
@@ -384,7 +384,7 @@ library Market {
     }
 
     function buildMarket(
-        uint cashGroupId,
+        uint currencyId,
         uint maturity,
         int totalLiquidity,
         uint rateOracleTimeWindow,
@@ -400,7 +400,7 @@ library Market {
         );
 
         return MarketParameters({
-            cashGroupId: cashGroupId,
+            currencyId: currencyId,
             maturity: maturity,
             totalfCash: marketStorage.totalfCash,
             totalCurrentCash: marketStorage.totalCurrentCash,
@@ -489,7 +489,7 @@ contract MockMarket {
    }
 
    function buildMarket(
-        uint cashGroupId,
+        uint currencyId,
         uint maturity,
         int totalLiquidity,
         uint rateOracleTimeWindow,
@@ -497,7 +497,7 @@ contract MockMarket {
         MarketStorage memory marketStorage
     ) public pure returns (MarketParameters memory) {
         return Market.buildMarket(
-            cashGroupId,
+            currencyId,
             maturity,
             totalLiquidity,
             rateOracleTimeWindow,

@@ -174,14 +174,11 @@ contract StorageReader is StorageLayoutV1 {
         BatchedTradeRequest[] calldata requestBatch
     )  internal view returns (
         CashGroupParameters[] memory,
-        MarketParameters[][] memory,
-        NetAssetChange[][] memory
+        MarketParameters[][] memory
     ) {
         CashGroupParameters[] memory cashGroups = new CashGroupParameters[](requestBatch.length);
         MarketParameters[][] memory marketParameters = new MarketParameters[][](requestBatch.length);
-        NetAssetChange[][] memory netAssetChanges = new NetAssetChange[][](requestBatch.length);
         Rate memory assetRate;
-        CashGroupParameterStorage memory cashGroupStorage;
         // Storage Read
         uint _maxCurrencyId = maxCurrencyId;
 
@@ -202,7 +199,7 @@ contract StorageReader is StorageLayoutV1 {
 
             cashGroups[i] = CashGroup.buildCashGroup(
                 currencyId,
-                cashGroupStorage,
+                cashGroupMapping[currencyId],
                 assetRate
             );
 
@@ -211,15 +208,9 @@ contract StorageReader is StorageLayoutV1 {
                 requestBatch[i].tradeRequests,
                 cashGroups[i]
             );
-
-            // It's possible that the total net asset changes in a cash group are less than the request
-            // length but that would be quite odd, it would be adding and removing liquidity or lending
-            // and borrowing on the same maturity. These changes will net each other out later. We provision
-            // the array here for actions to use.
-            netAssetChanges[i] = new NetAssetChange[](requestBatch[i].tradeRequests.length);
         }
 
-        return (cashGroups, marketParameters, netAssetChanges);
+        return (cashGroups, marketParameters);
     }
 
     /**
@@ -279,7 +270,7 @@ contract StorageReader is StorageLayoutV1 {
                     && mp[marketStateCount - 1].totalLiquidity == 0) {
                     
                     // Storage Read
-                    mp[marketStateCount - 1].totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][maturity];
+                    mp[marketStateCount - 1].totalLiquidity = marketTotalLiquidityMapping[cashGroup.currencyId][maturity];
                 }
 
                 continue;
@@ -289,17 +280,17 @@ contract StorageReader is StorageLayoutV1 {
             if (tradeRequests[i].tradeAction == TradeAction.AddLiquidity ||
                 tradeRequests[i].tradeAction == TradeAction.RemoveLiquidity) {
                 // Storage Read
-                totalLiquidity = marketTotalLiquidityMapping[cashGroup.cashGroupId][maturity];
+                totalLiquidity = marketTotalLiquidityMapping[cashGroup.currencyId][maturity];
             }
 
             mp[marketStateCount] = Market.buildMarket(
-                cashGroup.cashGroupId,
+                cashGroup.currencyId,
                 maturity,
                 totalLiquidity,
                 cashGroup.rateOracleTimeWindow,
                 blockTime,
                 // Storage Read
-                marketStateMapping[cashGroup.cashGroupId][maturity]
+                marketStateMapping[cashGroup.currencyId][maturity]
             );
             marketStateCount += 1;
         }
@@ -458,8 +449,7 @@ contract MockStorageReader is StorageReader {
         BatchedTradeRequest[] calldata requestBatch
     ) public view returns (
         CashGroupParameters[] memory,
-        MarketParameters[][] memory,
-        NetAssetChange[][] memory
+        MarketParameters[][] memory
     ) {
         return getTradeContext(
             blockTime,

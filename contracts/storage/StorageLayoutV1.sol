@@ -167,11 +167,11 @@ contract StorageLayoutV1 {
     // currencyId => storage
     mapping(uint => CashGroupParameterStorage) cashGroupMapping;
     // Contains current market state information
-    // cashGroupId => maturity => storage
+    // currencyId => maturity => storage
     mapping(uint => mapping(uint => MarketStorage)) marketStateMapping;
     // Keep total liquidity in a separate storage slot because it is not referenced
     // on every trade, only when adding or removing liquidity
-    // cashGroupId => maturity => totalLiquditiy
+    // currencyId => maturity => totalLiquditiy
     mapping(uint => mapping(uint => uint80)) marketTotalLiquidityMapping;
 
 

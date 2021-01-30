@@ -32,7 +32,7 @@ struct CashGroupTokens {
  * @dev Cash group when loaded into memory
  */
 struct CashGroupParameters {
-    uint cashGroupId;
+    uint currencyId;
     uint rateOracleTimeWindow;
     uint liquidityFee;
     int rateScalar;
@@ -288,7 +288,7 @@ library CashGroup {
      * @notice Converts cash group storage object into memory object
      */
     function buildCashGroup(
-        uint cashGroupId,
+        uint currencyId,
         CashGroupParameterStorage memory cashGroupStorage,
         Rate memory assetRate
     ) internal pure returns (CashGroupParameters memory) {
@@ -298,7 +298,7 @@ library CashGroup {
         uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowMin * 60;
 
         return CashGroupParameters({
-            cashGroupId: cashGroupId,
+            currencyId: currencyId,
             rateOracleTimeWindow: rateOracleTimeWindowSeconds,
             liquidityFee: liquidityFee,
             rateScalar: cashGroupStorage.rateScalar,
@@ -371,11 +371,11 @@ contract MockCashGroup {
     }
 
     function buildCashGroup(
-        uint cashGroupId,
+        uint currencyId,
         CashGroupParameterStorage memory cashGroupStorage,
         Rate memory assetRate
     ) public view returns (CashGroupParameters memory) {
-        return CashGroup.buildCashGroup(cashGroupId, cashGroupStorage, assetRate);
+        return CashGroup.buildCashGroup(currencyId, cashGroupStorage, assetRate);
     }
 
 }
