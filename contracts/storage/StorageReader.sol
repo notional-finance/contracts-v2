@@ -230,7 +230,7 @@ contract StorageReader is StorageLayoutV1 {
             if (tradeRequests[i].tradeAction == TradeAction.MintCashPair) {
                 // Check that the ifCash asset is valid as early as possible
                 require(
-                    cashGroup.getIdiosyncraticBitNumber(maturity, blockTime) != 0,
+                    cashGroup.isValidIdiosyncraticMaturity(maturity, blockTime) != 0,
                     "R: invalid maturity"
                 );
 

@@ -127,17 +127,29 @@ library CashGroup {
      *
      * @return 0 if invalid, otherwise the 1-indexed bit reference of the maturity
      */
-    function getIdiosyncraticBitNumber(
+    function isValidIdiosyncraticMaturity(
        CashGroupParameters memory cashGroup,
        uint maturity,
        uint blockTime
     ) internal pure returns (uint) {
         uint tRef = getReferenceTime(blockTime);
-        uint blockTimeUTC0 = getTimeUTC0(blockTime);
         uint maxMaturity = tRef.add(getTradedMarket(cashGroup.maxMarketIndex));
+        if (maturity > maxMaturity) return 0;
+
+        return getBitNumFromMaturity(blockTime, maturity);
+    }
+
+    /**
+     * @notice Given a bit number and the reference time of the first bit, returns the bit number
+     * of a given maturity.
+     */
+    function getBitNumFromMaturity(
+       uint blockTime,
+       uint maturity
+    ) internal pure returns (uint) {
+        uint blockTimeUTC0 = getTimeUTC0(blockTime);
 
         if (maturity % DAY != 0) return 0;
-        if (maturity > maxMaturity) return 0;
         if (blockTimeUTC0 >= maturity) return 0;
 
         // Overflow check done above
@@ -335,7 +347,7 @@ contract MockCashGroup {
        uint maturity,
        uint blockTime
     ) public pure returns (uint) {
-        uint bitNum = cashGroup.getIdiosyncraticBitNumber(maturity, blockTime);
+        uint bitNum = cashGroup.isValidIdiosyncraticMaturity(maturity, blockTime);
         // We one index the bitNum so its max it 256
         assert(bitNum < 256);
 
