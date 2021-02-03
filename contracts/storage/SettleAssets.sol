@@ -46,7 +46,6 @@ contract SettleAssets is StorageReader {
      */
     function settleLiquidityToken(
         PortfolioAsset memory asset,
-        BalanceContext memory balance,
         Rate memory settlementRate
     ) internal view returns (int, MarketStorage memory, uint80) {
         // Storage Read
@@ -113,7 +112,6 @@ contract SettleAssets is StorageReader {
             } else if (asset.assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
                 (assetCash, /* */, /* */) = settleLiquidityToken(
                     asset,
-                    currentContext,
                     settlementRate
                 );
             }
@@ -168,7 +166,6 @@ contract SettleAssets is StorageReader {
                 uint80 totalLiquidity;
                 (assetCash, marketState, totalLiquidity) = settleLiquidityToken(
                     asset,
-                    currentContext,
                     settlementRate
                 );
 
@@ -200,8 +197,7 @@ contract SettleAssets is StorageReader {
         // Rate has not been set so we fetch the latest exchange rate
         if (settlementRate.timestamp == 0) {
             // Storage Read
-            RateStorage memory assetRate = assetToUnderlyingRateMapping[currencyId];
-            return ExchangeRate.buildExchangeRate(assetRate);
+            return ExchangeRate.buildAssetRate(currencyId);
         }
 
         return ExchangeRate.buildSettlementRate(
@@ -225,21 +221,20 @@ contract SettleAssets is StorageReader {
 
         // Rate has not been set so we fetch the latest exchange rate and set it
         if (settlementRate.timestamp == 0) {
-            RateStorage memory assetRate = assetToUnderlyingRateMapping[currencyId];
-            Rate memory exchangeRate = ExchangeRate.buildExchangeRate(assetRate);
+            Rate memory assetRate = ExchangeRate.buildAssetRate(currencyId);
 
             require(blockTime != 0 && blockTime <= type(uint40).max, "S: invalid timestamp");
-            require(exchangeRate.rate > 0 && exchangeRate.rate <= type(uint128).max, "S: rate overflow");
+            require(assetRate.rate > 0 && assetRate.rate <= type(uint128).max, "S: rate overflow");
             
             // Storage Write
             assetToUnderlyingSettlementRateMapping[currencyId][maturity] = SettlementRateStorage({
                 rateDecimalPlaces: assetRate.rateDecimalPlaces,
                 timestamp: uint40(blockTime),
-                rate: uint128(exchangeRate.rate)
+                rate: uint128(assetRate.rate)
             });
             // TODO: emit event here
 
-            return exchangeRate;
+            return assetRate;
         }
 
         return ExchangeRate.buildSettlementRate(

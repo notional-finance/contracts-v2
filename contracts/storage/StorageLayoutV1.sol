@@ -47,15 +47,13 @@ struct RateStorage {
  */
 struct CashGroupParameterStorage {
     /* Market Parameters */
+    // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
+    // that is less than the longest AMM will be tradable.
+    uint8 maxMarketIndex;
     // Time window in minutes that the rate oracle will be averaged over
     uint8 rateOracleTimeWindowMin;
     // Liquidity fee given to LPs per trade, specified in BPS
     uint8 liquidityFeeBPS;
-    // Rate scalar used to determine the slippage of the market
-    uint16 rateScalar;
-    // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
-    // that is less than the longest AMM will be tradable.
-    uint8 maxMarketIndex;
 
     /* Risk Parameters */
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
@@ -68,6 +66,9 @@ struct CashGroupParameterStorage {
     /* Liquidation Parameters */
     // uint8 settlementPenaltyRateBPS;
     // uint8 liquidityRepoDiscount;
+
+    // Rate scalar used to determine the slippage of the market
+    uint16 rateScalar;
 }
 
 /**

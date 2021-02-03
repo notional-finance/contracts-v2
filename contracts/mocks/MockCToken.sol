@@ -14,7 +14,7 @@ contract MockCToken {
         _answer = a;
     }
 
-    function exchangeRateCurrent() external returns (uint) {
+    function exchangeRateCurrent() external view returns (uint) {
         return _answer;
     }
 }

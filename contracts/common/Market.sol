@@ -38,6 +38,9 @@ library Market {
     using CashGroup for CashGroupParameters;
     using ExchangeRate for Rate;
 
+    uint internal constant MARKET_STORAGE_SLOT = 6;
+    uint internal constant LIQUIDITY_STORAGE_SLOT = 7;
+
     // This is a constant that represents the time period that all rates are normalized by, 360 days
     uint internal constant IMPLIED_RATE_TIME = 31104000;
 
@@ -108,7 +111,6 @@ library Market {
                 totalCashUnderlying,
                 rateScalar,
                 rateAnchor,
-                timeToMaturity,
                 fCashAmount
             );
             if (!success) return (marketState, 0, 0);
@@ -252,7 +254,6 @@ library Market {
            totalCashUnderlying,
            rateScalar,
            rateAnchor,
-           timeToMaturity,
            0
         );
         if (!success) return (0, false);
@@ -289,7 +290,6 @@ library Market {
         int totalCashUnderlying,
         int rateScalar,
         int rateAnchor,
-        uint timeToMaturity,
         int fCashAmount
     ) internal pure returns (int, bool) {
         int numerator = totalfCash.add(fCashAmount);
@@ -383,39 +383,80 @@ library Market {
         return newOracleRate;
     }
 
-    function buildMarket(
+    function getMarketStorage(
         uint currencyId,
         uint maturity,
-        int totalLiquidity,
-        uint rateOracleTimeWindow,
-        uint blockTime,
-        MarketStorage memory marketStorage
-    ) internal pure returns (MarketParameters memory) {
-        uint newOracleRate = updateRateOracle(
-            marketStorage.previousTradeTime,
-            marketStorage.lastImpliedRate,
-            marketStorage.oracleRate,
-            rateOracleTimeWindow,
-            blockTime
-        );
+        bool needsLiquidity
+    ) internal view returns (MarketParameters memory) {
+        bytes32 slot = keccak256(abi.encode(maturity, keccak256(abi.encode(currencyId, MARKET_STORAGE_SLOT))));
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        int totalLiquidity;
+        if (needsLiquidity) {
+            slot = keccak256(abi.encode(maturity, keccak256(abi.encode(currencyId, LIQUIDITY_STORAGE_SLOT))));
+
+            assembly {
+                totalLiquidity := sload(slot)
+            }
+        }
+
+        int totalfCash = int(uint80(bytes10(data)));
+        int totalCurrentCash = int(uint80(bytes10(data >> 80)));
+        uint lastImpliedRate = uint(uint32(bytes4(data >> 160)));
+        uint oracleRate = uint(uint32(bytes4(data >> 192)));
+        uint previousTradeTime = uint(uint32(bytes4(data >> 224)));
 
         return MarketParameters({
             currencyId: currencyId,
             maturity: maturity,
-            totalfCash: marketStorage.totalfCash,
-            totalCurrentCash: marketStorage.totalCurrentCash,
+            totalfCash: totalfCash,
+            totalCurrentCash: totalCurrentCash,
             totalLiquidity: totalLiquidity,
-            lastImpliedRate: marketStorage.lastImpliedRate,
-            oracleRate: newOracleRate,
-            previousTradeTime: marketStorage.previousTradeTime
+            lastImpliedRate: lastImpliedRate,
+            oracleRate: oracleRate,
+            previousTradeTime: previousTradeTime
         });
+    }
+
+    function buildMarket(
+        uint currencyId,
+        uint maturity,
+        uint blockTime,
+        bool needsLiquidity,
+        uint rateOracleTimeWindow
+    ) internal view returns (MarketParameters memory) {
+        MarketParameters memory marketState = getMarketStorage(currencyId, maturity, needsLiquidity);
+
+        marketState.oracleRate = updateRateOracle(
+            marketState.previousTradeTime,
+            marketState.lastImpliedRate,
+            marketState.oracleRate,
+            rateOracleTimeWindow,
+            blockTime
+        );
+
+        return marketState;
     }
 
 }
 
 
-contract MockMarket {
+contract MockMarket is StorageLayoutV1 {
     using Market for MarketParameters;
+
+    function setMarketState(
+        uint id,
+        uint maturity,
+        MarketStorage calldata ms,
+        uint80 totalLiquidity
+    ) external {
+        marketStateMapping[id][maturity] = ms;
+        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+    }
 
     function getUint64(uint value) public pure returns (int128) {
         return ABDKMath64x64.fromUInt(value);
@@ -426,7 +467,6 @@ contract MockMarket {
         int totalCashUnderlying,
         int rateScalar,
         int rateAnchor,
-        uint timeToMaturity,
         int fCashAmount
     ) external pure returns (int, bool) {
         return Market.getExchangeRate(
@@ -434,12 +474,11 @@ contract MockMarket {
             totalCashUnderlying,
             rateScalar,
             rateAnchor,
-            timeToMaturity,
             fCashAmount
         );
     }
 
-    function logProportion(int proportion) external view returns (int, bool) {
+    function logProportion(int proportion) external pure returns (int, bool) {
         return Market.logProportion(proportion);
     }
 
@@ -491,18 +530,16 @@ contract MockMarket {
    function buildMarket(
         uint currencyId,
         uint maturity,
-        int totalLiquidity,
-        uint rateOracleTimeWindow,
         uint blockTime,
-        MarketStorage memory marketStorage
-    ) public pure returns (MarketParameters memory) {
+        bool needsLiquidity,
+        uint rateOracleTimeWindow
+    ) public view returns (MarketParameters memory) {
         return Market.buildMarket(
             currencyId,
             maturity,
-            totalLiquidity,
-            rateOracleTimeWindow,
             blockTime,
-            marketStorage
+            needsLiquidity,
+            rateOracleTimeWindow
         );
     }
 

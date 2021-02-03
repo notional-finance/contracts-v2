@@ -54,19 +54,6 @@ library StorageGetter {
         );
     }
 
-    function getCashGroup(uint currencyId) internal view returns (bytes memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-
-        // A lot of overhead to decode these bytes, we will decode them if used.
-        return abi.encodePacked(data);
-    }
-
     function getAssetRate(uint currencyId) internal view returns (RateStorage memory) {
         bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
         bytes32 data;
@@ -78,12 +65,12 @@ library StorageGetter {
         // TODO: maybe split this out?
         return RateStorage({
             rateOracle: address(bytes20(data)),
-            rateDecimalPlaces: uint8(uint(data >> 8)),
-            mustInvert: bytes1(data >> 16) != 0x00,
-            buffer: uint8(uint(data >> 24)),
-            haircut: uint8(uint(data >> 32)),
-            quoteDecimalPlaces: uint8(uint(data >> 40)),
-            baseDecimalPlaces: uint8(uint(data >> 48))
+            rateDecimalPlaces: uint8(uint(data >> 28)),
+            mustInvert: bytes1(data >> 36) != 0x00,
+            buffer: uint8(uint(data >> 44)),
+            haircut: uint8(uint(data >> 52)),
+            quoteDecimalPlaces: uint8(uint(data >> 60)),
+            baseDecimalPlaces: uint8(uint(data >> 68))
         });
     }
 

@@ -27,6 +27,8 @@ struct Rate {
     int buffer;
     // Amount of haircut to apply to the exchange rate for positive balances
     int haircut;
+    // Used for settlement rates
+    uint8 rateDecimalPlaces;
 }
 
 /**
@@ -39,6 +41,8 @@ library ExchangeRate {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
+    uint internal constant ETH_RATE_STORAGE_SLOT = 2;
+    uint internal constant ASSET_RATE_STORAGE_SLOT = 3;
     int public constant MULTIPLIER_DECIMALS = 100;
     int public constant ETH_DECIMALS = 1e18;
 
@@ -157,39 +161,65 @@ library ExchangeRate {
         return baseER.rate.mul(quoteER.rateDecimals).div(quoteER.rate);
     }
 
-    /**
-     * @notice Given an exchange rate storage object, returns the in-memory exchange rate object
-     * that will be used in contract calculations.
-     *
-     * @param rateStorage rate storage object
-     */
-    function buildExchangeRate(
-        RateStorage memory rateStorage
-    ) internal view returns (Rate memory) {
+    function getRateStorage(
+        uint currencyId,
+        uint storageSlot
+    ) private view returns (Rate memory) {
+        bytes32 slot = keccak256(abi.encode(currencyId, storageSlot));
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        address rateOracle = address(bytes20(data));
         (
             /* uint80 */,
             int rate,
             /* uint256 */,
             /* uint256 */,
             /* uint80 */
-        ) = AggregatorV2V3Interface(rateStorage.rateOracle).latestRoundData();
+        ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
         require(rate > 0, "ExchangeRate: invalid rate");
-        int rateDecimals = int(10**rateStorage.rateDecimalPlaces);
-        if (rateStorage.mustInvert) rate = rateDecimals.mul(rateDecimals).div(rate);
 
-        int baseDecimals = int(10**rateStorage.baseDecimalPlaces);
-        // If quoteDecimalPlaces is supplied as zero then we set this to zero
-        int quoteDecimals = rateStorage.quoteDecimalPlaces == 0 ?
-            0 : int(10**rateStorage.quoteDecimalPlaces);
+        uint8 rateDecimalPlaces = uint8(bytes1(data >> 28));
+        int rateDecimals = int(10**rateDecimalPlaces);
+        if (bytes1(data >> 16) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
+        int quoteDecimals = int(10**uint8(bytes1(data >> 60)));
+        int baseDecimals = int(10**uint8(bytes1(data >> 68)));
+
+        int buffer;
+        int haircut;
+        if (storageSlot == ETH_RATE_STORAGE_SLOT) {
+            buffer = int(uint8(bytes1(data >> 44)));
+            haircut = int(uint8(bytes1(data >> 52)));
+        }
 
         return Rate({
             rateDecimals: rateDecimals,
             baseDecimals: baseDecimals,
             quoteDecimals: quoteDecimals,
             rate: rate,
-            buffer: rateStorage.buffer,
-            haircut: rateStorage.haircut
+            buffer: buffer,
+            haircut: haircut,
+            rateDecimalPlaces: rateDecimalPlaces
         });
+    }
+
+    /**
+     * @notice Given an exchange rate storage object, returns the in-memory exchange rate object
+     * that will be used in contract calculations.
+     */
+    function buildExchangeRate(
+        uint currencyId
+    ) internal view returns (Rate memory) {
+        return getRateStorage(currencyId, ETH_RATE_STORAGE_SLOT);
+    }
+
+    function buildAssetRate(
+        uint currencyId
+    ) internal view returns (Rate memory) {
+        return getRateStorage(currencyId, ASSET_RATE_STORAGE_SLOT);
     }
 
     function buildSettlementRate(
@@ -204,16 +234,32 @@ library ExchangeRate {
             quoteDecimals: 0,
             rate: settlementRate,
             buffer: 0,
-            haircut: 0
+            haircut: 0,
+            // Not needed
+            rateDecimalPlaces: 0
         });
     }
 
 }
 
 
-contract MockExchangeRate {
+contract MockExchangeRate is StorageLayoutV1 {
     using SafeInt256 for int256;
     using ExchangeRate for Rate;
+
+    function setETHRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        underlyingToETHRateMapping[id] = rs;
+    }
+
+    function setAssetRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        assetToUnderlyingRateMapping[id] = rs;
+    }
 
     function assertBalanceSign(int balance, int result) private pure {
         if (balance == 0) assert(result == 0);
@@ -307,10 +353,15 @@ contract MockExchangeRate {
     }
 
     function buildExchangeRate(
-        RateStorage memory rateStorage
+        uint currencyId
     ) external view returns (Rate memory) {
-        return ExchangeRate.buildExchangeRate(rateStorage);
+        return ExchangeRate.buildExchangeRate(currencyId);
     }
 
+    function buildAssetRate(
+        uint currencyId
+    ) external view returns (Rate memory) {
+        return ExchangeRate.buildAssetRate(currencyId);
+    }
 
 }

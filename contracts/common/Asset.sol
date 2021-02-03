@@ -72,14 +72,15 @@ library Asset {
 
         int discountFactor;
         if (notional > 0) {
-            discountFactor = getDiscountFactor(timeToMaturity, oracleRate.add(cashGroup.fCashHaircut));
+            discountFactor = getDiscountFactor(timeToMaturity, oracleRate.add(cashGroup.getfCashHaircut()));
         } else {
+            uint debtBuffer = cashGroup.getDebtBuffer();
             // If the adjustment exceeds the oracle rate we floor the value of the fCash
             // at the notional value. We don't want to require the account to hold more than
             // absolutely required.
-            if (cashGroup.debtBuffer >= oracleRate) return notional;
+            if (debtBuffer >= oracleRate) return notional;
 
-            discountFactor = getDiscountFactor(timeToMaturity, oracleRate - cashGroup.debtBuffer);
+            discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
         }
 
         require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
@@ -290,6 +291,7 @@ library Asset {
 
         for (uint i; i < assets.length; i++) {
             if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
+                // Check the currency id here
                 groupIndex += 1;
             }
             if (assets[i].assetType != Asset.LIQUIDITY_TOKEN_ASSET_TYPE) continue;
@@ -309,6 +311,7 @@ library Asset {
         groupIndex = 0;
         for (uint i; i < assets.length; i++) {
             if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
+                // Check the currency id here
                 // Convert the PV of the underlying values before we move to the next group index.
                 presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
                     presentValueUnderlying[groupIndex]
@@ -320,6 +323,7 @@ library Asset {
             uint maturity = assets[i].maturity;
             uint oracleRate;
             {
+                // Switch these methods onto the cash group
                 (uint marketIndex, bool idiosyncractic) = findMarketIndex(
                     maturity,
                     marketStates[groupIndex]
@@ -473,7 +477,7 @@ contract MockAsset {
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
-    ) public view returns(int[] memory) {
+    ) public pure returns(int[] memory) {
         int[] memory assetValue = Asset.getRiskAdjustedPortfolioValue(
             assets,
             cashGroups,

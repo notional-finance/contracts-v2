@@ -33,20 +33,25 @@ struct CashGroupTokens {
  */
 struct CashGroupParameters {
     uint currencyId;
-    uint rateOracleTimeWindow;
-    uint liquidityFee;
-    int rateScalar;
     uint maxMarketIndex;
-    uint liquidityTokenHaircut;
-    uint debtBuffer;
-    uint fCashHaircut;
-
     Rate assetRate;
+    bytes32 data;
 }
 
 library CashGroup {
     using SafeMath for uint256;
     using SafeInt256 for int;
+
+    uint internal constant CASH_GROUP_STORAGE_SLOT = 12;
+
+    // Offsets for the bytes of the different parameters
+    // TODO: benchmark if the current method is better than just allocating them to memory
+    uint internal constant RATE_ORACLE_TIME_WINDOW = 8;
+    uint internal constant LIQUIDITY_FEE = 16;
+    uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 24;
+    uint internal constant DEBT_BUFFER = 32;
+    uint internal constant FCASH_HAIRCUT = 40;
+    uint internal constant RATE_SCALAR = 48;
 
     uint internal constant DAY = 86400;
     // We use six day weeks to ensure that all time references divide evenly
@@ -108,13 +113,14 @@ library CashGroup {
        uint maturity,
        uint blockTime
     ) internal pure returns (bool) {
-        require(cashGroup.maxMarketIndex > 0, "CG: no markets listed");
-        require(cashGroup.maxMarketIndex < 10, "CG: market index bound");
+        uint maxMarketIndex = cashGroup.maxMarketIndex;
+        require(maxMarketIndex > 0, "CG: no markets listed");
+        require(maxMarketIndex < 10, "CG: market index bound");
 
         if (maturity % QUARTER != 0) return false;
         uint tRef = getReferenceTime(blockTime);
 
-        for (uint i = 1; i <= cashGroup.maxMarketIndex; i++) {
+        for (uint i = 1; i <= maxMarketIndex; i++) {
             if (maturity == tRef.add(getTradedMarket(i))) return true;
         }
 
@@ -224,7 +230,8 @@ library CashGroup {
         CashGroupParameters memory cashGroup,
         uint timeToMaturity
     ) internal pure returns (int) {
-        int rateScalar = cashGroup.rateScalar
+        int scalar = int(uint16(bytes2(cashGroup.data << RATE_SCALAR)));
+        int rateScalar = scalar
             .mul(int(Market.IMPLIED_RATE_TIME))
             .div(int(timeToMaturity));
 
@@ -247,7 +254,8 @@ library CashGroup {
         CashGroupParameters memory cashGroup,
         uint timeToMaturity
     ) internal pure returns (uint) {
-        return annualizeUintValue(cashGroup.liquidityFee, timeToMaturity);
+        uint liquidityFee = uint(uint8(bytes1(cashGroup.data << LIQUIDITY_FEE))) * Market.BASIS_POINT;
+        return annualizeUintValue(liquidityFee, timeToMaturity);
     }
 
     function getLiquidityHaircut(
@@ -255,7 +263,28 @@ library CashGroup {
         uint timeToMaturity
     ) internal pure returns (uint) {
         // TODO: unclear how this should be calculated
-        return cashGroup.liquidityTokenHaircut;
+        uint liquidityTokenHaircut = uint(uint8(bytes1(cashGroup.data << LIQUIDITY_TOKEN_HAIRCUT)));
+        return liquidityTokenHaircut;
+    }
+
+    function getfCashHaircut(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (uint) {
+        // TODO: unclear how this should be calculated
+        return uint(uint8(bytes1(cashGroup.data << FCASH_HAIRCUT))) * Market.BASIS_POINT;
+    }
+
+    function getDebtBuffer(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (uint) {
+        return uint(uint8(bytes1(cashGroup.data << DEBT_BUFFER))) * Market.BASIS_POINT;
+    }
+
+    function getRateOracleTimeWindow(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (uint) {
+        // This is denominated in minutes in storage
+        return uint(uint8(bytes1(cashGroup.data << RATE_ORACLE_TIME_WINDOW))) * 60;
     }
 
     /**
@@ -264,11 +293,6 @@ library CashGroup {
      * and the initial rate anchor.
      *
      * TODO: is this a stateful function or not?
-     * @param cashGroup
-     * @param maturity
-     * @param blockTime
-     * @param perpetualTokenAddress
-     * @return a market state object
      function initializeMarket(
        CashGroupParameters cashGroup,
        uint maturity,
@@ -296,36 +320,52 @@ library CashGroup {
      }
      */
 
+    function getCashGroupStorageBytes(uint currencyId) private view returns(bytes32) {
+        bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        return data;
+    }
+
     /**
      * @notice Converts cash group storage object into memory object
      */
     function buildCashGroup(
-        uint currencyId,
-        CashGroupParameterStorage memory cashGroupStorage,
-        Rate memory assetRate
-    ) internal pure returns (CashGroupParameters memory) {
-        uint liquidityFee = cashGroupStorage.liquidityFeeBPS * Market.BASIS_POINT;
-        uint debtBuffer = cashGroupStorage.debtBufferBPS * Market.BASIS_POINT;
-        uint fCashHaircut = cashGroupStorage.fCashHaircutBPS * Market.BASIS_POINT;
-        uint rateOracleTimeWindowSeconds = cashGroupStorage.rateOracleTimeWindowMin * 60;
+        uint currencyId
+    ) internal view returns (CashGroupParameters memory) {
+        bytes32 data = getCashGroupStorageBytes(currencyId);
+        Rate memory assetRate = ExchangeRate.buildAssetRate(currencyId);
 
         return CashGroupParameters({
             currencyId: currencyId,
-            rateOracleTimeWindow: rateOracleTimeWindowSeconds,
-            liquidityFee: liquidityFee,
-            rateScalar: cashGroupStorage.rateScalar,
-            maxMarketIndex: cashGroupStorage.maxMarketIndex,
-            liquidityTokenHaircut: cashGroupStorage.liquidityTokenHaircut,
-            debtBuffer: debtBuffer,
-            fCashHaircut: fCashHaircut,
-            assetRate: assetRate
+            assetRate: assetRate,
+            maxMarketIndex: uint(uint8(bytes1(data))),
+            data: data
         });
     }
 
 }
 
-contract MockCashGroup {
+contract MockCashGroup is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
+
+    function setAssetRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        assetToUnderlyingRateMapping[id] = rs;
+    }
+
+    function setCashGroup(
+        uint id,
+        CashGroupParameterStorage calldata cg
+    ) external {
+        cashGroupMapping[id] = cg;
+    }
 
     function getTradedMarket(uint index) public pure returns (uint) {
         return CashGroup.getTradedMarket(index);
@@ -383,11 +423,9 @@ contract MockCashGroup {
     }
 
     function buildCashGroup(
-        uint currencyId,
-        CashGroupParameterStorage memory cashGroupStorage,
-        Rate memory assetRate
+        uint currencyId
     ) public view returns (CashGroupParameters memory) {
-        return CashGroup.buildCashGroup(currencyId, cashGroupStorage, assetRate);
+        return CashGroup.buildCashGroup(currencyId);
     }
 
 }
