@@ -248,6 +248,182 @@ contract SettleAssets is StorageReader {
         );
     }
 
+    function settleBitmappedAsset(
+        address account,
+        uint currencyId,
+        uint nextMaturingAsset,
+        uint blockTime,
+        uint bitNum,
+        bytes32 bits
+    ) internal returns (bytes32, int) {
+        int assetCash;
+
+        if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
+            uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+            // Storage Read
+            int ifCash = ifCashMapping[account][currencyId][maturity];
+            // Storage Read / Write
+            Rate memory rate = getSettlementRateStateful(
+                currencyId,
+                maturity,
+                blockTime
+            );
+            assetCash = rate.convertInternalFromUnderlying(ifCash);
+            // Storage Delete
+            delete ifCashMapping[account][currencyId][maturity];
+        }
+
+        bits = bits << 1;
+
+        return (bits, assetCash);
+    }
+
+    function settleBitmappedCashGroup(
+        address account,
+        uint currencyId,
+        bytes memory bitmap,
+        uint nextMaturingAsset,
+        uint blockTime
+    ) internal returns (bytes memory, int) {
+        int totalAssetCash;
+        (
+            bytes32 dayBits,
+            bytes32 weekBits,
+            bytes32 monthBits,
+            bytes32 quarterBits
+        ) = bitmap.splitfCashBitmap();
+        uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
+        uint lastSettleBit = CashGroup.getBitNumFromMaturity(nextMaturingAsset, blockTimeUTC0);
+
+        for (uint bitNum = 1; bitNum < lastSettleBit; bitNum++) {
+            if (bitNum < CashGroup.WEEK_BIT_OFFSET) {
+                if (dayBits == ZERO) {
+                    // No more bits set in day bits, continue to the next set of bits
+                    bitNum = CashGroup.WEEK_BIT_OFFSET;
+                    continue;
+                }
+
+                (dayBits, totalAssetCash) = settleBitmappedAsset(
+                    account,
+                    currencyId,
+                    nextMaturingAsset,
+                    blockTime,
+                    bitNum,
+                    dayBits
+                );
+            }
+
+            if (bitNum < CashGroup.MONTH_BIT_OFFSET) {
+                if (weekBits == ZERO) {
+                    bitNum = CashGroup.MONTH_BIT_OFFSET;
+                    continue;
+                }
+
+                (weekBits, totalAssetCash) = settleBitmappedAsset(
+                    account,
+                    currencyId,
+                    nextMaturingAsset,
+                    blockTime,
+                    bitNum,
+                    weekBits
+                );
+            }
+
+            if (bitNum < CashGroup.QUARTER_BIT_OFFSET) {
+                if (monthBits == ZERO) {
+                    bitNum = CashGroup.QUARTER_BIT_OFFSET;
+                    continue;
+                }
+
+                (monthBits, totalAssetCash) = settleBitmappedAsset(
+                    account,
+                    currencyId,
+                    nextMaturingAsset,
+                    blockTime,
+                    bitNum,
+                    monthBits
+                );
+            }
+
+            if (bitNum < 256) {
+                if (quarterBits == ZERO) {
+                    break;
+                }
+
+                (quarterBits, totalAssetCash) = settleBitmappedAsset(
+                    account,
+                    currencyId,
+                    nextMaturingAsset,
+                    blockTime,
+                    bitNum,
+                    quarterBits
+                );
+            }
+        }
+
+        bitmap = Bitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits);
+        if (weekBits != ZERO && lastSettleBit < CashGroup.WEEK_BIT_OFFSET) {
+            remapBitSection(
+                nextMaturingAsset,
+                blockTimeUTC0,
+                CashGroup.WEEK_BIT_OFFSET,
+                CashGroup.WEEK,
+                bitmap,
+                weekBits
+            );
+        }
+
+        if (monthBits != ZERO && lastSettleBit < CashGroup.MONTH_BIT_OFFSET) {
+            remapBitSection(
+                nextMaturingAsset,
+                blockTimeUTC0,
+                CashGroup.MONTH_BIT_OFFSET,
+                CashGroup.MONTH,
+                bitmap,
+                monthBits
+            );
+        }
+
+        if (quarterBits != ZERO && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
+            remapBitSection(
+                nextMaturingAsset,
+                blockTimeUTC0,
+                CashGroup.QUARTER_BIT_OFFSET,
+                CashGroup.QUARTER,
+                bitmap,
+                quarterBits
+            );
+        }
+
+        return (bitmap, totalAssetCash);
+    }
+
+    function remapBitSection(
+        uint nextMaturingAsset,
+        uint blockTimeUTC0,
+        uint bitOffset,
+        uint bitTimeLength,
+        bytes memory bitmap,
+        bytes32 bits
+    ) internal pure {
+        uint firstBitRef = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitOffset);
+        uint newFirstBitRef = CashGroup.getMaturityFromBitNum(blockTimeUTC0, bitOffset);
+        uint bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;
+
+        for (uint i; i < bitsToShift; i++) {
+            if (bits == ZERO) break;
+
+            if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
+                // Map this into the lower section of the bitmap
+                uint maturity = firstBitRef + i * bitOffset;
+                uint newBitNum = CashGroup.getBitNumFromMaturity(blockTimeUTC0, maturity);
+                bitmap.setBit(newBitNum, true);
+            }
+
+            bits = bits << 1;
+        }
+    }
+
 }
 
 contract MockSettleAssets is SettleAssets {
