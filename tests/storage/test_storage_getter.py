@@ -27,3 +27,16 @@ def test_market_storage(storageLayout, currencyId, maturity, rand32, rand80):
     liquidity = storageLayout._getTotalLiquidity(currencyId, maturity)
     assert market == storedMarket
     assert liquidity == rand80 + 3
+
+
+@given(
+    currencyId=strategy("uint16"),
+    account=strategy("address"),
+    randint=strategy("int128"),
+    randuint=strategy("uint128"),
+)
+def test_balance_storage(storageLayout, currencyId, account, randint, randuint):
+    storageLayout.setBalanceStorage(account, currencyId, (randint, randuint))
+    (cash, perp) = storageLayout._getBalanceStorage(account, currencyId)
+    assert cash == randint
+    assert perp == randuint
