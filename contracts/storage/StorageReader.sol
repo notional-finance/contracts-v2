@@ -16,11 +16,13 @@ enum BalanceStorageState {
     BothUpdate
 }
 
+// TODO: change this to currency context
 struct BalanceContext {
     uint currencyId;
     int cashBalance;
     uint perpetualTokenBalance;
     BalanceStorageState storageState;
+    // Add cash group in here
 }
 
 enum TradeAction {
@@ -126,11 +128,13 @@ contract StorageReader is StorageLayoutV1 {
      */
     function getRemainingActiveBalances(
         address account,
-        bytes memory activeCurrencies
+        bytes memory activeCurrencies,
+        BalanceContext[] memory balanceContext
     ) internal view returns (BalanceContext[] memory) {
-        uint totalActive = activeCurrencies.totalBitsSet();
+        uint totalActive = activeCurrencies.totalBitsSet() + balanceContext.length;
         BalanceContext[] memory newBalanceContext = new BalanceContext[](totalActive);
         totalActive = 0;
+        uint existingIndex;
 
         for (uint i; i < activeCurrencies.length; i++) {
             // Scan for the remaining balances in the active currencies list
@@ -143,12 +147,24 @@ contract StorageReader is StorageLayoutV1 {
                 // The big endian bit is set to one so we get the balance context for this currency id
                 if (bits & 0x80 == 0x80) {
                     uint currencyId = (i * 8) + offset + 1;
+                    // Insert lower valued currency ids here
+                    while (
+                        existingIndex < balanceContext.length &&
+                        balanceContext[existingIndex].currencyId < currencyId
+                    ) {
+                        newBalanceContext[totalActive] = balanceContext[existingIndex];
+                        totalActive += 1;
+                        existingIndex += 1;
+                    }
+
+                    // Storage Read
                     BalanceStorage memory balance = accountBalanceMapping[account][currencyId];
                     newBalanceContext[totalActive] = BalanceContext({
                         currencyId: currencyId,
                         cashBalance: balance.cashBalance,
                         perpetualTokenBalance: balance.perpetualTokenBalance,
                         storageState: BalanceStorageState.NoChange
+                        // Add cash group here
                     });
                     totalActive += 1;
                 }
@@ -157,6 +173,14 @@ contract StorageReader is StorageLayoutV1 {
             }
         }
 
+        // Inserts all remaining currencies
+        while (existingIndex < balanceContext.length) {
+            newBalanceContext[totalActive] = balanceContext[existingIndex];
+            totalActive += 1;
+            existingIndex += 1;
+        }
+
+        // This returns an ordered list of balance context by currency id
         return newBalanceContext;
     }
 
@@ -167,7 +191,7 @@ contract StorageReader is StorageLayoutV1 {
     function getTradeContext(
         uint blockTime,
         BatchedTradeRequest[] calldata requestBatch
-    )  internal view returns (
+    ) internal view returns (
         CashGroupParameters[] memory,
         MarketParameters[][] memory
     ) {
@@ -423,16 +447,19 @@ contract MockStorageReader is StorageReader {
 
     function _getRemainingActiveBalances(
         address account,
-        bytes memory activeCurrencies
+        bytes memory activeCurrencies,
+        BalanceContext[] memory existingBalanceContext
     ) public view returns (BalanceContext[] memory) {
         BalanceContext[] memory bc = getRemainingActiveBalances(
             account,
-            activeCurrencies
+            activeCurrencies,
+            existingBalanceContext
         );
 
-        assert(bc.length == activeCurrencies.totalBitsSet());
+        assert(bc.length == (activeCurrencies.totalBitsSet() + existingBalanceContext.length));
         for(uint i; i < bc.length; i++) {
             assert(bc[i].currencyId != 0);
+            if (i > 0) assert(bc[i - 1].currencyId < bc[i].currencyId);
         }
 
         return bc;

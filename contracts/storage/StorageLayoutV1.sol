@@ -120,11 +120,11 @@ struct AccountStorage {
 struct AssetStorage {
     // ID of the cash group this asset is contained in
     uint16 currencyId;
-    // Asset enum type
-    uint8 assetType;
     // Timestamp of the maturity in seconds, this works up to year 3800 or something. uint32
     // only supports maturities up to 2106 which won't allow for 80+ year fCash :).
     uint40 maturity;
+    // Asset enum type
+    uint8 assetType;
     // Positive or negative notional amount
     int88 notional;
 }
@@ -156,9 +156,6 @@ struct SettlementRateStorage {
  */
 contract StorageLayoutV1 {
     uint8 public constant storageLayoutVersion = 1;
-    // Used for asset type enum
-    uint8 public constant FCASH_ASSET_TYPE = 1;
-    uint8 public constant LIQUIDITY_TOKEN_ASSET_TYPE = 2;
 
     /* Start Non-Mapping storage slots */
     uint16 maxCurrencyId;

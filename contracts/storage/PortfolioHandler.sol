@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
+import "../common/Asset.sol";
 import "../math/SafeInt256.sol";
 
 enum AssetStorageState {
@@ -14,27 +15,18 @@ enum AssetStorageState {
 struct PortfolioAsset {
     // Asset currency id
     uint currencyId;
+    uint maturity;
     // Asset type, liquidity or fCash
     uint assetType;
-    uint maturity;
     // fCash amount or liquidity token amount
     int notional;
     // The state of the asset for when it is written to storage
     AssetStorageState storageState;
 }
 
-// Track new assets separately so we don't have to copy the PortfolioAsset
-// array every time we extend it.
-struct NewAsset {
-    uint currencyId;
-    uint assetType;
-    uint maturity;
-    int notional;
-}
-
 struct PortfolioState {
     PortfolioAsset[] storedAssets;
-    NewAsset[] newAssets;
+    PortfolioAsset[] newAssets;
     uint lastNewAssetIndex;
     // Holds the length of stored assets after account for deleted assets
     uint storedAssetLength;
@@ -49,9 +41,9 @@ library PortfolioHandler {
     using SafeInt256 for int;
 
     function extendNewAssetArray(
-        NewAsset[] memory newAssets
-    ) internal pure returns (NewAsset[] memory) {
-        NewAsset[] memory extendedArray = new NewAsset[](newAssets.length + 1);
+        PortfolioAsset[] memory newAssets
+    ) internal pure returns (PortfolioAsset[] memory) {
+        PortfolioAsset[] memory extendedArray = new PortfolioAsset[](newAssets.length + 1);
         for (uint i; i < newAssets.length; i++) {
             extendedArray[i] = newAssets[i];
         }
@@ -65,8 +57,8 @@ library PortfolioHandler {
     function addAsset(
         PortfolioState memory portfolioState,
         uint currencyId,
-        uint assetType,
         uint maturity,
+        uint assetType,
         int notional,
         bool isNewHint
     ) internal pure {
@@ -86,7 +78,7 @@ library PortfolioHandler {
 
                 int newNotional = portfolioState.storedAssets[i].notional.add(notional);
                 // Liquidity tokens cannot be reduced below zero.
-                if (assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */) {
+                if (assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
                     require(newNotional >= 0, "P: negative token balance");
                 }
 
@@ -104,7 +96,7 @@ library PortfolioHandler {
         }
 
         // Cannot remove liquidity that the portfolio does not have
-        if (assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */) {
+        if (assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
             require(notional >= 0, "P: negative token balance");
         }
 
@@ -121,11 +113,12 @@ library PortfolioHandler {
 
         // Otherwise add to the new assets array. It should not be possible to add matching assets in a single transaction, we will
         // check this again when we write to storage.
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex] = NewAsset({
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex] = PortfolioAsset({
             currencyId: currencyId,
-            assetType: assetType,
             maturity: maturity,
-            notional: notional
+            assetType: assetType,
+            notional: notional,
+            storageState: AssetStorageState.NoChange
         });
         portfolioState.lastNewAssetIndex += 1;
     }
@@ -206,7 +199,7 @@ library PortfolioHandler {
         require(portfolioState.storedAssetLength > 0, "P: stored asset bounds");
         
         portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
-        portfolioState.storedAssetLength = portfolioState.storedAssetLength - 1;
+        portfolioState.storedAssetLength -= 1;
     }
 
     /**
@@ -286,6 +279,65 @@ library PortfolioHandler {
     }
 
     /**
+     * @notice Returns an single array that contains the new and stored assets merged and sorted by currency
+     * id and maturity.
+     */
+    function getMergedArray(
+        PortfolioState memory portfolioState
+    ) internal pure returns (PortfolioAsset[] memory) {
+        // Last new asset index is equal to the number of new assets inserted in the array
+        uint totalAssets = portfolioState.storedAssetLength + portfolioState.lastNewAssetIndex;
+        PortfolioAsset[] memory mergedAssets = new PortfolioAsset[](totalAssets);
+
+        uint storedAssetsIndex;
+        uint newAssetsIndex;
+        uint mergedAssetsIndex;
+        while (storedAssetsIndex < portfolioState.storedAssets.length
+               || newAssetsIndex < portfolioState.newAssets.length) {
+            PortfolioAsset memory storedAsset;
+            PortfolioAsset memory newAsset;
+
+            if (storedAssetsIndex < portfolioState.sortedIndex.length) {
+                storedAsset = portfolioState.storedAssets[portfolioState.sortedIndex[storedAssetsIndex]];
+            }
+
+            if (newAssetsIndex < portfolioState.newAssets.length) {
+                newAsset = portfolioState.newAssets[newAssetsIndex];
+            }
+
+            if (storedAsset.assetType == 0) {
+                // Stored asset is zero because there are no more stored assets so we will just insert the
+                // new asset.
+                mergedAssets[mergedAssetsIndex] = newAsset;
+                newAssetsIndex += 1;
+                mergedAssetsIndex += 1;
+            } else if (newAsset.assetType == 0) {
+                // If new asset is zero then there are no more, we insert the stored asset as long as it is not
+                // a delete
+                if (storedAsset.storageState != AssetStorageState.Delete) {
+                    mergedAssets[mergedAssetsIndex] = storedAsset;
+                    mergedAssetsIndex += 1;
+                }
+                // Continue to increment the index either way to get past a deleted asset.
+                storedAssetsIndex += 1;
+            } else if (getEncodedId(newAsset) < getEncodedId(storedAsset)) {
+                // Compare the assets and insert the one with a lower valued id. These should never be equal!
+                mergedAssets[mergedAssetsIndex] = newAsset;
+                newAssetsIndex += 1;
+                mergedAssetsIndex += 1;
+            } else {
+                if (storedAsset.storageState != AssetStorageState.Delete) {
+                    mergedAssets[mergedAssetsIndex] = storedAsset;
+                    mergedAssetsIndex += 1;
+                }
+                storedAssetsIndex += 1;
+            }
+        }
+
+        return mergedAssets;
+    }
+
+    /**
      * @notice Builds a portfolio array from storage. The new assets hint parameter will
      * be used to provision a new array for the new assets. This will increase gas efficiency
      * so that we don't have to make copies when we extend the array.
@@ -314,7 +366,7 @@ library PortfolioHandler {
 
         return PortfolioState({
             storedAssets: result,
-            newAssets: new NewAsset[](newAssetsHint),
+            newAssets: new PortfolioAsset[](newAssetsHint),
             lastNewAssetIndex: 0,
             storedAssetLength: result.length,
             // This index is initiated if required during settlement or FC
@@ -344,18 +396,25 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         return assetArrayMapping[account];
     }
 
+    function getMergedArray(
+        PortfolioState memory portfolioState
+    ) public pure returns (PortfolioAsset[] memory) {
+        portfolioState.calculateSortedIndex();
+        return portfolioState.getMergedArray();
+    }
+
     function addAsset(
         PortfolioState memory portfolioState,
         uint currencyId,
-        uint assetType,
         uint maturity,
+        uint assetType,
         int notional,
         bool isNewHint
     ) public pure returns (PortfolioState memory) {
         portfolioState.addAsset(
             currencyId,
-            assetType,
             maturity,
+            assetType,
             notional,
             isNewHint
         );

@@ -37,10 +37,8 @@ def test_get_balance_context(storageReader, accounts):
     (bc, ac) = storageReader._getBalanceContext(accounts[1], 1)
 
 
-@given(active_currencies=strategy("bytes", min_size=1, max_size=32))
+@given(active_currencies=strategy("bytes", min_size=1, max_size=8))
 def test_get_remaining_balances(storageReader, active_currencies, accounts):
-    bc = storageReader._getRemainingActiveBalances(accounts[1], active_currencies)
-
     # accounts for leading zeros
     num_bits = str(len(active_currencies) * 8)
     bitstring = ("{:0>" + num_bits + "b}").format(int(active_currencies.hex(), 16))
@@ -50,9 +48,20 @@ def test_get_remaining_balances(storageReader, active_currencies, accounts):
         if x == "1":
             ids.append(i + 1)
 
-    assert len(bc) == len(ids)
+    # test additional balance contexts
+    existingContexts = []
+    for i in range(1, 15):
+        if i not in ids and len(existingContexts) < 5:
+            existingContexts.append((i, 0, 0, 0))
+
+    bc = storageReader._getRemainingActiveBalances(
+        accounts[1], active_currencies, tuple(existingContexts)
+    )
+
+    assert len(bc) == (len(ids) + len(existingContexts))
+    allIds = sorted(ids + [x[0] for x in existingContexts])
     for i, b in enumerate(bc):
-        assert b[0] == ids[i]
+        assert b[0] == allIds[i]
 
 
 def test_get_market_parameters_total_liquidity(storageReader):

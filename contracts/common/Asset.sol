@@ -15,6 +15,10 @@ library Asset {
     using CashGroup for CashGroupParameters;
     using ExchangeRate for Rate;
 
+    // Used for asset type enum
+    uint public constant FCASH_ASSET_TYPE = 1;
+    uint public constant LIQUIDITY_TOKEN_ASSET_TYPE = 2;
+
     /**
      * @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
      * notional * e^(-rate * timeToMaturity).
@@ -92,7 +96,7 @@ library Asset {
         MarketParameters memory marketState
     ) internal pure returns (int, int) {
         require(
-            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
             "A: invalid asset in claims"
         );
 
@@ -132,7 +136,7 @@ library Asset {
         uint blockTime
     ) internal pure returns (int, int) {
         require(
-            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
             "A: invalid asset in claims"
         );
 
@@ -221,7 +225,7 @@ library Asset {
         uint blockTime
     ) internal pure returns (int, int) {
         require(
-            liquidityToken.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */ && liquidityToken.notional > 0,
+            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
             "A: invalid asset token value"
         );
 
@@ -242,7 +246,8 @@ library Asset {
         bool found;
         // Find the matching fCash asset and net off the value
         for (uint j; j < fCashAssets.length; j++) {
-            if (fCashAssets[j].currencyId == liquidityToken.currencyId &&
+            if (fCashAssets[j].assetType == Asset.FCASH_ASSET_TYPE &&
+                fCashAssets[j].currencyId == liquidityToken.currencyId &&
                 fCashAssets[j].maturity == liquidityToken.maturity) {
                 // Net off the fCashClaim here and we will discount it to present value in the second pass
                 fCashAssets[j].notional = fCashAssets[j].notional.add(fCashClaim);
@@ -270,12 +275,11 @@ library Asset {
      * @notice Returns the risk adjusted net portfolio value. Assumes that settle matured assets has already
      * been called so no assets have matured. Returns an array of present value figures per cash group.
      *
-     * @dev Assumes that cashGroups, liquidityTokens, and fCash assets are sorted by cash group id. Also
+     * @dev Assumes that cashGroups and assets are sorted by cash group id. Also
      * assumes that market states are sorted by maturity within each cash group.
      */
     function getRiskAdjustedPortfolioValue(
-        PortfolioAsset[] memory fCashAssets,
-        PortfolioAsset[] memory liquidityTokens,
+        PortfolioAsset[] memory assets,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
@@ -284,16 +288,17 @@ library Asset {
         int[] memory presentValueUnderlying = new int[](cashGroups.length);
         uint groupIndex;
 
-        for (uint i; i < liquidityTokens.length; i++) {
-            if (liquidityTokens[i].currencyId != cashGroups[groupIndex].currencyId) {
+        for (uint i; i < assets.length; i++) {
+            if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
                 groupIndex += 1;
             }
+            if (assets[i].assetType != Asset.LIQUIDITY_TOKEN_ASSET_TYPE) continue;
 
             (int assetCashClaim, int pv) = getLiquidityTokenValue(
-                liquidityTokens[i],
+                assets[i],
                 cashGroups[groupIndex],
                 marketStates[groupIndex],
-                fCashAssets,
+                assets,
                 blockTime
             );
 
@@ -302,15 +307,17 @@ library Asset {
         }
 
         groupIndex = 0;
-        for (uint i; i < fCashAssets.length; i++) {
-            if (fCashAssets[i].currencyId != cashGroups[groupIndex].currencyId) {
+        for (uint i; i < assets.length; i++) {
+            if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
                 // Convert the PV of the underlying values before we move to the next group index.
                 presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
                     presentValueUnderlying[groupIndex]
                 );
                 groupIndex += 1;
             }
-            uint maturity = fCashAssets[i].maturity;
+            if (assets[i].assetType != Asset.FCASH_ASSET_TYPE) continue;
+            
+            uint maturity = assets[i].maturity;
             uint oracleRate;
             {
                 (uint marketIndex, bool idiosyncractic) = findMarketIndex(
@@ -329,7 +336,7 @@ library Asset {
 
             int pv = getRiskAdjustedPresentValue(
                 cashGroups[groupIndex],
-                fCashAssets[i].notional,
+                assets[i].notional,
                 maturity,
                 blockTime,
                 oracleRate
@@ -462,17 +469,13 @@ contract MockAsset {
     }
 
     function getRiskAdjustedPortfolioValue(
-        PortfolioAsset[] memory fCashAssets,
-        PortfolioAsset[] memory liquidityTokens,
+        PortfolioAsset[] memory assets,
         CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates
-        // NOTE: removing this comment causes a stack error
-        // uint blockTime
+        MarketParameters[][] memory marketStates,
+        uint blockTime
     ) public view returns(int[] memory) {
-        uint blockTime = block.timestamp;
         int[] memory assetValue = Asset.getRiskAdjustedPortfolioValue(
-            fCashAssets,
-            liquidityTokens,
+            assets,
             cashGroups,
             marketStates,
             blockTime

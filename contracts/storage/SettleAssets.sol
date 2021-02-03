@@ -10,7 +10,11 @@ import "../math/SafeInt256.sol";
 contract SettleAssets is StorageReader {
     using SafeInt256 for int;
     using ExchangeRate for Rate;
+    using Bitmap for bytes;
     using PortfolioHandler for PortfolioState;
+
+    bytes32 internal constant ZERO = 0x0;
+    bytes32 internal constant MSB_BIG_ENDIAN = 0x8000000000000000000000000000000000000000000000000000000000000000;
 
     /**
      * @notice Provisions a balance context array for settling assets
@@ -31,6 +35,8 @@ contract SettleAssets is StorageReader {
             }
         }
 
+        // This is required for iteration
+        portfolioState.calculateSortedIndex();
         return new BalanceContext[](currenciesSettled);
     }
 
@@ -83,8 +89,8 @@ contract SettleAssets is StorageReader {
         uint lastCurrencyId;
         uint lastMaturity;
 
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
+        for (uint i; i < portfolioState.sortedIndex.length; i++) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
             if (asset.maturity > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
@@ -102,9 +108,9 @@ contract SettleAssets is StorageReader {
             }
 
             int assetCash;
-            if (asset.assetType == 1 /* FCASH_ASSET_TYPE */) {
+            if (asset.assetType == Asset.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-            } else if (asset.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */) {
+            } else if (asset.assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
                 (assetCash, /* */, /* */) = settleLiquidityToken(
                     asset,
                     currentContext,
@@ -114,7 +120,7 @@ contract SettleAssets is StorageReader {
 
             currentContext.cashBalance = currentContext.cashBalance.add(assetCash);
             currentContext.storageState = BalanceStorageState.CashBalanceUpdate;
-            portfolioState.deleteAsset(i);
+            portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
         return balanceContext;
@@ -137,7 +143,7 @@ contract SettleAssets is StorageReader {
         uint lastMaturity;
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
+            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
             if (asset.maturity > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
@@ -155,9 +161,9 @@ contract SettleAssets is StorageReader {
             }
 
             int assetCash;
-            if (asset.assetType == 1 /* FCASH_ASSET_TYPE */) {
+            if (asset.assetType == Asset.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-            } else if (asset.assetType == 2 /* LIQUIDITY_TOKEN_ASSET_TYPE */) {
+            } else if (asset.assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
                 MarketStorage memory marketState;
                 uint80 totalLiquidity;
                 (assetCash, marketState, totalLiquidity) = settleLiquidityToken(
@@ -175,7 +181,7 @@ contract SettleAssets is StorageReader {
 
             currentContext.cashBalance = currentContext.cashBalance.add(assetCash);
             currentContext.storageState = BalanceStorageState.CashBalanceUpdate;
-            portfolioState.deleteAsset(i);
+            portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
         return balanceContext;
