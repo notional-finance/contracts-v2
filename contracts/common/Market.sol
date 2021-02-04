@@ -404,11 +404,11 @@ library Market {
             }
         }
 
-        int totalfCash = int(uint80(bytes10(data)));
-        int totalCurrentCash = int(uint80(bytes10(data >> 80)));
-        uint lastImpliedRate = uint(uint32(bytes4(data >> 160)));
-        uint oracleRate = uint(uint32(bytes4(data >> 192)));
-        uint previousTradeTime = uint(uint32(bytes4(data >> 224)));
+        int totalfCash = int(uint80(uint(data)));
+        int totalCurrentCash = int(uint80(uint(data >> 80)));
+        uint lastImpliedRate = uint(uint32(uint(data >> 160)));
+        uint oracleRate = uint(uint32(uint(data >> 192)));
+        uint previousTradeTime = uint(uint32(uint(data >> 224)));
 
         return MarketParameters({
             currencyId: currencyId,

@@ -42,14 +42,13 @@ def test_log_proportion_negative(market):
 )
 def test_exchange_rate_proportion(market, proportion):
     # Tests exchange rate proportion while holding rateAnchor and rateScalar constant
-    timeToMaturity = SECONDS_IN_DAY
     totalfCash = 1e18
     totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
     rateAnchor = 1.05 * RATE_PRECISION
     rateScalar = 100
 
     (exchangeRate, success) = market.getExchangeRate(
-        totalfCash, totalCashUnderlying, rateScalar, rateAnchor, timeToMaturity, 0
+        totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0
     )
 
     assert success
@@ -114,13 +113,16 @@ def test_implied_rate(market, initRate, timeToMaturity):
     # From seconds to an hour
     timeWindow=strategy("uint", min_value=30, max_value=3600),
 )
+@pytest.mark.only
 def test_build_market(
     market, timeWindow, previousTradeTime, newBlockTime, oracleRate, lastImpliedRate
 ):
+    maturity = 90 * SECONDS_IN_DAY
     blockTime = previousTradeTime + newBlockTime
-    marketStorage = (1e18, 1e18, lastImpliedRate, oracleRate, previousTradeTime)
+    marketStorage = (1e18, 2e18, lastImpliedRate, oracleRate, previousTradeTime)
 
-    result = market.buildMarket(1, 90 * SECONDS_IN_DAY, 1e18, timeWindow, blockTime, marketStorage)
+    market.setMarketState(1, maturity, marketStorage, 3e18)
+    result = market.buildMarket(1, maturity, blockTime, True, timeWindow)
 
     if newBlockTime > timeWindow:
         # If past the time window, ensure that the oracle rate equals the last implied rate
@@ -132,3 +134,11 @@ def test_build_market(
             + (1 - newBlockTime / timeWindow) * oracleRate
         )
         assert pytest.approx(weightedAvg, abs=10) == result[6]
+
+    assert result[0] == 1  # currency id
+    assert result[1] == maturity
+    assert result[2] == 1e18
+    assert result[3] == 2e18
+    assert result[4] == 3e18
+    assert result[5] == lastImpliedRate
+    assert result[7] == previousTradeTime
