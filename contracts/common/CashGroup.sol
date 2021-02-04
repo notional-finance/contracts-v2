@@ -42,7 +42,7 @@ library CashGroup {
     using SafeMath for uint256;
     using SafeInt256 for int;
 
-    uint internal constant CASH_GROUP_STORAGE_SLOT = 12;
+    uint internal constant CASH_GROUP_STORAGE_SLOT = 5;
 
     // Offsets for the bytes of the different parameters
     // TODO: benchmark if the current method is better than just allocating them to memory
@@ -230,7 +230,7 @@ library CashGroup {
         CashGroupParameters memory cashGroup,
         uint timeToMaturity
     ) internal pure returns (int) {
-        int scalar = int(uint16(bytes2(cashGroup.data << RATE_SCALAR)));
+        int scalar = int(uint16(uint(cashGroup.data >> RATE_SCALAR)));
         int rateScalar = scalar
             .mul(int(Market.IMPLIED_RATE_TIME))
             .div(int(timeToMaturity));
@@ -254,7 +254,7 @@ library CashGroup {
         CashGroupParameters memory cashGroup,
         uint timeToMaturity
     ) internal pure returns (uint) {
-        uint liquidityFee = uint(uint8(bytes1(cashGroup.data << LIQUIDITY_FEE))) * Market.BASIS_POINT;
+        uint liquidityFee = uint(uint8(uint(cashGroup.data >> LIQUIDITY_FEE))) * Market.BASIS_POINT;
         return annualizeUintValue(liquidityFee, timeToMaturity);
     }
 
@@ -263,7 +263,7 @@ library CashGroup {
         uint timeToMaturity
     ) internal pure returns (uint) {
         // TODO: unclear how this should be calculated
-        uint liquidityTokenHaircut = uint(uint8(bytes1(cashGroup.data << LIQUIDITY_TOKEN_HAIRCUT)));
+        uint liquidityTokenHaircut = uint(uint8(uint(cashGroup.data >> LIQUIDITY_TOKEN_HAIRCUT)));
         return liquidityTokenHaircut;
     }
 
@@ -271,20 +271,20 @@ library CashGroup {
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
         // TODO: unclear how this should be calculated
-        return uint(uint8(bytes1(cashGroup.data << FCASH_HAIRCUT))) * Market.BASIS_POINT;
+        return uint(uint8(uint(cashGroup.data >> FCASH_HAIRCUT))) * Market.BASIS_POINT;
     }
 
     function getDebtBuffer(
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
-        return uint(uint8(bytes1(cashGroup.data << DEBT_BUFFER))) * Market.BASIS_POINT;
+        return uint(uint8(uint(cashGroup.data >> DEBT_BUFFER))) * Market.BASIS_POINT;
     }
 
     function getRateOracleTimeWindow(
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
         // This is denominated in minutes in storage
-        return uint(uint8(bytes1(cashGroup.data << RATE_ORACLE_TIME_WINDOW))) * 60;
+        return uint(uint8(uint(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
     }
 
     /**
@@ -328,6 +328,7 @@ library CashGroup {
             data := sload(slot)
         }
 
+        // bytes memory would be cleaner here but solidity does not support that inside struct
         return data;
     }
 
@@ -339,11 +340,12 @@ library CashGroup {
     ) internal view returns (CashGroupParameters memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
         Rate memory assetRate = ExchangeRate.buildAssetRate(currencyId);
+        uint maxMarketIndex = uint(uint8(uint(data)));
 
         return CashGroupParameters({
             currencyId: currencyId,
+            maxMarketIndex: maxMarketIndex,
             assetRate: assetRate,
-            maxMarketIndex: uint(uint8(bytes1(data))),
             data: data
         });
     }
@@ -420,6 +422,31 @@ contract MockCashGroup is StorageLayoutV1 {
         uint fee = cashGroup.getLiquidityFee(timeToMaturity);
 
         return fee;
+    }
+
+    function getLiquidityHaircut(
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity
+    ) public pure returns (uint) {
+        return cashGroup.getLiquidityHaircut(timeToMaturity);
+    }
+
+    function getfCashHaircut(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (uint) {
+        return cashGroup.getfCashHaircut();
+    }
+
+    function getDebtBuffer(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (uint) {
+        return cashGroup.getDebtBuffer();
+    }
+
+    function getRateOracleTimeWindow(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (uint) {
+        return cashGroup.getRateOracleTimeWindow();
     }
 
     function buildCashGroup(

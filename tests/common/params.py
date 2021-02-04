@@ -8,18 +8,29 @@ RATE_PRECISION = 1e9
 BASIS_POINT = RATE_PRECISION / 10000
 NORMALIZED_RATE_TIME = 31104000
 
-IDENTITY_ASSET_RATE = (1e18, 1e18, 1e18, 1e18, 100, 100)
+IDENTITY_ASSET_RATE = (1e18, 1e18, 1e18, 1e18, 100, 100, 18)
+
+CASH_GROUP_PARAMETERS = (
+    9,  # 0: Max Market Index
+    10,  # 1: time window, 10 min
+    30,  # 2: liquidity fee, 30 BPS
+    97,  # 3: liquidity token haircut (97%)
+    30,  # 4: debt buffer 30 bps
+    30,  # 5: fcash haircut 30 bps
+    100,  # 6: rate scalar
+)
+
+
+def get_cash_group_hex(parameters):
+    tmp = (parameters[-1].to_bytes(2, "big") + bytes(list(reversed(parameters[0:-1])))).hex()
+    return "0x" + tmp.rjust(64, "0")
+
 
 BASE_CASH_GROUP = [
     1,  # 0: cash group id
-    600,  # 1: time window, 10 min
-    30 * BASIS_POINT,  # 2: liquidity fee, 30 BPS
-    100,  # 3: rate scalar
-    9,  # 4: max market index
-    97,  # 5: liquidity token haircut (97%)
-    30 * BASIS_POINT,  # 6: debt buffer 30 bps
-    30 * BASIS_POINT,  # 7: fcash haircut 30 bps
+    9,  # 1: max market index
     IDENTITY_ASSET_RATE,
+    get_cash_group_hex(CASH_GROUP_PARAMETERS),
 ]
 
 timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
