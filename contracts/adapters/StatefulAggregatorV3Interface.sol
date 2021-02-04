@@ -35,4 +35,5 @@ interface StatefulAggregatorV3Interface {
       uint80 answeredInRound
     );
 
+  function getAnnualizedSupplyRate() external view returns (uint);
 }

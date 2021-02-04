@@ -91,7 +91,6 @@ contract StorageReader is StorageLayoutV1 {
         uint currencyId,
         AccountStorage memory accountContext
     ) internal view returns (BalanceContext memory) {
-        BalanceContext memory context;
         // Storage Read
         uint _maxCurrencyId = maxCurrencyId;
         require(currencyId <= _maxCurrencyId && currencyId != 0, "R: invalid currency id");
@@ -187,7 +186,6 @@ contract StorageReader is StorageLayoutV1 {
     /**
      * @notice Gets context for trading. Requires that cash groups are sorted ascending and
      * trade requests are sorted ascending by maturity.
-     */
     function getTradeContext(
         uint blockTime,
         BatchedTradeRequest[] calldata requestBatch
@@ -231,10 +229,10 @@ contract StorageReader is StorageLayoutV1 {
 
         return (cashGroups, marketParameters);
     }
+     */
 
     /**
      * @notice Returns market parameters for every market that is being traded.
-     */
     function getMarketParameters(
         uint blockTime,
         TradeRequest[] calldata tradeRequests,
@@ -306,7 +304,7 @@ contract StorageReader is StorageLayoutV1 {
                 cashGroup.currencyId,
                 maturity,
                 totalLiquidity,
-                cashGroup.rateOracleTimeWindow,
+                cashGroup.getRateOracleTimeWindow(),
                 blockTime,
                 // Storage Read
                 marketStateMapping[cashGroup.currencyId][maturity]
@@ -316,6 +314,7 @@ contract StorageReader is StorageLayoutV1 {
 
         return mp;
     }
+     */
 
 }
 
@@ -332,22 +331,6 @@ contract MockStorageReader is StorageReader {
     ) external {
         require(id <= maxCurrencyId, "invalid currency id");
         currencyMapping[id] = cs;
-    }
-
-    function setETHRateMapping(
-        uint id,
-        RateStorage calldata rs
-    ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        underlyingToETHRateMapping[id] = rs;
-    }
-
-    function setAssetRateMapping(
-        uint id,
-        RateStorage calldata rs
-    ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        assetToUnderlyingRateMapping[id] = rs;
     }
 
     function setCashGroup(
@@ -464,30 +447,4 @@ contract MockStorageReader is StorageReader {
 
         return bc;
     }
-
-    function _getTradeContext(
-        uint blockTime,
-        BatchedTradeRequest[] calldata requestBatch
-    ) public view returns (
-        CashGroupParameters[] memory,
-        MarketParameters[][] memory
-    ) {
-        return getTradeContext(
-            blockTime,
-            requestBatch
-        );
-    }
-
-    function _getMarketParameters(
-        uint blockTime,
-        TradeRequest[] calldata tradeRequests,
-        CashGroupParameters memory cashGroup
-    ) public view returns (MarketParameters[] memory) {
-        return getMarketParameters(
-            blockTime,
-            tradeRequests,
-            cashGroup
-        );
-    }
-
 }
