@@ -113,7 +113,6 @@ def test_implied_rate(market, initRate, timeToMaturity):
     # From seconds to an hour
     timeWindow=strategy("uint", min_value=30, max_value=3600),
 )
-@pytest.mark.only
 def test_build_market(
     market, timeWindow, previousTradeTime, newBlockTime, oracleRate, lastImpliedRate
 ):
