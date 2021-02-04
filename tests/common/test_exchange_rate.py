@@ -39,6 +39,8 @@ def test_build_exchange_rate(
         baseDecimals,
     )
 
+    exchangeRate.setETHRateMapping(1, rateStorage)
+
     (
         erRateDecimals,
         erBaseDecimals,
@@ -46,10 +48,52 @@ def test_build_exchange_rate(
         erRate,
         erBuffer,
         erHaircut,
-    ) = exchangeRate.buildExchangeRate(rateStorage)
+        rateDecimalPlaces,
+    ) = exchangeRate.buildExchangeRate(1)
+
+    assert erBuffer == 120
+    assert erHaircut == 80
 
     if quoteDecimals == 0:
-        assert erQuoteDecimals == 0
+        assert erQuoteDecimals == 1
+    else:
+        assert erQuoteDecimals == 10 ** quoteDecimals
+
+    assert erRateDecimals == 10 ** rateDecimals
+    assert erBaseDecimals == 10 ** baseDecimals
+
+    if mustInvert:
+        assert erRate == 10 ** rateDecimals * 100
+    else:
+        assert erRate == 10 ** rateDecimals / 100
+
+
+@pytest.mark.parametrize(parameterNames, parameterValues)
+def test_build_asset_rate(
+    accounts, MockAggregator, exchangeRate, rateDecimals, baseDecimals, quoteDecimals, mustInvert
+):
+    aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
+    aggregator.setAnswer(10 ** rateDecimals / 100)
+
+    rateStorage = (aggregator.address, rateDecimals, mustInvert, 0, 0, quoteDecimals, baseDecimals)
+
+    exchangeRate.setAssetRateMapping(1, rateStorage)
+
+    (
+        erRateDecimals,
+        erBaseDecimals,
+        erQuoteDecimals,
+        erRate,
+        erBuffer,
+        erHaircut,
+        rateDecimalPlaces,
+    ) = exchangeRate.buildAssetRate(1)
+
+    assert erBuffer == 0
+    assert erHaircut == 0
+
+    if quoteDecimals == 0:
+        assert erQuoteDecimals == 1
     else:
         assert erQuoteDecimals == 10 ** quoteDecimals
 
@@ -63,7 +107,7 @@ def test_build_exchange_rate(
 
 
 def test_convert_to_eth(exchangeRate):
-    rate = (1e18, 1e6, 0, 0.01e18, 120, 80)
+    rate = (1e18, 1e6, 0, 0.01e18, 120, 80, 18)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
@@ -74,7 +118,7 @@ def test_convert_to_eth(exchangeRate):
     eth = exchangeRate.convertToETH(rate, 100e6)
     assert eth == 0.8e18
 
-    rate = (1e8, 1e8, 0, 10e8, 120, 80)
+    rate = (1e8, 1e8, 0, 10e8, 120, 80, 18)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
@@ -87,7 +131,7 @@ def test_convert_to_eth(exchangeRate):
 
 
 def test_convert_eth_to(exchangeRate):
-    rate = (1e18, 1e6, 0, 0.01e18, 120, 80)
+    rate = (1e18, 1e6, 0, 0.01e18, 120, 80, 18)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
@@ -99,7 +143,7 @@ def test_convert_eth_to(exchangeRate):
     usdc = exchangeRate.convertETHTo(rate, 1e18)
     assert usdc == 100e6
 
-    rate = (1e18, 1e6, 0, 10e18, 120, 80)
+    rate = (1e18, 1e6, 0, 10e18, 120, 80, 18)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
@@ -113,7 +157,7 @@ def test_convert_eth_to(exchangeRate):
 
 
 def test_convert_internal_to_underlying(exchangeRate):
-    rate = (1e8, 0, 0, 0.01e8, 120, 80)
+    rate = (1e8, 0, 0, 0.01e8, 120, 80, 8)
 
     underlying = exchangeRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
@@ -124,7 +168,7 @@ def test_convert_internal_to_underlying(exchangeRate):
     underlying = exchangeRate.convertInternalToUnderlying(rate, 100e9)
     assert underlying == 1e9
 
-    rate = (1e8, 0, 0, 10e8, 120, 80)
+    rate = (1e8, 0, 0, 10e8, 120, 80, 8)
 
     underlying = exchangeRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
@@ -137,7 +181,7 @@ def test_convert_internal_to_underlying(exchangeRate):
 
 
 def test_convert_from_underlying(exchangeRate):
-    rate = (1e8, 0, 0, 0.01e8, 120, 80)
+    rate = (1e8, 0, 0, 0.01e8, 120, 80, 8)
 
     asset = exchangeRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
@@ -148,7 +192,7 @@ def test_convert_from_underlying(exchangeRate):
     asset = exchangeRate.convertInternalFromUnderlying(rate, 1e9)
     assert asset == 100e9
 
-    rate = (1e8, 0, 0, 10e8, 120, 80)
+    rate = (1e8, 0, 0, 10e8, 120, 80, 8)
 
     asset = exchangeRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0

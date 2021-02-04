@@ -172,7 +172,7 @@ library ExchangeRate {
             data := sload(slot)
         }
 
-        address rateOracle = address(bytes20(data));
+        address rateOracle = address(bytes20(data << 96));
         (
             /* uint80 */,
             int rate,
@@ -182,18 +182,20 @@ library ExchangeRate {
         ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
         require(rate > 0, "ExchangeRate: invalid rate");
 
-        uint8 rateDecimalPlaces = uint8(bytes1(data >> 28));
+        uint8 rateDecimalPlaces = uint8(bytes1(data << 88));
         int rateDecimals = int(10**rateDecimalPlaces);
-        if (bytes1(data >> 16) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
-        int quoteDecimals = int(10**uint8(bytes1(data >> 60)));
-        int baseDecimals = int(10**uint8(bytes1(data >> 68)));
+        if (bytes1(data << 80) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
 
         int buffer;
         int haircut;
         if (storageSlot == ETH_RATE_STORAGE_SLOT) {
-            buffer = int(uint8(bytes1(data >> 44)));
-            haircut = int(uint8(bytes1(data >> 52)));
+            buffer = int(uint8(bytes1(data << 72)));
+            haircut = int(uint8(bytes1(data << 64)));
         }
+
+        // TODO: do we need to have quote decimals?
+        int quoteDecimals = int(10**uint8(bytes1(data << 56)));
+        int baseDecimals = int(10**uint8(bytes1(data << 48)));
 
         return Rate({
             rateDecimals: rateDecimals,
