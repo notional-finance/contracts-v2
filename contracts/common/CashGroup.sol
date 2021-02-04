@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "./Market.sol";
+import "./AssetRate.sol";
 import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -34,13 +35,14 @@ struct CashGroupTokens {
 struct CashGroupParameters {
     uint currencyId;
     uint maxMarketIndex;
-    Rate assetRate;
+    AssetRateParameters assetRate;
     bytes32 data;
 }
 
 library CashGroup {
     using SafeMath for uint256;
     using SafeInt256 for int;
+    using AssetRate for AssetRateParameters;
 
     uint internal constant CASH_GROUP_STORAGE_SLOT = 5;
 
@@ -339,7 +341,7 @@ library CashGroup {
         uint currencyId
     ) internal view returns (CashGroupParameters memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
-        Rate memory assetRate = ExchangeRate.buildAssetRate(currencyId);
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
         uint maxMarketIndex = uint(uint8(uint(data)));
 
         return CashGroupParameters({

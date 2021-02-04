@@ -4,12 +4,12 @@ pragma experimental ABIEncoderV2;
 
 import "./StorageReader.sol";
 import "./PortfolioHandler.sol";
-import "../common/ExchangeRate.sol";
+import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
 contract SettleAssets is StorageReader {
     using SafeInt256 for int;
-    using ExchangeRate for Rate;
+    using AssetRate for AssetRateParameters;
     using Bitmap for bytes;
     using PortfolioHandler for PortfolioState;
 
@@ -46,7 +46,7 @@ contract SettleAssets is StorageReader {
      */
     function settleLiquidityToken(
         PortfolioAsset memory asset,
-        Rate memory settlementRate
+        AssetRateParameters memory settlementRate
     ) internal view returns (int, MarketStorage memory, uint80) {
         // Storage Read
         MarketStorage memory marketStorage = marketStateMapping[asset.currencyId][asset.maturity];
@@ -82,7 +82,7 @@ contract SettleAssets is StorageReader {
         uint blockTime
     ) internal view returns (BalanceContext[] memory) {
         BalanceContext[] memory balanceContext = getSettleAssetBalanceContext(portfolioState, blockTime);
-        Rate memory settlementRate;
+        AssetRateParameters memory settlementRate;
         BalanceContext memory currentContext;
         uint currencyIndex;
         uint lastCurrencyId;
@@ -134,7 +134,7 @@ contract SettleAssets is StorageReader {
         uint blockTime
     ) internal returns (BalanceContext[] memory) {
         BalanceContext[] memory balanceContext = getSettleAssetBalanceContext(portfolioState, blockTime);
-        Rate memory settlementRate;
+        AssetRateParameters memory settlementRate;
         BalanceContext memory currentContext;
         uint currencyIndex;
         uint lastCurrencyId;
@@ -190,20 +190,17 @@ contract SettleAssets is StorageReader {
     function getSettlementRateView(
         uint currencyId,
         uint maturity
-    ) internal view returns (Rate memory) {
+    ) internal view returns (AssetRateParameters memory) {
         // Storage Read
         SettlementRateStorage memory settlementRate = assetToUnderlyingSettlementRateMapping[currencyId][maturity];
 
         // Rate has not been set so we fetch the latest exchange rate
         if (settlementRate.timestamp == 0) {
             // Storage Read
-            return ExchangeRate.buildAssetRate(currencyId);
+            return AssetRate.buildAssetRate(currencyId);
         }
 
-        return ExchangeRate.buildSettlementRate(
-            settlementRate.rate,
-            settlementRate.rateDecimalPlaces
-        );
+        return AssetRate.buildSettlementRate(settlementRate.rate);
     }
 
     /**
@@ -215,13 +212,13 @@ contract SettleAssets is StorageReader {
         uint currencyId,
         uint maturity,
         uint blockTime
-    ) internal returns (Rate memory) {
+    ) internal returns (AssetRateParameters memory) {
         // Storage Read
         SettlementRateStorage memory settlementRate = assetToUnderlyingSettlementRateMapping[currencyId][maturity];
 
         // Rate has not been set so we fetch the latest exchange rate and set it
         if (settlementRate.timestamp == 0) {
-            Rate memory assetRate = ExchangeRate.buildAssetRate(currencyId);
+            AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
 
             require(blockTime != 0 && blockTime <= type(uint40).max, "S: invalid timestamp");
             require(assetRate.rate > 0 && assetRate.rate <= type(uint128).max, "S: rate overflow");
@@ -237,10 +234,7 @@ contract SettleAssets is StorageReader {
             return assetRate;
         }
 
-        return ExchangeRate.buildSettlementRate(
-            settlementRate.rate,
-            settlementRate.rateDecimalPlaces
-        );
+        return AssetRate.buildSettlementRate(settlementRate.rate);
     }
 
     function settleBitmappedAsset(
@@ -258,7 +252,7 @@ contract SettleAssets is StorageReader {
             // Storage Read
             int ifCash = ifCashMapping[account][currencyId][maturity];
             // Storage Read / Write
-            Rate memory rate = getSettlementRateStateful(
+            AssetRateParameters memory rate = getSettlementRateStateful(
                 currencyId,
                 maturity,
                 blockTime

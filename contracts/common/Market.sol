@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "../math/SafeUInt128.sol";
 import "../math/ABDKMath64x64.sol";
-import "./ExchangeRate.sol";
+import "./AssetRate.sol";
 import "./CashGroup.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
@@ -36,7 +36,7 @@ library Market {
     using SafeInt256 for int;
     using SafeUInt128 for uint128;
     using CashGroup for CashGroupParameters;
-    using ExchangeRate for Rate;
+    using AssetRate for AssetRateParameters;
 
     uint internal constant MARKET_STORAGE_SLOT = 6;
     uint internal constant LIQUIDITY_STORAGE_SLOT = 7;
@@ -143,7 +143,7 @@ library Market {
 
     function getNewMarketState(
         MarketParameters memory marketState,
-        Rate memory assetRate,
+        AssetRateParameters memory assetRate,
         int totalCashUnderlying,
         int rateAnchor,
         int rateScalar,

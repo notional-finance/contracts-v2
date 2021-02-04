@@ -4,31 +4,23 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
-import "./Market.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-
 
 /**
  * @dev Exchange rate object as stored in memory, these are cached optimistically
  * when the transaction begins. This is not the same as the object in storage.
  */ 
-struct Rate {
+struct ETHRate {
     // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
     int rateDecimals;
     // The decimals (i.e. 10^baseDecimals) of the base currency
     int baseDecimals;
-    // The decimals (i.e. 10^quoteDecimals) of the quote currency
-    int quoteDecimals;
     // The exchange rate from base to quote (if invert is required it is already done)
     int rate;
     // Amount of buffer to apply to the exchange rate for negative balances.
     int buffer;
     // Amount of haircut to apply to the exchange rate for positive balances
     int haircut;
-    // Used for settlement rates
-    uint8 rateDecimalPlaces;
 }
 
 /**
@@ -39,10 +31,8 @@ struct Rate {
  */
 library ExchangeRate {
     using SafeInt256 for int256;
-    using SafeMath for uint256;
 
     uint internal constant ETH_RATE_STORAGE_SLOT = 2;
-    uint internal constant ASSET_RATE_STORAGE_SLOT = 3;
     int public constant MULTIPLIER_DECIMALS = 100;
     int public constant ETH_DECIMALS = 1e18;
 
@@ -54,7 +44,7 @@ library ExchangeRate {
      * @return the converted balance denominated in ETH with 18 decimal places
      */
     function convertToETH(
-        Rate memory er,
+        ETHRate memory er,
         int balance
     ) internal pure returns (int) {
         if (balance == 0) return 0;
@@ -82,7 +72,7 @@ library ExchangeRate {
      * @param balance amount (denominated in ETH) to convert
      */
     function convertETHTo(
-        Rate memory er,
+        ETHRate memory er,
         int balance
     ) internal pure returns (int) {
         if (balance == 0) return 0;
@@ -99,73 +89,22 @@ library ExchangeRate {
     }
 
     /**
-     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-     * externally from the system.
-     *
-     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
-     * Underlying is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
-     * in these exchange rates.
-     *
-     * @param er exchange rate object between asset and underlying
-     * @param assetBalance amount (denominated in asset value) to convert to underlying
-     */
-    function convertInternalToUnderlying(
-        Rate memory er,
-        int assetBalance
-    ) internal pure returns (int) {
-        if (assetBalance == 0) return 0;
-
-        // Calculation here represents:
-        // rateDecimals * balance / rateDecimals
-        int underlyingBalance = er.rate
-            .mul(assetBalance)
-            .div(er.rateDecimals);
-
-        return underlyingBalance;
-    }
-
-    /**
-     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-     * externally from the system.
-     *
-     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
-     * underlyingBalance. Underlying is referred to as the quote currency in these exchange rates.
-     *
-     * @param er exchange rate object between asset and underlying
-     * @param underlyingBalance amount (denominated in underlying value) to convert to asset value
-     */
-    function convertInternalFromUnderlying(
-        Rate memory er,
-        int underlyingBalance
-    ) internal pure returns (int) {
-        if (underlyingBalance == 0) return 0;
-
-        // Calculation here represents:
-        // rateDecimals * balance / rateDecimals
-        int assetBalance = underlyingBalance
-            .mul(er.rateDecimals)
-            .div(er.rate);
-
-        return assetBalance;
-    }
-
-    /**
      * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate.
      *
      * @param baseER base exchange rate struct
      * @param quoteER quote exchange rate struct
      */
-    function exchangeRate(Rate memory baseER, Rate memory quoteER) internal pure returns (int) {
+    function exchangeRate(ETHRate memory baseER, ETHRate memory quoteER) internal pure returns (int) {
         return baseER.rate.mul(quoteER.rateDecimals).div(quoteER.rate);
     }
 
-    function getRateStorage(
-        uint currencyId,
-        uint storageSlot
-    ) private view returns (Rate memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, storageSlot));
+    /**
+     * @notice Returns an ETHRate object used to calculate free collateral
+     */
+    function buildExchangeRate(
+        uint currencyId
+    ) internal view returns (ETHRate memory) {
+        bytes32 slot = keccak256(abi.encode(currencyId, ETH_RATE_STORAGE_SLOT));
         bytes32 data;
 
         assembly {
@@ -186,81 +125,30 @@ library ExchangeRate {
         int rateDecimals = int(10**rateDecimalPlaces);
         if (bytes1(data << 80) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
 
-        int buffer;
-        int haircut;
-        if (storageSlot == ETH_RATE_STORAGE_SLOT) {
-            buffer = int(uint8(bytes1(data << 72)));
-            haircut = int(uint8(bytes1(data << 64)));
-        }
-
-        // TODO: do we need to have quote decimals?
-        int quoteDecimals = int(10**uint8(bytes1(data << 56)));
+        int buffer = int(uint8(bytes1(data << 72)));
+        int haircut = int(uint8(bytes1(data << 64)));
         int baseDecimals = int(10**uint8(bytes1(data << 48)));
 
-        return Rate({
+        return ETHRate({
             rateDecimals: rateDecimals,
             baseDecimals: baseDecimals,
-            quoteDecimals: quoteDecimals,
             rate: rate,
             buffer: buffer,
-            haircut: haircut,
-            rateDecimalPlaces: rateDecimalPlaces
+            haircut: haircut
         });
     }
-
-    /**
-     * @notice Given an exchange rate storage object, returns the in-memory exchange rate object
-     * that will be used in contract calculations.
-     */
-    function buildExchangeRate(
-        uint currencyId
-    ) internal view returns (Rate memory) {
-        return getRateStorage(currencyId, ETH_RATE_STORAGE_SLOT);
-    }
-
-    function buildAssetRate(
-        uint currencyId
-    ) internal view returns (Rate memory) {
-        return getRateStorage(currencyId, ASSET_RATE_STORAGE_SLOT);
-    }
-
-    function buildSettlementRate(
-        int settlementRate,
-        uint rateDecimalPlaces
-    ) internal pure returns (Rate memory) {
-        int rateDecimals = int(10**rateDecimalPlaces);
-
-        return Rate({
-            rateDecimals: rateDecimals,
-            baseDecimals: 0,
-            quoteDecimals: 0,
-            rate: settlementRate,
-            buffer: 0,
-            haircut: 0,
-            // Not needed
-            rateDecimalPlaces: 0
-        });
-    }
-
 }
 
 
 contract MockExchangeRate is StorageLayoutV1 {
     using SafeInt256 for int256;
-    using ExchangeRate for Rate;
+    using ExchangeRate for ETHRate;
 
     function setETHRateMapping(
         uint id,
         RateStorage calldata rs
     ) external {
         underlyingToETHRateMapping[id] = rs;
-    }
-
-    function setAssetRateMapping(
-        uint id,
-        RateStorage calldata rs
-    ) external {
-        assetToUnderlyingRateMapping[id] = rs;
     }
 
     function assertBalanceSign(int balance, int result) private pure {
@@ -275,7 +163,7 @@ contract MockExchangeRate is StorageLayoutV1 {
         int quote,
         int baseDecimals,
         int quoteDecimals,
-        Rate memory er
+        ETHRate memory er
     ) private pure {
         require(er.rate > 0);
         require(baseDecimals > 0);
@@ -295,7 +183,7 @@ contract MockExchangeRate is StorageLayoutV1 {
     }
 
     function convertToETH(
-        Rate memory er,
+        ETHRate memory er,
         int balance
     ) external pure returns (int) {
         require(er.rate > 0);
@@ -306,7 +194,7 @@ contract MockExchangeRate is StorageLayoutV1 {
     }
 
     function convertETHTo(
-        Rate memory er,
+        ETHRate memory er,
         int balance
     ) external pure returns (int) {
         require(er.rate > 0);
@@ -317,33 +205,9 @@ contract MockExchangeRate is StorageLayoutV1 {
         return result;
     }
 
-    function convertInternalToUnderlying(
-        Rate memory er,
-        int balance
-    ) external pure returns (int) {
-        require(er.rate > 0);
-        int result = er.convertInternalToUnderlying(balance);
-        assertBalanceSign(balance, result);
-        assertRateDirection(balance, result, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
-
-        return result;
-    }
-
-    function convertInternalFromUnderlying(
-        Rate memory er,
-        int balance
-    ) external pure returns (int) {
-        require(er.rate > 0);
-        int result = er.convertInternalFromUnderlying(balance);
-        assertBalanceSign(balance, result);
-        assertRateDirection(result, balance, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
-
-        return result;
-    }
-
     function exchangeRate(
-        Rate memory baseER,
-        Rate memory quoteER
+        ETHRate memory baseER,
+        ETHRate memory quoteER
     ) external pure returns (int) {
         require(baseER.rate > 0);
         require(quoteER.rate > 0);
@@ -356,14 +220,8 @@ contract MockExchangeRate is StorageLayoutV1 {
 
     function buildExchangeRate(
         uint currencyId
-    ) external view returns (Rate memory) {
+    ) external view returns (ETHRate memory) {
         return ExchangeRate.buildExchangeRate(currencyId);
-    }
-
-    function buildAssetRate(
-        uint currencyId
-    ) external view returns (Rate memory) {
-        return ExchangeRate.buildAssetRate(currencyId);
     }
 
 }

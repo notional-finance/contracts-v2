@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "../math/ABDKMath64x64.sol";
 import "./CashGroup.sol";
+import "./AssetRate.sol";
 import "../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
@@ -13,7 +14,7 @@ library Asset {
     using SafeMath for uint256;
     using SafeInt256 for int;
     using CashGroup for CashGroupParameters;
-    using ExchangeRate for Rate;
+    using AssetRate for AssetRateParameters;
 
     // Used for asset type enum
     uint public constant FCASH_ASSET_TYPE = 1;
