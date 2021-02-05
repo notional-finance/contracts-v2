@@ -236,11 +236,13 @@ library Asset {
         uint groupIndex;
 
         for (uint i; i < assets.length; i++) {
-            if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // TODO: Check the currency id here
-                groupIndex += 1;
-            }
             if (assets[i].assetType != Asset.LIQUIDITY_TOKEN_ASSET_TYPE) continue;
+            while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
+                // Assets and cash groups are sorted by currency id but there may be gaps
+                // between them currency groups
+                groupIndex += 1;
+                require(groupIndex <= cashGroups.length, "A: cash group not found");
+            }
 
             (int assetCashClaim, int pv) = getLiquidityTokenValue(
                 assets[i],
@@ -256,15 +258,20 @@ library Asset {
 
         groupIndex = 0;
         for (uint i; i < assets.length; i++) {
-            if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // TODO: Check the currency id here
-                // Convert the PV of the underlying values before we move to the next group index.
-                presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
-                    presentValueUnderlying[groupIndex]
-                );
-                groupIndex += 1;
-            }
             if (assets[i].assetType != Asset.FCASH_ASSET_TYPE) continue;
+            while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
+                // Assets and cash groups are sorted by currency id but there may be gaps
+                // between them currency groups
+
+                // Convert the PV of the underlying values before we move to the next group index.
+                if (presentValueUnderlying[groupIndex] != 0) {
+                    presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
+                        presentValueUnderlying[groupIndex]
+                    );
+                }
+                groupIndex += 1;
+                require(groupIndex <= cashGroups.length, "A: cash group not found");
+            }
             
             uint maturity = assets[i].maturity;
             uint oracleRate = cashGroups[groupIndex].getOracleRate(
@@ -293,8 +300,32 @@ library Asset {
     }
 }
 
-contract MockAsset {
+contract MockAsset is StorageLayoutV1 {
     using SafeInt256 for int256;
+
+    function setAssetRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        assetToUnderlyingRateMapping[id] = rs;
+    }
+
+    function setCashGroup(
+        uint id,
+        CashGroupParameterStorage calldata cg
+    ) external {
+        cashGroupMapping[id] = cg;
+    }
+
+    function setMarketState(
+        uint id,
+        uint maturity,
+        MarketStorage calldata ms,
+        uint80 totalLiquidity
+    ) external {
+        marketStateMapping[id][maturity] = ms;
+        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+    }
 
     function getDiscountFactor(
         uint timeToMaturity,
