@@ -163,84 +163,29 @@ library Asset {
         return (assetCash, fCash);
     }
 
-    function findMarketIndex(
-        uint maturity,
-        MarketParameters[] memory marketStates
-    ) internal pure returns (uint, bool) {
-        // This assumes that market states are sorted, will cause issues otherwise.
-        for (uint i; i < marketStates.length; i++) {
-            if (marketStates[i].maturity == maturity) return (i, false);
-
-            // If this maturity is between two market maturities then it
-            // is idiosyncratic. We return the lower index and a true to indicate.
-            if (i + 1 < marketStates.length
-                && marketStates[i].maturity < maturity
-                && maturity < marketStates[i + 1].maturity
-            ) {
-                return (i, true);
-            }
-        }
-
-        revert("A: market not found");
-    }
-
-    /**
-     * @notice Returns the linear interpolation between two market rates. The formula is
-     * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
-     * interpolatedRate = slope * maturity + shortMarket.oracleRate
-     */
-    function interpolateOracleRate(
-        MarketParameters memory shortMarket,
-        MarketParameters memory longMarket,
-        uint maturity
-    ) internal pure returns (uint) {
-        require(shortMarket.maturity < maturity, "A: interpolation error");
-        require(maturity < longMarket.maturity, "A: interpolation error");
-
-        // It's possible that the rates are inverted where the short market rate > long market rate and
-        // we will get underflows here so we check for that
-        if (longMarket.oracleRate >= shortMarket.oracleRate) {
-            return (longMarket.oracleRate - shortMarket.oracleRate)
-                .mul(maturity - shortMarket.maturity)
-                // No underflow here, checked above
-                .div(longMarket.maturity - shortMarket.maturity)
-                .add(shortMarket.oracleRate);
-        } else {
-            // In this case the slope is negative so:
-            // interpolatedRate = shortMarket.oracleRate - slope * maturity
-            return shortMarket.oracleRate.sub(
-                // This is reversed to keep it it positive
-                (shortMarket.oracleRate - longMarket.oracleRate)
-                    .mul(maturity - shortMarket.maturity)
-                    // No underflow here, checked above
-                    .div(longMarket.maturity - shortMarket.maturity)
-            );
-        }
-
-    }
-
     function getLiquidityTokenValue(
         PortfolioAsset memory liquidityToken,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
+        MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
         uint blockTime
-    ) internal pure returns (int, int) {
+    ) internal view returns (int, int) {
         require(
             liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
             "A: invalid asset token value"
         );
 
-        (uint marketIndex, bool idiosyncratic) = findMarketIndex(
-            liquidityToken.maturity,
-            marketStates
-        );
-        // Liquidity tokens can never be idiosyncractic
-        require(!idiosyncratic, "A: idiosyncratic token");
+        MarketParameters memory market;
+        {
+            (uint marketIndex, bool idiosyncratic) = cashGroup.getMarketIndex(liquidityToken.maturity, blockTime);
+            // Liquidity tokens can never be idiosyncractic
+            require(!idiosyncratic, "A: idiosyncratic token");
+            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
+        }
 
         (int assetCashClaim, int fCashClaim) = getHaircutCashClaims(
             liquidityToken,
-            marketStates[marketIndex],
+            market,
             cashGroup,
             blockTime
         );
@@ -266,7 +211,7 @@ library Asset {
                 fCashClaim,
                 liquidityToken.maturity,
                 blockTime,
-                marketStates[marketIndex].oracleRate
+                market.oracleRate
             );
         }
 
@@ -283,16 +228,16 @@ library Asset {
     function getRiskAdjustedPortfolioValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
+        MarketParameters[][] memory markets,
         uint blockTime
-    ) internal pure returns(int[] memory) {
+    ) internal view returns(int[] memory) {
         int[] memory presentValueAsset = new int[](cashGroups.length);
         int[] memory presentValueUnderlying = new int[](cashGroups.length);
         uint groupIndex;
 
         for (uint i; i < assets.length; i++) {
             if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // Check the currency id here
+                // TODO: Check the currency id here
                 groupIndex += 1;
             }
             if (assets[i].assetType != Asset.LIQUIDITY_TOKEN_ASSET_TYPE) continue;
@@ -300,7 +245,7 @@ library Asset {
             (int assetCashClaim, int pv) = getLiquidityTokenValue(
                 assets[i],
                 cashGroups[groupIndex],
-                marketStates[groupIndex],
+                markets[groupIndex],
                 assets,
                 blockTime
             );
@@ -312,7 +257,7 @@ library Asset {
         groupIndex = 0;
         for (uint i; i < assets.length; i++) {
             if (assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // Check the currency id here
+                // TODO: Check the currency id here
                 // Convert the PV of the underlying values before we move to the next group index.
                 presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
                     presentValueUnderlying[groupIndex]
@@ -322,22 +267,11 @@ library Asset {
             if (assets[i].assetType != Asset.FCASH_ASSET_TYPE) continue;
             
             uint maturity = assets[i].maturity;
-            uint oracleRate;
-            {
-                // Switch these methods onto the cash group
-                (uint marketIndex, bool idiosyncractic) = findMarketIndex(
-                    maturity,
-                    marketStates[groupIndex]
-                );
-                // TODO: if the asset is idiosyncratic under the lowest market maturity
-                // then we need to get the rate from the system
-
-                oracleRate = idiosyncractic ? interpolateOracleRate(
-                    marketStates[groupIndex][marketIndex],
-                    marketStates[groupIndex][marketIndex + 1],
-                    maturity
-                ) : marketStates[groupIndex][marketIndex].oracleRate;
-            }
+            uint oracleRate = cashGroups[groupIndex].getOracleRate(
+                markets[groupIndex],
+                maturity,
+                blockTime
+            );
 
             int pv = getRiskAdjustedPresentValue(
                 cashGroups[groupIndex],
@@ -431,41 +365,17 @@ contract MockAsset {
         return (haircutCash, haircutfCash);
     }
 
-    function findMarketIndex(
-        uint maturity,
-        MarketParameters[] memory marketStates
-    ) public pure returns (uint, bool) {
-        return Asset.findMarketIndex(maturity, marketStates);
-    }
-
-    function interpolateOracleRate(
-        MarketParameters memory shortMarket,
-        MarketParameters memory longMarket,
-        uint maturity
-    ) public pure returns (uint) {
-        uint rate = Asset.interpolateOracleRate(shortMarket, longMarket, maturity);
-        if (shortMarket.oracleRate == longMarket.oracleRate) {
-            assert(rate == shortMarket.oracleRate);
-        } else if (shortMarket.oracleRate < longMarket.oracleRate) {
-            assert(shortMarket.oracleRate < rate && rate < longMarket.oracleRate);
-        } else {
-            assert(shortMarket.oracleRate > rate && rate > longMarket.oracleRate);
-        }
-
-        return rate;
-    }
-
     function getLiquidityTokenValue(
         PortfolioAsset memory liquidityToken,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
+        MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
         uint blockTime
-    ) public pure returns (int, int, PortfolioAsset[] memory) {
+    ) public view returns (int, int, PortfolioAsset[] memory) {
         (int assetValue, int pv) = Asset.getLiquidityTokenValue(
             liquidityToken,
             cashGroup,
-            marketStates,
+            markets,
             fCashAssets,
             blockTime
         );
@@ -476,13 +386,13 @@ contract MockAsset {
     function getRiskAdjustedPortfolioValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
+        MarketParameters[][] memory markets,
         uint blockTime
-    ) public pure returns(int[] memory) {
+    ) public view returns(int[] memory) {
         int[] memory assetValue = Asset.getRiskAdjustedPortfolioValue(
             assets,
             cashGroups,
-            marketStates,
+            markets,
             blockTime
         );
 

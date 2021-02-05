@@ -1,5 +1,4 @@
 import math
-import random
 
 import brownie
 import pytest
@@ -51,83 +50,41 @@ def test_risk_adjusted_pv(assetLibrary, cashGroup, oracleRate):
 def test_haircut_token_value(assetLibrary):
     cg = list(BASE_CASH_GROUP)
     (assetCash, fCash) = assetLibrary.getHaircutCashClaims(
-        (cg[0], 2, 100, 1e18, 0), (cg[0], 100, 2e18, 2e18, 2e18, 0, 0, 0), cg, 0
+        (cg[0], 100, 2, 1e18, 0), (cg[0], 100, 2e18, 2e18, 2e18, 0, 0, 0), cg, 0
     )
-    assert assetCash == math.trunc(1e18 * cg[5] / 100)
-    assert fCash == math.trunc(1e18 * cg[5] / 100)
-
-
-def test_find_market_index(assetLibrary):
-    cg = list(BASE_CASH_GROUP)
-    marketStates = [
-        (cg[0], 100, 1e18, 1e18, 1e18, 0, 0, 0),
-        (cg[0], 200, 1e18, 1e18, 1e18, 0, 0, 0),
-        (cg[0], 300, 1e18, 1e18, 1e18, 0, 0, 0),
-    ]
-
-    (index, idiosyncratic) = assetLibrary.findMarketIndex(100, marketStates)
-    assert index == 0
-    assert not idiosyncratic
-
-    (index, idiosyncratic) = assetLibrary.findMarketIndex(300, marketStates)
-    assert index == 2
-    assert not idiosyncratic
-
-    (index, idiosyncratic) = assetLibrary.findMarketIndex(125, marketStates)
-    assert index == 0
-    assert idiosyncratic
-
-    with brownie.reverts("A: market not found"):
-        (index, idiosyncratic) = assetLibrary.findMarketIndex(400, marketStates)
-
-
-@given(shortRate=impliedRateStrategy, shortMaturity=timeToMaturityStrategy)
-def test_interpolated_rate_oracle(assetLibrary, shortRate, shortMaturity):
-    shortMaturity = shortMaturity * SECONDS_IN_DAY
-    longMaturity = shortMaturity + math.trunc(random.uniform(1, 3600) * SECONDS_IN_DAY)
-    longRate = shortRate + math.trunc(random.uniform(-shortRate, shortRate * 5))
-    maturity = math.trunc(random.uniform(shortMaturity - 1, longMaturity + 1))
-
-    # assertions are handled in the mock
-    rate = assetLibrary.interpolateOracleRate(
-        (1, shortMaturity, 0, 0, 0, 0, shortRate, 0),
-        (1, longMaturity, 0, 0, 0, 0, longRate, 0),
-        maturity,
-    )
-
-    if shortRate < longRate:
-        assert shortRate < rate
-        assert rate < longRate
-    elif longRate < shortRate:
-        assert shortRate > rate
-        assert rate > longRate
+    assert assetCash == math.trunc(1e18 * 97 / 100)
+    assert fCash == math.trunc(1e18 * 97 / 100)
 
 
 def test_liquidity_token_value(assetLibrary):
     cg = list(BASE_CASH_GROUP)
     marketStates = [
-        (cg[0], 100, 1e18, 1e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
-        (cg[0], 200, 2e18, 2e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
-        (cg[0], 300, 3e18, 3e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
+        (cg[0], 90 * SECONDS_IN_DAY, 1e18, 1e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
+        (cg[0], 180 * SECONDS_IN_DAY, 2e18, 2e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
+        (cg[0], SECONDS_IN_YEAR, 3e18, 3e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
     ]
 
     with brownie.reverts("A: idiosyncratic token"):
-        assetLibrary.getLiquidityTokenValue((cg[0], 2, 120, 1e18, 0), cg, marketStates, [], 0)
+        assetLibrary.getLiquidityTokenValue((cg[0], 120, 2, 1e18, 0), cg, marketStates, [], 0)
 
     # Case when token is not found
     (assetCash, pv, fCashAssets) = assetLibrary.getLiquidityTokenValue(
-        (cg[0], 2, 200, 0.5e18, 0), cg, marketStates, [], 0
+        (cg[0], 180 * SECONDS_IN_DAY, 2, 0.5e18, 0), cg, marketStates, [], 0
     )
 
     assert fCashAssets == ()
     assert assetCash == 0.97e18
     assert pv == assetLibrary.getRiskAdjustedPresentValue(
-        cg, 0.97e18, 200, 0, 0.01 * RATE_PRECISION
+        cg, 0.97e18, 180 * SECONDS_IN_DAY, 0, 0.01 * RATE_PRECISION
     )
 
     # Case when token is found
     (assetCash, pv, fCashAssets) = assetLibrary.getLiquidityTokenValue(
-        (cg[0], 2, 200, 0.5e18, 0), cg, marketStates, [(cg[0], 1, 200, -0.25e18, 0)], 0
+        (cg[0], 180 * SECONDS_IN_DAY, 2, 0.5e18, 0),
+        cg,
+        marketStates,
+        [(cg[0], 180 * SECONDS_IN_DAY, 1, -0.25e18, 0)],
+        0,
     )
     assert assetCash == 0.97e18
     assert pv == 0

@@ -383,6 +383,16 @@ library Market {
         return newOracleRate;
     }
 
+    function setLiquidity(MarketParameters memory market) internal view {
+        int totalLiquidity;
+        bytes32 slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, LIQUIDITY_STORAGE_SLOT))));
+
+        assembly {
+            totalLiquidity := sload(slot)
+        }
+        market.totalLiquidity = totalLiquidity;
+    }
+
     function getMarketStorage(
         uint currencyId,
         uint maturity,
@@ -395,31 +405,26 @@ library Market {
             data := sload(slot)
         }
 
-        int totalLiquidity;
-        if (needsLiquidity) {
-            slot = keccak256(abi.encode(maturity, keccak256(abi.encode(currencyId, LIQUIDITY_STORAGE_SLOT))));
-
-            assembly {
-                totalLiquidity := sload(slot)
-            }
-        }
-
         int totalfCash = int(uint80(uint(data)));
         int totalCurrentCash = int(uint80(uint(data >> 80)));
         uint lastImpliedRate = uint(uint32(uint(data >> 160)));
         uint oracleRate = uint(uint32(uint(data >> 192)));
         uint previousTradeTime = uint(uint32(uint(data >> 224)));
 
-        return MarketParameters({
+        MarketParameters memory market = MarketParameters({
             currencyId: currencyId,
             maturity: maturity,
             totalfCash: totalfCash,
             totalCurrentCash: totalCurrentCash,
-            totalLiquidity: totalLiquidity,
+            totalLiquidity: 0,
             lastImpliedRate: lastImpliedRate,
             oracleRate: oracleRate,
             previousTradeTime: previousTradeTime
         });
+
+        if (needsLiquidity) setLiquidity(market);
+
+        return market;
     }
 
     function buildMarket(

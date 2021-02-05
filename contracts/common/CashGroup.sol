@@ -43,6 +43,7 @@ library CashGroup {
     using SafeMath for uint256;
     using SafeInt256 for int;
     using AssetRate for AssetRateParameters;
+    using Market for MarketParameters;
 
     uint internal constant CASH_GROUP_STORAGE_SLOT = 5;
 
@@ -262,7 +263,7 @@ library CashGroup {
 
     function getLiquidityHaircut(
         CashGroupParameters memory cashGroup,
-        uint timeToMaturity
+        uint /* timeToMaturity */
     ) internal pure returns (uint) {
         // TODO: unclear how this should be calculated
         uint liquidityTokenHaircut = uint(uint8(uint(cashGroup.data >> LIQUIDITY_TOKEN_HAIRCUT)));
@@ -287,6 +288,130 @@ library CashGroup {
     ) internal pure returns (uint) {
         // This is denominated in minutes in storage
         return uint(uint8(uint(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
+    }
+
+    function getMarketIndex(
+        CashGroupParameters memory cashGroup,
+        uint maturity,
+        uint blockTime
+    ) internal pure returns (uint, bool) {
+        uint maxMarketIndex = cashGroup.maxMarketIndex;
+        require(maxMarketIndex > 0, "CG: no markets listed");
+        require(maxMarketIndex < 10, "CG: market index bound");
+        uint tRef = getReferenceTime(blockTime);
+
+        for (uint i = 1; i <= maxMarketIndex; i++) {
+            uint marketMaturity = tRef.add(getTradedMarket(i));
+            if (marketMaturity == maturity) return (i, false);
+            if (marketMaturity > maturity) return (i, true);
+        }
+
+        require(false, "CG: no market found");
+    }
+
+    function getMarket(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint marketIndex,
+        uint blockTime,
+        bool needsLiquidity
+    ) internal view returns (MarketParameters memory) {
+        require(marketIndex > 0, "C: invalid market index");
+        require(marketIndex <= markets.length, "C: invalid market index");
+        MarketParameters memory market = markets[marketIndex - 1];
+
+        // TODO: maybe change this to a bool, hasLoaded
+        if (market.currencyId == 0) {
+            uint maturity = getReferenceTime(blockTime).add(getTradedMarket(marketIndex));
+            market = Market.buildMarket(
+                cashGroup.currencyId,
+                maturity,
+                blockTime,
+                needsLiquidity,
+                getRateOracleTimeWindow(cashGroup)
+            );
+        }
+
+        if (market.previousTradeTime == 0) {
+            // If previous trade time is zero then the market has not been initialized
+            // and we have to do that before we use it.
+            // TODO: initializeMarket(cashGroup, market)
+        }
+
+        if (market.totalLiquidity == 0 && needsLiquidity) {
+            // Fetch liquidity amount
+            market.setLiquidity();
+        }
+
+        return market;
+    }
+
+    /**
+     * @notice Returns the linear interpolation between two market rates. The formula is
+     * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
+     * interpolatedRate = slope * maturity + shortMarket.oracleRate
+     */
+    function interpolateOracleRate(
+        uint shortMaturity,
+        uint longMaturity,
+        uint shortRate,
+        uint longRate,
+        uint assetMaturity
+    ) internal pure returns (uint) {
+        require(shortMaturity < assetMaturity, "A: interpolation error");
+        require(assetMaturity < longMaturity, "A: interpolation error");
+
+        // It's possible that the rates are inverted where the short market rate > long market rate and
+        // we will get underflows here so we check for that
+        if (longRate >= shortRate) {
+            return (longRate - shortRate)
+                .mul(assetMaturity - shortMaturity)
+                // No underflow here, checked above
+                .div(longMaturity - shortMaturity)
+                .add(shortRate);
+        } else {
+            // In this case the slope is negative so:
+            // interpolatedRate = shortMarket.oracleRate - slope * maturity
+            return shortRate.sub(
+                // This is reversed to keep it it positive
+                (shortRate - longRate)
+                    .mul(assetMaturity - shortMaturity)
+                    // No underflow here, checked above
+                    .div(longMaturity - shortMaturity)
+            );
+        }
+    }
+
+    function getOracleRate(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint assetMaturity,
+        uint blockTime
+    ) internal view returns (uint) {
+        (uint marketIndex, bool idiosyncractic) = getMarketIndex(cashGroup, assetMaturity, blockTime);
+        MarketParameters memory market = getMarket(cashGroup, markets, marketIndex, blockTime, false);
+
+        if (!idiosyncractic) return market.oracleRate;
+
+        if (marketIndex == 1) {
+            // In this case the short market is the annualized asset supply rate
+            return interpolateOracleRate(
+                blockTime,
+                market.maturity,
+                cashGroup.assetRate.getSupplyRate(),
+                market.oracleRate,
+                assetMaturity
+            );
+        }
+
+        MarketParameters memory shortMarket = getMarket(cashGroup, markets, marketIndex - 1, blockTime, false);
+        return interpolateOracleRate(
+            shortMarket.maturity,
+            market.maturity,
+            shortMarket.oracleRate,
+            market.oracleRate,
+            assetMaturity
+        );
     }
 
     /**
@@ -339,17 +464,22 @@ library CashGroup {
      */
     function buildCashGroup(
         uint currencyId
-    ) internal view returns (CashGroupParameters memory) {
+    ) internal view returns (CashGroupParameters memory, MarketParameters[] memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
         AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
         uint maxMarketIndex = uint(uint8(uint(data)));
 
-        return CashGroupParameters({
-            currencyId: currencyId,
-            maxMarketIndex: maxMarketIndex,
-            assetRate: assetRate,
-            data: data
-        });
+        return (
+            CashGroupParameters({
+                currencyId: currencyId,
+                maxMarketIndex: maxMarketIndex,
+                assetRate: assetRate,
+                data: data
+            }),
+            // It would be nice to nest this inside cash group parameters
+            // but there are issues with circular imports perhaps.
+            new MarketParameters[](maxMarketIndex)
+        );
     }
 
 }
@@ -369,6 +499,26 @@ contract MockCashGroup is StorageLayoutV1 {
         CashGroupParameterStorage calldata cg
     ) external {
         cashGroupMapping[id] = cg;
+    }
+
+    function setMarketState(
+        uint id,
+        uint maturity,
+        MarketStorage calldata ms,
+        uint80 totalLiquidity
+    ) external {
+        marketStateMapping[id][maturity] = ms;
+        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+    }
+
+    function getMarketState(
+        uint id,
+        uint maturity
+    ) external view returns (MarketStorage memory, uint) {
+        return (
+            marketStateMapping[id][maturity],
+            marketTotalLiquidityMapping[id][maturity]
+        );
     }
 
     function getTradedMarket(uint index) public pure returns (uint) {
@@ -451,9 +601,65 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.getRateOracleTimeWindow();
     }
 
+    function getMarketIndex(
+        CashGroupParameters memory cashGroup,
+        uint maturity,
+        uint blockTime
+    ) public pure returns (uint, bool) {
+        return cashGroup.getMarketIndex(maturity, blockTime);
+    }
+
+    function getMarket(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint marketIndex,
+        uint blockTime,
+        bool needsLiquidity
+    ) public view returns (MarketParameters memory) {
+        return cashGroup.getMarket(markets, marketIndex, blockTime, needsLiquidity);
+    }
+
+    function interpolateOracleRate(
+        uint shortMaturity,
+        uint longMaturity,
+        uint shortRate,
+        uint longRate,
+        uint assetMaturity
+    ) public view returns (uint) {
+        uint rate = CashGroup.interpolateOracleRate(
+            shortMaturity,
+            longMaturity,
+            shortRate,
+            longRate,
+            assetMaturity
+        );
+
+        if (shortRate == longRate) {
+            assert(rate == shortRate);
+        } else if (shortRate < longRate) {
+            assert(shortRate < rate && rate < longRate);
+        } else {
+            assert(shortRate > rate && rate > longRate);
+        }
+
+        return rate;
+    }
+
+    function getOracleRate(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint assetMaturity,
+        uint blockTime
+    ) public view returns (uint) {
+        return cashGroup.getOracleRate(markets, assetMaturity, blockTime);
+    }
+
     function buildCashGroup(
         uint currencyId
-    ) public view returns (CashGroupParameters memory) {
+    ) public view returns (
+        CashGroupParameters memory,
+        MarketParameters[] memory
+    ) {
         return CashGroup.buildCashGroup(currencyId);
     }
 
