@@ -616,7 +616,17 @@ contract MockCashGroup is StorageLayoutV1 {
         uint blockTime,
         bool needsLiquidity
     ) public view returns (MarketParameters memory) {
-        return cashGroup.getMarket(markets, marketIndex, blockTime, needsLiquidity);
+        MarketParameters memory market = cashGroup.getMarket(markets, marketIndex, blockTime, needsLiquidity);
+
+        // Ensure that the market cache gets updated via the memory reference
+        assert(markets[marketIndex].totalfCash == market.totalfCash);
+        assert(markets[marketIndex].totalCurrentCash == market.totalCurrentCash);
+        assert(markets[marketIndex].totalLiquidity == market.totalLiquidity);
+        assert(markets[marketIndex].lastImpliedRate == market.lastImpliedRate);
+        assert(markets[marketIndex].oracleRate == market.oracleRate);
+        assert(markets[marketIndex].previousTradeTime == market.previousTradeTime);
+
+        return market;
     }
 
     function interpolateOracleRate(

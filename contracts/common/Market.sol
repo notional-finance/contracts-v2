@@ -29,6 +29,8 @@ struct MarketParameters {
     uint oracleRate;
     // This is the timestamp of the previous trade
     uint previousTradeTime;
+    // Used to determine if the market has been updated
+    bool hasUpdated;
 }
 
 library Market {
@@ -175,6 +177,7 @@ library Market {
         if (!success) return (marketState, 0, 0);
         // Sets the trade time for the next oracle update
         marketState.previousTradeTime = block.timestamp;
+        marketState.hasUpdated = true;
 
         return (marketState, netAssetCash, netCash);
     }
@@ -383,6 +386,10 @@ library Market {
         return newOracleRate;
     }
 
+    /**
+     * @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
+     * do need to load the liquidity amount.
+     */
     function setLiquidity(MarketParameters memory market) internal view {
         int totalLiquidity;
         bytes32 slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, LIQUIDITY_STORAGE_SLOT))));
@@ -393,11 +400,15 @@ library Market {
         market.totalLiquidity = totalLiquidity;
     }
 
+    /**
+     * @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
+     * which ensures that the rate oracle is set properly.
+     */
     function getMarketStorage(
         uint currencyId,
         uint maturity,
         bool needsLiquidity
-    ) internal view returns (MarketParameters memory) {
+    ) private view returns (MarketParameters memory) {
         bytes32 slot = keccak256(abi.encode(maturity, keccak256(abi.encode(currencyId, MARKET_STORAGE_SLOT))));
         bytes32 data;
 
@@ -419,7 +430,8 @@ library Market {
             totalLiquidity: 0,
             lastImpliedRate: lastImpliedRate,
             oracleRate: oracleRate,
-            previousTradeTime: previousTradeTime
+            previousTradeTime: previousTradeTime,
+            hasUpdated: false
         });
 
         if (needsLiquidity) setLiquidity(market);
@@ -427,6 +439,47 @@ library Market {
         return market;
     }
 
+    /**
+     * @notice Writes market parameters to storage if the market is marked as updated.
+     */
+    function setMarketStorage(MarketParameters memory market) internal {
+        if (!market.hasUpdated) return;
+
+        bytes32 slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, MARKET_STORAGE_SLOT))));
+        bytes32 data;
+        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
+        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
+        require(market.lastImpliedRate >= 0 && market.totalCurrentCash <= type(uint32).max, "M: storage overflow");
+        require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max, "M: storage overflow");
+        require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max, "M: storage overflow");
+
+        data = (
+            bytes32(market.totalfCash) |
+            bytes32(market.totalCurrentCash) << 80 |
+            bytes32(market.lastImpliedRate) << 160 |
+            bytes32(market.oracleRate) << 192 |
+            bytes32(market.previousTradeTime) << 224
+        );
+
+        assembly {
+            sstore(slot, data)
+        }
+
+        if (market.totalLiquidity != 0) {
+            require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
+            // TODO: make this slot + 1
+            slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, LIQUIDITY_STORAGE_SLOT))));
+            bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+
+            assembly {
+                sstore(slot, totalLiquidity)
+            }
+        }
+    }
+
+    /**
+     * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
+     */
     function buildMarket(
         uint currencyId,
         uint maturity,
@@ -530,6 +583,12 @@ contract MockMarket is StorageLayoutV1 {
            fCashAmount,
            timeToMaturity
         );
+   }
+
+   function setMarketStorage(
+       MarketParameters memory market
+   ) public {
+       market.setMarketStorage();
    }
 
    function buildMarket(
