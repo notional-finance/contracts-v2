@@ -12,11 +12,11 @@ struct CurrencyStorage {
     bool tokenHasTransferFee;
     // Decimal places of the asset token
     uint8 tokenDecimalPlaces;
-    // Decimal places of the underlying token
-    uint8 underlyingDecimalPlaces;
     // Liquidation discount for this currency, set as a percentage of the exchange rate where
     // 105 would mean a 5% discount.
     uint8 liquidationDiscount;
+    // Decimal places of the underlying token
+    uint8 underlyingDecimalPlaces;
 }
 
 /**

@@ -625,7 +625,7 @@ contract MockCashGroup is StorageLayoutV1 {
         uint shortRate,
         uint longRate,
         uint assetMaturity
-    ) public view returns (uint) {
+    ) public pure returns (uint) {
         uint rate = CashGroup.interpolateOracleRate(
             shortMaturity,
             longMaturity,
