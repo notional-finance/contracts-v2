@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./StorageReader.sol";
 import "./PortfolioHandler.sol";
+import "./BalanceHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
@@ -22,10 +23,11 @@ contract SettleAssets is StorageReader {
     function getSettleAssetBalanceContext(
         PortfolioState memory portfolioState,
         uint blockTime
-    ) internal pure returns (BalanceContext[] memory) {
+    ) internal pure returns (BalanceState[] memory) {
         uint currenciesSettled;
         uint lastCurrencyId;
         for (uint i; i < portfolioState.storedAssets.length; i++) {
+            // TODO: liquidity tokens settle at different times
             if (portfolioState.storedAssets[i].maturity > blockTime) continue;
             // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
             // will work for the first asset
@@ -37,7 +39,7 @@ contract SettleAssets is StorageReader {
 
         // This is required for iteration
         portfolioState.calculateSortedIndex();
-        return new BalanceContext[](currenciesSettled);
+        return new BalanceState[](currenciesSettled);
     }
 
     /**
@@ -80,24 +82,25 @@ contract SettleAssets is StorageReader {
         PortfolioState memory portfolioState,
         AccountStorage memory accountContext,
         uint blockTime
-    ) internal view returns (BalanceContext[] memory) {
-        BalanceContext[] memory balanceContext = getSettleAssetBalanceContext(portfolioState, blockTime);
+    ) internal view returns (BalanceState[] memory) {
+        BalanceState[] memory balanceState = getSettleAssetBalanceContext(portfolioState, blockTime);
         AssetRateParameters memory settlementRate;
-        BalanceContext memory currentContext;
+        BalanceState memory currentContext;
         uint currencyIndex;
         uint lastCurrencyId;
         uint lastMaturity;
 
         for (uint i; i < portfolioState.sortedIndex.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+            // TODO: liquidity tokens settle at different times
             if (asset.maturity > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
                 lastMaturity = 0;
                 // Storage Read inside getBalanceContext
-                balanceContext[currencyIndex] = getBalanceContext(account, lastCurrencyId, accountContext);
-                currentContext = balanceContext[currencyIndex];
+                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(account, lastCurrencyId, accountContext);
+                currentContext = balanceState[currencyIndex];
                 currencyIndex++;
             }
 
@@ -116,12 +119,11 @@ contract SettleAssets is StorageReader {
                 );
             }
 
-            currentContext.cashBalance = currentContext.cashBalance.add(assetCash);
-            currentContext.storageState = BalanceStorageState.CashBalanceUpdate;
+            currentContext.netCashChange = currentContext.netCashChange.add(assetCash);
             portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
-        return balanceContext;
+        return balanceState;
     }
 
     /**
@@ -132,10 +134,10 @@ contract SettleAssets is StorageReader {
         PortfolioState memory portfolioState,
         AccountStorage memory accountContext,
         uint blockTime
-    ) internal returns (BalanceContext[] memory) {
-        BalanceContext[] memory balanceContext = getSettleAssetBalanceContext(portfolioState, blockTime);
+    ) internal returns (BalanceState[] memory) {
+        BalanceState[] memory balanceState = getSettleAssetBalanceContext(portfolioState, blockTime);
         AssetRateParameters memory settlementRate;
-        BalanceContext memory currentContext;
+        BalanceState memory currentContext;
         uint currencyIndex;
         uint lastCurrencyId;
         uint lastMaturity;
@@ -147,9 +149,9 @@ contract SettleAssets is StorageReader {
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
                 lastMaturity = 0;
-                // Storage Read inside getBalanceContext
-                balanceContext[currencyIndex] = getBalanceContext(account, lastCurrencyId, accountContext);
-                currentContext = balanceContext[currencyIndex];
+                // Storage Read
+                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(account, lastCurrencyId, accountContext);
+                currentContext = balanceState[currencyIndex];
                 currencyIndex++;
             }
 
@@ -176,12 +178,11 @@ contract SettleAssets is StorageReader {
                 marketTotalLiquidityMapping[asset.currencyId][asset.maturity] = totalLiquidity;
             }
 
-            currentContext.cashBalance = currentContext.cashBalance.add(assetCash);
-            currentContext.storageState = BalanceStorageState.CashBalanceUpdate;
+            currentContext.netCashChange = currentContext.netCashChange.add(assetCash);
             portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
-        return balanceContext;
+        return balanceState;
     }
 
     /**
@@ -237,6 +238,10 @@ contract SettleAssets is StorageReader {
         return AssetRate.buildSettlementRate(settlementRate.rate);
     }
 
+    /**
+     * @notice Stateful settlement function to settle a bitmapped asset. Deletes the
+     * asset from storage after calculating it.
+     */
     function settleBitmappedAsset(
         address account,
         uint currencyId,
@@ -267,6 +272,10 @@ contract SettleAssets is StorageReader {
         return (bits, assetCash);
     }
 
+    /**
+     * @notice Given a bitmap for a cash group and timestamps, will settle all assets
+     * that have matured and remap the bitmap to correspond to the current time.
+     */
     function settleBitmappedCashGroup(
         address account,
         uint currencyId,
@@ -282,8 +291,12 @@ contract SettleAssets is StorageReader {
             bytes32 quarterBits
         ) = bitmap.splitfCashBitmap();
         uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
+        // This blockTimeUTC0 will be set to the new "nextMaturingAsset", this will refer to the
+        // new next bit
+        // TODO: check 1-indexing here
         uint lastSettleBit = CashGroup.getBitNumFromMaturity(nextMaturingAsset, blockTimeUTC0);
 
+        // NOTE: bitNum is 1-indexed
         for (uint bitNum = 1; bitNum < lastSettleBit; bitNum++) {
             if (bitNum < CashGroup.WEEK_BIT_OFFSET) {
                 if (dayBits == ZERO) {
@@ -334,7 +347,8 @@ contract SettleAssets is StorageReader {
                 );
             }
 
-            if (bitNum < 256) {
+            // Check 1-indexing here
+            if (bitNum <= 256) {
                 if (quarterBits == ZERO) {
                     break;
                 }
@@ -387,6 +401,9 @@ contract SettleAssets is StorageReader {
         return (bitmap, totalAssetCash);
     }
 
+    /**
+     * @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
+     */
     function remapBitSection(
         uint nextMaturingAsset,
         uint blockTimeUTC0,
@@ -502,13 +519,13 @@ contract MockSettleAssets is SettleAssets {
         address account,
         uint blockTime
     ) public view returns (
-        BalanceContext[] memory,
+        BalanceState[] memory,
         AccountStorage memory
     ) {
         (AccountStorage memory aContextView,
             PortfolioState memory pStateView) = getInitializeContext(account, blockTime, 0);
 
-        BalanceContext[] memory bContextView = getSettleAssetContextView(
+        BalanceState[] memory bContextView = getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
@@ -522,7 +539,7 @@ contract MockSettleAssets is SettleAssets {
         address account,
         uint blockTime
     ) public returns (
-        BalanceContext[] memory,
+        BalanceState[] memory,
         AccountStorage memory
     ) {
         (AccountStorage memory aContextView,
@@ -530,14 +547,14 @@ contract MockSettleAssets is SettleAssets {
         (AccountStorage memory aContext,
             PortfolioState memory pState) = getInitializeContext(account, blockTime, 0);
 
-        BalanceContext[] memory bContextView = getSettleAssetContextView(
+        BalanceState[] memory bContextView = getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
             blockTime
         );
 
-        BalanceContext[] memory bContext = getSettleAssetContextStateful(
+        BalanceState[] memory bContext = getSettleAssetContextStateful(
             account,
             pState,
             aContext,
@@ -566,9 +583,9 @@ contract MockSettleAssets is SettleAssets {
         assert(bContextView.length == bContext.length);
         for (uint i; i < bContextView.length; i++) {
             assert(bContextView[i].currencyId == bContext[i].currencyId);
-            assert(bContextView[i].cashBalance == bContext[i].cashBalance);
-            assert(bContextView[i].perpetualTokenBalance == bContext[i].perpetualTokenBalance);
-            assert(bContextView[i].storageState == bContext[i].storageState);
+            assert(bContextView[i].storedCashBalance == bContext[i].storedCashBalance);
+            assert(bContextView[i].storedPerpetualTokenBalance == bContext[i].storedPerpetualTokenBalance);
+            assert(bContextView[i].netCashChange == bContext[i].netCashChange);
         }
 
         return (bContext, aContext);

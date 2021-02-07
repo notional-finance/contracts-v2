@@ -8,22 +8,6 @@ import "../math/SafeInt256.sol";
 import "../math/Bitmap.sol";
 import "./PortfolioHandler.sol";
 
-// This should be a bitmap to handle both update more elegantly
-enum BalanceStorageState {
-    NoChange,
-    CashBalanceUpdate,
-    PerpetualTokenUpdate,
-    BothUpdate
-}
-
-// TODO: change this to currency context
-struct BalanceContext {
-    uint currencyId;
-    int cashBalance;
-    uint perpetualTokenBalance;
-    BalanceStorageState storageState;
-    // Add cash group in here
-}
 
 enum TradeAction {
     AddLiquidity,
@@ -41,12 +25,6 @@ struct TradeRequest {
     bytes data;
 }
 
-struct NetAssetChange {
-    uint maturity;
-    uint assetType;
-    int notional;
-}
-
 struct BatchedTradeRequest {
     uint currencyId;
     TradeRequest[] tradeRequests;
@@ -55,6 +33,7 @@ struct BatchedTradeRequest {
 /**
  * @dev Reads storage parameters and creates context structs for different actions.
  */
+ // TODO: change this to context manager
 contract StorageReader is StorageLayoutV1 {
     using SafeInt256 for int256;
     using Bitmap for bytes;
@@ -81,106 +60,6 @@ contract StorageReader is StorageLayoutV1 {
         }
 
         return (accountContext, portfolioState);
-    }
-
-    /**
-     * @notice Gets a cash balance context object which tracks changes to a currency's balance.
-     */
-    function getBalanceContext(
-        address account,
-        uint currencyId,
-        AccountStorage memory accountContext
-    ) internal view returns (BalanceContext memory) {
-        // Storage Read
-        uint _maxCurrencyId = maxCurrencyId;
-        require(currencyId <= _maxCurrencyId && currencyId != 0, "R: invalid currency id");
-        bool isActive = accountContext.activeCurrencies.isBitSet(currencyId);
-
-        if (isActive) {
-            // Set the bit to off to mark that we've read the balance
-            accountContext.activeCurrencies = Bitmap.setBit(
-                accountContext.activeCurrencies,
-                currencyId,
-                false
-            );
-            // Storage Read
-            BalanceStorage memory balance = accountBalanceMapping[account][currencyId];
-            return BalanceContext({
-                currencyId: currencyId,
-                cashBalance: balance.cashBalance,
-                perpetualTokenBalance: balance.perpetualTokenBalance,
-                storageState: BalanceStorageState.NoChange
-            });
-        }
-
-        return BalanceContext({
-            currencyId: currencyId,
-            cashBalance: 0,
-            perpetualTokenBalance: 0,
-            storageState: BalanceStorageState.NoChange
-        });
-    }
-
-    /**
-     * @notice When doing a free collateral check we must get all active balances, this will
-     * fetch any remaining balances and exchange rates that are active on the account.
-     */
-    function getRemainingActiveBalances(
-        address account,
-        bytes memory activeCurrencies,
-        BalanceContext[] memory balanceContext
-    ) internal view returns (BalanceContext[] memory) {
-        uint totalActive = activeCurrencies.totalBitsSet() + balanceContext.length;
-        BalanceContext[] memory newBalanceContext = new BalanceContext[](totalActive);
-        totalActive = 0;
-        uint existingIndex;
-
-        for (uint i; i < activeCurrencies.length; i++) {
-            // Scan for the remaining balances in the active currencies list
-            if (activeCurrencies[i] == 0x00) continue;
-
-            bytes1 bits = activeCurrencies[i];
-            for (uint offset; offset < 8; offset++) {
-                if (bits == 0x00) break;
-
-                // The big endian bit is set to one so we get the balance context for this currency id
-                if (bits & 0x80 == 0x80) {
-                    uint currencyId = (i * 8) + offset + 1;
-                    // Insert lower valued currency ids here
-                    while (
-                        existingIndex < balanceContext.length &&
-                        balanceContext[existingIndex].currencyId < currencyId
-                    ) {
-                        newBalanceContext[totalActive] = balanceContext[existingIndex];
-                        totalActive += 1;
-                        existingIndex += 1;
-                    }
-
-                    // Storage Read
-                    BalanceStorage memory balance = accountBalanceMapping[account][currencyId];
-                    newBalanceContext[totalActive] = BalanceContext({
-                        currencyId: currencyId,
-                        cashBalance: balance.cashBalance,
-                        perpetualTokenBalance: balance.perpetualTokenBalance,
-                        storageState: BalanceStorageState.NoChange
-                        // Add cash group here
-                    });
-                    totalActive += 1;
-                }
-
-                bits = bits << 1;
-            }
-        }
-
-        // Inserts all remaining currencies
-        while (existingIndex < balanceContext.length) {
-            newBalanceContext[totalActive] = balanceContext[existingIndex];
-            totalActive += 1;
-            existingIndex += 1;
-        }
-
-        // This returns an ordered list of balance context by currency id
-        return newBalanceContext;
     }
 
     /**
@@ -405,46 +284,4 @@ contract MockStorageReader is StorageReader {
         return getInitializeContext(account, blockTime, newAssetsHint);
     }
 
-    function _getBalanceContext(
-        address account,
-        uint currencyId
-    ) public view returns (
-        BalanceContext memory,
-        AccountStorage memory
-    ) {
-        AccountStorage memory accountContext = accountContextMapping[account];
-
-        BalanceContext memory balanceContext = getBalanceContext(
-            account,
-            currencyId,
-            accountContext
-        );
-
-        BalanceStorage memory s = accountBalanceMapping[account][currencyId];
-        assert(balanceContext.cashBalance == s.cashBalance);
-        assert(balanceContext.perpetualTokenBalance == s.perpetualTokenBalance);
-        assert(accountContext.activeCurrencies.isBitSet(currencyId) == false);
-
-        return (balanceContext, accountContext);
-    }
-
-    function _getRemainingActiveBalances(
-        address account,
-        bytes memory activeCurrencies,
-        BalanceContext[] memory existingBalanceContext
-    ) public view returns (BalanceContext[] memory) {
-        BalanceContext[] memory bc = getRemainingActiveBalances(
-            account,
-            activeCurrencies,
-            existingBalanceContext
-        );
-
-        assert(bc.length == (activeCurrencies.totalBitsSet() + existingBalanceContext.length));
-        for(uint i; i < bc.length; i++) {
-            assert(bc[i].currencyId != 0);
-            if (i > 0) assert(bc[i - 1].currencyId < bc[i].currencyId);
-        }
-
-        return bc;
-    }
 }
