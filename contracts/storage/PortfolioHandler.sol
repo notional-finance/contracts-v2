@@ -334,7 +334,7 @@ library PortfolioHandler {
         AssetStorage memory tmp;
 
         for (uint i; i < length; i++) {
-            // TODO: check if this is necessary
+            // TODO: change this to read directly from storage
             // Storage Read
             tmp = assetStoragePointer[i];
             result[i] = PortfolioAsset({
