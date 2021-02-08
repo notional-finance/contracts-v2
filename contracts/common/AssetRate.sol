@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
 import "./Market.sol";
-import "../adapters/StatefulAggregatorV3Interface.sol";
+import "../adapters/AssetRateAdapterInterface.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -85,7 +85,7 @@ library AssetRate {
     function getSupplyRate(
         AssetRateParameters memory ar
     ) internal view returns (uint) {
-        uint rate = StatefulAggregatorV3Interface(ar.rateOracle).getAnnualizedSupplyRate();
+        uint rate = AssetRateAdapterInterface(ar.rateOracle).getAnnualizedSupplyRate();
         require(rate > 0, "AR: invalid rate");
 
         return rate;
@@ -103,13 +103,7 @@ library AssetRate {
 
         address rateOracle = address(bytes20(data << 96));
         // TODO: latest round data potentially modifies state
-        (
-            /* uint80 */,
-            int rate,
-            /* uint256 */,
-            /* uint256 */,
-            /* uint80 */
-        ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
+        int rate = AssetRateAdapterInterface(rateOracle).getExchangeRateView();
         require(rate > 0, "AR: invalid rate");
 
         uint8 rateDecimalPlaces = uint8(bytes1(data << 88));

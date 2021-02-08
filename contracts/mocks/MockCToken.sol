@@ -19,7 +19,11 @@ contract MockCToken {
         _supplyRate = a;
     }
 
-    function exchangeRateCurrent() external view returns (uint) {
+    function exchangeRateCurrent() external returns (uint) {
+        return _answer;
+    }
+
+    function exchangeRateStored() external view returns (uint) {
         return _answer;
     }
 

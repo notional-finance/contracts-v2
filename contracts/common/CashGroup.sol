@@ -9,27 +9,6 @@ import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
- * @dev Cash group tokens as it is represented in storage.
- * Total storage is: 92 bytes
- * TODO: refactor this so that each token can be read separately. Consider storing
- * transferFee bool as the high order bit of decimalPlaces
- */
-struct CashGroupTokens {
-    // The asset token that represents the cash side of the liquidity pool
-    address assetToken;
-    bool assetTokenHasTransferFee;
-    uint8 assetDecimalPlaces;
-
-    // The underlying token of the assetToken
-    address underlyingToken;
-    bool underlyingTokenHasTransferFee;
-    uint8 underlyingDecimalPlaces;
-
-    // Perpetual liquidity token address for this cash group
-    address perpetualLiquidityToken;
-}
-
-/**
  * @dev Cash group when loaded into memory
  */
 struct CashGroupParameters {
@@ -471,6 +450,7 @@ library CashGroup {
         uint currencyId
     ) internal view returns (CashGroupParameters memory, MarketParameters[] memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
+        // TODO: there should be a stateful and non-stateful version of this function
         AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
         uint maxMarketIndex = uint(uint8(uint(data)));
 
