@@ -51,6 +51,7 @@ library CashGroup {
     uint internal constant MONTH_BIT_OFFSET = 135;
     uint internal constant QUARTER_BIT_OFFSET = 195;
     int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
+    int internal constant TOKEN_REPO_INCENTIVE = 10;
 
 
     /**

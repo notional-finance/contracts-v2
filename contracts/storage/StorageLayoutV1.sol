@@ -102,6 +102,7 @@ struct MarketStorage {
 struct AccountStorage {
     // Used to check when settlement must be trigged on an account
     uint40 nextMaturingAsset;
+    // TODO: These bools can be set into a bytes2?
     // For lenders that never incur debt, we use this flag to skip the free
     // collateral check.
     bool hasDebt;
@@ -109,6 +110,7 @@ struct AccountStorage {
     bool hasBitmap;
     // TODO: put asset array length in here
     // uint8 assetArrayLength;
+    bool hasIdiosyncraticfCash;
     // This is a tightly packed bitmap of the currenices that the account has a non
     // zero balance in. This is stored in big-endian ordering so the highest order
     // (left most) bit will refer to currency id=1 (currency id = 0 is unused) and
