@@ -449,7 +449,7 @@ library Market {
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
         require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
-        require(market.lastImpliedRate >= 0 && market.totalCurrentCash <= type(uint32).max, "M: storage overflow");
+        require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max, "M: storage overflow");
         require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max, "M: storage overflow");
         require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max, "M: storage overflow");
 

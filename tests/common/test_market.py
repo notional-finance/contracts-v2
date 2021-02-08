@@ -141,3 +141,28 @@ def test_build_market(
     assert result[4] == 3e18
     assert result[5] == lastImpliedRate
     assert result[7] == previousTradeTime
+    assert not result[8]
+
+    # Test saving market
+    newMarket = list(result)
+    newMarket[2] = 2e18
+    newMarket[3] = 3e18
+    newMarket[4] = 4e18
+    newMarket[5] = lastImpliedRate - 1
+    newMarket[7] = previousTradeTime + 1
+    market.setMarketStorage(tuple(newMarket))
+    noSaveResult = market.buildMarket(1, maturity, blockTime, True, timeWindow)
+    assert noSaveResult == result
+
+    newMarket[8] = True
+    market.setMarketStorage(tuple(newMarket))
+    result = market.buildMarket(1, maturity, blockTime + 10, True, timeWindow)
+
+    assert result[0] == 1  # currency id
+    assert result[1] == maturity
+    assert result[2] == 2e18
+    assert result[3] == 3e18
+    assert result[4] == 4e18
+    assert result[5] == lastImpliedRate - 1
+    assert result[7] == previousTradeTime + 1
+    assert not result[8]

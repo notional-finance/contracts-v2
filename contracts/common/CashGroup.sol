@@ -330,6 +330,9 @@ library CashGroup {
                 needsLiquidity,
                 getRateOracleTimeWindow(cashGroup)
             );
+            // TODO: maybe change this so that a new allocation is not made?
+            // Set this here because buildMarket returns a new allocation
+            markets[marketIndex - 1] = market;
         }
 
         if (market.previousTradeTime == 0) {
@@ -619,12 +622,12 @@ contract MockCashGroup is StorageLayoutV1 {
         MarketParameters memory market = cashGroup.getMarket(markets, marketIndex, blockTime, needsLiquidity);
 
         // Ensure that the market cache gets updated via the memory reference
-        assert(markets[marketIndex].totalfCash == market.totalfCash);
-        assert(markets[marketIndex].totalCurrentCash == market.totalCurrentCash);
-        assert(markets[marketIndex].totalLiquidity == market.totalLiquidity);
-        assert(markets[marketIndex].lastImpliedRate == market.lastImpliedRate);
-        assert(markets[marketIndex].oracleRate == market.oracleRate);
-        assert(markets[marketIndex].previousTradeTime == market.previousTradeTime);
+        assert(markets[marketIndex - 1].totalfCash == market.totalfCash);
+        assert(markets[marketIndex - 1].totalCurrentCash == market.totalCurrentCash);
+        assert(markets[marketIndex - 1].totalLiquidity == market.totalLiquidity);
+        assert(markets[marketIndex - 1].lastImpliedRate == market.lastImpliedRate);
+        assert(markets[marketIndex - 1].oracleRate == market.oracleRate);
+        assert(markets[marketIndex - 1].previousTradeTime == market.previousTradeTime);
 
         return market;
     }

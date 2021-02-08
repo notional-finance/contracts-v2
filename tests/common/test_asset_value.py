@@ -51,7 +51,7 @@ def test_risk_adjusted_pv(assetLibrary, cashGroup, oracleRate):
 def test_haircut_token_value(assetLibrary):
     cg = list(BASE_CASH_GROUP)
     (assetCash, fCash) = assetLibrary.getHaircutCashClaims(
-        (cg[0], 100, 2, 1e18, 0), (cg[0], 100, 2e18, 2e18, 2e18, 0, 0, 0), cg, 0
+        (cg[0], 100, 2, 1e18, 0), (cg[0], 100, 2e18, 2e18, 2e18, 0, 0, 0, False), cg, 0
     )
     assert assetCash == math.trunc(1e18 * 97 / 100)
     assert fCash == math.trunc(1e18 * 97 / 100)
@@ -60,9 +60,9 @@ def test_haircut_token_value(assetLibrary):
 def test_liquidity_token_value(assetLibrary):
     cg = list(BASE_CASH_GROUP)
     marketStates = [
-        (cg[0], 90 * SECONDS_IN_DAY, 1e18, 1e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
-        (cg[0], 180 * SECONDS_IN_DAY, 2e18, 2e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
-        (cg[0], SECONDS_IN_YEAR, 3e18, 3e18, 1e18, 0, 0.01 * RATE_PRECISION, 0),
+        (cg[0], 90 * SECONDS_IN_DAY, 1e18, 1e18, 1e18, 0, 0.01 * RATE_PRECISION, 0, False),
+        (cg[0], 180 * SECONDS_IN_DAY, 2e18, 2e18, 1e18, 0, 0.01 * RATE_PRECISION, 0, False),
+        (cg[0], SECONDS_IN_YEAR, 3e18, 3e18, 1e18, 0, 0.01 * RATE_PRECISION, 0, False),
     ]
 
     with brownie.reverts("A: idiosyncratic token"):

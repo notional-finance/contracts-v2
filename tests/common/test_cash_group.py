@@ -185,6 +185,8 @@ def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
         assert market[5] == marketStored[2]
         # NOTE: don't need to test oracleRate
         assert market[7] == marketStored[4]
+        # Assert market has updated is set to false
+        assert not market[8]
 
 
 @given(
