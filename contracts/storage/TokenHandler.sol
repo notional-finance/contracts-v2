@@ -85,13 +85,13 @@ library TokenHandler {
     ) private returns (int) {
         if (token.hasTransferFee) {
             // Must deposit from the token and calculate the net transfer
-            uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            uint startingBalance = IERC20(token.tokenAddress).balanceOf(account);
             SafeERC20.safeTransfer(
                 IERC20(token.tokenAddress), account, amount
             );
-            uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            uint endingBalance = IERC20(token.tokenAddress).balanceOf(account);
 
-            return int(startingBalance.sub(endingBalance));
+            return int(endingBalance.sub(startingBalance));
         }
 
         SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, amount);
