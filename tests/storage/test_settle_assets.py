@@ -42,43 +42,17 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
     return contract
 
 
-# @given(
-#    currencyId=strategy("uint", min_value=1, max_value=NUM_CURRENCIES),
-#    assetType=strategy("uint", min_value=1, max_value=2),
-#    notional=strategy("int", min_value=-1e18, max_value=1e18),
-#    settlementRate=strategy("int", min_value=0.01e18, max_value=100e18)
-# )
-# def test_update_balance_context(mockSettleAssets, currencyId, assetType,
-#   notional, settlementRate):
-#    if assetType == 2:
-#        notional = abs(notional)
-#
-#    bc = mockSettleAssets._updateBalanceContext(
-#        (currencyId, assetType, 1000, notional, 0),
-#        (currencyId, 0, 0, 0),
-#        (1e18, 0, 0, settlementRate, 0, 0)
-#    )
-#
-#    assert bc[0] == currencyId
-#    assert bc[3] == 1
-#    if assetType == 2:
-#        assert pytest.approx(bc[1], rel=1e-12) == math.trunc((notional) +
-#                (notional * 1e18 / settlementRate))
-#    else:
-#        assert pytest.approx(bc[1], rel=1e-12) == math.trunc(notional * 1e18 / settlementRate)
-
-
 def test_settle_assets(mockSettleAssets, mockAggregators, accounts):
     accountContext = (1000, False, False, "0x88")
     mockAggregators[1].setAnswer(0.05e18)
 
     assetArray = [
-        (1, 2, 1000, 0.2e18),
-        (1, 1, 2000, 1e18),
-        (2, 1, 2000, 1e18),
-        (2, 1, 5000, 1e18),  # This settlement rate is unset
-        (5, 1, 2000, 1e18),
-        (10, 1, 10000, 1e18),  # This will remain unsettled
+        (1, 1000, 2, 0.2e18),
+        (1, 2000, 1, 1e18),
+        (2, 2000, 1, 1e18),
+        (2, 5000, 1, 1e18),  # This settlement rate is unset
+        (5, 2000, 1, 1e18),
+        (10, 10000, 1, 1e18),  # This will remain unsettled
     ]
 
     mockSettleAssets.setAssetArray(accounts[1], assetArray)
@@ -107,6 +81,6 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts):
     assert value == (0.8e18, 0.8e18, 0, 0, 0)
     assert liquidity == 0.8e18
 
-    remainingAssets = list(filter(lambda x: x[2] > BLOCK_TIME, assetArray))
+    remainingAssets = list(filter(lambda x: x[1] > BLOCK_TIME, assetArray))
     assets = mockSettleAssets.getAssetArray(accounts[1])
     assert sorted(assets) == sorted(remainingAssets)
