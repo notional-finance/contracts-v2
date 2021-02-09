@@ -25,7 +25,7 @@ def test_token_handler(tokenHandler, MockERC20, accounts, decimals, fee):
 
     # Fees are paid by the sender
     assert erc20.balanceOf(tokenHandler.address) == amount - feePaid
-    assert txn.return_value == amount - feePaid
+    assert txn.return_value == (amount - feePaid) * 1e9 / 10 ** decimals
 
     # This is a withdraw
     withdrawAmt = amount / 2
@@ -35,7 +35,7 @@ def test_token_handler(tokenHandler, MockERC20, accounts, decimals, fee):
     txn = tokenHandler.transfer(1, accounts[0].address, -internalWithdrawAmount)
 
     assert erc20.balanceOf(tokenHandler.address) == balanceBefore - withdrawAmt
-    assert txn.return_value == withdrawAmt - withdrawFeePaid
+    assert txn.return_value == (withdrawAmt - withdrawFeePaid) * 1e9 / 10 ** decimals
 
 
 @pytest.mark.parametrize("decimals,fee", list(product([6, 8, 18], [0, 0.01e18])))

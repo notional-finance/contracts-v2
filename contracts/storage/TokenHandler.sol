@@ -117,10 +117,13 @@ library TokenHandler {
             .div(INTERNAL_TOKEN_PRECISION);
 
         if (transferBalance > 0) {
-            return deposit(token, account, uint(transferBalance));
+            transferBalance = deposit(token, account, uint(transferBalance));
         } else {
-            return withdraw(token, account, uint(transferBalance.neg()));
+            transferBalance = withdraw(token, account, uint(transferBalance.neg()));
         }
+
+        // Convert transfer balance back into internal precision
+        return transferBalance.mul(INTERNAL_TOKEN_PRECISION).div(token.decimalPlaces);
     }
 }
 

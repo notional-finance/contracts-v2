@@ -36,7 +36,7 @@ contract MockERC20 is IERC20, Context {
         _name = name_;
         _symbol = symbol_;
         _decimals = decimals_;
-        _mint(msg.sender, 10**decimals_ * 1e10);
+        _mint(msg.sender, 10**decimals_ * 1e23);
         transferFee = fee;
     }
 

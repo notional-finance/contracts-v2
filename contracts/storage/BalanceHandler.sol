@@ -83,7 +83,7 @@ library BalanceHandler {
             mustUpdate = true;
         }
 
-        setBalanceStorage(account, balanceState);
+        if (mustUpdate) setBalanceStorage(account, balanceState);
         if (balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0) {
             // Set this to true so that the balances get read next time
             accountContext.activeCurrencies = Bitmap.setBit(
@@ -92,6 +92,7 @@ library BalanceHandler {
                 true
             );
         }
+        if (balanceState.storedCashBalance < 0) accountContext.hasDebt = true;
     }
 
     /**
@@ -100,7 +101,7 @@ library BalanceHandler {
     function setBalanceStorage(
         address account,
         BalanceState memory balanceState
-    ) private returns (int, uint) {
+    ) private {
         bytes32 slot = keccak256(
             abi.encode(balanceState.currencyId,
                 keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))
@@ -118,8 +119,9 @@ library BalanceHandler {
         );
 
         bytes32 data = (
-            bytes32(balanceState.storedCashBalance) |
-            bytes32(balanceState.storedPerpetualTokenBalance) << 128
+            // Truncate the top half of the signed integer when it is negative
+            (bytes32(balanceState.storedCashBalance) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff) |
+            (bytes32(uint(balanceState.storedPerpetualTokenBalance)) << 128)
         );
 
         assembly {
@@ -284,24 +286,41 @@ contract MockBalanceHandler is StorageLayoutV1 {
         AccountStorage memory accountContext,
         int netCashTransfer,
         int netPerpetualTokenTransfer
-    ) public {
+    ) public returns (AccountStorage memory) {
         balanceState.finalize(account, accountContext, netCashTransfer, netPerpetualTokenTransfer);
+
+        return accountContext;
     }
 
     function buildBalanceState(
         address account,
         uint currencyId,
         AccountStorage memory accountContext
-    ) public view returns (BalanceState memory) {
-        return BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+    ) public view returns (BalanceState memory, AccountStorage memory) {
+        BalanceState memory bs = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+
+        return (bs, accountContext);
     }
 
     function getRemainingActiveBalances(
         address account,
         AccountStorage memory accountContext,
         BalanceState[] memory balanceState
-    ) public view returns (BalanceState[] memory) {
-        return BalanceHandler.getRemainingActiveBalances(account, accountContext, balanceState);
+    ) public view returns (BalanceState[] memory, AccountStorage memory) {
+        BalanceState[] memory bs = BalanceHandler
+            .getRemainingActiveBalances(account, accountContext, balanceState);
+
+        return (bs, accountContext);
     }
 
+    function getData(address account, uint currencyId) public view returns (bytes32) {
+        bytes32 slot = keccak256(abi.encode(currencyId, keccak256(abi.encode(account, BalanceHandler.BALANCE_STORAGE_SLOT))));
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        return data;
+    }
 }
