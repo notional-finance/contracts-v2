@@ -3,26 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
-import "../common/Asset.sol";
+import "../common/AssetHandler.sol";
 import "../math/SafeInt256.sol";
-
-enum AssetStorageState {
-    NoChange,
-    Update,
-    Delete
-}
-
-struct PortfolioAsset {
-    // Asset currency id
-    uint currencyId;
-    uint maturity;
-    // Asset type, liquidity or fCash
-    uint assetType;
-    // fCash amount or liquidity token amount
-    int notional;
-    // The state of the asset for when it is written to storage
-    AssetStorageState storageState;
-}
 
 struct PortfolioState {
     PortfolioAsset[] storedAssets;
@@ -78,7 +60,7 @@ library PortfolioHandler {
 
                 int newNotional = portfolioState.storedAssets[i].notional.add(notional);
                 // Liquidity tokens cannot be reduced below zero.
-                if (assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
+                if (AssetHandler.isLiquidityToken(assetType)) {
                     require(newNotional >= 0, "P: negative token balance");
                 }
 
@@ -96,7 +78,7 @@ library PortfolioHandler {
         }
 
         // Cannot remove liquidity that the portfolio does not have
-        if (assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
+        if (AssetHandler.isLiquidityToken(assetType)) {
             require(notional >= 0, "P: negative token balance");
         }
 

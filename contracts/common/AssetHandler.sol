@@ -10,15 +10,69 @@ import "../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 
-library Asset {
+enum AssetStorageState {
+    NoChange,
+    Update,
+    Delete
+}
+
+struct PortfolioAsset {
+    // Asset currency id
+    uint currencyId;
+    uint maturity;
+    // Asset type, fCash or liquidity token. If liquidity token then also contains the
+    // market index in the high nibble
+    uint assetType;
+    // fCash amount or liquidity token amount
+    int notional;
+    // The state of the asset for when it is written to storage
+    AssetStorageState storageState;
+}
+
+library AssetHandler {
     using SafeMath for uint256;
     using SafeInt256 for int;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
-    // Used for asset type enum
-    uint public constant FCASH_ASSET_TYPE = 1;
-    uint public constant LIQUIDITY_TOKEN_ASSET_TYPE = 2;
+    uint internal constant FCASH_ASSET_TYPE = 1;
+    uint internal constant LIQUIDITY_TOKEN_INDEX1 = 2;
+    uint internal constant LIQUIDITY_TOKEN_INDEX2 = 3;
+    uint internal constant LIQUIDITY_TOKEN_INDEX3 = 4;
+    uint internal constant LIQUIDITY_TOKEN_INDEX4 = 5;
+    uint internal constant LIQUIDITY_TOKEN_INDEX5 = 6;
+    uint internal constant LIQUIDITY_TOKEN_INDEX6 = 7;
+    uint internal constant LIQUIDITY_TOKEN_INDEX7 = 8;
+    uint internal constant LIQUIDITY_TOKEN_INDEX8 = 9;
+    uint internal constant LIQUIDITY_TOKEN_INDEX9 = 10;
+
+    function isLiquidityToken(uint assetType) internal pure returns (bool) {
+        return assetType >= LIQUIDITY_TOKEN_INDEX1 && assetType <= LIQUIDITY_TOKEN_INDEX9;
+    }
+
+    /**
+     * @notice Liquidity tokens settle every 90 days (not at the designated maturity). This method
+     * calculates the settlement date for any PortfolioAsset.
+     */
+    function getSettlementDate(
+        PortfolioAsset memory asset
+    ) internal pure returns (uint) {
+        require(
+            asset.assetType > 0 && asset.assetType < LIQUIDITY_TOKEN_INDEX9,
+            "A: invalid asset type"
+        );
+        // Special case for the 3 and 6 month tokens. The 6 month liquidity token
+        // will become the 3 month liquidity token and the 3 month liquidity token will
+        // always settle on its maturity. fCash tokens always settle on maturity
+        if (asset.assetType <= LIQUIDITY_TOKEN_INDEX2) return asset.maturity;
+
+        uint marketLength = CashGroup.getTradedMarket(asset.assetType - 1);
+        // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
+        // maturity = tRef + marketLength
+        // Here we calculate:
+        // tRef = maturity - marketLength + 90 days
+        return asset.maturity.sub(marketLength).add(CashGroup.QUARTER);
+    }
 
     /**
      * @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
@@ -98,7 +152,7 @@ library Asset {
         MarketParameters memory marketState
     ) internal pure returns (int, int) {
         require(
-            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
+            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
             "A: invalid asset in claims"
         );
 
@@ -138,7 +192,7 @@ library Asset {
         uint blockTime
     ) internal pure returns (int, int) {
         require(
-            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
+            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
             "A: invalid asset in claims"
         );
 
@@ -171,7 +225,7 @@ library Asset {
         uint blockTime
     ) internal view returns (int, int) {
         require(
-            liquidityToken.assetType == LIQUIDITY_TOKEN_ASSET_TYPE && liquidityToken.notional > 0,
+            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
             "A: invalid asset token value"
         );
 
@@ -193,7 +247,7 @@ library Asset {
         bool found;
         // Find the matching fCash asset and net off the value
         for (uint j; j < fCashAssets.length; j++) {
-            if (fCashAssets[j].assetType == Asset.FCASH_ASSET_TYPE &&
+            if (fCashAssets[j].assetType == FCASH_ASSET_TYPE &&
                 fCashAssets[j].currencyId == liquidityToken.currencyId &&
                 fCashAssets[j].maturity == liquidityToken.maturity) {
                 // Net off the fCashClaim here and we will discount it to present value in the second pass
@@ -236,7 +290,7 @@ library Asset {
         uint groupIndex;
 
         for (uint i; i < assets.length; i++) {
-            if (assets[i].assetType != Asset.LIQUIDITY_TOKEN_ASSET_TYPE) continue;
+            if (!isLiquidityToken(assets[i].assetType)) continue;
             while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
                 // Assets and cash groups are sorted by currency id but there may be gaps
                 // between them currency groups
@@ -258,7 +312,7 @@ library Asset {
 
         groupIndex = 0;
         for (uint i; i < assets.length; i++) {
-            if (assets[i].assetType != Asset.FCASH_ASSET_TYPE) continue;
+            if (assets[i].assetType != FCASH_ASSET_TYPE) continue;
             while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
                 // Assets and cash groups are sorted by currency id but there may be gaps
                 // between them currency groups
@@ -300,8 +354,9 @@ library Asset {
     }
 }
 
-contract MockAsset is StorageLayoutV1 {
+contract MockAssetHandler is StorageLayoutV1 {
     using SafeInt256 for int256;
+    using AssetHandler for PortfolioAsset;
 
     function setAssetRateMapping(
         uint id,
@@ -327,11 +382,17 @@ contract MockAsset is StorageLayoutV1 {
         marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
     }
 
+    function getSettlementDate(
+        PortfolioAsset memory asset
+    ) public pure returns (uint) {
+        return asset.getSettlementDate();
+    }
+
     function getDiscountFactor(
         uint timeToMaturity,
         uint oracleRate
     ) public pure returns (int) {
-        uint rate = SafeCast.toUint256(Asset.getDiscountFactor(timeToMaturity, oracleRate));
+        uint rate = SafeCast.toUint256(AssetHandler.getDiscountFactor(timeToMaturity, oracleRate));
         assert(rate >= oracleRate);
 
         return int(rate);
@@ -343,7 +404,7 @@ contract MockAsset is StorageLayoutV1 {
         uint blockTime,
         uint oracleRate
     ) public pure returns (int) {
-        int pv = Asset.getPresentValue(notional, maturity, blockTime, oracleRate);
+        int pv = AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
         if (notional > 0) assert(pv > 0);
         if (notional < 0) assert(pv < 0);
 
@@ -358,7 +419,7 @@ contract MockAsset is StorageLayoutV1 {
         uint blockTime,
         uint oracleRate
     ) public pure returns (int) {
-        int riskPv = Asset.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
+        int riskPv = AssetHandler.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
         int pv = getPresentValue(notional, maturity, blockTime, oracleRate);
 
         assert(riskPv <= pv);
@@ -370,7 +431,7 @@ contract MockAsset is StorageLayoutV1 {
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
     ) public pure returns (int, int) {
-        (int cash, int fCash) = Asset.getCashClaims(liquidityToken, marketState);
+        (int cash, int fCash) = liquidityToken.getCashClaims(marketState);
         assert(cash > 0);
         assert(fCash > 0);
         assert(cash <= marketState.totalCurrentCash);
@@ -385,10 +446,10 @@ contract MockAsset is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         uint blockTime
     ) public pure returns (int, int) {
-        (int haircutCash, int haircutfCash) = Asset.getHaircutCashClaims(
-            liquidityToken, marketState, cashGroup, blockTime
+        (int haircutCash, int haircutfCash) = liquidityToken.getHaircutCashClaims(
+            marketState, cashGroup, blockTime
         );
-        (int cash, int fCash) = getCashClaims(liquidityToken, marketState);
+        (int cash, int fCash) = liquidityToken.getCashClaims(marketState);
 
         assert(haircutCash < cash);
         assert(haircutfCash < fCash);
@@ -403,8 +464,7 @@ contract MockAsset is StorageLayoutV1 {
         PortfolioAsset[] memory fCashAssets,
         uint blockTime
     ) public view returns (int, int, PortfolioAsset[] memory) {
-        (int assetValue, int pv) = Asset.getLiquidityTokenValue(
-            liquidityToken,
+        (int assetValue, int pv) = liquidityToken.getLiquidityTokenValue(
             cashGroup,
             markets,
             fCashAssets,
@@ -420,7 +480,7 @@ contract MockAsset is StorageLayoutV1 {
         MarketParameters[][] memory markets,
         uint blockTime
     ) public view returns(int[] memory) {
-        int[] memory assetValue = Asset.getRiskAdjustedPortfolioValue(
+        int[] memory assetValue = AssetHandler.getRiskAdjustedPortfolioValue(
             assets,
             cashGroups,
             markets,

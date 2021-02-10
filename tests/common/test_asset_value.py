@@ -8,8 +8,8 @@ from tests.common.params import *
 
 
 @pytest.fixture(scope="module", autouse=True)
-def assetLibrary(MockAsset, accounts):
-    return accounts[0].deploy(MockAsset)
+def assetLibrary(MockAssetHandler, accounts):
+    return accounts[0].deploy(MockAssetHandler)
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./StorageReader.sol";
 import "./PortfolioHandler.sol";
 import "./BalanceHandler.sol";
+import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
@@ -13,6 +14,7 @@ contract SettleAssets is StorageReader {
     using AssetRate for AssetRateParameters;
     using Bitmap for bytes;
     using PortfolioHandler for PortfolioState;
+    using AssetHandler for PortfolioAsset;
 
     bytes32 internal constant ZERO = 0x0;
     bytes32 internal constant MSB_BIG_ENDIAN = 0x8000000000000000000000000000000000000000000000000000000000000000;
@@ -26,30 +28,30 @@ contract SettleAssets is StorageReader {
     ) internal pure returns (BalanceState[] memory) {
         uint currenciesSettled;
         uint lastCurrencyId;
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
-            // TODO: liquidity tokens settle at different times
-            if (portfolioState.storedAssets[i].maturity > blockTime) continue;
+        // This is required for iteration
+        portfolioState.calculateSortedIndex();
+
+        for (uint i; i < portfolioState.sortedIndex.length; i++) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+            if (asset.getSettlementDate() > blockTime) continue;
             // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
             // will work for the first asset
-            if (lastCurrencyId != portfolioState.storedAssets[i].currencyId) {
-                lastCurrencyId = portfolioState.storedAssets[i].currencyId;
+            if (lastCurrencyId != asset.currencyId) {
+                lastCurrencyId = asset.currencyId;
                 currenciesSettled++;
             }
         }
 
-        // This is required for iteration
-        portfolioState.calculateSortedIndex();
+        // TODO: get the actual balance context here
         return new BalanceState[](currenciesSettled);
     }
 
     /**
-     * @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
-     * converting the fCash portion and also updating the market state (if in stateful version)
+     * @notice Shared calculation for liquidity token settlement
      */
-    function settleLiquidityToken(
-        PortfolioAsset memory asset,
-        AssetRateParameters memory settlementRate
-    ) internal view returns (int, MarketStorage memory, uint80) {
+    function calculateMarketStorage(
+        PortfolioAsset memory asset
+    ) internal view returns (int, int, MarketStorage memory, uint80) {
         // Storage Read
         MarketStorage memory marketStorage = marketStateMapping[asset.currencyId][asset.maturity];
         // Storage Read
@@ -57,7 +59,6 @@ contract SettleAssets is StorageReader {
 
         int fCash = int(marketStorage.totalfCash).mul(asset.notional).div(totalLiquidity);
         int cashClaim = int(marketStorage.totalCurrentCash).mul(asset.notional).div(totalLiquidity);
-        int assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
 
         require(fCash <= int(marketStorage.totalfCash), "S: fCash overflow");
         require(cashClaim <= int(marketStorage.totalCurrentCash), "S: cash overflow");
@@ -66,7 +67,59 @@ contract SettleAssets is StorageReader {
         marketStorage.totalCurrentCash = marketStorage.totalCurrentCash - uint80(cashClaim);
 
         return (
+            cashClaim,
+            fCash,
+            marketStorage,
+            // No truncation, totalLiquidity is stored as uint80
+            uint80(totalLiquidity - asset.notional)
+        );
+    }
+
+    /**
+     * @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
+     * converting the fCash portion to cash at the settlement rate.
+     */
+    function settleLiquidityToken(
+        PortfolioAsset memory asset,
+        AssetRateParameters memory settlementRate
+    ) internal view returns (int, MarketStorage memory, uint80) {
+        (int cashClaim, int fCash, MarketStorage memory marketStorage, uint80 totalLiquidity) =
+            calculateMarketStorage(asset);
+
+        int assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
+
+        return (
             assetCash,
+            marketStorage,
+            // No truncation, totalLiquidity is stored as uint80
+            uint80(totalLiquidity - asset.notional)
+        );
+    }
+
+    /**
+     * @notice Settles a liquidity token to idiosyncratic fCash
+     */
+    function settleLiquidityTokenTofCash(
+        PortfolioState memory portfolioState,
+        uint index
+    ) internal view returns (int, MarketStorage memory, uint80) {
+        PortfolioAsset memory asset = portfolioState.storedAssets[index];
+        (int cashClaim, int fCash, MarketStorage memory marketStorage, uint80 totalLiquidity) =
+            calculateMarketStorage(asset);
+
+        if (fCash == 0) {
+            // Skip some calculations
+            portfolioState.deleteAsset(index);
+        } else {
+            // If the liquidity token's maturity is still in the future then we change the entry to be
+            // an idiosyncratic fCash entry with the net fCash amount.
+            portfolioState.storedAssets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
+            portfolioState.storedAssets[index].notional = fCash;
+            portfolioState.storedAssets[index].storageState = AssetStorageState.Update;
+        }
+
+        return (
+            cashClaim,
             marketStorage,
             // No truncation, totalLiquidity is stored as uint80
             uint80(totalLiquidity - asset.notional)
@@ -92,8 +145,7 @@ contract SettleAssets is StorageReader {
 
         for (uint i; i < portfolioState.sortedIndex.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
-            // TODO: liquidity tokens settle at different times
-            if (asset.maturity > blockTime) continue;
+            if (asset.getSettlementDate() > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
@@ -104,23 +156,34 @@ contract SettleAssets is StorageReader {
                 currencyIndex++;
             }
 
-            if (lastMaturity != asset.maturity) {
+            // It's possible for liquidity tokens and fCash to be in a portfolio at the same maturity, however
+            // we do not want to get a settlement rate for liquidity tokens that have settled but are not past
+            // their maturity date, these will be converted to fCash.
+            if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read inside getSettlementRateView
                 settlementRate = getSettlementRateView(asset.currencyId, asset.maturity);
             }
 
             int assetCash;
-            if (asset.assetType == Asset.FCASH_ASSET_TYPE) {
+            if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-            } else if (asset.assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
-                (assetCash, /* */, /* */) = settleLiquidityToken(
-                    asset,
-                    settlementRate
-                );
+                portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+            } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
+                if (asset.maturity > blockTime) {
+                    (assetCash, /* */, /* */) = settleLiquidityTokenTofCash(
+                        portfolioState,
+                        portfolioState.sortedIndex[i]
+                    );
+                } else {
+                    (assetCash, /* */, /* */) = settleLiquidityToken(
+                        asset,
+                        settlementRate
+                    );
+                    portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+                }
             }
 
             currentContext.netCashChange = currentContext.netCashChange.add(assetCash);
-            portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
         return balanceState;
@@ -144,7 +207,7 @@ contract SettleAssets is StorageReader {
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
-            if (asset.maturity > blockTime) continue;
+            if (asset.getSettlementDate() > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
@@ -155,35 +218,65 @@ contract SettleAssets is StorageReader {
                 currencyIndex++;
             }
 
-            if (lastMaturity != asset.maturity) {
+            if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read / Write inside getSettlementRateStateful
                 settlementRate = getSettlementRateStateful(asset.currencyId, asset.maturity, blockTime);
             }
 
             int assetCash;
-            if (asset.assetType == Asset.FCASH_ASSET_TYPE) {
+            if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-            } else if (asset.assetType == Asset.LIQUIDITY_TOKEN_ASSET_TYPE) {
-                MarketStorage memory marketState;
-                uint80 totalLiquidity;
-                (assetCash, marketState, totalLiquidity) = settleLiquidityToken(
+                portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+            } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
+                // Deal with stack issues
+                assetCash = settleLiquidityTokenStateful(
                     asset,
-                    settlementRate
+                    portfolioState,
+                    settlementRate,
+                    i,
+                    blockTime
                 );
-
-                // In stateful we update the market as well.
-                // Storage Write
-                marketStateMapping[asset.currencyId][asset.maturity] = marketState;
-                // Storage Write
-                marketTotalLiquidityMapping[asset.currencyId][asset.maturity] = totalLiquidity;
             }
 
             currentContext.netCashChange = currentContext.netCashChange.add(assetCash);
-            portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
         return balanceState;
     }
+
+    /** @notice Deals with stack issues above */
+    function settleLiquidityTokenStateful(
+        PortfolioAsset memory asset,
+        PortfolioState memory portfolioState,
+        AssetRateParameters memory settlementRate,
+        uint i,
+        uint blockTime
+    ) internal returns (int) {
+        int assetCash;
+        MarketStorage memory marketState;
+        uint80 totalLiquidity;
+        if (asset.maturity > blockTime) {
+            (assetCash, marketState, totalLiquidity) = settleLiquidityTokenTofCash(
+                portfolioState,
+                portfolioState.sortedIndex[i]
+            );
+        } else {
+            (assetCash, marketState, totalLiquidity) = settleLiquidityToken(
+                asset,
+                settlementRate
+            );
+            portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+        }
+
+        // In stateful we update the market as well.
+        // Storage Write
+        marketStateMapping[asset.currencyId][asset.maturity] = marketState;
+        // Storage Write
+        marketTotalLiquidityMapping[asset.currencyId][asset.maturity] = totalLiquidity;
+
+        return assetCash;
+    }
+
 
     /**
      * @dev View version of getSettlementRate, if settlement rate is not set will fetch the most current rate.
