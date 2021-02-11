@@ -57,7 +57,7 @@ def test_fcash_bitmap_max_range(mockBitmap):
     monthBits = zeroBits
     quarterBits = zeroBits
 
-    bitmap = mockBitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits)
+    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
     (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
 
     assert daysOut == dayBits
@@ -68,7 +68,7 @@ def test_fcash_bitmap_max_range(mockBitmap):
     dayBits = zeroBits
     weekBits = hex(int("".join(["1" for i in range(0, 45)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits)
+    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
     (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
 
     assert daysOut == dayBits
@@ -79,7 +79,7 @@ def test_fcash_bitmap_max_range(mockBitmap):
     weekBits = zeroBits
     monthBits = hex(int("".join(["1" for i in range(0, 60)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits)
+    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
     (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
 
     assert daysOut == dayBits
@@ -90,7 +90,7 @@ def test_fcash_bitmap_max_range(mockBitmap):
     monthBits = zeroBits
     quarterBits = hex(int("".join(["1" for i in range(0, 61)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits)
+    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
     (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
 
     assert daysOut == dayBits
@@ -100,7 +100,7 @@ def test_fcash_bitmap_max_range(mockBitmap):
 
 
 def test_fcash_bitmap_random_range(mockBitmap):
-    for i in range(0, 50):
+    for _ in range(0, 50):
         dayBits = hex(
             int("".join([str(random.randint(0, 1)) for i in range(0, 90)]).ljust(256, "0"), 2)
         )
@@ -114,7 +114,7 @@ def test_fcash_bitmap_random_range(mockBitmap):
             int("".join([str(random.randint(0, 1)) for i in range(0, 61)]).ljust(256, "0"), 2)
         )
 
-        bitmap = mockBitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits)
+        bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
         (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
 
         assert daysOut == dayBits

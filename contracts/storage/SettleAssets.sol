@@ -375,12 +375,7 @@ contract SettleAssets is StorageReader {
         uint blockTime
     ) internal returns (bytes memory, int) {
         int totalAssetCash;
-        (
-            bytes32 dayBits,
-            bytes32 weekBits,
-            bytes32 monthBits,
-            bytes32 quarterBits
-        ) = bitmap.splitfCashBitmap();
+        SplitBitmap memory splitBitmap = bitmap.splitfCashBitmap();
         uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
         // This blockTimeUTC0 will be set to the new "nextMaturingAsset", this will refer to the
         // new next bit
@@ -390,106 +385,122 @@ contract SettleAssets is StorageReader {
         // NOTE: bitNum is 1-indexed
         for (uint bitNum = 1; bitNum < lastSettleBit; bitNum++) {
             if (bitNum < CashGroup.WEEK_BIT_OFFSET) {
-                if (dayBits == ZERO) {
+                if (splitBitmap.dayBits == ZERO) {
                     // No more bits set in day bits, continue to the next set of bits
                     bitNum = CashGroup.WEEK_BIT_OFFSET;
                     continue;
                 }
 
-                (dayBits, totalAssetCash) = settleBitmappedAsset(
+                (splitBitmap.dayBits, totalAssetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
                     nextMaturingAsset,
                     blockTime,
                     bitNum,
-                    dayBits
+                    splitBitmap.dayBits
                 );
             }
 
             if (bitNum < CashGroup.MONTH_BIT_OFFSET) {
-                if (weekBits == ZERO) {
+                if (splitBitmap.weekBits == ZERO) {
                     bitNum = CashGroup.MONTH_BIT_OFFSET;
                     continue;
                 }
 
-                (weekBits, totalAssetCash) = settleBitmappedAsset(
+                (splitBitmap.weekBits, totalAssetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
                     nextMaturingAsset,
                     blockTime,
                     bitNum,
-                    weekBits
+                    splitBitmap.weekBits
                 );
             }
 
             if (bitNum < CashGroup.QUARTER_BIT_OFFSET) {
-                if (monthBits == ZERO) {
+                if (splitBitmap.monthBits == ZERO) {
                     bitNum = CashGroup.QUARTER_BIT_OFFSET;
                     continue;
                 }
 
-                (monthBits, totalAssetCash) = settleBitmappedAsset(
+                (splitBitmap.monthBits, totalAssetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
                     nextMaturingAsset,
                     blockTime,
                     bitNum,
-                    monthBits
+                    splitBitmap.monthBits
                 );
             }
 
             // Check 1-indexing here
             if (bitNum <= 256) {
-                if (quarterBits == ZERO) {
+                if (splitBitmap.quarterBits == ZERO) {
                     break;
                 }
 
-                (quarterBits, totalAssetCash) = settleBitmappedAsset(
+                (splitBitmap.quarterBits, totalAssetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
                     nextMaturingAsset,
                     blockTime,
                     bitNum,
-                    quarterBits
+                    splitBitmap.quarterBits
                 );
             }
         }
 
-        bitmap = Bitmap.combinefCashBitmap(dayBits, weekBits, monthBits, quarterBits);
-        if (weekBits != ZERO && lastSettleBit < CashGroup.WEEK_BIT_OFFSET) {
+        bitmap = Bitmap.combinefCashBitmap(splitBitmap);
+        remapBitmap(
+            splitBitmap,
+            nextMaturingAsset,
+            blockTimeUTC0,
+            bitmap,
+            lastSettleBit
+        );
+
+        return (bitmap, totalAssetCash);
+    }
+
+    function remapBitmap(
+        SplitBitmap memory splitBitmap,
+        uint nextMaturingAsset,
+        uint blockTimeUTC0,
+        bytes memory bitmap,
+        uint lastSettleBit
+    ) internal pure {
+        if (splitBitmap.weekBits != ZERO && lastSettleBit < CashGroup.WEEK_BIT_OFFSET) {
             remapBitSection(
                 nextMaturingAsset,
                 blockTimeUTC0,
                 CashGroup.WEEK_BIT_OFFSET,
                 CashGroup.WEEK,
                 bitmap,
-                weekBits
+                splitBitmap.weekBits
             );
         }
 
-        if (monthBits != ZERO && lastSettleBit < CashGroup.MONTH_BIT_OFFSET) {
+        if (splitBitmap.monthBits != ZERO && lastSettleBit < CashGroup.MONTH_BIT_OFFSET) {
             remapBitSection(
                 nextMaturingAsset,
                 blockTimeUTC0,
                 CashGroup.MONTH_BIT_OFFSET,
                 CashGroup.MONTH,
                 bitmap,
-                monthBits
+                splitBitmap.monthBits
             );
         }
 
-        if (quarterBits != ZERO && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
+        if (splitBitmap.quarterBits != ZERO && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
             remapBitSection(
                 nextMaturingAsset,
                 blockTimeUTC0,
                 CashGroup.QUARTER_BIT_OFFSET,
                 CashGroup.QUARTER,
                 bitmap,
-                quarterBits
+                splitBitmap.quarterBits
             );
         }
-
-        return (bitmap, totalAssetCash);
     }
 
     /**
@@ -680,6 +691,22 @@ contract MockSettleAssets is SettleAssets {
         }
 
         return (bContext, aContext);
+    }
+
+    function _settleBitmappedCashGroup(
+        address account,
+        uint currencyId,
+        bytes memory bitmap,
+        uint nextMaturingAsset,
+        uint blockTime
+    ) public returns (bytes memory, int) {
+        return settleBitmappedCashGroup(
+            account,
+            currencyId,
+            bitmap,
+            nextMaturingAsset,
+            blockTime
+        );
     }
 
 }

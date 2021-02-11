@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >0.7.0;
+pragma experimental ABIEncoderV2;
 
 import "../common/CashGroup.sol";
+
+struct SplitBitmap {
+    bytes32 dayBits;
+    bytes32 weekBits;
+    bytes32 monthBits;
+    bytes32 quarterBits;
+}
 
 /**
  * @notice Higher level library for dealing with bitmaps in the system. Bitmaps are
@@ -16,11 +24,11 @@ library Bitmap {
 
     function splitfCashBitmap(
         bytes memory bitmap
-    ) internal pure returns (bytes32, bytes32, bytes32, bytes32) {
+    ) internal pure returns (SplitBitmap memory) {
         require(bitmap.length <= 32, "B: bitmap length");
         bytes32 bitmapDecoded = abi.decode(bitmap, (bytes32));
         
-        return (
+        return SplitBitmap(
             bitmapDecoded & DAY_BITMASK,
             (bitmapDecoded & WEEK_BITMASK) << CashGroup.WEEK_BIT_OFFSET - 1,
             (bitmapDecoded & MONTH_BITMASK) << CashGroup.MONTH_BIT_OFFSET - 1,
@@ -29,16 +37,13 @@ library Bitmap {
     }
 
     function combinefCashBitmap(
-        bytes32 dayBits,
-        bytes32 weekBits,
-        bytes32 monthBits,
-        bytes32 quarterBits
+        SplitBitmap memory splitBitmap
     ) internal pure returns (bytes memory) {
         bytes32 bitmapCombined = (
-            dayBits                                   |
-            (weekBits  >> CashGroup.WEEK_BIT_OFFSET - 1)  |
-            (monthBits >> CashGroup.MONTH_BIT_OFFSET - 1) |
-            (quarterBits >> CashGroup.QUARTER_BIT_OFFSET - 1)
+            splitBitmap.dayBits                                       |
+            (splitBitmap.weekBits  >> CashGroup.WEEK_BIT_OFFSET - 1)  |
+            (splitBitmap.monthBits >> CashGroup.MONTH_BIT_OFFSET - 1) |
+            (splitBitmap.quarterBits >> CashGroup.QUARTER_BIT_OFFSET - 1)
         );
 
         return abi.encode(bitmapCombined);
@@ -132,21 +137,13 @@ contract MockBitmap {
 
     function splitfCashBitmap(
         bytes memory bitmap
-    ) public pure returns (bytes32, bytes32, bytes32, bytes32) {
+    ) public pure returns (SplitBitmap memory) {
         return bitmap.splitfCashBitmap();
     }
 
     function combinefCashBitmap(
-        bytes32 dayBits,
-        bytes32 weekBits,
-        bytes32 monthBits,
-        bytes32 quarterBits
+        SplitBitmap memory splitBitmap
     ) public pure returns (bytes memory) {
-        return Bitmap.combinefCashBitmap(
-            dayBits,
-            weekBits,
-            monthBits,
-            quarterBits
-        );
+        return Bitmap.combinefCashBitmap(splitBitmap);
     }
 }
