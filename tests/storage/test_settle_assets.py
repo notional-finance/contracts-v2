@@ -2,10 +2,7 @@ import itertools
 import random
 
 import pytest
-# import math
-# import secrets
-# import brownie
-# from brownie.test import given, strategy
+from brownie.test import given, strategy
 from tests.common.params import MARKETS, SECONDS_IN_DAY, START_TIME
 
 NUM_CURRENCIES = 8
@@ -62,16 +59,23 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
 def generate_asset_array(numAssets):
     assets = []
-    nextMaturingAsset = 2 ** 40
+    nextMaturingAsset = 2 ** 40 - 1
     assetsChoice = random.sample(
         list(itertools.product(range(1, NUM_CURRENCIES), MARKETS)), numAssets
     )
 
     for a in assetsChoice:
         notional = random.randint(-1e18, 1e18)
-        assets.append((a[0], a[1], 1, notional))
+        isfCash = random.randint(0, 1)
+        if isfCash:
+            assets.append((a[0], a[1], 1, notional))
+        else:
+            index = MARKETS.index(a[1])
+            assets.append((a[0], a[1], index + 2, abs(notional)))
+            # Offsetting fCash asset
+            assets.append((a[0], a[1], 1, -abs(notional)))
 
-        nextMaturingAsset = min(a[1], nextMaturingAsset)
+        nextMaturingAsset = min(get_settle_date(assets[-1]), nextMaturingAsset)
 
     random.shuffle(assets)
     return (assets, nextMaturingAsset)
@@ -88,48 +92,53 @@ def assert_markets_updated(mockSettleAssets, assetArray):
     for a in assetArray:
         # is liquidity token
         if a[2] > 1:
-            maturity = MARKETS[a[2] - 1]
+            maturity = MARKETS[a[2] - 2]
             value = mockSettleAssets.marketStateMapping(a[0], maturity)
-            assert value == (1e18 - a[3], 1e18 - a[3], 0, 0, 0)
+            assert value == (int(1e18) - a[3], int(1e18) - a[3], 0, 0, 0)
             liquidity = mockSettleAssets.marketTotalLiquidityMapping(a[0], maturity)
-            assert liquidity == 1e18 - a[3]
+            assert liquidity == int(1e18) - a[3]
 
 
 def get_settle_date(asset):
-    if asset[2] <= 2:
+    if asset[2] <= 3:
         return asset[1]
 
-    marketLength = MARKETS[asset[2] - 1] - START_TIME
+    marketLength = MARKETS[asset[2] - 2] - START_TIME
     return asset[1] - marketLength + SECONDS_IN_DAY * 90
+
+
+def get_settle_rate(currencyId, maturity):
+    if maturity == MARKETS[0]:
+        rate = SETTLEMENT_RATE[0][2]
+    elif maturity == MARKETS[1]:
+        rate = SETTLEMENT_RATE[1][2]
+    else:
+        rate = SETTLED_RATE * currencyId
+    return rate
 
 
 def settled_balance_context(assetArray, blockTime):
     assetsSorted = sorted(assetArray)
     settledBalances = []
     for a in assetsSorted:
-        rate = 0
-        if a[1] == MARKETS[0]:
-            rate = SETTLEMENT_RATE[0][2]
-        elif a[1] == MARKETS[1]:
-            rate = SETTLEMENT_RATE[1][2]
-        else:
-            rate = SETTLED_RATE * a[0]
-
         # fcash asset type
         if a[2] == 1 and a[1] < blockTime:
+            rate = get_settle_rate(a[0], a[1])
             cashClaim = a[3] * 1e18 / rate
             settledBalances.append((a[0], cashClaim))
         elif get_settle_date(a) < blockTime:
-            cashClaim = a[3] * 1e18 / rate
+            # Cash claims do not need to get converted
+            cashClaim = a[3]
             settledBalances.append((a[0], cashClaim))
 
             if a[1] < blockTime:
+                rate = get_settle_rate(a[0], a[1])
                 fCashClaim = a[3] * 1e18 / rate
                 settledBalances.append((a[0], fCashClaim))
 
     # Group by currency id and sum settled values
     return [
-        (key, sum(num for _, num in value))
+        (key, sum(int(num) for _, num in value))
         for key, value in itertools.groupby(settledBalances, lambda x: x[0])
     ]
 
@@ -150,10 +159,11 @@ def remaining_assets(assetArray, blockTime):
     return remaining
 
 
-def test_settle_assets(mockSettleAssets, mockAggregators, accounts):
+@given(numAssets=strategy("uint", min_value=0, max_value=10))
+def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[2:]) + random.randint(0, 6000)
-    (assetArray, nextMaturingAsset) = generate_asset_array(5)
+    (assetArray, nextMaturingAsset) = generate_asset_array(numAssets)
     accountContext = (nextMaturingAsset, False, False, "0x88")
 
     # Set state
@@ -168,7 +178,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts):
     assert len(bs) == len(computedBs)
     for i, b in enumerate(bs):
         assert b[0] == computedBs[i][0]
-        assert pytest.approx(b[3], rel=1e-16) == computedBs[i][1]
+        assert pytest.approx(b[3], rel=1e-12) == computedBs[i][1]
 
     # This will assert the values from the view match the values from the stateful method
     mockSettleAssets.testSettleAssetArray(accounts[1], blockTime)

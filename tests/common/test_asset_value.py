@@ -22,6 +22,18 @@ def isolation(fn_isolation):
     pass
 
 
+def test_settlement_date(assetLibrary):
+    (assetArray, _) = generate_asset_array(50, 8)
+
+    for a in assetArray:
+        date = assetLibrary.getSettlementDate(list(a) + [0])
+
+        if a[2] > 3:
+            assert date - 90 * SECONDS_IN_DAY == START_TIME_TREF
+        else:
+            assert a[1] == date
+
+
 @given(oracleRate=impliedRateStrategy)
 def test_risk_adjusted_pv(assetLibrary, cashGroup, oracleRate):
     # has a 30 bps buffer / haircut

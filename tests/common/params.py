@@ -1,3 +1,6 @@
+import itertools
+import random
+
 from brownie.test import strategy
 
 # Jan 1 2021
@@ -7,17 +10,18 @@ SECONDS_IN_YEAR = SECONDS_IN_DAY * 360
 RATE_PRECISION = 1e9
 BASIS_POINT = RATE_PRECISION / 10000
 NORMALIZED_RATE_TIME = 31104000
+START_TIME_TREF = START_TIME - START_TIME % (90 * SECONDS_IN_DAY)
 
 MARKETS = [
-    START_TIME + 90 * SECONDS_IN_DAY,
-    START_TIME + 180 * SECONDS_IN_DAY,
-    START_TIME + SECONDS_IN_YEAR,
-    START_TIME + 2 * SECONDS_IN_YEAR,
-    START_TIME + 5 * SECONDS_IN_YEAR,
-    START_TIME + 7 * SECONDS_IN_YEAR,
-    START_TIME + 10 * SECONDS_IN_YEAR,
-    START_TIME + 15 * SECONDS_IN_YEAR,
-    START_TIME + 20 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 90 * SECONDS_IN_DAY,
+    START_TIME_TREF + 180 * SECONDS_IN_DAY,
+    START_TIME_TREF + SECONDS_IN_YEAR,
+    START_TIME_TREF + 2 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 5 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 7 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 10 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 15 * SECONDS_IN_YEAR,
+    START_TIME_TREF + 20 * SECONDS_IN_YEAR,
 ]
 
 IDENTITY_ASSET_RATE = ("0x0000000000000000000000000000000000000000", 1e18, 18)
@@ -55,3 +59,28 @@ REMOVE_LIQUIDITY = 1
 TAKE_FCASH = 2
 TAKE_CURRENT_CASH = 3
 MINT_CASH_PAIR = 4
+
+
+def generate_asset_array(numAssets, numCurrencies):
+    assets = []
+    nextMaturingAsset = 2 ** 40
+    assetsChoice = random.sample(
+        list(itertools.product(range(1, numCurrencies), MARKETS)), numAssets
+    )
+
+    for a in assetsChoice:
+        notional = random.randint(-1e18, 1e18)
+        # isfCash = random.randint(0, 1)
+        isfCash = 0
+        if isfCash:
+            assets.append((a[0], a[1], 1, notional))
+        else:
+            index = MARKETS.index(a[1])
+            assets.append((a[0], a[1], index + 2, abs(notional)))
+            # Offsetting fCash asset
+            assets.append((a[0], a[1], 1, -abs(notional)))
+
+        nextMaturingAsset = min(a[1], nextMaturingAsset)
+
+    random.shuffle(assets)
+    return (assets, nextMaturingAsset)

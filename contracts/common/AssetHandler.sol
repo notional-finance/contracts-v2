@@ -58,7 +58,7 @@ library AssetHandler {
         PortfolioAsset memory asset
     ) internal pure returns (uint) {
         require(
-            asset.assetType > 0 && asset.assetType < LIQUIDITY_TOKEN_INDEX9,
+            asset.assetType > 0 && asset.assetType <= LIQUIDITY_TOKEN_INDEX9,
             "A: invalid asset type"
         );
         // Special case for the 3 and 6 month tokens. The 6 month liquidity token

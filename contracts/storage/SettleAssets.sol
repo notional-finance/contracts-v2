@@ -91,8 +91,7 @@ contract SettleAssets is StorageReader {
         return (
             assetCash,
             marketStorage,
-            // No truncation, totalLiquidity is stored as uint80
-            uint80(totalLiquidity - asset.notional)
+            totalLiquidity
         );
     }
 
@@ -121,8 +120,7 @@ contract SettleAssets is StorageReader {
         return (
             cashClaim,
             marketStorage,
-            // No truncation, totalLiquidity is stored as uint80
-            uint80(totalLiquidity - asset.notional)
+            totalLiquidity
         );
     }
 
@@ -156,9 +154,9 @@ contract SettleAssets is StorageReader {
                 currencyIndex++;
             }
 
-            // It's possible for liquidity tokens and fCash to be in a portfolio at the same maturity, however
-            // we do not want to get a settlement rate for liquidity tokens that have settled but are not past
-            // their maturity date, these will be converted to fCash.
+            // Settlement rates are used to convert fCash and fCash claims back into assetCash values. This means
+            // that settlement rates are required whenever fCash matures and when liquidity tokens' **fCash claims**
+            // mature. fCash claims on liquidity tokens settle at asset.maturity, not the settlement date
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read inside getSettlementRateView
                 settlementRate = getSettlementRateView(asset.currencyId, asset.maturity);
