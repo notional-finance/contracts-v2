@@ -80,17 +80,18 @@ def test_bit_number(cashGroup, days, blockTime, maxMarketIndex):
     cg = list(BASE_CASH_GROUP)
     cg[1] = maxMarketIndex
 
-    bitNum = cashGroup.getIdiosyncraticBitNumber(cg, maturity, blockTime)
+    isValid = cashGroup.isValidIdiosyncraticMaturity(cg, maturity, blockTime)
     maxMaturity = tRef + cashGroup.getTradedMarket(maxMarketIndex)
 
     if maturity > maxMaturity:
-        assert bitNum == 0
+        assert not isValid
 
     if maturity < blockTime:
-        assert bitNum == 0
+        assert not isValid
 
     # convert the bitnum back to a maturity
-    if bitNum:
+    if isValid:
+        (bitNum, _) = cashGroup.getBitNumFromMaturity(blockTime, maturity)
         maturityRef = cashGroup.getMaturityFromBitNum(blockTime, bitNum)
         assert maturity == maturityRef
 

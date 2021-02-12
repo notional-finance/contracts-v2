@@ -3,7 +3,8 @@ import random
 
 import pytest
 from brownie.test import given, strategy
-from tests.common.params import MARKETS, SECONDS_IN_DAY, START_TIME
+from hypothesis import settings
+from tests.common.params import MARKETS, SECONDS_IN_DAY, SECONDS_IN_YEAR, START_TIME
 
 NUM_CURRENCIES = 8
 SETTLEMENT_RATE = [
@@ -192,3 +193,77 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # Assert that remaining assets are ok
     assets = mockSettleAssets.getAssetArray(accounts[1])
     assert sorted(assets) == remaining_assets(assetArray, blockTime)
+
+
+@given(
+    nextMaturingAsset=strategy(
+        "uint", min_value=START_TIME, max_value=START_TIME + (40 * SECONDS_IN_YEAR)
+    )
+)
+@settings(max_examples=5)
+def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
+    # Simulate that block time can be arbitrarily far into the future
+    currencyId = 1
+    blockTime = nextMaturingAsset + random.randint(0, SECONDS_IN_YEAR)
+    # Make sure that this references UTC0 of the first bit
+    nextMaturingAsset = nextMaturingAsset - nextMaturingAsset % SECONDS_IN_DAY
+    # Choose K bits to set
+    bitmapList = ["0"] * 256
+    setBits = random.choices(range(0, 255), k=10)
+    for b in setBits:
+        bitmapList[b] = "1"
+    bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+
+    activeMaturities = []
+    computedTotalAssetCash = 0
+
+    for i, b in enumerate(bitmapList):
+        if b == "1":
+            notional = random.randint(-1e18, 1e18)
+            maturity = mockSettleAssets.getMaturityFromBitNum(nextMaturingAsset, i + 1)
+            (bitNum, isValid) = mockSettleAssets.getBitNumFromMaturity(nextMaturingAsset, maturity)
+            assert isValid
+            assert (i + 1) == bitNum
+
+            activeMaturities.append((maturity, bitNum))
+            mockSettleAssets.setifCash(accounts[0], currencyId, maturity, notional)
+
+            if maturity < blockTime:
+                computedTotalAssetCash += int(
+                    notional * 1e18 / get_settle_rate(currencyId, maturity)
+                )
+
+    # Compute the new bitmap
+    blockTimeUTC0 = blockTime - blockTime % SECONDS_IN_DAY
+    (lastSettleBit, _) = mockSettleAssets.getBitNumFromMaturity(nextMaturingAsset, blockTimeUTC0)
+    computedNewBitmap = ["0"] * 256
+    for a in activeMaturities:
+        if a[0] > blockTimeUTC0:
+            (newBit, _) = mockSettleAssets.getBitNumFromMaturity(blockTimeUTC0, a[0])
+            computedNewBitmap[newBit - 1] = "1"
+
+    joinedNewBitmap = "0x{:0{}x}".format(int("".join(computedNewBitmap), 2), 64)
+
+    mockSettleAssets._settleBitmappedCashGroup(
+        accounts[0], currencyId, bitmap, nextMaturingAsset, blockTime
+    )
+
+    newBitmap = mockSettleAssets.newBitmapStorage()
+    totalAssetCash = mockSettleAssets.totalAssetCash()
+    assert pytest.approx(computedTotalAssetCash, rel=1e-12) == totalAssetCash
+    newBitmapList = list("{:0256b}".format(int(newBitmap.hex(), 16)))
+    # For testing:
+    # inputOnes = list(filter(lambda x: x[1] == "1", enumerate(bitmapList)))
+    # ones = list(filter(lambda x: x[1] == "1", enumerate(newBitmapList)))
+    # computedOnes = list(filter(lambda x: x[1] == "1", enumerate(computedNewBitmap)))
+    assert newBitmap == joinedNewBitmap
+
+    # Ensure that the bitmap covers every location where there is ifCash
+    for i, b in enumerate(newBitmapList):
+        maturity = mockSettleAssets.getMaturityFromBitNum(blockTimeUTC0, i + 1)
+        ifCash = mockSettleAssets.ifCashMapping(accounts[0], currencyId, maturity)
+
+        if b == "1":
+            assert ifCash != 0
+        else:
+            assert ifCash == 0

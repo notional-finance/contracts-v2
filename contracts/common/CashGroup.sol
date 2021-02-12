@@ -65,12 +65,12 @@ library CashGroup {
 
     // Max offsets used for bitmap
     uint internal constant MAX_DAY_OFFSET = 90;
-    uint internal constant MAX_WEEK_OFFSET = 354;
-    uint internal constant MAX_MONTH_OFFSET = 2124;
-    uint internal constant MAX_QUARTER_OFFSET = 7200;
-    uint internal constant WEEK_BIT_OFFSET = 91;
-    uint internal constant MONTH_BIT_OFFSET = 136;
-    uint internal constant QUARTER_BIT_OFFSET = 196;
+    uint internal constant MAX_WEEK_OFFSET = 360;
+    uint internal constant MAX_MONTH_OFFSET = 2160;
+    uint internal constant MAX_QUARTER_OFFSET = 7650;
+    uint internal constant WEEK_BIT_OFFSET = 90;
+    uint internal constant MONTH_BIT_OFFSET = 135;
+    uint internal constant QUARTER_BIT_OFFSET = 195;
     int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
 
 
@@ -134,64 +134,65 @@ library CashGroup {
      * @notice Determines if an idiosyncratic maturity is valid and returns the bit reference
      * that is the case.
      *
-     * @return 0 if invalid, otherwise the 1-indexed bit reference of the maturity
+     * @return True or false if the maturity is valid
      */
     function isValidIdiosyncraticMaturity(
        CashGroupParameters memory cashGroup,
        uint maturity,
        uint blockTime
-    ) internal pure returns (uint) {
+    ) internal pure returns (bool) {
         uint tRef = getReferenceTime(blockTime);
         uint maxMaturity = tRef.add(getTradedMarket(cashGroup.maxMarketIndex));
-        if (maturity > maxMaturity) return 0;
+        if (maturity > maxMaturity) return false;
 
-        return getBitNumFromMaturity(blockTime, maturity);
+        (/* */, bool isValid) = getBitNumFromMaturity(blockTime, maturity);
+        return isValid;
     }
 
     /**
      * @notice Given a bit number and the reference time of the first bit, returns the bit number
      * of a given maturity.
+     *
+     * @return bitNum and a true or false if the maturity falls on the exact bit
      */
     function getBitNumFromMaturity(
        uint blockTime,
        uint maturity
-    ) internal pure returns (uint) {
+    ) internal pure returns (uint, bool) {
         uint blockTimeUTC0 = getTimeUTC0(blockTime);
 
-        if (maturity % DAY != 0) return 0;
-        if (blockTimeUTC0 >= maturity) return 0;
+        if (maturity % DAY != 0) return (0, false);
+        if (blockTimeUTC0 >= maturity) return (0, false);
 
         // Overflow check done above
         uint daysOffset = (maturity - blockTimeUTC0) / DAY;
-        uint blockTimeDays = blockTimeUTC0 / DAY;
 
         // These if statements need to fall through to the next one
-        if (daysOffset <= MAX_DAY_OFFSET) return daysOffset;
+        if (daysOffset <= MAX_DAY_OFFSET) {
+            return (daysOffset, true);
+        }
+
         if (daysOffset <= MAX_WEEK_OFFSET) {
-            uint offset = daysOffset - MAX_DAY_OFFSET + (blockTimeDays % 6);
+            uint offset = daysOffset - MAX_DAY_OFFSET + (blockTimeUTC0 % WEEK) / DAY;
             // Ensures that the maturity specified falls on the actual day, otherwise division
             // will truncate it
-            if (offset % 6 != 0) return 0;
-
-            // TODO: consider changing the initial bit offset
-            return WEEK_BIT_OFFSET + offset / 6;
+            return (WEEK_BIT_OFFSET + offset / 6, (offset % 6) == 0);
         }
 
         if (daysOffset <= MAX_MONTH_OFFSET) {
-            uint offset = daysOffset - MAX_WEEK_OFFSET + (blockTimeDays % 30);
-            if (offset % 30 != 0) return 0;
+            uint offset = daysOffset - MAX_WEEK_OFFSET + (blockTimeUTC0 % MONTH) / DAY;
 
-            return MONTH_BIT_OFFSET + offset / 30;
+            return (MONTH_BIT_OFFSET + offset / 30, (offset % 30) == 0);
         }
 
         if (daysOffset <= MAX_QUARTER_OFFSET) {
-            uint offset = daysOffset - MAX_MONTH_OFFSET + (blockTimeDays % 90);
-            if (offset % 90 != 0) return 0;
+            uint offset = daysOffset - MAX_MONTH_OFFSET + (blockTimeUTC0 % QUARTER) / DAY;
 
-            return QUARTER_BIT_OFFSET + offset / 90;
+            return (QUARTER_BIT_OFFSET + offset / 90, (offset % 90) == 0);
         }
 
-        return 0;
+        // This is the maximum 1-indexed bit num
+        return (256, false);
     }
 
     /**
@@ -206,16 +207,16 @@ library CashGroup {
         require(bitNum <= 256, "CG: bit num overflow");
         uint blockTimeUTC0 = getTimeUTC0(blockTime);
 
-        if (bitNum <= WEEK_BIT_OFFSET - 1) {
+        if (bitNum <= WEEK_BIT_OFFSET) {
             return blockTimeUTC0 + bitNum * DAY;
         }
 
-        if (bitNum <= MONTH_BIT_OFFSET - 1) {
+        if (bitNum <= MONTH_BIT_OFFSET) {
             uint firstBit = blockTimeUTC0 + MAX_DAY_OFFSET * DAY - (blockTimeUTC0 % WEEK);
             return firstBit + (bitNum - WEEK_BIT_OFFSET) * WEEK;
         }
 
-        if (bitNum <= QUARTER_BIT_OFFSET - 1) {
+        if (bitNum <= QUARTER_BIT_OFFSET) {
             uint firstBit = blockTimeUTC0 + MAX_WEEK_OFFSET * DAY - (blockTimeUTC0 % MONTH);
             return firstBit + (bitNum - MONTH_BIT_OFFSET) * MONTH;
         }
@@ -539,16 +540,25 @@ contract MockCashGroup is StorageLayoutV1 {
         return isValid;
     }
 
-    function getIdiosyncraticBitNumber(
+    function isValidIdiosyncraticMaturity(
        CashGroupParameters memory cashGroup,
        uint maturity,
        uint blockTime
-    ) public pure returns (uint) {
-        uint bitNum = cashGroup.isValidIdiosyncraticMaturity(maturity, blockTime);
-        // We one index the bitNum so its max it 256
-        assert(bitNum < 256);
+    ) public pure returns (bool) {
+        bool isValid = cashGroup.isValidIdiosyncraticMaturity(maturity, blockTime);
 
-        return bitNum;
+        return isValid;
+    }
+
+    function getBitNumFromMaturity(
+        uint blockTime,
+        uint maturity
+    ) public pure returns (uint, bool) {
+        (uint bitNum, bool isValid) = CashGroup.getBitNumFromMaturity(blockTime, maturity);
+        assert(bitNum <= 256);
+        if (isValid) assert(bitNum > 0);
+
+        return (bitNum, isValid);
     }
 
     function getMaturityFromBitNum(

@@ -30,9 +30,9 @@ library Bitmap {
         
         return SplitBitmap(
             bitmapDecoded & DAY_BITMASK,
-            (bitmapDecoded & WEEK_BITMASK) << CashGroup.WEEK_BIT_OFFSET - 1,
-            (bitmapDecoded & MONTH_BITMASK) << CashGroup.MONTH_BIT_OFFSET - 1,
-            (bitmapDecoded & QUARTER_BITMASK) << CashGroup.QUARTER_BIT_OFFSET - 1
+            (bitmapDecoded & WEEK_BITMASK) << CashGroup.WEEK_BIT_OFFSET,
+            (bitmapDecoded & MONTH_BITMASK) << CashGroup.MONTH_BIT_OFFSET,
+            (bitmapDecoded & QUARTER_BITMASK) << CashGroup.QUARTER_BIT_OFFSET
         );
     }
 
@@ -40,10 +40,10 @@ library Bitmap {
         SplitBitmap memory splitBitmap
     ) internal pure returns (bytes memory) {
         bytes32 bitmapCombined = (
-            splitBitmap.dayBits                                       |
-            (splitBitmap.weekBits  >> CashGroup.WEEK_BIT_OFFSET - 1)  |
-            (splitBitmap.monthBits >> CashGroup.MONTH_BIT_OFFSET - 1) |
-            (splitBitmap.quarterBits >> CashGroup.QUARTER_BIT_OFFSET - 1)
+            splitBitmap.dayBits                                   |
+            (splitBitmap.weekBits  >> CashGroup.WEEK_BIT_OFFSET)  |
+            (splitBitmap.monthBits >> CashGroup.MONTH_BIT_OFFSET) |
+            (splitBitmap.quarterBits >> CashGroup.QUARTER_BIT_OFFSET)
         );
 
         return abi.encode(bitmapCombined);
