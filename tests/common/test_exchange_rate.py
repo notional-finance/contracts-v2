@@ -55,13 +55,16 @@ def test_build_exchange_rate(
 
 
 @pytest.mark.parametrize(parameterNames, parameterValues)
+@pytest.mark.only
 def test_build_asset_rate(
-    accounts, MockAggregator, assetRate, rateDecimals, baseDecimals, mustInvert
+    accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, baseDecimals, mustInvert
 ):
     rateDecimals = 18
     mustInvert = False
-    aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
-    aggregator.setAnswer(10 ** rateDecimals / 100)
+
+    cToken = MockCToken.deploy(8, {"from": accounts[0]})
+    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    cToken.setAnswer(10 ** rateDecimals / 100)
 
     rateStorage = (aggregator.address, rateDecimals, mustInvert, 0, 0, 0, baseDecimals)
 

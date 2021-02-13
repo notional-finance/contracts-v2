@@ -27,6 +27,8 @@ def isolation(fn_isolation):
 
 def test_fetch_ctoken_rate(accounts, mockCToken, aggregator):
     mockCToken.setAnswer(1e18)
-    results = aggregator.latestRoundData().return_value
+    rate1 = aggregator.getExchangeRateStateful().return_value
+    rate2 = aggregator.getExchangeRateView()
 
-    assert results[1] == 1e18
+    assert rate1 == 1e18
+    assert rate2 == 1e18
