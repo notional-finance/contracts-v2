@@ -160,7 +160,8 @@ def test_portfolio_value(
             impliedRates[m] = lastImpliedRate
 
             assetLibrary.setMarketState(
-                cg[0], m, (1e18, 1e18, lastImpliedRate, 0, blockTime - 1000), 1e18
+                (cg[0], m, 1e18, 1e18, 1e18, lastImpliedRate, 0, blockTime - 1000, True),
+                tRef + 90 * SECONDS_IN_DAY,
             )
 
         env.append(

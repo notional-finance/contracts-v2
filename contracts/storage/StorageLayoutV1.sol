@@ -81,7 +81,6 @@ struct CashGroupParameterStorage {
  * TODO: how high can cToken exchange rates go?
  *
  * Total storage: 32 bytes
- */
 struct MarketStorage {
     uint80 totalfCash;
     uint80 totalCurrentCash;
@@ -91,6 +90,7 @@ struct MarketStorage {
     // continue to work until year 2106.
     uint32 previousTradeTime;
 }
+ */
 
 /**
  * @dev Holds account level context information used to determine settlement and
@@ -179,12 +179,12 @@ contract StorageLayoutV1 {
     // currencyId => storage
     mapping(uint => CashGroupParameterStorage) public cashGroupMapping;
     // Contains current market state information
-    // currencyId => maturity => storage
-    mapping(uint => mapping(uint => MarketStorage)) public marketStateMapping;
+    // currencyId => settlementDate => maturity => storage
+    // mapping(uint => mapping(uint => mapping(uint => MarketStorage))) public marketStateMapping;
     // Keep total liquidity in a separate storage slot because it is not referenced
     // on every trade, only when adding or removing liquidity
     // currencyId => maturity => totalLiquditiy
-    mapping(uint => mapping(uint => uint80)) public marketTotalLiquidityMapping;
+    // mapping(uint => mapping(uint => uint80)) public marketTotalLiquidityMapping;
 
 
     /* Account Storage */

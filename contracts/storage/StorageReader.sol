@@ -220,17 +220,6 @@ contract MockStorageReader is StorageReader {
         cashGroupMapping[id] = cg;
     }
 
-    function setMarketState(
-        uint id,
-        uint maturity,
-        MarketStorage calldata ms,
-        uint80 totalLiquidity
-    ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        marketStateMapping[id][maturity] = ms;
-        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
-    }
-
     function setAccountContext(
         address account,
         AccountStorage memory a

@@ -357,6 +357,7 @@ library AssetHandler {
 contract MockAssetHandler is StorageLayoutV1 {
     using SafeInt256 for int256;
     using AssetHandler for PortfolioAsset;
+    using Market for MarketParameters;
 
     function setAssetRateMapping(
         uint id,
@@ -373,13 +374,10 @@ contract MockAssetHandler is StorageLayoutV1 {
     }
 
     function setMarketState(
-        uint id,
-        uint maturity,
-        MarketStorage calldata ms,
-        uint80 totalLiquidity
+        MarketParameters memory ms,
+        uint settlementDate
     ) external {
-        marketStateMapping[id][maturity] = ms;
-        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+        ms.setMarketStorage(settlementDate);
     }
 
     function getSettlementDate(

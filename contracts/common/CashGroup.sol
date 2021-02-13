@@ -344,7 +344,8 @@ library CashGroup {
 
         if (market.totalLiquidity == 0 && needsLiquidity) {
             // Fetch liquidity amount
-            market.setLiquidity();
+            uint settlementDate = getReferenceTime(blockTime);
+            market.getTotalLiquidity(settlementDate);
         }
 
         return market;
@@ -490,6 +491,7 @@ library CashGroup {
 
 contract MockCashGroup is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
+    using Market for MarketParameters;
 
     function setAssetRateMapping(
         uint id,
@@ -506,23 +508,19 @@ contract MockCashGroup is StorageLayoutV1 {
     }
 
     function setMarketState(
-        uint id,
-        uint maturity,
-        MarketStorage calldata ms,
-        uint80 totalLiquidity
+        MarketParameters memory ms,
+        uint settlementDate
     ) external {
-        marketStateMapping[id][maturity] = ms;
-        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+        ms.setMarketStorage(settlementDate);
     }
 
     function getMarketState(
         uint id,
-        uint maturity
-    ) external view returns (MarketStorage memory, uint) {
-        return (
-            marketStateMapping[id][maturity],
-            marketTotalLiquidityMapping[id][maturity]
-        );
+        uint maturity,
+        uint blockTime,
+        uint timeWindow
+    ) external view returns (MarketParameters memory) {
+        return Market.buildMarket(id, maturity, blockTime, true, timeWindow);
     }
 
     function getTradedMarket(uint index) public pure returns (uint) {

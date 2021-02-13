@@ -164,10 +164,18 @@ def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
         randSmallNum = random.randint(1e8, 1e9)
         # TODO: test initialization here
         cashGroup.setMarketState(
-            cg[0],
-            m,
-            (randBigNum, randBigNum + 1, randSmallNum, randSmallNum + 1, blockTime - 100),
-            randBigNum + 3,
+            (
+                cg[0],
+                m,
+                randBigNum,
+                randBigNum + 1,
+                randBigNum + 3,
+                randSmallNum,
+                randSmallNum + 1,
+                blockTime - 100,
+                True,
+            ),
+            tRef + (90 * SECONDS_IN_DAY),
         )
 
     (cg, markets) = cashGroup.buildCashGroup(1)
@@ -175,17 +183,17 @@ def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
     for i in range(0, len(validMarkets)):
         needsLiquidity = True if random.randint(0, 1) else False
         market = cashGroup.getMarket(cg, markets, i + 1, blockTime, needsLiquidity)
-        (marketStored, totalLiquidity) = cashGroup.getMarketState(1, validMarkets[i])
-        assert market[2] == marketStored[0]
-        assert market[3] == marketStored[1]
+        marketStored = cashGroup.getMarketState(1, validMarkets[i], blockTime, 1)
+        assert market[2] == marketStored[2]
+        assert market[3] == marketStored[3]
         if needsLiquidity:
-            assert market[4] == totalLiquidity
+            assert market[4] == marketStored[4]
         else:
             assert market[4] == 0
 
-        assert market[5] == marketStored[2]
+        assert market[5] == marketStored[5]
         # NOTE: don't need to test oracleRate
-        assert market[7] == marketStored[4]
+        assert market[7] == marketStored[7]
         # Assert market has updated is set to false
         assert not market[8]
 
@@ -224,7 +232,10 @@ def test_get_oracle_rate(cashGroup, aggregator, mockCToken, maxMarketIndex, bloc
         lastImpliedRate = random.randint(1e8, 1e9)
         impliedRates[m] = lastImpliedRate
 
-        cashGroup.setMarketState(cg[0], m, (1e18, 1e18, lastImpliedRate, 0, blockTime - 1000), 1e18)
+        cashGroup.setMarketState(
+            (cg[0], m, 1e18, 1e18, 1e18, lastImpliedRate, 0, blockTime - 1000, True),
+            tRef + 90 * SECONDS_IN_DAY,
+        )
 
     for m in validMarkets:
         # If we fall on a valid market then the rate must match exactly

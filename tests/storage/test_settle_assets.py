@@ -4,7 +4,13 @@ import random
 import pytest
 from brownie.test import given, strategy
 from hypothesis import settings
-from tests.common.params import MARKETS, SECONDS_IN_DAY, SECONDS_IN_YEAR, START_TIME
+from tests.common.params import (
+    MARKETS,
+    SECONDS_IN_DAY,
+    SECONDS_IN_YEAR,
+    SETTLEMENT_DATE,
+    START_TIME,
+)
 
 NUM_CURRENCIES = 8
 SETTLEMENT_RATE = [
@@ -47,7 +53,7 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
         # Set market state
         for m in MARKETS:
-            contract.setMarketState(i + 1, m, (1e18, 1e18, 0, 0, 0), 1e18)
+            contract.setMarketState((i + 1, m, 1e18, 1e18, 1e18, 0, 0, 0, True), SETTLEMENT_DATE)
 
             # Set settlement rates for markets 0, 1
             if m == MARKETS[0]:
@@ -94,10 +100,8 @@ def assert_markets_updated(mockSettleAssets, assetArray):
         # is liquidity token
         if a[2] > 1:
             maturity = MARKETS[a[2] - 2]
-            value = mockSettleAssets.marketStateMapping(a[0], maturity)
-            assert value == (int(1e18) - a[3], int(1e18) - a[3], 0, 0, 0)
-            liquidity = mockSettleAssets.marketTotalLiquidityMapping(a[0], maturity)
-            assert liquidity == int(1e18) - a[3]
+            value = mockSettleAssets.getSettlementMarket(a[0], maturity, SETTLEMENT_DATE)
+            assert value[0:3] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
 
 
 def get_settle_date(asset):

@@ -118,9 +118,20 @@ def test_build_market(
 ):
     maturity = 90 * SECONDS_IN_DAY
     blockTime = previousTradeTime + newBlockTime
-    marketStorage = (1e18, 2e18, lastImpliedRate, oracleRate, previousTradeTime)
+    marketStorage = (
+        1,
+        maturity,
+        1e18,
+        2e18,
+        3e18,
+        lastImpliedRate,
+        oracleRate,
+        previousTradeTime,
+        True,
+    )
+    settlementDate = blockTime - (blockTime % (90 * SECONDS_IN_DAY)) + (90 * SECONDS_IN_DAY)
 
-    market.setMarketState(1, maturity, marketStorage, 3e18)
+    market.setMarketStorage(marketStorage, settlementDate)
     result = market.buildMarket(1, maturity, blockTime, True, timeWindow)
 
     if newBlockTime > timeWindow:
@@ -150,12 +161,12 @@ def test_build_market(
     newMarket[4] = 4e18
     newMarket[5] = lastImpliedRate - 1
     newMarket[7] = previousTradeTime + 1
-    market.setMarketStorage(tuple(newMarket))
+    market.setMarketStorage(tuple(newMarket), settlementDate)
     noSaveResult = market.buildMarket(1, maturity, blockTime, True, timeWindow)
     assert noSaveResult == result
 
     newMarket[8] = True
-    market.setMarketStorage(tuple(newMarket))
+    market.setMarketStorage(tuple(newMarket), settlementDate)
     result = market.buildMarket(1, maturity, blockTime + 10, True, timeWindow)
 
     assert result[0] == 1  # currency id

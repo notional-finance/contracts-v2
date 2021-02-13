@@ -51,27 +51,28 @@ contract SettleAssets is StorageReader {
      */
     function calculateMarketStorage(
         PortfolioAsset memory asset
-    ) internal view returns (int, int, MarketStorage memory, uint80) {
-        // Storage Read
-        MarketStorage memory marketStorage = marketStateMapping[asset.currencyId][asset.maturity];
-        // Storage Read
-        int totalLiquidity = marketTotalLiquidityMapping[asset.currencyId][asset.maturity];
+    ) internal view returns (int, int, SettlementMarket memory) {
+        // 2x Storage Read
+        SettlementMarket memory market = Market.getSettlementMarket(
+            asset.currencyId,
+            asset.maturity,
+            asset.getSettlementDate()
+        );
 
-        int fCash = int(marketStorage.totalfCash).mul(asset.notional).div(totalLiquidity);
-        int cashClaim = int(marketStorage.totalCurrentCash).mul(asset.notional).div(totalLiquidity);
+        int fCash = int(market.totalfCash).mul(asset.notional).div(market.totalLiquidity);
+        int cashClaim = int(market.totalCurrentCash).mul(asset.notional).div(market.totalLiquidity);
 
-        require(fCash <= int(marketStorage.totalfCash), "S: fCash overflow");
-        require(cashClaim <= int(marketStorage.totalCurrentCash), "S: cash overflow");
-        require(asset.notional <= totalLiquidity, "S: liquidity overflow");
-        marketStorage.totalfCash = marketStorage.totalfCash - uint80(fCash);
-        marketStorage.totalCurrentCash = marketStorage.totalCurrentCash - uint80(cashClaim);
+        require(fCash <= market.totalfCash, "S: fCash overflow");
+        require(cashClaim <= market.totalCurrentCash, "S: cash overflow");
+        require(asset.notional <= market.totalLiquidity, "S: liquidity overflow");
+        market.totalfCash = market.totalfCash - fCash;
+        market.totalCurrentCash = market.totalCurrentCash - cashClaim;
+        market.totalLiquidity = market.totalLiquidity - asset.notional;
 
         return (
             cashClaim,
             fCash,
-            marketStorage,
-            // No truncation, totalLiquidity is stored as uint80
-            uint80(totalLiquidity - asset.notional)
+            market
         );
     }
 
@@ -82,17 +83,13 @@ contract SettleAssets is StorageReader {
     function settleLiquidityToken(
         PortfolioAsset memory asset,
         AssetRateParameters memory settlementRate
-    ) internal view returns (int, MarketStorage memory, uint80) {
-        (int cashClaim, int fCash, MarketStorage memory marketStorage, uint80 totalLiquidity) =
+    ) internal view returns (int, SettlementMarket memory) {
+        (int cashClaim, int fCash, SettlementMarket memory market) =
             calculateMarketStorage(asset);
 
         int assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
 
-        return (
-            assetCash,
-            marketStorage,
-            totalLiquidity
-        );
+        return (assetCash, market);
     }
 
     /**
@@ -101,9 +98,9 @@ contract SettleAssets is StorageReader {
     function settleLiquidityTokenTofCash(
         PortfolioState memory portfolioState,
         uint index
-    ) internal view returns (int, MarketStorage memory, uint80) {
+    ) internal view returns (int, SettlementMarket memory) {
         PortfolioAsset memory asset = portfolioState.storedAssets[index];
-        (int cashClaim, int fCash, MarketStorage memory marketStorage, uint80 totalLiquidity) =
+        (int cashClaim, int fCash, SettlementMarket memory market) =
             calculateMarketStorage(asset);
 
         if (fCash == 0) {
@@ -117,11 +114,7 @@ contract SettleAssets is StorageReader {
             portfolioState.storedAssets[index].storageState = AssetStorageState.Update;
         }
 
-        return (
-            cashClaim,
-            marketStorage,
-            totalLiquidity
-        );
+        return (cashClaim, market);
     }
 
     /**
@@ -168,12 +161,12 @@ contract SettleAssets is StorageReader {
                 portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 if (asset.maturity > blockTime) {
-                    (assetCash, /* */, /* */) = settleLiquidityTokenTofCash(
+                    (assetCash, /* */) = settleLiquidityTokenTofCash(
                         portfolioState,
                         portfolioState.sortedIndex[i]
                     );
                 } else {
-                    (assetCash, /* */, /* */) = settleLiquidityToken(
+                    (assetCash, /* */) = settleLiquidityToken(
                         asset,
                         settlementRate
                     );
@@ -205,6 +198,7 @@ contract SettleAssets is StorageReader {
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+            // TODO: This method calls `getSettlementDate` multiple times, reduce that
             if (asset.getSettlementDate() > blockTime) continue;
 
             if (lastCurrencyId != asset.currencyId) {
@@ -227,6 +221,7 @@ contract SettleAssets is StorageReader {
                 portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 // Deal with stack issues
+                // TODO: optimize these functions to reduce stack usage and thereby reduce code size
                 assetCash = settleLiquidityTokenStateful(
                     asset,
                     portfolioState,
@@ -251,26 +246,27 @@ contract SettleAssets is StorageReader {
         uint blockTime
     ) internal returns (int) {
         int assetCash;
-        MarketStorage memory marketState;
-        uint80 totalLiquidity;
+        SettlementMarket memory market;
         if (asset.maturity > blockTime) {
-            (assetCash, marketState, totalLiquidity) = settleLiquidityTokenTofCash(
+            (assetCash, market) = settleLiquidityTokenTofCash(
                 portfolioState,
                 portfolioState.sortedIndex[i]
             );
         } else {
-            (assetCash, marketState, totalLiquidity) = settleLiquidityToken(
+            (assetCash, market) = settleLiquidityToken(
                 asset,
                 settlementRate
             );
             portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
         }
 
-        // In stateful we update the market as well.
-        // Storage Write
-        marketStateMapping[asset.currencyId][asset.maturity] = marketState;
-        // Storage Write
-        marketTotalLiquidityMapping[asset.currencyId][asset.maturity] = totalLiquidity;
+        // 2x storage write
+        Market.setSettlementMarket(
+            asset.currencyId,
+            asset.maturity,
+            asset.getSettlementDate(),
+            market
+        );
 
         return assetCash;
     }
@@ -571,6 +567,7 @@ contract SettleAssets is StorageReader {
 
 contract MockSettleAssets is SettleAssets {
     using PortfolioHandler for PortfolioState;
+    using Market for MarketParameters;
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -598,14 +595,18 @@ contract MockSettleAssets is SettleAssets {
     }
 
     function setMarketState(
-        uint id,
-        uint maturity,
-        MarketStorage calldata ms,
-        uint80 totalLiquidity
+        MarketParameters memory ms,
+        uint settlementDate
     ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        marketStateMapping[id][maturity] = ms;
-        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
+        ms.setMarketStorage(settlementDate);
+    }
+
+    function getSettlementMarket(
+        uint currencyId,
+        uint maturity,
+        uint settlementDate
+    ) external view returns (SettlementMarket memory) {
+        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
     }
 
     function getAssetArray(address account) external view returns (AssetStorage[] memory) {

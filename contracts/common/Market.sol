@@ -33,6 +33,17 @@ struct MarketParameters {
     bool hasUpdated;
 }
 
+struct SettlementMarket {
+    // Total amount of fCash available for purchase in the market.
+    int totalfCash;
+    // Total amount of cash available for purchase in the market.
+    int totalCurrentCash;
+    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
+    int totalLiquidity;
+    // Un parsed market data used for storage
+    bytes32 data;
+}
+
 library Market {
     using SafeMath for uint;
     using SafeInt256 for int;
@@ -386,13 +397,21 @@ library Market {
         return newOracleRate;
     }
 
+    function getSlot(
+        uint currencyId,
+        uint settlementDate,
+        uint maturity
+    ) private pure returns (bytes32) {
+        return keccak256(abi.encode(maturity, settlementDate, currencyId, "market"));
+    }
+
     /**
      * @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
      * do need to load the liquidity amount.
      */
-    function setLiquidity(MarketParameters memory market) internal view {
+    function getTotalLiquidity(MarketParameters memory market, uint settlementDate) internal view {
         int totalLiquidity;
-        bytes32 slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, LIQUIDITY_STORAGE_SLOT))));
+        bytes32 slot = bytes32(uint(getSlot(market.currencyId, market.maturity, settlementDate)) + 1);
 
         assembly {
             totalLiquidity := sload(slot)
@@ -407,9 +426,11 @@ library Market {
     function getMarketStorage(
         uint currencyId,
         uint maturity,
-        bool needsLiquidity
+        bool needsLiquidity,
+        uint settlementDate
     ) private view returns (MarketParameters memory) {
-        bytes32 slot = keccak256(abi.encode(maturity, keccak256(abi.encode(currencyId, MARKET_STORAGE_SLOT))));
+        // Market object always uses the most current reference time as the settlement date
+        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
         bytes32 data;
 
         assembly {
@@ -434,7 +455,7 @@ library Market {
             hasUpdated: false
         });
 
-        if (needsLiquidity) setLiquidity(market);
+        if (needsLiquidity) getTotalLiquidity(market, settlementDate);
 
         return market;
     }
@@ -442,10 +463,10 @@ library Market {
     /**
      * @notice Writes market parameters to storage if the market is marked as updated.
      */
-    function setMarketStorage(MarketParameters memory market) internal {
+    function setMarketStorage(MarketParameters memory market, uint settlementDate) internal {
         if (!market.hasUpdated) return;
 
-        bytes32 slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, MARKET_STORAGE_SLOT))));
+        bytes32 slot = getSlot(market.currencyId, market.maturity, settlementDate);
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
         require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
@@ -467,8 +488,7 @@ library Market {
 
         if (market.totalLiquidity != 0) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
-            // TODO: make this slot + 1
-            slot = keccak256(abi.encode(market.maturity, keccak256(abi.encode(market.currencyId, LIQUIDITY_STORAGE_SLOT))));
+            slot = bytes32(uint(slot) + 1);
             bytes32 totalLiquidity = bytes32(market.totalLiquidity);
 
             assembly {
@@ -487,7 +507,14 @@ library Market {
         bool needsLiquidity,
         uint rateOracleTimeWindow
     ) internal view returns (MarketParameters memory) {
-        MarketParameters memory marketState = getMarketStorage(currencyId, maturity, needsLiquidity);
+        // Always reference the current settlement date
+        uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        MarketParameters memory marketState = getMarketStorage(
+            currencyId,
+            maturity,
+            needsLiquidity,
+            settlementDate
+        );
 
         marketState.oracleRate = updateRateOracle(
             marketState.previousTradeTime,
@@ -500,21 +527,78 @@ library Market {
         return marketState;
     }
 
+    /**
+     * @notice When settling liquidity tokens we only need to get half of the market paramteers and the settlement
+     * date must be specified.
+     */
+    function getSettlementMarket(
+        uint currencyId,
+        uint maturity,
+        uint settlementDate
+    ) internal view returns (SettlementMarket memory) {
+        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
+        int totalLiquidity;
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        int totalfCash = int(uint80(uint(data)));
+        int totalCurrentCash = int(uint80(uint(data >> 80)));
+        // Clear the lower 160 bits
+        data = (data >> 160) << 160;
+
+        slot = bytes32(uint(slot) + 1);
+
+        assembly {
+            totalLiquidity := sload(slot)
+        }
+
+        return SettlementMarket({
+            totalfCash: totalfCash,
+            totalCurrentCash: totalCurrentCash,
+            totalLiquidity: int(totalLiquidity),
+            data: data
+        });
+    }
+
+    function setSettlementMarket(
+        uint currencyId,
+        uint maturity,
+        uint settlementDate,
+        SettlementMarket memory market
+    ) internal {
+        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
+        bytes32 data;
+        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
+        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
+        require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
+
+        data = (
+            bytes32(market.totalfCash) |
+            bytes32(market.totalCurrentCash) << 80 |
+            bytes32(market.data)
+        );
+
+        // Don't clear the storage even when all liquidity tokens have been removed because we need to use
+        // the oracle rates to initialize the next set of markets.
+        assembly {
+            sstore(slot, data)
+        }
+
+        slot = bytes32(uint(slot) + 1);
+        bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+        assembly {
+            sstore(slot, totalLiquidity)
+        }
+    }
+
 }
 
 
 contract MockMarket is StorageLayoutV1 {
     using Market for MarketParameters;
-
-    function setMarketState(
-        uint id,
-        uint maturity,
-        MarketStorage calldata ms,
-        uint80 totalLiquidity
-    ) external {
-        marketStateMapping[id][maturity] = ms;
-        marketTotalLiquidityMapping[id][maturity] = totalLiquidity;
-    }
 
     function getUint64(uint value) public pure returns (int128) {
         return ABDKMath64x64.fromUInt(value);
@@ -586,9 +670,10 @@ contract MockMarket is StorageLayoutV1 {
    }
 
    function setMarketStorage(
-       MarketParameters memory market
+       MarketParameters memory market,
+       uint settlementDate
    ) public {
-       market.setMarketStorage();
+       market.setMarketStorage(settlementDate);
    }
 
    function buildMarket(
