@@ -107,6 +107,8 @@ struct AccountStorage {
     bool hasDebt;
     // If this account has bitmaps set
     bool hasBitmap;
+    // TODO: put asset array length in here
+    // uint8 assetArrayLength;
     // This is a tightly packed bitmap of the currenices that the account has a non
     // zero balance in. This is stored in big-endian ordering so the highest order
     // (left most) bit will refer to currency id=1 (currency id = 0 is unused) and

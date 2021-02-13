@@ -11,76 +11,67 @@ import "../storage/PortfolioHandler.sol";
 
 library FreeCollateral {
     using SafeInt256 for int;
+    using Bitmap for bytes;
     using PortfolioHandler for PortfolioState;
     using BalanceHandler for BalanceState;
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
 
     /**
-     * @notice Returns true if the account passes free collateral. Assumes that any trading will result in
-     * a balance context object being created.
+     * @notice This must be called in stateful methods to finalize storage before proceeding to a
+     * free collateral check. Will write portfolio, balance and account context to storage.
      */
-    function doesAccountPassFreeCollateral(
+    function finalizeAccountStateful(
         address account,
         AccountStorage memory accountContext,
         PortfolioState memory portfolioState,
         BalanceState[] memory balanceState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
-        uint blockTime
-    ) internal view returns (bool) {
-        if (!accountContext.hasDebt
-            && portfolioState.storedAssets.length == 0
-            && portfolioState.newAssets.length == 0) {
-            // Fetch the portfolio state if it does not exist and we need to check free collateral.
-            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        AssetStorage[] storage assetStoragePointer
+    ) internal returns (BalanceState[] memory) {
+        // Store balances and portfolio state
+        portfolioState.storeAssets(assetStoragePointer);
+        // After storage the sorted index must be recalculated
+        portfolioState.calculateSortedIndex();
+
+        bytes memory activeCurrenciesCopy = accountContext.activeCurrencies.copy();
+        for (uint i; i < balanceState.length; i++) {
+            balanceState[i].finalize(account, accountContext);
         }
 
-        (/* */, int[] memory netPortfolioValue) = setupFreeCollateral(
-            account,
-            accountContext,
-            portfolioState,
-            balanceState,
-            cashGroups,
-            marketStates,
-            blockTime
-        );
+        // TODO: save account context
 
-        // TODO: all balances must be finalized before this gets called to account for transfers
-        // and potential transfer fees
-        int ethDenominatedFC = getFreeCollateral(balanceState, cashGroups, netPortfolioValue);
-
-        return ethDenominatedFC >= 0;
+        return finalizeAccountView(account, activeCurrenciesCopy, balanceState);
     }
 
+    function finalizeAccountView(
+        address account,
+        bytes memory activeCurrencies,
+        BalanceState[] memory balanceState
+    ) internal view returns (BalanceState[] memory) {
+        // Get remaining balances that have not changed, all balances is an ordered array of the
+        // currency ids. This is the same ordering that portfolioState.storedAssets and newAssets
+        // are also stored in.
+        return BalanceHandler.getRemainingActiveBalances(
+            account,
+            // TODO: this does not contain assets that do not have cash balances, ensure that
+            // trading will result in a balance entering the context
+            activeCurrencies,
+            balanceState
+        );
+    }
 
     function setupFreeCollateral(
         address account,
-        AccountStorage memory accountContext,
         PortfolioState memory portfolioState,
-        BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
     ) internal view returns (PortfolioAsset[] memory, int[] memory) {
-        // Get remaining balances that have not changed, all balances is an ordered array of the
-        // currency ids. This is the same ordering that portfolioState.storedAssets and newAssets
-        // are also stored in.
-        balanceState = BalanceHandler.getRemainingActiveBalances(
-            account,
-            // TODO: this does not contain assets that do not have cash balances, ensure that
-            // trading will result in a balance entering the context
-            accountContext,
-            balanceState
-        );
-
-        // TODO: ensure sorting, it may have changed after finalizing...does that need to be the case?
-        portfolioState.calculateSortedIndex();
         PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
         // Ensure that cash groups and markets are up to date
         (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
-        // TODO: this changes references in memory, must ensure that we optmisitically write
-        // changes to storage before we execute this method
+        // This changes references in memory, must ensure that we optmisitically write
+        // changes to storage using finalizeAccountStateful before we execute this method
         int[] memory netPortfolioValue = AssetHandler.getRiskAdjustedPortfolioValue(
             allActiveAssets,
             cashGroups,
@@ -233,6 +224,41 @@ library FreeCollateral {
 
         return true;
     }
+
+    /**
+     * @notice Returns true if the account passes free collateral. Assumes that any trading will result in
+     * a balance context object being created.
+     */
+    function doesAccountPassFreeCollateral(
+        address account,
+        AccountStorage memory accountContext,
+        PortfolioState memory portfolioState,
+        BalanceState[] memory balanceState,
+        CashGroupParameters[] memory cashGroups,
+        MarketParameters[][] memory marketStates,
+        uint blockTime
+    ) internal view returns (bool) {
+        if (!accountContext.hasDebt
+            && portfolioState.storedAssets.length == 0
+            && portfolioState.newAssets.length == 0) {
+            // Fetch the portfolio state if it does not exist and we need to check free collateral.
+            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        }
+
+        (/* */, int[] memory netPortfolioValue) = setupFreeCollateral(
+            account,
+            portfolioState,
+            cashGroups,
+            marketStates,
+            blockTime
+        );
+
+        // TODO: all balances must be finalized before this gets called to account for transfers
+        // and potential transfer fees
+        int ethDenominatedFC = getFreeCollateral(balanceState, cashGroups, netPortfolioValue);
+
+        return ethDenominatedFC >= 0;
+    }
 }
 
 contract MockFreeCollateral is StorageLayoutV1 {
@@ -259,18 +285,14 @@ contract MockFreeCollateral is StorageLayoutV1 {
 
     function setupFreeCollateral(
         address account,
-        AccountStorage memory accountContext,
         PortfolioState memory portfolioState,
-        BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
     ) public view returns (PortfolioAsset[] memory, int[] memory) {
         return FreeCollateral.setupFreeCollateral(
             account,
-            accountContext,
             portfolioState,
-            balanceState,
             cashGroups,
             marketStates,
             blockTime

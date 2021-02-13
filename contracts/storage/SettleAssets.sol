@@ -142,7 +142,11 @@ contract SettleAssets is StorageReader {
                 lastCurrencyId = asset.currencyId;
                 lastMaturity = 0;
                 // Storage Read inside getBalanceContext
-                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(account, lastCurrencyId, accountContext);
+                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(
+                    account,
+                    lastCurrencyId,
+                    accountContext.activeCurrencies
+                );
                 currentContext = balanceState[currencyIndex];
                 currencyIndex++;
             }
@@ -205,7 +209,11 @@ contract SettleAssets is StorageReader {
                 lastCurrencyId = asset.currencyId;
                 lastMaturity = 0;
                 // Storage Read
-                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(account, lastCurrencyId, accountContext);
+                balanceState[currencyIndex] = BalanceHandler.buildBalanceState(
+                    account,
+                    lastCurrencyId, 
+                    accountContext.activeCurrencies
+                );
                 currentContext = balanceState[currencyIndex];
                 currencyIndex++;
             }

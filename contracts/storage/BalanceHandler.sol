@@ -13,6 +13,8 @@ struct BalanceState {
     int storedCashBalance;
     int storedPerpetualTokenBalance;
     int netCashChange;
+    int netCashTransfer;
+    int netPerpetualTokenTransfer;
 }
 
 library BalanceHandler {
@@ -44,41 +46,39 @@ library BalanceHandler {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext,
-        int netCashTransfer,
-        int netPerpetualTokenTransfer
+        AccountStorage memory accountContext
     ) internal {
         bool mustUpdate;
-        if (netCashTransfer < 0) {
+        if (balanceState.netCashTransfer < 0) {
             // Transfer fees will always reduce netCashTransfer so the receiving account will receive less
             // but the Notional system will account for the total net cash transfer out here
             require(
-                balanceState.storedCashBalance.add(balanceState.netCashChange) >= netCashTransfer.neg(),
+                balanceState.storedCashBalance.add(balanceState.netCashChange) >= balanceState.netCashTransfer.neg(),
                 "CH: cannot withdraw negative"
             );
         }
 
-        if (netPerpetualTokenTransfer < 0) {
+        if (balanceState.netPerpetualTokenTransfer < 0) {
             require(
-                balanceState.storedPerpetualTokenBalance >= netPerpetualTokenTransfer.neg(),
+                balanceState.storedPerpetualTokenBalance >= balanceState.netPerpetualTokenTransfer.neg(),
                 "CH: cannot withdraw negative"
             );
         }
 
-        if (balanceState.netCashChange != 0 || netCashTransfer != 0) {
+        if (balanceState.netCashChange != 0 || balanceState.netCashTransfer != 0) {
             Token memory token = TokenHandler.getToken(balanceState.currencyId);
             balanceState.storedCashBalance = balanceState.storedCashBalance
                 .add(balanceState.netCashChange)
                 // This will handle transfer fees if they exist
-                .add(token.transfer(account, netCashTransfer));
+                .add(token.transfer(account, balanceState.netCashTransfer));
             mustUpdate = true;
         }
 
-        if (netPerpetualTokenTransfer != 0) {
+        if (balanceState.netPerpetualTokenTransfer != 0) {
             // Perpetual tokens are within the notional system so we can update balances directly.
             // TODO: we need to update token reward values when we transfer this
             balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
-                netPerpetualTokenTransfer
+                balanceState.netPerpetualTokenTransfer
             );
             mustUpdate = true;
         }
@@ -152,15 +152,15 @@ library BalanceHandler {
     function buildBalanceState(
         address account,
         uint currencyId,
-        AccountStorage memory accountContext
+        bytes memory activeCurrencies
     ) internal view returns (BalanceState memory) {
         require(currencyId != 0, "CH: invalid currency id");
 
-        bool isActive = accountContext.activeCurrencies.isBitSet(currencyId);
+        bool isActive = activeCurrencies.isBitSet(currencyId);
         if (isActive) {
             // Set the bit to off to mark that we've read the balance
-            accountContext.activeCurrencies = Bitmap.setBit(
-                accountContext.activeCurrencies,
+            activeCurrencies = Bitmap.setBit(
+                activeCurrencies,
                 currencyId,
                 false
             );
@@ -171,7 +171,9 @@ library BalanceHandler {
                 currencyId: currencyId,
                 storedCashBalance: cashBalance,
                 storedPerpetualTokenBalance: tokenBalance,
-                netCashChange: 0
+                netCashChange: 0,
+                netCashTransfer: 0,
+                netPerpetualTokenTransfer: 0
             });
         }
 
@@ -179,7 +181,9 @@ library BalanceHandler {
             currencyId: currencyId,
             storedCashBalance: 0,
             storedPerpetualTokenBalance: 0,
-            netCashChange: 0
+            netCashChange: 0,
+            netCashTransfer: 0,
+            netPerpetualTokenTransfer: 0
         });
     }
 
@@ -189,10 +193,9 @@ library BalanceHandler {
      */
     function getRemainingActiveBalances(
         address account,
-        AccountStorage memory accountContext,
+        bytes memory activeCurrencies,
         BalanceState[] memory balanceState
     ) internal view returns (BalanceState[] memory) {
-        bytes memory activeCurrencies = accountContext.activeCurrencies;
         uint totalActive = activeCurrencies.totalBitsSet() + balanceState.length;
         BalanceState[] memory newBalanceContext = new BalanceState[](totalActive);
         totalActive = 0;
@@ -223,7 +226,7 @@ library BalanceHandler {
                     newBalanceContext[totalActive] = BalanceHandler.buildBalanceState(
                         account,
                         currencyId,
-                        accountContext
+                        activeCurrencies
                     );
                     totalActive += 1;
                 }
@@ -283,11 +286,9 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext,
-        int netCashTransfer,
-        int netPerpetualTokenTransfer
+        AccountStorage memory accountContext
     ) public returns (AccountStorage memory) {
-        balanceState.finalize(account, accountContext, netCashTransfer, netPerpetualTokenTransfer);
+        balanceState.finalize(account, accountContext);
 
         return accountContext;
     }
@@ -297,7 +298,11 @@ contract MockBalanceHandler is StorageLayoutV1 {
         uint currencyId,
         AccountStorage memory accountContext
     ) public view returns (BalanceState memory, AccountStorage memory) {
-        BalanceState memory bs = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory bs = BalanceHandler.buildBalanceState(
+            account,
+            currencyId,
+            accountContext.activeCurrencies
+        );
 
         return (bs, accountContext);
     }
@@ -307,8 +312,11 @@ contract MockBalanceHandler is StorageLayoutV1 {
         AccountStorage memory accountContext,
         BalanceState[] memory balanceState
     ) public view returns (BalanceState[] memory, AccountStorage memory) {
-        BalanceState[] memory bs = BalanceHandler
-            .getRemainingActiveBalances(account, accountContext, balanceState);
+        BalanceState[] memory bs = BalanceHandler.getRemainingActiveBalances(
+            account,
+            accountContext.activeCurrencies,
+            balanceState
+        );
 
         return (bs, accountContext);
     }

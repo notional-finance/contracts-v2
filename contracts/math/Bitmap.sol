@@ -109,6 +109,15 @@ library Bitmap {
         return totalBits;
     }
 
+    function copy(bytes memory bitmap) internal pure returns (bytes memory) {
+        bytes memory copyValue = new bytes(bitmap.length);
+        for (uint i; i < bitmap.length; i++) {
+            copyValue[i] = bitmap[i];
+        }
+
+        return copyValue;
+    }
+
 }
 
 contract MockBitmap {
