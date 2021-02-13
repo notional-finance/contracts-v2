@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./Asset.sol";
+import "./AssetHandler.sol";
 import "./CashGroup.sol";
 import "./ExchangeRate.sol";
 import "../math/SafeInt256.sol";
@@ -33,8 +33,7 @@ library FreeCollateral {
             && portfolioState.storedAssets.length == 0
             && portfolioState.newAssets.length == 0) {
             // Fetch the portfolio state if it does not exist and we need to check free collateral.
-            // TODO: need to get this storage pointer somehow
-            // portfolioState = PortfolioHandler.buildPortfolioState(assetArrayMapping[account], 0);
+            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
         }
 
         (/* */, int[] memory netPortfolioValue) = setupFreeCollateral(
@@ -82,7 +81,7 @@ library FreeCollateral {
         (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
         // TODO: this changes references in memory, must ensure that we optmisitically write
         // changes to storage before we execute this method
-        int[] memory netPortfolioValue = Asset.getRiskAdjustedPortfolioValue(
+        int[] memory netPortfolioValue = AssetHandler.getRiskAdjustedPortfolioValue(
             allActiveAssets,
             cashGroups,
             marketStates,

@@ -54,9 +54,7 @@ contract StorageReader is StorageLayoutV1 {
         if (accountContext.nextMaturingAsset <= blockTime || newAssetsHint > 0) {
             // We only fetch the portfolio state if there will be new assets added or if the account
             // must be settled.
-            portfolioState = PortfolioHandler.buildPortfolioState(
-                assetArrayMapping[account], newAssetsHint
-            );
+            portfolioState = PortfolioHandler.buildPortfolioState(account, newAssetsHint);
         }
 
         return (accountContext, portfolioState);

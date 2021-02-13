@@ -325,25 +325,26 @@ library PortfolioHandler {
      * so that we don't have to make copies when we extend the array.
      */
     function buildPortfolioState(
-        AssetStorage[] storage assetStoragePointer,
+        address account,
         uint newAssetsHint
     ) internal view returns (PortfolioState memory) {
-        // Storage Read
-        uint length = assetStoragePointer.length;
+        // TODO: change this to a string
+        bytes32 slot = keccak256(abi.encode(account, 7));
+        uint length;
+        assembly { length := sload(slot) }
         PortfolioAsset[] memory result = new PortfolioAsset[](length);
-        AssetStorage memory tmp;
+        // For an array in a mapping, the slot is rehashed for the offset.
+        uint arraySlot = uint(keccak256(abi.encode(slot)));
 
         for (uint i; i < length; i++) {
-            // TODO: change this to read directly from storage
-            // Storage Read
-            tmp = assetStoragePointer[i];
-            result[i] = PortfolioAsset({
-                currencyId: tmp.currencyId,
-                assetType: tmp.assetType,
-                maturity: tmp.maturity,
-                notional: tmp.notional,
-                storageState: AssetStorageState.NoChange
-            });
+            bytes32 data;
+            assembly { data := sload(arraySlot) }
+
+            result[i].currencyId = uint(uint16(uint(data)));
+            result[i].maturity = uint(uint40(uint(data >> 16)));
+            result[i].assetType = uint(uint8(uint(data >> 56)));
+            result[i].notional = int(int88(uint(data >> 64)));
+            arraySlot = arraySlot + 1;
         }
 
         return PortfolioState({
@@ -438,10 +439,8 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         address account,
         uint newAssetsHint
     ) public view returns (PortfolioState memory) {
-        AssetStorage[] storage pointer = assetArrayMapping[account];
-
         return PortfolioHandler.buildPortfolioState(
-            pointer,
+            account,
             newAssetsHint
         );
     }
