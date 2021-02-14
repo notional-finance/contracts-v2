@@ -162,6 +162,10 @@ library Liquidation {
             localUnderlyingRequired
         );
 
+        // Get the max liquidation discount between the two rates
+        factors.liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
+            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
+
         return factors;
     }
 
@@ -642,14 +646,14 @@ contract MockLiquidation is StorageLayoutV1 {
 
     function setAssetRateMapping(
         uint id,
-        RateStorage calldata rs
+        AssetRateStorage calldata rs
     ) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
     function setETHRateMapping(
         uint id,
-        RateStorage calldata rs
+        ETHRateStorage calldata rs
     ) external {
         underlyingToETHRateMapping[id] = rs;
     }

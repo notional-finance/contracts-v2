@@ -97,7 +97,7 @@ def test_bit_number(cashGroup, days, blockTime, maxMarketIndex):
 
 
 def test_build_cash_group(cashGroup, aggregator):
-    rateStorage = (aggregator.address, 18, False, 0, 0, 18, 18)
+    rateStorage = (aggregator.address, 18)
     cashGroup.setAssetRateMapping(1, rateStorage)
 
     for i in range(0, 50):
@@ -140,7 +140,7 @@ def test_build_cash_group(cashGroup, aggregator):
     blockTime=strategy("uint32", min_value=START_TIME),
 )
 def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
-    rateStorage = (aggregator.address, 18, False, 0, 0, 18, 18)
+    rateStorage = (aggregator.address, 18)
     cashGroup.setAssetRateMapping(1, rateStorage)
     cashGroup.setCashGroup(
         1,
@@ -208,7 +208,7 @@ def test_get_oracle_rate(cashGroup, aggregator, mockCToken, maxMarketIndex, bloc
     mockCToken.setSupplyRate(supplyRate)
     cRate = supplyRate * 2102400 / 1e9
 
-    rateStorage = (aggregator.address, 18, False, 0, 0, 18, 18)
+    rateStorage = (aggregator.address, 18)
     cashGroup.setAssetRateMapping(1, rateStorage)
     cashGroup.setCashGroup(
         1,

@@ -49,7 +49,7 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
     # Set the mock aggregators
     contract.setMaxCurrencyId(NUM_CURRENCIES)
     for i, a in enumerate(mockAggregators):
-        contract.setAssetRateMapping(i + 1, (a.address, 18, False, 0, 0, 8, 8))
+        contract.setAssetRateMapping(i + 1, (a.address, 18))
 
         # Set market state
         for m in MARKETS:
@@ -169,7 +169,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[2:]) + random.randint(0, 6000)
     (assetArray, nextMaturingAsset) = generate_asset_array(numAssets)
-    accountContext = (nextMaturingAsset, False, False, "0x88")
+    accountContext = (nextMaturingAsset, False, False, False, "0x88")
 
     # Set state
     mockSettleAssets.setAssetArray(accounts[1], assetArray)

@@ -46,14 +46,14 @@ def test_get_remaining_balances(balanceHandler, active_currencies, accounts):
     existingContexts = []
     for i in range(1, 15):
         if i not in ids and len(existingContexts) < 5:
-            existingContexts.append((i, 0, 0, 0))
+            existingContexts.append((i, 0, 0, 0, 0, 0))
 
     (bc, ac) = balanceHandler.getRemainingActiveBalances(
-        accounts[1], (0, False, False, active_currencies), tuple(existingContexts)
+        accounts[1], (0, False, False, False, active_currencies), tuple(existingContexts)
     )
 
     # Assert that all the active currency bits have been set to false
-    assert int(ac[3].hex(), 16) == 0
+    assert int(ac[4].hex(), 16) == 0
     assert len(bc) == (len(ids) + len(existingContexts))
     allIds = sorted(ids + [x[0] for x in existingContexts])
     for i, b in enumerate(bc):
@@ -85,36 +85,32 @@ def test_build_and_finalize_balances(
     bitstring[currencyId - 1] = "1"
 
     active_currencies = int("".join(bitstring), 2).to_bytes(len(bitstring) // 8, byteorder="big")
-    context = (0, False, False, active_currencies)
+    context = (0, False, False, False, active_currencies)
 
     (bs, context) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
     assert bs[0] == currencyId
     assert bs[1] == assetBalance
     assert bs[2] == perpetualTokenBalance
     assert bs[3] == 0
-    assert int.from_bytes(context[3], "big") == 0
+    assert int.from_bytes(context[4], "big") == 0
 
     bsCopy = list(bs)
     bsCopy[3] = netCashChange
+    bsCopy[4] = netTransfer
+    bsCopy[5] = netPerpetualTokenTransfer
 
     # These scenarios should fail
     if netTransfer < 0 and assetBalance + netCashChange + netTransfer < 0:
         # Cannot withdraw to a negative balance
         with brownie.reverts("CH: cannot withdraw negative"):
-            context = balanceHandler.finalize(
-                bsCopy, accounts[0], context, netTransfer, netPerpetualTokenTransfer
-            )
+            context = balanceHandler.finalize(bsCopy, accounts[0], context)
     elif perpetualTokenBalance + netPerpetualTokenTransfer < 0:
         with brownie.reverts("CH: cannot withdraw negative"):
-            context = balanceHandler.finalize(
-                bsCopy, accounts[0], context, netTransfer, netPerpetualTokenTransfer
-            )
+            context = balanceHandler.finalize(bsCopy, accounts[0], context)
     else:
         # check that the balances match on the token balances and on the
         # the storage
-        txn = balanceHandler.finalize(
-            bsCopy, accounts[0], context, netTransfer, netPerpetualTokenTransfer
-        )
+        txn = balanceHandler.finalize(bsCopy, accounts[0], context)
         context = txn.return_value
 
         # Assert hasDebt is set properly

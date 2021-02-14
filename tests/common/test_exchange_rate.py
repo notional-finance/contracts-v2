@@ -34,16 +34,22 @@ def test_build_exchange_rate(
     aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
     aggregator.setAnswer(10 ** rateDecimals / 100)
 
-    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80, 0, baseDecimals)
+    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80, 105, baseDecimals)
 
     exchangeRate.setETHRateMapping(1, rateStorage)
 
-    (erRateDecimals, erBaseDecimals, erRate, erBuffer, erHaircut) = exchangeRate.buildExchangeRate(
-        1
-    )
+    (
+        erRateDecimals,
+        erBaseDecimals,
+        erRate,
+        erBuffer,
+        erHaircut,
+        liquidationDiscount,
+    ) = exchangeRate.buildExchangeRate(1)
 
     assert erBuffer == 120
     assert erHaircut == 80
+    assert liquidationDiscount == 105
 
     assert erRateDecimals == 10 ** rateDecimals
     assert erBaseDecimals == 10 ** baseDecimals
@@ -60,13 +66,12 @@ def test_build_asset_rate(
     accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, baseDecimals, mustInvert
 ):
     rateDecimals = 18
-    mustInvert = False
 
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(10 ** rateDecimals / 100)
 
-    rateStorage = (aggregator.address, rateDecimals, mustInvert, 0, 0, 0, baseDecimals)
+    rateStorage = (aggregator.address, rateDecimals)
 
     assetRate.setAssetRateMapping(1, rateStorage)
 
@@ -78,7 +83,7 @@ def test_build_asset_rate(
 
 
 def test_convert_to_eth(exchangeRate):
-    rate = (1e18, 1e6, 0.01e18, 120, 80)
+    rate = (1e18, 1e6, 0.01e18, 120, 80, 106)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
@@ -89,7 +94,7 @@ def test_convert_to_eth(exchangeRate):
     eth = exchangeRate.convertToETH(rate, 100e6)
     assert eth == 0.8e18
 
-    rate = (1e8, 1e8, 10e8, 120, 80)
+    rate = (1e8, 1e8, 10e8, 120, 80, 106)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
@@ -102,7 +107,7 @@ def test_convert_to_eth(exchangeRate):
 
 
 def test_convert_eth_to(exchangeRate):
-    rate = (1e18, 1e6, 0.01e18, 120, 80)
+    rate = (1e18, 1e6, 0.01e18, 120, 80, 106)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
@@ -114,7 +119,7 @@ def test_convert_eth_to(exchangeRate):
     usdc = exchangeRate.convertETHTo(rate, 1e18)
     assert usdc == 100e6
 
-    rate = (1e18, 1e6, 10e18, 120, 80)
+    rate = (1e18, 1e6, 10e18, 120, 80, 106)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0

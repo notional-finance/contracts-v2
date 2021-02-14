@@ -22,7 +22,7 @@ struct CurrencyStorage {
 /**
  * @dev Exchange rate object as it is represented in storage, total storage is 26 bytes.
  */
-struct RateStorage {
+struct ETHRateStorage {
     // Address of the rate oracle
     address rateOracle;
     // The decimal places of precision that the rate oracle uses
@@ -36,10 +36,20 @@ struct RateStorage {
     // Amount of haircut to apply to the exchange rate for positive balances
     uint8 haircut;
 
-    // When rates are asset rates then base refers to asset, otherwise it is ETH
-    uint8 quoteDecimalPlaces;
+    // Liquidation discount in percentage point terms, 106 means a 6% discount
+    uint8 liquidationDiscount;
     // When rates are asset rates then quote refers to underlying
     uint8 baseDecimalPlaces;
+}
+
+/**
+ * @dev Asset rate object as it is represented in storage, total storage is 21 bytes.
+ */
+struct AssetRateStorage {
+    // Address of the rate oracle
+    address rateOracle;
+    // The decimal places of precision that the rate oracle uses
+    uint8 rateDecimalPlaces;
 }
 
 /**
@@ -170,10 +180,10 @@ contract StorageLayoutV1 {
     mapping(uint => CurrencyStorage) public currencyMapping;
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) public underlyingToETHRateMapping;
+    mapping(uint => ETHRateStorage) public underlyingToETHRateMapping;
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
-    mapping(uint => RateStorage) public assetToUnderlyingRateMapping;
+    mapping(uint => AssetRateStorage) public assetToUnderlyingRateMapping;
     // Returns the historical asset to underlying settlement rate.
     // currency id => maturity => rate
     mapping(uint => mapping(uint => SettlementRateStorage)) public assetToUnderlyingSettlementRateMapping;

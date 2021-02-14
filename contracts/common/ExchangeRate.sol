@@ -21,6 +21,8 @@ struct ETHRate {
     int buffer;
     // Amount of haircut to apply to the exchange rate for positive balances
     int haircut;
+    // Liquidation discount for this currency
+    int liquidationDiscount;
 }
 
 /**
@@ -127,6 +129,7 @@ library ExchangeRate {
 
         int buffer = int(uint8(bytes1(data << 72)));
         int haircut = int(uint8(bytes1(data << 64)));
+        int liquidationDiscount = int(uint8(bytes1(data << 56)));
         int baseDecimals = int(10**uint8(bytes1(data << 48)));
 
         return ETHRate({
@@ -134,7 +137,8 @@ library ExchangeRate {
             baseDecimals: baseDecimals,
             rate: rate,
             buffer: buffer,
-            haircut: haircut
+            haircut: haircut,
+            liquidationDiscount: liquidationDiscount
         });
     }
 }
@@ -146,7 +150,7 @@ contract MockExchangeRate is StorageLayoutV1 {
 
     function setETHRateMapping(
         uint id,
-        RateStorage calldata rs
+        ETHRateStorage calldata rs
     ) external {
         underlyingToETHRateMapping[id] = rs;
     }

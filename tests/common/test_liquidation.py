@@ -27,7 +27,7 @@ def ethAggregators(MockAggregator, liquidation, accounts):
         mock.setAnswer(1e18)
         buffer = 100 + (i + 1) * 10
         haircut = 100 - (i + 1) * 10
-        liquidation.setETHRateMapping(i + 1, (mock.address, 18, False, buffer, haircut, 18, 18))
+        liquidation.setETHRateMapping(i + 1, (mock.address, 18, False, buffer, haircut, 105, 18))
         aggregators.append(mock)
 
     return aggregators
@@ -39,7 +39,7 @@ def assetRateAggregator(MockCToken, cTokenAggregator, liquidation, accounts):
     mock = cTokenAggregator.deploy(mockToken.address, {"from": accounts[0]})
     mockToken.setAnswer(1e18)
     for i in range(0, NUM_CURRENCIES):
-        liquidation.setAssetRateMapping(i + 1, (mock.address, 18, False, 0, 0, 0, 0))
+        liquidation.setAssetRateMapping(i + 1, (mock.address, 18))
 
     return mock
 
@@ -122,12 +122,11 @@ def test_get_liquidation_factors(liquidation, accounts):
     # perpetual token value
     assert factors[3] == 0
     # liquidation discount
-    assert factors[4] == 0
+    assert factors[4] == 105
     # has collateral
     assert factors[11]
 
 
-@pytest.mark.only
 def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, accounts):
     setup_markets(liquidation)
     config = ((1, 1, 90), (2, 1, 90))
@@ -185,6 +184,7 @@ def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, acco
     )
 
 
+@pytest.mark.only
 def test_liquidate_collateral(liquidation, ethAggregators, assetRateAggregator, accounts):
     setup_markets(liquidation)
     config = ((1, 1, 97), (2, 1, 97))

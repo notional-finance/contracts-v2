@@ -596,7 +596,7 @@ contract MockSettleAssets is SettleAssets {
 
     function setAssetRateMapping(
         uint id,
-        RateStorage calldata rs
+        AssetRateStorage calldata rs
     ) external {
         require(id <= maxCurrencyId, "invalid currency id");
         assetToUnderlyingRateMapping[id] = rs;

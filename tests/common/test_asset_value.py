@@ -142,7 +142,7 @@ def test_portfolio_value(
             random.randint(1, 20000),  # 6 rateScalar
         )
 
-        rateStorage = (aggregator.address, 18, False, 0, 0, 18, 18)
+        rateStorage = (aggregator.address, 18)
         assetLibrary.setAssetRateMapping(currencyId, rateStorage)
         cashGroup.setAssetRateMapping(currencyId, rateStorage)
 

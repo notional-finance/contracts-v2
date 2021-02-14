@@ -361,7 +361,7 @@ contract MockAssetHandler is StorageLayoutV1 {
 
     function setAssetRateMapping(
         uint id,
-        RateStorage calldata rs
+        AssetRateStorage calldata rs
     ) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
