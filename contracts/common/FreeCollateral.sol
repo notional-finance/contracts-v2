@@ -61,7 +61,6 @@ library FreeCollateral {
     }
 
     function setupFreeCollateral(
-        address account,
         PortfolioState memory portfolioState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
@@ -246,7 +245,6 @@ library FreeCollateral {
         }
 
         (/* */, int[] memory netPortfolioValue) = setupFreeCollateral(
-            account,
             portfolioState,
             cashGroups,
             marketStates,
@@ -284,14 +282,12 @@ contract MockFreeCollateral is StorageLayoutV1 {
     }
 
     function setupFreeCollateral(
-        address account,
         PortfolioState memory portfolioState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         uint blockTime
     ) public view returns (PortfolioAsset[] memory, int[] memory) {
         return FreeCollateral.setupFreeCollateral(
-            account,
             portfolioState,
             cashGroups,
             marketStates,
