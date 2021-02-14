@@ -89,6 +89,11 @@ library Liquidation {
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue
     ) internal view returns (LiquidationFactors memory) {
+        require(localCurrencyId != collateralCurrencyId, "L: invalid currency id");
+        require(localCurrencyId != 0, "L: invalid currency id");
+        require(collateralCurrencyId != 0, "L: invalid currency id");
+        require(cashGroups.length == netPortfolioValue.length, "L: missing cash groups");
+
         uint groupIndex;
         int netETHValue;
         LiquidationFactors memory factors;
@@ -172,14 +177,14 @@ library Liquidation {
         MarketParameters[] memory marketStates,
         PortfolioState memory portfolioState,
         int repoIncentive
-    ) internal view returns (int, int) {
+    ) internal view returns (int[] memory, int) {
         require(portfolioState.newAssets.length == 0, "L: new assets exist");
         int[] memory withdrawFactors = new int[](5);
         // withdrawFactors[0] = assetCash
         // withdrawFactors[1] = fCash
-        // withdrawFactors[2] = totalCashOut
-        // withdrawFactors[3] = cashToAccount
-        // withdrawFactors[4] = incentivePaid
+        // withdrawFactors[2] = netCashIncrease
+        // withdrawFactors[3] = incentivePaid
+        // withdrawFactors[4] = totalCashClaim
 
         // NOTE: even if stored assets have been modified in memory as a result of the Asset.getRiskAdjustedPortfolioValue
         // method getting the haircut value will still work here because we do not reference the fCash value.
@@ -200,40 +205,38 @@ library Liquidation {
             // (assetCash, fCash)
             (withdrawFactors[0], withdrawFactors[1]) = asset.getCashClaims(market);
 
-            // We can only recollateralize the local currency using the part of the liquidity token that
-            // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
-            // is paid out as an incentive so that must be accounted for.
-            // cashClaim - cashClaim * haircut = totalCashOut * (1 + incentive)
-            // cashClaim * (1 - haircut) = totalCashOut * (1 + incentive)
-            // totalCashOut = cashClaim * (1 - haircut) / (1 + incentive)
-            // cashToAccount = totalCashOut * (1 - incentive)
-
             {
+                // We can only recollateralize the local currency using the part of the liquidity token that
+                // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
+                // is paid out as an incentive so that must be accounted for.
+                // netCashIncrease = cashClaim * (1 - haircut)
+                // netCashIncrease = netCashToAccount + incentivePaid
+                // incentivePaid = netCashIncrease * incentive
+
                 int haircut = int(cashGroup.getLiquidityHaircut(asset.maturity.sub(blockTime)));
-                // totalCashOut
+                // netCashIncrease
                 withdrawFactors[2] = withdrawFactors[0]
                     .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS.sub(haircut))
-                    .div(CashGroup.TOKEN_HAIRCUT_DECIMALS.add(repoIncentive));
-
-                // cashToAccount
-                withdrawFactors[3] = withdrawFactors[2]
-                    .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS.sub(repoIncentive))
                     .div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
             }
 
-            // (cashToAccount < assetAmountRemaining)
+            // (netCashToAccount < assetAmountRemaining)
             if (withdrawFactors[3] < assetAmountRemaining) {
+                int incentivePaid = withdrawFactors[2].mul(repoIncentive).div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
+                // incentivePaid
+                withdrawFactors[3] = withdrawFactors[3].add(incentivePaid);
+
                 // The additional cash is insufficient to cover asset amount required so we just remove
                 // all of it.
                 portfolioState.deleteAsset(i);
                 market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
-                withdrawFactors[4] = withdrawFactors[4].add(
-                    withdrawFactors[2].mul(repoIncentive).div(CashGroup.TOKEN_HAIRCUT_DECIMALS)
-                );
-                assetAmountRemaining = assetAmountRemaining.subNoNeg(withdrawFactors[3]);
+
+                // assetAmountRemaining = assetAmountRemaining - netCashToAccount
+                // netCashToAccount = netCashIncrease - incentivePaid
+                assetAmountRemaining = assetAmountRemaining.subNoNeg(withdrawFactors[2].sub(incentivePaid));
             } else {
                 // incentivePaid
-                withdrawFactors[4] = withdrawFactors[4].add(
+                withdrawFactors[3] = withdrawFactors[3].add(
                     assetAmountRemaining.mul(repoIncentive).div(CashGroup.TOKEN_HAIRCUT_DECIMALS)
                 );
 
@@ -253,6 +256,10 @@ library Liquidation {
                 assetAmountRemaining = 0;
             }
 
+            // totalCashToAccount
+            withdrawFactors[4] = withdrawFactors[4].add(withdrawFactors[0]);
+
+            // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
             portfolioState.addAsset(
                 cashGroup.currencyId,
                 asset.maturity,
@@ -267,8 +274,8 @@ library Liquidation {
             if (assetAmountRemaining == 0) break;
         }
 
-        // (incentivePaid, assetAmountRemaining)
-        return (withdrawFactors[4], assetAmountRemaining);
+        // This is pretty ugly but we have to deal with stack issues
+        return (withdrawFactors, assetAmountRemaining);
     }
 
     /**
@@ -282,7 +289,7 @@ library Liquidation {
     ) internal view returns (int) {
         // TODO: should short circuit this if there are no liquidity tokens.
 
-        (int incentivePaid, int assetAmountRemaining) = withdrawLiquidityTokens(
+        (int[] memory withdrawFactors, int assetAmountRemaining) = withdrawLiquidityTokens(
             blockTime,
             factors.localAssetRequired,
             factors.localCashGroup,
@@ -292,13 +299,13 @@ library Liquidation {
         );
 
         localBalanceContext.netCashChange = localBalanceContext.netCashChange.add(
-            // NOTE: incentive paid is already accounted for during the withdraw liquidity
-            // token method so we don't need to subtract it again here
-            factors.localAssetRequired.sub(assetAmountRemaining)
+            // totalCashToAccount - incentivePaid
+            withdrawFactors[4].subNoNeg(withdrawFactors[3])
         );
 
         factors.localAssetRequired = assetAmountRemaining;
-        return incentivePaid;
+        // incentivePaid
+        return withdrawFactors[3];
     }
 
     /**
@@ -311,6 +318,8 @@ library Liquidation {
         int maxLiquidateAmount,
         uint blockTime
     ) internal view returns (int, int) {
+        require(maxLiquidateAmount >= 0, "L: invalid max liquidate");
+
         // First determine how much local currency is required for the liquidation.
         int localToTrade = calculateLocalToTrade(
             factors.localAssetRequired,
@@ -319,7 +328,9 @@ library Liquidation {
             factors.localAvailable
         );
 
-        if (maxLiquidateAmount > localToTrade) localToTrade = maxLiquidateAmount;
+        if (maxLiquidateAmount != 0 && maxLiquidateAmount < localToTrade) {
+            localToTrade = maxLiquidateAmount;
+        }
 
         int balanceAdjustment;
         int collateralCashClaim;
@@ -625,8 +636,30 @@ library Liquidation {
 
 }
 
-contract MockLiquidation {
+contract MockLiquidation is StorageLayoutV1 {
     using Liquidation for LiquidationFactors;
+    using Market for MarketParameters;
+
+    function setAssetRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        assetToUnderlyingRateMapping[id] = rs;
+    }
+
+    function setETHRateMapping(
+        uint id,
+        RateStorage calldata rs
+    ) external {
+        underlyingToETHRateMapping[id] = rs;
+    }
+
+    function setMarketState(
+        MarketParameters memory ms,
+        uint settlementDate
+    ) external {
+        ms.setMarketStorage(settlementDate);
+    }
 
     function getLiquidationFactors(
         uint localCurrencyId,
@@ -636,7 +669,7 @@ contract MockLiquidation {
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue
     ) public view returns (LiquidationFactors memory) {
-        return Liquidation.getLiquidationFactors(
+        LiquidationFactors memory factors = Liquidation.getLiquidationFactors(
             localCurrencyId,
             collateralCurrencyId,
             balanceState,
@@ -644,6 +677,11 @@ contract MockLiquidation {
             marketStates,
             netPortfolioValue
         );
+
+        assert(factors.localCashGroup.currencyId == localCurrencyId);
+        assert(factors.collateralCashGroup.currencyId == collateralCurrencyId);
+
+        return factors;
     }
 
     function liquidateLocalLiquidityTokens(
@@ -651,14 +689,26 @@ contract MockLiquidation {
         uint blockTime,
         BalanceState memory localBalanceContext,
         PortfolioState memory portfolioState
-    ) public view returns (int, BalanceState memory, PortfolioState memory) {
+    ) public view returns (
+        int,
+        int,
+        BalanceState memory,
+        PortfolioState memory,
+        MarketParameters[] memory
+    ) {
         int incentivePaid = factors.liquidateLocalLiquidityTokens(
             blockTime,
             localBalanceContext,
             portfolioState
         );
 
-        return (incentivePaid, localBalanceContext, portfolioState);
+        return (
+            incentivePaid,
+            factors.localAssetRequired,
+            localBalanceContext,
+            portfolioState,
+            factors.localMarketStates
+        );
     }
 
     function liquidateCollateral(
