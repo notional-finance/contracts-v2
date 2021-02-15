@@ -14,6 +14,7 @@ import "../storage/StorageLayoutV1.sol";
  * new Router with the new hardcoded addresses will then be deployed and upgraded into place.
  */
 contract Router is StorageLayoutV1 {
+    address public constant GOVERNANCE = address(0);
 
     function initialize(address owner_, address token_) public {
         owner = owner_;
@@ -23,11 +24,29 @@ contract Router is StorageLayoutV1 {
     }
 
     /**
+     * @notice Returns the implementation contract for the method signature
+     */
+    function getRouterImplementation(bytes4 sig) public view returns (address) {
+        // TODO: order these by most commonly used
+        if (
+            sig == bytes4(keccak256("listCurrency(address,bool,address,bool,uint8,uint8,uint8)")) ||
+            sig == bytes4(keccak256("enableCashGroup(uint16,address,(cashGroup))")) ||
+            sig == bytes4(keccak256("updateCashGroup(uint16,(cashGroup))")) ||
+            sig == bytes4(keccak256("updateAssetRate(uint16,address)")) ||
+            sig == bytes4(keccak256("updateETHRate(uint16,address,bool,uint8,uint8)")) ||
+            sig == bytes4(keccak256("transferOwnership(address)"))
+        ) {
+            return GOVERNANCE;
+        }
+
+    }
+
+    /**
      * @dev Delegates the current call to `implementation`.
      *
      * This function does not return to its internal call site, it will return directly to the external caller.
      */
-    function _delegate(address implementation) internal virtual {
+    function _delegate(address implementation) internal {
         // solhint-disable-next-line no-inline-assembly
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly
@@ -47,6 +66,10 @@ contract Router is StorageLayoutV1 {
             case 0 { revert(0, returndatasize()) }
             default { return(0, returndatasize()) }
         }
+    }
+
+    fallback() external {
+        _delegate(getRouterImplementation(msg.sig));
     }
 
 }

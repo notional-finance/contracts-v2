@@ -32,7 +32,7 @@ contract Governance is StorageLayoutV1 {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      * Can only be called by the current owner.
      */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
+    function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
@@ -68,7 +68,7 @@ contract Governance is StorageLayoutV1 {
     }
 
     function enableCashGroup(
-        uint currencyId,
+        uint16 currencyId,
         address assetRateOracle,
         CashGroupParameterStorage calldata cashGroup
     ) external onlyOwner {
@@ -77,21 +77,21 @@ contract Governance is StorageLayoutV1 {
     }
 
     function updateCashGroup(
-        uint currencyId,
+        uint16 currencyId,
         CashGroupParameterStorage calldata cashGroup
     ) external onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
     }
 
     function updateAssetRate(
-        uint currencyId,
+        uint16 currencyId,
         address rateOracle
     ) external onlyOwner {
         _updateAssetRate(currencyId, rateOracle);
     }
 
     function updateETHRate(
-        uint currencyId,
+        uint16 currencyId,
         address rateOracle,
         bool mustInvert,
         uint8 buffer,
