@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
+import "../storage/TokenHandler.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 /**
@@ -13,8 +14,6 @@ import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 struct ETHRate {
     // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
     int rateDecimals;
-    // The decimals (i.e. 10^baseDecimals) of the base currency
-    int baseDecimals;
     // The exchange rate from base to quote (if invert is required it is already done)
     int rate;
     // Amount of buffer to apply to the exchange rate for negative balances.
@@ -29,11 +28,15 @@ struct ETHRate {
  * @title ExchangeRate
  * @notice Internal library for calculating exchange rates between different currencies
  * and assets. Must be supplied a Rate struct with relevant parameters. Expects rate oracles
- * to conform to the Chainlink AggregatorV2V3Interface.
+ * to conform to the Chainlink AggregatorV2V3Interface. 
+ *
+ * This is used on internal balances which are all denominated in 1e9 precision.
  */
 library ExchangeRate {
     using SafeInt256 for int256;
 
+    // ETH occupies the first currency
+    uint internal constant ETH = 1;
     uint internal constant ETH_RATE_STORAGE_SLOT = 2;
     int public constant MULTIPLIER_DECIMALS = 100;
     int public constant ETH_DECIMALS = 1e18;
@@ -61,7 +64,7 @@ library ExchangeRate {
             .mul(ETH_DECIMALS)
             .div(MULTIPLIER_DECIMALS)
             .div(er.rateDecimals)
-            .div(er.baseDecimals);
+            .div(TokenHandler.INTERNAL_TOKEN_PRECISION);
 
         return result;
     }
@@ -83,7 +86,7 @@ library ExchangeRate {
         // ethDecimals * rateDecimals * baseDecimals / (ethDecimals * rateDecimals)
         int result = balance
             .mul(er.rateDecimals)
-            .mul(er.baseDecimals)
+            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
             .div(er.rate)
             .div(ETH_DECIMALS);
 
@@ -113,28 +116,35 @@ library ExchangeRate {
             data := sload(slot)
         }
 
-        address rateOracle = address(bytes20(data << 96));
-        (
-            /* uint80 */,
-            int rate,
-            /* uint256 */,
-            /* uint256 */,
-            /* uint80 */
-        ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
-        require(rate > 0, "ExchangeRate: invalid rate");
+        int rateDecimals;
+        int rate;
+        if (currencyId == ETH) {
+            // ETH rates will just be 1e18, but will still have buffers, haircuts,
+            // and liquidation discounts
+            rateDecimals = ETH_DECIMALS;
+            rate = ETH_DECIMALS;
+        } else {
+            address rateOracle = address(bytes20(data << 96));
+            (
+                /* uint80 */,
+                rate,
+                /* uint256 */,
+                /* uint256 */,
+                /* uint80 */
+            ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
+            require(rate > 0, "ExchangeRate: invalid rate");
 
-        uint8 rateDecimalPlaces = uint8(bytes1(data << 88));
-        int rateDecimals = int(10**rateDecimalPlaces);
-        if (bytes1(data << 80) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
+            uint8 rateDecimalPlaces = uint8(bytes1(data << 88));
+            rateDecimals = int(10**rateDecimalPlaces);
+            if (bytes1(data << 80) != 0x00 /* mustInvert */) rate = rateDecimals.mul(rateDecimals).div(rate);
+        }
 
         int buffer = int(uint8(bytes1(data << 72)));
         int haircut = int(uint8(bytes1(data << 64)));
         int liquidationDiscount = int(uint8(bytes1(data << 56)));
-        int baseDecimals = int(10**uint8(bytes1(data << 48)));
 
         return ETHRate({
             rateDecimals: rateDecimals,
-            baseDecimals: baseDecimals,
             rate: rate,
             buffer: buffer,
             haircut: haircut,
@@ -204,7 +214,7 @@ contract MockExchangeRate is StorageLayoutV1 {
         require(er.rate > 0);
         int result = er.convertETHTo(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(result, balance, er.baseDecimals, 1e18, er);
+        assertRateDirection(result, balance, TokenHandler.INTERNAL_TOKEN_PRECISION, 1e18, er);
 
         return result;
     }

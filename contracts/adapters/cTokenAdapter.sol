@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract cTokenAggregator is AssetRateAdapterInterface {
     using SafeMath for uint256;
 
-    address public cToken;
+    address public override token;
     uint8 public override decimals = 18;
     uint256 public override version = 1;
     string public override description;
@@ -19,27 +19,27 @@ contract cTokenAggregator is AssetRateAdapterInterface {
     uint public constant SCALE_RATE = 1e9;
 
     constructor(address _cToken) {
-        cToken = _cToken;
+        token = _cToken;
         description = ERC20(_cToken).symbol();
     }
 
     /** @notice Returns the current exchange rate for the cToken to the underlying */
     function getExchangeRateStateful() external override returns (int) {
-        uint exchangeRate = CTokenInterface(cToken).exchangeRateCurrent();
+        uint exchangeRate = CTokenInterface(token).exchangeRateCurrent();
         require(exchangeRate <= uint(type(int256).max), "cTokenAdapter: overflow");
 
         return int(exchangeRate);
     }
 
     function getExchangeRateView() external view override returns (int) {
-        uint exchangeRate = CTokenInterface(cToken).exchangeRateStored();
+        uint exchangeRate = CTokenInterface(token).exchangeRateStored();
         require(exchangeRate <= uint(type(int256).max), "cTokenAdapter: overflow");
 
         return int(exchangeRate);
     }
 
     function getAnnualizedSupplyRate() external view override returns (uint) {
-        uint supplyRatePerBlock = CTokenInterface(cToken).supplyRatePerBlock();
+        uint supplyRatePerBlock = CTokenInterface(token).supplyRatePerBlock();
 
         // Supply rate per block * blocks per year * notional rate precision / supply rate precision
         return supplyRatePerBlock.mul(BLOCKS_PER_YEAR).div(SCALE_RATE);

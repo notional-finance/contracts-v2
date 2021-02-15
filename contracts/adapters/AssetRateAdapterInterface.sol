@@ -7,6 +7,7 @@ pragma solidity >=0.6.0;
  */
 interface AssetRateAdapterInterface {
 
+  function token() external view returns (address);
   function decimals() external view returns (uint8);
   function description() external view returns (string memory);
   function version() external view returns (uint256);

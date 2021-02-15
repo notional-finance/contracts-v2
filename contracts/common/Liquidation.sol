@@ -327,7 +327,7 @@ library Liquidation {
         // First determine how much local currency is required for the liquidation.
         int localToTrade = calculateLocalToTrade(
             factors.localAssetRequired,
-            factors.liquidationDiscount, // TODO: where to get this, maybe on ETH rate...
+            factors.liquidationDiscount,
             factors.localETHRate.buffer,
             factors.localAvailable
         );
@@ -530,12 +530,10 @@ library Liquidation {
             .mul(localToTrade)
             .mul(factors.liquidationDiscount);
 
-            // TODO: collapse these decimals into one multiply or divide
+        // TODO: collapse these decimals into one multiply or divide
         collateralToSell = collateralToSell
-            .mul(factors.collateralETHRate.baseDecimals)
             .div(factors.localETHRate.rateDecimals)
-            .div(factors.localETHRate.baseDecimals)
-            .div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
+            .div(ExchangeRate.MULTIPLIER_DECIMALS);
 
         if (factors.collateralAvailable.add(haircutCashClaim) >= collateralToSell) {
             // Sufficient collateral available to cover all of local to trade
@@ -545,14 +543,12 @@ library Liquidation {
             collateralToSell = factors.collateralAvailable.add(haircutCashClaim);
             // This is the inverse of the calculation above
             int localToPurchase = collateralToSell
-                .mul(factors.localETHRate.rateDecimals)
-                .mul(factors.localETHRate.baseDecimals);
+                .mul(factors.localETHRate.rateDecimals);
             
             localToPurchase = localToPurchase
-                .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS)
+                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
                 .div(rate)
-                .div(factors.liquidationDiscount)
-                .div(factors.collateralETHRate.baseDecimals);
+                .div(factors.liquidationDiscount);
 
             return (collateralToSell, localToPurchase);
         }
@@ -617,7 +613,7 @@ library Liquidation {
 
         int localToTrade = calculateLocalToTrade(
             factors.localAssetRequired,
-            factors.liquidationDiscount, // TODO: where to get this, maybe on ETH rate...
+            factors.liquidationDiscount,
             factors.localETHRate.buffer,
             factors.localAvailable
         );

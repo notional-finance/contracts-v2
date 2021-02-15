@@ -12,15 +12,12 @@ struct CurrencyStorage {
     bool tokenHasTransferFee;
     // Decimal places of the asset token
     uint8 tokenDecimalPlaces;
-    // Liquidation discount for this currency, set as a percentage of the exchange rate where
-    // 105 would mean a 5% discount.
-    uint8 liquidationDiscount;
     // Decimal places of the underlying token
-    uint8 underlyingDecimalPlaces;
+    // uint8 underlyingDecimalPlaces;
 }
 
 /**
- * @dev Exchange rate object as it is represented in storage, total storage is 26 bytes.
+ * @dev Exchange rate object as it is represented in storage, total storage is 25 bytes.
  */
 struct ETHRateStorage {
     // Address of the rate oracle
@@ -38,8 +35,6 @@ struct ETHRateStorage {
 
     // Liquidation discount in percentage point terms, 106 means a 6% discount
     uint8 liquidationDiscount;
-    // When rates are asset rates then quote refers to underlying
-    uint8 baseDecimalPlaces;
 }
 
 /**
@@ -217,6 +212,9 @@ contract StorageLayoutV1 {
     // address => currency id => (cash balance, perpetual token balance)
     mapping(address => mapping(uint => BalanceStorage)) public accountBalanceMapping;
 
-    // TODO: authorization mappings
-    // TODO: function mappings
+    /* Authentication Mappings */
+    // This is set to the timelock contract to execute governance functions
+    address public owner;
+    // This is set to the governance token address
+    address public token;
 }
