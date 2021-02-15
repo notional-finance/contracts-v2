@@ -17,49 +17,6 @@ library FreeCollateral {
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
 
-    /**
-     * @notice This must be called in stateful methods to finalize storage before proceeding to a
-     * free collateral check. Will write portfolio, balance and account context to storage.
-     */
-    function finalizeAccountStateful(
-        address account,
-        AccountStorage memory accountContext,
-        PortfolioState memory portfolioState,
-        BalanceState[] memory balanceState,
-        AssetStorage[] storage assetStoragePointer
-    ) internal returns (BalanceState[] memory) {
-        // Store balances and portfolio state
-        portfolioState.storeAssets(assetStoragePointer);
-        // After storage the sorted index must be recalculated
-        portfolioState.calculateSortedIndex();
-
-        bytes memory activeCurrenciesCopy = accountContext.activeCurrencies.copy();
-        for (uint i; i < balanceState.length; i++) {
-            balanceState[i].finalize(account, accountContext);
-        }
-
-        // TODO: save account context
-
-        return finalizeAccountView(account, activeCurrenciesCopy, balanceState);
-    }
-
-    function finalizeAccountView(
-        address account,
-        bytes memory activeCurrencies,
-        BalanceState[] memory balanceState
-    ) internal view returns (BalanceState[] memory) {
-        // Get remaining balances that have not changed, all balances is an ordered array of the
-        // currency ids. This is the same ordering that portfolioState.storedAssets and newAssets
-        // are also stored in.
-        return BalanceHandler.getRemainingActiveBalances(
-            account,
-            // TODO: this does not contain assets that do not have cash balances, ensure that
-            // trading will result in a balance entering the context
-            activeCurrencies,
-            balanceState
-        );
-    }
-
     function setupFreeCollateral(
         PortfolioState memory portfolioState,
         CashGroupParameters[] memory cashGroups,
@@ -70,7 +27,7 @@ library FreeCollateral {
         // Ensure that cash groups and markets are up to date
         (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
         // This changes references in memory, must ensure that we optmisitically write
-        // changes to storage using finalizeAccountStateful before we execute this method
+        // changes to storage using _finalizeState in BaseAction before we execute this method
         int[] memory netPortfolioValue = AssetHandler.getRiskAdjustedPortfolioValue(
             allActiveAssets,
             cashGroups,

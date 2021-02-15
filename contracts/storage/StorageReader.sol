@@ -33,32 +33,10 @@ struct BatchedTradeRequest {
 /**
  * @dev Reads storage parameters and creates context structs for different actions.
  */
- // TODO: change this to context manager
-contract StorageReader is StorageLayoutV1 {
+contract AccountContextHandler is StorageLayoutV1 {
     using SafeInt256 for int256;
     using Bitmap for bytes;
     using CashGroup for CashGroupParameters;
-
-    /**
-     * @notice Reads the account context from state and settles assets if required.
-     */
-    function getInitializeContext(
-        address account,
-        uint blockTime,
-        uint newAssetsHint
-    ) internal view returns (AccountStorage memory, PortfolioState memory) {
-        // Storage Read
-        AccountStorage memory accountContext = accountContextMapping[account];
-        PortfolioState memory portfolioState;
-
-        if (accountContext.nextMaturingAsset <= blockTime || newAssetsHint > 0) {
-            // We only fetch the portfolio state if there will be new assets added or if the account
-            // must be settled.
-            portfolioState = PortfolioHandler.buildPortfolioState(account, newAssetsHint);
-        }
-
-        return (accountContext, portfolioState);
-    }
 
     /**
      * @notice Gets context for trading. Requires that cash groups are sorted ascending and
@@ -192,83 +170,5 @@ contract StorageReader is StorageLayoutV1 {
         return mp;
     }
      */
-
-}
-
-contract MockStorageReader is StorageReader {
-    using Bitmap for bytes;
-
-    function setMaxCurrencyId(uint16 num) external {
-        maxCurrencyId = num;
-    }
-
-    function setCurrencyMapping(
-        uint id,
-        CurrencyStorage calldata cs
-    ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        currencyMapping[id] = cs;
-    }
-
-    function setCashGroup(
-        uint id,
-        CashGroupParameterStorage calldata cg
-    ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        cashGroupMapping[id] = cg;
-    }
-
-    function setAccountContext(
-        address account,
-        AccountStorage memory a
-    ) external {
-        accountContextMapping[account] = a;
-    }
-
-    function setAssetArray(
-        address account,
-        AssetStorage[] memory a
-    ) external {
-        // Clear array
-        delete assetArrayMapping[account];
-
-        AssetStorage[] storage s = assetArrayMapping[account];
-        for (uint i; i < a.length; i++) {
-            s.push(a[i]);
-        }
-    }
-
-    function setAssetBitmap(
-        address account,
-        uint id,
-        bytes memory bitmap
-    ) external {
-        assetBitmapMapping[account][id] = bitmap;
-    }
-
-    function setifCash(
-        address account,
-        uint id,
-        uint maturity,
-        int notional
-    ) external {
-        ifCashMapping[account][id][maturity] = notional;
-    }
-
-    function setBalance(
-        address account,
-        uint id,
-        BalanceStorage calldata bs
-    ) external {
-        accountBalanceMapping[account][id] = bs;
-    }
-
-    function _getInitializeContext(
-        address account,
-        uint blockTime,
-        uint newAssetsHint
-    ) public view returns (AccountStorage memory, PortfolioState memory) {
-        return getInitializeContext(account, blockTime, newAssetsHint);
-    }
 
 }

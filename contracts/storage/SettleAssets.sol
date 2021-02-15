@@ -9,7 +9,7 @@ import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
-contract SettleAssets is StorageReader {
+contract SettleAssets is StorageLayoutV1 {
     using SafeInt256 for int;
     using AssetRate for AssetRateParameters;
     using Bitmap for bytes;
@@ -668,8 +668,8 @@ contract MockSettleAssets is SettleAssets {
         BalanceState[] memory,
         AccountStorage memory
     ) {
-        (AccountStorage memory aContextView,
-            PortfolioState memory pStateView) = getInitializeContext(account, blockTime, 0);
+        AccountStorage memory aContextView = accountContextMapping[account];
+        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
 
         BalanceState[] memory bContextView = getSettleAssetContextView(
             account,
@@ -688,10 +688,10 @@ contract MockSettleAssets is SettleAssets {
         BalanceState[] memory,
         AccountStorage memory
     ) {
-        (AccountStorage memory aContextView,
-            PortfolioState memory pStateView) = getInitializeContext(account, blockTime, 0);
-        (AccountStorage memory aContext,
-            PortfolioState memory pState) = getInitializeContext(account, blockTime, 0);
+        AccountStorage memory aContextView = accountContextMapping[account];
+        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
+        AccountStorage memory aContext= accountContextMapping[account];
+        PortfolioState memory pState= PortfolioHandler.buildPortfolioState(account, 0);
 
         BalanceState[] memory bContextView = getSettleAssetContextView(
             account,
