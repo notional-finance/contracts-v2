@@ -46,7 +46,7 @@ library ExchangeRate {
      * always applied in this method.
      *
      * @param er exchange rate object from base to ETH
-     * @return the converted balance denominated in ETH with 18 decimal places
+     * @return the converted balance denominated in ETH with TokenHandler.INTERNAL_TOKEN_PRECISION
      */
     function convertToETH(
         ETHRate memory er,
@@ -55,16 +55,14 @@ library ExchangeRate {
         if (balance == 0) return 0;
         int multiplier = balance > 0 ? er.haircut : er.buffer;
 
-        // We are converting to ETH here so we know that it has 1e18 precision. The calculation here is:
-        // baseDecimals * rateDecimals * multiplier * ethDecimals /  (rateDecimals * baseDecimals * multiplierDecimals)
+        // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
+        // internalDecimals * rateDecimals * multiplier /  (rateDecimals * multiplierDecimals)
         // Therefore the result is in ethDecimals
         int result = balance
             .mul(er.rate)
             .mul(multiplier)
-            .mul(ETH_DECIMALS)
             .div(MULTIPLIER_DECIMALS)
-            .div(er.rateDecimals)
-            .div(TokenHandler.INTERNAL_TOKEN_PRECISION);
+            .div(er.rateDecimals);
 
         return result;
     }
@@ -82,13 +80,11 @@ library ExchangeRate {
     ) internal pure returns (int) {
         if (balance == 0) return 0;
 
-        // We are converting from ETH here so we know that it has 1e18 precision. The calculation here is:
-        // ethDecimals * rateDecimals * baseDecimals / (ethDecimals * rateDecimals)
+        // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
+        // internalDecimals * rateDecimals / rateDecimala
         int result = balance
             .mul(er.rateDecimals)
-            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
-            .div(er.rate)
-            .div(ETH_DECIMALS);
+            .div(er.rate);
 
         return result;
     }

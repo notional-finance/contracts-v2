@@ -23,24 +23,21 @@ def isolation(fn_isolation):
     pass
 
 
-parameterNames = "rateDecimals,baseDecimals,mustInvert"
-parameterValues = list(product([6, 8, 18], [6, 8, 18], [True, False]))
+parameterNames = "rateDecimals,mustInvert"
+parameterValues = list(product([6, 8, 18], [True, False]))
 
 
 @pytest.mark.parametrize(parameterNames, parameterValues)
-def test_build_exchange_rate(
-    accounts, MockAggregator, exchangeRate, rateDecimals, baseDecimals, mustInvert
-):
+def test_build_exchange_rate(accounts, MockAggregator, exchangeRate, rateDecimals, mustInvert):
     aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
     aggregator.setAnswer(10 ** rateDecimals / 100)
 
-    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80, 105, baseDecimals)
+    rateStorage = (aggregator.address, rateDecimals, mustInvert, 120, 80, 105)
 
+    # Currency ID 1 == ETH, rates are hardcoded
     exchangeRate.setETHRateMapping(1, rateStorage)
-
     (
         erRateDecimals,
-        erBaseDecimals,
         erRate,
         erBuffer,
         erHaircut,
@@ -50,9 +47,24 @@ def test_build_exchange_rate(
     assert erBuffer == 120
     assert erHaircut == 80
     assert liquidationDiscount == 105
+    assert erRateDecimals == int(1e18)
+    assert erRate == int(1e18)
 
+    # This is a non-ETH currency
+    exchangeRate.setETHRateMapping(2, rateStorage)
+
+    (
+        erRateDecimals,
+        erRate,
+        erBuffer,
+        erHaircut,
+        liquidationDiscount,
+    ) = exchangeRate.buildExchangeRate(2)
+
+    assert erBuffer == 120
+    assert erHaircut == 80
+    assert liquidationDiscount == 105
     assert erRateDecimals == 10 ** rateDecimals
-    assert erBaseDecimals == 10 ** baseDecimals
 
     if mustInvert:
         assert erRate == 10 ** rateDecimals * 100
@@ -61,9 +73,8 @@ def test_build_exchange_rate(
 
 
 @pytest.mark.parametrize(parameterNames, parameterValues)
-@pytest.mark.only
 def test_build_asset_rate(
-    accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, baseDecimals, mustInvert
+    accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, mustInvert
 ):
     rateDecimals = 18
 
@@ -83,53 +94,54 @@ def test_build_asset_rate(
 
 
 def test_convert_to_eth(exchangeRate):
-    rate = (1e18, 1e6, 0.01e18, 120, 80, 106)
+    # All internal balances are in 1e9 precision
+    rate = (1e18, 0.01e18, 120, 80, 106)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
 
-    eth = exchangeRate.convertToETH(rate, -100e6)
-    assert eth == -1.2e18
+    eth = exchangeRate.convertToETH(rate, -100e9)
+    assert eth == -1.2e9
 
-    eth = exchangeRate.convertToETH(rate, 100e6)
-    assert eth == 0.8e18
+    eth = exchangeRate.convertToETH(rate, 100e9)
+    assert eth == 0.8e9
 
-    rate = (1e8, 1e8, 10e8, 120, 80, 106)
+    rate = (1e8, 10e8, 120, 80, 106)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
 
-    eth = exchangeRate.convertToETH(rate, -1e8)
-    assert eth == -12e18
+    eth = exchangeRate.convertToETH(rate, -1e9)
+    assert eth == -12e9
 
-    eth = exchangeRate.convertToETH(rate, 1e8)
-    assert eth == 8e18
+    eth = exchangeRate.convertToETH(rate, 1e9)
+    assert eth == 8e9
 
 
 def test_convert_eth_to(exchangeRate):
-    rate = (1e18, 1e6, 0.01e18, 120, 80, 106)
+    rate = (1e18, 0.01e18, 120, 80, 106)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
 
     # No buffer or haircut on this function
-    usdc = exchangeRate.convertETHTo(rate, -1e18)
-    assert usdc == -100e6
+    usdc = exchangeRate.convertETHTo(rate, -1e9)
+    assert usdc == -100e9
 
-    usdc = exchangeRate.convertETHTo(rate, 1e18)
-    assert usdc == 100e6
+    usdc = exchangeRate.convertETHTo(rate, 1e9)
+    assert usdc == 100e9
 
-    rate = (1e18, 1e6, 10e18, 120, 80, 106)
+    rate = (1e18, 10e18, 120, 80, 106)
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
 
     # No buffer or haircut on this function
-    usdc = exchangeRate.convertETHTo(rate, -1e18)
-    assert usdc == -0.1e6
+    usdc = exchangeRate.convertETHTo(rate, -1e9)
+    assert usdc == -0.1e9
 
-    usdc = exchangeRate.convertETHTo(rate, 1e18)
-    assert usdc == 0.1e6
+    usdc = exchangeRate.convertETHTo(rate, 1e9)
+    assert usdc == 0.1e9
 
 
 def test_convert_internal_to_underlying(assetRate, aggregator):

@@ -26,24 +26,17 @@ contract MockExchangeRate is StorageLayoutV1 {
     function assertRateDirection(
         int base,
         int quote,
-        int baseDecimals,
-        int quoteDecimals,
         ETHRate memory er
     ) private pure {
         require(er.rate > 0);
-        require(baseDecimals > 0);
-        require(quoteDecimals > 0);
-
         if (base == 0) return;
 
-        int baseInQuoteDecimals = base.mul(quoteDecimals).div(baseDecimals).abs();
-        int quoteAbs = quote.abs();
         if (er.rate == er.rateDecimals) {
-            assert(quoteAbs == baseInQuoteDecimals);
+            assert(quote.abs() == base.abs());
         } else if (er.rate < er.rateDecimals) {
-            assert(quoteAbs < baseInQuoteDecimals);
+            assert(quote.abs() < base.abs());
         } else if (er.rate > er.rateDecimals) {
-            assert(quoteAbs > baseInQuoteDecimals);
+            assert(quote.abs() > base.abs());
         }
     }
 
@@ -65,7 +58,7 @@ contract MockExchangeRate is StorageLayoutV1 {
         require(er.rate > 0);
         int result = er.convertETHTo(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(result, balance, TokenHandler.INTERNAL_TOKEN_PRECISION, 1e18, er);
+        assertRateDirection(result, balance, er);
 
         return result;
     }
