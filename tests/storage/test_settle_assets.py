@@ -169,7 +169,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[2:]) + random.randint(0, 6000)
     (assetArray, nextMaturingAsset) = generate_asset_array(numAssets)
-    accountContext = (nextMaturingAsset, False, False, False, "0x88")
+    accountContext = (nextMaturingAsset, 0, False, False, False, "0x88")
 
     # Set state
     mockSettleAssets.setAssetArray(accounts[1], assetArray)

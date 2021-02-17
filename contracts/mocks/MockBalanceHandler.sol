@@ -41,6 +41,12 @@ contract MockBalanceHandler is StorageLayoutV1 {
         return balanceState.getPerpetualTokenAssetValue();
     }
 
+    function getCurrencyIncentiveData(
+        uint currencyId
+    ) public view returns (uint, uint) {
+        return BalanceHandler.getCurrencyIncentiveData(currencyId);
+    }
+
     function finalize(
         BalanceState memory balanceState,
         address account,

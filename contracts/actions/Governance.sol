@@ -59,7 +59,9 @@ contract Governance is StorageLayoutV1 {
         currencyMapping[maxCurrencyId] = CurrencyStorage({
             assetTokenAddress: assetTokenAddress,
             tokenHasTransferFee: tokenHasTransferFee,
-            tokenDecimalPlaces: decimals
+            tokenDecimalPlaces: decimals,
+            // TODO: update this
+            underlyingDecimalPlaces: decimals
         });
 
         _updateETHRate(maxCurrencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);

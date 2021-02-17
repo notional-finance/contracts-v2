@@ -12,9 +12,11 @@ struct BalanceState {
     uint currencyId;
     int storedCashBalance;
     int storedPerpetualTokenBalance;
+    int storedCapitalDeposit;
     int netCashChange;
     int netCashTransfer;
     int netPerpetualTokenTransfer;
+    int netCapitalDeposit;
 }
 
 library BalanceHandler {
@@ -76,15 +78,26 @@ library BalanceHandler {
 
         if (balanceState.netPerpetualTokenTransfer != 0) {
             // Perpetual tokens are within the notional system so we can update balances directly.
-            // TODO: we need to update token reward values when we transfer this
             balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
                 balanceState.netPerpetualTokenTransfer
             );
             mustUpdate = true;
         }
 
+        if (balanceState.netCapitalDeposit != 0) {
+            balanceState.storedCapitalDeposit = balanceState.storedCapitalDeposit.add(
+                balanceState.netCapitalDeposit
+            );
+            mustUpdate = true;
+            
+            incrementGlobalCapitalDeposit(balanceState.currencyId, balanceState.netCapitalDeposit);
+        }
+
         if (mustUpdate) setBalanceStorage(account, balanceState);
-        if (balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0) {
+        if (balanceState.storedCashBalance != 0 
+            || balanceState.storedPerpetualTokenBalance != 0
+            || balanceState.storedCapitalDeposit != 0
+        ) {
             // Set this to true so that the balances get read next time
             accountContext.activeCurrencies = Bitmap.setBit(
                 accountContext.activeCurrencies,
@@ -107,21 +120,31 @@ library BalanceHandler {
                 keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))
             )
         );
+
         require(
-            balanceState.storedCashBalance >= type(int128).min
-            && balanceState.storedCashBalance <= type(int128).max,
+            balanceState.storedCashBalance >= type(int88).min
+            && balanceState.storedCashBalance <= type(int88).max,
             "CH: cash balance overflow"
         );
+
+        require(
+            balanceState.storedCapitalDeposit >= type(int88).min
+            && balanceState.storedCapitalDeposit <= type(int88).max,
+            "CH: capital deposit overflow"
+        );
+
         require(
             balanceState.storedPerpetualTokenBalance >= 0
-            && balanceState.storedPerpetualTokenBalance <= type(uint128).max,
+            && balanceState.storedPerpetualTokenBalance <= type(uint80).max,
             "CH: token balance overflow"
         );
 
         bytes32 data = (
-            // Truncate the top half of the signed integer when it is negative
-            (bytes32(balanceState.storedCashBalance) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff) |
-            (bytes32(uint(balanceState.storedPerpetualTokenBalance)) << 128)
+            // Truncate the higher bits of the signed integer when it is negative
+            (bytes32(balanceState.storedCashBalance) & 0x000000000000000000000000000000000000000000ffffffffffffffffffffff) |
+            (bytes32(uint(balanceState.storedPerpetualTokenBalance)) << 88) |
+            // No need to truncate higher bits, this is already shifted
+            (bytes32(balanceState.storedCapitalDeposit) << 168)
         );
 
         assembly {
@@ -130,9 +153,54 @@ library BalanceHandler {
     }
 
     /**
+     * @notice Increment the global capital deposit
+     */
+    function incrementGlobalCapitalDeposit(
+        uint currencyId,
+        int netCapitalDeposit
+    ) private {
+        bytes32 slot = keccak256(abi.encode(currencyId, "currency.incentives"));
+        bytes32 data;
+
+        assembly { data := sload(slot) }
+        // Global capital deposit cannot go below zero
+        int globalCapitalDeposit = int(uint128(uint(data)));
+        globalCapitalDeposit = globalCapitalDeposit.add(netCapitalDeposit);
+        require(
+            globalCapitalDeposit >= 0 && globalCapitalDeposit <= type(uint128).max,
+            "B: global deposit overflow"
+        );
+
+        data = (
+            data & 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000 |
+            // Global capital deposit cannot be negative so the top bits will be zero
+            // TODO: validate this statement
+            bytes32(globalCapitalDeposit) & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff
+        );
+
+        assembly { sstore(slot, data) }
+    }
+
+    /**
+     * @notice Get the global incentive data for minting incentives
+     */
+    function getCurrencyIncentiveData(
+        uint currencyId
+    ) internal view returns (uint, uint) {
+        bytes32 slot = keccak256(abi.encode(currencyId, "currency.incentives"));
+        bytes32 data;
+        assembly { data := sload(slot) }
+
+        uint globalCapitalDeposit = uint(uint128(uint(data)));
+        uint tokenEmissionRate = uint(uint32(uint(data >> 128)));
+
+        return (globalCapitalDeposit, tokenEmissionRate);
+    }
+
+    /**
      * @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
      */
-    function getBalanceStorage(address account, uint currencyId) private view returns (int, int) {
+    function getBalanceStorage(address account, uint currencyId) private view returns (int, int, int) {
         bytes32 slot = keccak256(abi.encode(currencyId, keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))));
         bytes32 data;
 
@@ -141,8 +209,9 @@ library BalanceHandler {
         }
 
         return (
-            int(int128(int(data))), // Cash balance
-            int(data >> 128) // Perpetual token balance
+            int(int88(int(data))),   // Cash balance
+            int(uint80(uint(data >> 88))), // Perpetual token balance
+            int(int88(int(data >> 168)))  // netCapitalDeposit
         );
     }
 
@@ -166,14 +235,16 @@ library BalanceHandler {
             );
 
             // Storage Read
-            (int cashBalance, int tokenBalance) = getBalanceStorage(account, currencyId);
+            (int cashBalance, int tokenBalance, int storedCapitalDeposit) = getBalanceStorage(account, currencyId);
             return BalanceState({
                 currencyId: currencyId,
                 storedCashBalance: cashBalance,
                 storedPerpetualTokenBalance: tokenBalance,
+                storedCapitalDeposit: storedCapitalDeposit,
                 netCashChange: 0,
                 netCashTransfer: 0,
-                netPerpetualTokenTransfer: 0
+                netPerpetualTokenTransfer: 0,
+                netCapitalDeposit: 0
             });
         }
 
@@ -181,9 +252,11 @@ library BalanceHandler {
             currencyId: currencyId,
             storedCashBalance: 0,
             storedPerpetualTokenBalance: 0,
+            storedCapitalDeposit: 0,
             netCashChange: 0,
             netCashTransfer: 0,
-            netPerpetualTokenTransfer: 0
+            netPerpetualTokenTransfer: 0,
+            netCapitalDeposit: 0
         });
     }
 
@@ -245,4 +318,61 @@ library BalanceHandler {
         // This returns an ordered list of balance context by currency id
         return newBalanceContext;
     }
+
+    /**
+     * @notice Iterates over an array of balances and returns the total incentives to mint.
+     */
+    function calculateIncentivesToMint(
+        BalanceState[] memory balanceState,
+        AccountStorage memory accountContext,
+        uint blockTime
+    ) internal view returns (uint) {
+        // We must mint incentives for all currencies at the same time since we set a single timestamp
+        // for when the account last minted incentives.
+        require(accountContext.activeCurrencies.totalBitsSet() == 0, "B: must mint currencies");
+        require(accountContext.lastMintTime != 0, "B: last mint time zero");
+        require(accountContext.lastMintTime < blockTime, "B: last mint time overflow");
+
+        uint timeSinceLastMint = blockTime - accountContext.lastMintTime;
+        uint tokensToTransfer;
+        for (uint i; i < balanceState.length; i++) {
+            // Cannot mint incentives if there is a negative capital deposit. Also we explicitly do not include
+            // net capital deposit (the current amount to change) because an account may manipulate this amount to
+            // increase their capital deposited figure using flash loans.
+            if (balanceState[i].storedCapitalDeposit <= 0) continue;
+
+            (uint globalCapitalDeposit, uint tokenEmissionRate) = getCurrencyIncentiveData(balanceState[i].currencyId);
+            if (globalCapitalDeposit == 0 || tokenEmissionRate == 0) continue;
+
+            tokensToTransfer = tokensToTransfer.add(
+                // We know that this must be positive
+                uint(balanceState[i].storedCapitalDeposit)
+                    .mul(timeSinceLastMint)
+                    .mul(tokenEmissionRate)
+                    .div(CashGroup.YEAR)
+                    // tokenEmissionRate is denominated in 1e9
+                    .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION))
+                    .div(globalCapitalDeposit)
+            );
+        }
+
+        require(blockTime <= type(uint32).max, "B: block time overflow");
+        accountContext.lastMintTime = uint32(blockTime);
+        return tokensToTransfer;
+    }
+
+    /**
+     * @notice Incentives must be minted before we store netCapitalDeposit changes.
+     */
+    function mintIncentives(
+        BalanceState[] memory balanceState,
+        AccountStorage memory accountContext,
+        address account,
+        uint blockTime
+    ) internal returns (uint) {
+        uint tokensToTransfer = calculateIncentivesToMint(balanceState, accountContext, blockTime);
+        TokenHandler.transferIncentive(account, tokensToTransfer);
+        return tokensToTransfer;
+    }
+
 }

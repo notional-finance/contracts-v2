@@ -22,6 +22,8 @@ library TokenHandler {
 
     int internal constant INTERNAL_TOKEN_PRECISION = 1e9;
     uint internal constant TOKEN_STORAGE_SLOT = 1;
+    // TODO: hardcode this or move it into an internal storage slot
+    address internal constant NOTE_TOKEN_ADDRESS = address(0);
 
     /**
      * @notice Gets token data for a particular currency id
@@ -75,30 +77,6 @@ library TokenHandler {
     }
 
     /**
-     * @notice Handles token withdraws from Notional. We return the change in the balance
-     * in order to properly update the account's balance.
-     */
-    function withdraw(
-        Token memory token,
-        address account,
-        uint amount 
-    ) private returns (int) {
-        if (token.hasTransferFee) {
-            // Must deposit from the token and calculate the net transfer
-            uint startingBalance = IERC20(token.tokenAddress).balanceOf(account);
-            SafeERC20.safeTransfer(
-                IERC20(token.tokenAddress), account, amount
-            );
-            uint endingBalance = IERC20(token.tokenAddress).balanceOf(account);
-
-            return int(endingBalance.sub(startingBalance));
-        }
-
-        SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, amount);
-        return int(amount);
-    }
-
-    /**
      * @notice Handles transfers into and out of the system. Crucially we must
      * translate the amount from internal balance precision to the external balance
      * precision.
@@ -117,12 +95,20 @@ library TokenHandler {
             .div(INTERNAL_TOKEN_PRECISION);
 
         if (transferBalance > 0) {
+            // Deposits must account for transfer fees.
             transferBalance = deposit(token, account, uint(transferBalance));
         } else {
-            transferBalance = withdraw(token, account, uint(transferBalance.neg()));
+            SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, uint(transferBalance.neg()));
         }
 
         // Convert transfer balance back into internal precision
         return transferBalance.mul(INTERNAL_TOKEN_PRECISION).div(token.decimalPlaces);
+    }
+
+    function transferIncentive(
+        address account,
+        uint tokensToTransfer
+    ) internal {
+        SafeERC20.safeTransfer(IERC20(NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
     }
 }

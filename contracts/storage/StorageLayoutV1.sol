@@ -13,7 +13,7 @@ struct CurrencyStorage {
     // Decimal places of the asset token
     uint8 tokenDecimalPlaces;
     // Decimal places of the underlying token
-    // uint8 underlyingDecimalPlaces;
+    uint8 underlyingDecimalPlaces;
 }
 
 /**
@@ -99,7 +99,7 @@ struct MarketStorage {
 
 /**
  * @dev Holds account level context information used to determine settlement and
- * free collateral actions. Total storage is 7 bytes + (maxCurrencyId / 8 + 1)
+ * free collateral actions. Total storage is 12 bytes + (maxCurrencyId / 8 + 1)
  *
  * WARNING: because activeCurrencies is a dynamically sized byte array we cannot
  * add more storage slots into this struct.
@@ -107,6 +107,9 @@ struct MarketStorage {
 struct AccountStorage {
     // Used to check when settlement must be trigged on an account
     uint40 nextMaturingAsset;
+    // Records when the last time an account minted incentives. This must be initialized to
+    // the value at the first time the account deposited capital.
+    uint32 lastMintTime;
     // TODO: These bools can be set into a bytes2?
     // For lenders that never incur debt, we use this flag to skip the free
     // collateral check.
@@ -139,11 +142,20 @@ struct AssetStorage {
     int88 notional;
 }
 
+/**
+ * Represents balances for a single currency on a single account. Each balance is composed of three
+ * figures, total storage is 32 bytes.
+ *  - cashBalance: the positive or negative amount of asset cash the account holds
+ *  - perpetualTokenBalance: the perepetual token balance (if any) for the cash group
+ *  - netCapitalDeposit: the net capital in **underlying** balances, used to determine incentives
+ */
 struct BalanceStorage {
     // Asset token balance held by the account
-    int128 cashBalance;
+    int88 cashBalance;
     // Perpetual liquidity tokens balance held by the account
-    uint128 perpetualTokenBalance;
+    uint80 perpetualTokenBalance;
+    // Net underlying capital deposited
+    int88 netCapitalDeposit;
 }
 
 /**
