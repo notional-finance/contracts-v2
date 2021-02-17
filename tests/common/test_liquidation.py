@@ -27,7 +27,7 @@ def ethAggregators(MockAggregator, liquidation, accounts):
         mock.setAnswer(1e18)
         buffer = 100 + (i + 1) * 10
         haircut = 100 - (i + 1) * 10
-        liquidation.setETHRateMapping(i + 1, (mock.address, 18, False, buffer, haircut, 105, 18))
+        liquidation.setETHRateMapping(i + 1, (mock.address, 18, False, buffer, haircut, 105))
         aggregators.append(mock)
 
     return aggregators
@@ -89,7 +89,7 @@ def test_sufficient_collateral(liquidation, accounts):
     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
 
     # TODO: fuzz this a bit but ensure that FC >= 0
-    balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0, 0, 0, 0, 0))
+    balanceStates = ((1, 0, 0, 0, 0, 0, 0, 0), (2, 0, 0, 0, 0, 0, 0, 0))
     netPortfolioValue = [1e18, 0]
 
     with brownie.reverts("L: sufficient free collateral"):
@@ -103,7 +103,7 @@ def test_get_liquidation_factors(liquidation, accounts):
     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
 
     # TODO: fuzz this some more, ensure fc < 0
-    balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0))
+    balanceStates = ((1, 0, 0, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0, 0, 0))
 
     netPortfolioValue = [-1e18, 0]
 
@@ -133,7 +133,7 @@ def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, acco
     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
 
     # This should be a function #
-    balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0))
+    balanceStates = ((1, 0, 0, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0, 0, 0))
     netPortfolioValue = [-1e18, 0]
     factors = liquidation.getLiquidationFactors(
         1, 2, balanceStates, tuple(cashGroups), tuple(marketStates), tuple(netPortfolioValue)
@@ -167,7 +167,7 @@ def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, acco
     )
 
     # assert that the balance transfers net out to what was required when entering the function
-    totalCashClaim = newBalanceContext[3] + incentivePaid
+    totalCashClaim = newBalanceContext[4] + incentivePaid
 
     # TODO: assert that market has updated properly
     # fCash amounts net off
@@ -180,7 +180,7 @@ def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, acco
     # haircut amount - incentive = localAssetRequired change
     assert factors[0] >= localAssetRequired
     assert factors[0] - localAssetRequired == (
-        (newBalanceContext[3] + incentivePaid) * (100 - 90) / 100 - incentivePaid
+        (newBalanceContext[4] + incentivePaid) * (100 - 90) / 100 - incentivePaid
     )
 
 
@@ -190,7 +190,7 @@ def test_liquidate_collateral(liquidation, ethAggregators, assetRateAggregator, 
     config = ((1, 1, 97), (2, 1, 97))
     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
 
-    balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0))
+    balanceStates = ((1, 0, 0, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0, 0, 0))
     portfolioState = ([(2, MARKETS[0], 2, 0.1e18, 0)], (), 0, 1, ())
     netPortfolioValue = [-1e18, 0]
 

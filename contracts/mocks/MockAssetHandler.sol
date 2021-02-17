@@ -118,7 +118,8 @@ contract MockAssetHandler is StorageLayoutV1 {
             cashGroup,
             markets,
             fCashAssets,
-            blockTime
+            blockTime,
+            true
         );
 
         return (assetValue, pv, fCashAssets);
@@ -130,11 +131,13 @@ contract MockAssetHandler is StorageLayoutV1 {
         MarketParameters[][] memory markets,
         uint blockTime
     ) public view returns(int[] memory) {
-        int[] memory assetValue = AssetHandler.getRiskAdjustedPortfolioValue(
+        int[] memory assetValue = AssetHandler.getPortfolioValue(
             assets,
             cashGroups,
             markets,
-            blockTime
+            blockTime,
+            // Set risk adjusted to true
+            true
         );
 
         return assetValue;

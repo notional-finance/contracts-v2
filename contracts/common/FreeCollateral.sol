@@ -28,11 +28,12 @@ library FreeCollateral {
         (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method
-        int[] memory netPortfolioValue = AssetHandler.getRiskAdjustedPortfolioValue(
+        int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
             allActiveAssets,
             cashGroups,
             marketStates,
-            blockTime
+            blockTime,
+            true // Must be risk adjusted
         );
 
         return (allActiveAssets, netPortfolioValue);

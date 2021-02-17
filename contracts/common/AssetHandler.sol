@@ -222,7 +222,8 @@ library AssetHandler {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
-        uint blockTime
+        uint blockTime,
+        bool riskAdjusted
     ) internal view returns (int, int) {
         require(
             isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
@@ -237,14 +238,22 @@ library AssetHandler {
             market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
         }
 
-        (int assetCashClaim, int fCashClaim) = getHaircutCashClaims(
-            liquidityToken,
-            market,
-            cashGroup,
-            blockTime
-        );
+        int assetCashClaim;
+        int fCashClaim;
+        if (riskAdjusted) {
+            (assetCashClaim, fCashClaim) = getHaircutCashClaims(
+                liquidityToken,
+                market,
+                cashGroup,
+                blockTime
+            );
+        } else {
+            (assetCashClaim, fCashClaim) = getCashClaims(
+                liquidityToken,
+                market
+            );
+        }
 
-        bool found;
         // Find the matching fCash asset and net off the value
         for (uint j; j < fCashAssets.length; j++) {
             if (fCashAssets[j].assetType == FCASH_ASSET_TYPE &&
@@ -252,24 +261,31 @@ library AssetHandler {
                 fCashAssets[j].maturity == liquidityToken.maturity) {
                 // Net off the fCashClaim here and we will discount it to present value in the second pass
                 fCashAssets[j].notional = fCashAssets[j].notional.add(fCashClaim);
-                found = true;
-                break;
+
+                return (assetCashClaim, 0);
             }
         }
 
-        int pv;
-        if (!found) {
-            // If not matching fCash asset found then get the pv directly
-            pv = getRiskAdjustedPresentValue(
+        // If not matching fCash asset found then get the pv directly
+        if (riskAdjusted) {
+            int pv = getRiskAdjustedPresentValue(
                 cashGroup,
                 fCashClaim,
                 liquidityToken.maturity,
                 blockTime,
                 market.oracleRate
             );
-        }
+            return (assetCashClaim, pv);
+        } else {
+            int pv = getPresentValue(
+                fCashClaim,
+                liquidityToken.maturity,
+                blockTime,
+                market.oracleRate
+            );
+            return (assetCashClaim, pv);
 
-        return (assetCashClaim, pv);
+        }
     }
 
     /**
@@ -279,11 +295,12 @@ library AssetHandler {
      * @dev Assumes that cashGroups and assets are sorted by cash group id. Also
      * assumes that market states are sorted by maturity within each cash group.
      */
-    function getRiskAdjustedPortfolioValue(
+    function getPortfolioValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory markets,
-        uint blockTime
+        uint blockTime,
+        bool riskAdjusted
     ) internal view returns(int[] memory) {
         int[] memory presentValueAsset = new int[](cashGroups.length);
         int[] memory presentValueUnderlying = new int[](cashGroups.length);
@@ -303,7 +320,8 @@ library AssetHandler {
                 cashGroups[groupIndex],
                 markets[groupIndex],
                 assets,
-                blockTime
+                blockTime,
+                riskAdjusted
             );
 
             presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(assetCashClaim);
@@ -334,13 +352,23 @@ library AssetHandler {
                 blockTime
             );
 
-            int pv = getRiskAdjustedPresentValue(
-                cashGroups[groupIndex],
-                assets[i].notional,
-                maturity,
-                blockTime,
-                oracleRate
-            );
+            int pv;
+            if (riskAdjusted) {
+                pv = getRiskAdjustedPresentValue(
+                    cashGroups[groupIndex],
+                    assets[i].notional,
+                    maturity,
+                    blockTime,
+                    oracleRate
+                );
+            } else {
+                pv = getPresentValue(
+                    assets[i].notional,
+                    maturity,
+                    blockTime,
+                    oracleRate
+                );
+            }
 
             presentValueUnderlying[groupIndex] = presentValueUnderlying[groupIndex].add(pv);
         }
