@@ -42,7 +42,8 @@ contract SettleAssets is StorageLayoutV1 {
             }
         }
 
-        // TODO: get the actual balance context here
+        // The actual balance states are fetched later during the settlement loop to save an additional
+        // loop here
         return new BalanceState[](currenciesSettled);
     }
 

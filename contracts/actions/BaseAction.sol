@@ -115,6 +115,16 @@ abstract contract BaseAction is SettleAssets {
             balanceState[i].finalize(account, accountContext);
         }
 
+        // Finalizing markets will always update to the current settlement date.
+        uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        for (uint i; i < marketStates.length; i++) {
+            for (uint j; j < marketStates[i].length; j++) {
+                if (marketStates[i][j].hasUpdated) {
+                    marketStates[i][j].setMarketStorage(settlementDate)
+                }
+            }
+        }
+
         accountContext = _finalizeView(
             account,
             accountContext,

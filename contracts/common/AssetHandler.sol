@@ -235,6 +235,8 @@ library AssetHandler {
             (uint marketIndex, bool idiosyncratic) = cashGroup.getMarketIndex(liquidityToken.maturity, blockTime);
             // Liquidity tokens can never be idiosyncractic
             require(!idiosyncratic, "A: idiosyncratic token");
+            // This market will always be initialized, if a liquidity token exists that means the market has some
+            // liquidity in it (duh)
             market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
         }
 

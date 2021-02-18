@@ -317,12 +317,6 @@ library CashGroup {
             markets[marketIndex - 1] = market;
         }
 
-        if (market.previousTradeTime == 0) {
-            // If previous trade time is zero then the market has not been initialized
-            // and we have to do that before we use it.
-            // TODO: initializeMarket(cashGroup, market)
-        }
-
         if (market.totalLiquidity == 0 && needsLiquidity) {
             // Fetch liquidity amount
             uint settlementDate = getReferenceTime(blockTime);
@@ -335,7 +329,7 @@ library CashGroup {
     /**
      * @notice Returns the linear interpolation between two market rates. The formula is
      * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
-     * interpolatedRate = slope * maturity + shortMarket.oracleRate
+     * interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
      */
     function interpolateOracleRate(
         uint shortMaturity,
@@ -357,7 +351,7 @@ library CashGroup {
                 .add(shortRate);
         } else {
             // In this case the slope is negative so:
-            // interpolatedRate = shortMarket.oracleRate - slope * maturity
+            // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
             return shortRate.sub(
                 // This is reversed to keep it it positive
                 (shortRate - longRate)
