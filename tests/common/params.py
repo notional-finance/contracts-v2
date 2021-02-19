@@ -85,3 +85,21 @@ def generate_asset_array(numAssets, numCurrencies):
 
     random.shuffle(assets)
     return (assets, nextMaturingAsset)
+
+
+def get_bitstring_from_bitmap(bitmap):
+    num_bits = str(len(bitmap) * 8)
+    bitstring = ("{:0>" + num_bits + "b}").format(int(bitmap.hex(), 16))
+
+    return bitstring
+
+
+def random_asset_bitmap(numAssets, maxBit=254):
+    # Choose K bits to set
+    bitmapList = ["0"] * 256
+    setBits = random.choices(range(0, maxBit), k=numAssets)
+    for b in setBits:
+        bitmapList[b] = "1"
+    bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+
+    return (bitmap, bitmapList)

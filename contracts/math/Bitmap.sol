@@ -49,7 +49,10 @@ library Bitmap {
         return abi.encode(bitmapCombined);
     }
 
-
+    /**
+     * @dev Note that if the bit index is larger than the bitmap's length then this will provision
+     * a new object in memory. If using, must reassign the object.
+     */
     function setBit(bytes memory bitmap, uint index, bool setOn) internal pure returns (bytes memory) {
         require(index > 0, "B: zero index");
         uint byteOffset = (index - 1) / 8;

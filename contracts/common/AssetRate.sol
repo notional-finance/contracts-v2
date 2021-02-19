@@ -86,7 +86,8 @@ library AssetRate {
         AssetRateParameters memory ar
     ) internal view returns (uint) {
         uint rate = AssetRateAdapterInterface(ar.rateOracle).getAnnualizedSupplyRate();
-        require(rate > 0, "AR: invalid rate");
+        // TODO: is it possible for the supply rate to be zero?
+        require(rate > 0, "AR: invalid supply rate");
 
         return rate;
     }

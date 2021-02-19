@@ -371,6 +371,23 @@ library CashGroup {
         (uint marketIndex, bool idiosyncractic) = getMarketIndex(cashGroup, assetMaturity, blockTime);
         MarketParameters memory market = getMarket(cashGroup, markets, marketIndex, blockTime, false);
 
+        // TODO: need to review if this is the correct thing to do, we know that this will not include
+        // matured assets, therefore marketIndex != 1 if we hit this point.
+        if (market.oracleRate == 0) {
+            // If oracleRate is zero then the market has not been initialized
+            // and we want to reference the previous market for interpolating rates.
+            uint prevBlockTime = blockTime.sub(CashGroup.QUARTER);
+            uint maturity = getReferenceTime(prevBlockTime).add(getTradedMarket(marketIndex));
+            market = Market.buildMarket(
+                cashGroup.currencyId,
+                maturity,
+                prevBlockTime,
+                false,
+                getRateOracleTimeWindow(cashGroup)
+            );
+        }
+        require(market.oracleRate != 0, "C: market not initialized");
+
         if (!idiosyncractic) return market.oracleRate;
 
         if (marketIndex == 1) {
