@@ -5,12 +5,13 @@ pragma experimental ABIEncoderV2;
 import "../storage/BalanceHandler.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/SettleAssets.sol";
-import "../common/FreeCollateral.sol";
+import "../common/Market.sol";
 import "../math/Bitmap.sol";
 
 abstract contract BaseAction is SettleAssets {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
+    using Market for MarketParameters;
     using Bitmap for bytes;
 
     function _beforeAction(
@@ -119,9 +120,8 @@ abstract contract BaseAction is SettleAssets {
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
         for (uint i; i < marketStates.length; i++) {
             for (uint j; j < marketStates[i].length; j++) {
-                if (marketStates[i][j].hasUpdated) {
-                    marketStates[i][j].setMarketStorage(settlementDate)
-                }
+                if (!marketStates[i][j].hasUpdated) continue;
+                marketStates[i][j].setMarketStorage(settlementDate);
             }
         }
 

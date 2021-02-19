@@ -277,6 +277,7 @@ library AssetHandler {
                 blockTime,
                 market.oracleRate
             );
+
             return (assetCashClaim, pv);
         } else {
             int pv = getPresentValue(
@@ -285,8 +286,8 @@ library AssetHandler {
                 blockTime,
                 market.oracleRate
             );
-            return (assetCashClaim, pv);
 
+            return (assetCashClaim, pv);
         }
     }
 

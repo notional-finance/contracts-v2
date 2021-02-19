@@ -78,6 +78,8 @@ library BalanceHandler {
 
         if (balanceState.netPerpetualTokenTransfer != 0) {
             // Perpetual tokens are within the notional system so we can update balances directly.
+            // TODO: need to ensure that perpetual tokens cannot be transferred to the perpetual token
+            // address, not sure where that logic lives
             balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
                 balanceState.netPerpetualTokenTransfer
             );
@@ -85,6 +87,8 @@ library BalanceHandler {
         }
 
         if (balanceState.netCapitalDeposit != 0) {
+            // TODO: need to ensure that perpetual tokens do not have their capital deposit account
+            // updated
             balanceState.storedCapitalDeposit = balanceState.storedCapitalDeposit.add(
                 balanceState.netCapitalDeposit
             );
@@ -329,6 +333,7 @@ library BalanceHandler {
     ) internal view returns (uint) {
         // We must mint incentives for all currencies at the same time since we set a single timestamp
         // for when the account last minted incentives.
+        if (accountContext.hasIdiosyncraticfCash) return 0;
         require(accountContext.activeCurrencies.totalBitsSet() == 0, "B: must mint currencies");
         require(accountContext.lastMintTime != 0, "B: last mint time zero");
         require(accountContext.lastMintTime < blockTime, "B: last mint time overflow");
@@ -370,6 +375,9 @@ library BalanceHandler {
         address account,
         uint blockTime
     ) internal returns (uint) {
+        // Accounts that have idiosyncratic fcash cannot mint incentives
+        if (accountContext.hasIdiosyncraticfCash) return 0;
+
         uint tokensToTransfer = calculateIncentivesToMint(balanceState, accountContext, blockTime);
         TokenHandler.transferIncentive(account, tokensToTransfer);
         return tokensToTransfer;
