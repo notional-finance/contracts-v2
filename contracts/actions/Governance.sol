@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
+import "../common/PerpetualToken.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../adapters/AssetRateAdapterInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -18,6 +19,8 @@ contract Governance is StorageLayoutV1 {
     event UpdateETHRate(uint currencyId);
     event UpdateAssetRate(uint currencyId);
     event UpdateCashGroup(uint currencyId);
+    event UpdatePerpetualDepositParameters(uint currencyId);
+    event UpdateInitializationParameters(uint currencyId);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
@@ -72,10 +75,30 @@ contract Governance is StorageLayoutV1 {
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
+        address perpetualTokenAddress,
         CashGroupParameterStorage calldata cashGroup
     ) external onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
+        PerpetualToken.setPerpetualTokenAddress(currencyId, perpetualTokenAddress);
+    }
+
+    function updatePerpetualDepositParameters(
+        uint16 currencyId,
+        uint32[] calldata depositShares,
+        uint32[] calldata leverageThresholds
+    ) external onlyOwner {
+        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
+        emit UpdatePerpetualDepositParameters(currencyId);
+    }
+
+    function updateInitializationParameters(
+        uint16 currencyId,
+        uint32[] calldata rateAnchors,
+        uint32[] calldata proportions
+    ) external onlyOwner {
+        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+        emit UpdateInitializationParameters(currencyId);
     }
 
     function updateCashGroup(

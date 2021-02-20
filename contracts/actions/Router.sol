@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../storage/StorageLayoutV1.sol";
+import "./Governance.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -15,12 +16,30 @@ import "../storage/StorageLayoutV1.sol";
  */
 contract Router is StorageLayoutV1 {
     address public constant GOVERNANCE = address(0);
+    address public constant INITIALIZE_MARKET = address(0);
+    address public constant VIEWS = address(0);
+    address internal constant WETH = address(0);
 
     function initialize(address owner_, address token_) public {
-        owner = owner_;
-        token = token_;
+        // Cannot re-initialize once the contract has been initialized
+        require(owner == address(0), "R: already initialized");
 
-        // TODO: List ETH as a default currency
+        // Allow list currency to be called by this contract for the purposes of
+        // initializing ETH as a currency
+        owner = address(this);
+        // List ETH as currency id == 1
+        Governance(GOVERNANCE).listCurrency(
+            WETH,
+            false,
+            address(0),
+            false,
+            140,
+            100,
+            106
+        );
+
+        // Set the proper owner contract, should be the timelock controller
+        owner = owner_;
     }
 
     /**
@@ -28,10 +47,16 @@ contract Router is StorageLayoutV1 {
      */
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         // TODO: order these by most commonly used
+        if (sig == bytes4(keccak256("initializeMarkets(uint,bool)"))) {
+            return INITIALIZE_MARKET;
+        }
+
         if (
             sig == bytes4(keccak256("listCurrency(address,bool,address,bool,uint8,uint8,uint8)")) ||
-            sig == bytes4(keccak256("enableCashGroup(uint16,address,(cashGroup))")) ||
-            sig == bytes4(keccak256("updateCashGroup(uint16,(cashGroup))")) ||
+            sig == bytes4(keccak256("enableCashGroup(uint16,address,address,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
+            sig == bytes4(keccak256("updatePerpetualDepositParameters(uint16,uint32[],uint32[])")) ||
+            sig == bytes4(keccak256("updateInitializationParameters(uint16,uint32[],uint32[])")) ||
+            sig == bytes4(keccak256("updateCashGroup(uint16,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
             sig == bytes4(keccak256("updateAssetRate(uint16,address)")) ||
             sig == bytes4(keccak256("updateETHRate(uint16,address,bool,uint8,uint8)")) ||
             sig == bytes4(keccak256("transferOwnership(address)"))
@@ -39,6 +64,9 @@ contract Router is StorageLayoutV1 {
             return GOVERNANCE;
         }
 
+        // If not found then delegate to views. This will revert if there is no method on
+        // the view contract
+        return VIEWS;
     }
 
     /**
