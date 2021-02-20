@@ -29,7 +29,7 @@ struct PerpetualTokenPortfolio {
 
 library PerpetualToken {
     using Market for MarketParameters;
-    uint internal constant DEPOSIT_PERCENT_BASIS = 1e7;
+    int internal constant DEPOSIT_PERCENT_BASIS = 1e9;
 
     /**
      * @notice Returns the currency id for a perpetual token or 0 if the address is not a perpetual
@@ -76,28 +76,9 @@ library PerpetualToken {
     function getDepositParameters(
         uint currencyId,
         uint maxMarketIndex
-    ) internal view returns (uint[] memory, uint[] memory) {
+    ) internal view returns (int[] memory, int[] memory) {
         uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
-        bytes32 data;
-
-        assembly { data := sload(slot) }
-
-        uint[] memory depositShares = new uint[](maxMarketIndex);
-        uint[] memory leverageThresholds = new uint[](maxMarketIndex);
-        for (uint i; i < maxMarketIndex; i++) {
-            depositShares[i] = uint(uint24(uint(data)));
-            data = data >> 24;
-            leverageThresholds[i] = uint(uint24(uint(data)));
-            data = data >> 24;
-
-            if (i == 4) {
-                // Load the second slot which occurs after the 5th market index
-                slot = slot + 1;
-                assembly { data := sload(slot) }
-            }
-        }
-
-        return (depositShares, leverageThresholds);
+        return _getParameters(slot, maxMarketIndex, false);
     }
 
     /**
@@ -107,10 +88,11 @@ library PerpetualToken {
      */
     function setDepositParameters(
         uint currencyId,
-        uint24[] calldata depositShares,
-        uint24[] calldata leverageThresholds
+        uint32[] calldata depositShares,
+        uint32[] calldata leverageThresholds
     ) internal {
         uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
+
         bytes32 data;
         require(
             depositShares.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
@@ -122,39 +104,17 @@ library PerpetualToken {
             "PT: leverage share length"
         );
 
-        uint bitShift;
         uint shareSum;
-        uint i;
-        for (; i < depositShares.length; i++) {
-            // Pack the deposit shares and leverage thersholds into alternating 3 byte storage slots.
-            data = data | (bytes32(uint(depositShares[i])) << bitShift);
-            // This can't overflow given uint24 and 9 max spots
+        for (uint i; i < depositShares.length; i++) {
+            // This cannot overflow in uint 256 with 9 max slots
             shareSum = shareSum + depositShares[i];
-            bitShift += 24;
-
-            // Leverage thresholds cannot be set to zero, it's unclear what an ok minimum value is but
-            // a value of zero means that the perpetual token will always be lending which is not possible.
-            require(leverageThresholds[i] > 0, "PT: leverage threshold");
-            data = data | (bytes32(uint(leverageThresholds[i])) << bitShift);
-            bitShift += 24;
-
-            if (i == 4) {
-                // The first 5 (i == 4) pairs of values will fit into 30 bytes of the first storage slot,
-                // after this we move one slot over
-                assembly { sstore(slot, data) }
-                slot = slot + 1;
-                data = 0x00;
-                bitShift = 0;
-            }
+            require(leverageThresholds[i] > 0 && leverageThresholds[i] < Market.RATE_PRECISION, "PT: leverage threshold");
         }
-
         // Deposit shares must not add up to more than 100%. If it less than 100 that means some portion
         // will remain in the cash balance for the perpetual token. This might be something that is desireable
         // to collateralize negative fCash balances
-        require(shareSum <= DEPOSIT_PERCENT_BASIS, "PT: deposit shares sum");
-
-        // Store the data if i is not exactly 5 (which means the data was stored in the 4th slot)
-        if (i != 5) assembly { sstore(slot, data) }
+        require(shareSum <= uint(DEPOSIT_PERCENT_BASIS), "PT: deposit shares sum");
+        _setParameters(slot, depositShares, leverageThresholds);
     }
 
     /**
@@ -178,20 +138,73 @@ library PerpetualToken {
             "PT: proportions length"
         );
 
-        uint bitShift;
-        uint i;
-        for (; i < rateAnchors.length; ++i) {
+        for (uint i; i < rateAnchors.length; i++) {
             // Rate anchors are exchange rates and therefore must be greater than RATE_PRECISION
             // or we will end up with negative interest rates
             require(rateAnchors[i] > Market.RATE_PRECISION, "PT: invalid rate anchor");
-            // Proportions cannot be set to zero
-            require(proportions[i] > 0, "PT: proportion zero");
+            // Proportions must be between zero and the rate precision
+            require(proportions[i] > 0 && proportions[i] < Market.RATE_PRECISION, "PT: invalid proportion");
+        }
 
-            // Pack the rate anchors and proportions into alternating 4 byte slots
-            data = data | (bytes32(uint(rateAnchors[i])) << bitShift);
+        _setParameters(slot, rateAnchors, proportions);
+    }
+
+    /**
+     * @notice Returns the array of initialization parameters for a given currency.
+     */
+    function getInitializationParameters(
+        uint currencyId,
+        uint maxMarketIndex
+    ) internal view returns (int[] memory, int[] memory) {
+        uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
+        return _getParameters(slot, maxMarketIndex, true);
+    }
+
+    function _getParameters(
+        uint slot,
+        uint maxMarketIndex,
+        bool noUnset
+    ) private view returns (int[] memory, int[] memory) {
+        bytes32 data;
+
+        assembly { data := sload(slot) }
+
+        int[] memory array1 = new int[](maxMarketIndex);
+        int[] memory array2 = new int[](maxMarketIndex);
+        for (uint i; i < maxMarketIndex; i++) {
+            array1[i] = int(uint32(uint(data)));
+            data = data >> 32;
+            array2[i] = int(uint32(uint(data)));
+            data = data >> 32;
+
+            if (noUnset) {
+                require(array1[i] > 0 && array2[i] > 0, "PT: init value zero");
+            }
+
+            if (i == 3 || i == 7) {
+                // Load the second slot which occurs after the 4th market index
+                slot = slot + 1;
+                assembly { data := sload(slot) }
+            }
+        }
+
+        return (array1, array2);
+    }
+
+    function _setParameters(
+        uint slot,
+        uint32[] calldata array1,
+        uint32[] calldata array2
+    ) private {
+        bytes32 data;
+        uint bitShift;
+        uint i;
+        for (; i < array1.length; i++) {
+            // Pack the data into alternating 4 byte slots
+            data = data | (bytes32(uint(array1[i])) << bitShift);
             bitShift += 32;
 
-            data = data | (bytes32(uint(proportions[i])) << bitShift);
+            data = data | (bytes32(uint(array2[i])) << bitShift);
             bitShift += 32;
 
             if (i == 3 || i == 7) {
@@ -207,39 +220,6 @@ library PerpetualToken {
         // Store the data if i is not exactly 4 or 8 (which means it was stored in the first or second slots)
         // when i == 3 or i == 7
         if (i != 4 || i != 8) assembly { sstore(slot, data) }
-    }
-
-    /**
-     * @notice Returns the array of initialization parameters for a given currency.
-     */
-    function getInitializationParameters(
-        uint currencyId,
-        uint maxMarketIndex
-    ) internal view returns (uint[] memory, uint[] memory) {
-        uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
-        bytes32 data;
-
-        assembly { data := sload(slot) }
-
-        uint[] memory rateAnchors = new uint[](maxMarketIndex);
-        uint[] memory proportions = new uint[](maxMarketIndex);
-        for (uint i; i < maxMarketIndex; i++) {
-            rateAnchors[i] = uint(uint32(uint(data)));
-            data = data >> 32;
-            proportions[i] = uint(uint32(uint(data)));
-            data = data >> 32;
-
-            // Initialization values cannot be unset.
-            require(rateAnchors[i] > 0 && proportions[i] > 0, "PT: init value zero");
-
-            if (i == 3 || i == 7) {
-                // Load the second slot which occurs after the 4th market index
-                slot = slot + 1;
-                assembly { data := sload(slot) }
-            }
-        }
-
-        return (rateAnchors, proportions);
     }
 
     /**

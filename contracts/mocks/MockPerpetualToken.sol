@@ -39,15 +39,14 @@ contract MockPerpetualToken is StorageLayoutV1 {
     function getDepositParameters(
         uint currencyId,
         uint maxMarketIndex
-    // ) external view returns (bytes32, bytes32) {
-    ) external view returns (uint[] memory, uint[] memory) {
+    ) external view returns (int[] memory, int[] memory) {
         return PerpetualToken.getDepositParameters(currencyId, maxMarketIndex);
     }
 
     function setDepositParameters(
         uint currencyId,
-        uint24[] calldata depositShares,
-        uint24[] calldata leverageThresholds
+        uint32[] calldata depositShares,
+        uint32[] calldata leverageThresholds
     ) external {
         PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
     }
@@ -55,7 +54,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
     function getInitializationParameters(
         uint currencyId,
         uint maxMarketIndex
-    ) external view returns (uint[] memory, uint[] memory) {
+    ) external view returns (int[] memory, int[] memory) {
         return PerpetualToken.getInitializationParameters(currencyId, maxMarketIndex);
     }
 

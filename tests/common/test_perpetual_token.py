@@ -30,8 +30,11 @@ def test_deposit_parameters_failures(perpetualToken):
     with brownie.reverts("PT: leverage threshold"):
         perpetualToken.setDepositParameters(1, [1] * 2, [0] * 2)
 
+    with brownie.reverts("PT: leverage threshold"):
+        perpetualToken.setDepositParameters(1, [1] * 2, [1.1e9] * 2)
+
     with brownie.reverts("PT: deposit shares sum"):
-        perpetualToken.setDepositParameters(1, [1e7, 100], [100] * 2)
+        perpetualToken.setDepositParameters(1, [1e9, 100], [100] * 2)
 
 
 @given(maxMarketIndex=strategy("uint", min_value=5, max_value=5))
@@ -61,15 +64,18 @@ def test_init_parameters_failures(perpetualToken):
     with brownie.reverts("PT: invalid rate anchor"):
         perpetualToken.setInitializationParameters(1, [1] * 2, [0] * 2)
 
-    with brownie.reverts("PT: proportion zero"):
+    with brownie.reverts("PT: invalid proportion"):
         perpetualToken.setInitializationParameters(1, [1.1e9], [0])
+
+    with brownie.reverts("PT: invalid proportion"):
+        perpetualToken.setInitializationParameters(1, [1.1e9], [1.1e9])
 
 
 @given(maxMarketIndex=strategy("uint", min_value=0, max_value=9))
 def test_init_parameters_values(perpetualToken, maxMarketIndex):
     currencyId = 1
     rateAnchors = [random.randint(1.01e9, 1.2e9) for i in range(0, maxMarketIndex)]
-    proportions = [random.randint(0.8e9, 1.2e9) for i in range(0, maxMarketIndex)]
+    proportions = [random.randint(0.75e9, 0.999e9) for i in range(0, maxMarketIndex)]
 
     perpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions)
 
