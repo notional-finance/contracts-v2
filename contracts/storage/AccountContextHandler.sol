@@ -33,12 +33,10 @@ struct BatchedTradeRequest {
 /**
  * @dev Reads storage parameters and creates context structs for different actions.
  */
-contract AccountContextHandler is StorageLayoutV1 {
-    using SafeInt256 for int256;
-    using Bitmap for bytes;
-    using CashGroup for CashGroupParameters;
-
+library AccountContextHandler {
     /**
+    uint internal constant ACCOUNT_CONTEXT_STORAGE_SLOT;
+
      * @notice Gets context for trading. Requires that cash groups are sorted ascending and
      * trade requests are sorted ascending by maturity.
     function getTradeContext(

@@ -180,25 +180,25 @@ contract StorageLayoutV1 {
     uint8 public constant storageLayoutVersion = 1;
 
     /* Start Non-Mapping storage slots */
-    uint16 maxCurrencyId;
+    uint16 internal maxCurrencyId;
     /* End Non-Mapping storage slots */
 
     // Mapping of whitelisted currencies from currency id to object struct
-    mapping(uint => CurrencyStorage) public currencyMapping;
+    mapping(uint => CurrencyStorage) internal currencyMapping;
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
-    mapping(uint => ETHRateStorage) public underlyingToETHRateMapping;
+    mapping(uint => ETHRateStorage) internal underlyingToETHRateMapping;
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
-    mapping(uint => AssetRateStorage) public assetToUnderlyingRateMapping;
+    mapping(uint => AssetRateStorage) internal assetToUnderlyingRateMapping;
     // Returns the historical asset to underlying settlement rate.
     // currency id => maturity => rate
-    mapping(uint => mapping(uint => SettlementRateStorage)) public assetToUnderlyingSettlementRateMapping;
+    mapping(uint => mapping(uint => SettlementRateStorage)) internal assetToUnderlyingSettlementRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
     // currencyId => storage
-    mapping(uint => CashGroupParameterStorage) public cashGroupMapping;
+    mapping(uint => CashGroupParameterStorage) internal cashGroupMapping;
     // Contains current market state information
     // currencyId => settlementDate => maturity => storage
     // mapping(uint => mapping(uint => mapping(uint => MarketStorage))) public marketStateMapping;
@@ -212,21 +212,21 @@ contract StorageLayoutV1 {
     // Mapping account context information used to determine how its assets and currencies
     // are laid out in storage
     // address => storage
-    mapping(address => AccountStorage) public accountContextMapping;
+    mapping(address => AccountStorage) internal accountContextMapping;
     // Asset arrays for accounts, if an account is using bitmaps then this may still
     // contain liquidity tokens
     // address => storage
     mapping(address => AssetStorage[]) assetArrayMapping;
     // address => currency id => bitmap
-    mapping(address => mapping(uint => bytes)) public assetBitmapMapping;
+    mapping(address => mapping(uint => bytes)) internal assetBitmapMapping;
     // address => currency id => maturity => ifCash value
-    mapping(address => mapping(uint => mapping(uint => int))) public ifCashMapping;
+    mapping(address => mapping(uint => mapping(uint => int))) internal ifCashMapping;
     // address => currency id => (cash balance, perpetual token balance)
-    mapping(address => mapping(uint => BalanceStorage)) public accountBalanceMapping;
+    mapping(address => mapping(uint => BalanceStorage)) internal accountBalanceMapping;
 
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions
-    address public owner;
+    address internal owner;
     // This is set to the governance token address
-    address public token;
+    address internal token;
 }

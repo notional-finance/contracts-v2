@@ -70,6 +70,32 @@ library Market {
     int128 internal constant IMPLIED_RATE_TIME_64x64 = 0x1da9c000000000000000000;
 
     /**
+     * @notice Used to add liquidity to a market, assuming that it is initialized. If not then
+     * this method will revert and the market must be initialized via the perpetual token.
+     *
+     * @return (new market state, liquidityTokens, negative fCash position generated)
+     */
+    function addLiquidity(
+        MarketParameters memory marketState,
+        int assetCash
+    ) internal view returns (int, int) {
+        require(marketState.totalLiquidity > 0, "M: zero liquidity");
+        require(assetCash >= 0, "M: negative asset cash");
+        if (assetCash == 0) return (0, 0);
+
+        int liquidityTokens = marketState.totalLiquidity.mul(assetCash).div(marketState.totalCurrentCash);
+        // No need to convert this to underlying, assetCash / totalCurrentCash is a unitless proportion.
+        int fCash = marketState.totalfCash.mul(assetCash).div(marketState.totalCurrentCash);
+
+        marketState.totalLiquidity = marketState.totalLiquidity.add(liquidityTokens);
+        marketState.totalfCash = marketState.totalfCash.add(fCash);
+        marketState.totalCurrentCash = marketState.totalCurrentCash.add(assetCash);
+        marketState.hasUpdated = true;
+
+        return (liquidityTokens, fCash.neg());
+    }
+
+    /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
      * cash amounts are all specified at RATE_PRECISION.
      *
@@ -163,7 +189,7 @@ library Market {
         int fCashAmount,
         int tradeExchangeRate,
         uint timeToMaturity
-    ) internal view returns (MarketParameters memory, int, int) {
+    ) private view returns (MarketParameters memory, int, int) {
         // cash = fCashAmount / exchangeRate
         // The net cash amount will be the opposite direction of the fCash amount, if we add
         // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
@@ -221,23 +247,12 @@ library Market {
         uint timeToMaturity
     ) internal pure returns (int, bool) {
         // This is the exchange rate at the new time to maturity
-        int exchangeRate;
-        {
-            int128 expValue = ABDKMath64x64.fromUInt(
-                // There is a bit of imprecision from this division here but if we use
-                // int128 then we will get overflows so unclear how we can maintain the precision
-                lastImpliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME)
-            );
-            int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
-            int128 expResult = ABDKMath64x64.exp(expValueScaled);
-            int128 expResultScaled = ABDKMath64x64.mul(expResult, RATE_PRECISION_64x64);
-            exchangeRate = ABDKMath64x64.toInt(expResultScaled);
-
-            if (exchangeRate < RATE_PRECISION) return (0, false);
-        }
+        int exchangeRate = getExchangeRateFromImpliedRate(lastImpliedRate, timeToMaturity);
+        if (exchangeRate < RATE_PRECISION) return (0, false);
 
         int rateAnchor;
         {
+            // TODO: check if this proportion is correct
             int proportion = totalfCash
                 .mul(RATE_PRECISION)
                 .div(totalfCash.add(totalCashUnderlying));
@@ -289,7 +304,27 @@ library Market {
         if (impliedRate > type(uint32).max) return (0, false);
 
        return (impliedRate, true);
-   }
+    }
+
+    /**
+     * @notice Converts an implied rate to an exchange rate given a time to maturity. The
+     * formula is E = e^rt
+     */
+    function getExchangeRateFromImpliedRate(
+        uint impliedRate,
+        uint timeToMaturity
+    ) internal pure returns (int) {
+        int128 expValue = ABDKMath64x64.fromUInt(
+            // There is a bit of imprecision from this division here but if we use
+            // int128 then we will get overflows so unclear how we can maintain the precision
+            impliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME)
+        );
+        int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
+        int128 expResult = ABDKMath64x64.exp(expValueScaled);
+        int128 expResultScaled = ABDKMath64x64.mul(expResult, RATE_PRECISION_64x64);
+
+        return ABDKMath64x64.toInt(expResultScaled);
+    }
 
     /**
      * @dev Returns the exchange rate between fCash and cash for the given market
@@ -509,6 +544,28 @@ library Market {
     ) internal view returns (MarketParameters memory) {
         // Always reference the current settlement date
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        return buildMarketWithSettlementDate(
+            currencyId,
+            maturity,
+            blockTime,
+            needsLiquidity,
+            rateOracleTimeWindow,
+            settlementDate
+        );
+    }
+
+    /**
+     * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
+     * is mainly used in the InitializeMarketAction contract.
+     */
+    function buildMarketWithSettlementDate(
+        uint currencyId,
+        uint maturity,
+        uint blockTime,
+        bool needsLiquidity,
+        uint rateOracleTimeWindow,
+        uint settlementDate
+    ) internal view returns (MarketParameters memory) {
         MarketParameters memory marketState = getMarketStorage(
             currencyId,
             maturity,
@@ -546,7 +603,9 @@ library Market {
 
         int totalfCash = int(uint80(uint(data)));
         int totalCurrentCash = int(uint80(uint(data >> 80)));
-        // Clear the lower 160 bits
+        // Clear the lower 160 bits, this data will be "OR'd" with the new totalfCash
+        // and totalCurrentCash figures.
+        // TODO: switch this to and AND operation
         data = (data >> 160) << 160;
 
         slot = bytes32(uint(slot) + 1);
