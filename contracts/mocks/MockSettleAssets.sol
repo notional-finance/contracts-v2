@@ -195,10 +195,11 @@ contract MockSettleAssets is SettleAssets {
         uint nextMaturingAsset,
         uint blockTime
     ) public returns (bytes memory, int) {
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
+
         (bytes memory newBitmap, int newAssetCash) = settleBitmappedCashGroup(
             account,
             currencyId,
-            bitmap,
             nextMaturingAsset,
             blockTime
         );

@@ -2,9 +2,9 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./StorageReader.sol";
 import "./PortfolioHandler.sol";
 import "./BalanceHandler.sol";
+import "./BitmapAssetsHandler.sol";
 import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
@@ -375,10 +375,11 @@ contract SettleAssets is StorageLayoutV1 {
     function settleBitmappedCashGroup(
         address account,
         uint currencyId,
-        bytes memory bitmap,
         uint nextMaturingAsset,
         uint blockTime
     ) internal returns (bytes memory, int) {
+        bytes memory bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+
         int totalAssetCash;
         SplitBitmap memory splitBitmap = bitmap.splitfCashBitmap();
         uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
