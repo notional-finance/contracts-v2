@@ -2,13 +2,15 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/proxy/Initializable.sol";
+
 /**
  * @title Note ERC20 Token
  * Fork of Compound Comp token at commit hash
  * https://github.com/compound-finance/compound-protocol/commit/9bcff34a5c9c76d51e51bcb0ca1139588362ef96
  * TODO: add lockup, staking
  */
-contract NoteERC20 {
+contract NoteERC20 is Initializable {
     /// @notice EIP-20 token name for this token
     string public constant name = "Notional";
 
@@ -67,7 +69,7 @@ contract NoteERC20 {
      * @notice Construct a new Note token
      * @param account The initial account to grant all the tokens
      */
-    function initialize(address account) public {
+    function initialize(address account) public initializer {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);
     }

@@ -187,22 +187,23 @@ library CashGroup {
         require(bitNum != 0, "CG: bit num underflow");
         require(bitNum <= 256, "CG: bit num overflow");
         uint blockTimeUTC0 = getTimeUTC0(blockTime);
+        uint firstBit;
 
         if (bitNum <= WEEK_BIT_OFFSET) {
             return blockTimeUTC0 + bitNum * DAY;
         }
 
         if (bitNum <= MONTH_BIT_OFFSET) {
-            uint firstBit = blockTimeUTC0 + MAX_DAY_OFFSET * DAY - (blockTimeUTC0 % WEEK);
+            firstBit = blockTimeUTC0 + MAX_DAY_OFFSET * DAY - (blockTimeUTC0 % WEEK);
             return firstBit + (bitNum - WEEK_BIT_OFFSET) * WEEK;
         }
 
         if (bitNum <= QUARTER_BIT_OFFSET) {
-            uint firstBit = blockTimeUTC0 + MAX_WEEK_OFFSET * DAY - (blockTimeUTC0 % MONTH);
+            firstBit = blockTimeUTC0 + MAX_WEEK_OFFSET * DAY - (blockTimeUTC0 % MONTH);
             return firstBit + (bitNum - MONTH_BIT_OFFSET) * MONTH;
         }
 
-        uint firstBit = blockTimeUTC0 + MAX_MONTH_OFFSET * DAY - (blockTimeUTC0 % QUARTER);
+        firstBit = blockTimeUTC0 + MAX_MONTH_OFFSET * DAY - (blockTimeUTC0 % QUARTER);
         return firstBit + (bitNum - QUARTER_BIT_OFFSET) * QUARTER;
     }
 

@@ -21,6 +21,8 @@ contract Governance is StorageLayoutV1 {
     event UpdateCashGroup(uint currencyId);
     event UpdatePerpetualDepositParameters(uint currencyId);
     event UpdateInitializationParameters(uint currencyId);
+    // TODO: add incentive settings
+    // TODO: add max assets parameter
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**

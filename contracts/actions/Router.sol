@@ -15,30 +15,48 @@ import "./Governance.sol";
  * new Router with the new hardcoded addresses will then be deployed and upgraded into place.
  */
 contract Router is StorageLayoutV1 {
-    address public constant GOVERNANCE = address(0);
-    address public constant INITIALIZE_MARKET = address(0);
-    address public constant VIEWS = address(0);
-    address internal constant WETH = address(0);
+    // These contract addresses cannot be changed once set by the constructor
+    address public immutable GOVERNANCE;
+    address public immutable VIEWS;
+    address public immutable INITIALIZE_MARKET;
+    address public immutable cETH;
+    address public immutable WETH;
 
-    function initialize(address owner_, address token_) public {
+    constructor(
+        address governance_,
+        address views_,
+        address initializeMarket_,
+        address cETH_,
+        address weth_
+    ) {
+        GOVERNANCE = governance_;
+        VIEWS = views_;
+        INITIALIZE_MARKET = initializeMarket_;
+        cETH = cETH_;
+        WETH = weth_;
+    }
+
+    function initialize(address owner_) public {
         // Cannot re-initialize once the contract has been initialized
         require(owner == address(0), "R: already initialized");
 
         // Allow list currency to be called by this contract for the purposes of
         // initializing ETH as a currency
-        owner = address(this);
+        owner = msg.sender;
         // List ETH as currency id == 1
-        Governance(GOVERNANCE).listCurrency(
-            WETH,
-            false,
-            address(0),
-            false,
-            140,
-            100,
-            106
+        address(GOVERNANCE).delegatecall(
+            abi.encodeWithSignature(
+                "listCurrency(address,bool,address,bool,uint8,uint8,uint8)",
+                WETH,
+                false,
+                address(0),
+                false,
+                140,
+                100,
+                106
+            )
         );
 
-        // Set the proper owner contract, should be the timelock controller
         owner = owner_;
     }
 
