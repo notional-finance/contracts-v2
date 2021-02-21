@@ -1,4 +1,5 @@
-from brownie import (  # Actions; Governance contracts; Proxy Contracts; Mocks; Compound
+import scripts.diagnostics as diagnostics
+from brownie import (
     Governance,
     GovernorAlpha,
     InitializeMarketsAction,
@@ -243,12 +244,14 @@ def main():
         fn_name="initialize", args=[deployer.address]
     )
 
-    nTransparentUpgradeableProxy.deploy(
+    proxy = nTransparentUpgradeableProxy.deploy(
         router.address,
         proxyAdmin.address,
         initializeData,  # Deployer is set to owner
         {"from": deployer},
     )
+
+    diagnostics.list_currencies(proxy, deployer)
 
     # Enable governance:
     # (noteERC20, timelock, governor) = deployGovernance(proxyAdmin, deployer, deployer)

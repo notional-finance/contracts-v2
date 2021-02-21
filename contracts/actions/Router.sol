@@ -47,7 +47,7 @@ contract Router is StorageLayoutV1 {
         address(GOVERNANCE).delegatecall(
             abi.encodeWithSignature(
                 "listCurrency(address,bool,address,bool,uint8,uint8,uint8)",
-                WETH,
+                cETH,
                 false,
                 address(0),
                 false,

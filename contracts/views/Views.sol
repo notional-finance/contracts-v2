@@ -18,10 +18,6 @@ contract Views is StorageLayoutV1 {
         return currencyMapping[currencyId];
     }
 
-    function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory) {
-        return cashGroupMapping[currencyId];
-    }
-
     function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory) {
         return underlyingToETHRateMapping[currencyId];
     }
@@ -30,12 +26,35 @@ contract Views is StorageLayoutV1 {
         return ExchangeRate.buildExchangeRate(currencyId);
     }
 
+    function getCurrencyAndRate(uint16 currencyId) external view returns (CurrencyStorage memory, ETHRate memory) {
+        return (
+            currencyMapping[currencyId],
+            ExchangeRate.buildExchangeRate(currencyId)
+        );
+    }
+
+    function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory) {
+        return cashGroupMapping[currencyId];
+    }
+
     function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory) {
         return assetToUnderlyingRateMapping[currencyId];
     }
 
     function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory) {
         return AssetRate.buildAssetRate(currencyId);
+    }
+
+    function getCashGroupAndRate(
+        uint16 currencyId
+    ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory) {
+        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        if (cg.maxMarketIndex == 0) {
+            // No markets listed for the currency id
+            return (cg, AssetRateParameters(address(0), 0, 0));
+        }
+
+        return (cg, AssetRate.buildAssetRate(currencyId));
     }
 
     function getInitializationParameters(uint16 currencyId) external view returns (int[] memory, int[] memory) {
