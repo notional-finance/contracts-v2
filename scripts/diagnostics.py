@@ -56,7 +56,7 @@ def print_cash_groups(cashGroupsAndRate, currencyAndRate):
 
         erc20 = Contract.from_abi("erc20", currencyAndRate[i][0][0], abi=MockERC20.abi, owner=None)
         symbol = erc20.symbol()
-        table.add_row(str(i + 1), symbol, rate[1], *list(map(str, cg)))
+        table.add_row(str(i + 1), symbol, str(rate[1] / 10 ** rate[2]), *[x for x in map(str, cg)])
 
     console.print(table)
 

@@ -10,6 +10,7 @@ from brownie import (
     Router,
     Views,
     accounts,
+    cTokenAggregator,
     nCErc20,
     nCEther,
     nComptroller,
@@ -21,6 +22,7 @@ from brownie import (
     nWhitePaperInterestRateModel,
 )
 from brownie.network import web3
+from brownie.network.contract import Contract
 
 
 def deployGovernance(proxyAdmin, notionalProxy, deployer):
@@ -174,7 +176,7 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
     if name != "eth":
         compPriceOracle.setUnderlyingPrice(cToken.address, rate)
 
-    return cToken
+    return (cToken, cTokenAggregator.deploy(cToken.address, {"from": deployer}))
 
 
 def deployMockCompound(deployer):
@@ -188,35 +190,75 @@ def deployMockCompound(deployer):
 def deployMockCurrencies(deployer, comptroller, compPriceOracle):
     # This is required to initialize ETH
     weth = MockWETH.deploy({"from": deployer})
-    cETH = deployCToken("eth", None, comptroller, deployer, None, None)
+    (cETH, cETHAdapter) = deployCToken("eth", None, comptroller, deployer, None, None)
 
     dai = MockERC20.deploy("Dai Stablecoin", "DAI", 18, 0, {"from": deployer})
     daiETHOracle = MockAggregator.deploy(18, {"from": deployer})
     daiETHOracle.setAnswer(0.01e18)
-    cDAI = deployCToken("dai", dai, comptroller, deployer, 0.01e18, compPriceOracle)
+    # TODO: can we just deploy a single adapter or put this into the base contracts?
+    (cDAI, cDAIAdapter) = deployCToken("dai", dai, comptroller, deployer, 0.01e18, compPriceOracle)
 
     usdc = MockERC20.deploy("USD Coin", "USDC", 6, 0, {"from": deployer})
     usdcETHOracle = MockAggregator.deploy(18, {"from": deployer})
     usdcETHOracle.setAnswer(0.01e18)
-    cUSDC = deployCToken("usdc", usdc, comptroller, deployer, 0.01e18, compPriceOracle)
+    (cUSDC, cUSDCAdapter) = deployCToken(
+        "usdc", usdc, comptroller, deployer, 0.01e18, compPriceOracle
+    )
 
     tether = MockERC20.deploy("Tether USD", "USDT", 6, 0.001e18, {"from": deployer})
     tetherETHOracle = MockAggregator.deploy(18, {"from": deployer})
     tetherETHOracle.setAnswer(0.01e18)
-    cUSDT = deployCToken("tether", tether, comptroller, deployer, 0.01e18, compPriceOracle)
+    (cUSDT, cUSDTAdapter) = deployCToken(
+        "tether", tether, comptroller, deployer, 0.01e18, compPriceOracle
+    )
 
     wbtc = MockERC20.deploy("Wrapped BTC", "WBTC", 8, 0, {"from": deployer})
     wbtcETHOracle = MockAggregator.deploy(18, {"from": deployer})
     wbtcETHOracle.setAnswer(100e18)
-    cWBTC = deployCToken("wbtc", wbtc, comptroller, deployer, 100e18, compPriceOracle)
+    (cWBTC, cWBTCAdapter) = deployCToken(
+        "wbtc", wbtc, comptroller, deployer, 100e18, compPriceOracle
+    )
 
     return {
-        "weth": (weth, None, cETH),
-        "dai": (dai, daiETHOracle, cDAI),
-        "usdc": (usdc, usdcETHOracle, cUSDC),
-        "tether": (tether, tetherETHOracle, cUSDT),
-        "wbtc": (wbtc, wbtcETHOracle, cWBTC),
+        "weth": (weth, None, cETH, cETHAdapter),
+        "dai": (dai, daiETHOracle, cDAI, cDAIAdapter),
+        "usdc": (usdc, usdcETHOracle, cUSDC, cUSDCAdapter),
+        "tether": (tether, tetherETHOracle, cUSDT, cUSDTAdapter),
+        "wbtc": (wbtc, wbtcETHOracle, cWBTC, cWBTCAdapter),
     }
+
+
+def list_currencies(mockCurrencies, proxy, deployer):
+    governance = Contract.from_abi("Governance", proxy.address, abi=Governance.abi, owner=deployer)
+    currencyId = 1
+    for (name, (underlying, ethRateOracle, asset, adapter)) in mockCurrencies.items():
+        if name != "weth":
+            governance.listCurrency(
+                asset.address,
+                name == "tether",  # hasFee
+                ethRateOracle.address,
+                False,
+                140,
+                0 if name == "tether" else 100,
+                105,
+            )
+
+        governance.enableCashGroup(
+            currencyId,
+            adapter.address,
+            adapter.address,  # TODO: update this
+            (
+                2,  # max market index
+                20,  # rate oracle time window
+                30,  # liquidity fee
+                95,  # token haircut
+                30,  # debt buffer
+                30,  # fcash haircut
+                100,  # rate scalar
+            ),
+        )
+
+        currencyId += 1
 
 
 def main():
@@ -251,6 +293,7 @@ def main():
         {"from": deployer},
     )
 
+    list_currencies(mockCurrencies, proxy, deployer)
     diagnostics.list_currencies(proxy, deployer)
 
     # Enable governance:
