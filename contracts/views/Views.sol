@@ -9,6 +9,7 @@ import "../common/PerpetualToken.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract Views is StorageLayoutV1 {
+    using CashGroup for CashGroupParameters;
 
     function getMaxCurrencyId() external view returns (uint16) {
         return maxCurrencyId;
@@ -55,6 +56,34 @@ contract Views is StorageLayoutV1 {
         }
 
         return (cg, AssetRate.buildAssetRate(currencyId));
+    }
+
+    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
+        uint blockTime = block.timestamp;
+        return _getMarketsActiveAtBlockTime(currencyId, blockTime);
+    }
+
+    function getMarketsActiveAtBlockTime(
+        uint16 currencyId,
+        uint32 blockTime
+    ) external view returns (MarketParameters[] memory) {
+        return _getMarketsActiveAtBlockTime(currencyId, blockTime);
+    }
+
+    function _getMarketsActiveAtBlockTime(
+        uint currencyId,
+        uint blockTime
+    ) internal view returns (MarketParameters[] memory) {
+        (
+            CashGroupParameters memory cashGroup,
+            MarketParameters[] memory markets
+        ) = CashGroup.buildCashGroup(currencyId);
+
+        for (uint i = 1; i <= cashGroup.maxMarketIndex; i++) {
+            cashGroup.getMarket(markets, i, blockTime, true);
+        }
+
+        return markets;
     }
 
     function getInitializationParameters(uint16 currencyId) external view returns (int[] memory, int[] memory) {

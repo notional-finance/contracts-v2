@@ -294,7 +294,7 @@ def main():
     )
 
     list_currencies(mockCurrencies, proxy, deployer)
-    diagnostics.list_currencies(proxy, deployer)
+    diagnostics.get_diagnostics(proxy, deployer)
 
     # Enable governance:
     # (noteERC20, timelock, governor) = deployGovernance(proxyAdmin, deployer, deployer)

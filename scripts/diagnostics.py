@@ -1,78 +1,122 @@
 from brownie import MockERC20, Views  # MockAggregator,; nCErc20,
+from datetime import datetime
+
+import humanfriendly
 from brownie.network.contract import Contract
+from brownie.network.state import Chain
 from rich.console import Console
+from rich.layout import Layout
+from rich.panel import Panel
 from rich.table import Table
 
-console = Console()
+console = Console(height=12)
+chain = Chain()
+
+MARKET_NAMES = ["3 mo", "6 mo", "1 yr", "2 yr", "5 yr", "7 yr", "10 yr", "15 yr", "20 yr"]
 
 
-def print_currencies(currencyAndRate):
-    table = Table(title="Currencies Listed: {}".format(len(currencyAndRate)))
+def currency_panel(currency, ethRate, currencyId):
+    erc20 = Contract.from_abi("erc20", currency[0], abi=MockERC20.abi, owner=None)
+    symbol = erc20.symbol()
 
-    table.add_column("ID", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Symbol", style="magenta")
-    table.add_column("Has Fee", justify="right", style="green")
-    table.add_column("Decimals", justify="right", style="green")
-    table.add_column("ETH Rate", justify="right", style="green")
-    table.add_column("Buffer", justify="right", style="green")
-    table.add_column("Haircut", justify="right", style="green")
-    table.add_column("Liquidation Discount", justify="right", style="green")
+    grid = Table.grid(expand=True)
+    grid.add_column(style="cyan")
+    grid.add_column(justify="right", style="magenta")
+    grid.add_row("ID", "{}".format(currencyId))
+    grid.add_row("Address", "{}".format(currency[0]))
+    grid.add_row("Symbol", symbol)
+    grid.add_row("Has Fee", "{}".format(currency[1]))
+    grid.add_row("Decimals", "{}".format(currency[2]))
+    grid.add_row("ETH Rate", "{}".format(ethRate[1] / ethRate[0]))
+    grid.add_row("Buffer", "{}%".format(ethRate[2]))
+    grid.add_row("Haircut", "{}%".format(ethRate[3]))
+    grid.add_row("Liquidation Discount", "{}%".format(ethRate[4]))
 
-    for i, (currency, rate) in enumerate(currencyAndRate):
-        erc20 = Contract.from_abi("erc20", currency[0], abi=MockERC20.abi, owner=None)
-        symbol = erc20.symbol()
+    return Panel(grid, title="Currency: {}".format(symbol))
+
+
+def cash_group_panel(cashGroup, assetRate):
+    grid = Table.grid(expand=True)
+    grid.add_column(style="cyan")
+    grid.add_column(justify="right", style="magenta")
+    grid.add_row("Asset Rate", str(assetRate[1] / 10 ** assetRate[2]))
+    grid.add_row("Max Markets", str(cashGroup[0]))
+    grid.add_row("Rate Oracle Time", "{} min".format(cashGroup[1]))
+    grid.add_row("Liquidity Fee", "{} bps".format(cashGroup[2]))
+    grid.add_row("Token Haircut", "{}%".format(cashGroup[3]))
+    grid.add_row("Debt Buffer", "{} bps".format(cashGroup[4]))
+    grid.add_row("fCash Haircut", "{} bps".format(cashGroup[5]))
+    grid.add_row("Rate Scalar", str(cashGroup[6]))
+
+    return Panel(grid, title="Cash Group")
+
+
+def markets_panel(markets, assetRate):
+    blockTime = chain.time()
+    table = Table()
+    table.add_column("Name", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Maturity", style="magenta")
+    table.add_column("Time To Maturity", style="magenta")
+    table.add_column("fCash", style="green")
+    table.add_column("Asset Cash", style="green")
+    table.add_column("Underlying Cash", style="green")
+    table.add_column("Liquidity", style="green")
+    table.add_column("Last Implied Rate", style="green")
+    table.add_column("Oracle Rate", style="green")
+    table.add_column("Previous Trade Time", style="green")
+
+    for (i, m) in enumerate(markets):
         table.add_row(
-            str(i + 1),
-            symbol,
-            str(currency[1]),
-            str(currency[2]),
-            str(rate[1] / rate[0]),
-            str(rate[2]),
-            str(rate[3]),
-            str(rate[4]),
+            MARKET_NAMES[i],
+            "{0:%Y-%m-%d}".format(datetime.utcfromtimestamp(m[1])),
+            humanfriendly.format_timespan(m[1] - blockTime, max_units=2),
+            str(m[2] / 1e9),
+            str(m[3] / 1e9),
+            str((m[3] * assetRate[1]) / (1e9 * 1e18)),  # underlying
+            str(m[4] / 1e9),
+            "{}%".format(m[5] / 1e7),
+            "{}%".format(m[6] / 1e7),
+            "{0:%Y-%m-%d %H:%M:%S}".format(datetime.utcfromtimestamp(m[7])),
         )
 
-    console.print(table)
+    return Panel(
+        table,
+        title="Active Markets on {0:%Y-%m-%d %H:%M:%S}".format(
+            datetime.utcfromtimestamp(blockTime)
+        ),
+    )
 
 
-def print_cash_groups(cashGroupsAndRate, currencyAndRate):
-    numCashGroups = len(list(filter(lambda x: x[0][0] != 0, cashGroupsAndRate)))
-    table = Table(title="Cash Groups Listed: {}".format(numCashGroups))
+def print_cash_group(cashGroup, assetRate, currency, ethRate, markets, currencyId):
+    layout = Layout()
+    layout.split(
+        Layout(currency_panel(currency, ethRate, currencyId), ratio=1, name="currency"),
+        Layout(cash_group_panel(cashGroup, assetRate), ratio=1, name="cash group"),
+        Layout(markets_panel(markets, assetRate), ratio=4, name="markets"),
+        direction="horizontal",
+    )
 
-    table.add_column("ID", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Symbol", style="magenta")
-    table.add_column("Asset Rate", justify="right", style="green")
-    table.add_column("Max Markets", justify="right", style="green")
-    table.add_column("Rate Oracle Time (min)", justify="right", style="green")
-    table.add_column("Liquidity Fee (bps)", justify="right", style="green")
-    table.add_column("Token Haircut (%)", justify="right", style="green")
-    table.add_column("Debt Buffer (BPS)", justify="right", style="green")
-    table.add_column("fCash Haircut (BPS)", justify="right", style="green")
-    table.add_column("Rate Scalar", justify="right", style="green")
+    return layout
 
+
+def print_all_cash_groups(cashGroupsAndRate, currencyAndRate, activeMarkets):
     for i, (cg, rate) in enumerate(cashGroupsAndRate):
-        if cg[0] == 0:
-            continue
-
-        erc20 = Contract.from_abi("erc20", currencyAndRate[i][0][0], abi=MockERC20.abi, owner=None)
-        symbol = erc20.symbol()
-        table.add_row(str(i + 1), symbol, str(rate[1] / 10 ** rate[2]), *[x for x in map(str, cg)])
-
-    console.print(table)
+        (currency, ethRate) = currencyAndRate[i]
+        markets = activeMarkets[i]
+        layout = print_cash_group(cg, rate, currency, ethRate, markets, i + 1)
+        console.print(layout)
 
 
-def list_currencies(proxy, deployer):
+def get_diagnostics(proxy, deployer):
     views = Contract.from_abi("Views", proxy.address, abi=Views.abi, owner=deployer)
     maxCurrencyId = views.getMaxCurrencyId()
 
     currencyAndRate = []
+    cashGroupsAndRate = []
+    activeMarkets = []
     for i in range(1, maxCurrencyId + 1):
         currencyAndRate.append(views.getCurrencyAndRate(i))
-
-    print_currencies(currencyAndRate)
-
-    cashGroupsAndRate = []
-    for i in range(1, maxCurrencyId + 1):
         cashGroupsAndRate.append(views.getCashGroupAndRate(i))
+        activeMarkets.append(views.getActiveMarkets(i))
 
-    print_cash_groups(cashGroupsAndRate, currencyAndRate)
+    print_all_cash_groups(cashGroupsAndRate, currencyAndRate, activeMarkets)
