@@ -1,4 +1,3 @@
-import scripts.diagnostics as diagnostics
 from brownie import (
     Governance,
     GovernorAlpha,
@@ -294,7 +293,7 @@ def main():
     )
 
     list_currencies(mockCurrencies, proxy, deployer)
-    diagnostics.get_diagnostics(proxy, deployer)
+    print("Proxy Address: ", proxy.address)
 
     # Enable governance:
     # (noteERC20, timelock, governor) = deployGovernance(proxyAdmin, deployer, deployer)
