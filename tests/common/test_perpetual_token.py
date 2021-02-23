@@ -17,7 +17,11 @@ def test_set_token_address(perpetualToken, currencyId, tokenAddress):
     perpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress)
 
     assert perpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress
-    assert perpetualToken.perpetualTokenCurrencyId(tokenAddress) == currencyId
+    (currencyIdStored, totalSupply) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(
+        tokenAddress
+    )
+    assert currencyIdStored == currencyId
+    assert totalSupply == 0
 
 
 def test_deposit_parameters_failures(perpetualToken):

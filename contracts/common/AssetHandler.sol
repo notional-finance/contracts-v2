@@ -57,21 +57,28 @@ library AssetHandler {
     function getSettlementDate(
         PortfolioAsset memory asset
     ) internal pure returns (uint) {
+        return getSettlementDateViaAssetType(asset.assetType, asset.maturity);
+    }
+
+    function getSettlementDateViaAssetType(
+        uint assetType,
+        uint maturity
+    ) internal pure returns (uint) {
         require(
-            asset.assetType > 0 && asset.assetType <= LIQUIDITY_TOKEN_INDEX9,
+            assetType > 0 && assetType <= LIQUIDITY_TOKEN_INDEX9,
             "A: invalid asset type"
         );
         // Special case for the 3 and 6 month tokens. The 6 month liquidity token
         // will become the 3 month liquidity token and the 3 month liquidity token will
         // always settle on its maturity. fCash tokens always settle on maturity
-        if (asset.assetType <= LIQUIDITY_TOKEN_INDEX2) return asset.maturity;
+        if (assetType <= LIQUIDITY_TOKEN_INDEX2) return maturity;
 
-        uint marketLength = CashGroup.getTradedMarket(asset.assetType - 1);
+        uint marketLength = CashGroup.getTradedMarket(assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
         // Here we calculate:
         // tRef = maturity - marketLength + 90 days
-        return asset.maturity.sub(marketLength).add(CashGroup.QUARTER);
+        return maturity.sub(marketLength).add(CashGroup.QUARTER);
     }
 
     /**

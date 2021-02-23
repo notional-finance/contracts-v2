@@ -61,6 +61,7 @@ contract InitializeMarketsAction is SettleAssets {
         return params;
     }
 
+    // TODO: move this into the PerpetualToken library?
     function _getPerpetualTokenPortfolio(
         uint currencyId
     ) private view returns (PerpetualTokenPortfolio memory, AccountStorage memory) {
@@ -228,13 +229,16 @@ contract InitializeMarketsAction is SettleAssets {
         // We do not consider "storedCashBalance" because it may be holding cash that is used to
         // collateralize negative fCash from previous settlements except on the first initialization when
         // we know that there are no fCash assets at all
-        netAssetCashAvailable = perpToken.balanceState.netCashChange.sub(assetCashWitholding);
+        netAssetCashAvailable = perpToken.balanceState.netCashChange.subNoNeg(assetCashWitholding);
         if (isFirstInit) netAssetCashAvailable = netAssetCashAvailable.add(perpToken.balanceState.storedCashBalance);
 
         // This is the new balance to store
         perpToken.balanceState.storedCashBalance = perpToken.balanceState.storedCashBalance
             .add(perpToken.balanceState.netCashChange)
-            .sub(netAssetCashAvailable);
+            .subNoNeg(netAssetCashAvailable);
+
+        // Zero this value out since we've already accounted for it.
+        perpToken.balanceState.netCashChange = 0;
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
@@ -491,7 +495,7 @@ contract InitializeMarketsAction is SettleAssets {
         perpToken.portfolioState.storeAssets(assetArrayMapping[perpToken.tokenAddress]);
         // Special method that only stores the storedCashBalance for this method only since we know
         // there are no token transfers, incentives or anything else. Reduces code size by about 2kb
-        perpToken.balanceState.setBalanceStorageForInitializeMarket(perpToken.tokenAddress);
+        perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
     }
 
 }

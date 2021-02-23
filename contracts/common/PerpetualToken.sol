@@ -4,20 +4,13 @@ pragma experimental ABIEncoderV2;
 
 import "./Market.sol";
 import "./CashGroup.sol";
+import "./AssetRate.sol";
+import "../storage/TokenHandler.sol";
+import "../storage/BitmapAssetsHandler.sol";
+import "../storage/SettleAssets.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
-
-/**
- * @notice These parameters are used to determine how much perpetual token to deposit
- * or how to initialize markets.
-struct PerpetualTokenParameters {
-    // The percent of capital to deposit into each market, ordered by market index starting from 0
-    uint[] percentToDeposit;
-    // If the market proportion is above this threshold, then the token will lend instead of providing
-    // liquidity to bring the rates down and prevent over-leveraging.
-    uint[] liquidityThreshold;
-}
- */
+import "../math/SafeInt256.sol";
 
 struct PerpetualTokenPortfolio {
     CashGroupParameters cashGroup;
@@ -27,22 +20,33 @@ struct PerpetualTokenPortfolio {
     address tokenAddress;
 }
 
+// TODO: need to make settle assets a library
 library PerpetualToken {
     using Market for MarketParameters;
+    using AssetHandler for PortfolioAsset;
+    using AssetRate for AssetRateParameters;
+    using PortfolioHandler for PortfolioState;
+    using CashGroup for CashGroupParameters;
+    using BalanceHandler for BalanceState;
+    using SafeInt256 for int;
+
     int internal constant DEPOSIT_PERCENT_BASIS = 1e9;
 
     /**
      * @notice Returns the currency id for a perpetual token or 0 if the address is not a perpetual
-     * token. Used to ensure that the perpetual token cannot accept incoming transfers.
+     * token. Also returns the total supply of the perpetual token.
      */
-    function perpetualTokenCurrencyId(
+    function getPerpetualTokenCurrencyIdAndSupply(
         address tokenAddress
-    ) internal view returns (uint) {
+    ) internal view returns (uint, uint) {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
-        uint currencyId;
-        assembly { currencyId := sload(slot) }
+        bytes32 data;
+        assembly { data := sload(slot) }
 
-        return currencyId;
+        uint currencyId = uint(uint16(uint(data)));
+        uint totalSupply = uint(uint96(uint(data >> 16)));
+
+        return (currencyId, totalSupply);
     }
 
     /** @notice Returns the perpetual token address for a given currency */
@@ -56,17 +60,47 @@ library PerpetualToken {
     }
 
     /**
-     * @notice Called by governance to set the perpetual token address and its reverse lookup
+     * @notice Called by governance to set the perpetual token address and its reverse lookup. Cannot be
+     * reset once this is set.
      */
     function setPerpetualTokenAddress(
-        uint currencyId,
+        uint16 currencyId,
         address tokenAddress
     ) internal {
-        bytes32 slot = keccak256(abi.encode(currencyId, "perpetual.address"));
-        assembly { sstore(slot, tokenAddress) }
+        bytes32 addressSlot = keccak256(abi.encode(currencyId, "perpetual.address"));
+        bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
 
-        slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
-        assembly { sstore(slot, currencyId) }
+        uint data;
+        assembly { data := sload(addressSlot) }
+        require(data == 0, "PT: token address exists");
+        assembly { data := sload(currencySlot) }
+        require(data == 0, "PT: currency exists");
+
+        assembly { sstore(addressSlot, tokenAddress) }
+        // This will also initialize the total supply at 0
+        assembly { sstore(currencySlot, currencyId) }
+    }
+
+    /**
+     * @notice Updates the perpetual token supply amount when minting or redeeming.
+     */
+    function changePerpetualTokenSupply(
+        address tokenAddress,
+        int netChange
+    ) private {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+
+        (uint currencyId, uint totalSupply) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+        int newSupply = int(totalSupply).add(netChange);
+        require(newSupply >= 0 && uint(newSupply) < type(uint96).max, "PT: total supply overflow");
+
+        uint96 storedSupply = uint96(newSupply);
+        bytes32 data = (
+            bytes32(currencyId) |
+            bytes32(uint(storedSupply)) << 16
+        );
+
+        assembly { sstore(slot, data) }
     }
 
     /**
@@ -260,73 +294,174 @@ library PerpetualToken {
     }
 
     /**
-     * @notice Returns the perpetual token present value denominated in asset terms
+     * @notice Returns the perpetual token present value denominated in asset terms.
+     * @dev We assume that the perpetual token portfolio array is only liquidity tokens and
+     * sorted ascending by maturity.
+     */
     function getPerpetualTokenPV(
         PerpetualTokenPortfolio memory perpToken,
+        AccountStorage memory accountContext,
         uint blockTime
-    ) internal view returns (int) {
+    ) internal view returns (int, bytes memory) {
+        int totalAssetPV;
+        int totalUnderlyingPV;
+        bytes memory ifCashBitmap;
+
         // If the first asset maturity has passed (the 3 month), this means that all the LTs must
-        // be settled. We don't settle LTs except in initialize markets so we calculate the cash value
-        // of the portfolio here.
-        if (assets[0].maturity < blockTime) {
-            // This does an additional storage read of balanceState inside getSettlAssetContextView
+        // be settled except the 6 month (which is now the 3 month). We don't settle LTs except in
+        // initialize markets so we calculate the cash value of the portfolio here.
+        if (accountContext.nextMaturingAsset <= blockTime) {
+            // This does an additional storage read of balanceState inside getSettleAssetContextView
             // but that is ok since this will be an edge case. Perpetual tokens should be settled and
-            // reinitialized to markets fairly quickly.
-            perpToken.balanceState = SettleAssets.getSettleAssetContextView(
+            // reinitialized to markets in a timely manner
+            // TODO: need to make settle assets a library
+            /*
+            BalanceState[] memory balanceState = SettleAssets.getSettleAssetContextView(
                 perpToken.tokenAddress,
                 perpToken.portfolioState,
-                perpToken.balanceState,
+                accountContext,
                 blockTime
             );
+
+            int settledAssetCash;
+            (ifCashBitmap, settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
+                perpToken.tokenAddress,
+                perpToken.cashGroup.currencyId,
+                accountContext.nextMaturingAsset,
+                blockTime
+            );
+
+            // Safety check to ensure that our balance states are in tact
+            require(balanceState.length == 1, "PT: unknown balance");
+            require(balanceState[0].currencyId == perpToken.cashGroup.currencyId, "PT: unknown balance");
+            totalAssetPV = balanceState[0].storedCashBalance
+                .add(balanceState[0].netCashChange)
+                .add(settledAssetCash);
+            */
         } else {
-            int liquidityPV = AssetHandler.getPortfolioValue(
-                assets,
-                cashGroups,
-                markets,
-                blockTime,
-                false
+            // Since we are not doing a risk adjusted valuation here we do not need to net off residual fCash
+            // balances in the future before discounting to present. If we did, then the ifCash assets would
+            // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
+            // underlying terms.
+            PortfolioAsset[] memory emptyPortfolio = new PortfolioAsset[](0);
+            for (uint i; i < perpToken.portfolioState.storedAssets.length; i++) {
+                (int assetCashClaim, int pv) = AssetHandler.getLiquidityTokenValue(
+                    perpToken.portfolioState.storedAssets[i],
+                    perpToken.cashGroup,
+                    perpToken.markets,
+                    emptyPortfolio,
+                    blockTime,
+                    false
+                );
+
+                totalAssetPV = totalAssetPV.add(assetCashClaim);
+                totalUnderlyingPV = totalUnderlyingPV.add(pv);
+            }
+
+            // Fetch the ifCash bitmap here beacause it has not been fetched yet.
+            ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(
+                perpToken.tokenAddress,
+                perpToken.cashGroup.currencyId
             );
         }
 
-        // TODO: Then iterate over bitmapped assets and get present value
+        // Then iterate over bitmapped assets and get present value
+        totalUnderlyingPV = totalUnderlyingPV.add(
+            BitmapAssetsHandler.getifCashNetPresentValue(
+                perpToken.tokenAddress,
+                perpToken.cashGroup.currencyId,
+                accountContext.nextMaturingAsset,
+                blockTime,
+                ifCashBitmap,
+                perpToken.cashGroup,
+                perpToken.markets,
+                false
+            )
+        );
+
+        // Return the total present value denominated in asset terms
+        return (
+            totalAssetPV.add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV)),
+            ifCashBitmap
+        );
     }
 
+    /**
+     * @notice Calculates the tokens to mint to the account as a ratio of the perpetual token
+     * present value denominated in asset cash terms (as we are depositing in asset cash terms).
+     */
     function calculateTokensToMint(
         PerpetualTokenPortfolio memory perpToken,
+        AccountStorage memory accountContext,
         int assetCashDeposit,
         uint blockTime
-    ) internal view returns (uint) {
-        int pv = getPerpetualTokenPV(perpToken, blockTime);
-        require(pv > 0, "PT: pv value negative");
+    ) internal view returns (int, bytes memory) {
+        // If the account context has not been initialized, that means it has never had assets. In this
+        // case we simply use the stored asset balance as the base to calculate the tokens to mint.
+        if (accountContext.nextMaturingAsset == 0) {
+            // This is for the very first deposit
+            if (perpToken.balanceState.storedCashBalance == 0) {
+                return (assetCashDeposit, new bytes(0));
+            }
+
+            return (
+                assetCashDeposit
+                    .mul(perpToken.balanceState.storedCashBalance)
+                    .div(TokenHandler.INTERNAL_TOKEN_PRECISION),
+                new bytes(0)
+            );
+        }
+
+        // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
+        // that need to be settled. This is only done during market initialization in a single step.
+        require(accountContext.nextMaturingAsset > blockTime, "PT: requires settlement");
+
+        (int assetCashPV, bytes memory ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
+        require(assetCashPV >= 0, "PT: pv value negative");
         require(assetCashDeposit >= 0, "PT: deposit negative");
 
-        return assetCashDeposit.mul(pv).div(TokenHander.INTERNAL_TOKEN_PRECISION);
+        return (
+            assetCashDeposit.mul(assetCashPV).div(TokenHandler.INTERNAL_TOKEN_PRECISION),
+            ifCashBitmap
+        );
     }
 
     function mintPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
+        AccountStorage memory accountContext,
         int assetCashDeposit,
         uint blockTime
     ) internal returns (int) {
-        int tokensToMint = calculateTokensToMint(perpToken, assetCashDeposit, blockTime);
-
-        depositIntoPortfolio(
+        (int tokensToMint, bytes memory ifCashBitmap) = calculateTokensToMint(
             perpToken,
+            accountContext,
             assetCashDeposit,
             blockTime
         );
 
-        uint totalPerpTokens = perpetualTokenTotalSupply[perpToken.tokenAddress];
-        totalPerpTokens = totalPerpTokens.add(tokensToMint);
-        perpetualTokenTotalSupply[perpToken.tokenAddress] = totalPerpTokens;
+        if (accountContext.nextMaturingAsset == 0) {
+            // For the initial deposits we simply increment the balanceState, there are no assets.
+            perpToken.balanceState.netCashChange = perpToken.balanceState.netCashChange.add(assetCashDeposit);
+            // Finalize the balance change here
+            perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+        } else {
+            depositIntoPortfolio(perpToken, accountContext, ifCashBitmap, assetCashDeposit, blockTime);
+        }
+
+        // From the calculateTokensToMint function we know that tokensToMint will be positive.
+        changePerpetualTokenSupply(perpToken.tokenAddress, tokensToMint);
 
         return tokensToMint;
     }
 
+    /**
+     * @notice Calculates the proportion of totalfCash to totalCashUnderlying for determining
+     * whether or not an asset has crossed th leverage threshold.
+     */
     function calculateMarketProportion(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market
-    ) internal pure returns (uint) {
+    ) internal pure returns (int) {
         int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(
             market.totalCurrentCash
         );
@@ -336,61 +471,92 @@ library PerpetualToken {
             .div(market.totalfCash.add(totalCashUnderlying));
     }
 
+    /**
+     * @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
+     * entering this method we know that assetCashDeposit is positive and the perpToken has been
+     * initialized to have liquidity tokens.
+     */
     function depositIntoPortfolio(
         PerpetualTokenPortfolio memory perpToken,
+        AccountStorage memory accountContext,
+        bytes memory ifCashBitmap,
         int assetCashDeposit,
         uint blockTime
-    ) internal {
-        PerpetualTokenParameters memory parameters = getPerpetualTokenParameters(perpToken.tokenAddress);
+    ) private {
+        (int[] memory depositShares, int[] memory leverageThresholds) = getDepositParameters(
+            perpToken.cashGroup.currencyId,
+            perpToken.cashGroup.maxMarketIndex
+        );
 
         for (uint i; i < perpToken.markets.length; i++) {
-            uint marketDeposit = assetCashDeposit
-                .mul(parameters.percentToDeposit[i])
-                .div(PERCENT_BASIS);
+            // We know from the call into this method that assetCashDeposit is positive
+            int perMarketDeposit = assetCashDeposit
+                .mul(depositShares[i])
+                .div(DEPOSIT_PERCENT_BASIS);
 
             MarketParameters memory market = perpToken.cashGroup.getMarket(
-                perpTokens.markets,
-                i + 1,
+                perpToken.markets,
+                i + 1, // Market index is 1-indexed
                 blockTime,
                 true // Needs liquidity to true
             );
 
             int fCashAmount;
-            int proportion = calculateMarketProportion(propToken.cashGroup, market);
-            if (proportion > parameters.liquidityThreshold[i]) {
-                // TODO: set fCashAmount
+            int proportion = calculateMarketProportion(perpToken.cashGroup, market);
+            if (proportion > leverageThresholds[i]) {
+                // If the proportion is above the liquidity threshold the perp token will lend to the market
+                // instead of providing liquidity in order to ensure that it does not over lever itself.
                 int assetCash;
-                (perpTokens.markets[i], assetCash) = perpTokens.markets[i].calculateTrade(
-                    perpToken.cashGroup,
-                    fCashAmount,
-                    timeToMaturity
-                );
-
+                // TODO: finish this
+                // (perpToken.markets[i], assetCash) = lendToMarket(
+                //     perpToken.cashGroup,
+                //     perpToken.markets,
+                //     perMarketDeposit,
+                //     blockTime
+                // );
                 require(assetCash > 0, "PT: lend trade failed");
             } else {
                 // Add liquidity to the market
-                PortfolioAsset memory asset = perpTokens.portfolioState.storedAssets[i];
-                int liquidityTokens;
-                (liquidityTokens, fCashAmount) = perpTokens.markets[i].addLiquidity(marketDeposit)
+                PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
                 // We expect that all the liquidity tokens are in the portfolio in order.
                 require(
-                    asset.maturity == perpTokens.markets[i].maturity && AssetHandler.isLiquidityToken(asset.assetType)
+                       asset.maturity == perpToken.markets[i].maturity
+                    // Ensures that the asset type references the proper liquidity token
+                    && asset.assetType == i + 2,
                     "PT: invalid liquidity token"
                 );
 
+                int liquidityTokens;
+                // This will update the market state as well
+                (liquidityTokens, fCashAmount) = perpToken.markets[i].addLiquidity(perMarketDeposit);
+
                 asset.notional = asset.notional.add(liquidityTokens);
-                asset.assetStorageState = AssetStorageState.Update;
+                asset.storageState = AssetStorageState.Update;
             }
 
-            // Update the fCash position
-            int notional = ifCashMapping[perpToken.tokenAddress][perpToken.cashGroup.currencyId][perpTokens.markets[i].maturity];
-            notional = notional.add(fCashAmount);
-            ifCashMapping[perpToken.tokenAddress][perpToken.cashGroup.currencyId][perpTokens.markets[i].maturity] = notional;
+            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+                perpToken.tokenAddress,
+                perpToken.cashGroup.currencyId,
+                perpToken.markets[i].maturity,
+                accountContext.nextMaturingAsset,
+                // fCash amount is denominated in the underlying here as it always is
+                fCashAmount,
+                ifCashBitmap
+            );
+
+            perpToken.markets[i].setMarketStorage(AssetHandler.getSettlementDateViaAssetType(
+                i + 2,
+                perpToken.markets[i].maturity
+            ));
         }
 
-        perpTokens.portfolioState.storeAssets();
+        BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
+        // TODO: make storeAssets a library call
+        // NOTE: balance state should not change as a result of this method
+        // perpToken.portfolioState.storeAssets(assetArrayMapping[perpToken.tokenAddress]);
     }
 
+    /**
     function redeemPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
         uint tokensToRedeem,
@@ -422,6 +588,7 @@ library PerpetualToken {
 
         return newLTs;
     }
+    */
 
     /**
      * @notice Generic method for selling idiosyncratic fCash, any account can post standing offers
