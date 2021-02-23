@@ -12,6 +12,14 @@ contract MockSettleAssets is SettleAssets {
         maxCurrencyId = num;
     }
 
+    function getifCashAsset(
+        address account,
+        uint currencyId,
+        uint maturity
+    ) public view returns (int) {
+        return ifCashMapping[account][currencyId][maturity];
+    }
+
     function setAssetArray(
         address account,
         AssetStorage[] memory a

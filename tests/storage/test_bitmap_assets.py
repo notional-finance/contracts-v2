@@ -52,7 +52,7 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     txn = bitmapAssets.setifCashAsset(accounts[0], 1, maturity, START_TIME, notional, bitmap)
     newBitmap = txn.return_value
 
-    setValue = bitmapAssets.ifCashMapping(accounts[0], 1, maturity)
+    setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
     newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
     assert setValue == notional
@@ -62,7 +62,7 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     txn = bitmapAssets.setifCashAsset(accounts[0], 1, maturity, START_TIME, -notional, newBitmap)
     newBitmap = txn.return_value
 
-    setValue = bitmapAssets.ifCashMapping(accounts[0], 1, maturity)
+    setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
     newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
     assert setValue == 0

@@ -265,7 +265,7 @@ def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
     # Ensure that the bitmap covers every location where there is ifCash
     for i, b in enumerate(newBitmapList):
         maturity = mockSettleAssets.getMaturityFromBitNum(blockTimeUTC0, i + 1)
-        ifCash = mockSettleAssets.ifCashMapping(accounts[0], currencyId, maturity)
+        ifCash = mockSettleAssets.getifCashAsset(accounts[0], currencyId, maturity)
 
         if b == "1":
             assert ifCash != 0

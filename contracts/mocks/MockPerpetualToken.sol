@@ -7,33 +7,37 @@ import "../storage/StorageLayoutV1.sol";
 
 contract MockPerpetualToken is StorageLayoutV1 {
 
-    function perpetualTokenCurrencyId(
+    function getPerpetualTokenCurrencyIdAndSupply(
         address tokenAddress
-    ) external view returns (uint) {
-        uint currencyId = PerpetualToken.perpetualTokenCurrencyId(tokenAddress);
+    ) external view returns (uint, uint) {
+        (uint currencyId, uint totalSupply) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
-        return currencyId;
+        return (currencyId, totalSupply);
     }
 
     function getPerpetualTokenAddress(
         uint currencyId
     ) external view returns (address) {
         address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        assert(PerpetualToken.perpetualTokenCurrencyId(tokenAddress) == currencyId);
+        (
+            uint currencyIdStored,
+            /* uint totalSupply */
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+        assert(currencyIdStored == currencyId);
 
         return tokenAddress;
     }
 
     function setPerpetualTokenAddress(
-        uint currencyId,
+        uint16 currencyId,
         address tokenAddress
     ) external {
         PerpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress);
 
         // Test the assertions
         this.getPerpetualTokenAddress(currencyId);
-        this.perpetualTokenCurrencyId(tokenAddress);
+        this.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
     }
 
     function getDepositParameters(
@@ -64,5 +68,70 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint32[] calldata proportions
     ) external {
         PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+    }
+
+    function getPerpetualTokenPV(
+        uint currencyId,
+        uint blockTime
+    ) external view returns (int) {
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
+            currencyId,
+            new CashGroupParameters[](0),
+            new MarketParameters[][](0)
+        );
+
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+
+        (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.getPerpetualTokenPV(
+            perpToken,
+            accountContext,
+            blockTime
+        );
+
+        return assetPv;
+    }
+
+    function calculateTokensToMint(
+        uint currencyId,
+        int assetCashDeposit,
+        uint blockTime
+    ) external view returns (int) {
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
+            currencyId,
+            new CashGroupParameters[](0),
+            new MarketParameters[][](0)
+        );
+
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+
+        (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.calculateTokensToMint(
+            perpToken,
+            accountContext,
+            assetCashDeposit,
+            blockTime
+        );
+
+        return assetPv;
+    }
+
+    function mintPerpetualToken(
+        uint currencyId,
+        int assetCashDeposit,
+        uint blockTime
+    ) external returns (int) {
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
+            currencyId,
+            new CashGroupParameters[](0),
+            new MarketParameters[][](0)
+        );
+
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+
+        return PerpetualToken.mintPerpetualToken(
+            perpToken,
+            accountContext,
+            assetCashDeposit,
+            blockTime
+        );
     }
 }

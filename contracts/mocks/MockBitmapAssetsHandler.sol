@@ -21,6 +21,14 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         return AssetRate.buildAssetRate(id);
     }
 
+    function getifCashAsset(
+        address account,
+        uint currencyId,
+        uint maturity
+    ) public view returns (int) {
+        return ifCashMapping[account][currencyId][maturity];
+    }
+
     function getAssetsBitmap(
         address account,
         uint currencyId

@@ -116,13 +116,18 @@ library BalanceHandler {
      * @notice Special method for setting balance storage for perp token, during initialize
      * markets to reduce code size.
      */
-    function setBalanceStorageForInitializeMarket(
+    function setBalanceStorageForPerpToken(
         BalanceState memory balanceState,
         address perpToken
     ) internal {
         // These factors must always be zero for the perpetual token account
         require(balanceState.storedPerpetualTokenBalance == 0);
         require(balanceState.storedCapitalDeposit == 0);
+        balanceState.storedCashBalance = balanceState.storedCashBalance.add(balanceState.netCashChange);
+
+        // Perpetual token can never have a negative cash balance
+        require(balanceState.storedCashBalance >= 0);
+
         setBalanceStorage(perpToken, balanceState);
     }
 

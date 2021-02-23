@@ -12,6 +12,12 @@ contract MockBalanceHandler is StorageLayoutV1 {
         maxCurrencyId = num;
     }
 
+    function getCurrencyMapping(
+        uint id
+    ) external view returns (CurrencyStorage memory) {
+        return currencyMapping[id];
+    }
+
     function setCurrencyMapping(
         uint id,
         CurrencyStorage calldata cs

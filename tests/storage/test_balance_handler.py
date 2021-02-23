@@ -141,7 +141,7 @@ def test_build_and_finalize_balances(
 
         (bsFinal, _) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
         assert bsFinal[0] == currencyId
-        currency = balanceHandler.currencyMapping(currencyId)
+        currency = balanceHandler.getCurrencyMapping(currencyId)
         precisionDiff = 10 ** (currency[2] - 9)
 
         # Has transfer fee
@@ -164,4 +164,4 @@ def test_build_and_finalize_balances(
             currencyId
         )[0]
 
-        # TODO: need to also test minting
+        # TODO: need to also test minting incentives
