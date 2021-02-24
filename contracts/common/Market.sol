@@ -76,7 +76,7 @@ library Market {
     function addLiquidity(
         MarketParameters memory marketState,
         int assetCash
-    ) internal view returns (int, int) {
+    ) internal pure returns (int, int) {
         require(marketState.totalLiquidity > 0, "M: zero liquidity");
         require(assetCash >= 0, "M: negative asset cash");
         if (assetCash == 0) return (0, 0);

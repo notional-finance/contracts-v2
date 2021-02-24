@@ -25,7 +25,7 @@ library BalanceHandler {
     using Bitmap for bytes;
     using TokenHandler for Token;
 
-    uint internal constant BALANCE_STORAGE_SLOT = 10;
+    uint internal constant BALANCE_STORAGE_SLOT = 8;
 
     /**
      * @notice 

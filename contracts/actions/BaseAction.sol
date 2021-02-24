@@ -5,10 +5,11 @@ pragma experimental ABIEncoderV2;
 import "../storage/BalanceHandler.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/SettleAssets.sol";
+import "../storage/StorageLayoutV1.sol";
 import "../common/Market.sol";
 import "../math/Bitmap.sol";
 
-abstract contract BaseAction is SettleAssets {
+abstract contract BaseAction is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
@@ -53,7 +54,7 @@ abstract contract BaseAction is SettleAssets {
             }
 
             // This means that settlement is required
-            balanceState = getSettleAssetContextView(
+            balanceState = SettleAssets.getSettleAssetContextView(
                 account,
                 portfolioState,
                 accountContext,
@@ -82,7 +83,7 @@ abstract contract BaseAction is SettleAssets {
 
         if (accountContext.nextMaturingAsset <= blockTime) {
             // This means that settlement is required
-            balanceState = getSettleAssetContextStateful(
+            balanceState = SettleAssets.getSettleAssetContextStateful(
                 account,
                 portfolioState,
                 accountContext,

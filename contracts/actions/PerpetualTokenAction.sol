@@ -5,12 +5,12 @@ pragma experimental ABIEncoderV2;
 import "../common/PerpetualToken.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
-import "../storage/SettleAssets.sol";
+import "../storage/StorageLayoutV1.sol";
 import "../storage/BalanceHandler.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract PerpetualTokenAction is SettleAssets {
+contract PerpetualTokenAction is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int;
@@ -28,8 +28,6 @@ contract PerpetualTokenAction is SettleAssets {
         uint16 currencyId,
         address account
     ) external view returns (uint) {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-
         (
             /* int cashBalance */,
             int perpetualTokenBalance,
@@ -54,12 +52,16 @@ contract PerpetualTokenAction is SettleAssets {
 
     function perpetualTokenTransferApprove(
         uint16 currencyId,
+        address owner,
         address spender,
         uint amount
     ) external returns (bool) {
-        uint allowance = perpTokenTransferAllowance[msg.sender][spender][currencyId];
+        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        require(msg.sender == perpTokenAddress, "PA: unauthorized caller");
+
+        uint allowance = perpTokenTransferAllowance[owner][spender][currencyId];
         require(allowance == 0, "PA: allowance not zero");
-        perpTokenTransferAllowance[msg.sender][spender][currencyId] = amount;
+        perpTokenTransferAllowance[owner][spender][currencyId] = amount;
 
         return true;
     }
@@ -129,8 +131,7 @@ contract PerpetualTokenAction is SettleAssets {
         uint amountToDeposit,
         bool useCashBalance
     ) external returns (uint) {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        return _mintPerpetualToken(perpTokenAddress, msg.sender, amountToDeposit, useCashBalance);
+        return _mintPerpetualToken(currencyId, msg.sender, amountToDeposit, useCashBalance);
     }
 
     function perpetualTokenMintFor(
@@ -139,8 +140,7 @@ contract PerpetualTokenAction is SettleAssets {
         uint amountToDeposit,
         bool useCashBalance
     ) external returns (uint) {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        return _mintPerpetualToken(perpTokenAddress, recipient, amountToDeposit, useCashBalance);
+        return _mintPerpetualToken(currencyId, recipient, amountToDeposit, useCashBalance);
     }
 
     function perpetualTokenRedeem(
@@ -153,12 +153,6 @@ contract PerpetualTokenAction is SettleAssets {
     function perpetualTokenPresentValueAssetDenominated(
         uint16 currencyId
     ) external view returns (int) {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        (
-            /* uint currencyId */,
-            uint totalSupply
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
-
         (int totalAssetPV, /* portfolio */) = _getPerpetualTokenPV(currencyId);
 
         return totalAssetPV;
@@ -167,12 +161,6 @@ contract PerpetualTokenAction is SettleAssets {
     function perpetualTokenPresentValueUnderlyingDenominated(
         uint16 currencyId
     ) external view returns (int) {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        (
-            /* uint currencyId */,
-            uint totalSupply
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
-
         (
             int totalAssetPV,
             PerpetualTokenPortfolio memory perpToken
@@ -227,7 +215,7 @@ contract PerpetualTokenAction is SettleAssets {
 
         (
             int totalAssetPV,
-            PerpetualTokenPortfolio memory perpToken
+            /* PerpetualTokenPortfolio memory perpToken */
         ) = _getPerpetualTokenPV(currencyId);
 
         AccountStorage memory senderContext = accountContextMapping[sender];
@@ -256,22 +244,18 @@ contract PerpetualTokenAction is SettleAssets {
         // Finalize will update account contexts
         accountContextMapping[sender] = senderContext;
         accountContextMapping[recipient] = recipientContext;
+
+        return true;
     }
 
     function _mintPerpetualToken(
-        address perpTokenAddress,
+        uint currencyId,
         address recipient,
         uint amountToDeposit_,
         bool useCashBalance
     ) internal returns (uint) {
         int amountToDeposit= SafeCast.toInt256(amountToDeposit_);
         uint blockTime = block.timestamp;
-
-        // This needs to move to more generic
-        (
-            uint currencyId,
-            uint totalSupply
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
 
         // First check if the account can support the deposit
         // TODO: this is quite a bit of boilerplate

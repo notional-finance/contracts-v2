@@ -37,7 +37,7 @@ contract PerpetualTokenERC20 is IERC20 {
     }
 
     function approve(address spender, uint amount) override external returns (bool) {
-        return PerpetualTokenAction(proxy).perpetualTokenTransferApprove(currencyId, msg.sender, amount);
+        return PerpetualTokenAction(proxy).perpetualTokenTransferApprove(currencyId, msg.sender, spender, amount);
     }
 
     function transfer(address recipient, uint amount) override external returns (bool) {
@@ -55,17 +55,5 @@ contract PerpetualTokenERC20 is IERC20 {
 
     function getPresentValueUnderlyingDenominated() external view returns (int) {
         return PerpetualTokenAction(proxy).perpetualTokenPresentValueUnderlyingDenominated(currencyId);
-    }
-
-    function mint(uint amountToDeposit, bool useCashBalance) external returns (uint) {
-        return PerpetualTokenAction(proxy).perpetualTokenMint(currencyId, amountToDeposit, useCashBalance);
-    }
-
-    function mintFor(address recipient, uint amountToDeposit, bool useCashBalance) external returns (uint) {
-        return PerpetualTokenAction(proxy).perpetualTokenMintFor(currencyId, recipient, amountToDeposit, useCashBalance);
-    }
-
-    function redeem(uint tokensToRedeem) external returns (bool) {
-        return PerpetualTokenAction(proxy).perpetualTokenRedeem(currencyId, tokensToRedeem);
     }
 }

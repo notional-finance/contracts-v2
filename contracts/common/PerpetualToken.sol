@@ -130,8 +130,6 @@ library PerpetualToken {
         uint32[] calldata leverageThresholds
     ) internal {
         uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
-
-        bytes32 data;
         require(
             depositShares.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
             "PT: deposit share length"
@@ -148,6 +146,7 @@ library PerpetualToken {
             shareSum = shareSum + depositShares[i];
             require(leverageThresholds[i] > 0 && leverageThresholds[i] < Market.RATE_PRECISION, "PT: leverage threshold");
         }
+
         // Deposit shares must not add up to more than 100%. If it less than 100 that means some portion
         // will remain in the cash balance for the perpetual token. This might be something that is desireable
         // to collateralize negative fCash balances
@@ -165,7 +164,6 @@ library PerpetualToken {
         uint32[] calldata proportions
     ) internal {
         uint slot = uint(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
-        bytes32 data;
         require(
             rateAnchors.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
             "PT: rate anchors length"
@@ -318,7 +316,6 @@ library PerpetualToken {
             // This does an additional storage read of balanceState inside getSettleAssetContextView
             // but that is ok since this will be an edge case. Perpetual tokens should be settled and
             // reinitialized to markets in a timely manner
-            // TODO: need to make settle assets a library
             /*
             BalanceState[] memory balanceState = SettleAssets.getSettleAssetContextView(
                 perpToken.tokenAddress,
@@ -328,12 +325,13 @@ library PerpetualToken {
             );
 
             int settledAssetCash;
-            (ifCashBitmap, settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
-                perpToken.tokenAddress,
-                perpToken.cashGroup.currencyId,
-                accountContext.nextMaturingAsset,
-                blockTime
-            );
+            // TODO: this is stateful
+            // (ifCashBitmap, settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
+            //     perpToken.tokenAddress,
+            //     perpToken.cashGroup.currencyId,
+            //     accountContext.nextMaturingAsset,
+            //     blockTime
+            // );
 
             // Safety check to ensure that our balance states are in tact
             require(balanceState.length == 1, "PT: unknown balance");

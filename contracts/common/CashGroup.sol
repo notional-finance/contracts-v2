@@ -24,7 +24,7 @@ library CashGroup {
     using AssetRate for AssetRateParameters;
     using Market for MarketParameters;
 
-    uint internal constant CASH_GROUP_STORAGE_SLOT = 5;
+    uint internal constant CASH_GROUP_STORAGE_SLOT = 4;
 
     // Offsets for the bytes of the different parameters
     // TODO: benchmark if the current method is better than just allocating them to memory
@@ -72,6 +72,8 @@ library CashGroup {
         if (index == 7) return 10 * YEAR;
         if (index == 8) return 15 * YEAR;
         if (index == 9) return 20 * YEAR;
+
+        revert("CG: invalid index");
     }
 
     /**
@@ -289,7 +291,7 @@ library CashGroup {
             if (marketMaturity > maturity) return (i, true);
         }
 
-        require(false, "CG: no market found");
+        revert("CG: no market found");
     }
 
     function getMarket(

@@ -8,6 +8,7 @@ import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/PortfolioHandler.sol";
+import "../storage/StorageLayoutV1.sol";
 import "../storage/SettleAssets.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -27,7 +28,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  *     - percent of cash to deposit into the market set by governance
  *  - Set new markets and add liquidity tokens to portfolio
  */
-contract InitializeMarketsAction is SettleAssets {
+contract InitializeMarketsAction is StorageLayoutV1 {
     using SafeMath for uint;
     using SafeInt256 for int;
     using PortfolioHandler for PortfolioState;
@@ -91,7 +92,7 @@ contract InitializeMarketsAction is SettleAssets {
 
         // Settles liquidity token balances and portfolio state now contains the net fCash amounts
         {
-            BalanceState[] memory bs = getSettleAssetContextStateful(
+            BalanceState[] memory bs = SettleAssets.getSettleAssetContextStateful(
                 perpToken.tokenAddress,
                 perpToken.portfolioState,
                 accountContext,
@@ -105,7 +106,7 @@ contract InitializeMarketsAction is SettleAssets {
         }
 
 
-        (bytes memory ifCashBitmap, int settledAssetCash) = settleBitmappedCashGroup(
+        (bytes memory ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
             perpToken.tokenAddress,
             perpToken.cashGroup.currencyId,
             accountContext.nextMaturingAsset,
