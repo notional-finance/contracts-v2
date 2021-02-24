@@ -126,30 +126,6 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         return true;
     }
 
-    function perpetualTokenMint(
-        uint16 currencyId,
-        uint amountToDeposit,
-        bool useCashBalance
-    ) external returns (uint) {
-        return _mintPerpetualToken(currencyId, msg.sender, amountToDeposit, useCashBalance);
-    }
-
-    function perpetualTokenMintFor(
-        uint16 currencyId,
-        address recipient,
-        uint amountToDeposit,
-        bool useCashBalance
-    ) external returns (uint) {
-        return _mintPerpetualToken(currencyId, recipient, amountToDeposit, useCashBalance);
-    }
-
-    function perpetualTokenRedeem(
-        uint16 currencyId,
-        uint tokensToRedeem
-    ) external returns (bool) {
-        revert("UNIMPLMENTED");
-    }
-
     function perpetualTokenPresentValueAssetDenominated(
         uint16 currencyId
     ) external view returns (int) {
@@ -169,29 +145,12 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         return perpToken.cashGroup.assetRate.convertInternalToUnderlying(totalAssetPV);
     }
 
-    // TODO: move this into the PerpetualToken library?
-    function _getPerpetualTokenPortfolio(
-        uint currencyId
-    ) private view returns (PerpetualTokenPortfolio memory, AccountStorage memory) {
-        PerpetualTokenPortfolio memory perpToken;
-        perpToken.tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        // TODO: this needs a getter and setter
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
-
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
-        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
-
-        return (perpToken, accountContext);
-    }
-
     function _getPerpetualTokenPV(
         uint currencyId
     ) private view returns (int, PerpetualTokenPortfolio memory) {
         uint blockTime = block.timestamp;
-        (
-            PerpetualTokenPortfolio memory perpToken,
-            AccountStorage memory accountContext
-        ) = _getPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
 
         (int totalAssetPV, /* bytes memory ifCashMapping */) = PerpetualToken.getPerpetualTokenPV(
             perpToken,
@@ -246,61 +205,6 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         accountContextMapping[recipient] = recipientContext;
 
         return true;
-    }
-
-    function _mintPerpetualToken(
-        uint currencyId,
-        address recipient,
-        uint amountToDeposit_,
-        bool useCashBalance
-    ) internal returns (uint) {
-        int amountToDeposit= SafeCast.toInt256(amountToDeposit_);
-        uint blockTime = block.timestamp;
-
-        // First check if the account can support the deposit
-        // TODO: this is quite a bit of boilerplate
-        AccountStorage memory recipientContext = accountContextMapping[recipient];
-        BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
-            recipient,
-            currencyId,
-            recipientContext.activeCurrencies
-        );
-
-        // This needs to move to more generic
-        (
-            PerpetualTokenPortfolio memory perpToken,
-            AccountStorage memory accountContext
-        ) = _getPerpetualTokenPortfolio(currencyId);
-
-        int tokensToMint = PerpetualToken.mintPerpetualToken(
-            perpToken,
-            accountContext,
-            amountToDeposit,
-            blockTime
-        );
-
-        if (useCashBalance && recipientBalance.storedCashBalance > 0) {
-            if (recipientBalance.storedCashBalance > amountToDeposit) {
-                recipientBalance.netCashChange = amountToDeposit.neg();
-            } else {
-                recipientBalance.netCashChange = recipientBalance.storedCashBalance.neg();
-                recipientBalance.netCashTransfer = amountToDeposit.sub(recipientBalance.storedCashBalance);
-            }
-            
-            // TODO: must free collateral check here
-            if (recipientContext.hasDebt) {
-                revert("UNIMPLMENTED");
-            }
-        } else {
-            recipientBalance.netCashTransfer = amountToDeposit;
-        }
-        // TODO: should the balance context just hold the account address as well?
-        recipientBalance.netPerpetualTokenTransfer = tokensToMint;
-        recipientBalance.netCapitalDeposit = amountToDeposit;
-        recipientBalance.finalize(recipient, recipientContext);
-        accountContextMapping[recipient] = recipientContext;
-
-        return SafeCast.toUint256(tokensToMint);
     }
 
 }

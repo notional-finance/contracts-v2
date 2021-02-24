@@ -62,20 +62,6 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         return params;
     }
 
-    // TODO: move this into the PerpetualToken library?
-    function _getPerpetualTokenPortfolio(
-        uint currencyId
-    ) private view returns (PerpetualTokenPortfolio memory, AccountStorage memory) {
-        PerpetualTokenPortfolio memory perpToken;
-        perpToken.tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
-
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
-        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
-
-        return (perpToken, accountContext);
-    }
-
     function _settlePerpetualTokenPortfolio(
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
@@ -377,10 +363,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      */
     function initializeMarkets(uint currencyId, bool isFirstInit) external {
         uint blockTime = block.timestamp;
-        (
-            PerpetualTokenPortfolio memory perpToken,
-            AccountStorage memory accountContext
-        ) = _getPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
 
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
         // If the perp token has any assets then this is not the first initialization

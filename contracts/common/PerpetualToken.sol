@@ -262,28 +262,12 @@ library PerpetualToken {
      * of the portfolio.
      */
     function buildPerpetualTokenPortfolio(
-        uint currencyId,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory markets
+        uint currencyId
     ) internal view returns (PerpetualTokenPortfolio memory) {
         PerpetualTokenPortfolio memory perpToken;
         perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
 
-        // If the cash group is already loaded then reuse it here
-        uint i;
-        for (; i < cashGroups.length; i++) {
-            if (cashGroups[i].currencyId == currencyId) {
-                perpToken.cashGroup = cashGroups[i];
-                perpToken.markets = markets[i];
-                break;
-            }
-        }
-
-        if (i == cashGroups.length) {
-            // Cash group wasn't found so we load it
-            (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
-        }
-
+        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
         perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
         perpToken.balanceState = BalanceHandler.buildBalanceState(
             perpToken.tokenAddress,

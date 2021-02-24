@@ -90,7 +90,8 @@ library ExchangeRate {
     }
 
     /**
-     * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate.
+     * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate denominated in
+     * base exchange rate decimals: (baseRateDecimals * quoteRateDecimals) / quoteRateDecimals
      *
      * @param baseER base exchange rate struct
      * @param quoteER quote exchange rate struct

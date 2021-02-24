@@ -75,9 +75,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint blockTime
     ) external view returns (int) {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
-            currencyId,
-            new CashGroupParameters[](0),
-            new MarketParameters[][](0)
+            currencyId
         );
 
         AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
@@ -97,9 +95,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint blockTime
     ) external view returns (int) {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
-            currencyId,
-            new CashGroupParameters[](0),
-            new MarketParameters[][](0)
+            currencyId
         );
 
         AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
@@ -120,9 +116,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint blockTime
     ) external returns (int) {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
-            currencyId,
-            new CashGroupParameters[](0),
-            new MarketParameters[][](0)
+            currencyId
         );
 
         AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
