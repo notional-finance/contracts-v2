@@ -6,6 +6,8 @@ import "../common/AssetRate.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract MockAssetRate is StorageLayoutV1 {
+    event SetSettlementRate(uint currencyId, uint maturity, uint128 rate);
+
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
@@ -75,5 +77,26 @@ contract MockAssetRate is StorageLayoutV1 {
         uint currencyId
     ) external view returns (AssetRateParameters memory) {
         return AssetRate.buildAssetRate(currencyId);
+    }
+
+    function buildSettlementRate(
+        uint currencyId,
+        uint maturity,
+        uint blockTime
+    ) external returns (AssetRateParameters memory) {
+        (AssetRateParameters memory initialViewRate, /* */) = AssetRate.buildSettlementRateView(
+            currencyId,
+            maturity
+        );
+
+        AssetRateParameters memory statefulRate = AssetRate.buildSettlementRateStateful(
+            currencyId,
+            maturity,
+            blockTime
+        );
+
+        assert (initialViewRate.rate == statefulRate.rate);
+
+        return statefulRate;
     }
 }

@@ -159,20 +159,6 @@ struct BalanceStorage {
 }
 
 /**
- * @dev Settlement rate in storage, we store the rate decimal places here to save an additional
- * storage read.
- * TODO: is it possible to store all settlement rates in a single decimal precision?
- */
-struct SettlementRateStorage {
-    // Settlement rate decimal places
-    uint8 rateDecimalPlaces;
-    // Timestamp of when the settlement rate was set
-    uint40 timestamp;
-    // Settlement rate
-    uint128 rate;
-}
-
-/**
  * @notice Storage layout for the system. Do not change this file once deployed, future storage
  * layouts must inherit this and increment the version number.
  */
@@ -191,21 +177,11 @@ contract StorageLayoutV1 {
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
     mapping(uint => AssetRateStorage) internal assetToUnderlyingRateMapping;
-    // Returns the historical asset to underlying settlement rate.
-    // currency id => maturity => rate
-    mapping(uint => mapping(uint => SettlementRateStorage)) internal assetToUnderlyingSettlementRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
     // currencyId => storage
     mapping(uint => CashGroupParameterStorage) internal cashGroupMapping;
-    // Contains current market state information
-    // currencyId => settlementDate => maturity => storage
-    // mapping(uint => mapping(uint => mapping(uint => MarketStorage))) public marketStateMapping;
-    // Keep total liquidity in a separate storage slot because it is not referenced
-    // on every trade, only when adding or removing liquidity
-    // currencyId => maturity => totalLiquditiy
-    // mapping(uint => mapping(uint => uint80)) public marketTotalLiquidityMapping;
 
 
     /* Account Storage */
@@ -217,8 +193,6 @@ contract StorageLayoutV1 {
     // contain liquidity tokens
     // address => storage
     mapping(address => AssetStorage[]) assetArrayMapping;
-    // address => currency id => bitmap
-    mapping(address => mapping(uint => bytes)) internal assetBitmapMapping;
     // address => currency id => maturity => ifCash value
     mapping(address => mapping(uint => mapping(uint => int))) internal ifCashMapping;
     // address => currency id => (cash balance, perpetual token balance)

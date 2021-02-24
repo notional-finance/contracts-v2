@@ -1,6 +1,7 @@
 from itertools import product
 
 import pytest
+from tests.common.params import START_TIME, START_TIME_TREF
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -86,10 +87,9 @@ def test_build_asset_rate(
 
     assetRate.setAssetRateMapping(1, rateStorage)
 
-    (rateOracle, erRate, rateDecimalPlaces) = assetRate.buildAssetRate(1)
+    (rateOracle, erRate) = assetRate.buildAssetRate(1)
 
     assert rateOracle == aggregator.address
-    assert rateDecimalPlaces == rateDecimals
     assert erRate == 10 ** rateDecimals / 100
 
 
@@ -145,7 +145,7 @@ def test_convert_eth_to(exchangeRate):
 
 
 def test_convert_internal_to_underlying(assetRate, aggregator):
-    rate = (aggregator.address, 0.01e18, 18)
+    rate = (aggregator.address, 0.01e18)
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
@@ -156,7 +156,7 @@ def test_convert_internal_to_underlying(assetRate, aggregator):
     underlying = assetRate.convertInternalToUnderlying(rate, 100e9)
     assert underlying == 1e9
 
-    rate = (aggregator.address, 10e18, 18)
+    rate = (aggregator.address, 10e18)
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
@@ -169,7 +169,7 @@ def test_convert_internal_to_underlying(assetRate, aggregator):
 
 
 def test_convert_from_underlying(assetRate, aggregator):
-    rate = (aggregator.address, 0.01e18, 18)
+    rate = (aggregator.address, 0.01e18)
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
@@ -180,7 +180,7 @@ def test_convert_from_underlying(assetRate, aggregator):
     asset = assetRate.convertInternalFromUnderlying(rate, 1e9)
     assert asset == 100e9
 
-    rate = (aggregator.address, 10e18, 18)
+    rate = (aggregator.address, 10e18)
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
@@ -190,3 +190,29 @@ def test_convert_from_underlying(assetRate, aggregator):
 
     asset = assetRate.convertInternalFromUnderlying(rate, 1e9)
     assert asset == 0.1e9
+
+
+def test_build_settlement_rate(accounts, MockCToken, cTokenAggregator, assetRate):
+    rateDecimals = 18
+
+    cToken = MockCToken.deploy(8, {"from": accounts[0]})
+    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    rateSet = 10 ** rateDecimals / 100
+    cToken.setAnswer(rateSet)
+
+    rateStorage = (aggregator.address, rateDecimals)
+    assetRate.setAssetRateMapping(1, rateStorage)
+    txn = assetRate.buildSettlementRate(1, START_TIME_TREF, START_TIME)
+    (_, rateSetStored) = txn.return_value
+    assert rateSet == rateSetStored
+    assert txn.events.count("SetSettlementRate") == 1
+    assert txn.events["SetSettlementRate"]["currencyId"] == 1
+    assert txn.events["SetSettlementRate"]["maturity"] == START_TIME_TREF
+    assert txn.events["SetSettlementRate"]["rate"] == rateSetStored
+
+    # Once settlement rate is set it cannot change
+    cToken.setAnswer(rateSet * 2)
+    txn = assetRate.buildSettlementRate(1, START_TIME_TREF, START_TIME)
+    (_, rateSetStored) = txn.return_value
+    assert rateSet == rateSetStored
+    assert txn.events.count("SetSettlementRate") == 0
