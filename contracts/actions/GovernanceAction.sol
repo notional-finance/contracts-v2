@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @notice Governance methods can only be called by the timelock controller which is in turn
  * administered by the governance contract.
  */
-contract Governance is StorageLayoutV1 {
+contract GovernanceAction is StorageLayoutV1 {
     // Emitted when a new currency is listed
     event ListCurrency(uint newCurrencyId);
     event UpdateETHRate(uint currencyId);
@@ -85,7 +85,7 @@ contract Governance is StorageLayoutV1 {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 
-        // Creates the perpeutal token erc20 proxy that points back to the main proxy
+        // Creates the perpetual token erc20 proxy that points back to the main proxy
         // and routes methods to PerpetualTokenAction
         address perpetualTokenAddress = Create2.deploy(
             0,

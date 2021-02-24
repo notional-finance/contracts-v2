@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../storage/StorageLayoutV1.sol";
-import "./Governance.sol";
+import "./GovernanceAction.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -91,7 +91,7 @@ contract Router is StorageLayoutV1 {
 
         if (
             sig == bytes4(keccak256("listCurrency(address,bool,address,bool,uint8,uint8,uint8)")) ||
-            sig == bytes4(keccak256("enableCashGroup(uint16,address,address,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
+            sig == bytes4(keccak256("enableCashGroup(uint16,address,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
             sig == bytes4(keccak256("updatePerpetualDepositParameters(uint16,uint32[],uint32[])")) ||
             sig == bytes4(keccak256("updateInitializationParameters(uint16,uint32[],uint32[])")) ||
             sig == bytes4(keccak256("updateCashGroup(uint16,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||

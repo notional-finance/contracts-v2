@@ -1,11 +1,12 @@
 from brownie import (
-    Governance,
+    GovernanceAction,
     GovernorAlpha,
     InitializeMarketsAction,
     MockAggregator,
     MockERC20,
     MockWETH,
     NoteERC20,
+    PerpetualTokenAction,
     Router,
     Views,
     accounts,
@@ -228,7 +229,9 @@ def deployMockCurrencies(deployer, comptroller, compPriceOracle):
 
 
 def list_currencies(mockCurrencies, proxy, deployer):
-    governance = Contract.from_abi("Governance", proxy.address, abi=Governance.abi, owner=deployer)
+    governance = Contract.from_abi(
+        "Governance", proxy.address, abi=GovernanceAction.abi, owner=deployer
+    )
     currencyId = 1
     for (name, (underlying, ethRateOracle, asset, adapter)) in mockCurrencies.items():
         if name != "weth":
@@ -245,7 +248,6 @@ def list_currencies(mockCurrencies, proxy, deployer):
         governance.enableCashGroup(
             currencyId,
             adapter.address,
-            adapter.address,  # TODO: update this
             (
                 2,  # max market index
                 20,  # rate oracle time window
@@ -266,15 +268,17 @@ def main():
     mockCurrencies = deployMockCurrencies(deployer, comptroller, compPriceOracle)
 
     # Deploy logic contracts
-    governance = Governance.deploy({"from": deployer})
+    governance = GovernanceAction.deploy({"from": deployer})
     views = Views.deploy({"from": deployer})
     initialize = InitializeMarketsAction.deploy({"from": deployer})
+    perpetualToken = PerpetualTokenAction.deploy({"from": deployer})
 
     # Deploy router
     router = Router.deploy(
         governance.address,
         views.address,
         initialize.address,
+        perpetualToken.address,
         mockCurrencies["weth"][2].address,  # cETH
         mockCurrencies["weth"][0].address,  # WETH
         {"from": deployer},
