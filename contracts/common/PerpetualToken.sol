@@ -49,7 +49,11 @@ library PerpetualToken {
         return (currencyId, totalSupply);
     }
 
-    /** @notice Returns the perpetual token address for a given currency */
+    /**
+     * @notice Returns the perpetual token address for a given currency
+     * @dev TODO: make this a CREATE2 lookup but requires recursion in the compiler because this
+     * library is imported into the perpetual token action so we need to handle that somehow.
+     */
     function getPerpetualTokenAddress(
         uint currencyId
     ) internal view returns (address) {
@@ -461,7 +465,7 @@ library PerpetualToken {
     function calculateMarketProportion(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market
-    ) internal pure returns (int) {
+    ) private pure returns (int) {
         int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(
             market.totalCurrentCash
         );

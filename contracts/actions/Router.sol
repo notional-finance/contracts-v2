@@ -19,6 +19,7 @@ contract Router is StorageLayoutV1 {
     address public immutable GOVERNANCE;
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
+    address public immutable PERPETUAL_TOKEN;
     address public immutable cETH;
     address public immutable WETH;
 
@@ -26,12 +27,14 @@ contract Router is StorageLayoutV1 {
         address governance_,
         address views_,
         address initializeMarket_,
+        address perpetualToken_,
         address cETH_,
         address weth_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
+        PERPETUAL_TOKEN = perpetualToken_;
         cETH = cETH_;
         WETH = weth_;
     }
@@ -43,7 +46,7 @@ contract Router is StorageLayoutV1 {
         // Allow list currency to be called by this contract for the purposes of
         // initializing ETH as a currency
         owner = msg.sender;
-        // List ETH as currency id == 1
+        // List ETH as currency id == 1, NOTE: return value is ignored here
         address(GOVERNANCE).delegatecall(
             abi.encodeWithSignature(
                 "listCurrency(address,bool,address,bool,uint8,uint8,uint8)",
@@ -67,6 +70,23 @@ contract Router is StorageLayoutV1 {
         // TODO: order these by most commonly used
         if (sig == bytes4(keccak256("initializeMarkets(uint,bool)"))) {
             return INITIALIZE_MARKET;
+        }
+
+        if (
+            sig == bytes4(keccak256("perpetualTokenTotalSupply(address)")) ||
+            sig == bytes4(keccak256("perpetualTokenBalanceOf(uint16,address)")) ||
+            sig == bytes4(keccak256("perpetualTokenTransferAllowance(uint16,address,address)")) ||
+            sig == bytes4(keccak256("perpetualTokenTransferApprove(uint16,address,uint)")) ||
+            sig == bytes4(keccak256("perpetualTokenTransfer(uint16,address,address,uint)")) ||
+            sig == bytes4(keccak256("perpetualTokenTransferFrom(uint16,address,address,uint)")) ||
+            sig == bytes4(keccak256("perpetualTokenTransferApproveAll(address,uint)")) ||
+            sig == bytes4(keccak256("perpetualTokenMint(uint16,uint,bool)")) ||
+            sig == bytes4(keccak256("perpetualTokenMintFor(uint16,address,uint,bool)")) ||
+            sig == bytes4(keccak256("perpetualTokenRedeem(uint16,uint)")) ||
+            sig == bytes4(keccak256("perpetualTokenPresentValueAssetDenominated(uint16)")) ||
+            sig == bytes4(keccak256("perpetualTokenPresentValueUnderlyingDenominated(uint16)"))
+        ) {
+            return PERPETUAL_TOKEN;
         }
 
         if (

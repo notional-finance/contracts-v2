@@ -229,4 +229,12 @@ contract StorageLayoutV1 {
     address internal owner;
     // This is set to the governance token address
     address internal token;
+
+    // A blanket allowance for a spender to transfer any of an account's perpetual tokens. This would allow a user
+    // to set an allowance on all perpetual tokens for a particular integrating contract system.
+    // owner => spender => transferAllowance
+    mapping(address => mapping(address => uint)) internal perpTokenWhitelist;
+    // Individual transfer allowances for perpetual tokens used for ERC20
+    // owner => spender => currencyId => transferAllowance
+    mapping(address => mapping(address => mapping(uint16 => uint))) internal perpTokenTransferAllowance;
 }

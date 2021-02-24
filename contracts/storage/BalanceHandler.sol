@@ -223,7 +223,7 @@ library BalanceHandler {
     /**
      * @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
      */
-    function getBalanceStorage(address account, uint currencyId) private view returns (int, int, int) {
+    function getBalanceStorage(address account, uint currencyId) internal view returns (int, int, int) {
         bytes32 slot = keccak256(abi.encode(currencyId, keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))));
         bytes32 data;
 

@@ -7,6 +7,8 @@ import "../common/CashGroup.sol";
 import "../common/PerpetualToken.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../adapters/AssetRateAdapterInterface.sol";
+import "../adapters/PerpetualTokenERC20.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
@@ -23,6 +25,7 @@ contract Governance is StorageLayoutV1 {
     event UpdateInitializationParameters(uint currencyId);
     // TODO: add incentive settings
     // TODO: add max assets parameter
+    // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
@@ -77,11 +80,19 @@ contract Governance is StorageLayoutV1 {
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
-        address perpetualTokenAddress,
         CashGroupParameterStorage calldata cashGroup
     ) external onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
+
+        // Creates the perpeutal token erc20 proxy that points back to the main proxy
+        // and routes methods to PerpetualTokenAction
+        address perpetualTokenAddress = Create2.deploy(
+            0,
+            bytes32(uint(currencyId)),
+            abi.encodePacked(type(PerpetualTokenERC20).creationCode, abi.encode(address(this), currencyId))
+        );
+
         PerpetualToken.setPerpetualTokenAddress(currencyId, perpetualTokenAddress);
     }
 
