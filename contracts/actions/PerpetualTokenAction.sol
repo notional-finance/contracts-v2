@@ -7,16 +7,19 @@ import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/BalanceHandler.sol";
+import "interfaces/notional/PerpetualTokenActionInterface.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract PerpetualTokenAction is StorageLayoutV1 {
+contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int;
     using SafeMath for uint;
 
-    function perpetualTokenTotalSupply(address perpTokenAddress) external view returns (uint) {
+    function perpetualTokenTotalSupply(
+        address perpTokenAddress
+    ) override external view returns (uint) {
         (/* currencyId */, uint totalSupply) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(
             perpTokenAddress
         );
@@ -27,7 +30,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
     function perpetualTokenBalanceOf(
         uint16 currencyId,
         address account
-    ) external view returns (uint) {
+    ) override external view returns (uint) {
         (
             /* int cashBalance */,
             int perpetualTokenBalance,
@@ -42,7 +45,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         uint16 currencyId,
         address owner,
         address spender
-    ) external view returns (uint) {
+    ) override external view returns (uint) {
         // This whitelist allowance supercedes any specific allowances
         uint allowance = perpTokenWhitelist[owner][spender];
         if (allowance > 0) return allowance;
@@ -55,7 +58,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         address owner,
         address spender,
         uint amount
-    ) external returns (bool) {
+    ) override external returns (bool) {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(msg.sender == perpTokenAddress, "PA: unauthorized caller");
 
@@ -75,7 +78,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         address sender,
         address recipient,
         uint amount
-    ) external returns (bool) {
+    ) override external returns (bool) {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(msg.sender == perpTokenAddress, "PA: unauthorized caller");
 
@@ -91,7 +94,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
         address sender,
         address recipient,
         uint amount
-    ) external returns (bool) {
+    ) override external returns (bool) {
         uint allowance = perpTokenWhitelist[sender][recipient];
 
         if (allowance > 0) {
@@ -118,7 +121,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
     function perpetualTokenTransferApproveAll(
         address spender,
         uint amount
-    ) external returns (bool) {
+    ) override external returns (bool) {
         uint allowance = perpTokenWhitelist[msg.sender][spender];
         require(allowance == 0, "PA: allowance not zero");
         perpTokenWhitelist[msg.sender][spender] = amount;
@@ -128,7 +131,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
 
     function perpetualTokenPresentValueAssetDenominated(
         uint16 currencyId
-    ) external view returns (int) {
+    ) override external view returns (int) {
         (int totalAssetPV, /* portfolio */) = _getPerpetualTokenPV(currencyId);
 
         return totalAssetPV;
@@ -136,7 +139,7 @@ contract PerpetualTokenAction is StorageLayoutV1 {
 
     function perpetualTokenPresentValueUnderlyingDenominated(
         uint16 currencyId
-    ) external view returns (int) {
+    ) override external view returns (int) {
         (
             int totalAssetPV,
             PerpetualTokenPortfolio memory perpToken

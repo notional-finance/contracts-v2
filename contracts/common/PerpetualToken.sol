@@ -50,8 +50,7 @@ library PerpetualToken {
 
     /**
      * @notice Returns the perpetual token address for a given currency
-     * @dev TODO: make this a CREATE2 lookup but requires recursion in the compiler because this
-     * library is imported into the perpetual token action so we need to handle that somehow.
+     * @dev TODO: make this a CREATE2 lookup but would blow up the code size
      */
     function getPerpetualTokenAddress(
         uint currencyId

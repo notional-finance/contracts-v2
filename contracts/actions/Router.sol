@@ -4,6 +4,9 @@ pragma experimental ABIEncoderV2;
 
 import "../storage/StorageLayoutV1.sol";
 import "./GovernanceAction.sol";
+import "./PerpetualTokenAction.sol";
+import "./MintPerpetualTokenAction.sol";
+import "./InitializeMarketsAction.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -19,7 +22,8 @@ contract Router is StorageLayoutV1 {
     address public immutable GOVERNANCE;
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
-    address public immutable PERPETUAL_TOKEN;
+    address public immutable PERPETUAL_TOKEN_ACTIONS;
+    address public immutable PERPETUAL_TOKEN_MINT;
     address public immutable cETH;
     address public immutable WETH;
 
@@ -27,14 +31,16 @@ contract Router is StorageLayoutV1 {
         address governance_,
         address views_,
         address initializeMarket_,
-        address perpetualToken_,
+        address perpetualTokenActions_,
+        address perpetualTokenMint_,
         address cETH_,
         address weth_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
-        PERPETUAL_TOKEN = perpetualToken_;
+        PERPETUAL_TOKEN_ACTIONS = perpetualTokenActions_;
+        PERPETUAL_TOKEN_MINT = perpetualTokenMint_;
         cETH = cETH_;
         WETH = weth_;
     }
@@ -48,8 +54,8 @@ contract Router is StorageLayoutV1 {
         owner = msg.sender;
         // List ETH as currency id == 1, NOTE: return value is ignored here
         address(GOVERNANCE).delegatecall(
-            abi.encodeWithSignature(
-                "listCurrency(address,bool,address,bool,uint8,uint8,uint8)",
+            abi.encodeWithSelector(
+                GovernanceAction.listCurrency.selector,
                 cETH,
                 false,
                 address(0),
@@ -68,36 +74,41 @@ contract Router is StorageLayoutV1 {
      */
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         // TODO: order these by most commonly used
-        if (sig == bytes4(keccak256("initializeMarkets(uint,bool)"))) {
+        if (
+            sig == PerpetualTokenAction.perpetualTokenTotalSupply.selector ||
+            sig == PerpetualTokenAction.perpetualTokenBalanceOf.selector ||
+            sig == PerpetualTokenAction.perpetualTokenTransferAllowance.selector ||
+            sig == PerpetualTokenAction.perpetualTokenTransferApprove.selector ||
+            sig == PerpetualTokenAction.perpetualTokenTransfer.selector ||
+            sig == PerpetualTokenAction.perpetualTokenTransferFrom.selector ||
+            sig == PerpetualTokenAction.perpetualTokenTransferApproveAll.selector ||
+            sig == PerpetualTokenAction.perpetualTokenPresentValueAssetDenominated.selector ||
+            sig == PerpetualTokenAction.perpetualTokenPresentValueUnderlyingDenominated.selector
+        ) {
+            return PERPETUAL_TOKEN_ACTIONS;
+        }
+
+        if (
+            sig == MintPerpetualTokenAction.perpetualTokenMint.selector ||
+            sig == MintPerpetualTokenAction.perpetualTokenMintFor.selector ||
+            sig == MintPerpetualTokenAction.perpetualTokenRedeem.selector
+        ) {
+            return PERPETUAL_TOKEN_MINT;
+        }
+
+        if (sig == InitializeMarketsAction.initializeMarkets.selector) {
             return INITIALIZE_MARKET;
         }
 
         if (
-            sig == bytes4(keccak256("perpetualTokenTotalSupply(address)")) ||
-            sig == bytes4(keccak256("perpetualTokenBalanceOf(uint16,address)")) ||
-            sig == bytes4(keccak256("perpetualTokenTransferAllowance(uint16,address,address)")) ||
-            sig == bytes4(keccak256("perpetualTokenTransferApprove(uint16,address,uint)")) ||
-            sig == bytes4(keccak256("perpetualTokenTransfer(uint16,address,address,uint)")) ||
-            sig == bytes4(keccak256("perpetualTokenTransferFrom(uint16,address,address,uint)")) ||
-            sig == bytes4(keccak256("perpetualTokenTransferApproveAll(address,uint)")) ||
-            sig == bytes4(keccak256("perpetualTokenMint(uint16,uint,bool)")) ||
-            sig == bytes4(keccak256("perpetualTokenMintFor(uint16,address,uint,bool)")) ||
-            sig == bytes4(keccak256("perpetualTokenRedeem(uint16,uint)")) ||
-            sig == bytes4(keccak256("perpetualTokenPresentValueAssetDenominated(uint16)")) ||
-            sig == bytes4(keccak256("perpetualTokenPresentValueUnderlyingDenominated(uint16)"))
-        ) {
-            return PERPETUAL_TOKEN;
-        }
-
-        if (
-            sig == bytes4(keccak256("listCurrency(address,bool,address,bool,uint8,uint8,uint8)")) ||
-            sig == bytes4(keccak256("enableCashGroup(uint16,address,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
-            sig == bytes4(keccak256("updatePerpetualDepositParameters(uint16,uint32[],uint32[])")) ||
-            sig == bytes4(keccak256("updateInitializationParameters(uint16,uint32[],uint32[])")) ||
-            sig == bytes4(keccak256("updateCashGroup(uint16,(uint8,uint8,uint8,uint8,uint8,uint8,uint16))")) ||
-            sig == bytes4(keccak256("updateAssetRate(uint16,address)")) ||
-            sig == bytes4(keccak256("updateETHRate(uint16,address,bool,uint8,uint8)")) ||
-            sig == bytes4(keccak256("transferOwnership(address)"))
+            sig == GovernanceAction.listCurrency.selector ||
+            sig == GovernanceAction.enableCashGroup.selector ||
+            sig == GovernanceAction.updateCashGroup.selector ||
+            sig == GovernanceAction.updateAssetRate.selector ||
+            sig == GovernanceAction.updateETHRate.selector ||
+            sig == GovernanceAction.transferOwnership.selector ||
+            sig == GovernanceAction.updatePerpetualDepositParameters.selector ||
+            sig == GovernanceAction.updateInitializationParameters.selector
         ) {
             return GOVERNANCE;
         }
