@@ -20,7 +20,6 @@ struct PerpetualTokenPortfolio {
     address tokenAddress;
 }
 
-// TODO: need to make settle assets a library
 library PerpetualToken {
     using Market for MarketParameters;
     using AssetHandler for PortfolioAsset;

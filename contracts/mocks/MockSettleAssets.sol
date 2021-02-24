@@ -2,9 +2,11 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../storage/BitmapAssetsHandler.sol";
+import "../storage/StorageLayoutV1.sol";
 import "../storage/SettleAssets.sol";
 
-contract MockSettleAssets is SettleAssets {
+contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
 
@@ -56,6 +58,14 @@ contract MockSettleAssets is SettleAssets {
         return Market.getSettlementMarket(currencyId, maturity, settlementDate);
     }
 
+    function getSettlementRate(
+        uint currencyId,
+        uint maturity
+    ) external view returns (AssetRateParameters memory) {
+        (AssetRateParameters memory rate, /* */) = AssetRate.buildSettlementRateView(currencyId, maturity);
+        return rate;
+    }
+
     function getAssetArray(address account) external view returns (AssetStorage[] memory) {
         return assetArrayMapping[account];
     }
@@ -72,7 +82,7 @@ contract MockSettleAssets is SettleAssets {
         uint id,
         bytes memory bitmap
     ) external {
-        assetBitmapMapping[account][id] = bitmap;
+        BitmapAssetsHandler.setAssetsBitmap(account, id, bitmap);
     }
 
     function setifCash(
@@ -93,11 +103,18 @@ contract MockSettleAssets is SettleAssets {
     }
 
     function setSettlementRate(
-        uint id,
+        uint currencyId,
         uint maturity,
-        SettlementRateStorage calldata sr
+        uint128 rate
     ) external {
-        assetToUnderlyingSettlementRateMapping[id][maturity] = sr;
+        uint blockTime = block.timestamp;
+        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        bytes32 data = (
+            bytes32(blockTime) |
+            bytes32(uint(rate)) << 40
+        );
+
+        assembly { sstore(slot, data) }
     }
 
     function _getSettleAssetContextView(
@@ -110,7 +127,7 @@ contract MockSettleAssets is SettleAssets {
         AccountStorage memory aContextView = accountContextMapping[account];
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
 
-        BalanceState[] memory bContextView = getSettleAssetContextView(
+        BalanceState[] memory bContextView = SettleAssets.getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
@@ -132,14 +149,14 @@ contract MockSettleAssets is SettleAssets {
         AccountStorage memory aContext= accountContextMapping[account];
         PortfolioState memory pState= PortfolioHandler.buildPortfolioState(account, 0);
 
-        BalanceState[] memory bContextView = getSettleAssetContextView(
+        BalanceState[] memory bContextView = SettleAssets.getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
             blockTime
         );
 
-        BalanceState[] memory bContext = getSettleAssetContextStateful(
+        BalanceState[] memory bContext = SettleAssets.getSettleAssetContextStateful(
             account,
             pState,
             aContext,
@@ -202,10 +219,10 @@ contract MockSettleAssets is SettleAssets {
         bytes memory bitmap,
         uint nextMaturingAsset,
         uint blockTime
-    ) public returns (bytes memory, int) {
+    ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes memory newBitmap, int newAssetCash) = settleBitmappedCashGroup(
+        (bytes memory newBitmap, int newAssetCash) = SettleAssets.settleBitmappedCashGroup(
             account,
             currencyId,
             nextMaturingAsset,
@@ -224,7 +241,7 @@ contract MockSettleAssets is SettleAssets {
         uint bitNum,
         bytes32 bits
     ) public returns (bytes32, int) {
-        return settleBitmappedAsset(
+        return SettleAssets.settleBitmappedAsset(
             account,
             currencyId,
             nextMaturingAsset,
@@ -254,7 +271,7 @@ contract MockSettleAssets is SettleAssets {
         SplitBitmap memory bitmap,
         bytes32 bits
     ) public pure returns (SplitBitmap memory, bytes32) {
-        bytes32 newBits = remapBitSection(
+        bytes32 newBits = SettleAssets.remapBitSection(
             nextMaturingAsset,
             blockTimeUTC0,
             bitOffset,

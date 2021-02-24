@@ -57,9 +57,9 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
             # Set settlement rates for markets 0, 1
             if m == MARKETS[0]:
-                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[0])
+                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[0][2])
             elif m == MARKETS[1]:
-                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[1])
+                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[1][2])
 
     return contract
 
@@ -91,8 +91,8 @@ def generate_asset_array(numAssets):
 def assert_rates_settled(mockSettleAssets, assetArray, blockTime):
     for a in assetArray:
         if a[1] < blockTime and a[1] not in (MARKETS[0], MARKETS[1]):
-            value = mockSettleAssets.assetToUnderlyingSettlementRateMapping(a[0], a[1])
-            assert value == (18, blockTime, SETTLED_RATE * a[0])
+            (_, rate) = mockSettleAssets.getSettlementRate(a[0], a[1])
+            assert rate == (SETTLED_RATE * a[0])
 
 
 def assert_markets_updated(mockSettleAssets, assetArray):
@@ -183,7 +183,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     assert len(bs) == len(computedBs)
     for i, b in enumerate(bs):
         assert b[0] == computedBs[i][0]
-        assert pytest.approx(b[3], rel=1e-12) == computedBs[i][1]
+        assert pytest.approx(b[4], rel=1e-12) == computedBs[i][1]
 
     # This will assert the values from the view match the values from the stateful method
     mockSettleAssets.testSettleAssetArray(accounts[1], blockTime)

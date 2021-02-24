@@ -72,7 +72,7 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
 def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
     cg = BASE_CASH_GROUP
     # TODO: need to set supply rate
-    cg[2] = (mockAssetRate.address, 0.01e18, 18)
+    cg[2] = (mockAssetRate.address, 0.01e18)
     bitmapAssets.setAssetRateMapping(1, (mockAssetRate.address, 18))
 
     markets = [

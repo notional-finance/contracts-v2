@@ -12,7 +12,7 @@ library BitmapAssetsHandler {
     using Bitmap for bytes;
     using CashGroup for CashGroupParameters;
 
-    uint internal constant IFCASH_STORAGE_SLOT = 9;
+    uint internal constant IFCASH_STORAGE_SLOT = 7;
 
     function getAssetsBitmap(
         address account,
@@ -45,6 +45,18 @@ library BitmapAssetsHandler {
         assembly { sstore(slot, data) }
     }
 
+    function getifCashSlot(
+        address account,
+        uint currencyId,
+        uint maturity
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(maturity,
+            keccak256(abi.encode(currencyId,
+                keccak256(abi.encode(account, IFCASH_STORAGE_SLOT))
+            ))
+        ));
+    }
+
     /**
      * @notice Set an ifCash asset in the bitmap and mapping. Updates the bitmap in memory but not in storage.
      */
@@ -56,12 +68,7 @@ library BitmapAssetsHandler {
         int notional,
         bytes memory assetsBitmap
     ) internal returns (bytes memory) {
-        bytes32 fCashSlot = keccak256(abi.encode(maturity,
-            keccak256(abi.encode(currencyId,
-                keccak256(abi.encode(account, IFCASH_STORAGE_SLOT))
-            ))
-        ));
-
+        bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
         (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextMaturingAsset, maturity);
         require(isExact, "BM: invalid maturity");
 

@@ -9,7 +9,7 @@ import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
-contract SettleAssets is StorageLayoutV1 {
+library SettleAssets {
     using SafeInt256 for int;
     using AssetRate for AssetRateParameters;
     using Bitmap for bytes;
@@ -31,6 +31,7 @@ contract SettleAssets is StorageLayoutV1 {
         // This is required for iteration
         portfolioState.calculateSortedIndex();
 
+        // WARM: remove
         for (uint i; i < portfolioState.sortedIndex.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
             if (asset.getSettlementDate() > blockTime) continue;
@@ -45,6 +46,7 @@ contract SettleAssets is StorageLayoutV1 {
         // The actual balance states are fetched later during the settlement loop to save an additional
         // loop here
         return new BalanceState[](currenciesSettled);
+        // WARM: remove
     }
 
     /**
@@ -128,7 +130,9 @@ contract SettleAssets is StorageLayoutV1 {
         AccountStorage memory accountContext,
         uint blockTime
     ) internal view returns (BalanceState[] memory) {
+        // WARM REMOVE
         BalanceState[] memory balanceState = getSettleAssetBalanceContext(portfolioState, blockTime);
+        // WARM REMOVE
         AssetRateParameters memory settlementRate;
         BalanceState memory currentContext;
         uint currencyIndex;
@@ -157,7 +161,10 @@ contract SettleAssets is StorageLayoutV1 {
             // mature. fCash claims on liquidity tokens settle at asset.maturity, not the settlement date
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read inside getSettlementRateView
-                settlementRate = getSettlementRateView(asset.currencyId, asset.maturity);
+                (settlementRate, /* bytes32 */) = AssetRate.buildSettlementRateView(
+                    asset.currencyId,
+                    asset.maturity
+                );
             }
 
             int assetCash;
@@ -221,7 +228,11 @@ contract SettleAssets is StorageLayoutV1 {
 
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read / Write inside getSettlementRateStateful
-                settlementRate = getSettlementRateStateful(asset.currencyId, asset.maturity, blockTime);
+                settlementRate = AssetRate.buildSettlementRateStateful(
+                    asset.currencyId,
+                    asset.maturity,
+                    blockTime
+                );
             }
 
             int assetCash;
@@ -280,60 +291,6 @@ contract SettleAssets is StorageLayoutV1 {
         return assetCash;
     }
 
-
-    /**
-     * @dev View version of getSettlementRate, if settlement rate is not set will fetch the most current rate.
-     */
-    function getSettlementRateView(
-        uint currencyId,
-        uint maturity
-    ) internal view returns (AssetRateParameters memory) {
-        // Storage Read
-        SettlementRateStorage memory settlementRate = assetToUnderlyingSettlementRateMapping[currencyId][maturity];
-
-        // Rate has not been set so we fetch the latest exchange rate
-        if (settlementRate.timestamp == 0) {
-            // Storage Read
-            return AssetRate.buildAssetRate(currencyId);
-        }
-
-        return AssetRate.buildSettlementRate(settlementRate.rate);
-    }
-
-    /**
-     * @dev View version of getSettlementRate, if settlement rate is not set will set it. Ideally, settlement rates
-     * are set as close to maturity as possible but this may not always be possible. As long as all assets at a maturity
-     * use the same settlement rate then we know that all balances will net out appropriately.
-     */
-    function getSettlementRateStateful(
-        uint currencyId,
-        uint maturity,
-        uint blockTime
-    ) internal returns (AssetRateParameters memory) {
-        // Storage Read
-        SettlementRateStorage memory settlementRate = assetToUnderlyingSettlementRateMapping[currencyId][maturity];
-
-        // Rate has not been set so we fetch the latest exchange rate and set it
-        if (settlementRate.timestamp == 0) {
-            AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
-
-            require(blockTime != 0 && blockTime <= type(uint40).max, "S: invalid timestamp");
-            require(assetRate.rate > 0 && assetRate.rate <= type(uint128).max, "S: rate overflow");
-            
-            // Storage Write
-            assetToUnderlyingSettlementRateMapping[currencyId][maturity] = SettlementRateStorage({
-                rateDecimalPlaces: assetRate.rateDecimalPlaces,
-                timestamp: uint40(blockTime),
-                rate: uint128(assetRate.rate)
-            });
-            // TODO: emit event here
-
-            return assetRate;
-        }
-
-        return AssetRate.buildSettlementRate(settlementRate.rate);
-    }
-
     /**
      * @notice Stateful settlement function to settle a bitmapped asset. Deletes the
      * asset from storage after calculating it.
@@ -351,16 +308,19 @@ contract SettleAssets is StorageLayoutV1 {
         if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
             uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
             // Storage Read
-            int ifCash = ifCashMapping[account][currencyId][maturity];
+            bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
+            int ifCash;
+            assembly { ifCash := sload(ifCashSlot) }
+
             // Storage Read / Write
-            AssetRateParameters memory rate = getSettlementRateStateful(
+            AssetRateParameters memory rate = AssetRate.buildSettlementRateStateful(
                 currencyId,
                 maturity,
                 blockTime
             );
             assetCash = rate.convertInternalFromUnderlying(ifCash);
             // Storage Delete
-            delete ifCashMapping[account][currencyId][maturity];
+            assembly { sstore(ifCashSlot, 0) }
         }
 
         bits = bits << 1;
