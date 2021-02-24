@@ -40,7 +40,6 @@ library TokenHandler {
         address assetTokenAddress = address(bytes20(data << 96));
         bool tokenHasTransferFee = bytes1(data << 88) != 0x00;
         uint8 tokenDecimalPlaces = uint8(bytes1(data << 80));
-        // uint8 liquidationDiscount = uint8(bytes1(data << 72));
 
         return Token({
             tokenAddress: assetTokenAddress,

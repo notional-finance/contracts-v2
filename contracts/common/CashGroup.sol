@@ -412,39 +412,6 @@ library CashGroup {
         );
     }
 
-    /**
-     * @notice Called if totalLiquidity is equal to zero. Will initialize the market with the
-     * settings supplied by the perpetual liquidity token. This includes setting the initial proportion
-     * and the initial rate anchor.
-     *
-     * TODO: is this a stateful function or not?
-     function initializeMarket(
-       CashGroupParameters cashGroup,
-       uint maturity,
-       uint blockTime,
-       address perpetualTokenAddress
-     ) internal view returns (Market memory) {
-        require(CashGroup.isValidMaturity(cashGroup, maturity, blockTime), "Cash Group: invalid maturity");
-        uint timeToMaturity = maturity - blockTime;
-        uint rateAnchor = LiquidityCurve.initializeRateAnchor(cashGroup.gRateAnchor, timeToMaturity);
-
-        // TODO: calculate initial amounts and transfer them to market
-        uint initialfCash;
-        uint initialCash;
-
-        Market memory market = Market({
-            totalfCash: initialfCash,
-            totalCurrentCash: initialCash,
-            totalLiquidity: initialCash,
-            rateAnchor: rateAnchor,
-            lastDailyRate: 0
-        })
-        market.lastDailyRate = LiquidityCurve.getDailyRate(cashGroup, market, timeToMaturity);
-
-        return market;
-     }
-     */
-
     function getCashGroupStorageBytes(uint currencyId) private view returns(bytes32) {
         bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
         bytes32 data;

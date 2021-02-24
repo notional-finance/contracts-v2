@@ -25,6 +25,7 @@ library FreeCollateral {
     ) internal view returns (PortfolioAsset[] memory, int[] memory) {
         PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
         // Ensure that cash groups and markets are up to date
+        // TODO: this can get a lot simpler with WARM storage reads
         (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method

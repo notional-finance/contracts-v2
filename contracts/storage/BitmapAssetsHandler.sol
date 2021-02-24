@@ -46,17 +46,6 @@ library BitmapAssetsHandler {
     }
 
     /**
-     * @notice Given a portfolio, extends the array and returns the matching fCash assets. This is done
-     * to ensure that fCashClaims and fCash assets net off before we discount to present value.
-    function getLiquidityTokenfCashAssets(
-        address account,
-        PortfolioAsset[] portfolioAssets
-    ) internal view returns (PortfolioAsset[] memory) {
-
-    }
-     */
-
-    /**
      * @notice Set an ifCash asset in the bitmap and mapping. Updates the bitmap in memory but not in storage.
      */
     function setifCashAsset(

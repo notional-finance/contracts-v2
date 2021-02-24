@@ -3,7 +3,6 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
-import "../math/SafeUInt128.sol";
 import "../math/ABDKMath64x64.sol";
 import "./AssetRate.sol";
 import "./CashGroup.sol";
@@ -47,7 +46,6 @@ struct SettlementMarket {
 library Market {
     using SafeMath for uint;
     using SafeInt256 for int;
-    using SafeUInt128 for uint128;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 

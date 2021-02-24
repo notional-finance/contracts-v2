@@ -251,6 +251,7 @@ library BalanceHandler {
         bool isActive = activeCurrencies.isBitSet(currencyId);
         if (isActive) {
             // Set the bit to off to mark that we've read the balance
+            // TODO: simplify this because hot reads will only be 100 gas
             activeCurrencies = Bitmap.setBit(
                 activeCurrencies,
                 currencyId,
@@ -286,6 +287,7 @@ library BalanceHandler {
     /**
      * @notice When doing a free collateral check we must get all active balances, this will
      * fetch any remaining balances and exchange rates that are active on the account.
+     * @dev TODO: simplify this because hot reads will only be 100 gas
      */
     function getRemainingActiveBalances(
         address account,
