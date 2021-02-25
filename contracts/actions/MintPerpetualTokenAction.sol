@@ -6,31 +6,49 @@ import "../common/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/BalanceHandler.sol";
+import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 contract MintPerpetualTokenAction is StorageLayoutV1 {
     using SafeInt256 for int;
     using BalanceHandler for BalanceState;
 
+    function calculatePerpetualTokensToMint(
+        uint16 currencyId,
+        uint88 amountToDeposit
+    ) external view returns (uint) {
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+
+        (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
+            perpToken,
+            accountContext,
+            int(amountToDeposit),
+            block.timestamp
+        );
+
+        return SafeCast.toUint256(tokensToMint);
+    }
+
     function perpetualTokenMint(
         uint16 currencyId,
-        uint amountToDeposit,
+        uint88 amountToDeposit,
         bool useCashBalance
     ) external returns (uint) {
-        return _mintPerpetualToken(currencyId, msg.sender, amountToDeposit, useCashBalance);
+        return _mintPerpetualToken(currencyId, msg.sender, int(amountToDeposit), useCashBalance);
     }
 
     function perpetualTokenMintFor(
         uint16 currencyId,
         address recipient,
-        uint amountToDeposit,
+        uint88 amountToDeposit,
         bool useCashBalance
     ) external returns (uint) {
-        return _mintPerpetualToken(currencyId, recipient, amountToDeposit, useCashBalance);
+        return _mintPerpetualToken(currencyId, recipient, int(amountToDeposit), useCashBalance);
     }
 
     function perpetualTokenRedeem(
         uint16 currencyId,
-        uint tokensToRedeem
+        uint88 tokensToRedeem
     ) external returns (bool) {
         revert("UNIMPLMENTED");
     }
@@ -38,10 +56,9 @@ contract MintPerpetualTokenAction is StorageLayoutV1 {
     function _mintPerpetualToken(
         uint currencyId,
         address recipient,
-        uint amountToDeposit_,
+        int amountToDeposit,
         bool useCashBalance
     ) internal returns (uint) {
-        int amountToDeposit= SafeCast.toInt256(amountToDeposit_);
         uint blockTime = block.timestamp;
 
         // First check if the account can support the deposit
@@ -86,6 +103,4 @@ contract MintPerpetualTokenAction is StorageLayoutV1 {
 
         return SafeCast.toUint256(tokensToMint);
     }
-
-
 }
