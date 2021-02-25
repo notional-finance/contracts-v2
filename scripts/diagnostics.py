@@ -47,7 +47,7 @@ def cash_group_panel(cashGroup, assetRate):
     grid = Table.grid(expand=True)
     grid.add_column(style="cyan")
     grid.add_column(justify="right", style="magenta")
-    grid.add_row("Asset Rate", str(assetRate[1] / 10 ** assetRate[2]))
+    grid.add_row("Asset Rate", str(assetRate[1] / 1e18))
     grid.add_row("Max Markets", str(cashGroup[0]))
     grid.add_row("Rate Oracle Time", "{} min".format(cashGroup[1]))
     grid.add_row("Liquidity Fee", "{} bps".format(cashGroup[2]))

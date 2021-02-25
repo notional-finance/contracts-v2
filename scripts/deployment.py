@@ -1,7 +1,10 @@
+from copy import copy
+
 from brownie import (
     GovernanceAction,
     GovernorAlpha,
     InitializeMarketsAction,
+    MintPerpetualTokenAction,
     MockAggregator,
     MockERC20,
     MockWETH,
@@ -23,6 +26,7 @@ from brownie import (
 )
 from brownie.network import web3
 from brownie.network.contract import Contract
+from scripts.config import CurrencyDefaults, TokenConfig
 
 
 def deployGovernance(proxyAdmin, notionalProxy, deployer):
@@ -52,10 +56,10 @@ def deployGovernance(proxyAdmin, notionalProxy, deployer):
     return (noteERC20Proxy, timelock, governor)
 
 
-def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOracle):
+def deployCToken(symbol, underlyingToken, comptroller, deployer, rate, compPriceOracle):
     cToken = None
 
-    if name == "eth":
+    if symbol == "ETH":
         # cETH uses whitepaper interest rate model
         # cETH: https://etherscan.io/address/0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5
         # Interest Rate Model:
@@ -76,7 +80,7 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
             {"from": deployer},
         )
 
-    if name == "wbtc":
+    elif symbol == "WBTC":
         # cWBTC uses whitepaper interest rate model
         # cWBTC https://etherscan.io/address/0xc11b1268c1a384e55c48c2391d8d480264a3a7f4
         # Interest Rate Model:
@@ -98,7 +102,7 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
             {"from": deployer},
         )
 
-    if name == "dai":
+    elif symbol == "DAI":
         # cDai: https://etherscan.io/address/0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643
         # Jump interest rate model:
         # https://etherscan.io/address/0xfb564da37b41b2f6b6edcc3e56fbf523bd9f2012
@@ -123,7 +127,7 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
             {"from": deployer},
         )
 
-    if name == "usdc":
+    elif symbol == "USDC":
         # cUSDC: https://etherscan.io/address/0x39aa39c021dfbae8fac545936693ac917d5e7563
         # Jump interest rate model:
         # https://etherscan.io/address/0xd8ec56013ea119e7181d231e5048f90fbbe753c0
@@ -148,7 +152,7 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
             {"from": deployer},
         )
 
-    if name == "tether":
+    elif symbol == "USDT":
         # cTether: https://etherscan.io/address/0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9
         # Jump Rate mode: https://etherscan.io/address/0xfb564da37b41b2f6b6edcc3e56fbf523bd9f2012
         initialExchangeRate = 200000000000000
@@ -172,8 +176,11 @@ def deployCToken(name, underlyingToken, comptroller, deployer, rate, compPriceOr
             {"from": deployer},
         )
 
+    else:
+        raise Exception("Unknown currency {}".format(symbol))
+
     comptroller._supportMarket(cToken.address, {"from": deployer})
-    if name != "eth":
+    if symbol != "ETH":
         compPriceOracle.setUnderlyingPrice(cToken.address, rate)
 
     return (cToken, cTokenAggregator.deploy(cToken.address, {"from": deployer}))
@@ -187,100 +194,48 @@ def deployMockCompound(deployer):
     return (comptroller, compPriceOracle)
 
 
-def deployMockCurrencies(deployer, comptroller, compPriceOracle):
-    # This is required to initialize ETH
-    weth = MockWETH.deploy({"from": deployer})
-    (cETH, cETHAdapter) = deployCToken("eth", None, comptroller, deployer, None, None)
+def deployMockCurrency(deployer, comptroller, compPriceOracle, symbol):
+    if symbol == "ETH":
+        # This is required to initialize ETH
+        weth = MockWETH.deploy({"from": deployer})
+        (cToken, cAdapter) = deployCToken("ETH", None, comptroller, deployer, None, None)
 
-    dai = MockERC20.deploy("Dai Stablecoin", "DAI", 18, 0, {"from": deployer})
-    daiETHOracle = MockAggregator.deploy(18, {"from": deployer})
-    daiETHOracle.setAnswer(0.01e18)
-    # TODO: can we just deploy a single adapter or put this into the base contracts?
-    (cDAI, cDAIAdapter) = deployCToken("dai", dai, comptroller, deployer, 0.01e18, compPriceOracle)
-
-    usdc = MockERC20.deploy("USD Coin", "USDC", 6, 0, {"from": deployer})
-    usdcETHOracle = MockAggregator.deploy(18, {"from": deployer})
-    usdcETHOracle.setAnswer(0.01e18)
-    (cUSDC, cUSDCAdapter) = deployCToken(
-        "usdc", usdc, comptroller, deployer, 0.01e18, compPriceOracle
-    )
-
-    tether = MockERC20.deploy("Tether USD", "USDT", 6, 0.001e18, {"from": deployer})
-    tetherETHOracle = MockAggregator.deploy(18, {"from": deployer})
-    tetherETHOracle.setAnswer(0.01e18)
-    (cUSDT, cUSDTAdapter) = deployCToken(
-        "tether", tether, comptroller, deployer, 0.01e18, compPriceOracle
-    )
-
-    wbtc = MockERC20.deploy("Wrapped BTC", "WBTC", 8, 0, {"from": deployer})
-    wbtcETHOracle = MockAggregator.deploy(18, {"from": deployer})
-    wbtcETHOracle.setAnswer(100e18)
-    (cWBTC, cWBTCAdapter) = deployCToken(
-        "wbtc", wbtc, comptroller, deployer, 100e18, compPriceOracle
-    )
-
-    return {
-        "weth": (weth, None, cETH, cETHAdapter),
-        "dai": (dai, daiETHOracle, cDAI, cDAIAdapter),
-        "usdc": (usdc, usdcETHOracle, cUSDC, cUSDCAdapter),
-        "tether": (tether, tetherETHOracle, cUSDT, cUSDTAdapter),
-        "wbtc": (wbtc, wbtcETHOracle, cWBTC, cWBTCAdapter),
-    }
-
-
-def list_currencies(mockCurrencies, proxy, deployer):
-    governance = Contract.from_abi(
-        "Governance", proxy.address, abi=GovernanceAction.abi, owner=deployer
-    )
-    currencyId = 1
-    for (name, (underlying, ethRateOracle, asset, adapter)) in mockCurrencies.items():
-        if name != "weth":
-            governance.listCurrency(
-                asset.address,
-                name == "tether",  # hasFee
-                ethRateOracle.address,
-                False,
-                140,
-                0 if name == "tether" else 100,
-                105,
-            )
-
-        governance.enableCashGroup(
-            currencyId,
-            adapter.address,
-            (
-                2,  # max market index
-                20,  # rate oracle time window
-                30,  # liquidity fee
-                95,  # token haircut
-                30,  # debt buffer
-                30,  # fcash haircut
-                100,  # rate scalar
-            ),
+        return (weth, None, cToken, cAdapter)
+    else:
+        config = TokenConfig[symbol]
+        token = MockERC20.deploy(
+            config["name"], symbol, config["decimals"], config["fee"], {"from": deployer}
+        )
+        ethOracle = MockAggregator.deploy(18, {"from": deployer})
+        ethOracle.setAnswer(config["rate"])
+        (cToken, cTokenAdapter) = deployCToken(
+            symbol, token, comptroller, deployer, config["rate"], compPriceOracle
         )
 
-        currencyId += 1
+        # TODO: can we simplify the deployment of cTokenAdapter to one overall?
+        return (token, ethOracle, cToken, cTokenAdapter)
 
 
-def main():
-    deployer = accounts[0]
-    (comptroller, compPriceOracle) = deployMockCompound(deployer)
-    mockCurrencies = deployMockCurrencies(deployer, comptroller, compPriceOracle)
+def deployNotional(deployer, comptroller, compPriceOracle):
+    # This must be deployed to enable Notional
+    (WETH, _, cETH, cETHAdapter) = deployMockCurrency(deployer, comptroller, compPriceOracle, "ETH")
 
     # Deploy logic contracts
     governance = GovernanceAction.deploy({"from": deployer})
     views = Views.deploy({"from": deployer})
     initialize = InitializeMarketsAction.deploy({"from": deployer})
-    perpetualToken = PerpetualTokenAction.deploy({"from": deployer})
+    perpetualTokenMint = MintPerpetualTokenAction.deploy({"from": deployer})
+    perpetualTokenAction = PerpetualTokenAction.deploy({"from": deployer})
 
     # Deploy router
     router = Router.deploy(
         governance.address,
         views.address,
         initialize.address,
-        perpetualToken.address,
-        mockCurrencies["weth"][2].address,  # cETH
-        mockCurrencies["weth"][0].address,  # WETH
+        perpetualTokenAction.address,
+        perpetualTokenMint.address,
+        cETH.address,  # cETH
+        WETH.address,  # WETH
         {"from": deployer},
     )
 
@@ -296,7 +251,66 @@ def main():
         {"from": deployer},
     )
 
-    list_currencies(mockCurrencies, proxy, deployer)
+    enableCurrency(
+        deployer, proxy, comptroller, compPriceOracle, "ETH", CurrencyDefaults, cETHAdapter
+    )
+
+    return proxy
+
+
+def enableCurrency(
+    deployer, proxy, comptroller, compPriceOracle, symbol, config, cTokenAdapter=None
+):
+    governance = Contract.from_abi(
+        "Governance", proxy.address, abi=GovernanceAction.abi, owner=deployer
+    )
+
+    currencyId = 1
+    if symbol != "ETH":
+        (token, ethRateOracle, cToken, cTokenAdapter) = deployMockCurrency(
+            deployer, comptroller, compPriceOracle, symbol
+        )
+
+        txn = governance.listCurrency(
+            cToken.address,
+            symbol == "USDT",  # hasFee
+            ethRateOracle.address,
+            False,
+            config["buffer"],
+            config["haircut"],
+            config["liquidationDiscount"],
+        )
+        currencyId = txn.events["ListCurrency"]["newCurrencyId"]
+
+    governance.enableCashGroup(
+        currencyId,
+        cTokenAdapter.address,
+        (
+            config["maxMarketIndex"],
+            config["rateOracleTimeWindow"],
+            config["liquidityFee"],
+            config["tokenHaircut"],
+            config["debtBuffer"],
+            config["fCashHaircut"],
+            config["rateScalar"],
+        ),
+    )
+
+    return currencyId
+
+
+def main():
+    deployer = accounts[0]
+    (comptroller, compPriceOracle) = deployMockCompound(deployer)
+    proxy = deployNotional(deployer, comptroller, compPriceOracle)
+
+    for symbol in TokenConfig.keys():
+        config = copy(CurrencyDefaults)
+        if symbol == "USDT":
+            config["haircut"] = 0
+
+        enableCurrency(deployer, proxy, comptroller, compPriceOracle, symbol, config)
+
     print("Proxy Address: ", proxy.address)
 
     # Enable governance:
