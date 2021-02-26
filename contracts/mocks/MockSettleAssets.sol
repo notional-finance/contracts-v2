@@ -94,14 +94,6 @@ contract MockSettleAssets is StorageLayoutV1 {
         ifCashMapping[account][id][maturity] = notional;
     }
 
-    function setBalance(
-        address account,
-        uint id,
-        BalanceStorage calldata bs
-    ) external {
-        accountBalanceMapping[account][id] = bs;
-    }
-
     function setSettlementRate(
         uint currencyId,
         uint maturity,

@@ -143,19 +143,6 @@ struct AssetStorage {
 }
 
 /**
- * Represents balances for a single currency on a single account. Each balance is composed of three
- * figures, total storage is 32 bytes.
- *  - cashBalance: the positive or negative amount of asset cash the account holds
- *  - perpetualTokenBalance: the perepetual token balance (if any) for the cash group
- */
-struct BalanceStorage {
-    // Asset token balance held by the account
-    int88 cashBalance;
-    // Perpetual liquidity tokens balance held by the account
-    uint80 perpetualTokenBalance;
-}
-
-/**
  * @notice Storage layout for the system. Do not change this file once deployed, future storage
  * layouts must inherit this and increment the version number.
  */
@@ -192,8 +179,6 @@ contract StorageLayoutV1 {
     mapping(address => AssetStorage[]) assetArrayMapping;
     // address => currency id => maturity => ifCash value
     mapping(address => mapping(uint => mapping(uint => int))) internal ifCashMapping;
-    // address => currency id => (cash balance, perpetual token balance)
-    mapping(address => mapping(uint => BalanceStorage)) internal accountBalanceMapping;
 
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions

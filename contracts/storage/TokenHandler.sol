@@ -79,8 +79,6 @@ library TokenHandler {
      * @notice Handles transfers into and out of the system. Crucially we must
      * translate the amount from internal balance precision to the external balance
      * precision.
-     *
-     * @dev Do not call this function directly, must be called via the BalanceHandler.
      */
     function transfer(
         Token memory token,

@@ -10,10 +10,15 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 struct BalanceState {
     uint currencyId;
+    // Cash balance stored in balance state at the beginning of the transaction
     int storedCashBalance;
+    // Perpetual token balance stored at the beginning of the transaction
     int storedPerpetualTokenBalance;
+    // The net cash change as a result of asset settlement or trading
     int netCashChange;
+    // Net cash transfers into or out of the account
     int netCashTransfer;
+    // Net perpetual token transfers into or out of the account
     int netPerpetualTokenTransfer;
 }
 
@@ -36,12 +41,8 @@ library BalanceHandler {
      * @notice Call this in order to transfer cash in and out of the Notional system as well as update
      * internal cash balances.
      *
-     * @dev This method will handle logic related to:
-     * - Updating internal token balances
-     * - Converting internal balances (1e9) to external balances
-     * - Transferring ERC20 tokens and handling fees
-     * - Managing perpetual liquidity token incentives
-     * - Updates the account context which must also be saved when this is completed
+     * @dev This method SHOULD NOT be used for perpetual token accounts, for that use setBalanceStorageForPerpToken
+     * as the perp token is limited in what types of balances it can hold.
      */
     function finalize(
         BalanceState memory balanceState,
@@ -69,16 +70,15 @@ library BalanceHandler {
             Token memory token = TokenHandler.getToken(balanceState.currencyId);
             balanceState.storedCashBalance = balanceState.storedCashBalance
                 .add(balanceState.netCashChange)
-                // TODO: fix this, this is wrong
-                // This will handle transfer fees if they exist
+                // This will handle transfer fees if they exist. If depositing to lend or provide liquidity
+                // then we have to account for transfer fees. That means that the transfer must happen
+                // before we come into this method
                 .add(token.transfer(account, balanceState.netCashTransfer));
             mustUpdate = true;
         }
 
         if (balanceState.netPerpetualTokenTransfer != 0) {
             // Perpetual tokens are within the notional system so we can update balances directly.
-            // TODO: need to ensure that perpetual tokens cannot be transferred to the perpetual token
-            // address, not sure where that logic lives
             balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
                 balanceState.netPerpetualTokenTransfer
             );
@@ -124,33 +124,27 @@ library BalanceHandler {
         address account,
         BalanceState memory balanceState
     ) private {
-        bytes32 slot = keccak256(
-            abi.encode(balanceState.currencyId,
-                keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))
-            )
-        );
+        bytes32 slot = keccak256(abi.encode(balanceState.currencyId, account, "account.balances"));
 
         require(
-            balanceState.storedCashBalance >= type(int88).min
-            && balanceState.storedCashBalance <= type(int88).max,
+            balanceState.storedCashBalance >= type(int128).min
+            && balanceState.storedCashBalance <= type(int128).max,
             "CH: cash balance overflow"
         );
 
         require(
             balanceState.storedPerpetualTokenBalance >= 0
-            && balanceState.storedPerpetualTokenBalance <= type(uint80).max,
+            && balanceState.storedPerpetualTokenBalance <= type(uint128).max,
             "CH: token balance overflow"
         );
 
         bytes32 data = (
             // Truncate the higher bits of the signed integer when it is negative
-            (bytes32(balanceState.storedCashBalance) & 0x000000000000000000000000000000000000000000ffffffffffffffffffffff) |
-            (bytes32(uint(balanceState.storedPerpetualTokenBalance)) << 88)
+            (bytes32(uint(balanceState.storedPerpetualTokenBalance))) |
+            (bytes32(balanceState.storedCashBalance) << 128)
         );
 
-        assembly {
-            sstore(slot, data)
-        }
+        assembly { sstore(slot, data) }
     }
 
     /**
@@ -173,7 +167,7 @@ library BalanceHandler {
      * @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
      */
     function getBalanceStorage(address account, uint currencyId) internal view returns (int, int) {
-        bytes32 slot = keccak256(abi.encode(currencyId, keccak256(abi.encode(account, BALANCE_STORAGE_SLOT))));
+        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
         bytes32 data;
 
         assembly {
@@ -181,8 +175,8 @@ library BalanceHandler {
         }
 
         return (
-            int(int88(int(data))),          // Cash balance
-            int(uint80(uint(data >> 88)))   // Perpetual token balance
+            int(int128(int(data >> 128))),          // Cash balance
+            int(uint128(uint(data)))  // Perpetual token balance
         );
     }
 

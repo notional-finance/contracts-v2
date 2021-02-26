@@ -35,10 +35,42 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
     function setBalance(
         address account,
-        uint id,
-        BalanceStorage calldata bs
+        uint currencyId,
+        int storedCashBalance,
+        int storedPerpetualTokenBalance
     ) external {
-        accountBalanceMapping[account][id] = bs;
+        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+
+        require(
+            storedCashBalance >= type(int128).min
+            && storedCashBalance <= type(int128).max,
+            "CH: cash balance overflow"
+        );
+
+        require(
+            storedPerpetualTokenBalance >= 0
+            && storedPerpetualTokenBalance <= type(uint128).max,
+            "CH: token balance overflow"
+        );
+
+        bytes32 data = (
+            // Truncate the higher bits of the signed integer when it is negative
+            (bytes32(uint(storedPerpetualTokenBalance))) |
+            (bytes32(storedCashBalance) << 128)
+        );
+
+        assembly { sstore(slot, data) }
+    }
+
+    function getData(
+        address account,
+        uint currencyId
+    ) external view returns (bytes32) {
+        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+        bytes32 data;
+        assembly { data := sload(slot) }
+
+        return data;
     }
 
     function getPerpetualTokenAssetValue(
@@ -89,16 +121,5 @@ contract MockBalanceHandler is StorageLayoutV1 {
         );
 
         return (bs, accountContext);
-    }
-
-    function getData(address account, uint currencyId) public view returns (bytes32) {
-        bytes32 slot = keccak256(abi.encode(currencyId, keccak256(abi.encode(account, BalanceHandler.BALANCE_STORAGE_SLOT))));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        return data;
     }
 }
