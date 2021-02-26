@@ -88,6 +88,9 @@ def generate_asset_array(numAssets, numCurrencies):
 
 
 def get_bitstring_from_bitmap(bitmap):
+    if bitmap.hex() == "":
+        return []
+
     num_bits = str(len(bitmap) * 8)
     bitstring = ("{:0>" + num_bits + "b}").format(int(bitmap.hex(), 16))
 

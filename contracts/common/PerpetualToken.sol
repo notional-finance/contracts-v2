@@ -380,6 +380,8 @@ library PerpetualToken {
         int assetCashDeposit,
         uint blockTime
     ) internal view returns (int, bytes memory) {
+        if (assetCashDeposit == 0) return (0, new bytes(0));
+
         // If the account context has not been initialized, that means it has never had assets. In this
         // case we simply use the stored asset balance as the base to calculate the tokens to mint.
         if (accountContext.nextMaturingAsset == 0) {

@@ -20,8 +20,7 @@ struct PortfolioAsset {
     // Asset currency id
     uint currencyId;
     uint maturity;
-    // Asset type, fCash or liquidity token. If liquidity token then also contains the
-    // market index in the high nibble
+    // Asset type, fCash or liquidity token.
     uint assetType;
     // fCash amount or liquidity token amount
     int notional;

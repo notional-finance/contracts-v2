@@ -6,9 +6,10 @@ import "../../contracts/common/ExchangeRate.sol";
 import "../../contracts/common/CashGroup.sol";
 import "../../contracts/common/AssetRate.sol";
 import "../../contracts/common/PerpetualToken.sol";
+import "./PerpetualTokenActionInterface.sol";
 
 // TODO: split this proxy into smaller parts
-interface NotionalProxy {
+interface NotionalProxy is PerpetualTokenActionInterface {
     event ListCurrency(uint newCurrencyId);
     event UpdateETHRate(uint currencyId);
     event UpdateAssetRate(uint currencyId);
@@ -96,54 +97,6 @@ interface NotionalProxy {
         uint16 currencyId,
         uint88 tokensToRedeem
     ) external returns (bool);
-
-    /** Perpetual Token Action */
-    function perpetualTokenTotalSupply(address perpTokenAddress) external view returns (uint);
-
-    function perpetualTokenTransferAllowance(
-        uint16 currencyId,
-        address owner,
-        address spender
-    ) external view returns (uint);
-
-    function perpetualTokenBalanceOf(
-        uint16 currencyId,
-        address account
-    ) external view returns (uint);
-
-    function perpetualTokenTransferApprove(
-        uint16 currencyId,
-        address owner,
-        address spender,
-        uint amount
-    ) external returns (bool);
-
-    function perpetualTokenTransfer(
-        uint16 currencyId,
-        address sender,
-        address recipient,
-        uint amount
-    ) external returns (bool);
-
-    function perpetualTokenTransferFrom(
-        uint16 currencyId,
-        address sender,
-        address recipient,
-        uint amount
-    ) external returns (bool);
-
-    function perpetualTokenTransferApproveAll(
-        address spender,
-        uint amount
-    ) external returns (bool);
-
-    function perpetualTokenPresentValueAssetDenominated(
-        uint16 currencyId
-    ) external view returns (int);
-
-    function perpetualTokenPresentValueUnderlyingDenominated(
-        uint16 currencyId
-    ) external view returns (int);
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);

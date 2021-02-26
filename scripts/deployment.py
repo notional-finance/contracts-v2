@@ -143,7 +143,7 @@ class TestEnvironment:
     def _deployMockCurrency(self, symbol):
         if symbol == "ETH":
             # This is required to initialize ETH
-            self.token["WETH"] = MockWETH.deploy({"from": self.deployer})
+            self.token["ETH"] = MockWETH.deploy({"from": self.deployer})
             self._deployCToken("ETH", None, None)
         else:
             config = TokenConfig[symbol]
@@ -153,6 +153,7 @@ class TestEnvironment:
             self.ethOracle[symbol] = MockAggregator.deploy(18, {"from": self.deployer})
             self.ethOracle[symbol].setAnswer(config["rate"])
             self._deployCToken(symbol, token, config["rate"])
+            self.token[symbol] = token
 
     def _deployNotional(self):
         # This must be deployed to enable Notional
@@ -173,7 +174,7 @@ class TestEnvironment:
             perpetualTokenAction.address,
             perpetualTokenMint.address,
             self.cToken["ETH"].address,
-            self.token["WETH"].address,
+            self.token["ETH"].address,
             {"from": self.deployer},
         )
 

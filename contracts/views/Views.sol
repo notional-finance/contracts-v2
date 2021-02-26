@@ -60,17 +60,17 @@ contract Views is StorageLayoutV1 {
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
         uint blockTime = block.timestamp;
-        return _getMarketsActiveAtBlockTime(currencyId, blockTime);
+        return _getActiveMarketsAtBlockTime(currencyId, blockTime);
     }
 
-    function getMarketsActiveAtBlockTime(
+    function getActiveMarketsAtBlockTime(
         uint16 currencyId,
         uint32 blockTime
     ) external view returns (MarketParameters[] memory) {
-        return _getMarketsActiveAtBlockTime(currencyId, blockTime);
+        return _getActiveMarketsAtBlockTime(currencyId, blockTime);
     }
 
-    function _getMarketsActiveAtBlockTime(
+    function _getActiveMarketsAtBlockTime(
         uint currencyId,
         uint blockTime
     ) internal view returns (MarketParameters[] memory) {
@@ -100,5 +100,27 @@ contract Views is StorageLayoutV1 {
 
     function getOwner() external view returns (address) { return owner; }
 
-    // function getAllCurrencyData() external view returns (CashGroupParameterStorage memory);
+    function getAccountContext(
+        address account
+    ) external view returns (AccountStorage memory) {
+        return accountContextMapping[account];
+    }
+
+    function getAccountBalance(
+        uint16 currencyId,
+        address account
+    ) external view returns (int, int, int) {
+        return BalanceHandler.getBalanceStorage(account, currencyId);
+    }
+
+    function getAccountPortfolio(
+        address account
+    ) external view returns (PortfolioAsset[] memory) {
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        return portfolioState.storedAssets;
+    }
+
+    fallback() external {
+        revert("Method not found");
+    }
 }
