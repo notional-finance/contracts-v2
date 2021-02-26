@@ -183,7 +183,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     assert len(bs) == len(computedBs)
     for i, b in enumerate(bs):
         assert b[0] == computedBs[i][0]
-        assert pytest.approx(b[4], rel=1e-12) == computedBs[i][1]
+        assert pytest.approx(b[3], rel=1e-12) == computedBs[i][1]
 
     # This will assert the values from the view match the values from the stateful method
     mockSettleAssets.testSettleAssetArray(accounts[1], blockTime)

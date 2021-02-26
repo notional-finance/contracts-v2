@@ -109,7 +109,7 @@ contract Views is StorageLayoutV1 {
     function getAccountBalance(
         uint16 currencyId,
         address account
-    ) external view returns (int, int, int) {
+    ) external view returns (int, int) {
         return BalanceHandler.getBalanceStorage(account, currencyId);
     }
 

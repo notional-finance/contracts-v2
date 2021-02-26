@@ -33,8 +33,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) override external view returns (uint) {
         (
             /* int cashBalance */,
-            int perpetualTokenBalance,
-            /* int netCapitalDeposit */
+            int perpetualTokenBalance
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(perpetualTokenBalance >= 0, "PA: negative balance");
@@ -196,10 +195,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
 
         int amountInt = SafeCast.toInt256(amount);
         senderBalance.netPerpetualTokenTransfer = amountInt.neg();
-        senderBalance.netCapitalDeposit = totalAssetPV.mul(amountInt).div(int(totalSupply)).neg();
-
         recipientBalance.netPerpetualTokenTransfer = amountInt;
-        recipientBalance.netCapitalDeposit = totalAssetPV.mul(amountInt).div(int(totalSupply));
 
         senderBalance.finalize(sender, senderContext);
         recipientBalance.finalize(recipient, recipientContext);

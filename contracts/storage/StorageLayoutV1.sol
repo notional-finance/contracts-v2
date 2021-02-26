@@ -147,15 +147,12 @@ struct AssetStorage {
  * figures, total storage is 32 bytes.
  *  - cashBalance: the positive or negative amount of asset cash the account holds
  *  - perpetualTokenBalance: the perepetual token balance (if any) for the cash group
- *  - netCapitalDeposit: the net capital in **underlying** balances, used to determine incentives
  */
 struct BalanceStorage {
     // Asset token balance held by the account
     int88 cashBalance;
     // Perpetual liquidity tokens balance held by the account
     uint80 perpetualTokenBalance;
-    // Net underlying capital deposited
-    int88 netCapitalDeposit;
 }
 
 /**

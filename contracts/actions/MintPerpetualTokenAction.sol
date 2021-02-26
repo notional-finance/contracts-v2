@@ -97,7 +97,6 @@ contract MintPerpetualTokenAction is StorageLayoutV1 {
         }
         // TODO: should the balance context just hold the account address as well?
         recipientBalance.netPerpetualTokenTransfer = tokensToMint;
-        recipientBalance.netCapitalDeposit = amountToDeposit;
         recipientBalance.finalize(recipient, recipientContext);
         accountContextMapping[recipient] = recipientContext;
 

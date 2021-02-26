@@ -49,7 +49,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
     function getCurrencyIncentiveData(
         uint currencyId
-    ) public view returns (uint, uint) {
+    ) public view returns (uint) {
         return BalanceHandler.getCurrencyIncentiveData(currencyId);
     }
 

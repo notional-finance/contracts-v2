@@ -48,9 +48,9 @@ class PerpetualTokenStateMachine:
 
     def rule_mint_tokens(self, provider, amountToDeposit):
         # Get the balances before we deposit
-        (cashBalance, perpTokenBalance, capitalDeposited) = self.env.router[
-            "Views"
-        ].getAccountBalance(self.env.currencyId[self.currencySymbol], provider.address)
+        (cashBalance, perpTokenBalance) = self.env.router["Views"].getAccountBalance(
+            self.env.currencyId[self.currencySymbol], provider.address
+        )
         tokenBalance = self.env.cToken[self.currencySymbol].balanceOf(provider.address)
 
         if cashBalance + tokenBalance < amountToDeposit:
@@ -76,14 +76,13 @@ class PerpetualTokenStateMachine:
             {"from": provider},
         )
 
-        (cashBalanceAfter, perpTokenBalanceAfter, capitalDepositedAfter) = self.env.router[
-            "Views"
-        ].getAccountBalance(self.env.currencyId[self.currencySymbol], provider.address)
+        (cashBalanceAfter, perpTokenBalanceAfter) = self.env.router["Views"].getAccountBalance(
+            self.env.currencyId[self.currencySymbol], provider.address
+        )
         tokenBalanceAfter = self.env.cToken[self.currencySymbol].balanceOf(provider.address)
 
         # Asserts that account has had its debits done properly
         assert perpTokenBalanceAfter - perpTokenBalance == tokensToMint
-        assert capitalDepositedAfter - capitalDeposited == amountToDeposit
 
         # cTokens are 8 decimals
         tokenBalanceDiffInInternal = math.trunc((tokenBalance - tokenBalanceAfter) * 1e9 / 1e8)

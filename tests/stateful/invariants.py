@@ -28,29 +28,23 @@ def check_cash_balance(env, accounts):
     for (symbol, currencyId) in env.currencyId.items():
         contractBalance = env.token[symbol].balanceOf(env.router["Views"].address)
         accountBalances = 0
-        totalCapitalDeposited = 0
 
         for account in accounts:
-            (cashBalance, _, capitalDeposited) = env.router["Views"].getAccountBalance(
-                currencyId, account.address
-            )
+            (cashBalance, _) = env.router["Views"].getAccountBalance(currencyId, account.address)
 
             accountBalances += cashBalance
-            totalCapitalDeposited += capitalDeposited
 
         # Add perp token balances
-        (cashBalance, _, capitalDeposited) = env.router["Views"].getAccountBalance(
+        (cashBalance, _) = env.router["Views"].getAccountBalance(
             currencyId, env.perpToken[currencyId].address
         )
         accountBalances += cashBalance
-        totalCapitalDeposited += capitalDeposited
 
         # Loop markets to check for cashBalances
         for markets in get_markets(env, currencyId):
             accountBalances += sum([m[3] for m in markets])
 
         assert contractBalance == accountBalances
-        assert contractBalance == totalCapitalDeposited
 
 
 def check_perp_token(env, accounts):
@@ -69,11 +63,10 @@ def check_perp_token(env, accounts):
 
         # Ensure that the perp token never holds other balances
         for (_, testCurrencyId) in env.currencyId.items():
-            (cashBalance, tokens, capitalDeposited) = env.router["Views"].getAccountBalance(
+            (cashBalance, tokens) = env.router["Views"].getAccountBalance(
                 testCurrencyId, perpToken.address
             )
             assert tokens == 0
-            assert capitalDeposited == 0
 
             if testCurrencyId != currencyId:
                 assert cashBalance == 0
