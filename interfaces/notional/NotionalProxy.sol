@@ -6,6 +6,7 @@ import "../../contracts/common/ExchangeRate.sol";
 import "../../contracts/common/CashGroup.sol";
 import "../../contracts/common/AssetRate.sol";
 import "../../contracts/common/PerpetualToken.sol";
+import "../../contracts/storage/TokenHandler.sol";
 import "./PerpetualTokenActionInterface.sol";
 
 // TODO: split this proxy into smaller parts
@@ -100,10 +101,11 @@ interface NotionalProxy is PerpetualTokenActionInterface {
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
-    function getCurrency(uint16 currencyId) external view returns (CurrencyStorage memory);
+    function getCurrency(uint16 currencyId) external view returns (Token memory);
+    function getUnderlying(uint16 currencyId) external view returns (Token memory);
     function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory);
     function getETHRate(uint16 currencyId) external view returns (ETHRate memory);
-    function getCurrencyAndRate(uint16 currencyId) external view returns (CurrencyStorage memory, ETHRate memory);
+    function getCurrencyAndRate(uint16 currencyId) external view returns (Token memory, ETHRate memory);
     function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory);
     function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory);
     function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory);

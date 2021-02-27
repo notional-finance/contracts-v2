@@ -24,7 +24,7 @@ library CashGroup {
     using AssetRate for AssetRateParameters;
     using Market for MarketParameters;
 
-    uint internal constant CASH_GROUP_STORAGE_SLOT = 4;
+    uint internal constant CASH_GROUP_STORAGE_SLOT = 3;
 
     // Offsets for the bytes of the different parameters
     // TODO: benchmark if the current method is better than just allocating them to memory

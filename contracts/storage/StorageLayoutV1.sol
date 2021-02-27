@@ -3,20 +3,6 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @dev Parameters for listed currencies, total storage is 24 bytes.
- */
-struct CurrencyStorage {
-    // Address of asset token
-    address assetTokenAddress;
-    // If has transfer fees need to check balance before and after
-    bool tokenHasTransferFee;
-    // Decimal places of the asset token
-    uint8 tokenDecimalPlaces;
-    // Decimal places of the underlying token
-    uint8 underlyingDecimalPlaces;
-}
-
-/**
  * @dev Exchange rate object as it is represented in storage, total storage is 25 bytes.
  */
 struct ETHRateStorage {
@@ -147,14 +133,10 @@ struct AssetStorage {
  * layouts must inherit this and increment the version number.
  */
 contract StorageLayoutV1 {
-    uint8 public constant storageLayoutVersion = 1;
-
     /* Start Non-Mapping storage slots */
     uint16 internal maxCurrencyId;
     /* End Non-Mapping storage slots */
 
-    // Mapping of whitelisted currencies from currency id to object struct
-    mapping(uint => CurrencyStorage) internal currencyMapping;
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
     mapping(uint => ETHRateStorage) internal underlyingToETHRateMapping;

@@ -24,7 +24,7 @@ library AssetRate {
     using SafeInt256 for int256;
     event SetSettlementRate(uint currencyId, uint maturity, uint128 rate);
 
-    uint internal constant ASSET_RATE_STORAGE_SLOT = 3;
+    uint internal constant ASSET_RATE_STORAGE_SLOT = 2;
     int internal constant ASSET_RATE_DECIMALS = 1e18;
 
     /**
@@ -100,6 +100,8 @@ library AssetRate {
 
         address rateOracle = address(bytes20(data << 96));
         // TODO: latest round data potentially modifies state
+        // TODO: potentially change this such that it takes a currency id and we
+        // hardcode a single adapter interface
         int rate = AssetRateAdapterInterface(rateOracle).getExchangeRateView();
         require(rate > 0, "AR: invalid rate");
 

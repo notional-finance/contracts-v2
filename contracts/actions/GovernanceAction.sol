@@ -5,11 +5,11 @@ pragma experimental ABIEncoderV2;
 import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/PerpetualToken.sol";
+import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../adapters/AssetRateAdapterInterface.sol";
 import "../adapters/PerpetualTokenERC20.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @notice Governance methods can only be called by the timelock controller which is in turn
@@ -50,31 +50,27 @@ contract GovernanceAction is StorageLayoutV1 {
      * @notice Lists a new currency along with its exchange rate to ETH.
      */
     function listCurrency(
-        address assetTokenAddress,
-        bool tokenHasTransferFee,
+        TokenStorage calldata assetToken,
+        TokenStorage calldata underlyingToken,
         address rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
     ) external onlyOwner {
-        require(maxCurrencyId <= type(uint16).max, "G: max currency overflow");
-        maxCurrencyId += 1;
+        uint16 currencyId = maxCurrencyId + 1;
+        require(currencyId <= type(uint16).max, "G: max currency overflow");
 
-        require(assetTokenAddress != address(0));
-        uint8 decimals = ERC20(assetTokenAddress).decimals();
+        TokenHandler.setToken(currencyId, false, assetToken);
+        if (underlyingToken.tokenAddress != address(0)) {
+            TokenHandler.setToken(currencyId, true, underlyingToken);
+        }
 
-        currencyMapping[maxCurrencyId] = CurrencyStorage({
-            assetTokenAddress: assetTokenAddress,
-            tokenHasTransferFee: tokenHasTransferFee,
-            tokenDecimalPlaces: decimals,
-            // TODO: update this
-            underlyingDecimalPlaces: decimals
-        });
+        _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
 
-        _updateETHRate(maxCurrencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
-
-        emit ListCurrency(maxCurrencyId);
+        // Set the new max currency id
+        maxCurrencyId = currencyId;
+        emit ListCurrency(currencyId);
     }
 
     function enableCashGroup(
@@ -174,8 +170,8 @@ contract GovernanceAction is StorageLayoutV1 {
 
         // Sanity check that the rate oracle refers to the proper asset token
         address token = AssetRateAdapterInterface(rateOracle).token();
-        CurrencyStorage storage cs = currencyMapping[currencyId];
-        require(cs.assetTokenAddress == token, "G: invalid rate oracle");
+        Token memory assetToken = TokenHandler.getToken(currencyId, false);
+        require(assetToken.tokenAddress == token, "G: invalid rate oracle");
 
         assetToUnderlyingRateMapping[currencyId] = AssetRateStorage({
             rateOracle: rateOracle,

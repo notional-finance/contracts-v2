@@ -37,7 +37,7 @@ library ExchangeRate {
 
     // ETH occupies the first currency
     uint internal constant ETH = 1;
-    uint internal constant ETH_RATE_STORAGE_SLOT = 2;
+    uint internal constant ETH_RATE_STORAGE_SLOT = 1;
     int public constant MULTIPLIER_DECIMALS = 100;
     int public constant ETH_DECIMALS = 1e18;
 

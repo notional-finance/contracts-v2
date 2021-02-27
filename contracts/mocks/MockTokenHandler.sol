@@ -13,10 +13,10 @@ contract MockTokenHandler is StorageLayoutV1 {
 
     function setCurrencyMapping(
         uint id,
-        CurrencyStorage calldata cs
+        bool underlying,
+        TokenStorage calldata ts
     ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        currencyMapping[id] = cs;
+        return TokenHandler.setToken(id, underlying, ts);
     }
 
     /**
@@ -25,9 +25,10 @@ contract MockTokenHandler is StorageLayoutV1 {
     function transfer(
         uint currencyId,
         address account,
+        bool underlying,
         int netTransfer
     ) external returns (int) {
-        Token memory token = TokenHandler.getToken(currencyId);
+        Token memory token = TokenHandler.getToken(currencyId, underlying);
         return token.transfer(account, netTransfer);
     }
 

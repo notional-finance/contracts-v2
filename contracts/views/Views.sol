@@ -6,6 +6,7 @@ import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
+import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract Views is StorageLayoutV1 {
@@ -15,8 +16,12 @@ contract Views is StorageLayoutV1 {
         return maxCurrencyId;
     }
 
-    function getCurrency(uint16 currencyId) external view returns (CurrencyStorage memory) {
-        return currencyMapping[currencyId];
+    function getCurrency(uint16 currencyId) external view returns (Token memory) {
+        return TokenHandler.getToken(currencyId, false);
+    }
+
+    function getUnderlying(uint16 currencyId) external view returns (Token memory) {
+        return TokenHandler.getToken(currencyId, true);
     }
 
     function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory) {
@@ -27,9 +32,9 @@ contract Views is StorageLayoutV1 {
         return ExchangeRate.buildExchangeRate(currencyId);
     }
 
-    function getCurrencyAndRate(uint16 currencyId) external view returns (CurrencyStorage memory, ETHRate memory) {
+    function getCurrencyAndRate(uint16 currencyId) external view returns (Token memory, ETHRate memory) {
         return (
-            currencyMapping[currencyId],
+            TokenHandler.getToken(currencyId, false),
             ExchangeRate.buildExchangeRate(currencyId)
         );
     }

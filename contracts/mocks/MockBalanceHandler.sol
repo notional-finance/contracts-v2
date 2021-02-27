@@ -13,17 +13,18 @@ contract MockBalanceHandler is StorageLayoutV1 {
     }
 
     function getCurrencyMapping(
-        uint id
-    ) external view returns (CurrencyStorage memory) {
-        return currencyMapping[id];
+        uint id,
+        bool underlying
+    ) external view returns (Token memory) {
+        return TokenHandler.getToken(id, underlying);
     }
 
     function setCurrencyMapping(
         uint id,
-        CurrencyStorage calldata cs
+        bool underlying,
+        TokenStorage calldata ts
     ) external {
-        require(id <= maxCurrencyId, "invalid currency id");
-        currencyMapping[id] = cs;
+        TokenHandler.setToken(id, underlying, ts);
     }
 
     function setAccountContext(

@@ -329,7 +329,7 @@ library PortfolioHandler {
         uint newAssetsHint
     ) internal view returns (PortfolioState memory) {
         // TODO: change this to a string
-        bytes32 slot = keccak256(abi.encode(account, 6));
+        bytes32 slot = keccak256(abi.encode(account, 5));
         uint length;
         assembly { length := sload(slot) }
         PortfolioAsset[] memory result = new PortfolioAsset[](length);
