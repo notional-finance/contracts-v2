@@ -89,9 +89,10 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext
+        AccountStorage memory accountContext,
+        bool redeemToUnderlying
     ) public returns (AccountStorage memory) {
-        balanceState.finalize(account, accountContext);
+        balanceState.finalize(account, accountContext, redeemToUnderlying);
 
         return accountContext;
     }

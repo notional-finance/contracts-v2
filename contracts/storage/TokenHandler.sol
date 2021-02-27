@@ -4,19 +4,28 @@ pragma experimental ABIEncoderV2;
 
 import "../math/SafeInt256.sol";
 import "./StorageLayoutV1.sol";
+import "interfaces/compound/CErc20Interface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+
+enum TokenType {
+    MintableAssetToken,
+    UnderlyingToken,
+    NonMintableAssetToken
+}
 
 struct Token {
     address tokenAddress;
     bool hasTransferFee;
     int decimals;
+    TokenType tokenType;
 }
 
 struct TokenStorage {
     address tokenAddress;
     bool hasTransferFee;
+    TokenType tokenType;
 }
 
 /**
@@ -45,11 +54,13 @@ library TokenHandler {
         address tokenAddress = address(bytes20(data << 96));
         bool tokenHasTransferFee = bytes1(data << 88) != 0x00;
         uint8 tokenDecimalPlaces = uint8(bytes1(data << 80));
+        TokenType tokenType = TokenType(uint8(bytes1(data << 72)));
 
         return Token({
             tokenAddress: tokenAddress,
             hasTransferFee: tokenHasTransferFee,
-            decimals: int(10 ** tokenDecimalPlaces)
+            decimals: int(10 ** tokenDecimalPlaces),
+            tokenType: tokenType
         });
     }
 
@@ -78,7 +89,8 @@ library TokenHandler {
         bytes32 data = (
             bytes32(bytes20(tokenStorage.tokenAddress)) >> 96 |
             bytes32(bytes1(transferFee)) >> 88 |
-            bytes32(uint(decimalPlaces) >> 80)
+            bytes32(uint(decimalPlaces) >> 80) |
+            bytes32(uint(tokenStorage.tokenType) >> 72)
         );
 
         assembly { sstore(slot, data) }
@@ -86,7 +98,8 @@ library TokenHandler {
 
     /**
      * @notice Handles token deposits into Notional. If there is a transfer fee then we must
-     * calculate the net balance after transfer.
+     * calculate the net balance after transfer. Amounts are denominated in the destination token's
+     * precision.
      */
     function deposit(
         Token memory token,
@@ -112,30 +125,74 @@ library TokenHandler {
     }
 
     /**
-     * @notice Handles transfers into and out of the system. Crucially we must
-     * translate the amount from internal balance precision to the external balance
+     * @notice This method only works with cTokens, it's unclear how we can make this more generic
+     */
+    function mint(
+        Token memory token,
+        uint underlyingAmountExternalPrecision
+    ) internal returns (int) {
+        require(token.tokenType == TokenType.MintableAssetToken, "TH: non mintable token");
+
+        uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+        uint success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
+        require(success == 0, "TH: ctoken mint failure");
+        uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+
+        return int(endingBalance.sub(startingBalance));
+    }
+
+    function redeem(
+        Token memory assetToken,
+        Token memory underlyingToken,
+        uint assetAmountInternalPrecision
+    ) internal returns (int) {
+        require(assetToken.tokenType == TokenType.MintableAssetToken, "TH: non mintable token");
+        require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying token");
+
+        uint redeemAmount = assetAmountInternalPrecision
+            .mul(uint(assetToken.decimals))
+            .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION));
+
+        uint startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+        uint success = CErc20Interface(assetToken.tokenAddress).redeem(redeemAmount);
+        require(success == 0, "TH: ctoken redeem failure");
+        uint endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+
+        // Underlying token external precision
+        return int(endingBalance.sub(startingBalance));
+    }
+
+    /**
+     * @notice Handles transfers into and out of the system denominated in the external token decimal
      * precision.
      */
     function transfer(
         Token memory token,
         address account,
-        int netTransfer
+        int netTransferExternalPrecision
     ) internal returns (int) {
-        // Convert internal balances in 1e9 to token decimals:
-        // balance * tokenDecimals / 1e9
-        int transferBalance = netTransfer 
-            .mul(token.decimals)
-            .div(INTERNAL_TOKEN_PRECISION);
-
-        if (transferBalance > 0) {
+        if (netTransferExternalPrecision > 0) {
             // Deposits must account for transfer fees.
-            transferBalance = deposit(token, account, uint(transferBalance));
+            netTransferExternalPrecision = deposit(token, account, uint(netTransferExternalPrecision));
         } else {
-            SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, uint(transferBalance.neg()));
+            SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, uint(netTransferExternalPrecision.neg()));
         }
 
-        // Convert transfer balance back into internal precision
-        return transferBalance.mul(INTERNAL_TOKEN_PRECISION).div(token.decimals);
+        return netTransferExternalPrecision;
+    }
+
+    function convertToInternal(
+        Token memory token,
+        int amount
+    ) internal pure returns (int) {
+        return amount.mul(INTERNAL_TOKEN_PRECISION).div(token.decimals);
+    }
+
+    function convertToExternal(
+        Token memory token,
+        int amount
+    ) internal pure returns (int) {
+        return amount.div(token.decimals).div(INTERNAL_TOKEN_PRECISION);
     }
 
     function transferIncentive(

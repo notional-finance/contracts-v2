@@ -197,8 +197,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         senderBalance.netPerpetualTokenTransfer = amountInt.neg();
         recipientBalance.netPerpetualTokenTransfer = amountInt;
 
-        senderBalance.finalize(sender, senderContext);
-        recipientBalance.finalize(recipient, recipientContext);
+        senderBalance.finalize(sender, senderContext, false);
+        recipientBalance.finalize(recipient, recipientContext, false);
         // Finalize will update account contexts
         accountContextMapping[sender] = senderContext;
         accountContextMapping[recipient] = recipientContext;

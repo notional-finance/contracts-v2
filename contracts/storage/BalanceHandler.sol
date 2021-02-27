@@ -16,8 +16,8 @@ struct BalanceState {
     int storedPerpetualTokenBalance;
     // The net cash change as a result of asset settlement or trading
     int netCashChange;
-    // Net cash transfers into or out of the account
-    int netCashTransfer;
+    // Net asset transfers into or out of the account
+    int netAssetTransferInternalPrecision;
     // Net perpetual token transfers into or out of the account
     int netPerpetualTokenTransfer;
 }
@@ -38,6 +38,98 @@ library BalanceHandler {
     ) internal pure returns (int) { return 0; }
 
     /**
+     * @notice Because some tokens have transfer fees which means that the the amount specified will not
+     * be the same as what the contract receives we have to do special handling for deposits.
+     * @return returns the amount of tokens transferred into the account
+     */
+    function depositAssetToken(
+        BalanceState memory balanceState,
+        address account,
+        int assetAmountExternalPrecision,
+        bool useCashBalance
+    ) internal returns (int, int) {
+        if (assetAmountExternalPrecision == 0) return (0, 0);
+        require(assetAmountExternalPrecision > 0, "BH: deposit negative");
+        Token memory token = TokenHandler.getToken(balanceState.currencyId, false);
+        int assetAmountInternal = token.convertToInternal(assetAmountExternalPrecision);
+        int assetAmountTransferred;
+
+        if (useCashBalance) {
+            int totalCash = balanceState.storedCashBalance.add(balanceState.netCashChange);
+
+            if (totalCash > assetAmountInternal) {
+                // Sufficient total cash to account for the deposit
+                balanceState.netCashChange = balanceState.netCashChange.sub(assetAmountInternal);
+                return (assetAmountInternal, 0);
+            } else if (totalCash > 0) {
+                // Zero out the cash balance
+                balanceState.netCashChange = balanceState.storedCashBalance.neg();
+                // Set the remainder as the transfer amount
+                assetAmountExternalPrecision = token.convertToExternal(assetAmountInternal.sub(totalCash));
+            }
+        }
+
+        if (token.hasTransferFee) {
+            // If the token has a transfer fee the deposit amount may not equal the actual amount
+            // that the contract will receive. We handle the deposit here and then update the netCashChange
+            // accordingly which is denominated in internal precision.
+            int assetAmountExternalPrecisionFinal = token.transfer(account, assetAmountExternalPrecision);
+            // Convert the external precision to internal, it's possible that we lose dust amounts here but
+            // this is unavoidable because we do not know how transfer fees are calculated.
+            assetAmountTransferred = token.convertToInternal(assetAmountExternalPrecisionFinal);
+            balanceState.netCashChange = balanceState.netCashChange.add(assetAmountTransferred);
+
+            // This is the total amount change accounting for the transfer fee.
+            assetAmountInternal = assetAmountInternal.sub(
+                token.convertToInternal(assetAmountExternalPrecision.sub(assetAmountExternalPrecisionFinal))
+            );
+
+            return (assetAmountInternal, assetAmountTransferred);
+        }
+
+        // Otherwise add the asset amount here. It may be net off later and we want to only do
+        // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
+        // and external account remain in sync.
+        assetAmountTransferred = token.convertToInternal(assetAmountExternalPrecision);
+        balanceState.netAssetTransferInternalPrecision = balanceState.netAssetTransferInternalPrecision
+            .add(assetAmountTransferred);
+
+        // Returns the converted assetAmountExternalPrecision to the internal amount
+        return (assetAmountInternal, assetAmountTransferred);
+    }
+
+    /**
+     * @notice If the user specifies and underlying token amount to deposit then we will need to transfer the
+     * underlying and then wrap it into the asset token. In any case, to get the exact amount of asset tokens the
+     * contract will receive we must transfer and wrap immediately, it is not possible to precisely net off underlying
+     * transfers because they will change the composition of the asset token.
+     */
+    function depositUnderlyingToken(
+        BalanceState memory balanceState,
+        address account,
+        int underlyingAmountExternalPrecision
+    ) internal returns (int) {
+        if (underlyingAmountExternalPrecision == 0) return 0;
+        require(underlyingAmountExternalPrecision > 0, "BH: deposit negative");
+        
+        Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
+        // This is the exact amount of underlying tokens the account has in external precision.
+        underlyingAmountExternalPrecision = underlyingToken.transfer(account, underlyingAmountExternalPrecision);
+
+        Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+        require(assetToken.tokenType == TokenType.MintableAssetToken, "BH: invalid underlying");
+        int assetTokensReceivedExternalPrecision = assetToken.mint(uint(underlyingAmountExternalPrecision));
+
+        // Some dust may be lost here due to internal conversion, however, for cTokens this will not be an issue
+        // since internally we use 9 decimal precision versus 8 for cTokens. Dust accural here is unavoidable due
+        // to the fact that we do not know how asset tokens will be minted.
+        int assetTokensReceivedInternal = assetToken.convertToInternal(assetTokensReceivedExternalPrecision);
+        balanceState.netCashChange = balanceState.netCashChange.add(assetTokensReceivedInternal);
+
+        return assetTokensReceivedInternal;
+    }
+
+    /**
      * @notice Call this in order to transfer cash in and out of the Notional system as well as update
      * internal cash balances.
      *
@@ -47,18 +139,10 @@ library BalanceHandler {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext
+        AccountStorage memory accountContext,
+        bool redeemToUnderlying
     ) internal {
         bool mustUpdate;
-        if (balanceState.netCashTransfer < 0) {
-            // Transfer fees will always reduce netCashTransfer so the receiving account will receive less
-            // but the Notional system will account for the total net cash transfer out here
-            require(
-                balanceState.storedCashBalance.add(balanceState.netCashChange) >= balanceState.netCashTransfer.neg(),
-                "CH: cannot withdraw negative"
-            );
-        }
-
         if (balanceState.netPerpetualTokenTransfer < 0) {
             require(
                 balanceState.storedPerpetualTokenBalance >= balanceState.netPerpetualTokenTransfer.neg(),
@@ -66,15 +150,42 @@ library BalanceHandler {
             );
         }
 
-        if (balanceState.netCashChange != 0 || balanceState.netCashTransfer != 0) {
-            Token memory token = TokenHandler.getToken(balanceState.currencyId);
-            balanceState.storedCashBalance = balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                // This will handle transfer fees if they exist. If depositing to lend or provide liquidity
-                // then we have to account for transfer fees. That means that the transfer must happen
-                // before we come into this method
-                .add(token.transfer(account, balanceState.netCashTransfer));
-            mustUpdate = true;
+        balanceState.storedCashBalance = balanceState.storedCashBalance
+            .add(balanceState.netCashChange)
+            // Transfer fees will always reduce netAssetTransfer so the receiving account will receive less
+            // but the Notional system will account for the total net transfer here.
+            .add(balanceState.netAssetTransferInternalPrecision);
+        mustUpdate = balanceState.netCashChange != 0 || balanceState.netAssetTransferInternalPrecision != 0;
+
+        if (balanceState.netAssetTransferInternalPrecision < 0) {
+            require(balanceState.storedCashBalance >= 0, "CH: cannot withdraw negative");
+
+            Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+            if (redeemToUnderlying) {
+                // We use the internal amount here and then scale it to the external amount so that there is
+                // no loss of precision between our internal accounting and the external account. In this case
+                // there will be no dust accrual since we will transfer the exact amount of underlying that was
+                // received.
+                Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
+                int underlyingAmountExternalPrecision = assetToken.redeem(
+                    underlyingToken,
+                    uint(balanceState.netAssetTransferInternalPrecision.neg())
+                );
+
+                // Withdraws the underlying amount out to the destination account
+                underlyingToken.transfer(account, underlyingAmountExternalPrecision.neg());
+            } else {
+                assetToken.transfer(
+                    account,
+                    assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision)
+                );
+            }
+        } else if (balanceState.netAssetTransferInternalPrecision > 0) {
+            Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+            assetToken.transfer(
+                account,
+                assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision)
+            );
         }
 
         if (balanceState.netPerpetualTokenTransfer != 0) {
@@ -207,7 +318,7 @@ library BalanceHandler {
                 storedCashBalance: cashBalance,
                 storedPerpetualTokenBalance: tokenBalance,
                 netCashChange: 0,
-                netCashTransfer: 0,
+                netAssetTransferInternalPrecision: 0,
                 netPerpetualTokenTransfer: 0
             });
         }
@@ -217,7 +328,7 @@ library BalanceHandler {
             storedCashBalance: 0,
             storedPerpetualTokenBalance: 0,
             netCashChange: 0,
-            netCashTransfer: 0,
+            netAssetTransferInternalPrecision: 0,
             netPerpetualTokenTransfer: 0
         });
     }
