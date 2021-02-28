@@ -59,17 +59,19 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 liquidationDiscount
     ) external onlyOwner {
         uint16 currencyId = maxCurrencyId + 1;
+        maxCurrencyId = currencyId;
         require(currencyId <= type(uint16).max, "G: max currency overflow");
+        // TODO: should check for listing of duplicate tokens?
 
-        TokenHandler.setToken(currencyId, false, assetToken);
+        // Set the underlying first because the asset token may set an approval using the underlying
         if (underlyingToken.tokenAddress != address(0)) {
             TokenHandler.setToken(currencyId, true, underlyingToken);
         }
+        TokenHandler.setToken(currencyId, false, assetToken);
 
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
 
         // Set the new max currency id
-        maxCurrencyId = currencyId;
         emit ListCurrency(currencyId);
     }
 

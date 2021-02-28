@@ -32,6 +32,8 @@ from scripts.config import CompoundConfig, CurrencyDefaults, TokenConfig
 
 chain = Chain()
 
+TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "NonMintable": 3}
+
 
 class TestEnvironment:
     def __init__(self, deployer):
@@ -221,8 +223,8 @@ class TestEnvironment:
             self._deployMockCurrency(symbol)
 
             txn = self.router["Governance"].listCurrency(
-                self.cToken[symbol].address,
-                symbol == "USDT",  # hasFee
+                (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
+                (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
                 self.ethOracle[symbol].address,
                 False,
                 config["buffer"],

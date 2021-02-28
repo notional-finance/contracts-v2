@@ -56,8 +56,9 @@ contract Router is StorageLayoutV1 {
         address(GOVERNANCE).delegatecall(
             abi.encodeWithSelector(
                 GovernanceAction.listCurrency.selector,
-                cETH,
-                false,
+                TokenStorage(cETH, false, TokenType.cETH),
+                // No underlying set for cETH
+                TokenStorage(address(0), false, TokenType.UnderlyingToken),
                 address(0),
                 false,
                 140,

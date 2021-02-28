@@ -119,7 +119,7 @@ library BalanceHandler {
         underlyingAmountExternalPrecision = underlyingToken.transfer(account, underlyingAmountExternalPrecision);
 
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
-        require(assetToken.tokenType == TokenType.MintableAssetToken, "BH: invalid underlying");
+        require(assetToken.tokenType == TokenType.cToken, "BH: invalid underlying");
         int assetTokensReceivedExternalPrecision = assetToken.mint(uint(underlyingAmountExternalPrecision));
 
         // Some dust may be lost here due to internal conversion, however, for cTokens this will not be an issue

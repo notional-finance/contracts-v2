@@ -10,9 +10,10 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 enum TokenType {
-    MintableAssetToken,
     UnderlyingToken,
-    NonMintableAssetToken
+    cToken,
+    cETH,
+    NonMintable
 }
 
 struct Token {
@@ -84,13 +85,20 @@ library TokenHandler {
             token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
             "TH: token cannot be reset"
         );
+
+        if (tokenStorage.tokenType == TokenType.cToken) {
+            // Set the approval for the underlying so that we can mint cTokens
+            Token memory underlyingToken = getToken(currencyId, true);
+            ERC20(underlyingToken.tokenAddress).approve(tokenStorage.tokenAddress, type(uint).max);
+        }
+
         bytes1 transferFee = tokenStorage.hasTransferFee ? bytes1(0x01) : bytes1(0x00);
 
         bytes32 data = (
             bytes32(bytes20(tokenStorage.tokenAddress)) >> 96 |
             bytes32(bytes1(transferFee)) >> 88 |
-            bytes32(uint(decimalPlaces) >> 80) |
-            bytes32(uint(tokenStorage.tokenType) >> 72)
+            bytes32(uint(decimalPlaces) << 168) |
+            bytes32(uint(tokenStorage.tokenType) << 176)
         );
 
         assembly { sstore(slot, data) }
@@ -131,13 +139,15 @@ library TokenHandler {
         Token memory token,
         uint underlyingAmountExternalPrecision
     ) internal returns (int) {
-        require(token.tokenType == TokenType.MintableAssetToken, "TH: non mintable token");
+        require(token.tokenType == TokenType.cToken, "TH: non mintable token");
 
+        // TODO: Need special handling for ETH
         uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
         uint success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
         require(success == 0, "TH: ctoken mint failure");
         uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
+        // This is the starting and ending balance in external precision
         return int(endingBalance.sub(startingBalance));
     }
 
@@ -146,13 +156,14 @@ library TokenHandler {
         Token memory underlyingToken,
         uint assetAmountInternalPrecision
     ) internal returns (int) {
-        require(assetToken.tokenType == TokenType.MintableAssetToken, "TH: non mintable token");
+        require(assetToken.tokenType == TokenType.cToken, "TH: non mintable token");
         require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying token");
 
         uint redeemAmount = assetAmountInternalPrecision
             .mul(uint(assetToken.decimals))
             .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION));
 
+        // TODO: need special handling for ETH
         uint startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         uint success = CErc20Interface(assetToken.tokenAddress).redeem(redeemAmount);
         require(success == 0, "TH: ctoken redeem failure");

@@ -268,11 +268,11 @@ library PerpetualToken {
 
         (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
         perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
-        perpToken.balanceState = BalanceHandler.buildBalanceState(
-            perpToken.tokenAddress,
-            currencyId,
-            Bitmap.setBit(new bytes(currencyId / 8 + 1), currencyId, true)
-        );
+        perpToken.balanceState.currencyId = currencyId;
+        (
+            perpToken.balanceState.storedCashBalance,
+            perpToken.balanceState.storedPerpetualTokenBalance
+        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
         return perpToken;
     }
