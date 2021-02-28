@@ -85,10 +85,7 @@ struct MarketStorage {
 
 /**
  * @dev Holds account level context information used to determine settlement and
- * free collateral actions. Total storage is 12 bytes + (maxCurrencyId / 8 + 1)
- *
- * WARNING: because activeCurrencies is a dynamically sized byte array we cannot
- * add more storage slots into this struct.
+ * free collateral actions. Total storage is 32 bytes
  */
 struct AccountStorage {
     // Used to check when settlement must be trigged on an account
@@ -96,23 +93,15 @@ struct AccountStorage {
     // Records when the last time an account minted incentives. This must be initialized to
     // the value at the first time the account deposited capital.
     uint32 lastMintTime;
-    // TODO: These bools can be set into a bytes2?
-    // For lenders that never incur debt, we use this flag to skip the free
-    // collateral check.
+    // For lenders that never incur debt, we use this flag to skip the free collateral check.
     bool hasDebt;
-    // If this account has bitmaps set
-    bool hasBitmap;
-    // TODO: put asset array length in here
-    // uint8 assetArrayLength;
-    bool hasIdiosyncraticfCash;
-    // This is a tightly packed bitmap of the currenices that the account has a non
-    // zero balance in. This is stored in big-endian ordering so the highest order
-    // (left most) bit will refer to currency id=1 (currency id = 0 is unused) and
-    // so forth. This allows us to limit the number of storage reads while expanding
-    // the number of currencies we support.
-    bytes activeCurrencies;
+    // If this account has bitmaps set, this is the corresponding currency id
+    uint16 bitmapCurrencyId;
+    // The initial offset for the asset array (is this sufficient?)
+    uint16 assetArrayInitialOffset;
+    // 9 total active currencies possible (2 bytes each)
+    bytes18 activeCurrencies;
 }
-
 /**
  * @dev Asset stored in the asset array, total storage is 19 bytes.
  */

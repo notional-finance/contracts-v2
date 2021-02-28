@@ -150,7 +150,7 @@ library SettleAssets {
                 balanceState[currencyIndex] = BalanceHandler.buildBalanceState(
                     account,
                     lastCurrencyId,
-                    accountContext.activeCurrencies
+                    accountContext
                 );
                 currentContext = balanceState[currencyIndex];
                 currencyIndex++;
@@ -220,7 +220,7 @@ library SettleAssets {
                 balanceState[currencyIndex] = BalanceHandler.buildBalanceState(
                     account,
                     lastCurrencyId, 
-                    accountContext.activeCurrencies
+                    accountContext
                 );
                 currentContext = balanceState[currencyIndex];
                 currencyIndex++;

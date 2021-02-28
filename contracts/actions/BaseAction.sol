@@ -49,7 +49,7 @@ abstract contract BaseAction is StorageLayoutV1 {
         BalanceState[] memory balanceState;
 
         if (accountContext.nextMaturingAsset <= blockTime) {
-            if (accountContext.hasBitmap) {
+            if (accountContext.bitmapCurrencyId != 0) {
                 // TODO: For a view, read bitmap into portfolio state
             }
 
@@ -90,7 +90,7 @@ abstract contract BaseAction is StorageLayoutV1 {
                 blockTime
             );
 
-            if (accountContext.hasBitmap) {
+            if (accountContext.bitmapCurrencyId != 0) {
                 // TODO: settle bitmap
             }
 
@@ -108,14 +108,22 @@ abstract contract BaseAction is StorageLayoutV1 {
         MarketParameters[][] memory marketStates,
         uint blockTime
     ) internal {
-        AssetStorage[] storage assetStoragePointer = assetArrayMapping[account];
-        // Store balances and portfolio state
-        portfolioState.storeAssets(assetStoragePointer);
-
-        bytes memory activeCurrenciesCopy = accountContext.activeCurrencies.copy();
+        // Finalize will set active currencies if balance is not zero
         for (uint i; i < balanceState.length; i++) {
-            balanceState[i].finalize(account, accountContext);
+            // TODO: add redeem to underlying
+            balanceState[i].finalize(account, accountContext, false);
         }
+
+        AssetStorage[] storage assetStoragePointer = assetArrayMapping[account];
+        // Storing assets will set active currencies to true for each unique currency id. We know that there
+        // won't be a conflict with balance state because settlement will create a balance for the active currency.
+        // Deposit currency: set to true, no portfolio asset, no change
+        // Withdraw to zero: set to false, has portfolio, set to true
+        // Settle to cash: set to true, no portfolio asset, no change
+
+        // Edge case:
+        // Net portfolio asset to zero: must set to false if no balance and no other portfolio assets
+        portfolioState.storeAssets(assetStoragePointer);
 
         // Finalizing markets will always update to the current settlement date.
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
@@ -133,7 +141,6 @@ abstract contract BaseAction is StorageLayoutV1 {
             balanceState,
             cashGroups,
             marketStates,
-            activeCurrenciesCopy,
             blockTime
         );
 
@@ -147,7 +154,6 @@ abstract contract BaseAction is StorageLayoutV1 {
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
-        bytes memory activeCurrencies,
         uint blockTime
     ) internal view virtual returns (AccountStorage memory) {
         // TODO: need to make sure all the context variables are set properly here

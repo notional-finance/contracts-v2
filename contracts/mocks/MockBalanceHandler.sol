@@ -105,23 +105,10 @@ contract MockBalanceHandler is StorageLayoutV1 {
         BalanceState memory bs = BalanceHandler.buildBalanceState(
             account,
             currencyId,
-            accountContext.activeCurrencies
+            accountContext
         );
 
         return (bs, accountContext);
     }
 
-    function getRemainingActiveBalances(
-        address account,
-        AccountStorage memory accountContext,
-        BalanceState[] memory balanceState
-    ) public view returns (BalanceState[] memory, AccountStorage memory) {
-        BalanceState[] memory bs = BalanceHandler.getRemainingActiveBalances(
-            account,
-            accountContext.activeCurrencies,
-            balanceState
-        );
-
-        return (bs, accountContext);
-    }
 }

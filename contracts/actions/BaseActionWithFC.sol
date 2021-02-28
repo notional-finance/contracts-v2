@@ -4,11 +4,13 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../common/FreeCollateral.sol";
+import "../storage/AccountContextHandler.sol";
 import "./BaseAction.sol";
 
 abstract contract BaseActionWithFC is BaseAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountStorage;
     using Bitmap for bytes;
 
     function _finalizeView(
@@ -18,7 +20,6 @@ abstract contract BaseActionWithFC is BaseAction {
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
-        bytes memory activeCurrencies,
         uint blockTime
     ) internal view override returns (AccountStorage memory) {
         accountContext.hasDebt = FreeCollateral.shouldCheckFreeCollateral(
@@ -35,13 +36,9 @@ abstract contract BaseActionWithFC is BaseAction {
             // Get remaining balances that have not changed, all balances is an ordered array of the
             // currency ids. This is the same ordering that portfolioState.storedAssets and newAssets
             // are also stored in.
-            balanceState = BalanceHandler.getRemainingActiveBalances(
-                account,
-                // TODO: this does not contain assets that do not have cash balances, ensure that
-                // trading will result in a balance entering the context
-                activeCurrencies,
-                balanceState
-            );
+            // TODO: this does not contain assets that do not have cash balances, ensure that
+            // trading will result in a balance entering the context
+            balanceState = accountContext.getAllBalances(account);
 
             require(FreeCollateral.doesAccountPassFreeCollateral(
                 account,

@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
 import "./TokenHandler.sol";
+import "./AccountContextHandler.sol";
 import "../math/Bitmap.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -27,6 +28,7 @@ library BalanceHandler {
     using SafeMath for uint;
     using Bitmap for bytes;
     using TokenHandler for Token;
+    using AccountContextHandler for AccountStorage;
 
     uint internal constant BALANCE_STORAGE_SLOT = 8;
 
@@ -197,16 +199,11 @@ library BalanceHandler {
         }
 
         if (mustUpdate) setBalanceStorage(account, balanceState);
-        if (balanceState.storedCashBalance != 0 
-            || balanceState.storedPerpetualTokenBalance != 0
-        ) {
-            // Set this to true so that the balances get read next time
-            accountContext.activeCurrencies = Bitmap.setBit(
-                accountContext.activeCurrencies,
-                balanceState.currencyId,
-                true
-            );
-        }
+        accountContext.setActiveCurrency(
+            balanceState.currencyId,
+            // Set active currency to true if either balance is non-zero
+            balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0
+        );
         if (balanceState.storedCashBalance < 0) accountContext.hasDebt = true;
     }
 
@@ -297,20 +294,11 @@ library BalanceHandler {
     function buildBalanceState(
         address account,
         uint currencyId,
-        bytes memory activeCurrencies
+        AccountStorage memory accountContext
     ) internal view returns (BalanceState memory) {
         require(currencyId != 0, "CH: invalid currency id");
 
-        bool isActive = activeCurrencies.isBitSet(currencyId);
-        if (isActive) {
-            // Set the bit to off to mark that we've read the balance
-            // TODO: simplify this because hot reads will only be 100 gas
-            activeCurrencies = Bitmap.setBit(
-                activeCurrencies,
-                currencyId,
-                false
-            );
-
+        if (accountContext.isActiveCurrency(currencyId)) {
             // Storage Read
             (int cashBalance, int tokenBalance) = getBalanceStorage(account, currencyId);
             return BalanceState({
@@ -323,6 +311,7 @@ library BalanceHandler {
             });
         }
 
+        // TODO: does this need to set active currency to ensure reads?
         return BalanceState({
             currencyId: currencyId,
             storedCashBalance: 0,
@@ -331,66 +320,6 @@ library BalanceHandler {
             netAssetTransferInternalPrecision: 0,
             netPerpetualTokenTransfer: 0
         });
-    }
-
-    /**
-     * @notice When doing a free collateral check we must get all active balances, this will
-     * fetch any remaining balances and exchange rates that are active on the account.
-     * @dev WARM: remove
-     */
-    function getRemainingActiveBalances(
-        address account,
-        bytes memory activeCurrencies,
-        BalanceState[] memory balanceState
-    ) internal view returns (BalanceState[] memory) {
-        uint totalActive = activeCurrencies.totalBitsSet() + balanceState.length;
-        BalanceState[] memory newBalanceContext = new BalanceState[](totalActive);
-        totalActive = 0;
-        uint existingIndex;
-
-        for (uint i; i < activeCurrencies.length; i++) {
-            // Scan for the remaining balances in the active currencies list
-            if (activeCurrencies[i] == 0x00) continue;
-
-            bytes1 bits = activeCurrencies[i];
-            for (uint offset; offset < 8; offset++) {
-                if (bits == 0x00) break;
-
-                // The big endian bit is set to one so we get the balance context for this currency id
-                if (bits & 0x80 == 0x80) {
-                    uint currencyId = (i * 8) + offset + 1;
-                    // Insert lower valued currency ids here
-                    while (
-                        existingIndex < balanceState.length &&
-                        balanceState[existingIndex].currencyId < currencyId
-                    ) {
-                        newBalanceContext[totalActive] = balanceState[existingIndex];
-                        totalActive += 1;
-                        existingIndex += 1;
-                    }
-
-                    // Storage Read
-                    newBalanceContext[totalActive] = BalanceHandler.buildBalanceState(
-                        account,
-                        currencyId,
-                        activeCurrencies
-                    );
-                    totalActive += 1;
-                }
-
-                bits = bits << 1;
-            }
-        }
-
-        // Inserts all remaining currencies
-        while (existingIndex < balanceState.length) {
-            newBalanceContext[totalActive] = balanceState[existingIndex];
-            totalActive += 1;
-            existingIndex += 1;
-        }
-
-        // This returns an ordered list of balance context by currency id
-        return newBalanceContext;
     }
 
     /**

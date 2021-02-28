@@ -183,14 +183,14 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         BalanceState memory senderBalance = BalanceHandler.buildBalanceState(
             sender,
             currencyId,
-            senderContext.activeCurrencies
+            senderContext
         );
 
         AccountStorage memory recipientContext = accountContextMapping[recipient];
         BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
             recipient,
             currencyId,
-            recipientContext.activeCurrencies
+            recipientContext
         );
 
         int amountInt = SafeCast.toInt256(amount);

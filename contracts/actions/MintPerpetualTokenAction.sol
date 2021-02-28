@@ -48,12 +48,11 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint88 amountToDepositExternalPrecision,
         bool useCashBalance
     ) external nonReentrant returns (uint) {
-        // TODO: remove this
         AccountStorage memory recipientContext = accountContextMapping[msg.sender];
         BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
             msg.sender,
             currencyId,
-            recipientContext.activeCurrencies
+            recipientContext
         );
 
         (int amountToDepositInternal, int assetAmountTransferred) = recipientBalance.depositAssetToken(
@@ -64,7 +63,13 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         // Net off any asset amount transferred because it will go to the perp token
         recipientBalance.netCashChange = recipientBalance.netCashChange.sub(assetAmountTransferred);
 
-        return _mintPerpetualToken(currencyId, msg.sender, recipientBalance, amountToDepositInternal);
+        return _mintPerpetualToken(
+            currencyId,
+            msg.sender,
+            recipientBalance,
+            recipientContext,
+            amountToDepositInternal
+        );
     }
 
     function perpetualTokenRedeem(
@@ -95,6 +100,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint currencyId,
         address recipient,
         BalanceState memory recipientBalance,
+        AccountStorage memory recipientContext,
         int amountToDeposit
     ) internal returns (uint) {
         uint blockTime = block.timestamp;
@@ -109,7 +115,6 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             blockTime
         );
 
-        AccountStorage memory recipientContext = accountContextMapping[recipient];
         recipientBalance.finalize(recipient, recipientContext, false);
         accountContextMapping[recipient] = recipientContext;
 
