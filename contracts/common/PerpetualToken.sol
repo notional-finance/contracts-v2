@@ -295,38 +295,22 @@ library PerpetualToken {
         // be settled except the 6 month (which is now the 3 month). We don't settle LTs except in
         // initialize markets so we calculate the cash value of the portfolio here.
         if (accountContext.nextMaturingAsset <= blockTime) {
-            // This does an additional storage read of balanceState inside getSettleAssetContextView
-            // but that is ok since this will be an edge case. Perpetual tokens should be settled and
-            // reinitialized to markets in a timely manner
-            /*
-            BalanceState[] memory balanceState = SettleAssets.getSettleAssetContextView(
-                perpToken.tokenAddress,
-                perpToken.portfolioState,
-                accountContext,
-                blockTime
-            );
+            // NOTE: this condition should only be present for a very short amount of time, which is the window between
+            // when the markets are no longer tradable at quarter end and when the new markets have been initialized.
+            // We time travel back to one second before maturity to value the liquidity tokens. Although this value is
+            // not strictly correct the different should be quite slight. We do this to ensure that free collateral checks
+            // for withdraws and liquidations can still be processed. If this condition persists for a long period of time then
+            // the entire protocol will have serious problems as markets will not be tradable.
+            blockTime = accountContext.nextMaturingAsset - 1;
+            // Clear the market parameters just in case there is dirty data.
+            perpToken.markets = new MarketParameters[](perpToken.markets.length);
+        }
 
-            int settledAssetCash;
-            // TODO: this is stateful
-            // (ifCashBitmap, settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
-            //     perpToken.tokenAddress,
-            //     perpToken.cashGroup.currencyId,
-            //     accountContext.nextMaturingAsset,
-            //     blockTime
-            // );
-
-            // Safety check to ensure that our balance states are in tact
-            require(balanceState.length == 1, "PT: unknown balance");
-            require(balanceState[0].currencyId == perpToken.cashGroup.currencyId, "PT: unknown balance");
-            totalAssetPV = balanceState[0].storedCashBalance
-                .add(balanceState[0].netCashChange)
-                .add(settledAssetCash);
-            */
-        } else {
-            // Since we are not doing a risk adjusted valuation here we do not need to net off residual fCash
-            // balances in the future before discounting to present. If we did, then the ifCash assets would
-            // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
-            // underlying terms.
+        // Since we are not doing a risk adjusted valuation here we do not need to net off residual fCash
+        // balances in the future before discounting to present. If we did, then the ifCash assets would
+        // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
+        // underlying terms.
+        {
             PortfolioAsset[] memory emptyPortfolio = new PortfolioAsset[](0);
             for (uint i; i < perpToken.portfolioState.storedAssets.length; i++) {
                 (int assetCashClaim, int pv) = AssetHandler.getLiquidityTokenValue(
