@@ -26,7 +26,11 @@ def check_cash_balance(env, accounts):
     # For every currency, check that the contract balance matches the account
     # balances and capital deposited trackers
     for (symbol, currencyId) in env.currencyId.items():
-        contractBalance = env.token[symbol].balanceOf(env.router["Views"].address)
+        tokenBalance = env.token[symbol].balanceOf(env.router["Views"].address)
+        # Notional contract should never accumulate underlying balances
+        assert tokenBalance == 0
+
+        contractBalance = env.cToken[symbol].balanceOf(env.router["Views"].address)
         accountBalances = 0
 
         for account in accounts:
@@ -44,6 +48,9 @@ def check_cash_balance(env, accounts):
         for markets in get_markets(env, currencyId):
             accountBalances += sum([m[3] for m in markets])
 
+        import pdb
+
+        pdb.set_trace()
         assert contractBalance == accountBalances
 
 
@@ -55,7 +62,7 @@ def check_perp_token(env, accounts):
         totalTokensHeld = 0
 
         for account in accounts:
-            (_, tokens, _) = env.router["Views"].getAccountBalance(currencyId, account.address)
+            (_, tokens) = env.router["Views"].getAccountBalance(currencyId, account.address)
             totalTokensHeld += tokens
 
         # Ensure that total supply equals tokens held
@@ -150,12 +157,14 @@ def check_account_context(env, accounts):
 
         hasDebt = False
         for (symbol, currencyId) in env.currencyId.items():
-            # Checks that active currencie is set properly
-            balance = env.router["Views"].getAccountBalance(currencyId, account.address)
-            if balance[0] != 0 or balance[1] != 0:
+            # Checks that active currencies is set properly
+            (cashBalance, perpTokenBalance) = env.router["Views"].getAccountBalance(
+                currencyId, account.address
+            )
+            if cashBalance != 0 or perpTokenBalance != 0:
                 assert activeCurrencies == "1"
 
-            if balance[0] < 0:
+            if cashBalance < 0:
                 hasDebt = True
 
         portfolio = env.router["Views"].getAccountPortfolio(account.address)
