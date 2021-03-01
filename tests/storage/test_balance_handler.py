@@ -1,68 +1,80 @@
 import math
-import random
 
 import brownie
 import pytest
 from brownie.test import given, strategy
 from hypothesis import settings
+from scripts.config import CurrencyDefaults
+from scripts.deployment import TestEnvironment, TokenType
+from tests.storage.test_account_context import get_active_currencies
 
 
 @pytest.fixture(scope="module", autouse=True)
 def balanceHandler(MockBalanceHandler, MockERC20, accounts):
     handler = MockBalanceHandler.deploy({"from": accounts[0]})
     # Ensure that we have at least 2 bytes of currencies
-    handler.setMaxCurrencyId(15)
+    handler.setMaxCurrencyId(6)
     return handler
 
 
 @pytest.fixture(scope="module", autouse=True)
 def tokens(balanceHandler, MockERC20, accounts):
     tokens = []
-    for i in range(1, 16):
-        hasFee = random.randint(0, 1) == 1
-        decimals = random.choice([6, 8, 18])
+    for i in range(1, 7):
+        hasFee = i in [1, 2, 3]
+        decimals = [6, 8, 18, 6, 8, 18][i - 1]
         fee = 0.01e18 if hasFee else 0
 
         token = MockERC20.deploy(str(i), str(i), decimals, fee, {"from": accounts[0]})
-        balanceHandler.setCurrencyMapping(i, (token.address, hasFee, decimals, decimals))
-        token.approve(balanceHandler.address, 2 ** 255)
+        balanceHandler.setCurrencyMapping(
+            i, False, (token.address, hasFee, TokenType["NonMintable"])
+        )
+        token.approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
         token.transfer(balanceHandler.address, 1e20, {"from": accounts[0]})
         tokens.append(token)
 
     return tokens
 
 
-@given(active_currencies=strategy("bytes", min_size=1, max_size=8))
-def test_get_remaining_balances(balanceHandler, active_currencies, accounts):
-    # accounts for leading zeros
-    num_bits = str(len(active_currencies) * 8)
-    bitstring = ("{:0>" + num_bits + "b}").format(int(active_currencies.hex(), 16))
-
-    ids = []
-    for i, x in enumerate(list(bitstring)):
-        if x == "1":
-            ids.append(i + 1)
-
-    # test additional balance contexts
-    existingContexts = []
-    for i in range(1, 15):
-        if i not in ids and len(existingContexts) < 5:
-            existingContexts.append((i, 0, 0, 0, 0, 0))
-
-    (bc, ac) = balanceHandler.getRemainingActiveBalances(
-        accounts[1], (0, 0, False, False, False, active_currencies), tuple(existingContexts)
+@pytest.fixture(scope="module", autouse=True)
+def cTokenEnvironment(balanceHandler, accounts):
+    env = TestEnvironment(accounts[0])
+    env.enableCurrency("DAI", CurrencyDefaults)
+    currencyId = 7
+    balanceHandler.setCurrencyMapping(
+        currencyId, True, (env.token["DAI"].address, False, TokenType["UnderlyingToken"])
     )
+    balanceHandler.setCurrencyMapping(
+        currencyId, False, (env.cToken["DAI"].address, False, TokenType["cToken"])
+    )
+    env.token["DAI"].approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
 
-    # Assert that all the active currency bits have been set to false
-    assert int(ac[5].hex(), 16) == 0
-    assert len(bc) == (len(ids) + len(existingContexts))
-    allIds = sorted(ids + [x[0] for x in existingContexts])
-    for i, b in enumerate(bc):
-        assert b[0] == allIds[i]
+    return env
+
+
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
+
+
+def convert_to_external(internalValue, externalPrecision):
+    if externalPrecision > 1e9:
+        # floating point weirdness with python
+        return math.trunc(externalPrecision / 1e9) * internalValue
+    else:
+        return math.trunc(internalValue * externalPrecision / 1e9)
+
+
+def convert_to_internal(externalValue, externalPrecision):
+    if externalPrecision < 1e9:
+        # floating point weirdness with python
+        return math.trunc(1e9 / externalPrecision) * externalValue
+    else:
+        return math.trunc(externalValue * 1e9 / externalPrecision)
 
 
 @given(
-    currencyId=strategy("uint", min_value=1, max_value=15),
+    currencyId=strategy("uint", min_value=1, max_value=6),
     assetBalance=strategy("int88", min_value=-10e18, max_value=10e18),
     perpetualTokenBalance=strategy("uint80", max_value=10e18),
     netCashChange=strategy("int88", min_value=-10e18, max_value=10e18),
@@ -82,19 +94,15 @@ def test_build_and_finalize_balances(
     netPerpetualTokenTransfer,
     tokens,
 ):
-    bitstring = list("".zfill(16))
-    bitstring[currencyId - 1] = "1"
-    active_currencies = int("".join(bitstring), 2).to_bytes(len(bitstring) // 8, byteorder="big")
-
+    active_currencies = get_active_currencies([currencyId])
     balanceHandler.setBalance(accounts[0], currencyId, assetBalance, perpetualTokenBalance)
-    context = (0, 0, False, False, False, active_currencies)
+    context = (0, 0, False, 0, 0, active_currencies)
 
     (bs, context) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
     assert bs[0] == currencyId
     assert bs[1] == assetBalance
     assert bs[2] == perpetualTokenBalance
     assert bs[3] == 0
-    assert int.from_bytes(context[5], "big") == 0
 
     bsCopy = list(bs)
     bsCopy[3] = netCashChange
@@ -104,16 +112,20 @@ def test_build_and_finalize_balances(
     # These scenarios should fail
     if netTransfer < 0 and assetBalance + netCashChange + netTransfer < 0:
         # Cannot withdraw to a negative balance
-        with brownie.reverts("CH: cannot withdraw negative"):
-            context = balanceHandler.finalize(bsCopy, accounts[0], context)
+        with brownie.reverts("BH: cannot withdraw negative"):
+            context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
     elif perpetualTokenBalance + netPerpetualTokenTransfer < 0:
-        with brownie.reverts("CH: cannot withdraw negative"):
-            context = balanceHandler.finalize(bsCopy, accounts[0], context)
+        with brownie.reverts("BH: cannot withdraw negative"):
+            context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
     else:
-        # check that the balances match on the token balances and on the
-        # the storage
-        txn = balanceHandler.finalize(bsCopy, accounts[0], context)
+        # check that the balances match on the token balances and on the the storage
+        balanceBefore = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+        txn = balanceHandler.finalize(bsCopy, accounts[0], context, False)
+        balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+
         context = txn.return_value
+        (bsFinal, _) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
+        assert bsFinal[0] == currencyId
 
         # Assert hasDebt is set properly (storedCashBalance + netCashChange + netTransfer)
         if bsCopy[1] + bsCopy[3] + netTransfer < 0:
@@ -121,23 +133,173 @@ def test_build_and_finalize_balances(
         else:
             assert not context[2]
 
-        (bsFinal, _) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
-        assert bsFinal[0] == currencyId
-        currency = balanceHandler.getCurrencyMapping(currencyId)
-        precisionDiff = 10 ** (currency[2] - 9)
+        currency = balanceHandler.getCurrencyMapping(currencyId, False)
+        externalPrecision = currency[2]
+        transferExternal = convert_to_external(netTransfer, externalPrecision)
 
         # Has transfer fee
         if currency[1]:
-            transferConversion = math.trunc(netTransfer * precisionDiff)
-            fee = math.trunc(transferConversion * 0.01e18 / 1e18)
-            finalTransferInternal = int(math.trunc(transferConversion - fee) / precisionDiff)
-            assert (
-                pytest.approx(bsFinal[1], abs=10) == bsCopy[1] + bsCopy[3] + finalTransferInternal
-            )
+            fee = transferExternal // 100
+            transferWithFeeInternal = convert_to_internal(transferExternal - fee, externalPrecision)
+            if netTransfer > 0:
+                # On deposits the fee will matter
+                assert balanceAfter - balanceBefore == transferExternal - fee
+                assert (
+                    pytest.approx(bsFinal[1], abs=2)
+                    == bsCopy[1] + bsCopy[3] + transferWithFeeInternal
+                )
+            else:
+                # On withdraws the fee will not matter
+                assert balanceAfter - balanceBefore == transferExternal
+                assert pytest.approx(bsFinal[1], abs=2) == bsCopy[1] + bsCopy[3] + netTransfer
+
         else:
-            transferConversion = math.trunc(math.trunc(netTransfer * precisionDiff) / precisionDiff)
-            assert bsFinal[1] == bsCopy[1] + bsCopy[3] + transferConversion
+            assert bsFinal[1] == bsCopy[1] + bsCopy[3] + convert_to_internal(
+                transferExternal, externalPrecision
+            )
+            assert balanceAfter - balanceBefore == transferExternal
 
         assert bsFinal[2] == bsCopy[2] + netPerpetualTokenTransfer
 
-        # TODO: need to also test minting incentives
+
+@given(
+    currencyId=strategy("uint", min_value=1, max_value=6),
+    assetBalance=strategy("int88", min_value=-10e18, max_value=10e18),
+    netCashChange=strategy("int88", min_value=-10e18, max_value=10e18),
+    netTransfer=strategy("int88", min_value=-10e18, max_value=10e18),
+)
+@settings(max_examples=20)
+def test_deposit_asset_token(
+    balanceHandler, tokens, accounts, currencyId, assetBalance, netCashChange, netTransfer
+):
+    assetDeposit = int(100e9)
+    tolerance = 2
+    bs = (currencyId, assetBalance, 0, netCashChange, netTransfer, 0)
+
+    totalCashInitial = assetBalance + netCashChange + netTransfer
+    currency = balanceHandler.getCurrencyMapping(currencyId, False)
+    externalPrecision = currency[2]
+    assetDepositExternal = convert_to_external(assetDeposit, externalPrecision)
+
+    if currency[1]:
+        # Has transfer fee
+        fee = assetDepositExternal // 100
+        # Asset deposit in internal precision post fee
+        assetDeposit = convert_to_internal(assetDepositExternal - fee, externalPrecision)
+
+    # without cash balance, should simply be a deposit into the account, only transfer
+    # amounts change
+    balanceBefore = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+    txn = balanceHandler.depositAssetToken(bs, accounts[0], assetDepositExternal, False)
+    balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+    (newBalanceState, assetAmountInternal, assetAmountTransferred) = txn.return_value
+
+    # Need to truncate precision difference
+    assert pytest.approx(
+        newBalanceState[1] + newBalanceState[3] + newBalanceState[4], abs=tolerance
+    ) == (
+        assetBalance
+        + netCashChange
+        + netTransfer
+        + convert_to_internal(
+            convert_to_external(assetDeposit, externalPrecision), externalPrecision
+        )
+    )
+
+    if currency[1]:
+        # Token has a fee then the transfer as occurred
+        assert (
+            pytest.approx(balanceAfter - balanceBefore, abs=tolerance) == assetDepositExternal - fee
+        )
+        assert pytest.approx(newBalanceState[3], abs=tolerance) == netCashChange + assetDeposit
+    else:
+        assert balanceBefore == balanceAfter
+        assert pytest.approx(
+            newBalanceState[4], abs=tolerance
+        ) == netTransfer + convert_to_internal(assetDepositExternal, externalPrecision)
+
+    assert pytest.approx(assetAmountInternal, abs=tolerance) == assetDeposit
+    assert pytest.approx(assetAmountTransferred, abs=tolerance) == assetDeposit
+
+    # TEST WITH CASH BALANCE
+    # with cash balance, need to compute the transfer amount net cash balances
+    assetDeposit = int(100e9)
+    balanceBefore = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+    txn = balanceHandler.depositAssetToken(bs, accounts[0], assetDepositExternal, True)
+    balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
+    (newBalanceState, assetAmountInternal, assetAmountTransferred) = txn.return_value
+
+    computedTransfer = (
+        0 if totalCashInitial > assetDeposit else min(assetDeposit, assetDeposit - totalCashInitial)
+    )
+    computedTransferExternal = convert_to_external(int(computedTransfer), externalPrecision)
+
+    fee = 0
+    if currency[1]:
+        # Has transfer fee
+        fee = computedTransferExternal // 100
+        # Asset deposit in internal precision post fee
+        computedTransfer = convert_to_internal(computedTransferExternal - fee, externalPrecision)
+        assetDeposit = convert_to_internal(assetDepositExternal - fee, externalPrecision)
+        # Token has a fee then the transfer as occurred
+        assert (
+            pytest.approx(balanceAfter - balanceBefore, abs=tolerance)
+            == computedTransferExternal - fee
+        )
+        assert pytest.approx(newBalanceState[3], abs=tolerance) == netCashChange + computedTransfer
+    else:
+        assert balanceBefore == balanceAfter
+        assert pytest.approx(
+            newBalanceState[4], abs=tolerance
+        ) == netTransfer + convert_to_internal(computedTransferExternal, externalPrecision)
+
+    assert pytest.approx(
+        newBalanceState[1] + newBalanceState[3] + newBalanceState[4], abs=tolerance
+    ) == totalCashInitial + convert_to_internal(computedTransferExternal - fee, externalPrecision)
+    assert pytest.approx(assetAmountInternal, abs=tolerance) == assetDeposit
+    assert pytest.approx(assetAmountTransferred, abs=tolerance) == computedTransfer
+
+
+@given(underlyingAmount=strategy("int88", min_value=0, max_value=10e18))
+@settings(max_examples=10)
+def test_deposit_and_withdraw_underlying_asset_token(
+    balanceHandler, cTokenEnvironment, accounts, underlyingAmount
+):
+    # deposit asset tokens
+    currencyId = 7
+    underlyingBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
+    balanceBefore = cTokenEnvironment.cToken["DAI"].balanceOf(balanceHandler.address)
+
+    bs = (currencyId, 0, 0, 0, 0, 0)
+    txn = balanceHandler.depositUnderlyingToken(bs, accounts[0], underlyingAmount)
+
+    balanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(balanceHandler.address)
+    underlyingBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
+
+    # test balance after
+    (newBalanceState, assetTokensReceived) = txn.return_value
+
+    assert balanceAfter - balanceBefore == (assetTokensReceived * 1e8 / 1e9)
+    assert underlyingBalanceBefore == underlyingBalanceAfter
+    assert assetTokensReceived == newBalanceState[3]
+
+    # withdraw asset
+    balanceBefore = cTokenEnvironment.cToken["DAI"].balanceOf(balanceHandler.address)
+    underlyingBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
+    accountUnderlyingBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(accounts[0].address)
+
+    active_currencies = get_active_currencies([currencyId])
+    context = (0, 0, False, 0, 0, active_currencies)
+    # withdraw all the asset tokens received
+    bs = (currencyId, assetTokensReceived, 0, 0, -assetTokensReceived, 0)
+    txn = balanceHandler.finalize(bs, accounts[0], context, True)
+
+    underlyingBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
+    balanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(balanceHandler.address)
+    accountUnderlyingBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(accounts[0].address)
+
+    assert balanceBefore - balanceAfter == (assetTokensReceived * 1e8 / 1e9)
+    # balance handler should not have any net underlying balance
+    assert underlyingBalanceBefore == underlyingBalanceAfter
+    if assetTokensReceived > 0:
+        assert accountUnderlyingBalanceAfter > accountUnderlyingBalanceBefore

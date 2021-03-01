@@ -44,10 +44,10 @@ contract MockAccountContextHandler {
         AccountStorage memory accountContext = AccountStorage(0, 0, false, bitmapCurrencyId, 0, activeCurrencies);
         BalanceState[] memory bs = accountContext.getAllBalances(account);
 
-        // for (uint i; i < bs.length; i++) {
-        //     // Assert that currencies are ordered
-        //     if (i != 0) assert (bs[i - 1].currencyId < bs[i].currencyId);
-        // }
+        for (uint i; i < bs.length; i++) {
+            // Assert that currencies are ordered
+            if (i != 0) assert (bs[i - 1].currencyId < bs[i].currencyId);
+        }
 
         return bs;
     }

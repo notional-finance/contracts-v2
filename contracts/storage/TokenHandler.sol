@@ -125,9 +125,7 @@ library TokenHandler {
             return int(endingBalance.sub(startingBalance));
         }
 
-        SafeERC20.safeTransferFrom(
-            IERC20(token.tokenAddress), account, address(this), amount
-        );
+        SafeERC20.safeTransferFrom(IERC20(token.tokenAddress), account, address(this), amount);
 
         return int(amount);
     }
@@ -154,18 +152,14 @@ library TokenHandler {
     function redeem(
         Token memory assetToken,
         Token memory underlyingToken,
-        uint assetAmountInternalPrecision
+        uint assetAmountExternalPrecision
     ) internal returns (int) {
         require(assetToken.tokenType == TokenType.cToken, "TH: non mintable token");
         require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying token");
 
-        uint redeemAmount = assetAmountInternalPrecision
-            .mul(uint(assetToken.decimals))
-            .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION));
-
         // TODO: need special handling for ETH
         uint startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
-        uint success = CErc20Interface(assetToken.tokenAddress).redeem(redeemAmount);
+        uint success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternalPrecision);
         require(success == 0, "TH: ctoken redeem failure");
         uint endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
 
@@ -203,7 +197,7 @@ library TokenHandler {
         Token memory token,
         int amount
     ) internal pure returns (int) {
-        return amount.div(token.decimals).div(INTERNAL_TOKEN_PRECISION);
+        return amount.mul(token.decimals).div(INTERNAL_TOKEN_PRECISION);
     }
 
     function transferIncentive(

@@ -111,4 +111,31 @@ contract MockBalanceHandler is StorageLayoutV1 {
         return (bs, accountContext);
     }
 
+    function depositAssetToken(
+        BalanceState memory balanceState,
+        address account,
+        int assetAmountExternalPrecision,
+        bool useCashBalance
+    ) external returns (BalanceState memory, int, int) {
+        (int assetAmountInternal, int assetAmountTransferred) = balanceState.depositAssetToken(
+            account,
+            assetAmountExternalPrecision,
+            useCashBalance
+        );
+
+        return (balanceState, assetAmountInternal, assetAmountTransferred);
+    }
+
+    function depositUnderlyingToken(
+        BalanceState memory balanceState,
+        address account,
+        int underlyingAmountExternalPrecision
+    ) external returns (BalanceState memory, int) {
+        int assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+            account,
+            underlyingAmountExternalPrecision
+        );
+
+        return (balanceState, assetTokensReceivedInternal);
+    }
 }

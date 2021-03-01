@@ -55,13 +55,13 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             recipientContext
         );
 
-        (int amountToDepositInternal, int assetAmountTransferred) = recipientBalance.depositAssetToken(
+        (int amountToDepositInternal, /* int assetAmountTransferred */) = recipientBalance.depositAssetToken(
             msg.sender,
             int(amountToDepositExternalPrecision),
             useCashBalance
         );
         // Net off any asset amount transferred because it will go to the perp token
-        recipientBalance.netCashChange = recipientBalance.netCashChange.sub(assetAmountTransferred);
+        recipientBalance.netCashChange = recipientBalance.netCashChange.sub(amountToDepositInternal);
 
         return _mintPerpetualToken(
             currencyId,
