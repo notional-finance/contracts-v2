@@ -66,11 +66,11 @@ def test_implied_rate(market, initRate, timeToMaturity):
     rateScalar = 100
     initialTimeToMaturity = timeToMaturity * SECONDS_IN_DAY
 
-    (rateAnchor, success) = market.getRateAnchor(
+    (rateAnchor, _) = market.getRateAnchor(
         totalfCash, initRate, totalCashUnderlying, rateScalar, initialTimeToMaturity
     )
 
-    (impliedRate, success) = market.getImpliedRate(
+    (impliedRate, _) = market.getImpliedRate(
         totalfCash, totalCashUnderlying, rateScalar, rateAnchor, initialTimeToMaturity
     )
 
@@ -87,16 +87,16 @@ def test_implied_rate(market, initRate, timeToMaturity):
     # day period.
     rollDownMaturities = [initialTimeToMaturity - i * 10 * SECONDS_IN_DAY for i in range(1, 9)]
     for t in rollDownMaturities:
-        (rateAnchor, success) = market.getRateAnchor(
+        (rateAnchor, _) = market.getRateAnchor(
             totalfCash, impliedRate, totalCashUnderlying, rateScalar, t
         )
 
-        (newImpliedRate, success) = market.getImpliedRate(
+        (newImpliedRate, _) = market.getImpliedRate(
             totalfCash, totalCashUnderlying, rateScalar, rateAnchor, t
         )
 
         # The implied rate does decay on roll down do a small degree
-        assert pytest.approx(newImpliedRate, rel=1e-5) == impliedRate
+        assert pytest.approx(newImpliedRate, abs=100) == impliedRate
 
 
 @given(

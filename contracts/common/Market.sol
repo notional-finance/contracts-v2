@@ -231,10 +231,6 @@ library Market {
      * lastImpliedRate = ln(exchangeRate') * (IMPLIED_RATE_TIME / timeToMaturity')
      *      (calculated when the last trade in the market was made)
      *
-     * @dev Due to loss of precision from dividing the implied rate will decay to a small degree if there
-     * is no trading in the market at all. Our tests indicate that this degredation is limited to 0.001% of
-     * the rate over a 90 day roll down period.
-     *
      * @return the new rate anchor and a boolean that signifies success
      */
     function getRateAnchor(
@@ -250,10 +246,14 @@ library Market {
 
         int rateAnchor;
         {
-            // TODO: check if this proportion is correct
             int proportion = totalfCash
                 .mul(RATE_PRECISION)
                 .div(totalfCash.add(totalCashUnderlying));
+
+            proportion = proportion
+                .mul(RATE_PRECISION)
+                .div(RATE_PRECISION.sub(proportion));
+
             (int lnProportion, bool success) = logProportion(proportion);
             if (!success) return (0, false);
 
@@ -603,8 +603,7 @@ library Market {
         int totalCurrentCash = int(uint80(uint(data >> 80)));
         // Clear the lower 160 bits, this data will be "OR'd" with the new totalfCash
         // and totalCurrentCash figures.
-        // TODO: switch this to and AND operation
-        data = (data >> 160) << 160;
+        data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
 
         slot = bytes32(uint(slot) + 1);
 
