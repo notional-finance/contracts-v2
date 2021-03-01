@@ -49,4 +49,11 @@ contract MockTokenHandler is StorageLayoutV1 {
         return token.redeem(underlyingToken, tokensInternalPrecision);
     }
 
+    function getToken(
+        uint currencyId,
+        bool underlying
+    ) external view returns (Token memory) {
+        return TokenHandler.getToken(currencyId, underlying);
+    }
+
 }

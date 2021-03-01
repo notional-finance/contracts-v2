@@ -83,7 +83,7 @@ def test_ctoken_mint_redeem(tokenHandler, accounts):
     cDaiBalanceAfter = env.cToken["DAI"].balanceOf(tokenHandler.address)
     assert cDaiBalanceAfter - cDaiBalanceBefore == mintedcTokens
 
-    txn = tokenHandler.redeem(2, mintedcTokens * 1e9 / 1e8)
+    txn = tokenHandler.redeem(2, mintedcTokens)
     redeemedDai = txn.return_value
     assert redeemedDai >= depositedDai
     assert env.cToken["DAI"].balanceOf(tokenHandler.address) == 0
