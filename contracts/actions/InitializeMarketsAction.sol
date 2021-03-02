@@ -37,6 +37,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
+    event MarketsInitialized(uint16 currencyId);
+
     struct GovernanceParameters {
         int[] depositShares;
         int[] leverageThresholds;
@@ -73,7 +75,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // the next maturing asset is before the current reference time.
         require(
             accountContext.nextMaturingAsset < referenceTime,
-            "IT: invalid time"
+            "IM: invalid time"
         );
 
         // Settles liquidity token balances and portfolio state now contains the net fCash amounts
@@ -86,8 +88,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             );
 
             // Safety check to ensure that there are no other balances in the token's portfolio
-            require(bs[0].currencyId == perpToken.cashGroup.currencyId);
-            require(bs.length == 1);
+            require(bs.length == 1, "IM: balance index length");
+            require(bs[0].currencyId == perpToken.cashGroup.currencyId, "IM: balance currency id");
             perpToken.balanceState = bs[0];
         }
 
@@ -203,15 +205,20 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         bool isFirstInit
     ) private returns (int) {
         int netAssetCashAvailable;
-        bytes memory ifCashBitmap = _settlePerpetualTokenPortfolio(perpToken, accountContext, blockTime);
-        _getPreviousMarkets(currencyId, blockTime, perpToken);
-        int assetCashWitholding = _withholdAndSetfCashAssets(
-            perpToken,
-            currencyId,
-            ifCashBitmap,
-            blockTime,
-            accountContext.nextMaturingAsset
-        );
+        bytes memory ifCashBitmap;
+        int assetCashWitholding;
+
+        if (!isFirstInit) {
+            ifCashBitmap = _settlePerpetualTokenPortfolio(perpToken, accountContext, blockTime);
+            _getPreviousMarkets(currencyId, blockTime, perpToken);
+            assetCashWitholding = _withholdAndSetfCashAssets(
+                perpToken,
+                currencyId,
+                ifCashBitmap,
+                blockTime,
+                accountContext.nextMaturingAsset
+            );
+        }
 
         // We do not consider "storedCashBalance" because it may be holding cash that is used to
         // collateralize negative fCash from previous settlements except on the first initialization when
@@ -229,7 +236,10 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
-        require(netAssetCashAvailable > int(PerpetualToken.DEPOSIT_PERCENT_BASIS));
+        require(
+            netAssetCashAvailable > int(PerpetualToken.DEPOSIT_PERCENT_BASIS),
+            "IM: insufficient cash"
+        );
 
         return netAssetCashAvailable;
     }
@@ -366,12 +376,12 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
         AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
 
+        // This should be sufficient to validate that the currency id is valid
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
         // If the perp token has any assets then this is not the first initialization
-        require(
-            isFirstInit && perpToken.portfolioState.storedAssets.length == 0,
-            "IM: not first init"
-        );
+        if (isFirstInit) {
+            require(perpToken.portfolioState.storedAssets.length == 0, "IM: not first init");
+        }
 
         int netAssetCashAvailable = _getNetAssetCashAvailable(
             perpToken,
@@ -389,7 +399,10 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // Rebase percent to deposit to exclude 3 month market, we do not need to deposit
         // additional liquidity into it because the 6 month market has rolled down into the 3 month
         // market and it already has liquidity
-        int newDepositBasis = PerpetualToken.DEPOSIT_PERCENT_BASIS.sub(parameters.depositShares[0]);
+        int newDepositBasis = isFirstInit ? 
+            PerpetualToken.DEPOSIT_PERCENT_BASIS :
+            PerpetualToken.DEPOSIT_PERCENT_BASIS.sub(parameters.depositShares[0]);
+
         require(newDepositBasis > 0, "PT: invalid deposit basis");
 
         MarketParameters memory newMarket;
@@ -400,10 +413,19 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             referenceTime
         );
 
-        // Begin looping from the 6 month market, the 3 month market is already initialized
-        for (uint i = 1; i < perpToken.cashGroup.maxMarketIndex; i++) {
+        uint i;
+        // On first init, we initialize from the 3 month market where the index is 0. Thereafter, we
+        // initialize from the 6 month market onwards since the 6 month will become the new 3 month.
+        if (!isFirstInit) {
+            // Update the 6 month market assetType to be the 3 month market
+            perpToken.portfolioState.storedAssets[1].assetType = 2;
+            perpToken.portfolioState.storedAssets[1].storageState = AssetStorageState.Update;
+            i = 1;
+        }
+
+        for (; i < perpToken.cashGroup.maxMarketIndex; i++) {
             newMarket.currencyId = currencyId;
-            // i + 1 will start at the 6 month market, the traded markets are 1-indexed
+            // Traded markets are 1-indexed
             newMarket.maturity = referenceTime.add(CashGroup.getTradedMarket(i + 1));
 
             int underlyingCashToMarket = _setLiquidityAmount(
@@ -417,8 +439,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
             uint timeToMaturity = newMarket.maturity.sub(blockTime);
             int rateScalar = perpToken.cashGroup.getRateScalar(timeToMaturity);
-            if (i > perpToken.markets.length) {
-                // The any newly added markets cannot have their implied rates interpolated via the previous
+            if (isFirstInit || i > perpToken.markets.length) {
+                // Any newly added markets cannot have their implied rates interpolated via the previous
                 // markets. In this case we initialize the markets using the rate anchor and proportion
                 int fCashAmount = underlyingCashToMarket
                     .div(Market.RATE_PRECISION.sub(parameters.proportions[i]));
@@ -481,6 +503,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // Special method that only stores the storedCashBalance for this method only since we know
         // there are no token transfers, incentives or anything else. Reduces code size by about 2kb
         perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+
+        emit MarketsInitialized(uint16(currencyId));
     }
 
 }

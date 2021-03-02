@@ -101,11 +101,7 @@ library BitmapAssetsHandler {
         MarketParameters[] memory markets,
         bool riskAdjusted
     ) internal view returns (int) {
-        bytes32 fCashSlot = keccak256(abi.encode(maturity,
-            keccak256(abi.encode(currencyId,
-                keccak256(abi.encode(account, IFCASH_STORAGE_SLOT))
-            ))
-        ));
+        bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
         int notional;
         assembly { notional := sload(fCashSlot) }
 
@@ -174,6 +170,45 @@ library BitmapAssetsHandler {
         }
 
         return totalValueUnderlying;
+    }
+
+    function getifCashArray(
+        address account,
+        uint currencyId,
+        uint nextMaturingAsset
+    ) internal view returns (PortfolioAsset[] memory) {
+        bytes memory assetsBitmap = getAssetsBitmap(account, currencyId);
+        uint index = assetsBitmap.totalBitsSet();
+        PortfolioAsset[] memory assets = new PortfolioAsset[](index);
+        index = 0;
+
+        for (uint i; i < assetsBitmap.length; i++) {
+            if (assetsBitmap[i] == 0x00) continue;
+            bytes1 assetByte = assetsBitmap[i];
+
+            // Loop over each bit in the byte, it's position is referenced as 1-indexed
+            for (uint bit = 1; bit <= 8; bit++) {
+                if (assetByte == 0x00) break;
+                if (assetByte & Bitmap.BIT1 != Bitmap.BIT1) {
+                    assetByte = assetByte << 1;
+                    continue;
+                }
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, i * 8 + bit);
+                int notional;
+
+                {
+                    bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+                    assembly { notional := sload(fCashSlot) }
+                }
+
+                assets[index].currencyId = currencyId;
+                assets[index].maturity = maturity;
+                assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
+                assets[index].notional = notional;
+            }
+        }
+
+        return assets;
     }
 
 }

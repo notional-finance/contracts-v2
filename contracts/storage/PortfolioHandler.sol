@@ -95,13 +95,11 @@ library PortfolioHandler {
 
         // Otherwise add to the new assets array. It should not be possible to add matching assets in a single transaction, we will
         // check this again when we write to storage.
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex] = PortfolioAsset({
-            currencyId: currencyId,
-            maturity: maturity,
-            assetType: assetType,
-            notional: notional,
-            storageState: AssetStorageState.NoChange
-        });
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex].currencyId = currencyId;
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex].maturity = maturity;
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex].assetType = assetType;
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex].notional = notional;
+        portfolioState.newAssets[portfolioState.lastNewAssetIndex].storageState = AssetStorageState.NoChange;
         portfolioState.lastNewAssetIndex += 1;
     }
 

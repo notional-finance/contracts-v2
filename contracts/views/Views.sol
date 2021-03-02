@@ -91,12 +91,18 @@ contract Views is StorageLayoutV1 {
         return markets;
     }
 
-    function getInitializationParameters(uint16 currencyId) external view returns (int[] memory, int[] memory) {
-        return PerpetualToken.getInitializationParameters(currencyId, 9);
+    function getInitializationParameters(
+        uint16 currencyId
+    ) external view returns (int[] memory, int[] memory) {
+        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        return PerpetualToken.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
-    function getPerpetualDepositParameters(uint16 currencyId) external view returns (int[] memory, int[] memory) {
-        return PerpetualToken.getDepositParameters(currencyId, 9);
+    function getPerpetualDepositParameters(
+        uint16 currencyId
+    ) external view returns (int[] memory, int[] memory) {
+        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        return PerpetualToken.getDepositParameters(currencyId, cg.maxMarketIndex);
     }
 
     function getPerpetualTokenAddress(uint16 currencyId) external view returns (address) {
@@ -123,6 +129,22 @@ contract Views is StorageLayoutV1 {
     ) external view returns (PortfolioAsset[] memory) {
         PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
         return portfolioState.storedAssets;
+    }
+
+    function getifCashAssets(
+        address account
+    ) external view returns (PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = accountContextMapping[account];
+
+        if (accountContext.bitmapCurrencyId == 0) {
+            return new PortfolioAsset[](0);
+        }
+
+        return BitmapAssetsHandler.getifCashArray(
+            account,
+            accountContext.bitmapCurrencyId,
+            accountContext.nextMaturingAsset
+        );
     }
 
     fallback() external {

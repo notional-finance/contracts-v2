@@ -106,11 +106,11 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint blockTime = block.timestamp;
 
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
 
         recipientBalance.netPerpetualTokenTransfer = PerpetualToken.mintPerpetualToken(
             perpToken,
-            accountContext,
+            perpTokenContext,
             amountToDeposit,
             blockTime
         );

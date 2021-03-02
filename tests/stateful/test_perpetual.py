@@ -119,4 +119,9 @@ class PerpetualTokenStateMachine:
 def test_perpetual(state_machine, accounts):
     daiConfig = {**CurrencyDefaults, "maxMarketIndex": 2}
 
-    state_machine(PerpetualTokenStateMachine, accounts, daiConfig)
+    state_machine(
+        PerpetualTokenStateMachine,
+        accounts,
+        daiConfig,
+        {"max_examples": 1, "stateful_step_count": 3},
+    )

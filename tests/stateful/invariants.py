@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from brownie.network.state import Chain
-from tests.common.params import get_bitstring_from_bitmap
+from tests.storage.test_account_context import bytes_to_list
 
 chain = Chain()
 QUARTER = 86400 * 90
@@ -150,16 +150,16 @@ def check_portfolio_invariants(env, accounts):
 def check_account_context(env, accounts):
     for account in accounts:
         context = env.router["Views"].getAccountContext(account.address)
-        activeCurrencies = list(get_bitstring_from_bitmap(context[-1]))
+        activeCurrencies = list(bytes_to_list(context[-1]))
 
         hasDebt = False
-        for (symbol, currencyId) in env.currencyId.items():
+        for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
             (cashBalance, perpTokenBalance) = env.router["Views"].getAccountBalance(
                 currencyId, account.address
             )
             if cashBalance != 0 or perpTokenBalance != 0:
-                assert activeCurrencies == "1"
+                assert currencyId in activeCurrencies
 
             if cashBalance < 0:
                 hasDebt = True
@@ -170,6 +170,9 @@ def check_account_context(env, accounts):
             nextMaturity = portfolio[0][1]
 
         for asset in portfolio:
+            # Check that currency id is in the active currencies list
+            assert asset[0] in activeCurrencies
+
             if asset[1] < nextMaturity:
                 # Set to the lowest maturity
                 nextMaturity = asset[1]
