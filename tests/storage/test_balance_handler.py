@@ -58,19 +58,19 @@ def isolation(fn_isolation):
 
 
 def convert_to_external(internalValue, externalPrecision):
-    if externalPrecision > 1e9:
+    if externalPrecision > 1e8:
         # floating point weirdness with python
-        return math.trunc(externalPrecision / 1e9) * internalValue
+        return math.trunc(externalPrecision / 1e8) * internalValue
     else:
-        return math.trunc(internalValue * externalPrecision / 1e9)
+        return math.trunc(internalValue * externalPrecision / 1e8)
 
 
 def convert_to_internal(externalValue, externalPrecision):
-    if externalPrecision < 1e9:
+    if externalPrecision < 1e8:
         # floating point weirdness with python
-        return math.trunc(1e9 / externalPrecision) * externalValue
+        return math.trunc(1e8 / externalPrecision) * externalValue
     else:
-        return math.trunc(externalValue * 1e9 / externalPrecision)
+        return math.trunc(externalValue * 1e8 / externalPrecision)
 
 
 @given(
@@ -172,7 +172,7 @@ def test_build_and_finalize_balances(
 def test_deposit_asset_token(
     balanceHandler, tokens, accounts, currencyId, assetBalance, netCashChange, netTransfer
 ):
-    assetDeposit = int(100e9)
+    assetDeposit = int(100e8)
     tolerance = 2
     bs = (currencyId, assetBalance, 0, netCashChange, netTransfer, 0)
 
@@ -223,7 +223,7 @@ def test_deposit_asset_token(
 
     # TEST WITH CASH BALANCE
     # with cash balance, need to compute the transfer amount net cash balances
-    assetDeposit = int(100e9)
+    assetDeposit = int(100e8)
     balanceBefore = tokens[currencyId - 1].balanceOf(balanceHandler.address)
     txn = balanceHandler.depositAssetToken(bs, accounts[0], assetDepositExternal, True)
     balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
@@ -279,7 +279,7 @@ def test_deposit_and_withdraw_underlying_asset_token(
     # test balance after
     (newBalanceState, assetTokensReceived) = txn.return_value
 
-    assert balanceAfter - balanceBefore == (assetTokensReceived * 1e8 / 1e9)
+    assert balanceAfter - balanceBefore == assetTokensReceived
     assert underlyingBalanceBefore == underlyingBalanceAfter
     assert assetTokensReceived == newBalanceState[3]
 
@@ -298,7 +298,7 @@ def test_deposit_and_withdraw_underlying_asset_token(
     balanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(balanceHandler.address)
     accountUnderlyingBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(accounts[0].address)
 
-    assert balanceBefore - balanceAfter == (assetTokensReceived * 1e8 / 1e9)
+    assert balanceBefore - balanceAfter == assetTokensReceived
     # balance handler should not have any net underlying balance
     assert underlyingBalanceBefore == underlyingBalanceAfter
     if assetTokensReceived > 0:

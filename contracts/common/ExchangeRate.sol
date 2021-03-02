@@ -30,7 +30,7 @@ struct ETHRate {
  * and assets. Must be supplied a Rate struct with relevant parameters. Expects rate oracles
  * to conform to the Chainlink AggregatorV2V3Interface. 
  *
- * This is used on internal balances which are all denominated in 1e9 precision.
+ * This is used on internal balances which are all denominated in TokenHandler.INTERNAL_TOKEN_PRECISION.
  */
 library ExchangeRate {
     using SafeInt256 for int256;

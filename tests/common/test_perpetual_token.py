@@ -38,7 +38,7 @@ def test_deposit_parameters_failures(perpetualToken):
         perpetualToken.setDepositParameters(1, [1] * 2, [1.1e9] * 2)
 
     with brownie.reverts("PT: deposit shares sum"):
-        perpetualToken.setDepositParameters(1, [1e9, 100], [100] * 2)
+        perpetualToken.setDepositParameters(1, [1e8, 100], [100] * 2)
 
 
 @given(maxMarketIndex=strategy("uint", min_value=5, max_value=5))

@@ -15,11 +15,6 @@ def isolation(fn_isolation):
     pass
 
 
-# def test_get_uint(market):
-#     print(market.getUint64(1e9))
-#     assert False
-
-
 @given(
     proportion=strategy("int256", min_value=0.01 * RATE_PRECISION, max_value=100 * RATE_PRECISION)
 )

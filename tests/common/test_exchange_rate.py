@@ -73,15 +73,15 @@ def test_build_exchange_rate(accounts, MockAggregator, exchangeRate, rateDecimal
         assert erRate == 10 ** rateDecimals / 100
 
     aggregator2 = accounts[0].deploy(MockAggregator, 9)
-    aggregator2.setAnswer(10 ** 9 / 200)
+    aggregator2.setAnswer(10 ** 8 / 200)
 
-    rateStorage = (aggregator2.address, 9, mustInvert, 120, 80, 105)
+    rateStorage = (aggregator2.address, 8, mustInvert, 120, 80, 105)
     exchangeRate.setETHRateMapping(3, rateStorage)
     baseER = exchangeRate.buildExchangeRate(2)
     quoteER = exchangeRate.buildExchangeRate(3)
 
     computedER = exchangeRate.exchangeRate(baseER, quoteER)
-    assert (computedER * quoteER[1]) / int(1e9) == baseER[1]
+    assert (computedER * quoteER[1]) / int(1e8) == baseER[1]
 
 
 @pytest.mark.parametrize(parameterNames, parameterValues)
@@ -105,48 +105,48 @@ def test_build_asset_rate(
 
 
 def test_convert_to_eth(exchangeRate):
-    # All internal balances are in 1e9 precision
+    # All internal balances are in 1e8 precision
     rate = (1e18, 0.01e18, 120, 80, 106)
 
-    eth = exchangeRate.convertToETH((1e18, 1e18, 120, 80, 106), 1e9)
-    assert eth == 0.8e9
+    eth = exchangeRate.convertToETH((1e18, 1e18, 120, 80, 106), 1e8)
+    assert eth == 0.8e8
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
 
-    eth = exchangeRate.convertToETH(rate, -100e9)
-    assert eth == -1.2e9
+    eth = exchangeRate.convertToETH(rate, -100e8)
+    assert eth == -1.2e8
 
-    eth = exchangeRate.convertToETH(rate, 100e9)
-    assert eth == 0.8e9
+    eth = exchangeRate.convertToETH(rate, 100e8)
+    assert eth == 0.8e8
 
     rate = (1e8, 10e8, 120, 80, 106)
 
     eth = exchangeRate.convertToETH(rate, 0)
     assert eth == 0
 
-    eth = exchangeRate.convertToETH(rate, -1e9)
-    assert eth == -12e9
+    eth = exchangeRate.convertToETH(rate, -1e8)
+    assert eth == -12e8
 
-    eth = exchangeRate.convertToETH(rate, 1e9)
-    assert eth == 8e9
+    eth = exchangeRate.convertToETH(rate, 1e8)
+    assert eth == 8e8
 
 
 def test_convert_eth_to(exchangeRate):
     rate = (1e18, 0.01e18, 120, 80, 106)
 
-    usdc = exchangeRate.convertETHTo((1e18, 1e18, 120, 80, 106), 1e9)
-    assert usdc == 1e9
+    usdc = exchangeRate.convertETHTo((1e18, 1e18, 120, 80, 106), 1e8)
+    assert usdc == 1e8
 
     usdc = exchangeRate.convertETHTo(rate, 0)
     assert usdc == 0
 
     # No buffer or haircut on this function
-    usdc = exchangeRate.convertETHTo(rate, -1e9)
-    assert usdc == -100e9
+    usdc = exchangeRate.convertETHTo(rate, -1e8)
+    assert usdc == -100e8
 
-    usdc = exchangeRate.convertETHTo(rate, 1e9)
-    assert usdc == 100e9
+    usdc = exchangeRate.convertETHTo(rate, 1e8)
+    assert usdc == 100e8
 
     rate = (1e18, 10e18, 120, 80, 106)
 
@@ -154,65 +154,65 @@ def test_convert_eth_to(exchangeRate):
     assert usdc == 0
 
     # No buffer or haircut on this function
-    usdc = exchangeRate.convertETHTo(rate, -1e9)
-    assert usdc == -0.1e9
+    usdc = exchangeRate.convertETHTo(rate, -1e8)
+    assert usdc == -0.1e8
 
-    usdc = exchangeRate.convertETHTo(rate, 1e9)
-    assert usdc == 0.1e9
+    usdc = exchangeRate.convertETHTo(rate, 1e8)
+    assert usdc == 0.1e8
 
 
 def test_convert_internal_to_underlying(assetRate, aggregator):
     rate = (aggregator.address, 0.01e18)
 
-    asset = assetRate.convertInternalToUnderlying((aggregator.address, 1e18), 1e9)
-    assert asset == 1e9
+    asset = assetRate.convertInternalToUnderlying((aggregator.address, 1e18), 1e8)
+    assert asset == 1e8
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = assetRate.convertInternalToUnderlying(rate, -100e9)
-    assert underlying == -1e9
+    underlying = assetRate.convertInternalToUnderlying(rate, -100e8)
+    assert underlying == -1e8
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 100e9)
-    assert underlying == 1e9
+    underlying = assetRate.convertInternalToUnderlying(rate, 100e8)
+    assert underlying == 1e8
 
     rate = (aggregator.address, 10e18)
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = assetRate.convertInternalToUnderlying(rate, -100e9)
-    assert underlying == -1000e9
+    underlying = assetRate.convertInternalToUnderlying(rate, -100e8)
+    assert underlying == -1000e8
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 100e9)
-    assert underlying == 1000e9
+    underlying = assetRate.convertInternalToUnderlying(rate, 100e8)
+    assert underlying == 1000e8
 
 
 def test_convert_from_underlying(assetRate, aggregator):
     rate = (aggregator.address, 0.01e18)
 
-    asset = assetRate.convertInternalFromUnderlying((aggregator.address, 1e18), 1e9)
-    assert asset == 1e9
+    asset = assetRate.convertInternalFromUnderlying((aggregator.address, 1e18), 1e8)
+    assert asset == 1e8
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = assetRate.convertInternalFromUnderlying(rate, -1e9)
-    assert asset == -100e9
+    asset = assetRate.convertInternalFromUnderlying(rate, -1e8)
+    assert asset == -100e8
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 1e9)
-    assert asset == 100e9
+    asset = assetRate.convertInternalFromUnderlying(rate, 1e8)
+    assert asset == 100e8
 
     rate = (aggregator.address, 10e18)
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = assetRate.convertInternalFromUnderlying(rate, -1e9)
-    assert asset == -0.1e9
+    asset = assetRate.convertInternalFromUnderlying(rate, -1e8)
+    assert asset == -0.1e8
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 1e9)
-    assert asset == 0.1e9
+    asset = assetRate.convertInternalFromUnderlying(rate, 1e8)
+    assert asset == 0.1e8
 
 
 def test_build_settlement_rate(accounts, MockCToken, cTokenAggregator, assetRate):

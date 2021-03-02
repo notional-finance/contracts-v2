@@ -29,7 +29,7 @@ library PerpetualToken {
     using BalanceHandler for BalanceState;
     using SafeInt256 for int;
 
-    int internal constant DEPOSIT_PERCENT_BASIS = 1e9;
+    int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
 
     /**
      * @notice Returns the currency id for a perpetual token or 0 if the address is not a perpetual
@@ -90,6 +90,7 @@ library PerpetualToken {
         address tokenAddress,
         int netChange
     ) private {
+        // TODO: set the emissions pool and rate here
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
 
         (uint currencyId, uint totalSupply) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);

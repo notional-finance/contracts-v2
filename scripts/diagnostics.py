@@ -78,10 +78,10 @@ def markets_panel(markets, assetRate):
             MARKET_NAMES[i],
             "{0:%Y-%m-%d}".format(datetime.utcfromtimestamp(m[1])),
             humanfriendly.format_timespan(m[1] - blockTime, max_units=2),
-            str(m[2] / 1e9),
-            str(m[3] / 1e9),
-            str((m[3] * assetRate[1]) / (1e9 * 1e18)),  # underlying
-            str(m[4] / 1e9),
+            str(m[2] / 1e8),
+            str(m[3] / 1e8),
+            str((m[3] * assetRate[1]) / (1e8 * 1e18)),  # underlying
+            str(m[4] / 1e8),
             "{}%".format(m[5] / 1e7),
             "{}%".format(m[6] / 1e7),
             "{0:%Y-%m-%d %H:%M:%S}".format(datetime.utcfromtimestamp(m[7])),

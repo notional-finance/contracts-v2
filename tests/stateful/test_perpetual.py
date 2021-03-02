@@ -1,4 +1,3 @@
-import math
 import random
 
 import brownie
@@ -10,7 +9,7 @@ from tests.stateful.invariants import check_system_invariants
 
 class PerpetualTokenStateMachine:
 
-    amountToDepositExternal = strategy("uint88", min_value=1e8, max_value=100000e8)
+    amountToDeposit = strategy("uint88", min_value=1e8, max_value=100000e8)
     provider = strategy("address")
 
     def __init__(cls, accounts, envConfig):
@@ -52,35 +51,32 @@ class PerpetualTokenStateMachine:
     def _external_to_internal_decimals(self, value):
         return value * 10
 
-    def rule_mint_tokens(self, provider, amountToDepositExternal):
+    def rule_mint_tokens(self, provider, amountToDeposit):
         # Get the balances before we deposit
         (cashBalance, perpTokenBalance) = self.env.router["Views"].getAccountBalance(
             self.env.currencyId[self.currencySymbol], provider.address
         )
         tokenBalance = self.env.cToken[self.currencySymbol].balanceOf(provider.address)
 
-        if (
-            self._internal_to_external_decimals(cashBalance) + tokenBalance
-            < amountToDepositExternal
-        ):
+        if cashBalance + tokenBalance < amountToDeposit:
             # Should revert with a transfer error
             with brownie.reverts():
                 self.env.router["MintPerpetual"].perpetualTokenMint(
                     self.env.currencyId[self.currencySymbol],
-                    amountToDepositExternal,
+                    amountToDeposit,
                     True,  # Use cash balance here
                     {"from": provider},
                 )
 
         # Ensure that the tokens to mint matches what we actually mint
         tokensToMint = self.env.router["MintPerpetual"].calculatePerpetualTokensToMint(
-            self.env.currencyId[self.currencySymbol], amountToDepositExternal, {"from": provider}
+            self.env.currencyId[self.currencySymbol], amountToDeposit, {"from": provider}
         )
 
         useCashBalance = random.randint(0, 1)
         self.env.router["MintPerpetual"].perpetualTokenMint(
             self.env.currencyId[self.currencySymbol],
-            amountToDepositExternal,
+            amountToDeposit,
             useCashBalance,  # If true, this will trigger an FC check
             {"from": provider},
         )
@@ -93,15 +89,12 @@ class PerpetualTokenStateMachine:
         # Asserts that account has had its debits done properly
         assert perpTokenBalanceAfter - perpTokenBalance == tokensToMint
 
-        # cTokens are 8 decimals
-        tokenBalanceDiffInInternal = math.trunc((tokenBalance - tokenBalanceAfter) * 1e9 / 1e8)
-        amountToDepositInternal = self._external_to_internal_decimals(amountToDepositExternal)
+        # cTokens and notional tokens are 8 decimals
+        tokenBalanceDiff = tokenBalance - tokenBalanceAfter
         if useCashBalance:
-            assert (
-                cashBalanceAfter - cashBalance
-            ) + tokenBalanceDiffInInternal == amountToDepositInternal
+            assert (cashBalanceAfter - cashBalance) + tokenBalanceDiff == amountToDeposit
         else:
-            assert tokenBalanceDiffInInternal == amountToDepositInternal
+            assert tokenBalanceDiff == amountToDeposit
 
         # TODO: what assertions do we need to make about the perpetual token account?
         # - check leverage thresholds

@@ -48,9 +48,6 @@ def check_cash_balance(env, accounts):
         for markets in get_markets(env, currencyId):
             accountBalances += sum([m[3] for m in markets])
 
-        import pdb
-
-        pdb.set_trace()
         assert contractBalance == accountBalances
 
 

@@ -36,7 +36,7 @@ library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    int internal constant INTERNAL_TOKEN_PRECISION = 1e9;
+    int internal constant INTERNAL_TOKEN_PRECISION = 1e8;
     // TODO: hardcode this or move it into an internal storage slot
     address internal constant NOTE_TOKEN_ADDRESS = address(0);
 

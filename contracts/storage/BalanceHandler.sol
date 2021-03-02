@@ -365,7 +365,7 @@ library BalanceHandler {
                     .mul(timeSinceLastMint)
                     .mul(tokenEmissionRate)
                     .div(CashGroup.YEAR)
-                    // tokenEmissionRate is denominated in 1e9
+                    // tokenEmissionRate is denominated in 1e8
                     .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION))
                     .div(globalCapitalDeposit)
             );
