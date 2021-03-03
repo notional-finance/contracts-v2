@@ -100,6 +100,8 @@ def check_portfolio_invariants(env, accounts):
                 else:
                     liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
 
+        # TODO: check for ifCash assets here too
+
     # Check perp token portfolios
     for (currencyId, perpToken) in env.perpToken.items():
         portfolio = env.router["Views"].getAccountPortfolio(perpToken.address)
@@ -120,6 +122,15 @@ def check_portfolio_invariants(env, accounts):
                     liquidityToken[(asset[0], asset[1], asset[2])] += asset[3]
                 else:
                     liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
+
+        ifCashAssets = env.router["Views"].getifCashAssets(perpToken.address)
+        for asset in ifCashAssets:
+            assert asset[0] == currencyId
+            if (asset[0], asset[1]) in fCash:
+                # Is fCash asset type, fCash[currencyId][maturity]
+                fCash[(asset[0], asset[1])] += asset[3]
+            else:
+                fCash[(asset[0], asset[1])] = asset[3]
 
     # Check fCash in markets
     for (_, currencyId) in env.currencyId.items():

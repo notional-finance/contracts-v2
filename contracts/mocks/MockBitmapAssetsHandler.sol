@@ -131,4 +131,12 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
         return AssetHandler.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
     }
+
+    function getifCashArray(
+        address account,
+        uint currencyId,
+        uint nextMaturingAsset
+    ) external view returns (PortfolioAsset[] memory) {
+        return BitmapAssetsHandler.getifCashArray(account, currencyId, nextMaturingAsset);
+    }
 }

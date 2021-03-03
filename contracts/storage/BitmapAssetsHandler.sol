@@ -205,6 +205,10 @@ library BitmapAssetsHandler {
                 assets[index].maturity = maturity;
                 assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
                 assets[index].notional = notional;
+                index += 1;
+
+                assetByte = assetByte << 1;
+                if (index == assets.length) return assets;
             }
         }
 

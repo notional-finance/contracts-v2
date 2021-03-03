@@ -69,6 +69,29 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     assert newBitlist[bitNum - 1] == "0"
 
 
+def test_get_ifcash_array(bitmapAssets, accounts):
+    currencyId = 1
+    (bitmap, bitmapList) = random_asset_bitmap(10)
+
+    bitIndexes = list(filter(lambda x: x[1] == "1", enumerate(bitmapList)))
+    maturities = []
+    for (bitNum, _) in bitIndexes:
+        maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum + 1)
+        maturities.append(maturity)
+        notional = 1e8
+        bitmapAssets.setifCashAsset(accounts[0], currencyId, maturity, START_TIME, notional, "")
+
+    bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
+    portfolio = bitmapAssets.getifCashArray(accounts[0], currencyId, START_TIME)
+
+    assert len(portfolio) == len(bitIndexes)
+    for (i, asset) in enumerate(portfolio):
+        assert asset[0] == 1
+        assert asset[1] == maturities[i]
+        assert asset[2] == 1
+        assert asset[3] == 1e8
+
+
 def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
     cg = BASE_CASH_GROUP
     # TODO: need to set supply rate
