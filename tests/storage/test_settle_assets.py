@@ -49,7 +49,7 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
     # Set the mock aggregators
     contract.setMaxCurrencyId(NUM_CURRENCIES)
     for i, a in enumerate(mockAggregators):
-        contract.setAssetRateMapping(i + 1, (a.address, 18))
+        contract.setAssetRateMapping(i + 1, (a.address, 8))
 
         # Set market state
         for m in MARKETS:
@@ -57,9 +57,9 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
             # Set settlement rates for markets 0, 1
             if m == MARKETS[0]:
-                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[0][2])
+                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[0][2], 8)
             elif m == MARKETS[1]:
-                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[1][2])
+                contract.setSettlementRate(i + 1, m, SETTLEMENT_RATE[1][2], 8)
 
     return contract
 
@@ -91,7 +91,7 @@ def generate_asset_array(numAssets):
 def assert_rates_settled(mockSettleAssets, assetArray, blockTime):
     for a in assetArray:
         if a[1] < blockTime and a[1] not in (MARKETS[0], MARKETS[1]):
-            (_, rate) = mockSettleAssets.getSettlementRate(a[0], a[1])
+            (_, rate, _) = mockSettleAssets.getSettlementRate(a[0], a[1])
             assert rate == (SETTLED_RATE * a[0])
 
 

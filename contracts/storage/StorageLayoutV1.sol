@@ -29,8 +29,8 @@ struct ETHRateStorage {
 struct AssetRateStorage {
     // Address of the rate oracle
     address rateOracle;
-    // The decimal places of precision that the rate oracle uses
-    uint8 rateDecimalPlaces;
+    // The decimal places of the underlying asset
+    uint8 underlyingDecimalPlaces;
 }
 
 /**

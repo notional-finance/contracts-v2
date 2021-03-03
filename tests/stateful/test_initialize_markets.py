@@ -195,6 +195,10 @@ def test_settle_and_initialize(environment, accounts):
     perp_token_asserts(environment, currencyId, False)
 
 
+def test_redeem_all_liquidity_and_initialize(environment, accounts):
+    pass
+
+
 def test_settle_and_extend(environment, accounts):
     pass
 

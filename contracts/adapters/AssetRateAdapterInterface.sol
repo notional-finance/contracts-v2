@@ -12,6 +12,7 @@ interface AssetRateAdapterInterface {
   function description() external view returns (string memory);
   function version() external view returns (uint256);
 
+  function underlying() external view returns (address);
   function getExchangeRateStateful() external returns (int);
   function getExchangeRateView() external view returns (int);
   function getAnnualizedSupplyRate() external view returns (uint);

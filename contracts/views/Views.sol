@@ -57,7 +57,7 @@ contract Views is StorageLayoutV1 {
         CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
         if (cg.maxMarketIndex == 0) {
             // No markets listed for the currency id
-            return (cg, AssetRateParameters(address(0), 0));
+            return (cg, AssetRateParameters(address(0), 0, 0));
         }
 
         return (cg, AssetRate.buildAssetRate(currencyId));

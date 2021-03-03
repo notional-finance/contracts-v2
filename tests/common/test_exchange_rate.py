@@ -1,6 +1,7 @@
 from itertools import product
 
 import pytest
+from brownie.convert.datatypes import Wei
 from tests.common.params import START_TIME, START_TIME_TREF
 
 
@@ -88,20 +89,22 @@ def test_build_exchange_rate(accounts, MockAggregator, exchangeRate, rateDecimal
 def test_build_asset_rate(
     accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, mustInvert
 ):
-    rateDecimals = 18
+    underlyingDecimals = rateDecimals
+    rateDecimals = 18 + (underlyingDecimals - 8)
 
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(10 ** rateDecimals / 100)
 
-    rateStorage = (aggregator.address, rateDecimals)
+    rateStorage = (aggregator.address, underlyingDecimals)
 
     assetRate.setAssetRateMapping(1, rateStorage)
 
-    (rateOracle, erRate) = assetRate.buildAssetRate(1)
+    (rateOracle, erRate, underlying) = assetRate.buildAssetRate(1)
 
     assert rateOracle == aggregator.address
     assert erRate == 10 ** rateDecimals / 100
+    assert underlying == 10 ** underlyingDecimals
 
 
 def test_convert_to_eth(exchangeRate):
@@ -161,10 +164,14 @@ def test_convert_eth_to(exchangeRate):
     assert usdc == 0.1e8
 
 
-def test_convert_internal_to_underlying(assetRate, aggregator):
-    rate = (aggregator.address, 0.01e18)
+@pytest.mark.parametrize("underlyingDecimals", [6, 8, 18])
+def test_convert_internal_to_underlying(assetRate, aggregator, underlyingDecimals):
+    ar = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
+    rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    asset = assetRate.convertInternalToUnderlying((aggregator.address, 1e18), 1e8)
+    asset = assetRate.convertInternalToUnderlying(
+        (aggregator.address, ar * 100, 10 ** underlyingDecimals), 1e8
+    )
     assert asset == 1e8
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
@@ -176,7 +183,8 @@ def test_convert_internal_to_underlying(assetRate, aggregator):
     underlying = assetRate.convertInternalToUnderlying(rate, 100e8)
     assert underlying == 1e8
 
-    rate = (aggregator.address, 10e18)
+    ar = 10 * (10 ** (18 + (underlyingDecimals - 8)))
+    rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
     underlying = assetRate.convertInternalToUnderlying(rate, 0)
     assert underlying == 0
@@ -188,10 +196,14 @@ def test_convert_internal_to_underlying(assetRate, aggregator):
     assert underlying == 1000e8
 
 
-def test_convert_from_underlying(assetRate, aggregator):
-    rate = (aggregator.address, 0.01e18)
+@pytest.mark.parametrize("underlyingDecimals", [6, 8, 18])
+def test_convert_from_underlying(assetRate, aggregator, underlyingDecimals):
+    ar = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
+    rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    asset = assetRate.convertInternalFromUnderlying((aggregator.address, 1e18), 1e8)
+    asset = assetRate.convertInternalFromUnderlying(
+        (aggregator.address, ar * 100, 10 ** underlyingDecimals), 1e8
+    )
     assert asset == 1e8
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
@@ -203,7 +215,8 @@ def test_convert_from_underlying(assetRate, aggregator):
     asset = assetRate.convertInternalFromUnderlying(rate, 1e8)
     assert asset == 100e8
 
-    rate = (aggregator.address, 10e18)
+    ar = 10 * (10 ** (18 + (underlyingDecimals - 8)))
+    rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
     asset = assetRate.convertInternalFromUnderlying(rate, 0)
     assert asset == 0
@@ -215,19 +228,21 @@ def test_convert_from_underlying(assetRate, aggregator):
     assert asset == 0.1e8
 
 
-def test_build_settlement_rate(accounts, MockCToken, cTokenAggregator, assetRate):
-    rateDecimals = 18
-
+@pytest.mark.parametrize("underlyingDecimals", [6, 8, 18])
+def test_build_settlement_rate(
+    accounts, MockCToken, cTokenAggregator, assetRate, underlyingDecimals
+):
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
-    rateSet = 10 ** rateDecimals / 100
+    rateSet = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
     cToken.setAnswer(rateSet)
 
-    rateStorage = (aggregator.address, rateDecimals)
+    rateStorage = (aggregator.address, underlyingDecimals)
     assetRate.setAssetRateMapping(1, rateStorage)
     txn = assetRate.buildSettlementRate(1, START_TIME_TREF, START_TIME)
-    (_, rateSetStored) = txn.return_value
-    assert rateSet == rateSetStored
+    (_, rateSetStored, savedUnderlying) = txn.return_value
+    assert Wei(rateSet) == rateSetStored
+    assert savedUnderlying == 10 ** underlyingDecimals
     assert txn.events.count("SetSettlementRate") == 1
     assert txn.events["SetSettlementRate"]["currencyId"] == 1
     assert txn.events["SetSettlementRate"]["maturity"] == START_TIME_TREF
@@ -236,6 +251,7 @@ def test_build_settlement_rate(accounts, MockCToken, cTokenAggregator, assetRate
     # Once settlement rate is set it cannot change
     cToken.setAnswer(rateSet * 2)
     txn = assetRate.buildSettlementRate(1, START_TIME_TREF, START_TIME)
-    (_, rateSetStored) = txn.return_value
-    assert rateSet == rateSetStored
+    (_, rateSetStored, savedUnderlying) = txn.return_value
+    assert Wei(rateSet) == rateSetStored
+    assert savedUnderlying == 10 ** underlyingDecimals
     assert txn.events.count("SetSettlementRate") == 0

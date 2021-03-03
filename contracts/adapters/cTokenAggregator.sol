@@ -23,6 +23,10 @@ contract cTokenAggregator is AssetRateAdapterInterface {
         description = ERC20(_cToken).symbol();
     }
 
+    function underlying() external view override returns (address) {
+        return CTokenInterface(token).underlying();
+    }
+
     /** @notice Returns the current exchange rate for the cToken to the underlying */
     function getExchangeRateStateful() external override returns (int) {
         uint exchangeRate = CTokenInterface(token).exchangeRateCurrent();

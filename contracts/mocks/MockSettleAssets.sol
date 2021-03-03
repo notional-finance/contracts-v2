@@ -62,7 +62,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint currencyId,
         uint maturity
     ) external view returns (AssetRateParameters memory) {
-        (AssetRateParameters memory rate, /* */) = AssetRate.buildSettlementRateView(currencyId, maturity);
+        (AssetRateParameters memory rate, /* */, /* */) = AssetRate.buildSettlementRateView(currencyId, maturity);
         return rate;
     }
 
@@ -97,13 +97,15 @@ contract MockSettleAssets is StorageLayoutV1 {
     function setSettlementRate(
         uint currencyId,
         uint maturity,
-        uint128 rate
+        uint128 rate,
+        uint8 underlyingDecimalPlaces
     ) external {
         uint blockTime = block.timestamp;
         bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
         bytes32 data = (
             bytes32(blockTime) |
-            bytes32(uint(rate)) << 40
+            bytes32(uint(rate)) << 40 |
+            bytes32(uint(underlyingDecimalPlaces)) << 168
         );
 
         assembly { sstore(slot, data) }

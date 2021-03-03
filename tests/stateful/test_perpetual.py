@@ -123,5 +123,5 @@ def test_perpetual(state_machine, accounts):
         PerpetualTokenStateMachine,
         accounts,
         daiConfig,
-        {"max_examples": 1, "stateful_step_count": 3},
+        settings={"max_examples": 1, "stateful_step_count": 3},
     )

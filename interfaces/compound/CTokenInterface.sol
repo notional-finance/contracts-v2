@@ -5,6 +5,7 @@ interface CTokenInterface {
 
     /*** User Interface ***/
 
+    function underlying() external view returns (address);
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);
     function approve(address spender, uint amount) external returns (bool);

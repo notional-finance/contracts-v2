@@ -24,31 +24,6 @@ contract MockAssetRate is StorageLayoutV1 {
         else if (balance > 0) assert(result > 0);
     }
 
-    // Prove that exchange rates move in the correct direction
-    function assertRateDirection(
-        int base,
-        int quote,
-        int baseDecimals,
-        int quoteDecimals,
-        AssetRateParameters memory er
-    ) private pure {
-        require(er.rate > 0);
-        require(baseDecimals > 0);
-        require(quoteDecimals > 0);
-
-        if (base == 0) return;
-
-        int baseInQuoteDecimals = base.mul(quoteDecimals).div(baseDecimals).abs();
-        int quoteAbs = quote.abs();
-        if (er.rate == AssetRate.ASSET_RATE_DECIMALS) {
-            assert(quoteAbs == baseInQuoteDecimals);
-        } else if (er.rate < AssetRate.ASSET_RATE_DECIMALS) {
-            assert(quoteAbs < baseInQuoteDecimals);
-        } else if (er.rate > AssetRate.ASSET_RATE_DECIMALS) {
-            assert(quoteAbs > baseInQuoteDecimals);
-        }
-    }
-
     function convertInternalToUnderlying(
         AssetRateParameters memory er,
         int balance
@@ -56,7 +31,6 @@ contract MockAssetRate is StorageLayoutV1 {
         require(er.rate > 0);
         int result = er.convertInternalToUnderlying(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(balance, result, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
 
         return result;
     }
@@ -68,7 +42,6 @@ contract MockAssetRate is StorageLayoutV1 {
         require(er.rate > 0);
         int result = er.convertInternalFromUnderlying(balance);
         assertBalanceSign(balance, result);
-        assertRateDirection(result, balance, Market.RATE_PRECISION, Market.RATE_PRECISION, er);
 
         return result;
     }
@@ -84,7 +57,7 @@ contract MockAssetRate is StorageLayoutV1 {
         uint maturity,
         uint blockTime
     ) external returns (AssetRateParameters memory) {
-        (AssetRateParameters memory initialViewRate, /* */) = AssetRate.buildSettlementRateView(
+        (AssetRateParameters memory initialViewRate, /* */, /* */) = AssetRate.buildSettlementRateView(
             currencyId,
             maturity
         );
@@ -96,6 +69,7 @@ contract MockAssetRate is StorageLayoutV1 {
         );
 
         assert (initialViewRate.rate == statefulRate.rate);
+        assert (initialViewRate.underlyingDecimals == statefulRate.underlyingDecimals);
 
         return statefulRate;
     }

@@ -173,16 +173,23 @@ contract GovernanceAction is StorageLayoutV1 {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 
-        uint8 decimals = AssetRateAdapterInterface(rateOracle).decimals();
-
         // Sanity check that the rate oracle refers to the proper asset token
         address token = AssetRateAdapterInterface(rateOracle).token();
         Token memory assetToken = TokenHandler.getToken(currencyId, false);
         require(assetToken.tokenAddress == token, "G: invalid rate oracle");
 
+        uint8 underlyingDecimals;
+        if (currencyId == 1) {
+            // If currencyId is one then this is referring to cETH and there is no underlying() to call
+            underlyingDecimals = 18;
+        } else {
+            address underlyingToken = AssetRateAdapterInterface(rateOracle).underlying();
+            underlyingDecimals = ERC20(underlyingToken).decimals();
+        }
+
         assetToUnderlyingRateMapping[currencyId] = AssetRateStorage({
             rateOracle: rateOracle,
-            rateDecimalPlaces: decimals
+            underlyingDecimalPlaces: underlyingDecimals
         });
 
         emit UpdateAssetRate(currencyId);
