@@ -247,8 +247,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         uint maxMarketIndex,
         uint referenceTime
     ) private pure returns (uint) {
-        // If there is no 1 year market
-        if (previousMarkets.length == 0 || maxMarketIndex <= 3) return 0;
+        // Cannot interpolate six month rate without a 1 year market
+        require (previousMarkets.length >= 3, "IM: six month error");
 
         return CashGroup.interpolateOracleRate(
             previousMarkets[1].maturity,
@@ -421,13 +421,19 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             // 9 month market to interpolate a rate against). In the case of 2+ markets then we will only enter this
             // first branch when the number of markets is increased
             if (isFirstInit ||
-                (perpToken.markets.length == 2 && i == 1) ||
-                (perpToken.markets.length > 2 && i >= perpToken.markets.length)
+                // TODO: clean up this if statement
+                (i == 1 && perpToken.markets.length == 2) ||
+                (i >= perpToken.portfolioState.storedAssets.length) ||
+                // When extending from the 6 month to 1 year market we must initialize both 6 and 1 year as new
+                (i == 1 && perpToken.markets[2].lastImpliedRate == 0)
             ) {
                 // Any newly added markets cannot have their implied rates interpolated via the previous
                 // markets. In this case we initialize the markets using the rate anchor and proportion.
                 // proportion = totalfCash / (totalfCash + totalCashUnderlying)
-                // totalfCash = proportion * totalCash / (1 - proportion)
+                // proportion * (totalfCash + totalCashUnderlying) = totalfCash
+                // proportion * totalCashUnderlying + proportion * totalfCash = totalfCash
+                // proportion * totalCashUnderlying = totalfCash * (1 - proportion)
+                // totalfCash = proportion * totalCashUnderlying / (1 - proportion)
                 int fCashAmount = underlyingCashToMarket
                     .mul(parameters.proportions[i])
                     .div(Market.RATE_PRECISION.sub(parameters.proportions[i]));
@@ -468,8 +474,11 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                     // market will have its implied rate set to the interpolation between the newly initialized 6 month market (done in
                     // previous iteration of this loop) and the previous 1 year market (which has now rolled down to 9 months). Similarly,
                     // a 2 year market will be interpolated from the newly initialized 1 year and the previous 2 year market.
+                    
+                    // This is the previous market maturity, traded markets are 1-indexed
+                    uint shortMarketMaturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i));
                     impliedRate = _interpolateFutureRate(
-                        newMarket.maturity,
+                        shortMarketMaturity,
                         impliedRate,
                         perpToken.markets[i]
                     );
@@ -487,7 +496,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
                 // provide liquidity. Governance must set a different rate anchor for the market.
-                require(proportion < parameters.leverageThresholds[i], "IM: invalid proportion");
+                require(proportion < parameters.leverageThresholds[i], "IM: proportion over threshold");
 
                 newMarket.totalfCash = underlyingCashToMarket
                     .mul(proportion)

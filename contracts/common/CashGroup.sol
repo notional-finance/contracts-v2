@@ -341,8 +341,8 @@ library CashGroup {
         uint longRate,
         uint assetMaturity
     ) internal pure returns (uint) {
-        require(shortMaturity < assetMaturity, "A: interpolation error");
-        require(assetMaturity < longMaturity, "A: interpolation error");
+        require(shortMaturity < assetMaturity, "CG: interpolation error");
+        require(assetMaturity < longMaturity, "CG: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get underflows here so we check for that
