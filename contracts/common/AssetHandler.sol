@@ -67,10 +67,8 @@ library AssetHandler {
             assetType > 0 && assetType <= LIQUIDITY_TOKEN_INDEX9,
             "A: invalid asset type"
         );
-        // Special case for the 3 and 6 month tokens. The 6 month liquidity token
-        // will become the 3 month liquidity token and the 3 month liquidity token will
-        // always settle on its maturity. fCash tokens always settle on maturity
-        if (assetType <= LIQUIDITY_TOKEN_INDEX2) return maturity;
+        // 3 month tokens and fCash tokens settle at maturity
+        if (assetType <= LIQUIDITY_TOKEN_INDEX1) return maturity;
 
         uint marketLength = CashGroup.getTradedMarket(assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:

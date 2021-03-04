@@ -267,6 +267,10 @@ library SettleAssets {
     ) internal returns (int) {
         int assetCash;
         SettlementMarket memory market;
+        // This needs to be set before entering the functions below since `settleLiquidityTokenTofCash`
+        // will change the asset type and therefore change the settlement date.
+        uint settlementDate = asset.getSettlementDate();
+
         if (asset.maturity > blockTime) {
             (assetCash, market) = settleLiquidityTokenTofCash(
                 portfolioState,
@@ -284,7 +288,7 @@ library SettleAssets {
         Market.setSettlementMarket(
             asset.currencyId,
             asset.maturity,
-            asset.getSettlementDate(),
+            settlementDate,
             market
         );
 

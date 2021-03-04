@@ -7,12 +7,17 @@ chain = Chain()
 QUARTER = 86400 * 90
 
 
-def get_markets(env, currencyId):
+def get_all_markets(env, currencyId):
     block_time = chain.time()
     current_time_ref = env.startTime - (env.startTime % QUARTER)
+    markets = []
     while current_time_ref < block_time:
-        yield env.router["Views"].getActiveMarketsAtBlockTime(currencyId, current_time_ref)
+        markets.append(
+            env.router["Views"].getActiveMarketsAtBlockTime(currencyId, current_time_ref)
+        )
         current_time_ref = current_time_ref + QUARTER
+
+    return markets
 
 
 def check_system_invariants(env, accounts):
@@ -32,11 +37,14 @@ def check_cash_balance(env, accounts):
 
         contractBalance = env.cToken[symbol].balanceOf(env.router["Views"].address)
         accountBalances = 0
+        perpTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, _) = env.router["Views"].getAccountBalance(currencyId, account.address)
-
+            (cashBalance, perpTokenBalance) = env.router["Views"].getAccountBalance(
+                currencyId, account.address
+            )
             accountBalances += cashBalance
+            perpTokenTotalBalances += perpTokenBalance
 
         # Add perp token balances
         (cashBalance, _) = env.router["Views"].getAccountBalance(
@@ -45,10 +53,13 @@ def check_cash_balance(env, accounts):
         accountBalances += cashBalance
 
         # Loop markets to check for cashBalances
-        for markets in get_markets(env, currencyId):
-            accountBalances += sum([m[3] for m in markets])
+        markets = get_all_markets(env, currencyId)
+        for marketGroup in markets:
+            accountBalances += sum([m[3] for (i, m) in enumerate(marketGroup)])
 
         assert contractBalance == accountBalances
+        # Check that total supply equals total balances
+        assert perpTokenTotalBalances == env.perpToken[currencyId].totalSupply()
 
 
 def check_perp_token(env, accounts):
@@ -134,8 +145,9 @@ def check_portfolio_invariants(env, accounts):
 
     # Check fCash in markets
     for (_, currencyId) in env.currencyId.items():
-        for markets in get_markets(env, currencyId):
-            for (i, m) in enumerate(markets):
+        markets = get_all_markets(env, currencyId)
+        for marketGroup in markets:
+            for (i, m) in enumerate(marketGroup):
                 # Add total fCash in market
                 assert m[2] >= 0
                 if (currencyId, m[1]) in fCash:

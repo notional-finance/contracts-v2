@@ -1,8 +1,10 @@
 import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 QUARTER = 86400 * 90
@@ -80,7 +82,7 @@ def get_maturities(index):
     return maturity
 
 
-def perp_token_asserts(environment, currencyId, isFirstInit):
+def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
     blockTime = chain.time()
     perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
     (cashBalance, perpTokenBalance) = environment.router["Views"].getAccountBalance(
@@ -120,6 +122,9 @@ def perp_token_asserts(environment, currencyId, isFirstInit):
         if isFirstInit:
             # Initialize amount is a percentage of the initial cash amount
             assert asset[3] == INITIAL_CASH_AMOUNT * depositShares[i] / int(1e8)
+        elif i == 0:
+            # TODO: 3 month asset should stay whever it was before
+            pass
         else:
             # Initialize amount is a percentage of the net cash amount excl the 3 month
             assert (
@@ -128,6 +133,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit):
             )
 
     ifCashAssets = environment.router["Views"].getifCashAssets(perpTokenAddress)
+    assert len(ifCashAssets) >= len(portfolio)
     for (i, asset) in enumerate(ifCashAssets):
         assert asset[0] == currencyId
         assert asset[1] == maturity[i]
@@ -143,20 +149,28 @@ def perp_token_asserts(environment, currencyId, isFirstInit):
         # all market liquidity is from the perp token
         assert market[4] == portfolio[i][3]
 
-        totalCashUnderlying = market[3] * assetRate[1] / 1e18
-        proportion = market[2] * RATE_PRECISION / (totalCashUnderlying + market[2])
-        proportion = proportion / (RATE_PRECISION - proportion)
+        totalCashUnderlying = (market[3] * Wei(1e8) * assetRate[1]) / (assetRate[2] * Wei(1e18))
+        proportion = int(market[2] * RATE_PRECISION / (totalCashUnderlying + market[2]))
         # assert that market proportions are not above leverage thresholds
         assert proportion < leverageThresholds[i]
 
-        if previousMarkets[i][7] == 0:
+        # Ensure that fCash is greater than zero
+        assert market[3] > 0
+
+        if previousMarkets[i][6] == 0:
             # This means that the market is initialized for the first time
             assert proportion == proportions[i]
+        elif i == 0:
+            # The 3 month market should have the same implied rate as the old 6 month
+            assert market[5] == previousMarkets[1][5]
+        elif i == (len(markets) - 1):
+            # If this is the last market then it is initialized via governance
+            assert proportion == proportions[i]
         else:
-            # assert that oracle values are in line
+            # Assert oracle values are in line
             assert market[6] == 0
 
-    # TODO: assert account context
+    check_system_invariants(environment, accounts)
 
 
 def test_first_initialization(environment, accounts):
@@ -181,7 +195,7 @@ def test_first_initialization(environment, accounts):
         currencyId, 100000e8, False, {"from": accounts[0]}
     )
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
-    perp_token_asserts(environment, currencyId, True)
+    perp_token_asserts(environment, currencyId, True, accounts)
 
 
 def test_settle_and_initialize(environment, accounts):
@@ -192,16 +206,16 @@ def test_settle_and_initialize(environment, accounts):
 
     # No trading has occured
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
-    perp_token_asserts(environment, currencyId, False)
-
-
-def test_redeem_all_liquidity_and_initialize(environment, accounts):
-    pass
+    perp_token_asserts(environment, currencyId, False, accounts)
 
 
 def test_settle_and_extend(environment, accounts):
     pass
 
 
-def test_settle_and_negative_fcash(environment, accounts):
-    pass
+# def test_redeem_all_liquidity_and_initialize(environment, accounts):
+#     pass
+
+
+# def test_settle_and_negative_fcash(environment, accounts):
+#     pass

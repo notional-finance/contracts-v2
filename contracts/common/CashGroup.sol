@@ -61,7 +61,7 @@ library CashGroup {
      * @dev This is a function because array types are not allowed to be constants yet.
      */
     function getTradedMarket(uint index) internal pure returns (uint) {
-        assert (index != 0);
+        require(index != 0);
 
         if (index == 1) return QUARTER;
         if (index == 2) return 2 * QUARTER;
