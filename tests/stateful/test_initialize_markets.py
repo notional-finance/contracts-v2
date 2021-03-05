@@ -109,8 +109,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
     assert len(portfolio) == cashGroup[0]  # max market index
 
     # These values are used to calculate non first init liquidity values
-    totalAssetCashInMarketsExcl3Month = sum([m[3] for m in markets[1:]])
-    depositSharesBasis = sum(depositShares[1:])
+    totalAssetCashInMarkets = sum([m[3] for m in markets])
 
     for (i, asset) in enumerate(portfolio):
         assert asset[0] == currencyId
@@ -119,18 +118,13 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
         # assert liquidity tokens are ordered
         assert asset[2] == 2 + i
         # assert that liquidity is proportional to deposit shares
+
         if isFirstInit:
             # Initialize amount is a percentage of the initial cash amount
             assert asset[3] == INITIAL_CASH_AMOUNT * depositShares[i] / int(1e8)
-        elif i == 0:
-            # TODO: 3 month asset should stay whever it was before
-            pass
         else:
-            # Initialize amount is a percentage of the net cash amount excl the 3 month
-            assert (
-                asset[3]
-                == totalAssetCashInMarketsExcl3Month * depositShares[i] / depositSharesBasis
-            )
+            # Initialize amount is a percentage of the net cash amount
+            assert asset[3] == totalAssetCashInMarkets * depositShares[i] / 1e8
 
     ifCashAssets = environment.router["Views"].getifCashAssets(perpTokenAddress)
     assert len(ifCashAssets) >= len(portfolio)
@@ -239,6 +233,17 @@ def test_settle_and_extend(environment, accounts):
     chain.mine(1, timestamp=(blockTime + QUARTER))
 
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    perp_token_asserts(environment, currencyId, False, accounts)
+
+
+@pytest.mark.only
+def test_mint_and_redeem(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
+
+    environment.router["MintPerpetual"].perpetualTokenMint(
+        currencyId, 100000e8, False, {"from": accounts[0]}
+    )
     perp_token_asserts(environment, currencyId, False, accounts)
 
 

@@ -385,7 +385,7 @@ library PerpetualToken {
 
         // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
         // that need to be settled. This is only done during market initialization in a single step.
-        require(accountContext.nextMaturingAsset > blockTime, "PT: requires settlement");
+        require(accountContext.nextMaturingAsset < blockTime, "PT: requires settlement");
 
         (int assetCashPV, bytes memory ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
@@ -401,7 +401,8 @@ library PerpetualToken {
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         int assetCashDeposit,
-        uint blockTime
+        uint blockTime,
+        AssetStorage[] storage perpTokenAssetStorage
     ) internal returns (int) {
         (int tokensToMint, bytes memory ifCashBitmap) = calculateTokensToMint(
             perpToken,
@@ -417,6 +418,10 @@ library PerpetualToken {
             perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
         } else {
             depositIntoPortfolio(perpToken, accountContext, ifCashBitmap, assetCashDeposit, blockTime);
+            
+            // NOTE: this method call is here to reduce stack size in depositIntoPortfolio
+            perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
+            // NOTE: balance state should not change as a result of this method
         }
 
         // From the calculateTokensToMint function we know that tokensToMint will be positive.
@@ -498,9 +503,8 @@ library PerpetualToken {
                 );
 
                 int liquidityTokens;
-                // This will update the market state as well
+                // This will update the market state as well, fCashAmount returned here is negative
                 (liquidityTokens, fCashAmount) = perpToken.markets[i].addLiquidity(perMarketDeposit);
-
                 asset.notional = asset.notional.add(liquidityTokens);
                 asset.storageState = AssetStorageState.Update;
             }
@@ -510,7 +514,7 @@ library PerpetualToken {
                 perpToken.cashGroup.currencyId,
                 perpToken.markets[i].maturity,
                 accountContext.nextMaturingAsset,
-                // fCash amount is denominated in the underlying here as it always is
+                // fCash amount is negative and denominated in the underlying here as it always is
                 fCashAmount,
                 ifCashBitmap
             );
@@ -522,9 +526,6 @@ library PerpetualToken {
         }
 
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
-        // TODO: make storeAssets a library call
-        // NOTE: balance state should not change as a result of this method
-        // perpToken.portfolioState.storeAssets(assetArrayMapping[perpToken.tokenAddress]);
     }
 
     /**

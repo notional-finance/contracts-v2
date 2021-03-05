@@ -118,14 +118,15 @@ contract MockPerpetualToken is StorageLayoutV1 {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
             currencyId
         );
-
         AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 
         return PerpetualToken.mintPerpetualToken(
             perpToken,
             accountContext,
             assetCashDeposit,
-            blockTime
+            blockTime,
+            perpTokenAssetStorage
         );
     }
 }
