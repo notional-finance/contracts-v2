@@ -236,7 +236,6 @@ def test_settle_and_extend(environment, accounts):
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
-@pytest.mark.only
 def test_mint_and_redeem(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
@@ -245,6 +244,12 @@ def test_mint_and_redeem(environment, accounts):
         currencyId, 100000e8, False, {"from": accounts[0]}
     )
     perp_token_asserts(environment, currencyId, False, accounts)
+
+    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
+        currencyId, 100000e8, True, {"from": accounts[0]}
+    )
+    perp_token_asserts(environment, currencyId, False, accounts)
+    # TODO: add some more asserts here
 
 
 # def test_redeem_all_liquidity_and_initialize(environment, accounts):

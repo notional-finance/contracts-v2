@@ -72,13 +72,6 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         );
     }
 
-    function perpetualTokenRedeem(
-        uint16 currencyId,
-        uint88 tokensToRedeem
-    ) external nonReentrant returns (bool) {
-        revert("UNIMPLMENTED");
-    }
-
     function _calculatePerpetualTokensToMint(
         uint currencyId,
         int amountToDeposit
@@ -104,7 +97,6 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         int amountToDeposit
     ) internal returns (uint) {
         uint blockTime = block.timestamp;
-
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
         AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
         AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];

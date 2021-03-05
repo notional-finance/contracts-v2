@@ -94,6 +94,28 @@ library Market {
     }
 
     /**
+     * @notice Used to remove liquidity from a market, assuming that it is initialized.
+     *
+     * @return (new market state, liquidityTokens, negative fCash position generated)
+     */
+    function removeLiquidity(
+        MarketParameters memory marketState,
+        int tokensToRemove
+    ) internal pure returns (int, int) {
+        if (tokensToRemove == 0) return (0, 0);
+
+        int assetCash = marketState.totalCurrentCash.mul(tokensToRemove).div(marketState.totalLiquidity);
+        int fCash = marketState.totalfCash.mul(tokensToRemove).div(marketState.totalLiquidity);
+
+        marketState.totalLiquidity = marketState.totalLiquidity.subNoNeg(tokensToRemove);
+        marketState.totalfCash = marketState.totalfCash.subNoNeg(fCash);
+        marketState.totalCurrentCash = marketState.totalCurrentCash.subNoNeg(assetCash);
+        marketState.hasUpdated = true;
+
+        return (assetCash, fCash);
+    }
+
+    /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
      * cash amounts are all specified at RATE_PRECISION.
      *
@@ -406,6 +428,9 @@ library Market {
         uint blockTime
     ) private pure returns (uint) {
         require(rateOracleTimeWindow > 0, "M: time window zero");
+
+        // This can occur when using a view function get to a market state in the past
+        if (previousTradeTime > blockTime) return lastImpliedRate;
 
         uint timeDiff = blockTime.sub(previousTradeTime);
         if (timeDiff > rateOracleTimeWindow) {

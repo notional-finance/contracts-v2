@@ -433,7 +433,8 @@ library CashGroup {
         uint currencyId
     ) internal view returns (CashGroupParameters memory, MarketParameters[] memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
-        // TODO: there should be a stateful and non-stateful version of this function
+        // Ensure that accrue interest is called at the beginning of every method before this rate
+        // is built otherwise this wont be the most up to date interest rate.
         AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
         uint maxMarketIndex = uint(uint8(uint(data)));
 

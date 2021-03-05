@@ -11,6 +11,7 @@ from brownie import (
     NoteERC20,
     PerpetualTokenAction,
     PerpetualTokenERC20,
+    RedeemPerpetualTokenAction,
     Router,
     Views,
     accounts,
@@ -166,6 +167,7 @@ class TestEnvironment:
         views = Views.deploy({"from": self.deployer})
         initialize = InitializeMarketsAction.deploy({"from": self.deployer})
         perpetualTokenMint = MintPerpetualTokenAction.deploy({"from": self.deployer})
+        perpetualTokenRedeem = RedeemPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenAction = PerpetualTokenAction.deploy({"from": self.deployer})
 
         # Deploy router
@@ -175,6 +177,7 @@ class TestEnvironment:
             initialize.address,
             perpetualTokenAction.address,
             perpetualTokenMint.address,
+            perpetualTokenRedeem.address,
             self.cToken["ETH"].address,
             self.token["ETH"].address,
             {"from": self.deployer},
@@ -192,6 +195,9 @@ class TestEnvironment:
         )
 
         # TODO: brownie doesn't allow bringing in interface for the abi
+        self.router["Router"] = Contract.from_abi(
+            "Router", self.proxy.address, abi=Router.abi, owner=self.deployer
+        )
         self.router["Views"] = Contract.from_abi(
             "Views", self.proxy.address, abi=Views.abi, owner=self.deployer
         )
@@ -199,6 +205,12 @@ class TestEnvironment:
             "MintPerpetual",
             self.proxy.address,
             abi=MintPerpetualTokenAction.abi,
+            owner=self.deployer,
+        )
+        self.router["RedeemPerpetual"] = Contract.from_abi(
+            "RedeemPerpetual",
+            self.proxy.address,
+            abi=RedeemPerpetualTokenAction.abi,
             owner=self.deployer,
         )
         self.router["PerpetualAction"] = Contract.from_abi(

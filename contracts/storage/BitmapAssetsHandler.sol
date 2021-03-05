@@ -215,4 +215,59 @@ library BitmapAssetsHandler {
         return assets;
     }
 
+    /**
+     * @notice Used to reduce a perpetual token ifCash assets portfolio proportionately
+     */
+    function reduceifCashAssetsProportional(
+        address account,
+        uint currencyId,
+        uint nextMaturingAsset,
+        int tokensToRedeem,
+        int totalSupply
+    ) internal returns (PortfolioAsset[] memory) {
+        bytes memory assetsBitmap = getAssetsBitmap(account, currencyId);
+        uint index = assetsBitmap.totalBitsSet();
+        PortfolioAsset[] memory assets = new PortfolioAsset[](index);
+        index = 0;
+
+        for (uint i; i < assetsBitmap.length; i++) {
+            if (assetsBitmap[i] == 0x00) continue;
+            bytes1 assetByte = assetsBitmap[i];
+
+            // Loop over each bit in the byte, it's position is referenced as 1-indexed
+            for (uint bit = 1; bit <= 8; bit++) {
+                if (assetByte == 0x00) break;
+                if (assetByte & Bitmap.BIT1 != Bitmap.BIT1) {
+                    assetByte = assetByte << 1;
+                    continue;
+                }
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, i * 8 + bit);
+                bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+                int notional;
+                assembly { notional := sload(fCashSlot) }
+
+                int notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+                notional = notional.sub(notionalToTransfer);
+                assembly { sstore(fCashSlot, notional) }
+
+                assets[index].currencyId = currencyId;
+                assets[index].maturity = maturity;
+                assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
+                assets[index].notional = notionalToTransfer;
+                index += 1;
+
+                assetByte = assetByte << 1;
+                if (index == assets.length) return assets;
+            }
+        }
+
+        // If the entire token supply is redeemed then the assets bitmap will have been reduced to zero.
+        // Because solidity truncates division there will always be dust left unless the entire supply is
+        // redeemed.
+        if (tokensToRedeem == totalSupply) assetsBitmap = new bytes(0);
+        setAssetsBitmap(account, currencyId, assetsBitmap);
+
+        return assets;
+    }
+
 }

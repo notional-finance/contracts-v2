@@ -529,38 +529,85 @@ library PerpetualToken {
     }
 
     /**
+     * @notice Removes perpetual token assets and returns the net amount of asset cash owed to the account.
+     */
     function redeemPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
-        uint tokensToRedeem,
+        AccountStorage memory perpTokenAccountContext,
+        AssetStorage[] storage perpTokenAssetStorage,
+        int tokensToRedeem,
         uint blockTime
-    ) internal view returns (PortfolioAsset[] memory) {
-        require(tokensToRedeem > 0, "PT: invalid token amount");
-        uint totalPerpTokens = perpetualTokenTotalSupply[perpToken.tokenAddress];
-        PortfolioAsset[] memory newLTs = new PortfolioAsset[](perpToken.portfolioState.storedAssets.length);
+    ) internal returns (PortfolioAsset[] memory, int) {
+        uint totalSupply;
+        PortfolioAsset[] memory newifCashAssets;
+        {
+            uint currencyId;
+            (currencyId, totalSupply) = getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
 
-        // Transfer LTs
-        for (uint i; i < perpToken.portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
-            newLTs[i].currencyId = asset.currencyId;
-            newLTs[i].maturity = asset.maturity;
-            newLTs[i].assetType = asset.assetType;
-
-            uint notionalToTransfer = asset.notional.mul(tokensToRedeem).div(totalPerpTokens);
-            newLTs[i].notional = notionalToTransfer;
-            asset.notional = asset.notional.sub(notionalToTransfer);
-            asset.assetStorageState = AssetStorageState.Update;
+            // Get share of ifCash assets to remove
+            newifCashAssets = BitmapAssetsHandler.reduceifCashAssetsProportional(
+                perpToken.tokenAddress,
+                currencyId,
+                perpTokenAccountContext.nextMaturingAsset,
+                tokensToRedeem,
+                int(totalSupply)
+            );
         }
 
-        // TODO: need to transfer ifCash assets
+        // Get asset cash share for the perp token, if it exists. It is required in balance handler that the
+        // perp token can never have a negative cash asset cash balance.
+        int assetCashShare = perpToken.balanceState.storedCashBalance.mul(tokensToRedeem).div(int(totalSupply));
+        if (assetCashShare > 0) {
+            perpToken.balanceState.netCashChange = assetCashShare.neg();
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken.balanceState, perpToken.tokenAddress);
+        }
 
-        perpToken.portfolioState.storeAssets();
+        // Get share of liquidity tokens to remove
+        assetCashShare = assetCashShare.add(
+            _removeLiquidityTokens(perpToken, newifCashAssets, tokensToRedeem, int(totalSupply), blockTime)
+        );
+
+        perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
         // Remove perpetual tokens from the supply
-        totalPerpTokens = totalPerpTokens.sub(tokensToRedeem)
-        perpetualTokenTotalSupply[perpToken.tokenAddress] = totalPerpTokens;
+        changePerpetualTokenSupply(perpToken.tokenAddress, -int(tokensToRedeem));
 
-        return newLTs;
+        // All changes to perpetual token are finalized here, redeeming account can either sell or keep
+        // these assets.
+        return (newifCashAssets, assetCashShare);
     }
-    */
+
+    function _removeLiquidityTokens(
+        PerpetualTokenPortfolio memory perpToken,
+        PortfolioAsset[] memory newifCashAssets,
+        int tokensToRedeem,
+        int totalSupply,
+        uint blockTime
+    ) internal returns (int) {
+        uint ifCashIndex;
+        int totalAssetCash;
+
+        for (uint i; i < perpToken.portfolioState.storedAssets.length; i++) {
+            PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
+            int tokensToRemove = asset.notional.mul(tokensToRedeem).div(int(totalSupply));
+            asset.notional = asset.notional.sub(tokensToRemove);
+            asset.storageState = AssetStorageState.Update;
+
+            perpToken.markets[i] = perpToken.cashGroup.getMarket(perpToken.markets, i + 1, blockTime, true);
+            // Remove liquidity from the market
+            (int assetCash, int fCash) = perpToken.markets[i].removeLiquidity(tokensToRemove);
+            totalAssetCash = totalAssetCash.add(assetCash);
+
+            // We know that there will always be an ifCash asset at the designated maturity because when markets
+            // are initialized the perpetual token portfolio must have some amount of net negative fcash.
+            // TODO: is this actually true?, we need to ensure that there is an entry here
+            while (newifCashAssets[ifCashIndex].maturity != asset.maturity) {
+                ifCashIndex += 1;
+            }
+            newifCashAssets[ifCashIndex].notional = newifCashAssets[ifCashIndex].notional.add(fCash);
+        }
+
+        return totalAssetCash;
+    }
 
     /**
      * @notice Generic method for selling idiosyncratic fCash, any account can post standing offers
