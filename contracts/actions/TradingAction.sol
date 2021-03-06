@@ -7,6 +7,7 @@ import "../math/SafeInt256.sol";
 import "../common/Market.sol";
 import "../common/CashGroup.sol";
 import "../storage/BalanceHandler.sol";
+import "../storage/SettleAssets.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -113,6 +114,9 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         }
 
         if (mustSettle) {
+            // 2k bytes over (26302)
+            // remove settle liquidity tokens (25075.0)
+            // remove get oracle rate (24809.0)
             // SettleAssets.getSettleAssetContextStateful(
             //     account,
             //     portfolioState,
