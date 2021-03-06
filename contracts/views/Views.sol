@@ -11,6 +11,7 @@ import "../storage/StorageLayoutV1.sol";
 
 contract Views is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
+    using TokenHandler for Token;
 
     function getMaxCurrencyId() external view returns (uint16) {
         return maxCurrencyId;
@@ -145,6 +146,25 @@ contract Views is StorageLayoutV1 {
             accountContext.bitmapCurrencyId,
             accountContext.nextMaturingAsset
         );
+    }
+
+    function calculatePerpetualTokensToMint(
+        uint16 currencyId,
+        uint88 amountToDepositExternalPrecision
+    ) external view returns (uint) {
+        Token memory token = TokenHandler.getToken(currencyId, false);
+        int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+
+        (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
+            perpToken,
+            accountContext,
+            amountToDepositInternal,
+            block.timestamp
+        );
+
+        return SafeCast.toUint256(tokensToMint);
     }
 
     fallback() external {

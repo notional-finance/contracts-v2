@@ -150,8 +150,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             if (fCashAssets[fCashIndex].maturity > markets[i].maturity) continue;
 
             uint timeToMaturity = fCashAssets[fCashIndex].maturity.sub(blockTime);
-            int netAssetCash;
-            (markets[i], netAssetCash, /* netCash */) = markets[i].calculateTrade(
+            int netAssetCash = markets[i].calculateTrade(
                 cashGroup,
                 fCashAssets[fCashIndex].notional,
                 timeToMaturity

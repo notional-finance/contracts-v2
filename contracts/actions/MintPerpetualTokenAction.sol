@@ -6,109 +6,43 @@ import "../common/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/BalanceHandler.sol";
-import "../storage/TokenHandler.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
-    using TokenHandler for Token;
 
-    // function calculatePerpetualTokensToMintUnderlying(
-    //     uint16 currencyId,
-    //     uint88 underlyingToDepositExternalPrecision
-    // ) external view returns (uint) {
-    //     uint amountToDepositInternal = AssetRate
-    //         .buildAssetRate(currencyId)
-    //         .convertExternalFromUnderlying(underlyingToDepositExternalPrecision);
-
-    //     return _calculatePerpetualTokensToMint(currencyId, amountToDepositInternal);
-    // }
-
-    function calculatePerpetualTokensToMint(
+    function perpetualTokenMintViaBatch(
         uint16 currencyId,
-        uint88 amountToDepositExternalPrecision
-    ) external view returns (uint) {
-        Token memory token = TokenHandler.getToken(currencyId, false);
-        int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
-
-        return _calculatePerpetualTokensToMint(currencyId, amountToDepositInternal);
+        uint88 amountToDepositInternalPrecision
+    ) external nonReentrant returns (int) {
+        require(msg.sender == address(this), "Unauthorized caller");
+        return _mintPerpetualToken(currencyId, amountToDepositInternalPrecision);
     }
-
-    // function perpetualTokenMintUnderlying(
-    //     uint16 currencyId,
-    //     uint88 underlyingToDepositExternalPrecision
-    // ) external returns (uint) nonReentrant {
-    //     return _mintPerpetualToken(currencyId, msg.sender, int(amountToDeposit), useCashBalance);
-    // }
 
     function perpetualTokenMint(
         uint16 currencyId,
         uint88 amountToDepositExternalPrecision,
         bool useCashBalance
     ) external nonReentrant returns (uint) {
-        AccountStorage memory recipientContext = accountContextMapping[msg.sender];
+        address recipient = msg.sender;
+        AccountStorage memory recipientContext = accountContextMapping[recipient];
         BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
-            msg.sender,
+            recipient,
             currencyId,
             recipientContext
         );
 
         (int amountToDepositInternal, /* int assetAmountTransferred */) = recipientBalance.depositAssetToken(
-            msg.sender,
+            recipient,
             int(amountToDepositExternalPrecision),
             useCashBalance
         );
         // Net off any asset amount transferred because it will go to the perp token
         recipientBalance.netCashChange = recipientBalance.netCashChange.sub(amountToDepositInternal);
 
-        return _mintPerpetualToken(
-            currencyId,
-            msg.sender,
-            recipientBalance,
-            recipientContext,
-            amountToDepositInternal
-        );
-    }
-
-    function _calculatePerpetualTokensToMint(
-        uint currencyId,
-        int amountToDeposit
-    ) internal view returns (uint) {
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
-
-        (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
-            perpToken,
-            accountContext,
-            amountToDeposit,
-            block.timestamp
-        );
-
-        return SafeCast.toUint256(tokensToMint);
-    }
-
-    function _mintPerpetualToken(
-        uint currencyId,
-        address recipient,
-        BalanceState memory recipientBalance,
-        AccountStorage memory recipientContext,
-        int amountToDeposit
-    ) internal returns (uint) {
-        uint blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
-        AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
-
-        recipientBalance.netPerpetualTokenTransfer = PerpetualToken.mintPerpetualToken(
-            perpToken,
-            perpTokenContext,
-            amountToDeposit,
-            blockTime,
-            perpTokenAssetStorage
-        );
-
+        int tokensMinted = _mintPerpetualToken(currencyId, amountToDepositInternal);
+        recipientBalance.netPerpetualTokenTransfer = tokensMinted;
         recipientBalance.finalize(recipient, recipientContext, false);
         accountContextMapping[recipient] = recipientContext;
 
@@ -117,6 +51,27 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             revert("UNIMPLMENTED");
         }
 
-        return SafeCast.toUint256(recipientBalance.netPerpetualTokenTransfer);
+        return uint(tokensMinted);
+    }
+
+    function _mintPerpetualToken(
+        uint currencyId,
+        int amountToDepositInternal
+    ) internal returns (int) {
+        uint blockTime = block.timestamp;
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
+        AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
+
+        int tokensMinted = PerpetualToken.mintPerpetualToken(
+            perpToken,
+            perpTokenContext,
+            amountToDepositInternal,
+            blockTime,
+            perpTokenAssetStorage
+        );
+        require(tokensMinted >= 0, "Invalid token amount");
+
+        return tokensMinted;
     }
 }

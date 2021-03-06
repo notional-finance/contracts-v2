@@ -123,27 +123,27 @@ library Market {
      * @param cashGroup cash group configuration parameters
      * @param fCashAmount the fCash amount specified
      * @param timeToMaturity number of seconds until maturity
-     * @return (new market state, netAssetCash, netCash)
+     * @return netAssetCash
      */
     function calculateTrade(
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
         int fCashAmount,
         uint timeToMaturity
-    ) internal view returns (MarketParameters memory, int, int) {
+    ) internal view returns (int) {
         if (marketState.totalfCash + fCashAmount <= 0) {
             // We return false if there is not enough fCash to support this trade.
-            return (marketState, 0, 0);
+            return 0;
         }
         int rateScalar = cashGroup.getRateScalar(timeToMaturity);
         int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
 
         // This will result in a divide by zero
-        if (rateScalar == 0) return (marketState, 0, 0);
+        if (rateScalar == 0) return 0;
         // This will result in a divide by zero
-        if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return (marketState, 0, 0);
+        if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return 0;
         // This will result in negative interest rates
-        if (fCashAmount >= totalCashUnderlying) return (marketState, 0, 0);
+        if (fCashAmount >= totalCashUnderlying) return 0;
 
         // Get the rate anchor given the market state, this will establish the baseline for where
         // the exchange rate is set.
@@ -157,7 +157,7 @@ library Market {
                 rateScalar,
                 timeToMaturity
             );
-            if (!success) return (marketState, 0, 0);
+            if (!success) return 0;
 
         }
 
@@ -172,7 +172,7 @@ library Market {
                 rateAnchor,
                 fCashAmount
             );
-            if (!success) return (marketState, 0, 0);
+            if (!success) return 0;
         }
 
         if (fCashAmount > 0) {
@@ -185,7 +185,7 @@ library Market {
 
         if (tradeExchangeRate < RATE_PRECISION) {
             // We do not allow negative exchange rates.
-            return (marketState, 0, 0);
+            return 0;
         }
 
         return getNewMarketState(
@@ -209,7 +209,7 @@ library Market {
         int fCashAmount,
         int tradeExchangeRate,
         uint timeToMaturity
-    ) private view returns (MarketParameters memory, int, int) {
+    ) private view returns (int) {
         // cash = fCashAmount / exchangeRate
         // The net cash amount will be the opposite direction of the fCash amount, if we add
         // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
@@ -218,7 +218,7 @@ library Market {
         int netAssetCash = assetRate.convertInternalFromUnderlying(netCash);
         
         // Underflow on netAssetCash
-        if (marketState.totalCurrentCash + netAssetCash <= 0) return (marketState, 0, 0);
+        if (marketState.totalCurrentCash + netAssetCash <= 0) return 0;
         marketState.totalfCash = marketState.totalfCash.add(fCashAmount);
         marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCash);
 
@@ -231,12 +231,12 @@ library Market {
             rateAnchor,
             timeToMaturity
         );
-        if (!success) return (marketState, 0, 0);
+        if (!success) return 0;
         // Sets the trade time for the next oracle update
         marketState.previousTradeTime = block.timestamp;
         marketState.hasUpdated = true;
 
-        return (marketState, netAssetCash, netCash);
+        return netAssetCash;
     }
 
     /**

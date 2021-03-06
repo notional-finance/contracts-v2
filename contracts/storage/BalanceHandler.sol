@@ -309,7 +309,7 @@ library BalanceHandler {
         uint currencyId,
         AccountStorage memory accountContext
     ) internal view returns (BalanceState memory) {
-        require(currencyId != 0, "CH: invalid currency id");
+        require(currencyId != 0, "BH: invalid currency id");
 
         if (accountContext.isActiveCurrency(currencyId)) {
             // Storage Read
@@ -333,6 +333,28 @@ library BalanceHandler {
             netAssetTransferInternalPrecision: 0,
             netPerpetualTokenTransfer: 0
         });
+    }
+
+    function buildBalanceStateArray(
+        address account,
+        uint16[] calldata currencyIds,
+        AccountStorage memory accountContext
+    ) internal view returns (BalanceState[] memory) {
+        BalanceState[] memory balanceStates = new BalanceState[](currencyIds.length);
+
+        for (uint i; i < currencyIds.length; i++) {
+            require(currencyIds[i] != 0, "BH: invalid currency id");
+            // TODO: how do we know that the currency id is valid?
+            if (i > 0) require(currencyIds[i] > currencyIds[i - 1], "BH: Unordered currency ids");
+
+            if (accountContext.isActiveCurrency(currencyIds[i])) {
+                (int cashBalance, int tokenBalance) = getBalanceStorage(account, currencyIds[i]);
+                balanceStates[i].storedCashBalance = cashBalance;
+                balanceStates[i].storedPerpetualTokenBalance = tokenBalance;
+            }
+        }
+
+        return balanceStates;
     }
 
     /**
