@@ -80,17 +80,16 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
-            BalanceState[] memory bs = SettleAssets.getSettleAssetContextStateful(
+            BalanceState[] memory balanceStates = new BalanceState[](1);
+            balanceStates[0] = perpToken.balanceState;
+            SettleAssets.getSettleAssetContextStateful(
                 perpToken.tokenAddress,
                 perpToken.portfolioState,
                 accountContext,
+                balanceStates,
                 blockTime
             );
-
-            // Safety check to ensure that there are no other balances in the token's portfolio
-            require(bs.length == 1, "IM: balance index length");
-            require(bs[0].currencyId == perpToken.cashGroup.currencyId, "IM: balance currency id");
-            perpToken.balanceState = bs[0];
+            perpToken.balanceState = balanceStates[0];
         }
 
         (bytes memory ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(

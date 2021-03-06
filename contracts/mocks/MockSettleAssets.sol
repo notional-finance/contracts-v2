@@ -113,6 +113,7 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function _getSettleAssetContextView(
         address account,
+        uint16[] calldata currencyIds,
         uint blockTime
     ) public view returns (
         BalanceState[] memory,
@@ -120,11 +121,13 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) {
         AccountStorage memory aContextView = accountContextMapping[account];
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
+        BalanceState[] memory bContextView = BalanceHandler.buildBalanceStateArray(account, currencyIds, aContextView);
 
-        BalanceState[] memory bContextView = SettleAssets.getSettleAssetContextView(
+        SettleAssets.getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
+            bContextView,
             blockTime
         );
 
@@ -133,6 +136,7 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function testSettleAssetArray(
         address account,
+        uint16[] calldata currencyIds,
         uint blockTime
     ) public returns (
         BalanceState[] memory,
@@ -140,26 +144,26 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) {
         AccountStorage memory aContextView = accountContextMapping[account];
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
-        AccountStorage memory aContext= accountContextMapping[account];
-        PortfolioState memory pState= PortfolioHandler.buildPortfolioState(account, 0);
+        BalanceState[] memory bContextView = BalanceHandler.buildBalanceStateArray(account, currencyIds, aContextView);
+        AccountStorage memory aContext = accountContextMapping[account];
+        PortfolioState memory pState = PortfolioHandler.buildPortfolioState(account, 0);
+        BalanceState[] memory bContext = BalanceHandler.buildBalanceStateArray(account, currencyIds, aContext);
 
-        BalanceState[] memory bContextView = SettleAssets.getSettleAssetContextView(
+        SettleAssets.getSettleAssetContextView(
             account,
             pStateView,
             aContextView,
+            bContextView,
             blockTime
         );
 
-        BalanceState[] memory bContext = SettleAssets.getSettleAssetContextStateful(
+        SettleAssets.getSettleAssetContextStateful(
             account,
             pState,
             aContext,
+            bContext,
             blockTime
         );
-
-        // assert(aContext.activeCurrencies == aContextView.activeCurrencies);
-        // assert(aContext.nextMaturingAsset == aContextView.nextMaturingAsset);
-        // assert(aContext.nextMaturingAsset > blockTime);
 
         assert(pStateView.storedAssetLength == pState.storedAssetLength);
         assert(pStateView.storedAssets.length == pState.storedAssets.length);

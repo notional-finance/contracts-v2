@@ -2,7 +2,6 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./BaseActionWithFC.sol";
 import "./MintPerpetualTokenAction.sol";
 import "../math/SafeInt256.sol";
 import "../common/Market.sol";
