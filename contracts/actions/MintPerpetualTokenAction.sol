@@ -12,54 +12,18 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
 
+    /**
+     * @notice Converts the given amount of cash to perpetual tokens in the same currency. This method can
+     * only be called by the contract itself.
+     */
     function perpetualTokenMintViaBatch(
         uint16 currencyId,
-        uint88 amountToDepositInternalPrecision
+        uint88 amountToDepositInternal
     ) external nonReentrant returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
-        return _mintPerpetualToken(currencyId, amountToDepositInternalPrecision);
-    }
-
-    function perpetualTokenMint(
-        uint16 currencyId,
-        uint88 amountToDepositExternalPrecision,
-        bool useCashBalance
-    ) external nonReentrant returns (uint) {
-        address recipient = msg.sender;
-        AccountStorage memory recipientContext = accountContextMapping[recipient];
-        BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
-            recipient,
-            currencyId,
-            recipientContext
-        );
-
-        (int amountToDepositInternal, /* int assetAmountTransferred */) = recipientBalance.depositAssetToken(
-            recipient,
-            int(amountToDepositExternalPrecision),
-            useCashBalance
-        );
-        // Net off any asset amount transferred because it will go to the perp token
-        recipientBalance.netCashChange = recipientBalance.netCashChange.sub(amountToDepositInternal);
-
-        int tokensMinted = _mintPerpetualToken(currencyId, amountToDepositInternal);
-        recipientBalance.netPerpetualTokenTransfer = tokensMinted;
-        recipientBalance.finalize(recipient, recipientContext, false);
-        accountContextMapping[recipient] = recipientContext;
-
-        // TODO: must free collateral check here
-        if (recipientContext.hasDebt) {
-            revert("UNIMPLMENTED");
-        }
-
-        return uint(tokensMinted);
-    }
-
-    function _mintPerpetualToken(
-        uint currencyId,
-        int amountToDepositInternal
-    ) internal returns (int) {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        // TODO: make this a library and fetch these
         AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
         AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 

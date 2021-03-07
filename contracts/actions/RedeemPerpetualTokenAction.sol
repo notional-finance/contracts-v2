@@ -21,22 +21,34 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
 
-    function perpetualTokenRedeem(
+    /**
+     * @notice When redeeming perpetual tokens via the batch they must all be sold to cash and this
+     * method will return the amount of asset cash sold.
+     */
+    function perpetualTokenRedeemViaBatch(
         uint16 currencyId,
-        uint88 tokensToRedeem,
-        bool sellTokenAssets
-    ) external nonReentrant {
-        return _redeemPerpetualToken(currencyId, msg.sender, int(tokensToRedeem), sellTokenAssets);
+        uint88 tokensToRedeem
+    ) external nonReentrant returns (int) {
+        require(msg.sender == address(this), "Unauthorized caller");
+        uint blockTime = block.timestamp;
+        (
+            int totalAssetCash,
+            bool hasResidual,
+            /* PortfolioAssets[] memory newfCashAssets */
+        ) =  _redeemPerpetualToken(currencyId, int(tokensToRedeem), true, blockTime);
+
+        require(!hasResidual, "Cannot redeem via batch, residual");
+        return totalAssetCash;
     }
 
-    function _redeemPerpetualToken(
-        uint currencyId,
-        address redeemer,
-        int tokensToRedeem,
+    function perpetualTokenRedeem(
+        uint16 currencyId,
+        uint88 tokensToRedeem_,
         bool sellTokenAssets
-    ) internal {
-        if (tokensToRedeem == 0) return;
+    ) external nonReentrant {
         uint blockTime = block.timestamp;
+        address redeemer = msg.sender;
+        int tokensToRedeem = int(tokensToRedeem_);
 
         AccountStorage memory redeemerContext = accountContextMapping[redeemer];
         BalanceState memory redeemerBalance = BalanceHandler.buildBalanceState(
@@ -48,35 +60,13 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         require(redeemerBalance.storedPerpetualTokenBalance >= tokensToRedeem, "Insufficient tokens");
         redeemerBalance.netPerpetualTokenTransfer = tokensToRedeem.neg();
 
-        PortfolioAsset[] memory newfCashAssets;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        {
-            // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
-            AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
-            require(perpTokenContext.nextMaturingAsset < blockTime, "RP: requires settlement");
+        (
+            int totalAssetCash,
+            bool hasResidual,
+            PortfolioAsset[] memory newfCashAssets
+        ) =  _redeemPerpetualToken(currencyId, int(tokensToRedeem), sellTokenAssets, blockTime);
 
-            (newfCashAssets, redeemerBalance.netCashChange) = PerpetualToken.redeemPerpetualToken(
-                perpToken,
-                perpTokenContext,
-                assetArrayMapping[perpToken.tokenAddress],
-                tokensToRedeem,
-                blockTime
-            );
-        }
-
-        // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
-        bool hasResidual = true;
-        if (sellTokenAssets) {
-            int assetCash;
-            (assetCash, hasResidual) = _sellfCashAssets(
-                perpToken.cashGroup,
-                perpToken.markets,
-                newfCashAssets,
-                blockTime
-            );
-
-            redeemerBalance.netCashChange = redeemerBalance.netCashChange.add(assetCash);
-        }
+        redeemerBalance.netCashChange = totalAssetCash;
 
         if (hasResidual) {
             // For simplicity's sake, you cannot redeem tokens if your portfolio must be settled.
@@ -107,6 +97,52 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             redeemerPortfolio.storeAssets(assetArrayMapping[redeemer]);
         }
 
+        redeemerBalance.finalize(redeemer, redeemerContext, false);
+        accountContextMapping[redeemer] = redeemerContext;
+
+        // TODO: must free collateral check here if recipient is keeping LTs
+        if (redeemerContext.hasDebt) {
+            revert("UNIMPLMENTED");
+        }
+    }
+
+    function _redeemPerpetualToken(
+        uint currencyId,
+        int tokensToRedeem,
+        bool sellTokenAssets,
+        uint blockTime
+    ) internal returns (int, bool, PortfolioAsset[] memory) {
+        int totalAssetCash;
+        PortfolioAsset[] memory newfCashAssets;
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        {
+            // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
+            AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
+            require(perpTokenContext.nextMaturingAsset < blockTime, "RP: requires settlement");
+
+            (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(
+                perpToken,
+                perpTokenContext,
+                assetArrayMapping[perpToken.tokenAddress],
+                tokensToRedeem,
+                blockTime
+            );
+        }
+
+        // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
+        bool hasResidual = true;
+        if (sellTokenAssets) {
+            int assetCash;
+            (assetCash, hasResidual) = _sellfCashAssets(
+                perpToken.cashGroup,
+                perpToken.markets,
+                newfCashAssets,
+                blockTime
+            );
+
+            totalAssetCash = totalAssetCash.add(assetCash);
+        }
+
         // Finalize all market states
         for (uint i; i < perpToken.markets.length; i++) {
             perpToken.markets[i].setMarketStorage(AssetHandler.getSettlementDateViaAssetType(
@@ -115,13 +151,11 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             ));
         }
 
-        redeemerBalance.finalize(redeemer, redeemerContext, false);
-        accountContextMapping[redeemer] = redeemerContext;
-
-        // TODO: must free collateral check here if recipient is keeping LTs
-        if (redeemerContext.hasDebt) {
-            revert("UNIMPLMENTED");
-        }
+        return (
+            totalAssetCash,
+            hasResidual,
+            newfCashAssets
+        );
     }
 
     /**
@@ -152,6 +186,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             uint timeToMaturity = fCashAssets[fCashIndex].maturity.sub(blockTime);
             int netAssetCash = markets[i].calculateTrade(
                 cashGroup,
+                // TODO: should this be negative?
                 fCashAssets[fCashIndex].notional,
                 timeToMaturity
             );

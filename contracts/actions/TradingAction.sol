@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./MintPerpetualTokenAction.sol";
+import "./RedeemPerpetualTokenAction.sol";
 import "../math/SafeInt256.sol";
 import "../common/Market.sol";
 import "../common/CashGroup.sol";
@@ -21,7 +22,8 @@ enum DepositType {
     DepositAsset,
     DepositAssetUseCashBalance,
     DepositUnderlying,
-    MintPerpetual
+    MintPerpetual,
+    RedeemPerpetual
 }
 
 struct Deposit {
@@ -50,7 +52,6 @@ struct AMMTrade {
 struct Withdraw {
     uint16 currencyId;
     uint88 amountInternalPrecision;
-    uint88 redeemPerpetualTokenAmount;
     bool redeemToUnderlying;
 }
 
@@ -158,10 +159,12 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                     deposits[i].amountExternalPrecision
                 );
             } else if (deposits[i].depositType == DepositType.MintPerpetual) {
-                // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
+                checkSufficientCash(balanceStates[balanceStateIndex], deposits[i].amountExternalPrecision);
+
                 balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange
                     .sub(deposits[i].amountExternalPrecision);
 
+                // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
                 int tokensMinted = MintPerpetualTokenAction(address(this)).perpetualTokenMintViaBatch(
                     deposits[i].currencyId,
                     deposits[i].amountExternalPrecision
@@ -169,6 +172,23 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
                 balanceStates[balanceStateIndex].netPerpetualTokenTransfer = balanceStates[balanceStateIndex]
                     .netPerpetualTokenTransfer.add(tokensMinted);
+            } else if (deposits[i].depositType == DepositType.RedeemPerpetual) {
+                require(
+                    balanceStates[balanceStateIndex].storedPerpetualTokenBalance
+                        .add(balanceStates[balanceStateIndex].netPerpetualTokenTransfer) >= deposits[i].amountExternalPrecision,
+                    "Insufficient tokens to redeem"
+                );
+
+                balanceStates[balanceStateIndex].netPerpetualTokenTransfer = balanceStates[balanceStateIndex]
+                    .netPerpetualTokenTransfer.sub(deposits[i].amountExternalPrecision);
+
+                int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
+                    deposits[i].currencyId,
+                    deposits[i].amountExternalPrecision
+                );
+
+                balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex]
+                    .netCashChange.add(assetCash);
             }
         }
     }
@@ -202,22 +222,30 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                 (cashGroup, markets) = CashGroup.buildCashGroup(trades[i].currencyId);
             }
 
-            bool needsLiquidity = (
-                trades[i].tradeType == AMMTradeType.AddLiquidity || trades[i].tradeType == AMMTradeType.RemoveLiquidity
-            );
-            MarketParameters memory market = cashGroup.getMarket(markets, trades[i].marketIndex, blockTime, needsLiquidity);
+            // bool needsLiquidity = (
+            //     trades[i].tradeType == AMMTradeType.AddLiquidity || trades[i].tradeType == AMMTradeType.RemoveLiquidity
+            // );
+            MarketParameters memory market = cashGroup.getMarket(markets, trades[i].marketIndex, blockTime, false);
 
             int fCashAmount;
             {
                 int netCashChange;
-                if (needsLiquidity) {
-                    (netCashChange, fCashAmount) = executeLiquidityTrade(portfolioState, trades[i], market);
-                } else if (trades[i].tradeType == AMMTradeType.Borrow) {
+                // if (needsLiquidity) {
+                    // (netCashChange, fCashAmount) = executeLiquidityTrade(portfolioState, trades[i], market);
+                // } else if (trades[i].tradeType == AMMTradeType.Borrow) {
+                if (trades[i].tradeType == AMMTradeType.Borrow) {
                     fCashAmount = int(trades[i].amount).neg();
-                    netCashChange = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
                 } else if (trades[i].tradeType == AMMTradeType.Lend) {
                     fCashAmount = int(trades[i].amount);
-                    netCashChange = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
+                }
+
+                netCashChange = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
+                require(netCashChange != 0 && market.lastImpliedRate > trades[i].minImpliedRate, "Trade failed, slippage");
+                if (trades[i].maxImpliedRate > 0) require(market.lastImpliedRate < trades[i].maxImpliedRate, "Trade failed");
+
+                // if (trades[i].tradeType == AMMTradeType.AddLiquidity || trades[i].tradeType == AMMTradeType.Lend) {
+                if (trades[i].tradeType == AMMTradeType.Lend) {
+                    checkSufficientCash(balanceStates[balanceStateIndex], netCashChange);
                 }
                 balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange.add(netCashChange);
             }
@@ -283,8 +311,6 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
             bool redeemToUnderlying;
             if (withdraws[withdrawIndex].currencyId == balanceStates[i].currencyId) {
-                // TODO: we need to allow redeeming perpetual tokens here
-
                 int withdrawAmount = withdraws[i].amountInternalPrecision;
                 if (withdrawAmount == 0) {
                     // If the withdraw amount is set to zero, this signifies that the user wants to ensure that
@@ -314,6 +340,24 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
             // TODO: switch this to settlement date
             markets[j].setMarketStorage(1);
         }
+    }
+
+    /**
+     * @notice When lending, adding liquidity or minting perpetual tokens the account
+     * must have a sufficient cash balance to do so otherwise they would go into a negative
+     * cash balance.
+     */
+    function checkSufficientCash(
+        BalanceState memory balanceState,
+        int amountInternalPrecision
+    ) internal {
+        require(
+            amountInternalPrecision >= 0 &&
+            balanceState.storedCashBalance
+                .add(balanceState.netCashChange)
+                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
+            "Insufficient cash"
+        );
     }
 
 }
