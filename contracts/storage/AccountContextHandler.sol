@@ -7,6 +7,41 @@ import "./BalanceHandler.sol";
 
 library AccountContextHandler {
     bytes18 private constant ZERO = bytes18(0);
+    
+    function getAccountContext(
+        address account
+    ) internal view returns (AccountStorage memory) {
+        bytes32 slot = keccak256(abi.encode(account, "account.context"));
+        bytes32 data;
+
+        assembly { data := sload(slot) }
+
+        return AccountStorage({
+            nextMaturingAsset: uint40(uint(data)),
+            lastMintTime: uint32(uint(data >> 40)),
+            hasDebt: bytes1(data << 184) == 0x01,
+            bitmapCurrencyId: uint16(uint(data >> 80)),
+            assetArrayInitialOffset: uint16(uint(data >> 96)),
+            activeCurrencies: bytes18(data << 142)
+        });
+    }
+
+    function setAccountContext(
+        AccountStorage memory accountContext,
+        address account
+    ) internal {
+        bytes32 slot = keccak256(abi.encode(account, "account.context"));
+        bytes32 data = (
+            bytes32(uint(accountContext.nextMaturingAsset)) |
+            bytes32(uint(accountContext.lastMintTime)) << 40 |
+            bytes32(accountContext.hasDebt ? bytes1(0x01) : bytes1(0x00)) >> 184 |
+            bytes32(uint(accountContext.bitmapCurrencyId)) << 56 |
+            bytes32(uint(accountContext.assetArrayInitialOffset)) << 72 |
+            bytes32(accountContext.activeCurrencies) >> 142
+        );
+
+        assembly { sstore (slot, data) }
+    }
 
     /**
      * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account

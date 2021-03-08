@@ -78,7 +78,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
             currencyId
         );
 
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.getPerpetualTokenPV(
             perpToken,
@@ -98,7 +98,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
             currencyId
         );
 
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.calculateTokensToMint(
             perpToken,
@@ -118,7 +118,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(
             currencyId
         );
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
         AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 
         return PerpetualToken.mintPerpetualToken(

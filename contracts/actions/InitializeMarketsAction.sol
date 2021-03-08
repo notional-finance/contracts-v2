@@ -36,6 +36,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
+    using AccountContextHandler for AccountStorage;
 
     event MarketsInitialized(uint16 currencyId);
 
@@ -369,7 +370,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
     function initializeMarkets(uint currencyId, bool isFirstInit) external {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         // This should be sufficient to validate that the currency id is valid
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
@@ -510,7 +511,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // there are no token transfers, incentives or anything else. Reduces code size by about 2kb
         perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);
-        accountContextMapping[perpToken.tokenAddress] = accountContext;
+        accountContext.setAccountContext(perpToken.tokenAddress);
 
         emit MarketsInitialized(uint16(currencyId));
     }

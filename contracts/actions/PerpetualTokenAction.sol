@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
+    using AccountContextHandler for AccountStorage;
     using SafeInt256 for int;
     using SafeMath for uint;
 
@@ -152,7 +153,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) private view returns (int, PerpetualTokenPortfolio memory) {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int totalAssetPV, /* bytes memory ifCashMapping */) = PerpetualToken.getPerpetualTokenPV(
             perpToken,
@@ -174,14 +175,14 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
             /* uint totalSupply */
         ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
 
-        AccountStorage memory senderContext = accountContextMapping[sender];
+        AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance = BalanceHandler.buildBalanceState(
             sender,
             currencyId,
             senderContext
         );
 
-        AccountStorage memory recipientContext = accountContextMapping[recipient];
+        AccountStorage memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
             recipient,
             currencyId,
@@ -195,8 +196,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         senderBalance.finalize(sender, senderContext, false);
         recipientBalance.finalize(recipient, recipientContext, false);
         // Finalize will update account contexts
-        accountContextMapping[sender] = senderContext;
-        accountContextMapping[recipient] = recipientContext;
+        senderContext.setAccountContext(sender);
+        recipientContext.setAccountContext(recipient);
 
         return true;
     }

@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../storage/AccountContextHandler.sol";
 import "../storage/BitmapAssetsHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/SettleAssets.sol";
@@ -9,6 +10,7 @@ import "../storage/SettleAssets.sol";
 contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
+    using AccountContextHandler for AccountStorage;
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -71,7 +73,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         AccountStorage memory a
     ) external {
-        accountContextMapping[account] = a;
+        a.setAccountContext(account);
     }
 
     function setAssetBitmap(

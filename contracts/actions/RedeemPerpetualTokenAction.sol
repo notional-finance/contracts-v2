@@ -9,6 +9,7 @@ import "../storage/StorageLayoutV1.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/TokenHandler.sol";
+import "./libraries/FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -20,6 +21,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     using TokenHandler for Token;
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountStorage;
 
     /**
      * @notice When redeeming perpetual tokens via the batch they must all be sold to cash and this
@@ -50,7 +52,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         address redeemer = msg.sender;
         int tokensToRedeem = int(tokensToRedeem_);
 
-        AccountStorage memory redeemerContext = accountContextMapping[redeemer];
+        AccountStorage memory redeemerContext = AccountContextHandler.getAccountContext(redeemer);
         BalanceState memory redeemerBalance = BalanceHandler.buildBalanceState(
             redeemer, 
             currencyId,
@@ -98,11 +100,11 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         }
 
         redeemerBalance.finalize(redeemer, redeemerContext, false);
-        accountContextMapping[redeemer] = redeemerContext;
+        redeemerContext.setAccountContext(redeemer);
 
         // TODO: must free collateral check here if recipient is keeping LTs
         if (redeemerContext.hasDebt) {
-            revert("UNIMPLMENTED");
+            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer, true);
         }
     }
 
@@ -117,7 +119,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
         {
             // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
-            AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
+            AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
             require(perpTokenContext.nextMaturingAsset < blockTime, "RP: requires settlement");
 
             (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(

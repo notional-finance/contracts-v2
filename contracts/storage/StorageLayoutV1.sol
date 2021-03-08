@@ -102,6 +102,7 @@ struct AccountStorage {
     // 9 total active currencies possible (2 bytes each)
     bytes18 activeCurrencies;
 }
+
 /**
  * @dev Asset stored in the asset array, total storage is 19 bytes.
  */
@@ -143,7 +144,7 @@ contract StorageLayoutV1 {
     // Mapping account context information used to determine how its assets and currencies
     // are laid out in storage
     // address => storage
-    mapping(address => AccountStorage) internal accountContextMapping;
+    // mapping(address => AccountStorage) internal accountContextMapping;
     // Asset arrays for accounts, if an account is using bitmaps then this may still
     // contain liquidity tokens
     // address => storage

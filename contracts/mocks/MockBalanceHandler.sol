@@ -2,11 +2,13 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../storage/AccountContextHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract MockBalanceHandler is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
+    using AccountContextHandler for AccountStorage;
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -31,7 +33,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         AccountStorage memory a
     ) external {
-        accountContextMapping[account] = a;
+        a.setAccountContext(account);
     }
 
     function setBalance(

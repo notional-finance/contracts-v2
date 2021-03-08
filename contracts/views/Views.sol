@@ -115,7 +115,7 @@ contract Views is StorageLayoutV1 {
     function getAccountContext(
         address account
     ) external view returns (AccountStorage memory) {
-        return accountContextMapping[account];
+        return AccountContextHandler.getAccountContext(account);
     }
 
     function getAccountBalance(
@@ -135,7 +135,7 @@ contract Views is StorageLayoutV1 {
     function getifCashAssets(
         address account
     ) external view returns (PortfolioAsset[] memory) {
-        AccountStorage memory accountContext = accountContextMapping[account];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.bitmapCurrencyId == 0) {
             return new PortfolioAsset[](0);
@@ -155,7 +155,7 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        AccountStorage memory accountContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
             perpToken,
@@ -165,6 +165,24 @@ contract Views is StorageLayoutV1 {
         );
 
         return SafeCast.toUint256(tokensToMint);
+    }
+
+    function getifCashNotional(
+        address account,
+        uint currencyId,
+        uint maturity
+    ) external view returns (int) {
+        bytes32 fCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
+        int notional;
+        assembly { notional := sload(fCashSlot) }
+        return notional;
+    }
+
+    function getifCashBitmap(
+        address account,
+        uint currencyId
+    ) external view returns (bytes memory) {
+        return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
     fallback() external {

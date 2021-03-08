@@ -65,6 +65,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
     using CashGroup for CashGroupParameters;
     using SafeInt256 for int;
     using SafeMath for uint;
+    using AccountContextHandler for AccountStorage;
 
     // TODO: add shortcut deposit functions for topping up collateral
     // function deposit() external payable {}
@@ -93,7 +94,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
         // At this point all balances, market states and portfolio states should be finalized. Just need to check free
         // collateral if required.
-        accountContextMapping[account] = accountContext;
+        accountContext.setAccountContext(account);
         if (accountContext.hasDebt) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(account, true);
         }
@@ -109,7 +110,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         PortfolioState memory,
         BalanceState[] memory
     ) {
-        AccountStorage memory accountContext = accountContextMapping[account];
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState;
         bool mustSettle = (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= blockTime);
         BalanceState[] memory balanceStates = BalanceHandler.buildBalanceStateArray(account, currencyIds, accountContext);

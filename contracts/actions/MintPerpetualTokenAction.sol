@@ -24,7 +24,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
         // TODO: make this a library and fetch these
-        AccountStorage memory perpTokenContext = accountContextMapping[perpToken.tokenAddress];
+        AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
         AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 
         int tokensMinted = PerpetualToken.mintPerpetualToken(
