@@ -94,7 +94,6 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == MintPerpetualTokenAction.calculatePerpetualTokensToMint.selector ||
             sig == MintPerpetualTokenAction.perpetualTokenMint.selector
         ) {
             return PERPETUAL_TOKEN_MINT;

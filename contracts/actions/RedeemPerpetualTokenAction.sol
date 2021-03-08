@@ -168,7 +168,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
         uint blockTime
-    ) internal returns (int, bool) {
+    ) internal view returns (int, bool) {
         int totalAssetCash;
         uint fCashIndex;
         bool hasResidual;

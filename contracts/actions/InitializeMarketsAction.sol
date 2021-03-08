@@ -80,16 +80,14 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
-            BalanceState[] memory balanceStates = new BalanceState[](1);
-            balanceStates[0] = perpToken.balanceState;
+            SettleAmount[] memory settleAmount = new SettleAmount[](1);
+            settleAmount[0].currencyId = perpToken.balanceState.currencyId;
             SettleAssets.getSettleAssetContextStateful(
-                perpToken.tokenAddress,
                 perpToken.portfolioState,
-                accountContext,
-                balanceStates,
+                settleAmount,
                 blockTime
             );
-            perpToken.balanceState = balanceStates[0];
+            perpToken.balanceState.netCashChange = settleAmount[0].netCashChange;
         }
 
         (bytes memory ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
@@ -243,7 +241,6 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      */
     function _getSixMonthImpliedRate(
         MarketParameters[] memory previousMarkets,
-        uint maxMarketIndex,
         uint referenceTime
     ) private pure returns (uint) {
         // Cannot interpolate six month rate without a 1 year market
@@ -464,7 +461,6 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                     // forward in time (i.e. use a 3 and 6 month rate to interpolate a 1 year rate).
                     impliedRate = _getSixMonthImpliedRate(
                         perpToken.markets,
-                        perpToken.cashGroup.maxMarketIndex,
                         CashGroup.getReferenceTime(blockTime)
                     );
                 } else {

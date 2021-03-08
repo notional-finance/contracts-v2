@@ -99,7 +99,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         uint16[] calldata currencyIds,
         uint blockTime,
         bool loadPortfolio
-    ) internal returns (
+    ) internal view returns (
         AccountStorage memory,
         PortfolioState memory,
         BalanceState[] memory
@@ -330,6 +330,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                 withdrawIndex += 1;
             }
 
+            // This line is 2250 bytes if we include it, remove SafeERC20 it is pretty bloated
             balanceStates[i].finalize(account, accountContext, redeemToUnderlying);
         }
     }
@@ -350,7 +351,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
     function checkSufficientCash(
         BalanceState memory balanceState,
         int amountInternalPrecision
-    ) internal {
+    ) internal pure {
         require(
             amountInternalPrecision >= 0 &&
             balanceState.storedCashBalance
