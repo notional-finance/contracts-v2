@@ -27,13 +27,16 @@ library CashGroup {
     uint internal constant CASH_GROUP_STORAGE_SLOT = 3;
 
     // Offsets for the bytes of the different parameters
-    // TODO: benchmark if the current method is better than just allocating them to memory
     uint internal constant RATE_ORACLE_TIME_WINDOW = 8;
     uint internal constant LIQUIDITY_FEE = 16;
-    uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 24;
-    uint internal constant DEBT_BUFFER = 32;
-    uint internal constant FCASH_HAIRCUT = 40;
-    uint internal constant RATE_SCALAR = 48;
+    uint internal constant DEBT_BUFFER = 24;
+    uint internal constant FCASH_HAIRCUT = 32;
+    uint internal constant SETTLEMENT_PENALTY = 40;
+    uint internal constant LIQUIDITY_TOKEN_REPO_DISCOUNT = 48;
+    // 9 bytes allocated per market on the liquidity token haircut
+    uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 56;
+    // 9 bytes allocated per market on the rate scalar
+    uint internal constant RATE_SCALAR = 128;
 
     uint internal constant DAY = 86400;
     // We use six day weeks to ensure that all time references divide evenly
@@ -51,6 +54,7 @@ library CashGroup {
     uint internal constant MONTH_BIT_OFFSET = 135;
     uint internal constant QUARTER_BIT_OFFSET = 195;
     int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
+    // TODO: turn this into a governance parameter
     int internal constant TOKEN_REPO_INCENTIVE = 10;
     uint internal constant MAX_TRADED_MARKET_INDEX = 9;
 
@@ -216,9 +220,10 @@ library CashGroup {
      */
     function getRateScalar(
         CashGroupParameters memory cashGroup,
+        uint marketIndex,
         uint timeToMaturity
     ) internal pure returns (int) {
-        int scalar = int(uint16(uint(cashGroup.data >> RATE_SCALAR)));
+        int scalar = int(uint8(uint(cashGroup.data >> RATE_SCALAR))) * 10;
         int rateScalar = scalar
             .mul(int(Market.IMPLIED_RATE_TIME))
             .div(int(timeToMaturity));
@@ -226,6 +231,17 @@ library CashGroup {
         require(rateScalar > 0, "CG: rate scalar underflow");
         return rateScalar;
     }
+
+    function getLiquidityHaircut(
+        CashGroupParameters memory cashGroup,
+        uint assetType
+    ) internal pure returns (uint) {
+        require(assetType >= 1);
+        uint offset = LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - 2);
+        uint liquidityTokenHaircut = uint(uint8(uint(cashGroup.data >> offset)));
+        return liquidityTokenHaircut;
+    }
+
 
     function annualizeUintValue(
         uint value,
@@ -246,26 +262,16 @@ library CashGroup {
         return annualizeUintValue(liquidityFee, timeToMaturity);
     }
 
-    function getLiquidityHaircut(
-        CashGroupParameters memory cashGroup,
-        uint /* timeToMaturity */
-    ) internal pure returns (uint) {
-        // TODO: unclear how this should be calculated
-        uint liquidityTokenHaircut = uint(uint8(uint(cashGroup.data >> LIQUIDITY_TOKEN_HAIRCUT)));
-        return liquidityTokenHaircut;
-    }
-
     function getfCashHaircut(
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
-        // TODO: unclear how this should be calculated
-        return uint(uint8(uint(cashGroup.data >> FCASH_HAIRCUT))) * Market.BASIS_POINT;
+        return uint(uint8(uint(cashGroup.data >> FCASH_HAIRCUT))) * (5 * Market.BASIS_POINT);
     }
 
     function getDebtBuffer(
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
-        return uint(uint8(uint(cashGroup.data >> DEBT_BUFFER))) * Market.BASIS_POINT;
+        return uint(uint8(uint(cashGroup.data >> DEBT_BUFFER))) * (5 * Market.BASIS_POINT);
     }
 
     function getRateOracleTimeWindow(
@@ -412,9 +418,7 @@ library CashGroup {
         bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
         bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        assembly { data := sload(slot) }
 
         // bytes memory would be cleaner here but solidity does not support that inside struct
         return data;

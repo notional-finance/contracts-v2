@@ -34,7 +34,8 @@ struct AssetRateStorage {
 }
 
 /**
- * @dev Governance parameters for a cash group, total storage is 10 bytes.
+ * @dev Governance parameters for a cash group, total storage is 7 bytes + 9 bytes
+ * or liquidity token haircuts and 9 bytes for rate scalars, total of 25 bytes
  */
 struct CashGroupParameterStorage {
     /* Market Parameters */
@@ -47,19 +48,20 @@ struct CashGroupParameterStorage {
     uint8 liquidityFeeBPS;
 
     /* Risk Parameters */
-    // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
-    uint8 liquidityTokenHaircut;
-    // Debt buffer specified in BPS
-    uint8 debtBufferBPS;
-    // fCash haircut specified in BPS
-    uint8 fCashHaircutBPS;
+    // Debt buffer specified in 5 BPS increments
+    uint8 debtBuffer5BPS;
+    // fCash haircut specified in 5 BPS increments
+    uint8 fCashHaircut5BPS;
 
     /* Liquidation Parameters */
-    // uint8 settlementPenaltyRateBPS;
-    // uint8 liquidityRepoDiscount;
+    uint8 settlementPenaltyRateBPS;
+    uint8 liquidityRepoDiscount;
+
+    // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
+    uint8[] liquidityTokenHaircuts;
 
     // Rate scalar used to determine the slippage of the market
-    uint16 rateScalar;
+    uint8[] rateScalars;
 }
 
 /**

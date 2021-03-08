@@ -68,12 +68,14 @@ contract MockMarket is StorageLayoutV1 {
        MarketParameters calldata marketState,
        CashGroupParameters calldata cashGroup,
        int fCashAmount,
-       uint timeToMaturity
+       uint timeToMaturity,
+       uint marketIndex
    ) external view returns (MarketParameters memory, int) {
         int assetCash = marketState.calculateTrade(
            cashGroup,
            fCashAmount,
-           timeToMaturity
+           timeToMaturity,
+           marketIndex
         );
 
         return (marketState, assetCash);

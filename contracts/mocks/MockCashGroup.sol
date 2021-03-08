@@ -86,9 +86,10 @@ contract MockCashGroup is StorageLayoutV1 {
 
     function getRateScalar(
         CashGroupParameters memory cashGroup,
+        uint marketIndex,
         uint timeToMaturity
     ) public pure returns (int) {
-        int rateScalar = cashGroup.getRateScalar(timeToMaturity);
+        int rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
 
         return rateScalar;
     }

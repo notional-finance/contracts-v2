@@ -407,7 +407,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             );
 
             uint timeToMaturity = newMarket.maturity.sub(blockTime);
-            int rateScalar = perpToken.cashGroup.getRateScalar(timeToMaturity);
+            int rateScalar = perpToken.cashGroup.getRateScalar(i + 1, timeToMaturity);
             // Governance will prevent perpToken.markets.length from being equal to 1, meaning that we will
             // either have 0 markets (on first init), exactly 2 markets, or 2+ markets. In the case that there
             // are exactly two markets then the 6 month market must be initialized via this method (there is no

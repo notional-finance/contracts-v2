@@ -202,7 +202,8 @@ library AssetHandler {
 
         require(liquidityToken.currencyId == cashGroup.currencyId, "A: cash group mismatch");
         uint timeToMaturity = liquidityToken.maturity.sub(blockTime);
-        int haircut = SafeCast.toInt256(cashGroup.getLiquidityHaircut(timeToMaturity));
+        // This won't overflow, the liquidity token haircut is stored as an uint8
+        int haircut = int(cashGroup.getLiquidityHaircut(liquidityToken.assetType));
 
         int assetCash = calcToken(
             marketState.totalCurrentCash,

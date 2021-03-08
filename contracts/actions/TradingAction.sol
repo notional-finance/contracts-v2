@@ -238,7 +238,12 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                     fCashAmount = int(trades[i].amount);
                 }
 
-                netCashChange = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
+                netCashChange = market.calculateTrade(
+                    cashGroup,
+                    fCashAmount,
+                    market.maturity.sub(blockTime),
+                    trades[i].marketIndex
+                );
                 require(netCashChange != 0 && market.lastImpliedRate > trades[i].minImpliedRate, "Trade failed, slippage");
                 if (trades[i].maxImpliedRate > 0) require(market.lastImpliedRate < trades[i].maxImpliedRate, "Trade failed");
 

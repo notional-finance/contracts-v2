@@ -187,7 +187,8 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
                 cashGroup,
                 // TODO: should this be negative?
                 fCashAssets[fCashIndex].notional,
-                timeToMaturity
+                timeToMaturity,
+                i + 1
             );
 
             if (netAssetCash == 0) {

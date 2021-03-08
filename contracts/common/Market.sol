@@ -129,13 +129,14 @@ library Market {
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
         int fCashAmount,
-        uint timeToMaturity
+        uint timeToMaturity,
+        uint marketIndex
     ) internal view returns (int) {
         if (marketState.totalfCash + fCashAmount <= 0) {
             // We return false if there is not enough fCash to support this trade.
             return 0;
         }
-        int rateScalar = cashGroup.getRateScalar(timeToMaturity);
+        int rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
         int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
 
         // This will result in a divide by zero

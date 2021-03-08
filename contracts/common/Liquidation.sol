@@ -216,7 +216,7 @@ library Liquidation {
                 // netCashIncrease = netCashToAccount + incentivePaid
                 // incentivePaid = netCashIncrease * incentive
 
-                int haircut = int(cashGroup.getLiquidityHaircut(asset.maturity.sub(blockTime)));
+                int haircut = int(cashGroup.getLiquidityHaircut(asset.assetType));
                 // netCashIncrease
                 withdrawFactors[2] = withdrawFactors[0]
                     .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS.sub(haircut))
@@ -457,7 +457,7 @@ library Liquidation {
 
             (int assetCash, /* int fCash */) = asset.getCashClaims(market);
             totalAssetCash = totalAssetCash.add(assetCash);
-            int haircut = int(cashGroup.getLiquidityHaircut(asset.maturity.sub(blockTime)));
+            int haircut = int(cashGroup.getLiquidityHaircut(asset.assetType));
             int haircutAssetCash = assetCash.mul(haircut).div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
             totalHaircutAssetCash = totalHaircutAssetCash.add(haircutAssetCash);
         }

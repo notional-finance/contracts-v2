@@ -440,28 +440,36 @@ library PerpetualToken {
         MarketParameters memory market,
         int leverageThreshold,
         int perMarketDeposit,
-        uint blockTime
+        uint blockTime,
+        uint marketIndex
     ) private view returns (int, int, bool) {
-        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
-        int proportion = market.totalfCash
-            .mul(Market.RATE_PRECISION)
-            .div(market.totalfCash.add(totalCashUnderlying));
+        {
+            int initialTotalCash = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
+            int initialProportion = market.totalfCash
+                .mul(Market.RATE_PRECISION)
+                .div(market.totalfCash.add(initialTotalCash));
 
-        // No lending required
-        if (proportion < leverageThreshold) return (0, 0, true);
+            // No lending required
+            if (initialProportion < leverageThreshold) return (0, 0, true);
+        }
 
         // This is the minimum amount of fCash that we expect to be able to lend. Since perMarketDeposit
         // is denominated in assetCash here we don't have to convert to underlying (the ratio between asset cash
         // and totalCurrentCash is the same in either denomination)
         int fCashAmount = perMarketDeposit.mul(market.totalfCash).div(market.totalCurrentCash);
-        int assetCash = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
+        int assetCash = market.calculateTrade(
+            cashGroup,
+            fCashAmount,
+            market.maturity.sub(blockTime),
+            marketIndex
+        );
 
         // This means that the trade failed
         if (assetCash == 0) return (perMarketDeposit, 0, false);
 
         // Recalculate the proportion after the trade
-        totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
-        proportion = market.totalfCash
+        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
+        int proportion = market.totalfCash
             .mul(Market.RATE_PRECISION)
             .div(market.totalfCash.add(totalCashUnderlying));
 
@@ -520,7 +528,8 @@ library PerpetualToken {
                     market,
                     int(leverageThresholds[i]),
                     perMarketDeposit,
-                    blockTime
+                    blockTime,
+                    i + 1
                 );
 
                 if (shouldProvide) {
