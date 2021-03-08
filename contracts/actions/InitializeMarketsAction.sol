@@ -80,11 +80,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
-            SettleAmount[] memory settleAmount = new SettleAmount[](1);
-            settleAmount[0].currencyId = perpToken.balanceState.currencyId;
-            SettleAssets.getSettleAssetContextStateful(
+            SettleAmount[] memory settleAmount = SettleAssets.getSettleAssetContextStateful(
                 perpToken.portfolioState,
-                settleAmount,
                 blockTime
             );
             perpToken.balanceState.netCashChange = settleAmount[0].netCashChange;

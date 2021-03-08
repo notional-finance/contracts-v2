@@ -45,8 +45,6 @@ library Liquidation {
     function calculateLiquidationFactors(
         PortfolioState memory portfolioState,
         BalanceState[] memory balanceState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
         uint blockTime,
         uint localCurrencyId,
         uint collateralCurrencyId
@@ -57,11 +55,11 @@ library Liquidation {
         (
             // TODO: Get merged portfolio isnt necessary here since we know there is no trading...
             PortfolioAsset[] memory allActiveAssets,
-            int[] memory netPortfolioValue
+            int[] memory netPortfolioValue,
+            CashGroupParameters[] memory cashGroups,
+            MarketParameters[][] memory marketStates
         ) = FreeCollateral.setupFreeCollateral(
             portfolioState,
-            cashGroups,
-            marketStates,
             blockTime
         );
 

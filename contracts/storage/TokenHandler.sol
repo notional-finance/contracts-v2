@@ -7,7 +7,6 @@ import "./StorageLayoutV1.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 enum TokenType {
     UnderlyingToken,
@@ -117,15 +116,14 @@ library TokenHandler {
         if (token.hasTransferFee) {
             // Must deposit from the token and calculate the net transfer
             uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-            SafeERC20.safeTransferFrom(
-                IERC20(token.tokenAddress), account, address(this), amount
-            );
+            safeTransferIn(IERC20(token.tokenAddress), account, amount);
             uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
             return int(endingBalance.sub(startingBalance));
         }
 
-        SafeERC20.safeTransferFrom(IERC20(token.tokenAddress), account, address(this), amount);
+        // TODO: safe transfers are about 500 bytes codesize each, reduce these by making our own code checking wrapper here
+        safeTransferIn(IERC20(token.tokenAddress), account, amount);
 
         return int(amount);
     }
@@ -137,12 +135,12 @@ library TokenHandler {
         Token memory token,
         uint underlyingAmountExternalPrecision
     ) internal returns (int) {
-        require(token.tokenType == TokenType.cToken, "TH: non mintable token");
+        require(token.tokenType == TokenType.cToken, "TH: non mintable");
 
         // TODO: Need special handling for ETH
         uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
         uint success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
-        require(success == 0, "TH: ctoken mint failure");
+        require(success == 0, "TH: mint failure");
         uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         // This is the starting and ending balance in external precision
@@ -154,13 +152,13 @@ library TokenHandler {
         Token memory underlyingToken,
         uint assetAmountExternalPrecision
     ) internal returns (int) {
-        require(assetToken.tokenType == TokenType.cToken, "TH: non mintable token");
-        require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying token");
+        require(assetToken.tokenType == TokenType.cToken, "TH: non mintable");
+        require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying");
 
         // TODO: need special handling for ETH
         uint startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         uint success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternalPrecision);
-        require(success == 0, "TH: ctoken redeem failure");
+        require(success == 0, "TH: redeem failure");
         uint endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
 
         // Underlying token external precision
@@ -180,7 +178,7 @@ library TokenHandler {
             // Deposits must account for transfer fees.
             netTransferExternalPrecision = deposit(token, account, uint(netTransferExternalPrecision));
         } else {
-            SafeERC20.safeTransfer(IERC20(token.tokenAddress), account, uint(netTransferExternalPrecision.neg()));
+            safeTransferOut(IERC20(token.tokenAddress), account, uint(netTransferExternalPrecision.neg()));
         }
 
         return netTransferExternalPrecision;
@@ -204,6 +202,35 @@ library TokenHandler {
         address account,
         uint tokensToTransfer
     ) internal {
-        SafeERC20.safeTransfer(IERC20(NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
+        safeTransferOut(IERC20(NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
+    }
+
+    function safeTransferOut(IERC20 token, address account, uint amount) private {
+        token.transfer(account, amount);
+        checkReturnCode();
+    }
+
+    function safeTransferIn(IERC20 token, address account, uint amount) private {
+        token.transferFrom(account, address(this), amount);
+        checkReturnCode();
+    }
+
+    function checkReturnCode() private {
+        bool success;
+        assembly {
+            switch returndatasize()
+                case 0 {                       // This is a non-standard ERC-20
+                    success := not(0)          // set success to true
+                }
+                case 32 {                      // This is a compliant ERC-20
+                    returndatacopy(0, 0, 32)
+                    success := mload(0)        // Set `success = returndata` of external call
+                }
+                default {                      // This is an excessively non-compliant ERC-20, revert.
+                    revert(0, 0)
+                }
+        }
+
+        require(success, "Transfer Failed");
     }
 }

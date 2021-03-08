@@ -19,13 +19,19 @@ library FreeCollateral {
 
     function setupFreeCollateral(
         PortfolioState memory portfolioState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
         uint blockTime
-    ) internal view returns (PortfolioAsset[] memory, int[] memory) {
+    ) internal view returns (
+        PortfolioAsset[] memory,
+        int[] memory,
+        CashGroupParameters[] memory,
+        MarketParameters[][] memory
+    ) {
         PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
-        // Ensure that cash groups and markets are up to date
-        (cashGroups, marketStates) = getAllCashGroups(allActiveAssets, cashGroups, marketStates);
+        (
+            CashGroupParameters[] memory cashGroups, 
+            MarketParameters[][] memory marketStates
+        ) = getAllCashGroups(portfolioState.storedAssets);
+
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method
         int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
@@ -36,7 +42,7 @@ library FreeCollateral {
             true // Must be risk adjusted
         );
 
-        return (allActiveAssets, netPortfolioValue);
+        return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
 
     /**
@@ -55,6 +61,7 @@ library FreeCollateral {
             int perpetualTokenValue;
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
+                // TODO: change this
                 perpetualTokenValue = balanceState[i].getPerpetualTokenAssetValue();
                 netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
             }
@@ -82,137 +89,36 @@ library FreeCollateral {
     /**
      * @notice Ensures that all cash groups in a set of active assets are in the list of cash groups.
      * Cash groups can be in the active assets but not loaded yet if they have been previously traded.
-     * 
-     * Cash groups can also be in the array but NOT in the active assets list if they have been net off
-     * as a result of a trade or settled.
      */
     function getAllCashGroups(
-        PortfolioAsset[] memory assets,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates
+        PortfolioAsset[] memory assets
     ) internal view returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
-        uint missingGroups;
         uint groupIndex;
+        uint lastCurrencyId;
 
-        // Count the total number of groups that we're missing, you can't rely on total group count
-        // because it's possible that there is one additional and one missing and they will net out
+        // Count the number of groups
         for (uint i; i < assets.length; i++) {
-            while (assets[i].currencyId > cashGroups[groupIndex].currencyId) {
-                // Since assets are sorted we can safely advance the group index in this case
+            if (lastCurrencyId != assets[i].currencyId) {
                 groupIndex += 1;
+                lastCurrencyId = assets[i].currencyId;
             }
-            if (assets[i].currencyId == cashGroups[groupIndex].currencyId) continue;
-            if (assets[i].currencyId < cashGroups[groupIndex].currencyId) missingGroups += 1;
         }
 
-        if (missingGroups == 0) return (cashGroups, marketStates);
-
-        // If missing groups ensure that they get provisioned in
-        CashGroupParameters[] memory newCashGroups = new CashGroupParameters[](cashGroups.length + missingGroups);
-        MarketParameters[][] memory newMarketStates = new MarketParameters[][](cashGroups.length + missingGroups);
+        CashGroupParameters[] memory cashGroups = new CashGroupParameters[](groupIndex);
+        MarketParameters[][] memory marketStates = new MarketParameters[][](groupIndex);
         groupIndex = 0;
-        uint newGroupIndex = 0;
+        lastCurrencyId = 0;
         for (uint i; i < assets.length; i++) {
-            uint currentCurrencyId = assets[i].currencyId;
-            // Reached the final cash group
-            if (newGroupIndex == newCashGroups.length) break;
-            // No need to update
-            if (currentCurrencyId == newCashGroups[newGroupIndex].currencyId) continue;
-            // Cash group already in the previous index
-            if (currentCurrencyId == cashGroups[groupIndex].currencyId) {
-                newCashGroups[newGroupIndex] = cashGroups[groupIndex];
-                newMarketStates[newGroupIndex] = marketStates[groupIndex];
-                newGroupIndex += 1;
-                groupIndex += 1;
-            } else {
-                // This is a missing cash group
+            if (lastCurrencyId != assets[i].currencyId) {
                 (
-                    newCashGroups[newGroupIndex],
-                    newMarketStates[newGroupIndex]
+                    cashGroups[groupIndex],
+                    marketStates[groupIndex]
                 ) = CashGroup.buildCashGroup(assets[i].currencyId);
-                newGroupIndex += 1;
-            }
-
-            while (currentCurrencyId > cashGroups[groupIndex].currencyId) {
-                // In this case the current cash group is behind the assets so we catch it up
-                newCashGroups[newGroupIndex] = cashGroups[groupIndex];
-                newMarketStates[newGroupIndex] = marketStates[groupIndex];
-                newGroupIndex += 1;
                 groupIndex += 1;
+                lastCurrencyId = assets[i].currencyId;
             }
         }
 
-        return (newCashGroups, newMarketStates);
-    }
-
-    /**
-     * @notice Checks if an account that does not have debt is incurring debt.
-     */
-    function shouldCheckFreeCollateral(
-        AccountStorage memory accountContext,
-        BalanceState[] memory balanceState,
-        PortfolioState memory portfolioState
-    ) internal pure returns (bool) {
-        if (!accountContext.hasDebt) {
-            // If the account does not previously have debt we want to check that the
-            // changes happening here do not put it into debt.
-            for (uint i; i < balanceState.length; i++) {
-                // Unclear how this can occur, cash balances can only
-                // be negative if debts have settled which means hasDebt should
-                // be set to true...although maybe it does not hurt to check
-                int finalCash = balanceState[i].storedCashBalance.add(balanceState[i].netCashChange);
-                if (finalCash < 0) return true;
-            }
-
-            // Check new and existing portfolio assets for debt
-            for (uint i; i < portfolioState.storedAssets.length; i++) {
-                if (portfolioState.storedAssets[i].storageState == AssetStorageState.Delete) continue;
-                if (portfolioState.storedAssets[i].notional < 0) return true;
-            }
-
-            for (uint i; i < portfolioState.newAssets.length; i++) {
-                if (portfolioState.newAssets[i].notional < 0) return true;
-            }
-
-            // At this point we know that the account has not incurred debt so we
-            // can quit.
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * @notice Returns true if the account passes free collateral. Assumes that any trading will result in
-     * a balance context object being created.
-     */
-    function doesAccountPassFreeCollateral(
-        address account,
-        AccountStorage memory accountContext,
-        PortfolioState memory portfolioState,
-        BalanceState[] memory balanceState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
-        uint blockTime
-    ) internal view returns (bool) {
-        if (!accountContext.hasDebt
-            && portfolioState.storedAssets.length == 0
-            && portfolioState.newAssets.length == 0) {
-            // Fetch the portfolio state if it does not exist and we need to check free collateral.
-            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
-        }
-
-        (/* */, int[] memory netPortfolioValue) = setupFreeCollateral(
-            portfolioState,
-            cashGroups,
-            marketStates,
-            blockTime
-        );
-
-        // NOTE: all balances must be finalized before this gets called to account for transfers
-        // and potential transfer fees
-        int ethDenominatedFC = getFreeCollateral(balanceState, cashGroups, netPortfolioValue);
-
-        return ethDenominatedFC >= 0;
+        return (cashGroups, marketStates);
     }
 }

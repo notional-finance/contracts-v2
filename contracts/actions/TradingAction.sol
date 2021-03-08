@@ -4,6 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "./MintPerpetualTokenAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
+import "./libraries/FreeCollateralExternal.sol";
+import "./libraries/SettleAssetsExternal.sol";
 import "../math/SafeInt256.sol";
 import "../common/Market.sol";
 import "../common/CashGroup.sol";
@@ -91,7 +93,10 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
         // At this point all balances, market states and portfolio states should be finalized. Just need to check free
         // collateral if required.
-        // TODO: call free collateral
+        accountContextMapping[account] = accountContext;
+        if (accountContext.hasDebt) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(account, true);
+        }
     }
 
     function initializeActionStateful(
@@ -99,7 +104,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         uint16[] calldata currencyIds,
         uint blockTime,
         bool loadPortfolio
-    ) internal view returns (
+    ) internal returns (
         AccountStorage memory,
         PortfolioState memory,
         BalanceState[] memory
@@ -109,23 +114,16 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         bool mustSettle = (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= blockTime);
         BalanceState[] memory balanceStates = BalanceHandler.buildBalanceStateArray(account, currencyIds, accountContext);
 
-        if (mustSettle || loadPortfolio) {
+        if (mustSettle) {
+            (
+                portfolioState, 
+                /* */ // TODO: merge settle amounts
+            ) = SettleAssetsExternal.settleAssetsStateful(account, 0);
+        } else if (loadPortfolio) {
             // We only fetch the portfolio state if there will be trades added or if the account must be settled.
             portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
         }
 
-        if (mustSettle) {
-            // 2k bytes over (26302)
-            // remove settle liquidity tokens (25075.0)
-            // remove get oracle rate (24809.0)
-            // SettleAssets.getSettleAssetContextStateful(
-            //     account,
-            //     portfolioState,
-            //     accountContext,
-            //     balanceStates,
-            //     blockTime
-            // );
-        }
 
         return (accountContext, portfolioState, balanceStates);
     }
@@ -176,7 +174,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                 require(
                     balanceStates[balanceStateIndex].storedPerpetualTokenBalance
                         .add(balanceStates[balanceStateIndex].netPerpetualTokenTransfer) >= deposits[i].amountExternalPrecision,
-                    "Insufficient tokens to redeem"
+                    "I"
                 );
 
                 balanceStates[balanceStateIndex].netPerpetualTokenTransfer = balanceStates[balanceStateIndex]
@@ -259,41 +257,41 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         portfolioState.storeAssets(assetArrayMapping[account]);
     }
 
-    function executeLiquidityTrade(
-        PortfolioState memory portfolioState,
-        AMMTrade calldata trade,
-        MarketParameters memory market
-    ) private pure returns (int, int) {
-        int netCashChange;
-        int fCashAmount;
+    // function executeLiquidityTrade(
+    //     PortfolioState memory portfolioState,
+    //     AMMTrade calldata trade,
+    //     MarketParameters memory market
+    // ) private pure returns (int, int) {
+    //     int netCashChange;
+    //     int fCashAmount;
 
-        if (trade.tradeType == AMMTradeType.AddLiquidity) {
-            netCashChange = int(trade.amount);
-            int liquidityTokens;
-            (liquidityTokens, fCashAmount) = market.addLiquidity(netCashChange);
+    //     if (trade.tradeType == AMMTradeType.AddLiquidity) {
+    //         netCashChange = int(trade.amount);
+    //         int liquidityTokens;
+    //         (liquidityTokens, fCashAmount) = market.addLiquidity(netCashChange);
 
-            // Add liquidity token asset
-            portfolioState.addAsset(
-                trade.currencyId,
-                market.maturity,
-                (1 + trade.marketIndex),
-                liquidityTokens,
-                false
-            );
-        } else {
-            (netCashChange, fCashAmount) = market.removeLiquidity(trade.amount);
-            // Remove liquidity token asset
-            portfolioState.addAsset(
-                trade.currencyId,
-                market.maturity,
-                (1 + trade.marketIndex),
-                int(trade.amount).neg(),
-                false
-            );
-        }
+    //         // Add liquidity token asset
+    //         portfolioState.addAsset(
+    //             trade.currencyId,
+    //             market.maturity,
+    //             (1 + trade.marketIndex),
+    //             liquidityTokens,
+    //             false
+    //         );
+    //     } else {
+    //         (netCashChange, fCashAmount) = market.removeLiquidity(trade.amount);
+    //         // Remove liquidity token asset
+    //         portfolioState.addAsset(
+    //             trade.currencyId,
+    //             market.maturity,
+    //             (1 + trade.marketIndex),
+    //             int(trade.amount).neg(),
+    //             false
+    //         );
+    //     }
 
-        return (netCashChange, fCashAmount);
-    }
+    //     return (netCashChange, fCashAmount);
+    // }
 
     function finalizeBalances(
         address account,
@@ -330,7 +328,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                 withdrawIndex += 1;
             }
 
-            // This line is 2250 bytes if we include it, remove SafeERC20 it is pretty bloated
+            // This line is 2250 bytes if we include it
             balanceStates[i].finalize(account, accountContext, redeemToUnderlying);
         }
     }
