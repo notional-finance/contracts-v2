@@ -90,13 +90,9 @@ contract MockMarket is StorageLayoutV1 {
         bool needsLiquidity,
         uint rateOracleTimeWindow
     ) public view returns (MarketParameters memory) {
-        return Market.buildMarket(
-            currencyId,
-            maturity,
-            blockTime,
-            needsLiquidity,
-            rateOracleTimeWindow
-        );
+        MarketParameters memory market;
+        market.loadMarket(currencyId, maturity, blockTime, needsLiquidity, rateOracleTimeWindow);
+        return market;
     }
 
 }

@@ -33,7 +33,9 @@ contract MockCashGroup is StorageLayoutV1 {
         uint blockTime,
         uint timeWindow
     ) external view returns (MarketParameters memory) {
-        return Market.buildMarket(id, maturity, blockTime, true, timeWindow);
+        MarketParameters memory market;
+        market.loadMarket(id, maturity, blockTime, true, timeWindow);
+        return market;
     }
 
     function getTradedMarket(uint index) public pure returns (uint) {

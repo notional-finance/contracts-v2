@@ -480,39 +480,32 @@ library Market {
      * @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
      * which ensures that the rate oracle is set properly.
      */
-    function getMarketStorage(
+    function loadMarketStorage(
+        MarketParameters memory market,
         uint currencyId,
         uint maturity,
         bool needsLiquidity,
         uint settlementDate
-    ) private view returns (MarketParameters memory) {
+    ) private view {
         // Market object always uses the most current reference time as the settlement date
         bytes32 slot = getSlot(currencyId, maturity, settlementDate);
         bytes32 data;
 
         assembly { data := sload(slot) }
 
-        int totalfCash = int(uint80(uint(data)));
-        int totalCurrentCash = int(uint80(uint(data >> 80)));
-        uint lastImpliedRate = uint(uint32(uint(data >> 160)));
-        uint oracleRate = uint(uint32(uint(data >> 192)));
-        uint previousTradeTime = uint(uint32(uint(data >> 224)));
+        market.storageSlot = slot;
+        market.totalfCash = int(uint80(uint(data)));
+        market.totalCurrentCash = int(uint80(uint(data >> 80)));
+        market.lastImpliedRate = uint(uint32(uint(data >> 160)));
+        market.oracleRate = uint(uint32(uint(data >> 192)));
+        market.previousTradeTime = uint(uint32(uint(data >> 224)));
+        market.storageState = STORAGE_STATE_NO_CHANGE;
 
-        MarketParameters memory market = MarketParameters({
-            storageSlot: slot,
-            maturity: maturity,
-            totalfCash: totalfCash,
-            totalCurrentCash: totalCurrentCash,
-            totalLiquidity: 0,
-            lastImpliedRate: lastImpliedRate,
-            oracleRate: oracleRate,
-            previousTradeTime: previousTradeTime,
-            storageState: STORAGE_STATE_NO_CHANGE
-        });
-
-        if (needsLiquidity) getTotalLiquidity(market);
-
-        return market;
+        if (needsLiquidity) {
+            getTotalLiquidity(market);
+        } else {
+            market.totalLiquidity = 0;
+        }
     }
 
     /**
@@ -558,16 +551,18 @@ library Market {
     /**
      * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
      */
-    function buildMarket(
+    function loadMarket(
+        MarketParameters memory market,
         uint currencyId,
         uint maturity,
         uint blockTime,
         bool needsLiquidity,
         uint rateOracleTimeWindow
-    ) internal view returns (MarketParameters memory) {
+    ) internal view {
         // Always reference the current settlement date
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
-        return buildMarketWithSettlementDate(
+        loadMarketWithSettlementDate(
+            market,
             currencyId,
             maturity,
             blockTime,
@@ -581,30 +576,30 @@ library Market {
      * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
      * is mainly used in the InitializeMarketAction contract.
      */
-    function buildMarketWithSettlementDate(
+    function loadMarketWithSettlementDate(
+        MarketParameters memory market,
         uint currencyId,
         uint maturity,
         uint blockTime,
         bool needsLiquidity,
         uint rateOracleTimeWindow,
         uint settlementDate
-    ) internal view returns (MarketParameters memory) {
-        MarketParameters memory marketState = getMarketStorage(
+    ) internal view {
+        loadMarketStorage(
+            market,
             currencyId,
             maturity,
             needsLiquidity,
             settlementDate
         );
 
-        marketState.oracleRate = updateRateOracle(
-            marketState.previousTradeTime,
-            marketState.lastImpliedRate,
-            marketState.oracleRate,
+        market.oracleRate = updateRateOracle(
+            market.previousTradeTime,
+            market.lastImpliedRate,
+            market.oracleRate,
             rateOracleTimeWindow,
             blockTime
         );
-
-        return marketState;
     }
 
     /**

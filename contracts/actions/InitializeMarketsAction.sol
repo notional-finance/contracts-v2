@@ -120,7 +120,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // We don't fetch the 3 month market (i = 0) because it has settled and will not be used for
         // the subsequent calculations.
         for (uint i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
-            perpToken.markets[i] = Market.buildMarketWithSettlementDate(
+            perpToken.markets[i].loadMarketWithSettlementDate(
                 currencyId,
                 // These assets will reference the previous liquidity tokens
                 perpToken.portfolioState.storedAssets[i].maturity,

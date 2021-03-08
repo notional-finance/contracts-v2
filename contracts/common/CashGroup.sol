@@ -305,25 +305,19 @@ library CashGroup {
         require(marketIndex <= markets.length, "C: invalid market index");
         MarketParameters memory market = markets[marketIndex - 1];
 
-        // TODO: maybe change this to a bool, hasLoaded
-        if (market.currencyId == 0) {
+        if (market.storageSlot == 0) {
             uint maturity = getReferenceTime(blockTime).add(getTradedMarket(marketIndex));
-            market = Market.buildMarket(
+            market.loadMarket(
                 cashGroup.currencyId,
                 maturity,
                 blockTime,
                 needsLiquidity,
                 getRateOracleTimeWindow(cashGroup)
             );
-            // TODO: maybe change this so that a new allocation is not made?
-            // Set this here because buildMarket returns a new allocation
-            markets[marketIndex - 1] = market;
         }
 
         if (market.totalLiquidity == 0 && needsLiquidity) {
-            // Fetch liquidity amount
-            uint settlementDate = getReferenceTime(blockTime);
-            market.getTotalLiquidity(settlementDate);
+            market.getTotalLiquidity();
         }
 
         return market;
@@ -381,7 +375,7 @@ library CashGroup {
             // and we want to reference the previous market for interpolating rates.
             uint prevBlockTime = blockTime.sub(CashGroup.QUARTER);
             uint maturity = getReferenceTime(prevBlockTime).add(getTradedMarket(marketIndex));
-            market = Market.buildMarket(
+            market.loadMarket(
                 cashGroup.currencyId,
                 maturity,
                 prevBlockTime,
