@@ -336,8 +336,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
     function finalizeMarkets(MarketParameters[] memory markets) internal {
         // Finalize market states for previous trades
         for (uint j; j < markets.length; j++) {
-            // TODO: switch this to settlement date
-            markets[j].setMarketStorage(1);
+            markets[j].setMarketStorage();
         }
     }
 

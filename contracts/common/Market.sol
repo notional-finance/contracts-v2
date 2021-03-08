@@ -13,9 +13,8 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
  * Market object as represented in memory
  */
 struct MarketParameters {
-    uint currencyId;
+    bytes32 storageSlot;
     uint maturity;
-
     // Total amount of fCash available for purchase in the market.
     int totalfCash;
     // Total amount of cash available for purchase in the market.
@@ -29,7 +28,7 @@ struct MarketParameters {
     // This is the timestamp of the previous trade
     uint previousTradeTime;
     // Used to determine if the market has been updated
-    bool hasUpdated;
+    bytes1 storageState;
 }
 
 struct SettlementMarket {
@@ -49,8 +48,10 @@ library Market {
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
-    uint internal constant MARKET_STORAGE_SLOT = 6;
-    uint internal constant LIQUIDITY_STORAGE_SLOT = 7;
+    bytes1 private constant STORAGE_STATE_NO_CHANGE = 0x00;
+    bytes1 private constant STORAGE_STATE_UPDATE_LIQUIDITY = 0x01;
+    bytes1 private constant STORAGE_STATE_UPDATE_TRADE = 0x02;
+    bytes1 internal constant STORAGE_STATE_INITIALIZE_MARKET = 0x03; // Both settings are set
 
     // This is a constant that represents the time period that all rates are normalized by, 360 days
     uint internal constant IMPLIED_RATE_TIME = 31104000;
@@ -88,7 +89,7 @@ library Market {
         marketState.totalLiquidity = marketState.totalLiquidity.add(liquidityTokens);
         marketState.totalfCash = marketState.totalfCash.add(fCash);
         marketState.totalCurrentCash = marketState.totalCurrentCash.add(assetCash);
-        marketState.hasUpdated = true;
+        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (liquidityTokens, fCash.neg());
     }
@@ -110,7 +111,7 @@ library Market {
         marketState.totalLiquidity = marketState.totalLiquidity.subNoNeg(tokensToRemove);
         marketState.totalfCash = marketState.totalfCash.subNoNeg(fCash);
         marketState.totalCurrentCash = marketState.totalCurrentCash.subNoNeg(assetCash);
-        marketState.hasUpdated = true;
+        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (assetCash, fCash);
     }
@@ -234,7 +235,7 @@ library Market {
         if (!success) return 0;
         // Sets the trade time for the next oracle update
         marketState.previousTradeTime = block.timestamp;
-        marketState.hasUpdated = true;
+        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_TRADE;
 
         return netAssetCash;
     }
@@ -459,7 +460,7 @@ library Market {
         uint currencyId,
         uint settlementDate,
         uint maturity
-    ) private pure returns (bytes32) {
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encode(maturity, settlementDate, currencyId, "market"));
     }
 
@@ -467,13 +468,11 @@ library Market {
      * @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
      * do need to load the liquidity amount.
      */
-    function getTotalLiquidity(MarketParameters memory market, uint settlementDate) internal view {
+    function getTotalLiquidity(MarketParameters memory market) internal view {
         int totalLiquidity;
-        bytes32 slot = bytes32(uint(getSlot(market.currencyId, market.maturity, settlementDate)) + 1);
+        bytes32 slot = bytes32(uint(market.storageSlot) + 1);
 
-        assembly {
-            totalLiquidity := sload(slot)
-        }
+        assembly { totalLiquidity := sload(slot) }
         market.totalLiquidity = totalLiquidity;
     }
 
@@ -491,9 +490,7 @@ library Market {
         bytes32 slot = getSlot(currencyId, maturity, settlementDate);
         bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        assembly { data := sload(slot) }
 
         int totalfCash = int(uint80(uint(data)));
         int totalCurrentCash = int(uint80(uint(data >> 80)));
@@ -502,7 +499,7 @@ library Market {
         uint previousTradeTime = uint(uint32(uint(data >> 224)));
 
         MarketParameters memory market = MarketParameters({
-            currencyId: currencyId,
+            storageSlot: slot,
             maturity: maturity,
             totalfCash: totalfCash,
             totalCurrentCash: totalCurrentCash,
@@ -510,10 +507,10 @@ library Market {
             lastImpliedRate: lastImpliedRate,
             oracleRate: oracleRate,
             previousTradeTime: previousTradeTime,
-            hasUpdated: false
+            storageState: STORAGE_STATE_NO_CHANGE
         });
 
-        if (needsLiquidity) getTotalLiquidity(market, settlementDate);
+        if (needsLiquidity) getTotalLiquidity(market);
 
         return market;
     }
@@ -521,10 +518,17 @@ library Market {
     /**
      * @notice Writes market parameters to storage if the market is marked as updated.
      */
-    function setMarketStorage(MarketParameters memory market, uint settlementDate) internal {
-        if (!market.hasUpdated) return;
+    function setMarketStorage(MarketParameters memory market) internal {
+        if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
+        bytes32 slot = market.storageSlot;
 
-        bytes32 slot = getSlot(market.currencyId, market.maturity, settlementDate);
+        if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
+            // If no trade has occured then the oracleRate on chain should not update.
+            bytes32 oldData;
+            assembly { oldData := sload(slot) }
+            market.oracleRate = uint(uint32(uint(oldData >> 192)));
+        }
+
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
         require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
@@ -540,18 +544,14 @@ library Market {
             bytes32(market.previousTradeTime) << 224
         );
 
-        assembly {
-            sstore(slot, data)
-        }
+        assembly { sstore(slot, data) }
 
-        if (market.totalLiquidity != 0) {
+        if (market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
             slot = bytes32(uint(slot) + 1);
             bytes32 totalLiquidity = bytes32(market.totalLiquidity);
 
-            assembly {
-                sstore(slot, totalLiquidity)
-            }
+            assembly { sstore(slot, totalLiquidity) }
         }
     }
 

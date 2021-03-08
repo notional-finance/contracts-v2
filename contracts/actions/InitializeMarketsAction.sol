@@ -394,7 +394,6 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         MarketParameters memory newMarket;
         for (uint i; i < perpToken.cashGroup.maxMarketIndex; i++) {
-            newMarket.currencyId = currencyId;
             // Traded markets are 1-indexed
             newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i + 1));
 
@@ -503,8 +502,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             }
 
             newMarket.oracleRate = newMarket.lastImpliedRate;
-            newMarket.hasUpdated = true;
-            ifCashBitmap = finalizeMarket(newMarket, perpToken.tokenAddress, ifCashBitmap);
+            ifCashBitmap = finalizeMarket(newMarket, currencyId, perpToken.tokenAddress, ifCashBitmap);
         }
 
         perpToken.portfolioState.storeAssets(assetArrayMapping[perpToken.tokenAddress]);
@@ -519,17 +517,20 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
     function finalizeMarket(
         MarketParameters memory market,
+        uint currencyId,
         address tokenAddress,
         bytes memory ifCashBitmap
     ) internal returns (bytes memory) {
         uint blockTime = block.timestamp;
         // Always reference the current settlement date
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
-        market.setMarketStorage(settlementDate);
+        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
+        market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
+        market.setMarketStorage();
 
         return BitmapAssetsHandler.setifCashAsset(
             tokenAddress,
-            market.currencyId,
+            currencyId,
             market.maturity,
             CashGroup.getTimeUTC0(blockTime),
             market.totalfCash.neg(),

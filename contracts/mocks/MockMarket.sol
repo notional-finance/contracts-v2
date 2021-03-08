@@ -79,11 +79,8 @@ contract MockMarket is StorageLayoutV1 {
         return (marketState, assetCash);
    }
 
-   function setMarketStorage(
-       MarketParameters memory market,
-       uint settlementDate
-   ) public {
-       market.setMarketStorage(settlementDate);
+   function setMarketStorage(MarketParameters memory market) public {
+       market.setMarketStorage();
    }
 
    function buildMarket(

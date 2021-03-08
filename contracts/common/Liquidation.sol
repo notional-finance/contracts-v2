@@ -35,6 +35,7 @@ library Liquidation {
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
+    using Market for MarketParameters;
 
     int internal constant LIQUIDATION_BUFFER = 1.01e18;
     int internal constant DUST = 1;
@@ -231,7 +232,7 @@ library Liquidation {
                 // The additional cash is insufficient to cover asset amount required so we just remove
                 // all of it.
                 portfolioState.deleteAsset(i);
-                market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
+                market.removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
@@ -245,16 +246,12 @@ library Liquidation {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // notional * totalCashOut / assetAmountRemaining
                 int tokensToRemove = asset.notional.mul(withdrawFactors[2]).div(assetAmountRemaining);
-                // assetCash
-                withdrawFactors[0] = tokensToRemove.mul(withdrawFactors[0]).div(asset.notional);
-                // fCash
-                withdrawFactors[1] = tokensToRemove.mul(withdrawFactors[1]).div(asset.notional);
+                // assetCash, fCash
+                (withdrawFactors[0], withdrawFactors[1]) = market.removeLiquidity(asset.notional);
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
                 portfolioState.storedAssets[i].storageState = AssetStorageState.Update;
-                market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
-
                 assetAmountRemaining = 0;
             }
 
@@ -269,9 +266,6 @@ library Liquidation {
                 withdrawFactors[1],
                 false
             );
-            market.totalCurrentCash = market.totalCurrentCash.subNoNeg(withdrawFactors[0]);
-            market.totalfCash = market.totalfCash.subNoNeg(withdrawFactors[1]);
-            market.hasUpdated = true;
 
             if (assetAmountRemaining == 0) break;
         }

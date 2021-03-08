@@ -145,10 +145,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
 
         // Finalize all market states
         for (uint i; i < perpToken.markets.length; i++) {
-            perpToken.markets[i].setMarketStorage(AssetHandler.getSettlementDateViaAssetType(
-                2 + i,
-                perpToken.markets[i].maturity
-            ));
+            perpToken.markets[i].setMarketStorage();
         }
 
         return (

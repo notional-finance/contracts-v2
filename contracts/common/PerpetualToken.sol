@@ -365,6 +365,7 @@ library PerpetualToken {
         int assetCashDeposit,
         uint blockTime
     ) internal view returns (int, bytes memory) {
+        require(assetCashDeposit >= 0, "PT: deposit negative");
         if (assetCashDeposit == 0) return (0, new bytes(0));
 
         // If the account context has not been initialized, that means it has never had assets. In this
@@ -389,7 +390,6 @@ library PerpetualToken {
 
         (int assetCashPV, bytes memory ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
-        require(assetCashDeposit >= 0, "PT: deposit negative");
 
         return (
             assetCashDeposit.mul(assetCashPV).div(TokenHandler.INTERNAL_TOKEN_PRECISION),
@@ -519,10 +519,7 @@ library PerpetualToken {
                 ifCashBitmap
             );
 
-            perpToken.markets[i].setMarketStorage(AssetHandler.getSettlementDateViaAssetType(
-                i + 2,
-                perpToken.markets[i].maturity
-            ));
+            perpToken.markets[i].setMarketStorage();
         }
 
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
@@ -582,7 +579,7 @@ library PerpetualToken {
         int tokensToRedeem,
         int totalSupply,
         uint blockTime
-    ) internal returns (int) {
+    ) internal view returns (int) {
         uint ifCashIndex;
         int totalAssetCash;
 

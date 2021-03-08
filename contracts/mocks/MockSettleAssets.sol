@@ -43,11 +43,8 @@ contract MockSettleAssets is StorageLayoutV1 {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function setMarketState(
-        MarketParameters memory ms,
-        uint settlementDate
-    ) external {
-        ms.setMarketStorage(settlementDate);
+    function setMarketState(MarketParameters memory ms) external {
+        ms.setMarketStorage();
     }
 
     function getSettlementMarket(
