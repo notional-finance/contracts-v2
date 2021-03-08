@@ -171,13 +171,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) internal returns (bool) {
         (
             uint currencyId,
-            uint totalSupply
+            /* uint totalSupply */
         ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
-
-        (
-            int totalAssetPV,
-            /* PerpetualTokenPortfolio memory perpToken */
-        ) = _getPerpetualTokenPV(currencyId);
 
         AccountStorage memory senderContext = accountContextMapping[sender];
         BalanceState memory senderBalance = BalanceHandler.buildBalanceState(

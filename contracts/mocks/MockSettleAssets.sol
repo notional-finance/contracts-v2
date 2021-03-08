@@ -110,7 +110,6 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function _getSettleAssetContextView(
         address account,
-        uint16[] calldata currencyIds,
         uint blockTime
     ) public view returns (SettleAmount[] memory) {
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
@@ -121,7 +120,6 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function testSettleAssetArray(
         address account,
-        uint16[] calldata currencyIds,
         uint blockTime
     ) public returns (SettleAmount[] memory) {
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);

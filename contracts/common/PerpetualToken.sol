@@ -7,10 +7,10 @@ import "./CashGroup.sol";
 import "./AssetRate.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/BitmapAssetsHandler.sol";
-import "../storage/SettleAssets.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../math/SafeInt256.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 struct PerpetualTokenPortfolio {
     CashGroupParameters cashGroup;
@@ -28,6 +28,7 @@ library PerpetualToken {
     using CashGroup for CashGroupParameters;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int;
+    using SafeMath for uint;
 
     int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
 
@@ -434,17 +435,38 @@ library PerpetualToken {
      * @notice Calculates the proportion of totalfCash to totalCashUnderlying for determining
      * whether or not an asset has crossed th leverage threshold.
      */
-    function calculateMarketProportion(
+    function deleverageMarket(
         CashGroupParameters memory cashGroup,
-        MarketParameters memory market
-    ) private pure returns (int) {
-        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(
-            market.totalCurrentCash
-        );
-
-        return market.totalfCash
+        MarketParameters memory market,
+        int leverageThreshold,
+        int perMarketDeposit,
+        uint blockTime
+    ) private view returns (int, int, bool) {
+        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
+        int proportion = market.totalfCash
             .mul(Market.RATE_PRECISION)
             .div(market.totalfCash.add(totalCashUnderlying));
+
+        // No lending required
+        if (proportion < leverageThreshold) return (0, 0, true);
+
+        // This is the minimum amount of fCash that we expect to be able to lend. Since perMarketDeposit
+        // is denominated in assetCash here we don't have to convert to underlying (the ratio between asset cash
+        // and totalCurrentCash is the same in either denomination)
+        int fCashAmount = perMarketDeposit.mul(market.totalfCash).div(market.totalCurrentCash);
+        int assetCash = market.calculateTrade(cashGroup, fCashAmount, market.maturity.sub(blockTime));
+
+        // This means that the trade failed
+        if (assetCash == 0) return (perMarketDeposit, 0, false);
+
+        // Recalculate the proportion after the trade
+        totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
+        proportion = market.totalfCash
+            .mul(Market.RATE_PRECISION)
+            .div(market.totalfCash.add(totalCashUnderlying));
+
+        // This will never overflow
+        return (perMarketDeposit - assetCash, fCashAmount, proportion < leverageThreshold);
     }
 
     /**
@@ -464,12 +486,16 @@ library PerpetualToken {
             perpToken.cashGroup.maxMarketIndex
         );
 
-        for (uint i; i < perpToken.markets.length; i++) {
-            // We know from the call into this method that assetCashDeposit is positive
-            int perMarketDeposit = assetCashDeposit
-                .mul(depositShares[i])
-                .div(DEPOSIT_PERCENT_BASIS);
-
+        // Loop backwards from the last market to the first market, the reasoning is a little complicated:
+        // If we have to deleverage the markets (i.e. lend instead of provide liquidity) we cannot calculate
+        // the precise amount of fCash to buy for the perMarketDeposit because the liquidity curve is logit
+        // and this cannot be solved for analytically. We do know that longer term maturities will have more
+        // slippage and therefore the residual from the perMarketDeposit will be lower as the maturities get
+        // closer to the current block time. Any residual cash from lending will be rolled into shorter
+        // markets as this loop progresses.
+        int residualCash;
+        for (uint i = perpToken.markets.length; i > 0; --i) {
+            int fCashAmount;
             MarketParameters memory market = perpToken.cashGroup.getMarket(
                 perpToken.markets,
                 i + 1, // Market index is 1-indexed
@@ -477,51 +503,63 @@ library PerpetualToken {
                 true // Needs liquidity to true
             );
 
-            int fCashAmount;
-            int proportion = calculateMarketProportion(perpToken.cashGroup, market);
-            if (proportion > leverageThresholds[i]) {
-                // If the proportion is above the liquidity threshold the perp token will lend to the market
-                // instead of providing liquidity in order to ensure that it does not over lever itself.
-                int assetCash;
-                // TODO: finish this
-                // (perpToken.markets[i], assetCash) = lendToMarket(
-                //     perpToken.cashGroup,
-                //     perpToken.markets,
-                //     perMarketDeposit,
-                //     blockTime
-                // );
-                require(assetCash > 0, "PT: lend trade failed");
-            } else {
-                // Add liquidity to the market
-                PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
-                // We expect that all the liquidity tokens are in the portfolio in order.
-                require(
-                       asset.maturity == perpToken.markets[i].maturity
-                    // Ensures that the asset type references the proper liquidity token
-                    && asset.assetType == i + 2,
-                    "PT: invalid liquidity token"
+            {
+                // We know from the call into this method that assetCashDeposit is positive
+                int perMarketDeposit = assetCashDeposit
+                    .mul(depositShares[i])
+                    .div(DEPOSIT_PERCENT_BASIS)
+                    .add(residualCash);
+
+                bool shouldProvide;
+                (
+                    perMarketDeposit,
+                    fCashAmount,
+                    shouldProvide
+                ) = deleverageMarket(
+                    perpToken.cashGroup,
+                    market,
+                    int(leverageThresholds[i]),
+                    perMarketDeposit,
+                    blockTime
                 );
 
-                int liquidityTokens;
-                // This will update the market state as well, fCashAmount returned here is negative
-                (liquidityTokens, fCashAmount) = perpToken.markets[i].addLiquidity(perMarketDeposit);
-                asset.notional = asset.notional.add(liquidityTokens);
-                asset.storageState = AssetStorageState.Update;
+                if (shouldProvide) {
+                    // Add liquidity to the market
+                    PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
+                    // We expect that all the liquidity tokens are in the portfolio in order.
+                    require(
+                        asset.maturity == market.maturity
+                        // Ensures that the asset type references the proper liquidity token
+                        && asset.assetType == i + 2,
+                        "PT: invalid liquidity token"
+                    );
+
+                    int liquidityTokens;
+                    // This will update the market state as well, fCashAmount returned here is negative
+                    (liquidityTokens, fCashAmount) = market.addLiquidity(perMarketDeposit);
+                    asset.notional = asset.notional.add(liquidityTokens);
+                    asset.storageState = AssetStorageState.Update;
+                    residualCash = 0;
+                } else {
+                    residualCash = perMarketDeposit;
+                }
             }
 
             ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
                 perpToken.tokenAddress,
                 perpToken.cashGroup.currencyId,
-                perpToken.markets[i].maturity,
+                market.maturity,
                 accountContext.nextMaturingAsset,
                 // fCash amount is negative and denominated in the underlying here as it always is
                 fCashAmount,
                 ifCashBitmap
             );
 
-            perpToken.markets[i].setMarketStorage();
+            market.setMarketStorage();
         }
 
+        // This will occur if the three month market is over levered and we cannot lend into it
+        require(residualCash != 0, "Residual cash");
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
     }
 

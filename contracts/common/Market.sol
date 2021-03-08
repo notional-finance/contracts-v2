@@ -7,7 +7,6 @@ import "../math/ABDKMath64x64.sol";
 import "./AssetRate.sol";
 import "./CashGroup.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 /**
  * Market object as represented in memory

@@ -215,7 +215,7 @@ library TokenHandler {
         checkReturnCode();
     }
 
-    function checkReturnCode() private {
+    function checkReturnCode() private pure {
         bool success;
         assembly {
             switch returndatasize()
