@@ -9,6 +9,11 @@ import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
 
+struct SettleAmount {
+    uint currencyId;
+    int netCashChange;
+}
+
 library SettleAssets {
     using SafeInt256 for int;
     using AssetRate for AssetRateParameters;
@@ -18,6 +23,33 @@ library SettleAssets {
 
     bytes32 internal constant ZERO = 0x0;
     bytes32 internal constant MSB_BIG_ENDIAN = 0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    function getSettleAmountArray(
+        PortfolioState memory portfolioState,
+        uint blockTime
+    ) internal pure returns (SettleAmount[] memory) {
+        uint currenciesSettled;
+        uint lastCurrencyId;
+        // This is required for iteration
+        portfolioState.calculateSortedIndex();
+
+        // WARM: remove
+        for (uint i = portfolioState.sortedIndex.length; i > 0; --i) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+            if (asset.getSettlementDate() > blockTime) continue;
+            // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
+            // will work for the first asset
+            if (lastCurrencyId != asset.currencyId) {
+                lastCurrencyId = asset.currencyId;
+                currenciesSettled++;
+            }
+        }
+        
+        // Actual currency ids will be set in the loop
+        SettleAmount[] memory settleAmounts = new SettleAmount[](currenciesSettled);
+        if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
+        return settleAmounts;
+    }
 
     /**
      * @notice Shared calculation for liquidity token settlement
@@ -78,6 +110,7 @@ library SettleAssets {
         } else {
             // If the liquidity token's maturity is still in the future then we change the entry to be
             // an idiosyncratic fCash entry with the net fCash amount.
+            // TODO: this might not work because there may be another fcash asset that nets this out
             portfolioState.storedAssets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
             portfolioState.storedAssets[index].notional = fCash;
             portfolioState.storedAssets[index].storageState = AssetStorageState.Update;
@@ -91,30 +124,22 @@ library SettleAssets {
      * in the stateful version we will set the settlement rate if it is not set.
      */
     function getSettleAssetContextView(
-        address account,
         PortfolioState memory portfolioState,
-        AccountStorage memory accountContext,
-        BalanceState[] memory balanceStates,
         uint blockTime
-    ) internal view {
+    ) internal view returns (SettleAmount[] memory) {
         AssetRateParameters memory settlementRate;
-        uint balanceStateIndex;
+        SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
+        uint settleAmountIndex;
         uint lastMaturity;
 
         for (uint i; i < portfolioState.sortedIndex.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
             if (asset.getSettlementDate() > blockTime) continue;
 
-            if (balanceStates[balanceStateIndex].currencyId != asset.currencyId) {
+            if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 lastMaturity = 0;
-                while(balanceStates[balanceStateIndex].currencyId < asset.currencyId) {
-                    balanceStateIndex += 1;
-                }
-
-                require(
-                    balanceStates[balanceStateIndex].currencyId == asset.currencyId,
-                    "S: currency not loaded"
-                );
+                settleAmountIndex += 1;
+                settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
             // Settlement rates are used to convert fCash and fCash claims back into assetCash values. This means
@@ -148,23 +173,23 @@ library SettleAssets {
                 }
             }
 
-            balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange
+            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex].netCashChange
                 .add(assetCash);
         }
+
+        return settleAmounts;
     }
 
     /**
      * @notice Stateful version of settle asset, the only difference is the call to getSettlementRateStateful
      */
     function getSettleAssetContextStateful(
-        address account,
         PortfolioState memory portfolioState,
-        AccountStorage memory accountContext,
-        BalanceState[] memory balanceStates,
         uint blockTime
-    ) internal {
+    ) internal returns (SettleAmount[] memory) {
         AssetRateParameters memory settlementRate;
-        uint balanceStateIndex;
+        SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
+        uint settleAmountIndex;
         uint lastMaturity;
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
@@ -172,16 +197,10 @@ library SettleAssets {
             uint settlementDate = asset.getSettlementDate();
             if (settlementDate > blockTime) continue;
 
-            if (balanceStates[balanceStateIndex].currencyId != asset.currencyId) {
+            if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 lastMaturity = 0;
-                while(balanceStates[balanceStateIndex].currencyId < asset.currencyId) {
-                    balanceStateIndex += 1;
-                }
-
-                require(
-                    balanceStates[balanceStateIndex].currencyId == asset.currencyId,
-                    "S: currency not loaded"
-                );
+                settleAmountIndex += 1;
+                settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
@@ -222,9 +241,11 @@ library SettleAssets {
                 );
             }
 
-            balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange
+            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex].netCashChange
                 .add(assetCash);
         }
+
+        return settleAmounts;
     }
 
     /**
