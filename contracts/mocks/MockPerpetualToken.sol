@@ -9,11 +9,15 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
     function getPerpetualTokenCurrencyIdAndSupply(
         address tokenAddress
-    ) external view returns (uint, uint) {
-        (uint currencyId, uint totalSupply) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+    ) external view returns (uint, uint, uint) {
+        (
+            uint currencyId,
+            uint totalSupply,
+            uint incentiveRate
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, totalSupply);
+        return (currencyId, totalSupply, incentiveRate);
     }
 
     function getPerpetualTokenAddress(
@@ -22,7 +26,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
         address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         (
             uint currencyIdStored,
-            /* uint totalSupply */
+            /* uint totalSupply */,
+            /* incentiveRate */
         ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
         assert(currencyIdStored == currencyId);
 

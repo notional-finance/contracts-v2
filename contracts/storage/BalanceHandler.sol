@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./StorageLayoutV1.sol";
 import "./TokenHandler.sol";
 import "./AccountContextHandler.sol";
+import "../common/PerpetualToken.sol";
 import "../math/Bitmap.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -21,6 +22,8 @@ struct BalanceState {
     int netAssetTransferInternalPrecision;
     // Net perpetual token transfers into or out of the account
     int netPerpetualTokenTransfer;
+    // The last time incentives were minted for this currency id
+    uint lastIncentiveMint;
 }
 
 library BalanceHandler {
@@ -58,7 +61,7 @@ library BalanceHandler {
         bool useCashBalance
     ) internal returns (int, int) {
         if (assetAmountExternalPrecision == 0) return (0, 0);
-        require(assetAmountExternalPrecision > 0, "BH: deposit negative");
+        require(assetAmountExternalPrecision > 0); // dev: deposit asset token amount negative
         Token memory token = TokenHandler.getToken(balanceState.currencyId, false);
         int assetAmountInternal = token.convertToInternal(assetAmountExternalPrecision);
         int assetAmountTransferred;
@@ -120,14 +123,14 @@ library BalanceHandler {
         int underlyingAmountExternalPrecision
     ) internal returns (int) {
         if (underlyingAmountExternalPrecision == 0) return 0;
-        require(underlyingAmountExternalPrecision > 0, "BH: deposit negative");
+        require(underlyingAmountExternalPrecision > 0); // dev: deposit underlying token nevative
         
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
         underlyingAmountExternalPrecision = underlyingToken.transfer(account, underlyingAmountExternalPrecision);
 
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
-        require(assetToken.tokenType == TokenType.cToken, "BH: invalid underlying");
+        require(assetToken.tokenType == TokenType.cToken); // dev: deposit underlying token invalid token type
         int assetTokensReceivedExternalPrecision = assetToken.mint(uint(underlyingAmountExternalPrecision));
 
         // Some dust may be lost here due to internal conversion, however, for cTokens this will not be an issue
@@ -204,6 +207,10 @@ library BalanceHandler {
         mustUpdate = balanceState.netCashChange != 0 || balanceState.netAssetTransferInternalPrecision != 0;
 
         if (balanceState.netPerpetualTokenTransfer != 0) {
+            // It's crucial that this is minted before we do any sort of perpetual token transfer to prevent gaming
+            // of the system. This method will update the lastIncentiveMint time in the balanceState for storage.
+            mintIncentives(balanceState, account);
+
             // Perpetual tokens are within the notional system so we can update balances directly.
             balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
                 balanceState.netPerpetualTokenTransfer
@@ -229,11 +236,13 @@ library BalanceHandler {
         address perpToken
     ) internal {
         // These factors must always be zero for the perpetual token account
-        require(balanceState.storedPerpetualTokenBalance == 0);
+        require(balanceState.storedPerpetualTokenBalance == 0); // dev: invalid perp token balance
         balanceState.storedCashBalance = balanceState.storedCashBalance.add(balanceState.netCashChange);
 
         // Perpetual token can never have a negative cash balance
-        require(balanceState.storedCashBalance >= 0);
+        require(balanceState.storedCashBalance >= 0); // dev: invalid perp token cash balance
+        // Perpetual token never mints incentives
+        require(balanceState.lastIncentiveMint == 0); // dev: invalid perp token mint time
 
         setBalanceStorage(perpToken, balanceState);
     }
@@ -249,19 +258,22 @@ library BalanceHandler {
 
         require(
             balanceState.storedCashBalance >= type(int128).min
-            && balanceState.storedCashBalance <= type(int128).max,
-            "CH: cash balance overflow"
-        );
+            && balanceState.storedCashBalance <= type(int128).max
+        ); // dev: stored cash balance overflow
 
         require(
             balanceState.storedPerpetualTokenBalance >= 0
-            && balanceState.storedPerpetualTokenBalance <= type(uint128).max,
-            "CH: token balance overflow"
-        );
+            && balanceState.storedPerpetualTokenBalance <= type(uint96).max
+        ); // dev: stored perpetual token balance overflow
+
+        require(
+            balanceState.lastIncentiveMint >= 0
+            && balanceState.lastIncentiveMint <= type(uint32).max
+        ); // dev: last incentive mint overflow
 
         bytes32 data = (
-            // Truncate the higher bits of the signed integer when it is negative
             (bytes32(uint(balanceState.storedPerpetualTokenBalance))) |
+            (bytes32(balanceState.lastIncentiveMint) << 96) |
             (bytes32(balanceState.storedCashBalance) << 128)
         );
 
@@ -269,25 +281,9 @@ library BalanceHandler {
     }
 
     /**
-     * @notice Get the global incentive data for minting incentives
-     */
-    function getCurrencyIncentiveData(
-        uint currencyId
-    ) internal view returns (uint) {
-        bytes32 slot = keccak256(abi.encode(currencyId, "currency.incentives"));
-        bytes32 data;
-        assembly { data := sload(slot) }
-
-        // TODO: where do we store this, on the currency group?
-        uint tokenEmissionRate = uint(uint32(uint(data)));
-
-        return tokenEmissionRate;
-    }
-
-    /**
      * @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
      */
-    function getBalanceStorage(address account, uint currencyId) internal view returns (int, int) {
+    function getBalanceStorage(address account, uint currencyId) internal view returns (int, int, uint) {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
         bytes32 data;
 
@@ -296,8 +292,9 @@ library BalanceHandler {
         }
 
         return (
-            int(int128(int(data >> 128))),          // Cash balance
-            int(uint128(uint(data)))  // Perpetual token balance
+            int(int128(int(data >> 128))),       // Cash balance
+            int(uint96(uint(data))),             // Perpetual token balance
+            uint(uint32(uint(data >> 96)))       // Last incentive mint blocktime
         );
     }
 
@@ -313,14 +310,20 @@ library BalanceHandler {
 
         if (accountContext.isActiveCurrency(currencyId)) {
             // Storage Read
-            (int cashBalance, int tokenBalance) = getBalanceStorage(account, currencyId);
+            (
+                int cashBalance,
+                int tokenBalance,
+                uint lastIncentiveMint
+            ) = getBalanceStorage(account, currencyId);
+
             return BalanceState({
                 currencyId: currencyId,
                 storedCashBalance: cashBalance,
                 storedPerpetualTokenBalance: tokenBalance,
                 netCashChange: 0,
                 netAssetTransferInternalPrecision: 0,
-                netPerpetualTokenTransfer: 0
+                netPerpetualTokenTransfer: 0,
+                lastIncentiveMint: lastIncentiveMint
             });
         }
 
@@ -331,7 +334,8 @@ library BalanceHandler {
             storedPerpetualTokenBalance: 0,
             netCashChange: 0,
             netAssetTransferInternalPrecision: 0,
-            netPerpetualTokenTransfer: 0
+            netPerpetualTokenTransfer: 0,
+            lastIncentiveMint: 0
         });
     }
 
@@ -348,9 +352,11 @@ library BalanceHandler {
             if (i > 0) require(currencyIds[i] > currencyIds[i - 1], "BH: Unordered currency ids");
 
             if (accountContext.isActiveCurrency(currencyIds[i])) {
-                (int cashBalance, int tokenBalance) = getBalanceStorage(account, currencyIds[i]);
-                balanceStates[i].storedCashBalance = cashBalance;
-                balanceStates[i].storedPerpetualTokenBalance = tokenBalance;
+                (
+                    balanceStates[i].storedCashBalance,
+                    balanceStates[i].storedPerpetualTokenBalance,
+                    balanceStates[i].lastIncentiveMint
+                ) = getBalanceStorage(account, currencyIds[i]);
             }
         }
 
@@ -359,58 +365,56 @@ library BalanceHandler {
 
     /**
      * @notice Iterates over an array of balances and returns the total incentives to mint.
+     */
     function calculateIncentivesToMint(
-        BalanceState[] memory balanceState,
-        AccountStorage memory accountContext,
+        uint currencyId,
+        uint perpetualTokenBalance,
+        uint lastMintTime,
         uint blockTime
     ) internal view returns (uint) {
-        // We must mint incentives for all currencies at the same time since we set a single timestamp
-        // for when the account last minted incentives.
-        require(accountContext.activeCurrencies.totalBitsSet() == 0, "B: must mint currencies");
-        require(accountContext.lastMintTime != 0, "B: last mint time zero");
-        require(accountContext.lastMintTime < blockTime, "B: last mint time overflow");
+        if (lastMintTime == 0 || lastMintTime >= blockTime) return 0;
 
-        uint timeSinceLastMint = blockTime - accountContext.lastMintTime;
-        uint tokensToTransfer;
-        for (uint i; i < balanceState.length; i++) {
-            // Cannot mint incentives if there is a negative capital deposit. Also we explicitly do not include
-            // net capital deposit (the current amount to change) because an account may manipulate this amount to
-            // increase their capital deposited figure using flash loans.
-            if (balanceState[i].storedCapitalDeposit <= 0) continue;
+        address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        (
+            /* currencyId */,
+            uint totalSupply,
+            uint incentiveAnnualEmissionRate
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
 
-            (uint globalCapitalDeposit, uint tokenEmissionRate) = getCurrencyIncentiveData(balanceState[i].currencyId);
-            if (globalCapitalDeposit == 0 || tokenEmissionRate == 0) continue;
+        uint timeSinceLastMint = blockTime - lastMintTime;
+        // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
+        // timeSinceLastMint and CashGroup.YEAR are both in seconds
+        // incentiveAnnualEmissionRate is an annualized rate in Market.RATE_PRECISION
+        // tokenPrecision * seconds * ratePrecision / (seconds * ratePrecision * tokenPrecision)
+        uint incentivesToMint = perpetualTokenBalance
+            .mul(timeSinceLastMint)
+            .mul(uint(TokenHandler.INTERNAL_TOKEN_PRECISION))
+            .mul(incentiveAnnualEmissionRate);
 
-            tokensToTransfer = tokensToTransfer.add(
-                // We know that this must be positive
-                uint(balanceState[i].storedCapitalDeposit)
-                    .mul(timeSinceLastMint)
-                    .mul(tokenEmissionRate)
-                    .div(CashGroup.YEAR)
-                    // tokenEmissionRate is denominated in 1e8
-                    .div(uint(TokenHandler.INTERNAL_TOKEN_PRECISION))
-                    .div(globalCapitalDeposit)
-            );
-        }
+        incentivesToMint = incentivesToMint
+            .div(CashGroup.YEAR)
+            .div(uint(Market.RATE_PRECISION))
+            .div(totalSupply);
 
-        require(blockTime <= type(uint32).max, "B: block time overflow");
-        accountContext.lastMintTime = uint32(blockTime);
-        return tokensToTransfer;
+        return incentivesToMint;
     }
-     */
 
     /**
-     * @notice Incentives must be minted before we store netCapitalDeposit changes.
-    function mintIncentives(
-        BalanceState[] memory balanceState,
-        AccountStorage memory accountContext,
-        address account,
-        uint blockTime
-    ) internal returns (uint) {
-        uint tokensToTransfer = calculateIncentivesToMint(balanceState, accountContext, blockTime);
-        TokenHandler.transferIncentive(account, tokensToTransfer);
-        return tokensToTransfer;
-    }
+     * @notice Incentives must be minted every time perpetual token balance changes
      */
+    function mintIncentives(
+        BalanceState memory balanceState,
+        address account
+    ) internal {
+        uint blockTime = block.timestamp;
+        uint incentivesToMint = calculateIncentivesToMint(
+            balanceState.currencyId,
+            uint(balanceState.storedPerpetualTokenBalance),
+            balanceState.lastIncentiveMint,
+            blockTime
+        );
+        balanceState.lastIncentiveMint = blockTime;
+        TokenHandler.transferIncentive(account, incentivesToMint);
+    }
 
 }

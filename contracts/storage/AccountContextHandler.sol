@@ -182,7 +182,8 @@ library AccountContextHandler {
                 balanceStates[i].currencyId = bitmapCurrencyId;
                 (
                     balanceStates[i].storedCashBalance,
-                    balanceStates[i].storedPerpetualTokenBalance
+                    balanceStates[i].storedPerpetualTokenBalance,
+                    balanceStates[i].lastIncentiveMint
                 ) = BalanceHandler.getBalanceStorage(account, bitmapCurrencyId);
                 // Set this to zero if it's already been set
                 bitmapCurrencyId = 0;
@@ -192,7 +193,8 @@ library AccountContextHandler {
             balanceStates[i].currencyId = id;
             (
                 balanceStates[i].storedCashBalance,
-                balanceStates[i].storedPerpetualTokenBalance
+                balanceStates[i].storedPerpetualTokenBalance,
+                balanceStates[i].lastIncentiveMint
             ) = BalanceHandler.getBalanceStorage(account, id);
             currencies = currencies << 16;
         }
@@ -200,5 +202,4 @@ library AccountContextHandler {
         return balanceStates;
     }
 
-    // function mintIncentives
 }

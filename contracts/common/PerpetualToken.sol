@@ -38,15 +38,16 @@ library PerpetualToken {
      */
     function getPerpetualTokenCurrencyIdAndSupply(
         address tokenAddress
-    ) internal view returns (uint, uint) {
+    ) internal view returns (uint, uint, uint) {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
         bytes32 data;
         assembly { data := sload(slot) }
 
         uint currencyId = uint(uint16(uint(data)));
         uint totalSupply = uint(uint96(uint(data >> 16)));
+        uint incentiveAnnualEmissionRate = uint(uint32(uint(data >> 112)));
 
-        return (currencyId, totalSupply);
+        return (currencyId, totalSupply, incentiveAnnualEmissionRate);
     }
 
     /**
@@ -91,17 +92,42 @@ library PerpetualToken {
         address tokenAddress,
         int netChange
     ) private {
-        // TODO: set the emissions pool and rate here
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
 
-        (uint currencyId, uint totalSupply) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+        (
+            uint currencyId,
+            uint totalSupply,
+            uint incentiveAnnualEmissionRate
+        ) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
         int newSupply = int(totalSupply).add(netChange);
         require(newSupply >= 0 && uint(newSupply) < type(uint96).max, "PT: total supply overflow");
 
         uint96 storedSupply = uint96(newSupply);
         bytes32 data = (
             bytes32(currencyId) |
-            bytes32(uint(storedSupply)) << 16
+            bytes32(uint(storedSupply)) << 16 |
+            bytes32(incentiveAnnualEmissionRate) << 112
+        );
+
+        assembly { sstore(slot, data) }
+    }
+
+    function setIncentiveEmissionRate(
+        address tokenAddress,
+        uint32 newEmissionsRate
+    ) internal {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+
+        (
+            uint currencyId,
+            uint totalSupply,
+            uint incentiveAnnualEmissionRate
+        ) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+
+        bytes32 data = (
+            bytes32(currencyId) |
+            bytes32(totalSupply) << 16 |
+            bytes32(uint(newEmissionsRate)) << 112
         );
 
         assembly { sstore(slot, data) }
@@ -273,7 +299,8 @@ library PerpetualToken {
         perpToken.balanceState.currencyId = currencyId;
         (
             perpToken.balanceState.storedCashBalance,
-            perpToken.balanceState.storedPerpetualTokenBalance
+            perpToken.balanceState.storedPerpetualTokenBalance,
+            /* lastIncentiveMint */
         ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
         return perpToken;
@@ -586,7 +613,7 @@ library PerpetualToken {
         PortfolioAsset[] memory newifCashAssets;
         {
             uint currencyId;
-            (currencyId, totalSupply) = getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
+            (currencyId, totalSupply, /* incentiveRate */) = getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
 
             // Get share of ifCash assets to remove
             newifCashAssets = BitmapAssetsHandler.reduceifCashAssetsProportional(

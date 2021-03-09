@@ -21,7 +21,11 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     function perpetualTokenTotalSupply(
         address perpTokenAddress
     ) override external view returns (uint) {
-        (/* currencyId */, uint totalSupply) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(
+        (
+            /* currencyId */,
+            uint totalSupply,
+            /* incentiveRate */
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(
             perpTokenAddress
         );
 
@@ -34,7 +38,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) override external view returns (uint) {
         (
             /* int cashBalance */,
-            int perpetualTokenBalance
+            int perpetualTokenBalance,
+            /* uint lastIncentiveMint */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(perpetualTokenBalance >= 0, "PA: negative balance");
@@ -172,7 +177,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) internal returns (bool) {
         (
             uint currencyId,
-            /* uint totalSupply */
+            /* uint totalSupply */,
+            /* incentiveRate */
         ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
 
         AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
