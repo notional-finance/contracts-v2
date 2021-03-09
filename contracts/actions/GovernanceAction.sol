@@ -19,13 +19,13 @@ contract GovernanceAction is StorageLayoutV1 {
     using AccountContextHandler for AccountStorage;
 
     // Emitted when a new currency is listed
-    event ListCurrency(uint newCurrencyId);
-    event UpdateETHRate(uint currencyId);
-    event UpdateAssetRate(uint currencyId);
-    event UpdateCashGroup(uint currencyId);
-    event UpdatePerpetualDepositParameters(uint currencyId);
-    event UpdateInitializationParameters(uint currencyId);
-    // TODO: add incentive settings
+    event ListCurrency(uint16 newCurrencyId);
+    event UpdateETHRate(uint16 currencyId);
+    event UpdateAssetRate(uint16 currencyId);
+    event UpdateCashGroup(uint16 currencyId);
+    event UpdatePerpetualDepositParameters(uint16 currencyId);
+    event UpdateInitializationParameters(uint16 currencyId);
+    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     // TODO: add max assets parameter
     // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -119,6 +119,17 @@ contract GovernanceAction is StorageLayoutV1 {
         emit UpdateInitializationParameters(currencyId);
     }
 
+    function updateIncentiveEmissionRate(
+        uint16 currencyId,
+        uint32 newEmissionRate
+    ) external onlyOwner {
+        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        require(perpTokenAddress != address(0), "Invalid currency");
+
+        PerpetualToken.setIncentiveEmissionRate(perpTokenAddress, newEmissionRate);
+        emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
+    }
+
     function updateCashGroup(
         uint16 currencyId,
         CashGroupParameterStorage calldata cashGroup
@@ -162,12 +173,16 @@ contract GovernanceAction is StorageLayoutV1 {
             require(cashGroup.liquidityTokenHaircuts[i] < CashGroup.TOKEN_HAIRCUT_DECIMALS, "G: invalid token haircut");
         }
 
+        for (uint i; i < cashGroup.rateScalars.length; i++) {
+            require(cashGroup.rateScalars[i] != 0, "G: invalid rate scalar");
+        }
+
         CashGroupParameterStorage storage cg = cashGroupMapping[currencyId];
         // If the market index decreases then assets beyond the max market will be left stranded.
         require(cashGroup.maxMarketIndex >= cg.maxMarketIndex, "G: market index cannot decrease");
         cashGroupMapping[currencyId] = cashGroup;
 
-        emit UpdateCashGroup(currencyId);
+        emit UpdateCashGroup(uint16(currencyId));
     }
 
     function _updateAssetRate(
@@ -196,7 +211,7 @@ contract GovernanceAction is StorageLayoutV1 {
             underlyingDecimalPlaces: underlyingDecimals
         });
 
-        emit UpdateAssetRate(currencyId);
+        emit UpdateAssetRate(uint16(currencyId));
     }
 
     function _updateETHRate(
@@ -232,7 +247,7 @@ contract GovernanceAction is StorageLayoutV1 {
             liquidationDiscount: liquidationDiscount
         });
 
-        emit UpdateETHRate(currencyId);
+        emit UpdateETHRate(uint16(currencyId));
     }
 
 }
