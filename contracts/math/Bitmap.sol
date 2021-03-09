@@ -19,9 +19,7 @@ library Bitmap {
     bytes1 internal constant BIT1 = 0x80;
     bytes32 internal constant DAY_BITMASK     = 0xffffffffffffffffffffffc00000000000000000000000000000000000000000;
     bytes32 internal constant WEEK_BITMASK    = 0x00000000000000000000003ffffffffffe000000000000000000000000000000;
-    bytes32 internal constant MONTH_BITMASK   = 0x0000000000000000000000000000000001ffffffffffffffe000000000000000;
-    bytes32 internal constant QUARTER_BITMASK = 0x0000000000000000000000000000000000000000000000001fffffffffffffff;
-
+    bytes32 internal constant MONTH_BITMASK   = 0x0000000000000000000000000000000001ffffffffffffffe000000000000000; bytes32 internal constant QUARTER_BITMASK = 0x0000000000000000000000000000000000000000000000001fffffffffffffff; 
     function splitfCashBitmap(
         bytes memory bitmap
     ) internal pure returns (SplitBitmap memory) {
@@ -110,15 +108,6 @@ library Bitmap {
         }
 
         return totalBits;
-    }
-
-    function copy(bytes memory bitmap) internal pure returns (bytes memory) {
-        bytes memory copyValue = new bytes(bitmap.length);
-        for (uint i; i < bitmap.length; i++) {
-            copyValue[i] = bitmap[i];
-        }
-
-        return copyValue;
     }
 
 }
