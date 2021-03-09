@@ -55,23 +55,16 @@ library AssetHandler {
     function getSettlementDate(
         PortfolioAsset memory asset
     ) internal pure returns (uint) {
-        return getSettlementDateViaAssetType(asset.assetType, asset.maturity);
-    }
-
-    function getSettlementDateViaAssetType(
-        uint assetType,
-        uint maturity
-    ) internal pure returns (uint) {
-        require(assetType > 0 && assetType <= LIQUIDITY_TOKEN_INDEX9); // dev: settlement date invalid asset type
+        require(asset.assetType > 0 && asset.assetType <= LIQUIDITY_TOKEN_INDEX9); // dev: settlement date invalid asset type
         // 3 month tokens and fCash tokens settle at maturity
-        if (assetType <= LIQUIDITY_TOKEN_INDEX1) return maturity;
+        if (asset.assetType <= LIQUIDITY_TOKEN_INDEX1) return asset.maturity;
 
-        uint marketLength = CashGroup.getTradedMarket(assetType - 1);
+        uint marketLength = CashGroup.getTradedMarket(asset.assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
         // Here we calculate:
         // tRef = maturity - marketLength + 90 days
-        return maturity.sub(marketLength).add(CashGroup.QUARTER);
+        return asset.maturity.sub(marketLength).add(CashGroup.QUARTER);
     }
 
     /**
@@ -81,7 +74,7 @@ library AssetHandler {
     function getDiscountFactor(
         uint timeToMaturity,
         uint oracleRate
-    ) internal pure returns (int) {
+    ) private pure returns (int) {
         int128 expValue = ABDKMath64x64.fromUInt(
             oracleRate.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME)
         );

@@ -161,26 +161,8 @@ contract GovernanceAction is StorageLayoutV1 {
     ) internal {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
-        require(
-            cashGroup.maxMarketIndex >= 0 && cashGroup.maxMarketIndex <= CashGroup.MAX_TRADED_MARKET_INDEX,
-            "G: invalid market index"
-        );
-        // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.
-        // The reason is that borrowers will not have a futher maturity to roll from their 3 month fixed to a 6 month
-        // fixed. It also complicates the logic in the perpetual token initialization method
-        require(cashGroup.maxMarketIndex != 1, "G: invalid market index");
-        for (uint i; i < cashGroup.liquidityTokenHaircuts.length; i++) {
-            require(cashGroup.liquidityTokenHaircuts[i] < CashGroup.TOKEN_HAIRCUT_DECIMALS, "G: invalid token haircut");
-        }
 
-        for (uint i; i < cashGroup.rateScalars.length; i++) {
-            require(cashGroup.rateScalars[i] != 0, "G: invalid rate scalar");
-        }
-
-        CashGroupParameterStorage storage cg = cashGroupMapping[currencyId];
-        // If the market index decreases then assets beyond the max market will be left stranded.
-        require(cashGroup.maxMarketIndex >= cg.maxMarketIndex, "G: market index cannot decrease");
-        cashGroupMapping[currencyId] = cashGroup;
+        CashGroup.setCashGroupStorage(currencyId, cashGroup);
 
         emit UpdateCashGroup(uint16(currencyId));
     }

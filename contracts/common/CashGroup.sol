@@ -54,8 +54,6 @@ library CashGroup {
     uint internal constant MONTH_BIT_OFFSET = 135;
     uint internal constant QUARTER_BIT_OFFSET = 195;
     int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
-    // TODO: turn this into a governance parameter
-    int internal constant TOKEN_REPO_INCENTIVE = 10;
     uint internal constant MAX_TRADED_MARKET_INDEX = 9;
 
 
@@ -223,7 +221,9 @@ library CashGroup {
         uint marketIndex,
         uint timeToMaturity
     ) internal pure returns (int) {
-        int scalar = int(uint8(uint(cashGroup.data >> RATE_SCALAR))) * 10;
+        require(marketIndex >= 1); // dev: invalid market index
+        uint offset = RATE_SCALAR + 8 * (marketIndex - 1);
+        int scalar = int(uint8(uint(cashGroup.data >> offset))) * 10;
         int rateScalar = scalar
             .mul(int(Market.IMPLIED_RATE_TIME))
             .div(int(timeToMaturity));
@@ -232,24 +232,20 @@ library CashGroup {
         return rateScalar;
     }
 
+    /**
+     * @notice Haircut on liquidity tokens to account for the risk associated with changes in the
+     * proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
+     */
     function getLiquidityHaircut(
         CashGroupParameters memory cashGroup,
         uint assetType
     ) internal pure returns (uint) {
-        require(assetType >= 1);
+        require(assetType > 1); // dev: liquidity haircut invalid asset type
         uint offset = LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - 2);
         uint liquidityTokenHaircut = uint(uint8(uint(cashGroup.data >> offset)));
         return liquidityTokenHaircut;
     }
 
-
-    function annualizeUintValue(
-        uint value,
-        uint timeToMaturity
-    ) private pure returns (uint) {
-        return value.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME);
-    }
-    
     /**
      * @notice Returns liquidity fees scaled by time to maturity. The liquidity fee is denominated
      * in basis points and will decrease with time to maturity.
@@ -259,7 +255,7 @@ library CashGroup {
         uint timeToMaturity
     ) internal pure returns (uint) {
         uint liquidityFee = uint(uint8(uint(cashGroup.data >> LIQUIDITY_FEE))) * Market.BASIS_POINT;
-        return annualizeUintValue(liquidityFee, timeToMaturity);
+        return liquidityFee.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME);
     }
 
     function getfCashHaircut(
@@ -279,6 +275,19 @@ library CashGroup {
     ) internal pure returns (uint) {
         // This is denominated in minutes in storage
         return uint(uint8(uint(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
+    }
+
+    function getSettlementPenalty(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (uint) {
+        return uint(uint8(uint(cashGroup.data >> SETTLEMENT_PENALTY))) * (5 * Market.BASIS_POINT);
+    }
+
+    function getLiquidityTokenRepoDiscount(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (int) {
+        uint discount = uint(uint8(uint(cashGroup.data >> LIQUIDITY_TOKEN_REPO_DISCOUNT))) * (5 * Market.BASIS_POINT);
+        return int(discount);
     }
 
     function getMarketIndex(
@@ -422,6 +431,56 @@ library CashGroup {
 
         // bytes memory would be cleaner here but solidity does not support that inside struct
         return data;
+    }
+
+    function setCashGroupStorage(
+        uint currencyId,
+        CashGroupParameterStorage calldata cashGroup
+    ) internal {
+        bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
+        require(
+            cashGroup.maxMarketIndex >= 0 && cashGroup.maxMarketIndex <= CashGroup.MAX_TRADED_MARKET_INDEX,
+            "CG: invalid market index"
+        );
+        // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.
+        // The reason is that borrowers will not have a futher maturity to roll from their 3 month fixed to a 6 month
+        // fixed. It also complicates the logic in the perpetual token initialization method
+        require(cashGroup.maxMarketIndex != 1, "CG: invalid market index");
+        require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
+        require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
+
+        // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
+        uint8 previousMaxMarketIndex = uint8(uint(getCashGroupStorageBytes(currencyId)));
+        require(previousMaxMarketIndex <= cashGroup.maxMarketIndex, "CG: market index cannot decrease");
+
+        // Per cash group settings
+        bytes32 data = (
+            bytes32(uint(cashGroup.maxMarketIndex)) |
+            bytes32(uint(cashGroup.rateOracleTimeWindowMin)) << RATE_ORACLE_TIME_WINDOW |
+            bytes32(uint(cashGroup.liquidityFeeBPS)) << LIQUIDITY_FEE |
+            bytes32(uint(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER |
+            bytes32(uint(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT |
+            bytes32(uint(cashGroup.settlementPenaltyRateBPS)) << SETTLEMENT_PENALTY |
+            bytes32(uint(cashGroup.liquidityRepoDiscount)) << LIQUIDITY_TOKEN_REPO_DISCOUNT
+        );
+
+        // Per market group settings
+        for (uint i; i < cashGroup.liquidityTokenHaircuts.length; i++) {
+            require(
+                cashGroup.liquidityTokenHaircuts[i] <= CashGroup.TOKEN_HAIRCUT_DECIMALS,
+                "CG: invalid token haircut"
+            );
+
+            data = data | bytes32(uint(cashGroup.liquidityTokenHaircuts[i])) << LIQUIDITY_TOKEN_HAIRCUT + i * 8;
+        }
+
+        for (uint i; i < cashGroup.rateScalars.length; i++) {
+            // Causes a divide by zero error
+            require(cashGroup.rateScalars[i] != 0, "CG: invalid rate scalar");
+            data = data | bytes32(uint(cashGroup.rateScalars[i])) << RATE_SCALAR + i * 8;
+        }
+
+        assembly { sstore(slot, data) }
     }
 
     /**

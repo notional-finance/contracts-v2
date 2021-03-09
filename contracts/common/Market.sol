@@ -494,6 +494,7 @@ library Market {
         assembly { data := sload(slot) }
 
         market.storageSlot = slot;
+        market.maturity = maturity;
         market.totalfCash = int(uint80(uint(data)));
         market.totalCurrentCash = int(uint80(uint(data >> 80)));
         market.lastImpliedRate = uint(uint32(uint(data >> 160)));

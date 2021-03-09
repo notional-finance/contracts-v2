@@ -291,7 +291,7 @@ library Liquidation {
             factors.localCashGroup,
             factors.localMarketStates,
             portfolioState,
-            CashGroup.TOKEN_REPO_INCENTIVE
+            factors.localCashGroup.getLiquidityTokenRepoDiscount()
         );
 
         localBalanceContext.netCashChange = localBalanceContext.netCashChange.add(

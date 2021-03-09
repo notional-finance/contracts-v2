@@ -36,16 +36,6 @@ contract MockAssetHandler is StorageLayoutV1 {
         return asset.getSettlementDate();
     }
 
-    function getDiscountFactor(
-        uint timeToMaturity,
-        uint oracleRate
-    ) public pure returns (int) {
-        uint rate = SafeCast.toUint256(AssetHandler.getDiscountFactor(timeToMaturity, oracleRate));
-        assert(rate >= oracleRate);
-
-        return int(rate);
-    }
-
     function getPresentValue(
         int notional,
         uint maturity,

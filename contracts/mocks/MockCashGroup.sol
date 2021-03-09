@@ -20,10 +20,18 @@ contract MockCashGroup is StorageLayoutV1 {
         uint id,
         CashGroupParameterStorage calldata cg
     ) external {
-        cashGroupMapping[id] = cg;
+        CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function setMarketState(MarketParameters memory ms) external {
+    function setMarketState(
+        uint currencyId,
+        uint maturity,
+        uint settlementDate,
+        MarketParameters memory ms
+    ) external {
+        ms.storageSlot = Market.getSlot(currencyId, maturity, settlementDate);
+        // ensure that state gets set
+        ms.storageState = 0xFF;
         ms.setMarketStorage();
     }
 
@@ -126,6 +134,18 @@ contract MockCashGroup is StorageLayoutV1 {
         CashGroupParameters memory cashGroup
     ) public pure returns (uint) {
         return cashGroup.getRateOracleTimeWindow();
+    }
+
+    function getSettlementPenalty(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (uint) {
+        return cashGroup.getSettlementPenalty();
+    }
+
+    function getLiquidityTokenRepoDiscount(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (int) {
+        return cashGroup.getLiquidityTokenRepoDiscount();
     }
 
     function getMarketIndex(
