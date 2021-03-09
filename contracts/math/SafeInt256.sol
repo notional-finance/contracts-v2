@@ -22,10 +22,10 @@ library SafeInt256 {
             return 0;
         }
 
-        require(!(a == -1 && b == _INT256_MIN), "SafeInt256: mul overflow");
+        require(!(a == -1 && b == _INT256_MIN)); // dev: int256 mul overflow
 
         int256 c = a * b;
-        require(c / a == b, "SafeInt256: mul overflow");
+        require(c / a == b); // dev: int256 mul overflow
 
         return c;
     }
@@ -43,8 +43,8 @@ library SafeInt256 {
      * - The divisor cannot be zero.
      */
     function div(int256 a, int256 b) internal pure returns (int256) {
-        require(b != 0, "SafeInt256: div by 0");
-        require(!(b == -1 && a == _INT256_MIN), "SafeInt256: div overflow");
+        require(b != 0); // dev: int256 div by zero
+        require(!(b == -1 && a == _INT256_MIN)); // dev: int256 div overflow
 
         int256 c = a / b;
 
@@ -63,7 +63,7 @@ library SafeInt256 {
      */
     function sub(int256 a, int256 b) internal pure returns (int256) {
         int256 c = a - b;
-        require((b >= 0 && c <= a) || (b < 0 && c > a), "SafeInt256: sub overflow");
+        require((b >= 0 && c <= a) || (b < 0 && c > a)); // dev: int256 sub overflow
 
         return c;
     }
@@ -80,7 +80,7 @@ library SafeInt256 {
      */
     function add(int256 a, int256 b) internal pure returns (int256) {
         int256 c = a + b;
-        require((b >= 0 && c >= a) || (b < 0 && c < a), "SafeInt256: add overflow");
+        require((b >= 0 && c >= a) || (b < 0 && c < a)); // dev: int256 add overflow
 
         return c;
     }
@@ -96,7 +96,7 @@ library SafeInt256 {
 
     function subNoNeg(int256 x, int256 y) internal pure returns (int256) {
         int256 z = sub(x, y);
-        require(z >= 0, "SafeInt256: no sub to neg");
+        require(z >= 0); // dev: int256 sub to negative
 
         return z;
     }

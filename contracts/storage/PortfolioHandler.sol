@@ -53,22 +53,15 @@ library PortfolioHandler {
 
                 // If the storage index is -1 this is because it's been deleted from settlement. We cannot
                 // add fcash that has been settled.
-                require(
-                    portfolioState.storedAssets[i].storageState != AssetStorageState.Delete,
-                    "P: storage index"
-                );
+                require(portfolioState.storedAssets[i].storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
 
                 int newNotional = portfolioState.storedAssets[i].notional.add(notional);
                 // Liquidity tokens cannot be reduced below zero.
                 if (AssetHandler.isLiquidityToken(assetType)) {
-                    require(newNotional >= 0, "P: negative token balance");
+                    require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
                 }
 
-                require(
-                    /* int88 == type(AssetStorage.notional) */
-                    newNotional >= type(int88).min && newNotional <= type(int88).max,
-                    "P: notional overflow"
-                );
+                require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
 
                 portfolioState.storedAssets[i].notional = newNotional;
                 portfolioState.storedAssets[i].storageState = AssetStorageState.Update;
@@ -79,14 +72,9 @@ library PortfolioHandler {
 
         // Cannot remove liquidity that the portfolio does not have
         if (AssetHandler.isLiquidityToken(assetType)) {
-            require(notional >= 0, "P: negative token balance");
+            require(notional >= 0); // dev: portfolio handler negative liquidity token balance
         }
-
-        require(
-            /* int88 == type(AssetStorage.notional) */
-            notional >= type(int88).min && notional <= type(int88).max,
-            "P: notional overflow"
-        );
+        require(notional >= type(int88).min && notional <= type(int88).max); // dev: portfolio handler notional overflow
 
         // Need to provision a new array at this point
         if (portfolioState.lastNewAssetIndex == portfolioState.newAssets.length) {
@@ -142,9 +130,8 @@ library PortfolioHandler {
 
             require(
                 portfolioState.storedAssets[i].notional <= type(int88).max
-                    && portfolioState.storedAssets[i].notional >= type(int88).min, 
-                "P: notional overflow"
-            );
+                && portfolioState.storedAssets[i].notional >= type(int88).min
+            ); // dev: notional overflow
 
             // Storage Write
             assetStoragePointer[i].notional = int88(portfolioState.storedAssets[i].notional);
@@ -175,8 +162,8 @@ library PortfolioHandler {
         PortfolioState memory portfolioState,
         uint index
     ) internal pure {
-        require(index < portfolioState.storedAssets.length, "P: settle index bounds");
-        require(portfolioState.storedAssetLength > 0, "P: stored asset bounds");
+        require(index < portfolioState.storedAssets.length); // dev: stored assets bounds
+        require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
         
         portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
         portfolioState.storedAssetLength -= 1;
@@ -327,7 +314,7 @@ library PortfolioHandler {
         uint newAssetsHint
     ) internal view returns (PortfolioState memory) {
         // TODO: change this to a string
-        bytes32 slot = keccak256(abi.encode(account, 5));
+        bytes32 slot = keccak256(abi.encode(account, 4));
         uint length;
         assembly { length := sload(slot) }
         PortfolioAsset[] memory result = new PortfolioAsset[](length);

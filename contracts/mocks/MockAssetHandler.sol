@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../common/AssetHandler.sol";
 import "../common/Market.sol";
 import "../storage/StorageLayoutV1.sol";
+import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 contract MockAssetHandler is StorageLayoutV1 {
     using SafeInt256 for int256;

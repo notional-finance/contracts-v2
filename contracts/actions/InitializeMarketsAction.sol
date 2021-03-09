@@ -149,6 +149,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
+        // TODO: recalculate what the total cash withholdings should be per quarter
         for (uint i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
             // Only update if the asset type is fCash, meaning that there is some amount of
@@ -161,6 +162,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                     asset.notional,
                     asset.maturity,
                     blockTime,
+                    // This uses the old oracle rates, that is ok since we are going to interpolate later to
+                    // ensure that these rates continue to hold.
                     perpToken.markets[i].oracleRate
                 );
                 assetCashWitholding = assetCashWitholding.sub(pv);

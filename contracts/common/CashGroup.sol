@@ -190,8 +190,8 @@ library CashGroup {
         uint blockTime,
         uint bitNum
     ) internal pure returns (uint) {
-        require(bitNum != 0, "CG: bit num underflow");
-        require(bitNum <= 256, "CG: bit num overflow");
+        require(bitNum != 0); // dev: cash group get maturity from bit num is zero
+        require(bitNum <= 256); // dev: cash group get maturity from bit num overflow
         uint blockTimeUTC0 = getTimeUTC0(blockTime);
         uint firstBit;
 
@@ -341,8 +341,8 @@ library CashGroup {
         uint longRate,
         uint assetMaturity
     ) internal pure returns (uint) {
-        require(shortMaturity < assetMaturity, "CG: interpolation error");
-        require(assetMaturity < longMaturity, "CG: interpolation error");
+        require(shortMaturity < assetMaturity); // dev: cash group interpolation error, short maturity
+        require(assetMaturity < longMaturity); // dev: cash group interpolation error, long maturity
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get underflows here so we check for that

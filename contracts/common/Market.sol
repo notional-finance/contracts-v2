@@ -428,7 +428,7 @@ library Market {
         uint rateOracleTimeWindow,
         uint blockTime
     ) private pure returns (uint) {
-        require(rateOracleTimeWindow > 0, "M: time window zero");
+        require(rateOracleTimeWindow > 0); // dev: update rate oracle, time window zero
 
         // This can occur when using a view function get to a market state in the past
         if (previousTradeTime > blockTime) return lastImpliedRate;
@@ -522,11 +522,11 @@ library Market {
             market.oracleRate = uint(uint32(uint(oldData >> 192)));
         }
 
-        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
-        require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max, "M: storage overflow");
-        require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max, "M: storage overflow");
-        require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max, "M: storage overflow");
+        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
+        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: market storage totalCurrentCash overflow
+        require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max); // dev: market storage lastImpliedRate overflow
+        require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
+        require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
 
         bytes32 data = (
             bytes32(market.totalfCash) |
@@ -539,7 +539,7 @@ library Market {
         assembly { sstore(slot, data) }
 
         if (market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY) {
-            require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
+            require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
             slot = bytes32(uint(slot) + 1);
             bytes32 totalLiquidity = bytes32(market.totalLiquidity);
 
@@ -646,9 +646,9 @@ library Market {
     ) internal {
         bytes32 slot = getSlot(currencyId, maturity, settlementDate);
         bytes32 data;
-        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max, "M: storage overflow");
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max, "M: storage overflow");
-        require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max, "M: storage overflow");
+        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
+        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: settlement market storage totalCurrentCash overflow
+        require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
 
         data = (
             bytes32(market.totalfCash) |

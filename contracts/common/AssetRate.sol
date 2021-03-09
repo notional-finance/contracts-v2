@@ -169,11 +169,8 @@ library AssetRate {
         ) = buildSettlementRateView(currencyId, maturity);
 
         if (slot != bytes32(0)) {
-            require(blockTime != 0 && blockTime <= type(uint40).max, "AR: invalid timestamp");
-            require(
-                settlementRate.rate > 0 && settlementRate.rate <= type(uint128).max,
-                "AR: settlement rate overflow"
-            );
+            require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
+            require(settlementRate.rate > 0 && settlementRate.rate <= type(uint128).max); // dev: settlement rate overflow
             uint128 storedRate = uint128(uint(settlementRate.rate));
 
             bytes32 data = (

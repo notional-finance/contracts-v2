@@ -79,6 +79,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         Withdraw[] calldata withdraws
     ) external payable {
         // TODO: authorize action
+        // TODO: handle ETH
 
         uint32 blockTime = uint32(block.timestamp);
         (

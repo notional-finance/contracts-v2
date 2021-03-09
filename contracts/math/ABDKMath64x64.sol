@@ -29,7 +29,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function fromInt(int256 x) internal pure returns (int128) {
-        require(x >= -0x8000000000000000 && x <= 0x7FFFFFFFFFFFFFFF, "abdk: int256 overflow");
+        require(x >= -0x8000000000000000 && x <= 0x7FFFFFFFFFFFFFFF); // dev: abdk int256 overflow
         return int128(x << 64);
     }
 
@@ -52,7 +52,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function fromUInt(uint256 x) internal pure returns (int128) {
-        require(x <= 0x7FFFFFFFFFFFFFFF, "abdk: uint256 overflow");
+        require(x <= 0x7FFFFFFFFFFFFFFF); // dev: abdk uint overflow
         return int128(x << 64);
     }
 
@@ -64,7 +64,7 @@ library ABDKMath64x64 {
      * @return unsigned 64-bit integer number
      */
     function toUInt(int128 x) internal pure returns (uint64) {
-        require(x >= 0, "abdk: uint256 overflow");
+        require(x >= 0); // dev: abdk uint overflow
         return uint64(x >> 64);
     }
 
@@ -77,7 +77,7 @@ library ABDKMath64x64 {
      */
     function mul(int128 x, int128 y) internal pure returns (int128) {
         int256 result = (int256(x) * y) >> 64;
-        require(result >= MIN_64x64 && result <= MAX_64x64, "abdk: mul overflow");
+        require(result >= MIN_64x64 && result <= MAX_64x64); // dev: abdk mul overflow
         return int128(result);
     }
 
@@ -103,7 +103,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function log_2(int128 x) internal pure returns (int128) {
-        require(x > 0, "abdk: neg log");
+        require(x > 0); // dev: abdk neg log
 
         int256 msb = 0;
         int256 xc = x;
@@ -152,7 +152,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function ln(int128 x) internal pure returns (int128) {
-        require(x > 0, "abdk: neg log");
+        require(x > 0); // dev: abdk neg log
 
         return int128((uint256(log_2(x)) * 0xB17217F7D1CF79ABC9E3B39803F2F6AF) >> 128);
     }
@@ -164,7 +164,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function exp_2 (int128 x) internal pure returns (int128) {
-        require (x < 0x400000000000000000, "abdk: exp overflow"); // Overflow
+        require (x < 0x400000000000000000); // dev: abdk exp overflow
 
         if (x < -0x400000000000000000) return 0; // Underflow
 
@@ -300,7 +300,7 @@ library ABDKMath64x64 {
             result = result * 0x10000000000000000B17217F7D1CF79AB >> 128;
 
         result >>= uint256 (63 - (x >> 64));
-        require (result <= uint256 (MAX_64x64), "abdk: exp2 max64");
+        require (result <= uint256 (MAX_64x64)); // dev: abdk exp overflow max64
 
         return int128 (result);
     }
@@ -312,7 +312,7 @@ library ABDKMath64x64 {
      * @return signed 64.64-bit fixed point number
      */
     function exp (int128 x) internal pure returns (int128) {
-        require (x < 0x400000000000000000, "abdk: exp overflow"); // Overflow
+        require (x < 0x400000000000000000); // dev: abdk exp overflow
 
         if (x < -0x400000000000000000) return 0; // Underflow
 

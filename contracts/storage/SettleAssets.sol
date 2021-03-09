@@ -33,7 +33,6 @@ library SettleAssets {
         // This is required for iteration
         portfolioState.calculateSortedIndex();
 
-        // WARM: remove
         for (uint i = portfolioState.sortedIndex.length; i > 0; --i) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
             if (asset.getSettlementDate() > blockTime) continue;
@@ -67,9 +66,9 @@ library SettleAssets {
         int fCash = int(market.totalfCash).mul(asset.notional).div(market.totalLiquidity);
         int cashClaim = int(market.totalCurrentCash).mul(asset.notional).div(market.totalLiquidity);
 
-        require(fCash <= market.totalfCash, "S: fCash overflow");
-        require(cashClaim <= market.totalCurrentCash, "S: cash overflow");
-        require(asset.notional <= market.totalLiquidity, "S: liquidity overflow");
+        require(fCash <= market.totalfCash); // dev: settle liquidity token totalfCash overflow
+        require(cashClaim <= market.totalCurrentCash); // dev: settle liquidity token totalCurrentCash overflow
+        require(asset.notional <= market.totalLiquidity); // dev: settle liquidity token total liquidity overflow
         market.totalfCash = market.totalfCash - fCash;
         market.totalCurrentCash = market.totalCurrentCash - cashClaim;
         market.totalLiquidity = market.totalLiquidity - asset.notional;
@@ -420,8 +419,7 @@ library SettleAssets {
             uint bitOffset = lastSettleBit > CashGroup.MONTH_BIT_OFFSET ? lastSettleBit : CashGroup.MONTH_BIT_OFFSET;
             splitBitmap.monthBits = remapBitSection(
                 nextMaturingAsset,
-                blockTimeUTC0,
-                bitOffset,
+                blockTimeUTC0, bitOffset,
                 CashGroup.MONTH,
                 splitBitmap,
                 splitBitmap.monthBits
@@ -465,7 +463,7 @@ library SettleAssets {
                 // Map this into the lower section of the bitmap
                 uint maturity = firstBitRef + i * bitTimeLength;
                 (uint newBitNum, bool isValid) = CashGroup.getBitNumFromMaturity(blockTimeUTC0, maturity);
-                require(isValid, "S: invalid maturity");
+                require(isValid); // dev: remap bit section invalid maturity
 
                 if (newBitNum <= CashGroup.WEEK_BIT_OFFSET) {
                     // Shifting down into the day bits
@@ -480,7 +478,7 @@ library SettleAssets {
                     bytes32 bitMask = MSB_BIG_ENDIAN >> (newBitNum - CashGroup.MONTH_BIT_OFFSET - 1);
                     splitBitmap.monthBits = splitBitmap.monthBits | bitMask;
                 } else {
-                    revert("S: error in shift");
+                    revert(); // dev: remap bit section error in bit shift
                 }
             }
 

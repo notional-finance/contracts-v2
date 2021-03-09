@@ -8,7 +8,6 @@ import "./CashGroup.sol";
 import "./AssetRate.sol";
 import "../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 enum AssetStorageState {
     NoChange,
@@ -63,10 +62,7 @@ library AssetHandler {
         uint assetType,
         uint maturity
     ) internal pure returns (uint) {
-        require(
-            assetType > 0 && assetType <= LIQUIDITY_TOKEN_INDEX9,
-            "A: invalid asset type"
-        );
+        require(assetType > 0 && assetType <= LIQUIDITY_TOKEN_INDEX9); // dev: settlement date invalid asset type
         // 3 month tokens and fCash tokens settle at maturity
         if (assetType <= LIQUIDITY_TOKEN_INDEX1) return maturity;
 
@@ -111,7 +107,7 @@ library AssetHandler {
         uint timeToMaturity = maturity.sub(blockTime);
         int discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
-        require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
+        require(discountFactor <= Market.RATE_PRECISION); // dev: get present value invalid discount factor
         return notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
@@ -142,7 +138,7 @@ library AssetHandler {
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
         }
 
-        require(discountFactor <= Market.RATE_PRECISION, "A: invalid discount factor");
+        require(discountFactor <= Market.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
         return notional.mul(discountFactor).div(Market.RATE_PRECISION);
     }
 
@@ -155,10 +151,7 @@ library AssetHandler {
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
     ) internal pure returns (int, int) {
-        require(
-            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
-            "A: invalid asset in claims"
-        );
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: invalid asset, get cash claims
 
         int assetCash = marketState.totalCurrentCash
             .mul(liquidityToken.notional)
@@ -195,12 +188,9 @@ library AssetHandler {
         CashGroupParameters memory cashGroup,
         uint blockTime
     ) internal pure returns (int, int) {
-        require(
-            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
-            "A: invalid asset in claims"
-        );
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: invalid asset get haircut cash claims
 
-        require(liquidityToken.currencyId == cashGroup.currencyId, "A: cash group mismatch");
+        require(liquidityToken.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
         uint timeToMaturity = liquidityToken.maturity.sub(blockTime);
         // This won't overflow, the liquidity token haircut is stored as an uint8
         int haircut = int(cashGroup.getLiquidityHaircut(liquidityToken.assetType));
@@ -230,16 +220,13 @@ library AssetHandler {
         uint blockTime,
         bool riskAdjusted
     ) internal view returns (int, int) {
-        require(
-            isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0,
-            "A: invalid asset token value"
-        );
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: get liquidity token value, not liquidity token
 
         MarketParameters memory market;
         {
             (uint marketIndex, bool idiosyncratic) = cashGroup.getMarketIndex(liquidityToken.maturity, blockTime);
             // Liquidity tokens can never be idiosyncractic
-            require(!idiosyncratic, "A: idiosyncratic token");
+            require(!idiosyncratic); // dev: idiosyncratic liquidity token
             // This market will always be initialized, if a liquidity token exists that means the market has some
             // liquidity in it (duh)
             market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
@@ -320,7 +307,7 @@ library AssetHandler {
                 // Assets and cash groups are sorted by currency id but there may be gaps
                 // between them currency groups
                 groupIndex += 1;
-                require(groupIndex <= cashGroups.length, "A: cash group not found");
+                require(groupIndex <= cashGroups.length); // dev: get portfolio value, cash group not found
             }
 
             (int assetCashClaim, int pv) = getLiquidityTokenValue(
@@ -350,7 +337,7 @@ library AssetHandler {
                     );
                 }
                 groupIndex += 1;
-                require(groupIndex <= cashGroups.length, "A: cash group not found");
+                require(groupIndex <= cashGroups.length); // dev: get portfolio value, cash group not found
             }
             
             uint maturity = assets[i].maturity;

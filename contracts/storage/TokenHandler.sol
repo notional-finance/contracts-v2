@@ -231,6 +231,6 @@ library TokenHandler {
                 }
         }
 
-        require(success, "Transfer Failed");
+        require(success, "TH: Transfer Failed");
     }
 }

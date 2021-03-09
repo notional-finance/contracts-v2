@@ -8,6 +8,7 @@ import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
+import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 contract Views is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
