@@ -46,10 +46,16 @@ contract MockAssetRate is StorageLayoutV1 {
         return result;
     }
 
-    function buildAssetRate(
+    function buildAssetRateView(
         uint currencyId
     ) external view returns (AssetRateParameters memory) {
-        return AssetRate.buildAssetRate(currencyId);
+        return AssetRate.buildAssetRateView(currencyId);
+    }
+
+    function buildAssetRateStateful(
+        uint currencyId
+    ) external returns (AssetRateParameters memory) {
+        return AssetRate.buildAssetRateStateful(currencyId);
     }
 
     function buildSettlementRate(
@@ -57,7 +63,7 @@ contract MockAssetRate is StorageLayoutV1 {
         uint maturity,
         uint blockTime
     ) external returns (AssetRateParameters memory) {
-        (AssetRateParameters memory initialViewRate, /* */, /* */) = AssetRate.buildSettlementRateView(
+        AssetRateParameters memory initialViewRate = AssetRate.buildSettlementRateView(
             currencyId,
             maturity
         );

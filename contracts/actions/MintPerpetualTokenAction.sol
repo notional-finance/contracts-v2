@@ -22,9 +22,9 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     ) external nonReentrant returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
         uint blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
-        // TODO: make this a library and fetch these
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
         AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
+        // TODO: make this a library and fetch these
         AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 
         int tokensMinted = PerpetualToken.mintPerpetualToken(

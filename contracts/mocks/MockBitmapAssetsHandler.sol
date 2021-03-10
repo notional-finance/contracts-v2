@@ -18,7 +18,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function buildAssetRate(
         uint id
     ) external view returns (AssetRateParameters memory) {
-        return AssetRate.buildAssetRate(id);
+        return AssetRate.buildAssetRateView(id);
     }
 
     function getifCashAsset(

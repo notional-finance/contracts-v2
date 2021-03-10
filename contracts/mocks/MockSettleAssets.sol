@@ -61,7 +61,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint currencyId,
         uint maturity
     ) external view returns (AssetRateParameters memory) {
-        (AssetRateParameters memory rate, /* */, /* */) = AssetRate.buildSettlementRateView(currencyId, maturity);
+        AssetRateParameters memory rate = AssetRate.buildSettlementRateView(currencyId, maturity);
         return rate;
     }
 

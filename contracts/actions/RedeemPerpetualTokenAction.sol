@@ -116,7 +116,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     ) internal returns (int, bool, PortfolioAsset[] memory) {
         int totalAssetCash;
         PortfolioAsset[] memory newfCashAssets;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
         {
             // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
             AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);

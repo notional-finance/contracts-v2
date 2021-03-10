@@ -35,9 +35,9 @@ library FreeCollateralExternal {
             int[] memory netPortfolioValue,
             CashGroupParameters[] memory cashGroups,
             /* marketStates */
-        ) = FreeCollateral.setupFreeCollateral(portfolioState, block.timestamp);
+        ) = FreeCollateral.setupFreeCollateralStateful(portfolioState, block.timestamp);
 
-        int ethDenominatedFC = FreeCollateral.getFreeCollateral(balanceStates, cashGroups, netPortfolioValue);
+        int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(balanceStates, cashGroups, netPortfolioValue);
         require(ethDenominatedFC >= 0, "Insufficient free collateral");
     }
 

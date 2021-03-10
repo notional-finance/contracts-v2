@@ -34,8 +34,8 @@ contract MockLiquidation is StorageLayoutV1 {
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue
-    ) public view returns (LiquidationFactors memory) {
-        LiquidationFactors memory factors = Liquidation.getLiquidationFactors(
+    ) public returns (LiquidationFactors memory) {
+        LiquidationFactors memory factors = Liquidation.getLiquidationFactorsStateful(
             localCurrencyId,
             collateralCurrencyId,
             balanceState,

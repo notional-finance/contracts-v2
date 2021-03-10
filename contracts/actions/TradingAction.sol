@@ -204,7 +204,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         (
             CashGroupParameters memory cashGroup,
             MarketParameters[] memory markets
-        ) = CashGroup.buildCashGroup(trades[0].currencyId);
+        ) = CashGroup.buildCashGroupStateful(trades[0].currencyId);
 
         for (uint i; i < trades.length; i++) {
             require(
@@ -219,7 +219,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
             if (i > 0 && trades[i].currencyId != trades[i - 1].currencyId) {
                 finalizeMarkets(markets);
-                (cashGroup, markets) = CashGroup.buildCashGroup(trades[i].currencyId);
+                (cashGroup, markets) = CashGroup.buildCashGroupStateful(trades[i].currencyId);
             }
 
             // bool needsLiquidity = (

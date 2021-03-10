@@ -184,7 +184,6 @@ library AssetHandler {
         require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: invalid asset get haircut cash claims
 
         require(liquidityToken.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
-        uint timeToMaturity = liquidityToken.maturity.sub(blockTime);
         // This won't overflow, the liquidity token haircut is stored as an uint8
         int haircut = int(cashGroup.getLiquidityHaircut(liquidityToken.assetType));
 

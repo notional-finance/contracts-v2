@@ -49,7 +49,7 @@ library Liquidation {
         uint blockTime,
         uint localCurrencyId,
         uint collateralCurrencyId
-    ) internal view returns (
+    ) internal returns (
         LiquidationFactors memory,
         PortfolioAsset[] memory
     ) {
@@ -59,12 +59,12 @@ library Liquidation {
             int[] memory netPortfolioValue,
             CashGroupParameters[] memory cashGroups,
             MarketParameters[][] memory marketStates
-        ) = FreeCollateral.setupFreeCollateral(
+        ) = FreeCollateral.setupFreeCollateralStateful(
             portfolioState,
             blockTime
         );
 
-        LiquidationFactors memory factors = getLiquidationFactors(
+        LiquidationFactors memory factors = getLiquidationFactorsStateful(
             localCurrencyId,
             collateralCurrencyId,
             balanceState,
@@ -80,14 +80,14 @@ library Liquidation {
      * @notice Calculates free collateral and liquidation factors required for the rest of the liquidation
      * procedure.
      */
-    function getLiquidationFactors(
+    function getLiquidationFactorsStateful(
         uint localCurrencyId,
         uint collateralCurrencyId,
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue
-    ) internal view returns (LiquidationFactors memory) {
+    ) internal returns (LiquidationFactors memory) {
         require(localCurrencyId != collateralCurrencyId, "L: invalid currency id");
         require(localCurrencyId != 0, "L: invalid currency id");
         require(collateralCurrencyId != 0, "L: invalid currency id");
@@ -126,8 +126,7 @@ library Liquidation {
                 }
                 groupIndex += 1;
             } else {
-                // TODO: there is a stateful and view version of this method
-                assetRate = AssetRate.buildAssetRate(balanceState[i].currencyId);
+                assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
             }
 
             // TODO: short circuit this if the currency is ETH

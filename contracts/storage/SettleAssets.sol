@@ -146,7 +146,7 @@ library SettleAssets {
             // mature. fCash claims on liquidity tokens settle at asset.maturity, not the settlement date
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
                 // Storage Read inside getSettlementRateView
-                (settlementRate, /* bytes32 */, /* uint8 */) = AssetRate.buildSettlementRateView(
+                settlementRate = AssetRate.buildSettlementRateView(
                     asset.currencyId,
                     asset.maturity
                 );

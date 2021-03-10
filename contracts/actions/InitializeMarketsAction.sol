@@ -372,7 +372,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      */
     function initializeMarkets(uint currencyId, bool isFirstInit) external {
         uint blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         // This should be sufficient to validate that the currency id is valid

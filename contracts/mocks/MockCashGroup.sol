@@ -211,13 +211,22 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.getOracleRate(markets, assetMaturity, blockTime);
     }
 
-    function buildCashGroup(
+    function buildCashGroupView(
         uint currencyId
     ) public view returns (
         CashGroupParameters memory,
         MarketParameters[] memory
     ) {
-        return CashGroup.buildCashGroup(currencyId);
+        return CashGroup.buildCashGroupView(currencyId);
+    }
+
+    function buildCashGroupStateful(
+        uint currencyId
+    ) public returns (
+        CashGroupParameters memory,
+        MarketParameters[] memory
+    ) {
+        return CashGroup.buildCashGroupStateful(currencyId);
     }
 
 }

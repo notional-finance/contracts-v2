@@ -17,10 +17,10 @@ library FreeCollateral {
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
 
-    function setupFreeCollateral(
+    function setupFreeCollateralStateful(
         PortfolioState memory portfolioState,
         uint blockTime
-    ) internal view returns (
+    ) internal returns (
         PortfolioAsset[] memory,
         int[] memory,
         CashGroupParameters[] memory,
@@ -30,7 +30,7 @@ library FreeCollateral {
         (
             CashGroupParameters[] memory cashGroups, 
             MarketParameters[][] memory marketStates
-        ) = getAllCashGroups(portfolioState.storedAssets);
+        ) = getAllCashGroupsStateful(portfolioState.storedAssets);
 
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method
@@ -48,11 +48,11 @@ library FreeCollateral {
     /**
      * @notice Aggregates the portfolio value with cash balances to get the net free collateral value.
      */
-    function getFreeCollateral(
+    function getFreeCollateralStateful(
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         int[] memory netPortfolioValue
-    ) internal view returns (int) {
+    ) internal returns (int) {
         uint groupIndex;
         int netETHValue;
 
@@ -71,10 +71,9 @@ library FreeCollateral {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
                 groupIndex += 1;
             } else {
-                // TODO: there is a stateful and non-stateful version of this function
-                assetRate = AssetRate.buildAssetRate(balanceState[i].currencyId);
+                assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
             }
-            // TODO: short circuit this if the currency is ETH
+
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
             int ethValue = ethRate.convertToETH(
                 assetRate.convertInternalToUnderlying(netLocalAssetValue)
@@ -90,9 +89,9 @@ library FreeCollateral {
      * @notice Ensures that all cash groups in a set of active assets are in the list of cash groups.
      * Cash groups can be in the active assets but not loaded yet if they have been previously traded.
      */
-    function getAllCashGroups(
+    function getAllCashGroupsStateful(
         PortfolioAsset[] memory assets
-    ) internal view returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+    ) internal returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
         uint groupIndex;
         uint lastCurrencyId;
 
@@ -113,7 +112,7 @@ library FreeCollateral {
                 (
                     cashGroups[groupIndex],
                     marketStates[groupIndex]
-                ) = CashGroup.buildCashGroup(assets[i].currencyId);
+                ) = CashGroup.buildCashGroupStateful(assets[i].currencyId);
                 groupIndex += 1;
                 lastCurrencyId = assets[i].currencyId;
             }

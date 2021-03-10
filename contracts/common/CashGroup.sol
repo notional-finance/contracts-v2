@@ -483,16 +483,11 @@ library CashGroup {
         assembly { sstore(slot, data) }
     }
 
-    /**
-     * @notice Converts cash group storage object into memory object
-     */
-    function buildCashGroup(
-        uint currencyId
-    ) internal view returns (CashGroupParameters memory, MarketParameters[] memory) {
+    function buildCashGroupInternal(
+        uint currencyId,
+        AssetRateParameters memory assetRate
+    ) private view returns (CashGroupParameters memory, MarketParameters[] memory) {
         bytes32 data = getCashGroupStorageBytes(currencyId);
-        // Ensure that accrue interest is called at the beginning of every method before this rate
-        // is built otherwise this wont be the most up to date interest rate.
-        AssetRateParameters memory assetRate = AssetRate.buildAssetRate(currencyId);
         uint maxMarketIndex = uint(uint8(uint(data)));
 
         return (
@@ -506,6 +501,23 @@ library CashGroup {
             // but there are issues with circular imports perhaps.
             new MarketParameters[](maxMarketIndex)
         );
+    }
+
+    /**
+     * @notice Converts cash group storage object into memory object
+     */
+    function buildCashGroupView(
+        uint currencyId
+    ) internal view returns (CashGroupParameters memory, MarketParameters[] memory) {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
+        return buildCashGroupInternal(currencyId, assetRate);
+    }
+
+    function buildCashGroupStateful(
+        uint currencyId
+    ) internal returns (CashGroupParameters memory, MarketParameters[] memory) {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
+        return buildCashGroupInternal(currencyId, assetRate);
     }
 
 }

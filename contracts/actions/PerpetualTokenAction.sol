@@ -157,7 +157,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         uint currencyId
     ) private view returns (int, PerpetualTokenPortfolio memory) {
         uint blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int totalAssetPV, /* bytes memory ifCashMapping */) = PerpetualToken.getPerpetualTokenPV(

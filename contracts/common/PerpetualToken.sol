@@ -121,7 +121,7 @@ library PerpetualToken {
         (
             uint currencyId,
             uint totalSupply,
-            uint incentiveAnnualEmissionRate
+            /* uint incentiveAnnualEmissionRate */
         ) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
 
         bytes32 data = (
@@ -288,13 +288,31 @@ library PerpetualToken {
      * @notice Given a currency id, will build a perpetual token portfolio object in order to get the value
      * of the portfolio.
      */
-    function buildPerpetualTokenPortfolio(
+    function buildPerpetualTokenPortfolioStateful(
+        uint currencyId
+    ) internal returns (PerpetualTokenPortfolio memory) {
+        PerpetualTokenPortfolio memory perpToken;
+        perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
+
+        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
+        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
+        perpToken.balanceState.currencyId = currencyId;
+        (
+            perpToken.balanceState.storedCashBalance,
+            perpToken.balanceState.storedPerpetualTokenBalance,
+            /* lastIncentiveMint */
+        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
+
+        return perpToken;
+    }
+
+    function buildPerpetualTokenPortfolioView(
         uint currencyId
     ) internal view returns (PerpetualTokenPortfolio memory) {
         PerpetualTokenPortfolio memory perpToken;
         perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
 
-        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroup(currencyId);
+        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupView(currencyId);
         perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
         perpToken.balanceState.currencyId = currencyId;
         (

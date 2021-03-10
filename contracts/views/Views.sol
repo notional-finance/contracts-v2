@@ -50,7 +50,7 @@ contract Views is StorageLayoutV1 {
     }
 
     function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory) {
-        return AssetRate.buildAssetRate(currencyId);
+        return AssetRate.buildAssetRateView(currencyId);
     }
 
     function getCashGroupAndRate(
@@ -62,7 +62,7 @@ contract Views is StorageLayoutV1 {
             return (cg, AssetRateParameters(address(0), 0, 0));
         }
 
-        return (cg, AssetRate.buildAssetRate(currencyId));
+        return (cg, AssetRate.buildAssetRateView(currencyId));
     }
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
@@ -84,7 +84,7 @@ contract Views is StorageLayoutV1 {
         (
             CashGroupParameters memory cashGroup,
             MarketParameters[] memory markets
-        ) = CashGroup.buildCashGroup(currencyId);
+        ) = CashGroup.buildCashGroupView(currencyId);
 
         for (uint i = 1; i <= cashGroup.maxMarketIndex; i++) {
             cashGroup.getMarket(markets, i, blockTime, true);
@@ -155,7 +155,7 @@ contract Views is StorageLayoutV1 {
     ) external view returns (uint) {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolio(currencyId);
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(

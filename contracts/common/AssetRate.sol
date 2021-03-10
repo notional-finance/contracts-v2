@@ -96,7 +96,7 @@ library AssetRate {
         return rate;
     }
 
-    function _getAssetRate(
+    function getAssetRateView(
         uint currencyId
     ) private view returns (int, address, uint8) {
         bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
@@ -106,7 +106,6 @@ library AssetRate {
 
         address rateOracle = address(bytes20(data << 96));
         uint8 underlyingDecimalPlaces = uint8(uint(data >> 160));
-        // TODO: latest round data potentially modifies state
         // TODO: potentially change this such that it takes a currency id and we
         // hardcode a single adapter interface
         int rate = AssetRateAdapterInterface(rateOracle).getExchangeRateView();
@@ -115,10 +114,41 @@ library AssetRate {
         return (rate, rateOracle, underlyingDecimalPlaces);
     }
 
-    function buildAssetRate(
+    function getAssetRateStateful(
+        uint currencyId
+    ) private returns (int, address, uint8) {
+        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
+        bytes32 data;
+
+        assembly { data := sload(slot) }
+
+        address rateOracle = address(bytes20(data << 96));
+        uint8 underlyingDecimalPlaces = uint8(uint(data >> 160));
+        // TODO: potentially change this such that it takes a currency id and we
+        // hardcode a single adapter interface
+        int rate = AssetRateAdapterInterface(rateOracle).getExchangeRateStateful();
+        require(rate > 0, "AR: invalid rate");
+
+        return (rate, rateOracle, underlyingDecimalPlaces);
+    }
+
+    function buildAssetRateView(
         uint currencyId
     ) internal view returns (AssetRateParameters memory) {
-        (int rate, address rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRate(currencyId);
+        (int rate, address rateOracle, uint8 underlyingDecimalPlaces) = getAssetRateView(currencyId);
+        int underlyingDecimals = int(10**underlyingDecimalPlaces);
+
+        return AssetRateParameters({
+            rateOracle: rateOracle,
+            rate: rate,
+            underlyingDecimals: underlyingDecimals
+        });
+    }
+
+    function buildAssetRateStateful(
+        uint currencyId
+    ) internal returns (AssetRateParameters memory) {
+        (int rate, address rateOracle, uint8 underlyingDecimalPlaces) = getAssetRateStateful(currencyId);
         int underlyingDecimals = int(10**underlyingDecimalPlaces);
 
         return AssetRateParameters({
@@ -131,7 +161,7 @@ library AssetRate {
     function buildSettlementRateView(
         uint currencyId,
         uint maturity
-    ) internal view returns (AssetRateParameters memory, bytes32, uint8) {
+    ) internal view returns (AssetRateParameters memory) {
         bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
         bytes32 data;
 
@@ -140,7 +170,7 @@ library AssetRate {
         int settlementRate;
         uint8 underlyingDecimalPlaces;
         if (data == bytes32(0)) {
-            (settlementRate, /* address */, underlyingDecimalPlaces) = _getAssetRate(currencyId);
+            (settlementRate, /* address */, underlyingDecimalPlaces) = getAssetRateView(currencyId);
         } else {
             settlementRate = int(uint128(uint(data >> 40)));
             underlyingDecimalPlaces = uint8(uint(data >> 168));
@@ -150,11 +180,7 @@ library AssetRate {
         int underlyingDecimals = int(10**underlyingDecimalPlaces);
 
         // Rate oracle not required for settlement
-        return (
-            AssetRateParameters(address(0), settlementRate, underlyingDecimals),
-            slot,
-            underlyingDecimalPlaces
-        );
+        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
     }
 
     function buildSettlementRateStateful(
@@ -162,18 +188,21 @@ library AssetRate {
         uint maturity,
         uint blockTime
     ) internal returns (AssetRateParameters memory) {
-        (
-            AssetRateParameters memory settlementRate,
-            bytes32 slot,
-            uint8 underlyingDecimalPlaces
-        ) = buildSettlementRateView(currencyId, maturity);
+        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        bytes32 data;
 
-        if (slot != bytes32(0)) {
+        assembly { data := sload(slot) }
+
+        int settlementRate;
+        uint8 underlyingDecimalPlaces;
+        if (data == bytes32(0)) {
+            (settlementRate, /* address */, underlyingDecimalPlaces) = getAssetRateStateful(currencyId);
+
             require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
-            require(settlementRate.rate > 0 && settlementRate.rate <= type(uint128).max); // dev: settlement rate overflow
-            uint128 storedRate = uint128(uint(settlementRate.rate));
+            require(settlementRate > 0 && settlementRate <= type(uint128).max); // dev: settlement rate overflow
+            uint128 storedRate = uint128(uint(settlementRate));
 
-            bytes32 data = (
+            data = (
                 bytes32(blockTime) |
                 bytes32(uint(storedRate)) << 40 |
                 bytes32(uint(underlyingDecimalPlaces)) << 168
@@ -182,8 +211,13 @@ library AssetRate {
             assembly { sstore(slot, data) }
 
             emit SetSettlementRate(currencyId, maturity, storedRate);
+        } else {
+            settlementRate = int(uint128(uint(data >> 40)));
+            underlyingDecimalPlaces = uint8(uint(data >> 168));
         }
 
-        return settlementRate;
+        int underlyingDecimals = int(10**underlyingDecimalPlaces);
+
+        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
     }
 }
