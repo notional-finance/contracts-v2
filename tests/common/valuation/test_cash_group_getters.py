@@ -112,7 +112,7 @@ def test_build_cash_group(cashGroup, aggregator):
 
         cashGroup.setCashGroup(i, cashGroupParameters)
 
-        (cg, markets) = cashGroup.buildCashGroup(i)
+        (cg, markets) = cashGroup.buildCashGroupView(i)
         assert cg[0] == i  # cash group id
         assert cg[1] == cashGroupParameters[0]  # Max market index
         # assert cg[3] == "0x" + cashGroupBytes
@@ -147,13 +147,13 @@ def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
 
     tRef = get_tref(blockTime)
     validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]
-    (cg, markets) = cashGroup.buildCashGroup(1)
+    (cg, markets) = cashGroup.buildCashGroupView(1)
 
     for m in validMarkets:
         settlementDate = tRef + 90 * SECONDS_IN_DAY
         cashGroup.setMarketState(cg[0], m, settlementDate, get_market_state(m))
 
-    (cg, markets) = cashGroup.buildCashGroup(1)
+    (cg, markets) = cashGroup.buildCashGroupView(1)
 
     for i in range(0, len(validMarkets)):
         needsLiquidity = True if random.randint(0, 1) else False
@@ -192,7 +192,7 @@ def test_get_oracle_rate(cashGroup, aggregator, mockCToken, maxMarketIndex, bloc
     tRef = get_tref(blockTime)
     validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]
     impliedRates = {}
-    (cg, markets) = cashGroup.buildCashGroup(1)
+    (cg, markets) = cashGroup.buildCashGroupView(1)
 
     for m in validMarkets:
         lastImpliedRate = random.randint(1e8, 1e9)

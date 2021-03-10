@@ -46,10 +46,17 @@ contract MockAssetRate is StorageLayoutV1 {
         return result;
     }
 
-    function buildAssetRateView(
+    function buildAssetRate(
         uint currencyId
-    ) external view returns (AssetRateParameters memory) {
-        return AssetRate.buildAssetRateView(currencyId);
+    ) external returns (AssetRateParameters memory) {
+        AssetRateParameters memory assetRateStateful = AssetRate.buildAssetRateStateful(currencyId);
+        AssetRateParameters memory assetRateView = AssetRate.buildAssetRateView(currencyId);
+
+        assert (assetRateStateful.rate == assetRateView.rate);
+        assert (assetRateStateful.underlyingDecimals == assetRateView.underlyingDecimals);
+        assert (assetRateStateful.rateOracle == assetRateView.rateOracle);
+
+        return assetRateStateful;
     }
 
     function buildAssetRateStateful(

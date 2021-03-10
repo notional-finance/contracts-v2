@@ -6,6 +6,7 @@ contract MockCToken {
     uint private _supplyRate;
     uint8 public decimals;
     string public symbol = "cMock";
+    event AccrueInterest(uint cashPrior, uint interestAccumulated, uint borrowIndex, uint totalBorrows);
 
     constructor(uint8 _decimals) {
         decimals = _decimals;
@@ -20,6 +21,8 @@ contract MockCToken {
     }
 
     function exchangeRateCurrent() external returns (uint) {
+        // This is here to test if we've called the right function
+        emit AccrueInterest(0, 0, 0, 0);
         return _answer;
     }
 
