@@ -1,6 +1,7 @@
 import itertools
 import random
 
+from brownie.convert.datatypes import Wei
 from brownie.test import strategy
 from tests.constants import CASH_GROUP_PARAMETERS, MARKETS, RATE_PRECISION, SECONDS_IN_DAY
 
@@ -35,9 +36,9 @@ def get_market_state(maturity, **kwargs):
     return (
         "0x0",  # storage slot
         maturity,
-        totalfCash,
-        totalCurrentCash,
-        totalLiquidity,
+        Wei(totalfCash),
+        Wei(totalCurrentCash),
+        Wei(totalLiquidity),
         lastImpliedRate,
         oracleRate,
         previousTradeTime,

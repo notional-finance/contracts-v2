@@ -104,11 +104,55 @@ contract MockMarket is StorageLayoutV1 {
         );
 
         return (marketState, assetCash);
+    }
+
+    function addLiquidity(
+        MarketParameters memory marketState,
+        int assetCash
+    ) public pure returns (MarketParameters memory, int, int) {
+        (int liquidityTokens, int fCash) = marketState.addLiquidity(assetCash);
+        assert (liquidityTokens >= 0);
+        assert (fCash <= 0);
+        return (marketState, liquidityTokens, fCash);
+    }
+
+    function removeLiquidity(
+        MarketParameters memory marketState,
+        int tokensToRemove
+    ) public pure returns (MarketParameters memory, int, int) {
+        (int assetCash, int fCash) = marketState.removeLiquidity(tokensToRemove);
+
+        assert (assetCash >= 0);
+        assert (fCash >= 0);
+        return (marketState, assetCash, fCash);
+    }
+
+   function setMarketStorage(
+        uint currencyId,
+        uint settlementDate,
+        MarketParameters memory market
+    ) public {
+        market.storageSlot = Market.getSlot(currencyId, market.maturity, settlementDate);
+        // ensure that state gets set
+        market.storageState = 0xFF;
+        market.setMarketStorage();
    }
 
-   function setMarketStorage(MarketParameters memory market) public {
-       market.setMarketStorage();
-   }
+    function setMarketStorageSimulate(
+        MarketParameters memory market
+    ) public {
+        // This is to simulate a real market storage
+        market.setMarketStorage();
+    }
+
+    function getMarketStorageOracleRate(
+        bytes32 slot
+    ) public view returns (uint) {
+        bytes32 data;
+
+        assembly { data := sload(slot) }
+        return uint(uint32(uint(data >> 192)));
+    }
 
    function buildMarket(
         uint currencyId,
@@ -120,6 +164,18 @@ contract MockMarket is StorageLayoutV1 {
         MarketParameters memory market;
         market.loadMarket(currencyId, maturity, blockTime, needsLiquidity, rateOracleTimeWindow);
         return market;
+    }
+
+    function getSettlementMarket(
+        uint currencyId,
+        uint maturity,
+        uint settlementDate
+    ) public view returns (SettlementMarket memory) {
+        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
+    }
+
+    function setSettlementMarket(SettlementMarket memory market) public {
+        return Market.setSettlementMarket(market);
     }
 
 }

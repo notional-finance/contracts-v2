@@ -193,8 +193,7 @@ library SettleAssets {
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
-            uint settlementDate = asset.getSettlementDate();
-            if (settlementDate > blockTime) continue;
+            if (asset.getSettlementDate() > blockTime) continue;
 
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 lastMaturity = 0;
@@ -232,12 +231,7 @@ library SettleAssets {
                 }
 
                 // 2x storage write
-                Market.setSettlementMarket(
-                    asset.currencyId,
-                    asset.maturity,
-                    settlementDate,
-                    market
-                );
+                Market.setSettlementMarket(market);
             }
 
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex].netCashChange

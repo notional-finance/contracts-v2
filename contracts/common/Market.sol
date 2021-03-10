@@ -31,6 +31,7 @@ struct MarketParameters {
 }
 
 struct SettlementMarket {
+    bytes32 storageSlot;
     // Total amount of fCash available for purchase in the market.
     int totalfCash;
     // Total amount of cash available for purchase in the market.
@@ -78,8 +79,8 @@ library Market {
         int assetCash
     ) internal pure returns (int, int) {
         require(marketState.totalLiquidity > 0, "M: zero liquidity");
-        require(assetCash >= 0, "M: negative asset cash");
         if (assetCash == 0) return (0, 0);
+        require(assetCash > 0); // dev: negative asset cash
 
         int liquidityTokens = marketState.totalLiquidity.mul(assetCash).div(marketState.totalCurrentCash);
         // No need to convert this to underlying, assetCash / totalCurrentCash is a unitless proportion.
@@ -103,6 +104,7 @@ library Market {
         int tokensToRemove
     ) internal pure returns (int, int) {
         if (tokensToRemove == 0) return (0, 0);
+        require(tokensToRemove > 0); // dev: negative tokens to remove
 
         int assetCash = marketState.totalCurrentCash.mul(tokensToRemove).div(marketState.totalLiquidity);
         int fCash = marketState.totalfCash.mul(tokensToRemove).div(marketState.totalLiquidity);
@@ -611,13 +613,11 @@ library Market {
         uint maturity,
         uint settlementDate
     ) internal view returns (SettlementMarket memory) {
-        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
+        uint slot = uint(getSlot(currencyId, maturity, settlementDate));
         int totalLiquidity;
         bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        assembly { data := sload(slot) }
 
         int totalfCash = int(uint80(uint(data)));
         int totalCurrentCash = int(uint80(uint(data >> 80)));
@@ -625,13 +625,12 @@ library Market {
         // and totalCurrentCash figures.
         data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
 
-        slot = bytes32(uint(slot) + 1);
+        slot = uint(slot) + 1;
 
-        assembly {
-            totalLiquidity := sload(slot)
-        }
+        assembly { totalLiquidity := sload(slot) }
 
         return SettlementMarket({
+            storageSlot: bytes32(slot - 1),
             totalfCash: totalfCash,
             totalCurrentCash: totalCurrentCash,
             totalLiquidity: int(totalLiquidity),
@@ -640,12 +639,9 @@ library Market {
     }
 
     function setSettlementMarket(
-        uint currencyId,
-        uint maturity,
-        uint settlementDate,
         SettlementMarket memory market
     ) internal {
-        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
+        bytes32 slot = market.storageSlot;
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
         require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: settlement market storage totalCurrentCash overflow
@@ -659,15 +655,11 @@ library Market {
 
         // Don't clear the storage even when all liquidity tokens have been removed because we need to use
         // the oracle rates to initialize the next set of markets.
-        assembly {
-            sstore(slot, data)
-        }
+        assembly { sstore(slot, data) }
 
         slot = bytes32(uint(slot) + 1);
         bytes32 totalLiquidity = bytes32(market.totalLiquidity);
-        assembly {
-            sstore(slot, totalLiquidity)
-        }
+        assembly { sstore(slot, totalLiquidity) }
     }
 
 }
