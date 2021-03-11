@@ -144,7 +144,7 @@ library AssetHandler {
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
     ) internal pure returns (int, int) {
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: invalid asset, get cash claims
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: invalid asset, get cash claims
 
         int assetCash = marketState.totalCurrentCash
             .mul(liquidityToken.notional)
@@ -178,10 +178,9 @@ library AssetHandler {
     function getHaircutCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup,
-        uint blockTime
+        CashGroupParameters memory cashGroup
     ) internal pure returns (int, int) {
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: invalid asset get haircut cash claims
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: invalid asset get haircut cash claims
 
         require(liquidityToken.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
         // This won't overflow, the liquidity token haircut is stored as an uint8
@@ -212,7 +211,7 @@ library AssetHandler {
         uint blockTime,
         bool riskAdjusted
     ) internal view returns (int, int) {
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional > 0); // dev: get liquidity token value, not liquidity token
+        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: get liquidity token value, not liquidity token
 
         MarketParameters memory market;
         {
@@ -230,8 +229,7 @@ library AssetHandler {
             (assetCashClaim, fCashClaim) = getHaircutCashClaims(
                 liquidityToken,
                 market,
-                cashGroup,
-                blockTime
+                cashGroup
             );
         } else {
             (assetCashClaim, fCashClaim) = getCashClaims(
@@ -324,8 +322,10 @@ library AssetHandler {
 
                 // Convert the PV of the underlying values before we move to the next group index.
                 if (presentValueUnderlying[groupIndex] != 0) {
-                    presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
-                        presentValueUnderlying[groupIndex]
+                    presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(
+                        cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
+                            presentValueUnderlying[groupIndex]
+                        )
                     );
                 }
                 groupIndex += 1;
@@ -361,8 +361,8 @@ library AssetHandler {
         }
 
         // This converts the last group which is not caught in the if statement above
-        presentValueAsset[groupIndex] = cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
-            presentValueUnderlying[groupIndex]
+        presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(
+            cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(presentValueUnderlying[groupIndex])
         );
 
         return presentValueAsset;

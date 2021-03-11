@@ -23,12 +23,28 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint id,
         CashGroupParameterStorage calldata cg
     ) external {
-        cashGroupMapping[id] = cg;
+        CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function setMarketState(MarketParameters memory ms) external {
-        ms.setMarketStorage();
+    function buildCashGroupView(
+        uint currencyId
+    ) public view returns (
+        CashGroupParameters memory,
+        MarketParameters[] memory
+    ) {
+        return CashGroup.buildCashGroupView(currencyId);
     }
+
+    function setMarketStorage(
+        uint currencyId,
+        uint settlementDate,
+        MarketParameters memory market
+    ) public {
+        market.storageSlot = Market.getSlot(currencyId, market.maturity, settlementDate);
+        // ensure that state gets set
+        market.storageState = 0xFF;
+        market.setMarketStorage();
+   }
 
     function getSettlementDate(
         PortfolioAsset memory asset
@@ -81,11 +97,10 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getHaircutCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup,
-        uint blockTime
+        CashGroupParameters memory cashGroup
     ) public pure returns (int, int) {
         (int haircutCash, int haircutfCash) = liquidityToken.getHaircutCashClaims(
-            marketState, cashGroup, blockTime
+            marketState, cashGroup
         );
         (int cash, int fCash) = liquidityToken.getCashClaims(marketState);
 
@@ -93,6 +108,24 @@ contract MockAssetHandler is StorageLayoutV1 {
         assert(haircutfCash < fCash);
 
         return (haircutCash, haircutfCash);
+    }
+
+    function getLiquidityTokenValueRiskAdjusted(
+        PortfolioAsset memory liquidityToken,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        PortfolioAsset[] memory fCashAssets,
+        uint blockTime
+    ) public view returns (int, int, PortfolioAsset[] memory) {
+        (int assetValue, int pv) = liquidityToken.getLiquidityTokenValue(
+            cashGroup,
+            markets,
+            fCashAssets,
+            blockTime,
+            true
+        );
+
+        return (assetValue, pv, fCashAssets);
     }
 
     function getLiquidityTokenValue(
@@ -107,7 +140,7 @@ contract MockAssetHandler is StorageLayoutV1 {
             markets,
             fCashAssets,
             blockTime,
-            true
+            false
         );
 
         return (assetValue, pv, fCashAssets);
@@ -126,6 +159,24 @@ contract MockAssetHandler is StorageLayoutV1 {
             blockTime,
             // Set risk adjusted to true
             true
+        );
+
+        return assetValue;
+    }
+
+    function getPortfolioValue(
+        PortfolioAsset[] memory assets,
+        CashGroupParameters[] memory cashGroups,
+        MarketParameters[][] memory markets,
+        uint blockTime
+    ) public view returns(int[] memory) {
+        int[] memory assetValue = AssetHandler.getPortfolioValue(
+            assets,
+            cashGroups,
+            markets,
+            blockTime,
+            // Set risk adjusted to true
+            false
         );
 
         return assetValue;

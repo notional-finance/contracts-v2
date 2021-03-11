@@ -46,6 +46,57 @@ def get_market_state(maturity, **kwargs):
     )
 
 
+def get_liquidity_token(marketIndex, **kwargs):
+    currencyId = 1 if "currencyId" not in kwargs else kwargs["currencyId"]
+    maturity = MARKETS[marketIndex - 1] if "maturity" not in kwargs else kwargs["maturity"]
+    assetType = marketIndex + 1
+    notional = 1e18 if "notional" not in kwargs else kwargs["notional"]
+    storageState = 0 if "storageState" not in kwargs else kwargs["storageState"]
+
+    return (currencyId, maturity, assetType, Wei(notional), storageState)
+
+
+def get_fcash_token(marketIndex, **kwargs):
+    currencyId = 1 if "currencyId" not in kwargs else kwargs["currencyId"]
+    maturity = MARKETS[marketIndex - 1] if "maturity" not in kwargs else kwargs["maturity"]
+    assetType = 1
+    notional = 1e18 if "notional" not in kwargs else kwargs["notional"]
+    storageState = 0 if "storageState" not in kwargs else kwargs["storageState"]
+
+    return (currencyId, maturity, assetType, Wei(notional), storageState)
+
+
+def get_portfolio_array(length, cashGroups, **kwargs):
+    portfolio = []
+    while len(portfolio) < length:
+        isLiquidity = random.randint(0, 1)
+        cashGroup = random.choice(cashGroups)
+        marketIndex = random.randint(1, cashGroup[1])
+
+        if isLiquidity:
+            asset = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
+        else:
+            asset = get_fcash_token(marketIndex, currencyId=cashGroup[0])
+
+        # Don't allow keys to be repeated
+        if (
+            len(
+                list(
+                    filter(
+                        lambda x: (x[0], x[1], x[2]) == (asset[0], asset[1], asset[2]), portfolio
+                    )
+                )
+            )
+            == 0
+        ):
+            portfolio.append(asset)
+
+    if kwargs["sorted"]:
+        return sorted(portfolio, key=lambda x: (x[0], x[1], x[2]))
+
+    return portfolio
+
+
 def generate_asset_array(numAssets, numCurrencies):
     assets = []
     nextMaturingAsset = 2 ** 40
