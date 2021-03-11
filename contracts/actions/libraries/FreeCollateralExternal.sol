@@ -18,11 +18,9 @@ library FreeCollateralExternal {
         address account,
         bool loadPortfolio // TODO: switch this in v2
     ) external {
-        // Load account context
-        // TODO: load this
-        AccountStorage memory accountContext;
-        // load all balances
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
+        uint blockTime = block.timestamp;
 
         PortfolioState memory portfolioState;
         if (loadPortfolio) {
@@ -35,9 +33,15 @@ library FreeCollateralExternal {
             int[] memory netPortfolioValue,
             CashGroupParameters[] memory cashGroups,
             /* marketStates */
-        ) = FreeCollateral.setupFreeCollateralStateful(portfolioState, block.timestamp);
+        ) = FreeCollateral.setupFreeCollateralStateful(portfolioState, blockTime);
 
-        int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(balanceStates, cashGroups, netPortfolioValue);
+        int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(
+            balanceStates,
+            cashGroups,
+            netPortfolioValue,
+            blockTime
+        );
+
         require(ethDenominatedFC >= 0, "Insufficient free collateral");
     }
 

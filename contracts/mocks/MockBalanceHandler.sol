@@ -76,12 +76,6 @@ contract MockBalanceHandler is StorageLayoutV1 {
         return data;
     }
 
-    function getPerpetualTokenAssetValue(
-        BalanceState memory balanceState
-    ) public pure returns (int) {
-        return balanceState.getPerpetualTokenAssetValue();
-    }
-
     function finalize(
         BalanceState memory balanceState,
         address account,

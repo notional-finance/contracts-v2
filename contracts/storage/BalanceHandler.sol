@@ -36,13 +36,6 @@ library BalanceHandler {
     uint internal constant BALANCE_STORAGE_SLOT = 8;
 
     /**
-     * @notice 
-     */
-    function getPerpetualTokenAssetValue(
-        BalanceState memory balanceState
-    ) internal pure returns (int) { return 0; }
-
-    /**
      * @notice Handles two special cases when depositing tokens into an account.
      *  - If a token has transfer fees then the amount specified does not equal the amount that the contract
      *    will receive. Complete the deposit here rather than in finalize so that the contract has the correct

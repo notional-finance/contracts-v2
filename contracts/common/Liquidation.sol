@@ -70,7 +70,8 @@ library Liquidation {
             balanceState,
             cashGroups,
             marketStates,
-            netPortfolioValue
+            netPortfolioValue,
+            blockTime
         );
 
         return (factors, allActiveAssets);
@@ -86,7 +87,8 @@ library Liquidation {
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
-        int[] memory netPortfolioValue
+        int[] memory netPortfolioValue,
+        uint blockTime
     ) internal returns (LiquidationFactors memory) {
         require(localCurrencyId != collateralCurrencyId, "L: invalid currency id");
         require(localCurrencyId != 0, "L: invalid currency id");
@@ -98,12 +100,18 @@ library Liquidation {
         LiquidationFactors memory factors;
 
         for (uint i; i < balanceState.length; i++) {
-            int perpetualTokenValue;
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
-                // TODO: fill this out
-                perpetualTokenValue = balanceState[i].getPerpetualTokenAssetValue();
+                int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
+                    balanceState[i].currencyId,
+                    balanceState[i].storedPerpetualTokenBalance,
+                    blockTime
+                );
                 netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+
+                if (balanceState[i].currencyId == collateralCurrencyId) {
+                    factors.collateralPerpetualTokenValue = perpetualTokenValue;
+                }
             }
 
             // If this is true then there is some collateral value within the system. Set this
@@ -129,7 +137,6 @@ library Liquidation {
                 assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
             }
 
-            // TODO: short circuit this if the currency is ETH
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
             int ethValue = ethRate.convertToETH(
                 assetRate.convertInternalToUnderlying(netLocalAssetValue)
@@ -142,7 +149,6 @@ library Liquidation {
                 factors.localETHRate = ethRate;
             } else if (balanceState[i].currencyId == collateralCurrencyId) {
                 factors.collateralAvailable = netLocalAssetValue;
-                factors.collateralPerpetualTokenValue = perpetualTokenValue;
                 factors.collateralETHRate = ethRate;
             }
         }

@@ -7,36 +7,17 @@ import "../storage/StorageLayoutV1.sol";
 
 contract MockFreeCollateral is StorageLayoutV1 {
 
-    function doesAccountPassFreeCollateral(
-        address account,
-        AccountStorage memory accountContext,
+    function setupFreeCollateralStateful(
         PortfolioState memory portfolioState,
-        BalanceState[] memory balanceState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
         uint blockTime
-    ) public view returns (bool) {
-        return FreeCollateral.doesAccountPassFreeCollateral(
-            account,
-            accountContext,
+    ) public returns (
+        PortfolioAsset[] memory,
+        int[] memory,
+        CashGroupParameters[] memory,
+        MarketParameters[][] memory
+    ) {
+        return FreeCollateral.setupFreeCollateralStateful(
             portfolioState,
-            balanceState,
-            cashGroups,
-            marketStates,
-            blockTime
-        );
-    }
-
-    function setupFreeCollateral(
-        PortfolioState memory portfolioState,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
-        uint blockTime
-    ) public view returns (PortfolioAsset[] memory, int[] memory) {
-        return FreeCollateral.setupFreeCollateral(
-            portfolioState,
-            cashGroups,
-            marketStates,
             blockTime
         );
     }
@@ -44,36 +25,21 @@ contract MockFreeCollateral is StorageLayoutV1 {
     function getFreeCollateral(
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue
-    ) public view returns (int) {
-        return FreeCollateral.getFreeCollateral(
+        int[] memory netPortfolioValue,
+        uint blockTime
+    ) public returns (int) {
+        return FreeCollateral.getFreeCollateralStateful(
             balanceState,
             cashGroups,
-            netPortfolioValue
+            netPortfolioValue,
+            blockTime
         );
     }
 
     function getAllCashGroups(
-        PortfolioAsset[] memory assets,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates
-    ) public view returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
-        return FreeCollateral.getAllCashGroups(
-            assets,
-            cashGroups,
-            marketStates
-        );
+        PortfolioAsset[] memory assets
+    ) public returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+        return FreeCollateral.getAllCashGroupsStateful(assets);
     }
 
-    function shouldCheckFreeCollateral(
-        AccountStorage memory accountContext,
-        BalanceState[] memory balanceState,
-        PortfolioState memory portfolioState
-    ) public pure returns (bool) {
-        return FreeCollateral.shouldCheckFreeCollateral(
-            accountContext,
-            balanceState,
-            portfolioState
-        );
-    }
 }

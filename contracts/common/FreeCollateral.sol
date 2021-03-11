@@ -16,6 +16,7 @@ library FreeCollateral {
     using BalanceHandler for BalanceState;
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
+    using PerpetualToken for PerpetualTokenPortfolio;
 
     function setupFreeCollateralStateful(
         PortfolioState memory portfolioState,
@@ -45,13 +46,40 @@ library FreeCollateral {
         return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
 
+    function getPerpetualTokenAssetValue(
+        uint currencyId,
+        int tokenBalance,
+        uint blockTime
+    ) internal returns (int) {
+        // TODO: if the currency id is in the list we make two stateful calls to get the asset rate...not very efficient
+        // TODO: lots of storage reads to get this to work...can we make this more efficient?
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
+        // This only uses nextMaturingAsset which is always set to a predictable value, we just need to know
+        // if the markets have been initialized or not
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
+        (
+            /* currencyId */,
+            uint totalSupply,
+            /* incentiveRate */
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
+
+        (
+            int perpTokenPV,
+            /* ifCashBitmap */
+        ) = perpToken.getPerpetualTokenPV(accountContext, blockTime);
+
+        // No overflow in totalSupply, stored as a uint96
+        return tokenBalance.mul(perpTokenPV).div(int(totalSupply));
+    }
+
     /**
      * @notice Aggregates the portfolio value with cash balances to get the net free collateral value.
      */
     function getFreeCollateralStateful(
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue
+        int[] memory netPortfolioValue,
+        uint blockTime
     ) internal returns (int) {
         uint groupIndex;
         int netETHValue;
@@ -61,8 +89,11 @@ library FreeCollateral {
             int perpetualTokenValue;
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
-                // TODO: change this
-                perpetualTokenValue = balanceState[i].getPerpetualTokenAssetValue();
+                perpetualTokenValue = getPerpetualTokenAssetValue(
+                    balanceState[i].currencyId,
+                    balanceState[i].storedPerpetualTokenBalance,
+                    blockTime
+                );
                 netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
             }
 

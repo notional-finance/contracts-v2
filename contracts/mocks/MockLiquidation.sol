@@ -33,7 +33,8 @@ contract MockLiquidation is StorageLayoutV1 {
         BalanceState[] memory balanceState,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
-        int[] memory netPortfolioValue
+        int[] memory netPortfolioValue,
+        uint blockTime
     ) public returns (LiquidationFactors memory) {
         LiquidationFactors memory factors = Liquidation.getLiquidationFactorsStateful(
             localCurrencyId,
@@ -41,7 +42,8 @@ contract MockLiquidation is StorageLayoutV1 {
             balanceState,
             cashGroups,
             marketStates,
-            netPortfolioValue
+            netPortfolioValue,
+            blockTime
         );
 
         assert(factors.localCashGroup.currencyId == localCurrencyId);
