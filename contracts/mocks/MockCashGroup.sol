@@ -29,7 +29,7 @@ contract MockCashGroup is StorageLayoutV1 {
         uint settlementDate,
         MarketParameters memory ms
     ) external {
-        ms.storageSlot = Market.getSlot(currencyId, maturity, settlementDate);
+        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
         // ensure that state gets set
         ms.storageState = 0xFF;
         ms.setMarketStorage();

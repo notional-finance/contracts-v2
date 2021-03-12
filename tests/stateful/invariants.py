@@ -40,14 +40,14 @@ def check_cash_balance(env, accounts):
         perpTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, perpTokenBalance) = env.router["Views"].getAccountBalance(
+            (cashBalance, perpTokenBalance, lastMintTime) = env.router["Views"].getAccountBalance(
                 currencyId, account.address
             )
             accountBalances += cashBalance
             perpTokenTotalBalances += perpTokenBalance
 
         # Add perp token balances
-        (cashBalance, _) = env.router["Views"].getAccountBalance(
+        (cashBalance, _, _) = env.router["Views"].getAccountBalance(
             currencyId, env.perpToken[currencyId].address
         )
         accountBalances += cashBalance
@@ -70,7 +70,7 @@ def check_perp_token(env, accounts):
         totalTokensHeld = 0
 
         for account in accounts:
-            (_, tokens) = env.router["Views"].getAccountBalance(currencyId, account.address)
+            (_, tokens, _) = env.router["Views"].getAccountBalance(currencyId, account.address)
             totalTokensHeld += tokens
 
         # Ensure that total supply equals tokens held
@@ -78,10 +78,11 @@ def check_perp_token(env, accounts):
 
         # Ensure that the perp token never holds other balances
         for (_, testCurrencyId) in env.currencyId.items():
-            (cashBalance, tokens) = env.router["Views"].getAccountBalance(
+            (cashBalance, tokens, lastMintTime) = env.router["Views"].getAccountBalance(
                 testCurrencyId, perpToken.address
             )
             assert tokens == 0
+            assert lastMintTime == 0
 
             if testCurrencyId != currencyId:
                 assert cashBalance == 0
@@ -178,7 +179,7 @@ def check_account_context(env, accounts):
         hasDebt = False
         for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
-            (cashBalance, perpTokenBalance) = env.router["Views"].getAccountBalance(
+            (cashBalance, perpTokenBalance, lastMintTime) = env.router["Views"].getAccountBalance(
                 currencyId, account.address
             )
             if cashBalance != 0 or perpTokenBalance != 0:

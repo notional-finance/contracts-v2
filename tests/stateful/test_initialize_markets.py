@@ -85,7 +85,7 @@ def get_maturities(index):
 def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
     blockTime = chain.time()
     perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
-    (cashBalance, perpTokenBalance) = environment.router["Views"].getAccountBalance(
+    (cashBalance, perpTokenBalance, lastMintTime) = environment.router["Views"].getAccountBalance(
         currencyId, perpTokenAddress
     )
 
@@ -104,6 +104,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
     # assert perp token has no cash left
     assert cashBalance == 0
     assert perpTokenBalance == 0
+    assert lastMintTime == 0
 
     # assert that perp token has liquidity tokens
     assert len(portfolio) == cashGroup[0]  # max market index
@@ -138,7 +139,6 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
         assert asset[3] < 0
 
     for (i, market) in enumerate(markets):
-        assert market[0] == currencyId
         assert market[1] == maturity[i]
         # all market liquidity is from the perp token
         assert market[4] == portfolio[i][3]

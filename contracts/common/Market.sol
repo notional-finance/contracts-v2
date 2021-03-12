@@ -490,7 +490,7 @@ library Market {
         uint settlementDate
     ) private view {
         // Market object always uses the most current reference time as the settlement date
-        bytes32 slot = getSlot(currencyId, maturity, settlementDate);
+        bytes32 slot = getSlot(currencyId, settlementDate, maturity);
         bytes32 data;
 
         assembly { data := sload(slot) }
@@ -613,7 +613,7 @@ library Market {
         uint maturity,
         uint settlementDate
     ) internal view returns (SettlementMarket memory) {
-        uint slot = uint(getSlot(currencyId, maturity, settlementDate));
+        uint slot = uint(getSlot(currencyId, settlementDate, maturity));
         int totalLiquidity;
         bytes32 data;
 

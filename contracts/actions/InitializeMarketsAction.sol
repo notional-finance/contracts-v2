@@ -17,7 +17,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  * @notice Initialize markets is called once every quarter to setup the new markets. Only the perpetual
  * token account can initialize markets, and this method will be called on behalf of that account. In this action
  * the following will occur:
- *  - Perpetual Liquidity Tokens will be settled, excluding the 6 month token (which becomes the new 3 month)
+ *  - Perpetual Liquidity Tokens will be settled
  *  - Any ifCash assets will be settled
  *  - If perpetual liquidity tokens are settled with negative net ifCash, enough cash will be withheld at the PV
  *    to purchase offsetting positions
