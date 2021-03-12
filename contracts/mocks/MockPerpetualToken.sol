@@ -7,6 +7,13 @@ import "../storage/StorageLayoutV1.sol";
 
 contract MockPerpetualToken is StorageLayoutV1 {
 
+    function setIncentiveEmissionRate(
+        address tokenAddress,
+        uint32 newEmissionsRate
+    ) external {
+        PerpetualToken.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
+    }
+
     function getPerpetualTokenCurrencyIdAndSupply(
         address tokenAddress
     ) external view returns (uint, uint, uint) {

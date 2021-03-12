@@ -1,6 +1,7 @@
 from copy import copy
 
 from brownie import (
+    FreeCollateralExternal,
     GovernanceAction,
     GovernorAlpha,
     InitializeMarketsAction,
@@ -13,6 +14,7 @@ from brownie import (
     PerpetualTokenERC20,
     RedeemPerpetualTokenAction,
     Router,
+    SettleAssetsExternal,
     Views,
     accounts,
     cTokenAggregator,
@@ -162,6 +164,10 @@ class TestEnvironment:
         # This must be deployed to enable Notional
         self._deployMockCurrency("ETH")
 
+        # Deploy Libraries
+        FreeCollateralExternal.deploy({"from": self.deployer})
+        SettleAssetsExternal.deploy({"from": self.deployer})
+
         # Deploy logic contracts
         governance = GovernanceAction.deploy({"from": self.deployer})
         views = Views.deploy({"from": self.deployer})
@@ -252,10 +258,12 @@ class TestEnvironment:
                 config["maxMarketIndex"],
                 config["rateOracleTimeWindow"],
                 config["liquidityFee"],
-                config["tokenHaircut"],
                 config["debtBuffer"],
                 config["fCashHaircut"],
-                config["rateScalar"],
+                config["settlementPenalty"],
+                config["liquidityRepoDiscount"],
+                config["tokenHaircut"][0 : config["maxMarketIndex"]],
+                config["rateScalar"][0 : config["maxMarketIndex"]],
             ),
         )
 

@@ -17,11 +17,24 @@ def test_set_token_address(perpetualToken, currencyId, tokenAddress):
     perpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress)
 
     assert perpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress
-    (currencyIdStored, totalSupply) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(
-        tokenAddress
-    )
+    (
+        currencyIdStored,
+        totalSupply,
+        incentives,
+    ) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
+    assert incentives == 0
+
+    perpetualToken.setIncentiveEmissionRate(tokenAddress, 0.01e9)
+    (
+        currencyIdStored,
+        totalSupply,
+        incentives,
+    ) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress)
+    assert currencyIdStored == currencyId
+    assert totalSupply == 0
+    assert incentives == 0.01e9
 
 
 def test_deposit_parameters_failures(perpetualToken):

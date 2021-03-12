@@ -6,16 +6,18 @@ TokenConfig = {
 }
 
 CurrencyDefaults = {
+    "maxMarketIndex": 2,
+    "rateOracleTimeWindow": 20,
     "buffer": 140,
     "haircut": 100,
     "liquidationDiscount": 105,
-    "maxMarketIndex": 2,
-    "rateOracleTimeWindow": 20,
     "liquidityFee": 30,
-    "tokenHaircut": 95,
     "debtBuffer": 30,
     "fCashHaircut": 30,
-    "rateScalar": 100,
+    "settlementPenalty": 40,
+    "liquidityRepoDiscount": 40,
+    "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
+    "rateScalar": (10, 9, 8, 7, 6, 5, 4, 3, 2),
 }
 
 CompoundConfig = {
