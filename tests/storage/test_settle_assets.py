@@ -4,15 +4,10 @@ import random
 import pytest
 from brownie.test import given, strategy
 from hypothesis import settings
-from tests.common.params import (
-    MARKETS,
-    SECONDS_IN_DAY,
-    SECONDS_IN_YEAR,
-    SETTLEMENT_DATE,
-    START_TIME,
-)
+from tests.constants import MARKETS, SECONDS_IN_DAY, SECONDS_IN_YEAR, SETTLEMENT_DATE, START_TIME
+from tests.helpers import get_market_state, get_portfolio_array
 
-NUM_CURRENCIES = 8
+NUM_CURRENCIES = 3
 SETTLEMENT_RATE = [
     (18, MARKETS[0], 0.01e18),
     (18, MARKETS[1], 0.02e18),
@@ -49,11 +44,13 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
     # Set the mock aggregators
     contract.setMaxCurrencyId(NUM_CURRENCIES)
     for i, a in enumerate(mockAggregators):
-        contract.setAssetRateMapping(i + 1, (a.address, 8))
+        currencyId = i + 1
+        contract.setAssetRateMapping(currencyId, (a.address, 8))
 
         # Set market state
         for m in MARKETS:
-            contract.setMarketState((i + 1, m, 1e18, 1e18, 1e18, 0, 0, 0, True), SETTLEMENT_DATE)
+            marketState = get_market_state(m)
+            contract.setMarketState(currencyId, SETTLEMENT_DATE, m, marketState)
 
             # Set settlement rates for markets 0, 1
             if m == MARKETS[0]:
@@ -65,24 +62,12 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
 
 def generate_asset_array(numAssets):
-    assets = []
-    nextMaturingAsset = 2 ** 40 - 1
-    assetsChoice = random.sample(
-        list(itertools.product(range(1, NUM_CURRENCIES), MARKETS)), numAssets
-    )
+    cashGroups = [(i, 9) for i in range(1, NUM_CURRENCIES)]
+    assets = [a[0:4] for a in get_portfolio_array(numAssets, cashGroups)]
+    if len(assets) == 0:
+        return (assets, 0)
 
-    for a in assetsChoice:
-        notional = random.randint(-1e18, 1e18)
-        isfCash = random.randint(0, 1)
-        if isfCash:
-            assets.append((a[0], a[1], 1, notional))
-        else:
-            index = MARKETS.index(a[1])
-            assets.append((a[0], a[1], index + 2, abs(notional)))
-            # Offsetting fCash asset
-            assets.append((a[0], a[1], 1, -abs(notional)))
-
-        nextMaturingAsset = min(get_settle_date(assets[-1]), nextMaturingAsset)
+    nextMaturingAsset = min([a[1] for a in assets])
 
     random.shuffle(assets)
     return (assets, nextMaturingAsset)
@@ -101,15 +86,7 @@ def assert_markets_updated(mockSettleAssets, assetArray):
         if a[2] > 1:
             maturity = MARKETS[a[2] - 2]
             value = mockSettleAssets.getSettlementMarket(a[0], maturity, SETTLEMENT_DATE)
-            assert value[0:3] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
-
-
-def get_settle_date(asset):
-    if asset[2] <= 3:
-        return asset[1]
-
-    marketLength = MARKETS[asset[2] - 2] - START_TIME
-    return asset[1] - marketLength + SECONDS_IN_DAY * 90
+            assert value[1:4] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
 
 
 def get_settle_rate(currencyId, maturity):
@@ -125,65 +102,70 @@ def get_settle_rate(currencyId, maturity):
 def settled_balance_context(assetArray, blockTime):
     assetsSorted = sorted(assetArray)
     settledBalances = []
+    remainingAssets = []
+
     for a in assetsSorted:
         # fcash asset type
         if a[2] == 1 and a[1] < blockTime:
             rate = get_settle_rate(a[0], a[1])
             cashClaim = a[3] * 1e18 / rate
             settledBalances.append((a[0], cashClaim))
-        elif get_settle_date(a) < blockTime:
-            # Cash claims do not need to get converted
+        elif a[2] > 1 and a[1] < blockTime:
+            # Settle both cash and fCash claims
             cashClaim = a[3]
             settledBalances.append((a[0], cashClaim))
 
-            if a[1] < blockTime:
-                rate = get_settle_rate(a[0], a[1])
-                fCashClaim = a[3] * 1e18 / rate
-                settledBalances.append((a[0], fCashClaim))
+            rate = get_settle_rate(a[0], a[1])
+            fCashClaim = a[3] * 1e18 / rate
+            settledBalances.append((a[0], fCashClaim))
+        elif a[2] > 1 and SETTLEMENT_DATE < blockTime:
+            # Settle cash claim, leave behind fCash
+            cashClaim = a[3]
+            settledBalances.append((a[0], cashClaim))
+
+            fCashClaim = a[3]
+            remainingAssets.append((a[0], a[1], 1, fCashClaim))
+        else:
+            remainingAssets.append(a)
 
     # Group by currency id and sum settled values
-    return [
-        (key, sum(int(num) for _, num in value))
-        for key, value in itertools.groupby(settledBalances, lambda x: x[0])
-    ]
+    return (
+        [
+            (key, sum(int(num) for _, num in value))
+            for key, value in itertools.groupby(settledBalances, lambda x: x[0])
+        ],
+        list(
+            filter(
+                lambda x: x[3] != 0,
+                [
+                    (key[0], key[1], key[2], sum(int(a[3]) for a in value))
+                    for key, value in itertools.groupby(
+                        remainingAssets, lambda x: (x[0], x[1], x[2])
+                    )
+                ],
+            )
+        ),
+    )
 
 
-def remaining_assets(assetArray, blockTime):
-    assetsSorted = sorted(assetArray)
-    remaining = []
-    for a in assetsSorted:
-        if a[1] < blockTime:
-            continue
-
-        if a[2] > 1 and get_settle_date(a) < blockTime:
-            # Switch asset to fcash
-            remaining.append((a[0], a[1], 1, a[3]))
-        else:
-            remaining.append(a)
-
-    return remaining
-
-
-@given(numAssets=strategy("uint", min_value=0, max_value=10))
+@given(numAssets=strategy("uint", min_value=0, max_value=4))
 def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
-    blockTime = random.choice(MARKETS[2:]) + random.randint(0, 6000)
+    blockTime = random.choice(MARKETS[0:3]) + random.randint(0, 6000)
     (assetArray, nextMaturingAsset) = generate_asset_array(numAssets)
-    accountContext = (nextMaturingAsset, 0, False, False, False, "0x88")
 
     # Set state
     mockSettleAssets.setAssetArray(accounts[1], assetArray)
-    mockSettleAssets.setAccountContext(accounts[1], accountContext)
 
     # Run this beforehand, debug trace crashes if trying to get return values via stateful call
-    (bs, _) = mockSettleAssets._getSettleAssetContextView(accounts[1], blockTime)
+    (settleAmounts, portfolio) = mockSettleAssets._getSettleAssetContextView(accounts[1], blockTime)
 
     # Assert that net balance change are equal
-    computedBs = settled_balance_context(assetArray, blockTime)
-    assert len(bs) == len(computedBs)
-    for i, b in enumerate(bs):
-        assert b[0] == computedBs[i][0]
-        assert pytest.approx(b[3], rel=1e-12) == computedBs[i][1]
+    (computedSettleAmounts, remainingAssets) = settled_balance_context(assetArray, blockTime)
+    assert len(settleAmounts) == len(computedSettleAmounts)
+    for i, sa in enumerate(settleAmounts):
+        assert sa[0] == computedSettleAmounts[i][0]
+        assert pytest.approx(sa[1], rel=1e-12) == computedSettleAmounts[i][1]
 
     # This will assert the values from the view match the values from the stateful method
     mockSettleAssets.testSettleAssetArray(accounts[1], blockTime)
@@ -196,7 +178,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
 
     # Assert that remaining assets are ok
     assets = mockSettleAssets.getAssetArray(accounts[1])
-    assert sorted(assets) == remaining_assets(assetArray, blockTime)
+    assert sorted(assets) == sorted(remainingAssets)
 
 
 @given(

@@ -30,20 +30,30 @@ library SettleAssets {
     ) internal pure returns (SettleAmount[] memory) {
         uint currenciesSettled;
         uint lastCurrencyId;
-        // This is required for iteration
+        // This is required for iterations
         portfolioState.calculateSortedIndex();
+        // TODO: using a linked list will prevent this from happening
+        if (portfolioState.sortedIndex.length == 0) return new SettleAmount[](0);
 
-        for (uint i = portfolioState.sortedIndex.length; i > 0; --i) {
+        // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
+        for (uint i = portfolioState.sortedIndex.length - 1; i >= 0; i--) {
             PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
-            if (asset.getSettlementDate() > blockTime) continue;
+            if (asset.getSettlementDate() > blockTime) {
+                if (i == 0) break;
+                continue;
+            }
+
             // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
             // will work for the first asset
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
                 currenciesSettled++;
             }
+
+            // i-- will overflow and end up with index out of bounds error
+            if (i == 0) break;
         }
-        
+
         // Actual currency ids will be set in the loop
         SettleAmount[] memory settleAmounts = new SettleAmount[](currenciesSettled);
         if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
@@ -99,21 +109,30 @@ library SettleAssets {
         PortfolioState memory portfolioState,
         uint index
     ) internal view returns (int, SettlementMarket memory) {
-        PortfolioAsset memory asset = portfolioState.storedAssets[index];
-        (int cashClaim, int fCash, SettlementMarket memory market) =
-            calculateMarketStorage(asset);
+        PortfolioAsset memory liquidityToken = portfolioState.storedAssets[portfolioState.sortedIndex[index]];
+        (int cashClaim, int fCash, SettlementMarket memory market) = calculateMarketStorage(liquidityToken);
 
-        if (fCash == 0) {
-            // Skip some calculations
-            portfolioState.deleteAsset(index);
-        } else {
-            // If the liquidity token's maturity is still in the future then we change the entry to be
-            // an idiosyncratic fCash entry with the net fCash amount.
-            // TODO: this might not work because there may be another fcash asset that nets this out
-            portfolioState.storedAssets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
-            portfolioState.storedAssets[index].notional = fCash;
-            portfolioState.storedAssets[index].storageState = AssetStorageState.Update;
+        // If the liquidity token's maturity is still in the future then we change the entry to be
+        // an idiosyncratic fCash entry with the net fCash amount.
+        if (index != 0) {
+            // Check to see if the previous index is the matching fCash asset, this would be the case when the
+            // portfolio is sorted
+            PortfolioAsset memory fCashAsset = portfolioState.storedAssets[portfolioState.sortedIndex[index - 1]];
+
+            if (fCashAsset.maturity == liquidityToken.maturity 
+                && fCashAsset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
+                // This fCash asset will not have matured if were are settling to fCash
+                fCashAsset.notional = fCashAsset.notional.add(fCash);
+                fCashAsset.storageState = AssetStorageState.Update;
+
+                liquidityToken.storageState = AssetStorageState.Delete;
+                return (cashClaim, market);
+            }
         }
+
+        liquidityToken.assetType = AssetHandler.FCASH_ASSET_TYPE;
+        liquidityToken.notional = fCash;
+        liquidityToken.storageState = AssetStorageState.Update;
 
         return (cashClaim, market);
     }
@@ -128,6 +147,7 @@ library SettleAssets {
     ) internal view returns (SettleAmount[] memory) {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
+        if (settleAmounts.length == 0) return settleAmounts;
         uint settleAmountIndex;
         uint lastMaturity;
 
@@ -138,6 +158,7 @@ library SettleAssets {
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 lastMaturity = 0;
                 settleAmountIndex += 1;
+                require(settleAmountIndex < settleAmounts.length); // dev: settle amount index
                 settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
@@ -159,15 +180,9 @@ library SettleAssets {
                 portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 if (asset.maturity > blockTime) {
-                    (assetCash, /* */) = settleLiquidityTokenTofCash(
-                        portfolioState,
-                        portfolioState.sortedIndex[i]
-                    );
+                    (assetCash, /* */) = settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
-                    (assetCash, /* */) = settleLiquidityToken(
-                        asset,
-                        settlementRate
-                    );
+                    (assetCash, /* */) = settleLiquidityToken(asset, settlementRate);
                     portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
                 }
             }
@@ -188,6 +203,7 @@ library SettleAssets {
     ) internal returns (SettleAmount[] memory) {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
+        if (settleAmounts.length == 0) return settleAmounts;
         uint settleAmountIndex;
         uint lastMaturity;
 
@@ -218,15 +234,9 @@ library SettleAssets {
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 SettlementMarket memory market;
                 if (asset.maturity > blockTime) {
-                    (assetCash, market) = settleLiquidityTokenTofCash(
-                        portfolioState,
-                        portfolioState.sortedIndex[i]
-                    );
+                    (assetCash, market) = settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
-                    (assetCash, market) = settleLiquidityToken(
-                        asset,
-                        settlementRate
-                    );
+                    (assetCash, market) = settleLiquidityToken(asset, settlementRate);
                     portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
                 }
 

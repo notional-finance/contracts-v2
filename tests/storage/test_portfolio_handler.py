@@ -2,7 +2,7 @@ import random
 
 import pytest
 from brownie.test import given, strategy
-from tests.common.params import *
+from tests.constants import *
 
 
 @pytest.fixture(scope="module", autouse=True)

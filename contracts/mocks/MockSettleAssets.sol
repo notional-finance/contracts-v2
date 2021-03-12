@@ -45,7 +45,15 @@ contract MockSettleAssets is StorageLayoutV1 {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function setMarketState(MarketParameters memory ms) external {
+    function setMarketState(
+        uint currencyId,
+        uint settlementDate,
+        uint maturity,
+        MarketParameters memory ms
+    ) external {
+        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
+        // ensure that state gets set
+        ms.storageState = 0xFF;
         ms.setMarketStorage();
     }
 
@@ -113,11 +121,11 @@ contract MockSettleAssets is StorageLayoutV1 {
     function _getSettleAssetContextView(
         address account,
         uint blockTime
-    ) public view returns (SettleAmount[] memory) {
+    ) public view returns (SettleAmount[] memory, PortfolioState memory) {
         PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
         SettleAmount[] memory settleAmounts = SettleAssets.getSettleAssetContextView(pStateView, blockTime);
 
-        return settleAmounts;
+        return (settleAmounts, pStateView);
     }
 
     function testSettleAssetArray(
@@ -130,25 +138,25 @@ contract MockSettleAssets is StorageLayoutV1 {
         SettleAmount[] memory settleAmountView = SettleAssets.getSettleAssetContextView(pStateView, blockTime);
         SettleAmount[] memory settleAmount = SettleAssets.getSettleAssetContextStateful(pState, blockTime);
 
-        assert(pStateView.storedAssetLength == pState.storedAssetLength);
-        assert(pStateView.storedAssets.length == pState.storedAssets.length);
+        require(pStateView.storedAssetLength == pState.storedAssetLength); // dev: stored asset length equal
+        require(pStateView.storedAssets.length == pState.storedAssets.length); // dev: stored asset array length equal
         // Assert that portfolio state is equal
         for (uint i; i < pStateView.storedAssets.length; i++) {
-            assert(pStateView.storedAssets[i].currencyId == pState.storedAssets[i].currencyId);
-            assert(pStateView.storedAssets[i].assetType == pState.storedAssets[i].assetType);
-            assert(pStateView.storedAssets[i].maturity == pState.storedAssets[i].maturity);
-            assert(pStateView.storedAssets[i].notional == pState.storedAssets[i].notional);
-            assert(pStateView.storedAssets[i].storageState == pState.storedAssets[i].storageState);
+            require(pStateView.storedAssets[i].currencyId == pState.storedAssets[i].currencyId); // dev: asset currency id
+            require(pStateView.storedAssets[i].assetType == pState.storedAssets[i].assetType); // dev: asset type
+            require(pStateView.storedAssets[i].maturity == pState.storedAssets[i].maturity); // dev: maturity
+            require(pStateView.storedAssets[i].notional == pState.storedAssets[i].notional); // dev: notional
+            require(pStateView.storedAssets[i].storageState == pState.storedAssets[i].storageState); // dev: storage state
         }
 
         // This will change the stored asset array
         pState.storeAssets(assetArrayMapping[account]);
 
         // Assert that balance context is equal
-        assert(settleAmountView.length == settleAmount.length);
+        require(settleAmountView.length == settleAmount.length); // dev: settle amount length
         for (uint i; i < settleAmountView.length; i++) {
-            assert(settleAmountView[i].currencyId == settleAmount[i].currencyId);
-            assert(settleAmountView[i].netCashChange == settleAmount[i].netCashChange);
+            require(settleAmountView[i].currencyId == settleAmount[i].currencyId); // dev: settle amount currency id
+            require(settleAmountView[i].netCashChange == settleAmount[i].netCashChange); // dev: settle amount net cash change
         }
 
         return settleAmount;

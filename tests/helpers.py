@@ -3,7 +3,14 @@ import random
 
 from brownie.convert.datatypes import Wei
 from brownie.test import strategy
-from tests.constants import CASH_GROUP_PARAMETERS, MARKETS, RATE_PRECISION, SECONDS_IN_DAY
+from tests.constants import (
+    CASH_GROUP_PARAMETERS,
+    CURVE_SHAPES,
+    MARKETS,
+    RATE_PRECISION,
+    SECONDS_IN_DAY,
+    START_TIME,
+)
 
 timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
 impliedRateStrategy = strategy(
@@ -20,14 +27,40 @@ def get_cash_group_with_max_markets(maxMarketIndex):
     return cg
 
 
+def get_market_curve(maxMarketIndex, curveShape):
+    markets = []
+
+    if type(curveShape) == str and curveShape in CURVE_SHAPES.keys():
+        curveShape = CURVE_SHAPES[curveShape]
+
+    for i in range(0, maxMarketIndex):
+        markets.append(
+            get_market_state(
+                MARKETS[i],
+                proportion=curveShape["proportion"],
+                lastImpliedRate=curveShape["rates"][i],
+                oracleRate=curveShape["rate"][i],
+                previousTradeTime=START_TIME,
+            )
+        )
+
+    return markets
+
+
 def get_tref(blockTime):
     return blockTime - blockTime % (90 * SECONDS_IN_DAY)
 
 
 def get_market_state(maturity, **kwargs):
-    totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
-    totalCurrentCash = 1e18 if "totalCurrentCash" not in kwargs else kwargs["totalCurrentCash"]
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
+    if "proportion" in kwargs:
+        proportion = kwargs["proportion"]
+        totalfCash = totalLiquidity * (1 - proportion)
+        totalCurrentCash = totalLiquidity * proportion
+    else:
+        totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
+        totalCurrentCash = 1e18 if "totalCurrentCash" not in kwargs else kwargs["totalCurrentCash"]
+
     lastImpliedRate = 0.1e9 if "lastImpliedRate" not in kwargs else kwargs["lastImpliedRate"]
     oracleRate = 0.1e9 if "oracleRate" not in kwargs else kwargs["oracleRate"]
     previousTradeTime = 0 if "previousTradeTime" not in kwargs else kwargs["previousTradeTime"]
@@ -73,25 +106,27 @@ def get_portfolio_array(length, cashGroups, **kwargs):
         cashGroup = random.choice(cashGroups)
         marketIndex = random.randint(1, cashGroup[1])
 
+        if any(
+            a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == marketIndex + 1
+            if isLiquidity
+            else 1
+            for a in portfolio
+        ):
+            # No duplciate assets
+            continue
+
         if isLiquidity:
-            asset = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
+            lt = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
+            portfolio.append(lt)
+            if random.random() > 0.75:
+                portfolio.append(
+                    get_fcash_token(marketIndex, currencyId=cashGroup[0], notional=-lt[3])
+                )
         else:
             asset = get_fcash_token(marketIndex, currencyId=cashGroup[0])
-
-        # Don't allow keys to be repeated
-        if (
-            len(
-                list(
-                    filter(
-                        lambda x: (x[0], x[1], x[2]) == (asset[0], asset[1], asset[2]), portfolio
-                    )
-                )
-            )
-            == 0
-        ):
             portfolio.append(asset)
 
-    if kwargs["sorted"]:
+    if "sorted" in kwargs and kwargs["sorted"]:
         return sorted(portfolio, key=lambda x: (x[0], x[1], x[2]))
 
     return portfolio

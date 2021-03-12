@@ -135,6 +135,7 @@ library PortfolioHandler {
 
             // Storage Write
             assetStoragePointer[i].notional = int88(portfolioState.storedAssets[i].notional);
+            assetStoragePointer[i].assetType = uint8(portfolioState.storedAssets[i].assetType);
         }
 
         // Finally, add new assets
