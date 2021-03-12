@@ -87,14 +87,11 @@ struct MarketStorage {
 
 /**
  * @dev Holds account level context information used to determine settlement and
- * free collateral actions. Total storage is 32 bytes
+ * free collateral actions. Total storage is 28 bytes
  */
 struct AccountStorage {
     // Used to check when settlement must be trigged on an account
     uint40 nextMaturingAsset;
-    // Records when the last time an account minted incentives. This must be initialized to
-    // the value at the first time the account deposited capital.
-    uint32 lastMintTime;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.
     bool hasDebt;
     // If this account has bitmaps set, this is the corresponding currency id

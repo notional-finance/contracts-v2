@@ -7,6 +7,19 @@ import "../storage/AccountContextHandler.sol";
 contract MockAccountContextHandler {
     using AccountContextHandler for AccountStorage;
 
+    function getAccountContext(
+        address account
+    ) external view returns (AccountStorage memory) {
+        return AccountContextHandler.getAccountContext(account);
+    }
+
+    function setAccountContext(
+        AccountStorage memory accountContext,
+        address account
+    ) external {
+        return accountContext.setAccountContext(account);
+    }
+
     function isActiveCurrency(
         AccountStorage memory accountContext,
         uint currencyId
@@ -19,7 +32,7 @@ contract MockAccountContextHandler {
         uint currencyId,
         bool isActive
     ) external pure returns (bytes18) {
-        AccountStorage memory accountContext = AccountStorage(0, 0, false, 0, 0, activeCurrencies);
+        AccountStorage memory accountContext = AccountStorage(0, false, 0, 0, activeCurrencies);
         accountContext.setActiveCurrency(currencyId, isActive);
         assert (accountContext.isActiveCurrency(currencyId) == isActive);
 
@@ -41,7 +54,7 @@ contract MockAccountContextHandler {
         address account,
         uint16 bitmapCurrencyId
     ) external view returns (BalanceState[] memory) {
-        AccountStorage memory accountContext = AccountStorage(0, 0, false, bitmapCurrencyId, 0, activeCurrencies);
+        AccountStorage memory accountContext = AccountStorage(0, false, bitmapCurrencyId, 0, activeCurrencies);
         BalanceState[] memory bs = accountContext.getAllBalances(account);
 
         for (uint i; i < bs.length; i++) {

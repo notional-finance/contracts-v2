@@ -4,6 +4,7 @@ import brownie
 import pytest
 from brownie.convert import to_bytes, to_uint
 from brownie.test import given, strategy
+from tests.constants import START_TIME
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -14,7 +15,7 @@ def accountContext(MockAccountContextHandler, accounts):
 
 def get_active_currencies(currenciesList):
     if len(currenciesList) == 0:
-        return bytes(to_bytes(0, "bytes2"))
+        return to_bytes(0, "bytes18")
 
     if len(currenciesList) > 9:
         raise Exception("Currency list too long")
@@ -38,10 +39,30 @@ def bytes_to_list(activeCurrencies):
     return [to_uint(bytes(ba[i : i + 2])) for i in range(0, 18, 2)]
 
 
+@given(
+    length=strategy("uint", min_value=0, max_value=9),
+    hasDebt=strategy("bool"),
+    initialOffset=strategy("uint8"),
+    bitmapId=strategy("uint16"),
+)
+@pytest.mark.only
+def test_get_and_set_account_context(
+    accountContext, accounts, length, hasDebt, initialOffset, bitmapId
+):
+    currencies = [random.randint(1, 2 ** 16) for i in range(0, length)]
+    currenciesHex = brownie.convert.datatypes.HexString(
+        get_active_currencies(currencies), "bytes18"
+    )
+    expectedContext = (START_TIME, hasDebt, bitmapId, initialOffset, currenciesHex)
+
+    accountContext.setAccountContext(expectedContext, accounts[0])
+    assert expectedContext == accountContext.getAccountContext(accounts[0])
+
+
 @given(length=strategy("uint", min_value=0, max_value=9))
 def test_is_active_currency(accountContext, length):
     currencies = [random.randint(1, 2 ** 16) for i in range(0, length)]
-    ac = (0, 0, False, 0, 0, get_active_currencies(currencies))
+    ac = (0, False, 0, 0, get_active_currencies(currencies))
 
     for c in currencies:
         assert accountContext.isActiveCurrency(ac, c)
