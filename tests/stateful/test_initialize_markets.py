@@ -419,13 +419,24 @@ def test_mint_above_leverage_threshold(environment, accounts):
     currencyId = 2
 
     environment.router["Governance"].updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.4e9, 0.4e9, 0.4e9]
+        currencyId, [0.4e8, 0.4e8], [0.4e9, 0.4e9]
     )
 
     environment.router["MintPerpetual"].perpetualTokenMint(
         currencyId, 100e8, False, {"from": accounts[0]}
     )
-    perp_token_asserts(environment, currencyId, True, accounts)
+
+    # TODO: need a different set of assertions here
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
+
+    environment.router["Governance"].updatePerpetualDepositParameters(
+        currencyId, [0.4e8, 0.4e8], [0.8e9, 0.8e9]
+    )
+
+    environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    perp_token_asserts(environment, currencyId, False, accounts)
 
 
 # def test_settle_and_negative_fcash(environment, accounts):

@@ -398,10 +398,11 @@ library PerpetualToken {
         );
 
         // Return the total present value denominated in asset terms
-        return (
-            totalAssetPV.add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV)),
-            ifCashBitmap
-        );
+        totalAssetPV = totalAssetPV
+            .add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV))
+            .add(perpToken.balanceState.storedCashBalance);
+
+        return (totalAssetPV, ifCashBitmap);
     }
 
     /**
@@ -460,8 +461,8 @@ library PerpetualToken {
             blockTime
         );
 
-        if (accountContext.nextMaturingAsset == 0) {
-            // For the initial deposits we simply increment the balanceState, there are no assets.
+        if (perpToken.portfolioState.storedAssets.length == 0) {
+            // If the perp token does not have any assets, then the markets must be initialized first.
             perpToken.balanceState.netCashChange = perpToken.balanceState.netCashChange.add(assetCashDeposit);
             // Finalize the balance change here
             perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
@@ -525,7 +526,6 @@ library PerpetualToken {
         return (perMarketDeposit - assetCash, fCashAmount, proportion < leverageThreshold);
     }
 
-    event Test(uint index, int perMarketDeposit, int residualCash);
     /**
      * @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
      * entering this method we know that assetCashDeposit is positive and the perpToken has been
@@ -619,8 +619,14 @@ library PerpetualToken {
         }
 
         // This will occur if the three month market is over levered and we cannot lend into it
-        require(residualCash == 0, "Residual cash");
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
+
+        if (residualCash != 0) {
+            // Any remaining residual cash will be put into the perpetual token balance and added as liquidity on the
+            // next market initialization
+            perpToken.balanceState.netCashChange = residualCash;
+            perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+        }
     }
 
     /**
