@@ -1,15 +1,16 @@
+import math
+
 import brownie
 import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
+from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
+from tests.helpers import get_tref
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
-QUARTER = 86400 * 90
-YEAR = QUARTER * 4
-RATE_PRECISION = 1e9
 INITIAL_CASH_AMOUNT = 100000e8
 
 
@@ -23,6 +24,11 @@ def environment(accounts):
     token.approve(cToken.address, 2 ** 255, {"from": accounts[0]})
     cToken.mint(10000000e18, {"from": accounts[0]})
     cToken.approve(env.proxy.address, 2 ** 255, {"from": accounts[0]})
+
+    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
+    blockTime = chain.time()
+    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
+    chain.mine(1, timestamp=newTime)
 
     return env
 
@@ -39,7 +45,7 @@ def initialize_markets(environment, accounts):
     )
 
     environment.router["Governance"].updateInitializationParameters(
-        currencyId, [1.05e9, 1.05e9], [0.5e9, 0.5e9]
+        currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9]
     )
 
     environment.router["MintPerpetual"].perpetualTokenMint(
@@ -50,36 +56,60 @@ def initialize_markets(environment, accounts):
 
 def get_maturities(index):
     blockTime = chain.time()
-    tRef = blockTime - blockTime % QUARTER
+    tRef = blockTime - blockTime % SECONDS_IN_QUARTER
     maturity = []
     if index >= 1:
-        maturity.append(tRef + QUARTER)
+        maturity.append(tRef + SECONDS_IN_QUARTER)
 
     if index >= 2:
-        maturity.append(tRef + 2 * QUARTER)
+        maturity.append(tRef + 2 * SECONDS_IN_QUARTER)
 
     if index >= 3:
-        maturity.append(tRef + YEAR)
+        maturity.append(tRef + SECONDS_IN_YEAR)
 
     if index >= 4:
-        maturity.append(tRef + 2 * YEAR)
+        maturity.append(tRef + 2 * SECONDS_IN_YEAR)
 
     if index >= 5:
-        maturity.append(tRef + 5 * YEAR)
+        maturity.append(tRef + 5 * SECONDS_IN_YEAR)
 
     if index >= 6:
-        maturity.append(tRef + 7 * YEAR)
+        maturity.append(tRef + 7 * SECONDS_IN_YEAR)
 
     if index >= 7:
-        maturity.append(tRef + 10 * YEAR)
+        maturity.append(tRef + 10 * SECONDS_IN_YEAR)
 
     if index >= 8:
-        maturity.append(tRef + 15 * YEAR)
+        maturity.append(tRef + 15 * SECONDS_IN_YEAR)
 
     if index >= 9:
-        maturity.append(tRef + 20 * YEAR)
+        maturity.append(tRef + 20 * SECONDS_IN_YEAR)
 
     return maturity
+
+
+def interpolate_market_rate(a, b, isSixMonth=False):
+    shortMaturity = a[1]
+    longMaturity = b[1]
+    shortRate = a[6]
+    longRate = b[6]
+
+    if isSixMonth:
+        return math.trunc(
+            abs(
+                (longRate - shortRate) * SECONDS_IN_QUARTER / (longMaturity - shortMaturity)
+                + shortRate
+            )
+        )
+    else:
+        return math.trunc(
+            abs(
+                (longRate - shortRate)
+                * (longMaturity + SECONDS_IN_QUARTER - shortMaturity)
+                / (longMaturity - shortMaturity)
+                + shortRate
+            )
+        )
 
 
 def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
@@ -98,7 +128,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
     maturity = get_maturities(cashGroup[0])
     markets = environment.router["Views"].getActiveMarkets(currencyId)
     previousMarkets = environment.router["Views"].getActiveMarketsAtBlockTime(
-        currencyId, blockTime - QUARTER
+        currencyId, blockTime - SECONDS_IN_QUARTER
     )
 
     # assert perp token has no cash left
@@ -157,14 +187,26 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
         elif i == 0:
             # The 3 month market should have the same implied rate as the old 6 month
             assert market[5] == previousMarkets[1][5]
-        # TODO: need to run asserts for proportions and implied rates
-        # elif i == (len(markets) - 1):
-        #     # If this is the last market then it is initialized via governance
-        #     assert pytest.approx(proportion, abs=2) == proportions[i]
-        # else:
-        #     # Assert oracle values are in line, unclear how to test this
-        #     pass
-        #     # assert market[6] == 0
+        elif i == 1:
+            # In any other scenario then the market's oracleRate must be in line with
+            # the oracle rate provided by the previous markets, this is a special case
+            # for the 6 month market
+            if len(previousMarkets) >= 3 and previousMarkets[2][6] != 0:
+                # In this case we can interpolate between the old 6 month and 1yr
+                computedOracleRate = interpolate_market_rate(
+                    previousMarkets[1], previousMarkets[2], isSixMonth=True
+                )
+                assert pytest.approx(market[5], abs=2) == computedOracleRate
+                assert pytest.approx(market[6], abs=2) == computedOracleRate
+            else:
+                # In this case then the proportion is set by governance (there is no
+                # future rate to interpolate against)
+                assert pytest.approx(proportion, abs=2) == proportions[i]
+        else:
+            # In this scenario the market is interpolated against the previous two rates
+            computedOracleRate = interpolate_market_rate(previousMarkets[i - 1], previousMarkets[i])
+            assert pytest.approx(market[5], abs=2) == computedOracleRate
+            assert pytest.approx(market[6], abs=2) == computedOracleRate
 
     check_system_invariants(environment, accounts)
 
@@ -180,7 +222,7 @@ def test_first_initialization(environment, accounts):
     )
 
     environment.router["Governance"].updateInitializationParameters(
-        currencyId, [1.05e9, 1.05e9], [0.5e9, 0.5e9]
+        currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
     )
 
     with brownie.reverts("IM: insufficient cash"):
@@ -198,7 +240,7 @@ def test_settle_and_initialize(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
     blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + QUARTER))
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # No trading has occured
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
@@ -217,22 +259,22 @@ def test_settle_and_extend(environment, accounts):
     environment.router["Governance"].updateCashGroup(currencyId, cashGroup)
 
     environment.router["Governance"].updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.99e9]  # this blows up the threshold
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]  # this blows up the threshold
     )
 
     environment.router["Governance"].updateInitializationParameters(
-        currencyId, [1.02e9, 1.02e9, 1.03e9], [0.2e9, 0.2e9, 0.2e9]
+        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + QUARTER))
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
 
     # Test re-initialization the second time
     blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + QUARTER))
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
@@ -253,6 +295,9 @@ def test_mint_and_redeem(environment, accounts):
     perp_token_asserts(environment, currencyId, False, accounts)
     # TODO: add some more asserts here
 
+
+# def test_mint_above_leverage_threshold(environment, accounts):
+#     pass
 
 # def test_redeem_all_liquidity_and_initialize(environment, accounts):
 #     pass

@@ -312,10 +312,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         uint longRate = longMarket.oracleRate;
         // the next market maturity is always a quarter away
         uint newMaturity = longMarket.maturity + CashGroup.QUARTER;
-        require(
-            shortMaturity < longMaturity && longMaturity < newMaturity,
-            "IM: interpolation error"
-        );
+        require(shortMaturity < longMaturity, "IM: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get underflows here so we check for that
@@ -397,6 +394,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
 
 
         MarketParameters memory newMarket;
+        // Implied rate is carried over between loops
+        uint impliedRate;
         for (uint i; i < perpToken.cashGroup.maxMarketIndex; i++) {
             // Traded markets are 1-indexed
             newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i + 1));
@@ -419,6 +418,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             if (isFirstInit ||
                 // TODO: clean up this if statement
                 (i == 1 && perpToken.markets.length == 2) ||
+                // At this point, these are new markets and new markets must be created
                 (i >= perpToken.portfolioState.storedAssets.length) ||
                 // When extending from the 6 month to 1 year market we must initialize both 6 and 1 year as new
                 (i == 1 && perpToken.markets[2].lastImpliedRate == 0)
@@ -448,7 +448,6 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                 // governance.
                 require(success, "IM: implied rate failed");
             } else {
-                uint impliedRate;
                 // Two special cases for the 3 month and 6 month market when interpolating implied rates. The 3 month market
                 // inherits the implied rate from the previous 6 month market (they are now at the same maturity).
                 if (i == 0) {
@@ -458,7 +457,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                 } else if (i == 1) {
                     // The six month market is the interpolation between the 3 month and the 1 year market (now at 9 months). This
                     // interpolation is different since the rate is between 3 and 9 months, for all the other interpolations we interpolate
-                    // forward in time (i.e. use a 3 and 6 month rate to interpolate a 1 year rate).
+                    // forward in time (i.e. use a 3 and 6 month rate to interpolate a 1 year rate). The first branch of this if statement
+                    // will capture the case when the 1 year rate has not been set.
                     impliedRate = _getSixMonthImpliedRate(
                         perpToken.markets,
                         CashGroup.getReferenceTime(blockTime)
