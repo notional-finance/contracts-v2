@@ -71,9 +71,10 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         uint blockTime
     ) private returns (bytes memory) {
         uint referenceTime = CashGroup.getReferenceTime(blockTime);
-        // TODO: is this correct?
-        // The perpetual token contract settles at 90 day intervals and we want to ensure that
-        // the next maturing asset is before the current reference time.
+        // Perpetual token never has idiosyncratic cash between 90 day intervals but since it also has a
+        // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
+        // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
+        // esoteric but will ensure that ifCash is never improperly settled.
         require(
             accountContext.nextMaturingAsset < referenceTime,
             "IM: invalid time"

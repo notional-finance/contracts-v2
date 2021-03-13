@@ -198,12 +198,13 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
                 totalAssetCash = netAssetCash.add(netAssetCash);
                 fCashAssets[fCashIndex].notional = 0;
             }
+
+            fCashIndex += 1;
         }
 
         // By the end of the for loop all fCashAssets should have been accounted for as traded, failed in trade,
         // or skipped and hasResidual is marked as true. It is not possible to have idiosyncratic fCash at a date
         // past the max market maturity since maxMarketIndex can never be reduced.
-
         return (totalAssetCash, hasResidual);
     }
 

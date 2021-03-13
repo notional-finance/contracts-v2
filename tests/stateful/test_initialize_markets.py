@@ -112,7 +112,7 @@ def interpolate_market_rate(a, b, isSixMonth=False):
         )
 
 
-def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
+def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
     blockTime = chain.time()
     perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
     (cashBalance, perpTokenBalance, lastMintTime) = environment.router["Views"].getAccountBalance(
@@ -153,7 +153,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
         if isFirstInit:
             # Initialize amount is a percentage of the initial cash amount
             assert asset[3] == INITIAL_CASH_AMOUNT * depositShares[i] / int(1e8)
-        else:
+        elif wasInit:
             # Initialize amount is a percentage of the net cash amount
             assert asset[3] == totalAssetCashInMarkets * depositShares[i] / 1e8
 
@@ -208,6 +208,11 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts):
             assert pytest.approx(market[5], abs=2) == computedOracleRate
             assert pytest.approx(market[6], abs=2) == computedOracleRate
 
+    accountContext = environment.router["Views"].getAccountContext(perpTokenAddress)
+    assert accountContext[0] < get_tref(blockTime) + SECONDS_IN_QUARTER
+    assert not accountContext[1]
+    assert accountContext[2] == currencyId
+
     check_system_invariants(environment, accounts)
 
 
@@ -259,7 +264,7 @@ def test_settle_and_extend(environment, accounts):
     environment.router["Governance"].updateCashGroup(currencyId, cashGroup)
 
     environment.router["Governance"].updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]  # this blows up the threshold
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
     environment.router["Governance"].updateInitializationParameters(
@@ -280,27 +285,147 @@ def test_settle_and_extend(environment, accounts):
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
-def test_mint_and_redeem(environment, accounts):
+def test_mint_after_markets_initialized(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
+
+    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
+    tokensToMint = environment.router["Views"].calculatePerpetualTokensToMint(currencyId, 100000e8)
+    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
 
     environment.router["MintPerpetual"].perpetualTokenMint(
         currencyId, 100000e8, False, {"from": accounts[0]}
     )
-    perp_token_asserts(environment, currencyId, False, accounts)
+    perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
+    # Assert that no assets in portfolio
+    assert len(environment.router["Views"].getAccountPortfolio(accounts[0])) == 0
+
+    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
+    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
+
+    # assert increase in market liquidity
+    assert len(marketsBefore) == len(marketsAfter)
+    for (i, m) in enumerate(marketsBefore):
+        assert m[4] < marketsAfter[i][4]
+
+    # assert account balances are in line
+    assert cashBalanceBefore == cashBalanceAfter
+    assert perpTokenBalanceAfter == perpTokenBalanceBefore + tokensToMint
+    assert lastMintTimeAfter > lastMintTimeBefore
+
+
+@pytest.mark.skip
+def test_redeem_and_sell_to_cash(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
+
+    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
+    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
+    # TODO: need to add some trading in or this will net off to zero
 
     environment.router["RedeemPerpetual"].perpetualTokenRedeem(
-        currencyId, 100000e8, True, {"from": accounts[0]}
+        currencyId, 1e8, True, {"from": accounts[0]}
     )
-    perp_token_asserts(environment, currencyId, False, accounts)
-    # TODO: add some more asserts here
+    perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
+
+    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
+    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
+
+    # Assert that no assets in portfolio
+    assert len(environment.router["Views"].getAccountPortfolio(accounts[0])) == 0
+
+    # assert decrease in market liquidity
+    assert len(marketsBefore) == len(marketsAfter)
+    for (i, m) in enumerate(marketsBefore):
+        assert m[4] > marketsAfter[i][4]
+
+    assert cashBalanceBefore > cashBalanceAfter
+    assert perpTokenBalanceAfter == perpTokenBalanceBefore - 100e8
+    assert lastMintTimeAfter > lastMintTimeBefore
 
 
-# def test_mint_above_leverage_threshold(environment, accounts):
-#     pass
+@pytest.mark.skip
+def test_redeem_and_put_into_portfolio(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
 
-# def test_redeem_all_liquidity_and_initialize(environment, accounts):
-#     pass
+    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
+    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
+
+    # TODO: need to add some trading in or this will net off to zero
+
+    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
+        currencyId, 100e8, False, {"from": accounts[0]}
+    )
+    perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
+
+    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
+    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
+        "Views"
+    ].getAccountBalance(currencyId, accounts[0])
+
+    portfolio = environment.router["Views"].getAccountPortfolio(accounts[0])
+    assert len(portfolio) == 2
+
+    # Assert that assets in portfolio
+    # assert decrease in market liquidity
+    assert len(marketsBefore) == len(marketsAfter)
+    for (i, m) in enumerate(marketsBefore):
+        assert m[4] > marketsAfter[i][4]
+
+    assert cashBalanceBefore == cashBalanceAfter
+    assert perpTokenBalanceAfter == perpTokenBalanceBefore - 100e8
+    assert lastMintTimeAfter > lastMintTimeBefore
+
+
+def test_redeem_all_liquidity_and_initialize(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
+
+    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
+        currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
+    )
+
+    perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
+    portfolio = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
+    ifCashAssets = environment.router["Views"].getifCashAssets(perpTokenAddress)
+
+    # assert no assets in perp token
+    assert len(portfolio) == 0
+    assert len(ifCashAssets) == 0
+
+    environment.router["MintPerpetual"].perpetualTokenMint(
+        currencyId, INITIAL_CASH_AMOUNT, False, {"from": accounts[0]}
+    )
+
+    # Set is first init to true if the market does not have assets
+    environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+    perp_token_asserts(environment, currencyId, True, accounts)
+
+
+@pytest.mark.only
+def test_mint_above_leverage_threshold(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
+
+    environment.router["Governance"].updatePerpetualDepositParameters(
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.4e9, 0.4e9, 0.4e9]
+    )
+
+    environment.router["MintPerpetual"].perpetualTokenMint(
+        currencyId, 100e8, False, {"from": accounts[0]}
+    )
+    perp_token_asserts(environment, currencyId, True, accounts)
 
 
 # def test_settle_and_negative_fcash(environment, accounts):

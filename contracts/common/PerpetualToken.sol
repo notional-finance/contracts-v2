@@ -299,7 +299,7 @@ library PerpetualToken {
         perpToken.balanceState.currencyId = currencyId;
         (
             perpToken.balanceState.storedCashBalance,
-            perpToken.balanceState.storedPerpetualTokenBalance,
+            perpToken.balanceState.storedPerpetualTokenBalance, // TODO: this is always zero
             /* lastIncentiveMint */
         ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
@@ -338,19 +338,22 @@ library PerpetualToken {
         int totalUnderlyingPV;
         bytes memory ifCashBitmap;
 
-        // If the first asset maturity has passed (the 3 month), this means that all the LTs must
-        // be settled except the 6 month (which is now the 3 month). We don't settle LTs except in
-        // initialize markets so we calculate the cash value of the portfolio here.
-        if (accountContext.nextMaturingAsset <= blockTime) {
-            // NOTE: this condition should only be present for a very short amount of time, which is the window between
-            // when the markets are no longer tradable at quarter end and when the new markets have been initialized.
-            // We time travel back to one second before maturity to value the liquidity tokens. Although this value is
-            // not strictly correct the different should be quite slight. We do this to ensure that free collateral checks
-            // for withdraws and liquidations can still be processed. If this condition persists for a long period of time then
-            // the entire protocol will have serious problems as markets will not be tradable.
-            blockTime = accountContext.nextMaturingAsset - 1;
-            // Clear the market parameters just in case there is dirty data.
-            perpToken.markets = new MarketParameters[](perpToken.markets.length);
+        {
+            uint nextSettleTime = CashGroup.getReferenceTime(accountContext.nextMaturingAsset) + CashGroup.QUARTER;
+            // If the first asset maturity has passed (the 3 month), this means that all the LTs must
+            // be settled except the 6 month (which is now the 3 month). We don't settle LTs except in
+            // initialize markets so we calculate the cash value of the portfolio here.
+            if (nextSettleTime <= blockTime) {
+                // NOTE: this condition should only be present for a very short amount of time, which is the window between
+                // when the markets are no longer tradable at quarter end and when the new markets have been initialized.
+                // We time travel back to one second before maturity to value the liquidity tokens. Although this value is
+                // not strictly correct the different should be quite slight. We do this to ensure that free collateral checks
+                // for withdraws and liquidations can still be processed. If this condition persists for a long period of time then
+                // the entire protocol will have serious problems as markets will not be tradable.
+                blockTime = nextSettleTime - 1;
+                // Clear the market parameters just in case there is dirty data.
+                perpToken.markets = new MarketParameters[](perpToken.markets.length);
+            }
         }
 
         // Since we are not doing a risk adjusted valuation here we do not need to net off residual fCash
@@ -495,7 +498,7 @@ library PerpetualToken {
                 .div(market.totalfCash.add(initialTotalCash));
 
             // No lending required
-            if (initialProportion < leverageThreshold) return (0, 0, true);
+            if (initialProportion < leverageThreshold) return (perMarketDeposit, 0, true);
         }
 
         // This is the minimum amount of fCash that we expect to be able to lend. Since perMarketDeposit
@@ -522,6 +525,7 @@ library PerpetualToken {
         return (perMarketDeposit - assetCash, fCashAmount, proportion < leverageThreshold);
     }
 
+    event Test(uint index, int perMarketDeposit, int residualCash);
     /**
      * @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
      * entering this method we know that assetCashDeposit is positive and the perpToken has been
@@ -615,7 +619,7 @@ library PerpetualToken {
         }
 
         // This will occur if the three month market is over levered and we cannot lend into it
-        require(residualCash != 0, "Residual cash");
+        require(residualCash == 0, "Residual cash");
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
     }
 

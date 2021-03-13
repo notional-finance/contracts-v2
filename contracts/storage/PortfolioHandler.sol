@@ -141,10 +141,12 @@ library PortfolioHandler {
         // Finally, add new assets
         // TODO: add max assets parameter
         for (uint i; i < portfolioState.newAssets.length; i++) {
+            int88 notional = int88(portfolioState.newAssets[i].notional);
+            if (notional == 0) continue;
+
             uint16 currencyId = uint16(portfolioState.newAssets[i].currencyId);
             uint8 assetType = uint8(portfolioState.newAssets[i].assetType);
             uint40 maturity = uint40(portfolioState.newAssets[i].maturity);
-            int88 notional = int88(portfolioState.newAssets[i].notional);
 
             // Storage Write
             assetStoragePointer.push(AssetStorage({

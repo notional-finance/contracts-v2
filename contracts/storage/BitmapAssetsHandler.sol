@@ -257,15 +257,17 @@ library BitmapAssetsHandler {
                 index += 1;
 
                 assetByte = assetByte << 1;
-                if (index == assets.length) return assets;
+                if (index == assets.length) break;
             }
         }
 
         // If the entire token supply is redeemed then the assets bitmap will have been reduced to zero.
         // Because solidity truncates division there will always be dust left unless the entire supply is
         // redeemed.
-        if (tokensToRedeem == totalSupply) assetsBitmap = new bytes(0);
-        setAssetsBitmap(account, currencyId, assetsBitmap);
+        if (tokensToRedeem == totalSupply) {
+            // TODO: swittch this to just bytes32
+            setAssetsBitmap(account, currencyId, new bytes(32));
+        }
 
         return assets;
     }
