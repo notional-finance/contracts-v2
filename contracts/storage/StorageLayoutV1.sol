@@ -136,7 +136,7 @@ contract StorageLayoutV1 {
     /* Cash group and market storage */
     // Contains all cash group configuration information
     // currencyId => storage
-    mapping(uint => CashGroupParameterStorage) internal cashGroupMapping;
+    // mapping(uint => CashGroupParameterStorage) internal cashGroupMapping;
 
 
     /* Account Storage */

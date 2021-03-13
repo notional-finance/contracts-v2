@@ -212,6 +212,8 @@ def test_settle_and_extend(environment, accounts):
     cashGroup = list(environment.router["Views"].getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
+    cashGroup[7] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[8] = CurrencyDefaults["rateScalar"][0:3]
     environment.router["Governance"].updateCashGroup(currencyId, cashGroup)
 
     environment.router["Governance"].updatePerpetualDepositParameters(

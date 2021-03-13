@@ -423,13 +423,12 @@ library CashGroup {
         );
     }
 
-    function getCashGroupStorageBytes(uint currencyId) private view returns(bytes32) {
-        bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
+    function getCashGroupStorageBytes(uint currencyId) internal view returns(bytes32) {
+        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
         bytes32 data;
 
         assembly { data := sload(slot) }
 
-        // bytes memory would be cleaner here but solidity does not support that inside struct
         return data;
     }
 
@@ -437,7 +436,7 @@ library CashGroup {
         uint currencyId,
         CashGroupParameterStorage calldata cashGroup
     ) internal {
-        bytes32 slot = keccak256(abi.encode(currencyId, CASH_GROUP_STORAGE_SLOT));
+        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
         require(
             cashGroup.maxMarketIndex >= 0 && cashGroup.maxMarketIndex <= CashGroup.MAX_TRADED_MARKET_INDEX,
             "CG: invalid market index"
@@ -481,6 +480,32 @@ library CashGroup {
         }
 
         assembly { sstore(slot, data) }
+    }
+
+    function deserializeCashGroupStorage(
+        uint currencyId
+    ) internal view returns (CashGroupParameterStorage memory) {
+        bytes32 data = getCashGroupStorageBytes(currencyId);
+        uint8 maxMarketIndex = uint8(data[31]);
+        uint8[] memory tokenHaircuts = new uint8[](uint(maxMarketIndex));
+        uint8[] memory rateScalars = new uint8[](uint(maxMarketIndex));
+
+        for (uint8 i; i < maxMarketIndex; i++) {
+            tokenHaircuts[i] = uint8(data[24 - i]);
+            rateScalars[i] = uint8(data[15 - i]);
+        }
+
+        return CashGroupParameterStorage({
+            maxMarketIndex: maxMarketIndex,
+            rateOracleTimeWindowMin: uint8(data[30]),
+            liquidityFeeBPS: uint8(data[29]),
+            debtBuffer5BPS: uint8(data[28]),
+            fCashHaircut5BPS: uint8(data[27]),
+            settlementPenaltyRateBPS: uint8(data[26]),
+            liquidityRepoDiscount: uint8(data[25]),
+            liquidityTokenHaircuts: tokenHaircuts,
+            rateScalars: rateScalars
+        });
     }
 
     function buildCashGroupInternal(

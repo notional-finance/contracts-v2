@@ -6,11 +6,12 @@ TokenConfig = {
 }
 
 CurrencyDefaults = {
-    "maxMarketIndex": 2,
-    "rateOracleTimeWindow": 20,
     "buffer": 140,
     "haircut": 100,
     "liquidationDiscount": 105,
+    # Cash group settings
+    "maxMarketIndex": 2,
+    "rateOracleTimeWindow": 20,
     "liquidityFee": 30,
     "debtBuffer": 30,
     "fCashHaircut": 30,

@@ -547,7 +547,7 @@ library PerpetualToken {
         // closer to the current block time. Any residual cash from lending will be rolled into shorter
         // markets as this loop progresses.
         int residualCash;
-        for (uint i = perpToken.markets.length; i > 0; --i) {
+        for (uint i = perpToken.markets.length - 1; i >= 0; i--) {
             int fCashAmount;
             MarketParameters memory market = perpToken.cashGroup.getMarket(
                 perpToken.markets,
@@ -610,6 +610,8 @@ library PerpetualToken {
             );
 
             market.setMarketStorage();
+            // Reached end of loop
+            if (i == 0) break;
         }
 
         // This will occur if the three month market is over levered and we cannot lend into it

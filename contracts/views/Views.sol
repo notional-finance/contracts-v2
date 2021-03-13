@@ -42,7 +42,7 @@ contract Views is StorageLayoutV1 {
     }
 
     function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory) {
-        return cashGroupMapping[currencyId];
+        return CashGroup.deserializeCashGroupStorage(currencyId);
     }
 
     function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory) {
@@ -56,7 +56,7 @@ contract Views is StorageLayoutV1 {
     function getCashGroupAndRate(
         uint16 currencyId
     ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory) {
-        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         if (cg.maxMarketIndex == 0) {
             // No markets listed for the currency id
             return (cg, AssetRateParameters(address(0), 0, 0));
@@ -96,14 +96,14 @@ contract Views is StorageLayoutV1 {
     function getInitializationParameters(
         uint16 currencyId
     ) external view returns (int[] memory, int[] memory) {
-        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         return PerpetualToken.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
     function getPerpetualDepositParameters(
         uint16 currencyId
     ) external view returns (int[] memory, int[] memory) {
-        CashGroupParameterStorage memory cg = cashGroupMapping[currencyId];
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         return PerpetualToken.getDepositParameters(currencyId, cg.maxMarketIndex);
     }
 
