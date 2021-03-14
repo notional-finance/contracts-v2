@@ -3,13 +3,11 @@ import random
 import brownie
 import pytest
 from brownie.test import given, strategy
-from tests.common.params import (
-    BASE_CASH_GROUP,
-    MARKETS,
-    RATE_PRECISION,
-    START_TIME,
-    START_TIME_TREF,
+from tests.constants import MARKETS, RATE_PRECISION, START_TIME, START_TIME_TREF
+from tests.helpers import (
     get_bitstring_from_bitmap,
+    get_cash_group_with_max_markets,
+    get_market_state,
     random_asset_bitmap,
 )
 
@@ -32,7 +30,7 @@ def mockAssetRate(MockCToken, cTokenAggregator, accounts):
     return mockAggregator
 
 
-@given(bitmap=strategy("bytes", min_size=0, max_size=32), currencyId=strategy("uint8"))
+@given(bitmap=strategy("bytes32"), currencyId=strategy("uint8"))
 def test_get_and_set_bitmap(bitmapAssets, bitmap, currencyId, accounts):
     bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
     storedValue = bitmapAssets.getAssetsBitmap(accounts[0], currencyId)
@@ -41,10 +39,7 @@ def test_get_and_set_bitmap(bitmapAssets, bitmap, currencyId, accounts):
     assert bmHex == storedValue
 
 
-@given(
-    bitmap=strategy("bytes", min_size=0, max_size=32),
-    bitNum=strategy("uint", min_value=1, max_value=256),
-)
+@given(bitmap=strategy("bytes32"), bitNum=strategy("uint", min_value=1, max_value=256))
 def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum)
     notional = random.randint(-1e18, 1e18)
@@ -93,21 +88,22 @@ def test_get_ifcash_array(bitmapAssets, accounts):
 
 
 def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
-    cg = BASE_CASH_GROUP
-    # TODO: need to set supply rate
-    cg[2] = (mockAssetRate.address, 0.01e18, 1e8)
+    cg = get_cash_group_with_max_markets(9)
     bitmapAssets.setAssetRateMapping(1, (mockAssetRate.address, 18))
+    bitmapAssets.setCashGroup(1, cg)
+
+    (cashGroup, _) = bitmapAssets.buildCashGroupView(1)
 
     markets = [
-        (1, MARKETS[0], 0, 0, 0, 0, 0.01 * RATE_PRECISION, 0, False),
-        (1, MARKETS[1], 0, 0, 0, 0, 0.02 * RATE_PRECISION, 0, False),
-        (1, MARKETS[2], 0, 0, 0, 0, 0.03 * RATE_PRECISION, 0, False),
-        (1, MARKETS[3], 0, 0, 0, 0, 0.04 * RATE_PRECISION, 0, False),
-        (1, MARKETS[4], 0, 0, 0, 0, 0.05 * RATE_PRECISION, 0, False),
-        (1, MARKETS[5], 0, 0, 0, 0, 0.06 * RATE_PRECISION, 0, False),
-        (1, MARKETS[6], 0, 0, 0, 0, 0.07 * RATE_PRECISION, 0, False),
-        (1, MARKETS[7], 0, 0, 0, 0, 0.08 * RATE_PRECISION, 0, False),
-        (1, MARKETS[8], 0, 0, 0, 0, 0.09 * RATE_PRECISION, 0, False),
+        get_market_state(MARKETS[0], oracleRate=0.01 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[1], oracleRate=0.02 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[2], oracleRate=0.03 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[3], oracleRate=0.04 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[4], oracleRate=0.05 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[5], oracleRate=0.06 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[6], oracleRate=0.07 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[7], oracleRate=0.08 * RATE_PRECISION, storageSlot="0x01"),
+        get_market_state(MARKETS[8], oracleRate=0.09 * RATE_PRECISION, storageSlot="0x01"),
     ]
 
     # TODO: test a random negative offset to next maturing asset to simulate an unsettled
@@ -138,9 +134,11 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
                 computedPV += notional
                 computedRiskPV += notional
             else:
-                pv = bitmapAssets.getPresentValue(cg, markets, notional, maturity, START_TIME)
+                pv = bitmapAssets.getPresentValue(
+                    cashGroup, markets, notional, maturity, START_TIME
+                )
                 riskPv = bitmapAssets.getRiskAdjustedPresentValue(
-                    cg, markets, notional, maturity, START_TIME
+                    cashGroup, markets, notional, maturity, START_TIME
                 )
                 computedPV += pv
                 computedRiskPV += riskPv
@@ -151,7 +149,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
         nextMaturingAsset,
         START_TIME,
         assetsBitmap,
-        cg,
+        cashGroup,
         markets,
         False,  # non risk adjusted
     )
@@ -162,7 +160,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
         nextMaturingAsset,
         START_TIME,
         assetsBitmap,
-        cg,
+        cashGroup,
         markets,
         True,  # risk adjusted
     )

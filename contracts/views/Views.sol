@@ -182,7 +182,7 @@ contract Views is StorageLayoutV1 {
     function getifCashBitmap(
         address account,
         uint currencyId
-    ) external view returns (bytes memory) {
+    ) external view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 

@@ -64,10 +64,11 @@ def get_market_state(maturity, **kwargs):
     lastImpliedRate = 0.1e9 if "lastImpliedRate" not in kwargs else kwargs["lastImpliedRate"]
     oracleRate = 0.1e9 if "oracleRate" not in kwargs else kwargs["oracleRate"]
     previousTradeTime = 0 if "previousTradeTime" not in kwargs else kwargs["previousTradeTime"]
+    storageSlot = "0x0" if "storageSlot" not in kwargs else kwargs["storageSlot"]
     storageState = "0x00"
 
     return (
-        "0x0",  # storage slot
+        storageSlot,
         maturity,
         Wei(totalfCash),
         Wei(totalCurrentCash),

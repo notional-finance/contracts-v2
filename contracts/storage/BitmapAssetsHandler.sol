@@ -9,7 +9,7 @@ import "../math/SafeInt256.sol";
 
 library BitmapAssetsHandler {
     using SafeInt256 for int;
-    using Bitmap for bytes;
+    using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
 
     uint internal constant IFCASH_STORAGE_SLOT = 4;
@@ -17,32 +17,20 @@ library BitmapAssetsHandler {
     function getAssetsBitmap(
         address account,
         uint currencyId
-    ) internal view returns (bytes memory) {
+    ) internal view returns (bytes32) {
         bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
         bytes32 data;
-
         assembly { data := sload(slot) }
-
-        // TODO: is it more efficient to ensure that this always returns a bytes memory
-        // of length 32?
-        return abi.encodePacked(data);
+        return data;
     }
 
     function setAssetsBitmap(
         address account,
         uint currencyId,
-        bytes memory assetsBitmap
+        bytes32 assetsBitmap
     ) internal {
         bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
-        require(assetsBitmap.length <= 32, "BM: bitmap too large");
-        bytes32 data;
-
-        // TODO: can this be turned into assembly?
-        for (uint i; i < assetsBitmap.length; i++) {
-            // Pack the assetsBitmap into a 32 byte storage slot
-            data = data | (bytes32(assetsBitmap[i]) >> (i * 8));
-        }
-        assembly { sstore(slot, data) }
+        assembly { sstore(slot, assetsBitmap) }
     }
 
     function getifCashSlot(
@@ -66,11 +54,11 @@ library BitmapAssetsHandler {
         uint maturity,
         uint nextMaturingAsset,
         int notional,
-        bytes memory assetsBitmap
-    ) internal returns (bytes memory) {
+        bytes32 assetsBitmap
+    ) internal returns (bytes32) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
         (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextMaturingAsset, maturity);
-        require(isExact, "BM: invalid maturity");
+        require(isExact); // dev: invalid maturity in set ifcash asset
 
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
@@ -135,26 +123,17 @@ library BitmapAssetsHandler {
         uint currencyId,
         uint nextMaturingAsset,
         uint blockTime,
-        bytes memory assetsBitmap,
+        bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
     ) internal view returns (int) {
         int totalValueUnderlying;
+        uint bitNum = 1;
 
-        for (uint i; i < assetsBitmap.length; i++) {
-            if (assetsBitmap[i] == 0x00) continue;
-            bytes1 assetByte = assetsBitmap[i];
-
-            // Loop over each bit in the byte, it's position is referenced as 1-indexed
-            for (uint bit = 1; bit <= 8; bit++) {
-                if (assetByte == 0x00) break;
-                if (assetByte & Bitmap.BIT1 != Bitmap.BIT1) {
-                    assetByte = assetByte << 1;
-                    continue;
-                }
-
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, i * 8 + bit);
+        while (assetsBitmap != 0) {
+            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
                 totalValueUnderlying = totalValueUnderlying.add(getPresentValue(
                     account,
                     currencyId,
@@ -164,9 +143,10 @@ library BitmapAssetsHandler {
                     markets,
                     riskAdjusted
                 ));
-
-                assetByte = assetByte << 1;
             }
+
+            assetsBitmap = assetsBitmap << 1;
+            bitNum += 1;
         }
 
         return totalValueUnderlying;
@@ -177,25 +157,16 @@ library BitmapAssetsHandler {
         uint currencyId,
         uint nextMaturingAsset
     ) internal view returns (PortfolioAsset[] memory) {
-        bytes memory assetsBitmap = getAssetsBitmap(account, currencyId);
+        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
+        uint bitNum = 1;
         index = 0;
 
-        for (uint i; i < assetsBitmap.length; i++) {
-            if (assetsBitmap[i] == 0x00) continue;
-            bytes1 assetByte = assetsBitmap[i];
-
-            // Loop over each bit in the byte, it's position is referenced as 1-indexed
-            for (uint bit = 1; bit <= 8; bit++) {
-                if (assetByte == 0x00) break;
-                if (assetByte & Bitmap.BIT1 != Bitmap.BIT1) {
-                    assetByte = assetByte << 1;
-                    continue;
-                }
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, i * 8 + bit);
+        while (assetsBitmap != 0) {
+            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
                 int notional;
-
                 {
                     bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
                     assembly { notional := sload(fCashSlot) }
@@ -206,17 +177,18 @@ library BitmapAssetsHandler {
                 assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
                 assets[index].notional = notional;
                 index += 1;
-
-                assetByte = assetByte << 1;
-                if (index == assets.length) return assets;
             }
+
+            assetsBitmap = assetsBitmap << 1;
+            bitNum += 1;
         }
 
         return assets;
     }
 
     /**
-     * @notice Used to reduce a perpetual token ifCash assets portfolio proportionately
+     * @notice Used to reduce a perpetual token ifCash assets portfolio proportionately when redeeming
+     * perpetual tokens to its underlying assets.
      */
     function reduceifCashAssetsProportional(
         address account,
@@ -225,23 +197,15 @@ library BitmapAssetsHandler {
         int tokensToRedeem,
         int totalSupply
     ) internal returns (PortfolioAsset[] memory) {
-        bytes memory assetsBitmap = getAssetsBitmap(account, currencyId);
+        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
+        uint bitNum = 1;
         index = 0;
 
-        for (uint i; i < assetsBitmap.length; i++) {
-            if (assetsBitmap[i] == 0x00) continue;
-            bytes1 assetByte = assetsBitmap[i];
-
-            // Loop over each bit in the byte, it's position is referenced as 1-indexed
-            for (uint bit = 1; bit <= 8; bit++) {
-                if (assetByte == 0x00) break;
-                if (assetByte & Bitmap.BIT1 != Bitmap.BIT1) {
-                    assetByte = assetByte << 1;
-                    continue;
-                }
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, i * 8 + bit);
+        while (assetsBitmap != 0) {
+            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
                 bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
                 int notional;
                 assembly { notional := sload(fCashSlot) }
@@ -255,18 +219,17 @@ library BitmapAssetsHandler {
                 assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
                 assets[index].notional = notionalToTransfer;
                 index += 1;
-
-                assetByte = assetByte << 1;
-                if (index == assets.length) break;
             }
+
+            assetsBitmap = assetsBitmap << 1;
+            bitNum += 1;
         }
 
         // If the entire token supply is redeemed then the assets bitmap will have been reduced to zero.
         // Because solidity truncates division there will always be dust left unless the entire supply is
         // redeemed.
         if (tokensToRedeem == totalSupply) {
-            // TODO: swittch this to just bytes32
-            setAssetsBitmap(account, currencyId, new bytes(32));
+            setAssetsBitmap(account, currencyId, 0x00);
         }
 
         return assets;

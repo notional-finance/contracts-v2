@@ -5,38 +5,38 @@ pragma experimental ABIEncoderV2;
 import "../math/Bitmap.sol";
 
 contract MockBitmap {
-    using Bitmap for bytes;
+    using Bitmap for bytes32;
 
     function isBitSet(
-        bytes memory bitmap,
+        bytes32 bitmap,
         uint index
     ) public pure returns (bool) {
         return bitmap.isBitSet(index);
     }
 
     function setBit(
-        bytes memory bitmap,
+        bytes32 bitmap,
         uint index,
         bool setOn
-    ) public pure returns (bytes memory) {
+    ) public pure returns (bytes32) {
         return bitmap.setBit(index, setOn);
     }
 
     function totalBitsSet(
-        bytes memory bitmap
+        bytes32 bitmap
     ) public pure returns (uint) {
         return bitmap.totalBitsSet();
     }
 
     function splitfCashBitmap(
-        bytes memory bitmap
+        bytes32 bitmap
     ) public pure returns (SplitBitmap memory) {
         return bitmap.splitfCashBitmap();
     }
 
     function combinefCashBitmap(
         SplitBitmap memory splitBitmap
-    ) public pure returns (bytes memory) {
+    ) public pure returns (bytes32) {
         return Bitmap.combinefCashBitmap(splitBitmap);
     }
 }

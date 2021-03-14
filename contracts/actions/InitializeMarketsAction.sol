@@ -69,7 +69,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         uint blockTime
-    ) private returns (bytes memory) {
+    ) private returns (bytes32) {
         uint referenceTime = CashGroup.getReferenceTime(blockTime);
         // Perpetual token never has idiosyncratic cash between 90 day intervals but since it also has a
         // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
@@ -89,7 +89,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             perpToken.balanceState.netCashChange = settleAmount[0].netCashChange;
         }
 
-        (bytes memory ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
+        (bytes32 ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
             perpToken.tokenAddress,
             perpToken.cashGroup.currencyId,
             accountContext.nextMaturingAsset,
@@ -142,10 +142,10 @@ contract InitializeMarketsAction is StorageLayoutV1 {
     function _withholdAndSetfCashAssets(
         PerpetualTokenPortfolio memory perpToken,
         uint currencyId,
-        bytes memory ifCashBitmap,
+        bytes32 ifCashBitmap,
         uint blockTime,
         uint nextMaturingAsset
-    ) private returns (int, bytes memory) {
+    ) private returns (int, bytes32) {
         int assetCashWitholding;
 
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
@@ -192,9 +192,9 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         uint blockTime,
         uint currencyId,
         bool isFirstInit
-    ) private returns (int, bytes memory) {
+    ) private returns (int, bytes32) {
         int netAssetCashAvailable;
-        bytes memory ifCashBitmap;
+        bytes32 ifCashBitmap;
         int assetCashWitholding;
 
         if (isFirstInit) {
@@ -380,7 +380,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             require(perpToken.portfolioState.storedAssets.length == 0, "IM: not first init");
         }
 
-        (int netAssetCashAvailable, bytes memory ifCashBitmap) = _getNetAssetCashAvailable(
+        (int netAssetCashAvailable, bytes32 ifCashBitmap) = _getNetAssetCashAvailable(
             perpToken,
             accountContext,
             blockTime,
@@ -524,8 +524,8 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         MarketParameters memory market,
         uint currencyId,
         address tokenAddress,
-        bytes memory ifCashBitmap
-    ) internal returns (bytes memory) {
+        bytes32 ifCashBitmap
+    ) internal returns (bytes32) {
         uint blockTime = block.timestamp;
         // Always reference the current settlement date
         uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;

@@ -57,7 +57,7 @@ library SettleAssetsExternal {
         address account,
         uint currencyId,
         uint nextMaturingAsset
-    ) external returns (bytes memory, int) {
+    ) external returns (bytes32, int) {
         return SettleAssets.settleBitmappedCashGroup(
             account,
             currencyId,

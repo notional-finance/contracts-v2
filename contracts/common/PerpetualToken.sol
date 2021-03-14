@@ -333,10 +333,13 @@ library PerpetualToken {
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         uint blockTime
-    ) internal view returns (int, bytes memory) {
+    ) internal view returns (int, bytes32) {
         int totalAssetPV;
         int totalUnderlyingPV;
-        bytes memory ifCashBitmap;
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(
+            perpToken.tokenAddress,
+            perpToken.cashGroup.currencyId
+        );
 
         {
             uint nextSettleTime = CashGroup.getReferenceTime(accountContext.nextMaturingAsset) + CashGroup.QUARTER;
@@ -375,12 +378,6 @@ library PerpetualToken {
                 totalAssetPV = totalAssetPV.add(assetCashClaim);
                 totalUnderlyingPV = totalUnderlyingPV.add(pv);
             }
-
-            // Fetch the ifCash bitmap here beacause it has not been fetched yet.
-            ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(
-                perpToken.tokenAddress,
-                perpToken.cashGroup.currencyId
-            );
         }
 
         // Then iterate over bitmapped assets and get present value
@@ -414,31 +411,31 @@ library PerpetualToken {
         AccountStorage memory accountContext,
         int assetCashDeposit,
         uint blockTime
-    ) internal view returns (int, bytes memory) {
-        require(assetCashDeposit >= 0, "PT: deposit negative");
-        if (assetCashDeposit == 0) return (0, new bytes(0));
+    ) internal view returns (int, bytes32) {
+        require(assetCashDeposit >= 0); // dev: perpetual token deposit negative
+        if (assetCashDeposit == 0) return (0, 0x0);
 
         // If the account context has not been initialized, that means it has never had assets. In this
         // case we simply use the stored asset balance as the base to calculate the tokens to mint.
         if (accountContext.nextMaturingAsset == 0) {
             // This is for the very first deposit
             if (perpToken.balanceState.storedCashBalance == 0) {
-                return (assetCashDeposit, new bytes(0));
+                return (assetCashDeposit, 0x0);
             }
 
             return (
                 assetCashDeposit
                     .mul(perpToken.balanceState.storedCashBalance)
                     .div(TokenHandler.INTERNAL_TOKEN_PRECISION),
-                new bytes(0)
+                0x0
             );
         }
 
         // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
-        // that need to be settled. This is only done during market initialization in a single step.
+        // that need to be settled. This is only done during market initialization.
         require(accountContext.nextMaturingAsset < blockTime, "PT: requires settlement");
 
-        (int assetCashPV, bytes memory ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
+        (int assetCashPV, bytes32 ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
 
         return (
@@ -454,7 +451,7 @@ library PerpetualToken {
         uint blockTime,
         AssetStorage[] storage perpTokenAssetStorage
     ) internal returns (int) {
-        (int tokensToMint, bytes memory ifCashBitmap) = calculateTokensToMint(
+        (int tokensToMint, bytes32 ifCashBitmap) = calculateTokensToMint(
             perpToken,
             accountContext,
             assetCashDeposit,
@@ -534,7 +531,7 @@ library PerpetualToken {
     function depositIntoPortfolio(
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
-        bytes memory ifCashBitmap,
+        bytes32 ifCashBitmap,
         int assetCashDeposit,
         uint blockTime
     ) private {

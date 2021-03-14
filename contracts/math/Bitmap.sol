@@ -16,98 +16,61 @@ struct SplitBitmap {
  * big-endian and 1-indexed.
  */
 library Bitmap {
-    bytes1 internal constant BIT1 = 0x80;
+    bytes32 internal constant MSB = 0x8000000000000000000000000000000000000000000000000000000000000000;
     bytes32 internal constant DAY_BITMASK     = 0xffffffffffffffffffffffc00000000000000000000000000000000000000000;
     bytes32 internal constant WEEK_BITMASK    = 0x00000000000000000000003ffffffffffe000000000000000000000000000000;
-    bytes32 internal constant MONTH_BITMASK   = 0x0000000000000000000000000000000001ffffffffffffffe000000000000000; bytes32 internal constant QUARTER_BITMASK = 0x0000000000000000000000000000000000000000000000001fffffffffffffff; 
+    bytes32 internal constant MONTH_BITMASK   = 0x0000000000000000000000000000000001ffffffffffffffe000000000000000;
+    bytes32 internal constant QUARTER_BITMASK = 0x0000000000000000000000000000000000000000000000001fffffffffffffff; 
+
     function splitfCashBitmap(
-        bytes memory bitmap
+        bytes32 bitmap
     ) internal pure returns (SplitBitmap memory) {
-        require(bitmap.length <= 32, "B: bitmap length");
-        bytes32 bitmapDecoded = abi.decode(bitmap, (bytes32));
-        
         return SplitBitmap(
-            bitmapDecoded & DAY_BITMASK,
-            (bitmapDecoded & WEEK_BITMASK) << CashGroup.WEEK_BIT_OFFSET,
-            (bitmapDecoded & MONTH_BITMASK) << CashGroup.MONTH_BIT_OFFSET,
-            (bitmapDecoded & QUARTER_BITMASK) << CashGroup.QUARTER_BIT_OFFSET
+            bitmap & DAY_BITMASK,
+            (bitmap & WEEK_BITMASK) << CashGroup.WEEK_BIT_OFFSET,
+            (bitmap & MONTH_BITMASK) << CashGroup.MONTH_BIT_OFFSET,
+            (bitmap & QUARTER_BITMASK) << CashGroup.QUARTER_BIT_OFFSET
         );
     }
 
     function combinefCashBitmap(
         SplitBitmap memory splitBitmap
-    ) internal pure returns (bytes memory) {
+    ) internal pure returns (bytes32) {
         bytes32 bitmapCombined = (
             splitBitmap.dayBits                                   |
-            (splitBitmap.weekBits  >> CashGroup.WEEK_BIT_OFFSET)  |
-            (splitBitmap.monthBits >> CashGroup.MONTH_BIT_OFFSET) |
+            (splitBitmap.weekBits   >> CashGroup.WEEK_BIT_OFFSET)  |
+            (splitBitmap.monthBits  >> CashGroup.MONTH_BIT_OFFSET) |
             (splitBitmap.quarterBits >> CashGroup.QUARTER_BIT_OFFSET)
         );
 
-        return abi.encode(bitmapCombined);
+        return bitmapCombined;
     }
 
-    /**
-     * @dev Note that if the bit index is larger than the bitmap's length then this will provision
-     * a new object in memory. If using, must reassign the object.
-     */
-    function setBit(bytes memory bitmap, uint index, bool setOn) internal pure returns (bytes memory) {
-        require(index > 0, "B: zero index");
-        uint byteOffset = (index - 1) / 8;
-        bytes1 bitMask = BIT1 >> uint8((index - 1) % 8);
-
-        if (bitmap.length < byteOffset + 1) {
-            // If we're not setting the bit to on, there's no point in provisioning
-            // a new bitmap here.
-            if (!setOn) return bitmap;
-
-            // Must provision a new bitmap
-            bytes memory newBitmap = new bytes(byteOffset + 1);
-            for (uint i; i < bitmap.length; i++) {
-                newBitmap[i] = bitmap[i];
-            }
-
-            newBitmap[byteOffset] = bitMask;
-            return newBitmap;
-        }
+    function setBit(bytes32 bitmap, uint index, bool setOn) internal pure returns (bytes32) {
+        require(index >= 1 && index <= 256); // dev: set bit index bounds
 
         if (setOn) {
-            bitmap[byteOffset] = bitmap[byteOffset] | bitMask;
-        } else  {
-            bitmap[byteOffset] = bitmap[byteOffset] & ~bitMask;
+            return bitmap | (MSB >> (index - 1));
+        } else {
+            return bitmap & ~(MSB >> (index - 1));
         }
-
-        return bitmap;
     }
 
-    // Checks if a particular bit is set in the bitmap
-    function isBitSet(bytes memory bitmap, uint index) internal pure returns (bool) {
-        require(index > 0, "B: zero index");
-
-        uint byteOffset = (index - 1) / 8;
-        if (bitmap.length < byteOffset + 1) return false;
-
-        bytes1 bitMask = BIT1 >> uint8((index - 1) % 8);
-        bool isActive = (bitmap[byteOffset] & bitMask) != 0x00;
-        return isActive;
+    function isBitSet(bytes32 bitmap, uint index) internal pure returns (bool) {
+        require(index >= 1 && index <= 256); // dev: set bit index bounds
+        return (bitmap << (index - 1) & MSB) == MSB;
     }
     
-    function totalBitsSet(bytes memory bitmap) internal pure returns (uint) {
+    function totalBitsSet(bytes32 bitmap) internal pure returns (uint) {
         uint totalBits;
-        for (uint i; i < bitmap.length; i++) {
-            bytes1 bits = bitmap[i];
-            if (bits == 0x00) continue;
-            if (bits & 0x01 == 0x01) totalBits += 1;
-            if (bits & 0x02 == 0x02) totalBits += 1;
-            if (bits & 0x04 == 0x04) totalBits += 1;
-            if (bits & 0x08 == 0x08) totalBits += 1;
-            if (bits & 0x10 == 0x10) totalBits += 1;
-            if (bits & 0x20 == 0x20) totalBits += 1;
-            if (bits & 0x40 == 0x40) totalBits += 1;
-            if (bits & 0x80 == 0x80) totalBits += 1;
+
+        bytes32 copy = bitmap;
+
+        while (copy != 0) {
+            if (copy & MSB == MSB) totalBits += 1;
+            copy = copy << 1;
         }
 
         return totalBits;
     }
-
 }

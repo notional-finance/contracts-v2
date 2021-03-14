@@ -15,10 +15,20 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function buildAssetRate(
-        uint id
-    ) external view returns (AssetRateParameters memory) {
-        return AssetRate.buildAssetRateView(id);
+    function setCashGroup(
+        uint id,
+        CashGroupParameterStorage calldata cg
+    ) external {
+        CashGroup.setCashGroupStorage(id, cg);
+    }
+
+    function buildCashGroupView(
+        uint currencyId
+    ) public view returns (
+        CashGroupParameters memory,
+        MarketParameters[] memory
+    ) {
+        return CashGroup.buildCashGroupView(currencyId);
     }
 
     function getifCashAsset(
@@ -32,14 +42,14 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function getAssetsBitmap(
         address account,
         uint currencyId
-    ) public view returns (bytes memory) {
+    ) public view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
     function setAssetsBitmap(
         address account,
         uint currencyId,
-        bytes memory assetsBitmap
+        bytes32 assetsBitmap
     ) public {
         return BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
     }
@@ -50,8 +60,8 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint maturity,
         uint nextMaturingAsset,
         int notional,
-        bytes memory assetsBitmap
-    ) public returns (bytes memory) {
+        bytes32 assetsBitmap
+    ) public returns (bytes32) {
         return BitmapAssetsHandler.setifCashAsset(
             account,
             currencyId,
@@ -67,7 +77,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint currencyId,
         uint nextMaturingAsset,
         uint blockTime,
-        bytes memory assetsBitmap,
+        bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted

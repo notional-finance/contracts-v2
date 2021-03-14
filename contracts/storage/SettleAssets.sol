@@ -17,7 +17,7 @@ struct SettleAmount {
 library SettleAssets {
     using SafeInt256 for int;
     using AssetRate for AssetRateParameters;
-    using Bitmap for bytes;
+    using Bitmap for bytes32;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
 
@@ -297,8 +297,8 @@ library SettleAssets {
         uint currencyId,
         uint nextMaturingAsset,
         uint blockTime
-    ) internal returns (bytes memory, int) {
-        bytes memory bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    ) internal returns (bytes32, int) {
+        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
         int totalAssetCash;
         SplitBitmap memory splitBitmap = bitmap.splitfCashBitmap();
