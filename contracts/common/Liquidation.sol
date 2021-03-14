@@ -60,7 +60,7 @@ library Liquidation {
         MarketParameters[][] memory marketStates;
 
         if (accountContext.assetArrayLength > 0){
-            portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
             (cashGroups, marketStates) = FreeCollateral.getAllCashGroupsStateful(portfolio);
 
             netPortfolioValue = AssetHandler.getPortfolioValue(

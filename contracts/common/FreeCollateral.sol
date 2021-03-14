@@ -27,7 +27,7 @@ library FreeCollateral {
         MarketParameters[][] memory marketStates;
 
         if (accountContext.assetArrayLength > 0) {
-            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
             (cashGroups, marketStates) = getAllCashGroupsStateful(portfolio);
 
             netPortfolioValue = AssetHandler.getPortfolioValue(
@@ -52,7 +52,7 @@ library FreeCollateral {
         MarketParameters[][] memory marketStates;
 
         if (accountContext.assetArrayLength > 0) {
-            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
             (cashGroups, marketStates) = getAllCashGroupsView(portfolio);
 
             netPortfolioValue = AssetHandler.getPortfolioValue(

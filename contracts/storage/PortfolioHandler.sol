@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
+import "../common/CashGroup.sol";
 import "../common/AssetHandler.sol";
 import "../math/SafeInt256.sol";
 
@@ -98,25 +99,26 @@ library PortfolioHandler {
         PortfolioState memory portfolioState,
         address account,
         AccountStorage memory accountContext
-    ) internal {
+    ) internal returns (bool, bytes32) {
         uint assetStorageLength = portfolioState.storedAssets.length;
         uint initialSlot = uint(keccak256(abi.encode(account, "account.array")));
-        // todo: set nextMaturingAsset, activeCurrencies, hasDebt
+        bool hasDebt;
+        bytes32 portfolioActiveCurrencies;
 
         // First delete assets from asset storage to maintain asset storage indexes
         for (uint i; i < assetStorageLength; i++) {
-            if (portfolioState.storedAssets[i].storageState == AssetStorageState.Delete
-                // If notional = 0 then the asset is net off, delete it
-                || portfolioState.storedAssets[i].notional == 0) {
-
-                // Storage Read / write
-                bytes32 lastAsset;
-                uint lastAssetSlot = initialSlot + assetStorageLength - 1;
-                uint currentSlot = initialSlot + i;
-                assembly { lastAsset := sload(lastAssetSlot) }
-                assembly { sstore(currentSlot, lastAsset) }
-                // Delete the last asset, it is now stored in currentSlot
-                assembly { sstore(lastAssetSlot, 0x00) }
+            PortfolioAsset memory asset = portfolioState.storedAssets[i];
+            if (asset.storageState == AssetStorageState.Delete || asset.notional == 0) {
+                {
+                    // Storage Read / write
+                    bytes32 lastAsset;
+                    uint lastAssetSlot = initialSlot + assetStorageLength - 1;
+                    uint currentSlot = initialSlot + i;
+                    assembly { lastAsset := sload(lastAssetSlot) }
+                    assembly { sstore(currentSlot, lastAsset) }
+                    // Delete the last asset, it is now stored in currentSlot
+                    assembly { sstore(lastAssetSlot, 0x00) }
+                }
 
                 // Mirror the swap in memory
                 (portfolioState.storedAssets[assetStorageLength - 1], portfolioState.storedAssets[i]) = 
@@ -124,6 +126,13 @@ library PortfolioHandler {
 
                 assetStorageLength -= 1;
                 i -= 1;
+            } else {
+                // Update account context parameters
+                if (accountContext.nextMaturingAsset == 0 || accountContext.nextMaturingAsset > asset.maturity) {
+                    accountContext.nextMaturingAsset = uint40(asset.maturity);
+                }
+                hasDebt = asset.notional < 0 || hasDebt;
+                portfolioActiveCurrencies = (portfolioActiveCurrencies >> 2) | (bytes32(asset.currencyId) << 240);
             }
         }
 
@@ -132,21 +141,32 @@ library PortfolioHandler {
             if (portfolioState.storedAssets[i].storageState != AssetStorageState.Update) continue;
 
             uint currentSlot = initialSlot + i;
+            // Maturity cannot update in here
             bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
             assembly { sstore(currentSlot, encodedAsset) }
         }
 
-        uint newAssetSlot = initialSlot + assetStorageLength;
         // Finally, add new assets
         for (uint i; i < portfolioState.newAssets.length; i++) {
-            if (portfolioState.newAssets[i].notional == 0) continue;
+            PortfolioAsset memory asset = portfolioState.newAssets[i];
+            if (asset.notional == 0) continue;
             bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
+            uint newAssetSlot = initialSlot + assetStorageLength;
+
+            if (accountContext.nextMaturingAsset == 0 || accountContext.nextMaturingAsset > asset.maturity) {
+                accountContext.nextMaturingAsset = uint40(asset.maturity);
+            }
+            hasDebt = asset.notional < 0 || hasDebt;
+            portfolioActiveCurrencies = (portfolioActiveCurrencies >> 2) | (bytes32(asset.currencyId) << 240);
+
             assembly { sstore(newAssetSlot, encodedAsset) }
-            newAssetSlot += 1;
+            assetStorageLength += 1;
         }
 
-        // Very unlikely potential for overflow here...
-        accountContext.assetArrayLength = uint8(newAssetSlot - initialSlot);
+        require(assetStorageLength <= CashGroup.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
+        accountContext.assetArrayLength = uint8(assetStorageLength);
+
+        return (hasDebt, portfolioActiveCurrencies);
     }
 
     /**
@@ -303,9 +323,9 @@ library PortfolioHandler {
 
     function getSortedPortfolio(
         address account,
-        AccountStorage memory accountContext
+        uint8 assetArrayLength
     ) internal view returns (PortfolioAsset[] memory) {
-        PortfolioAsset[] memory assets = loadAssetArray(account, accountContext.assetArrayLength);
+        PortfolioAsset[] memory assets = loadAssetArray(account, assetArrayLength);
 
         if (assets.length <= 1) return assets;
 

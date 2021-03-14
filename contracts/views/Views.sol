@@ -131,7 +131,7 @@ contract Views is StorageLayoutV1 {
         address account
     ) external view returns (PortfolioAsset[] memory) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        return PortfolioHandler.getSortedPortfolio(account, accountContext);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
     function getifCashAssets(
