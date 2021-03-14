@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../actions/libraries/FreeCollateralExternal.sol";
 import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";
@@ -184,6 +185,12 @@ contract Views is StorageLayoutV1 {
         uint currencyId
     ) external view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    }
+
+    function getFreeCollateralView(
+        address account
+    ) external view returns (int) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
     }
 
     fallback() external {

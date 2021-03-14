@@ -2,44 +2,56 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/FreeCollateral.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../actions/libraries/FreeCollateralExternal.sol";
+import "../storage/PortfolioHandler.sol";
+import "./MockAssetHandler.sol";
 
-contract MockFreeCollateral is StorageLayoutV1 {
+contract MockFreeCollateral is MockAssetHandler {
+    using PortfolioHandler for PortfolioState;
 
-    function setupFreeCollateralStateful(
-        PortfolioState memory portfolioState,
-        uint blockTime
-    ) public returns (
-        PortfolioAsset[] memory,
-        int[] memory,
-        CashGroupParameters[] memory,
-        MarketParameters[][] memory
-    ) {
-        return FreeCollateral.setupFreeCollateralStateful(
-            portfolioState,
-            blockTime
-        );
+    function setETHRateMapping(
+        uint id,
+        ETHRateStorage calldata rs
+    ) external {
+        underlyingToETHRateMapping[id] = rs;
     }
 
-    function getFreeCollateral(
-        BalanceState[] memory balanceState,
-        CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue,
-        uint blockTime
-    ) public returns (int) {
-        return FreeCollateral.getFreeCollateralStateful(
-            balanceState,
-            cashGroups,
-            netPortfolioValue,
-            blockTime
-        );
-    }
-
-    function getAllCashGroups(
+    function setPortfolio(
+        address account,
         PortfolioAsset[] memory assets
-    ) public returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
-        return FreeCollateral.getAllCashGroupsStateful(assets);
+    ) external {
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        portfolioState.newAssets = assets;
+        portfolioState.storeAssets(assetArrayMapping[account]);
+    }
+
+    function setBalance(
+        address account,
+        uint currencyId,
+        int cashBalance,
+        int perpTokenBalance
+    ) external {
+        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+
+        bytes32 data = (
+            (bytes32(uint(perpTokenBalance))) |
+            (bytes32(0) << 96) |
+            (bytes32(cashBalance) << 128)
+        );
+
+        assembly { sstore(slot, data) }
+    }
+
+    function getFreeCollateralView(
+        address account
+    ) external view returns (int) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+
+    function checkFreeCollateralAndRevert(
+        address account
+    ) external {
+        FreeCollateralExternal.checkFreeCollateralAndRevert(account, true);
     }
 
 }

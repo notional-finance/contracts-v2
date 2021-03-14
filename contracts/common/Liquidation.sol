@@ -102,8 +102,12 @@ library Liquidation {
         for (uint i; i < balanceState.length; i++) {
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
+                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
+                    balanceState[i].currencyId
+                );
+                // TODO: this will return an asset rate as well, so we can use it here
                 int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
-                    balanceState[i].currencyId,
+                    perpToken,
                     balanceState[i].storedPerpetualTokenBalance,
                     blockTime
                 );

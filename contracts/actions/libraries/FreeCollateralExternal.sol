@@ -8,10 +8,27 @@ import "../../storage/AccountContextHandler.sol";
 library FreeCollateralExternal {
     using AccountContextHandler for AccountStorage;
 
-    function getFreeCollateral(
+    function getFreeCollateralView(
         address account
     ) external view returns (int) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        uint blockTime = block.timestamp;
 
+        (
+            /* allActiveAssets */,
+            int[] memory netPortfolioValue,
+            CashGroupParameters[] memory cashGroups,
+            /* marketStates */
+        ) = FreeCollateral.setupFreeCollateralView(portfolioState, blockTime);
+
+        return FreeCollateral.getFreeCollateralView(
+            balanceStates,
+            cashGroups,
+            netPortfolioValue,
+            blockTime
+        );
     }
 
     function checkFreeCollateralAndRevert(

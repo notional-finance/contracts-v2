@@ -46,30 +46,32 @@ library FreeCollateral {
         return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
 
-    function getPerpetualTokenAssetValue(
-        uint currencyId,
-        int tokenBalance,
+    function setupFreeCollateralView(
+        PortfolioState memory portfolioState,
         uint blockTime
-    ) internal returns (int) {
-        // TODO: if the currency id is in the list we make two stateful calls to get the asset rate...not very efficient
-        // TODO: lots of storage reads to get this to work...can we make this more efficient?
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
-        // This only uses nextMaturingAsset which is always set to a predictable value, we just need to know
-        // if the markets have been initialized or not
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
+    ) internal view returns (
+        PortfolioAsset[] memory,
+        int[] memory,
+        CashGroupParameters[] memory,
+        MarketParameters[][] memory
+    ) {
+        PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
         (
-            /* currencyId */,
-            uint totalSupply,
-            /* incentiveRate */
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
+            CashGroupParameters[] memory cashGroups, 
+            MarketParameters[][] memory marketStates
+        ) = getAllCashGroupsView(portfolioState.storedAssets);
 
-        (
-            int perpTokenPV,
-            /* ifCashBitmap */
-        ) = perpToken.getPerpetualTokenPV(accountContext, blockTime);
+        // This changes references in memory, must ensure that we optmisitically write
+        // changes to storage using _finalizeState in BaseAction before we execute this method
+        int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
+            allActiveAssets,
+            cashGroups,
+            marketStates,
+            blockTime,
+            true // Must be risk adjusted
+        );
 
-        // No overflow in totalSupply, stored as a uint96
-        return tokenBalance.mul(perpTokenPV).div(int(totalSupply));
+        return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
 
     /**
@@ -85,12 +87,15 @@ library FreeCollateral {
         int netETHValue;
 
         for (uint i; i < balanceState.length; i++) {
-            // Cash balances are denominated in underlying
-            int perpetualTokenValue;
+            // TODO: we can just fetch the balance storage here
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
-                perpetualTokenValue = getPerpetualTokenAssetValue(
-                    balanceState[i].currencyId,
+                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
+                    balanceState[i].currencyId
+                );
+                // TODO: this will return an asset rate as well, so we can use it here
+                int perpetualTokenValue = getPerpetualTokenAssetValue(
+                    perpToken,
                     balanceState[i].storedPerpetualTokenBalance,
                     blockTime
                 );
@@ -116,6 +121,76 @@ library FreeCollateral {
         return netETHValue;
     }
 
+    function getFreeCollateralView(
+        BalanceState[] memory balanceState,
+        CashGroupParameters[] memory cashGroups,
+        int[] memory netPortfolioValue,
+        uint blockTime
+    ) internal view returns (int) {
+        uint groupIndex;
+        int netETHValue;
+
+        for (uint i; i < balanceState.length; i++) {
+            // TODO: we can just fetch the balance storage here
+            int netLocalAssetValue = balanceState[i].storedCashBalance;
+            if (balanceState[i].storedPerpetualTokenBalance > 0) {
+                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(
+                    balanceState[i].currencyId
+                );
+                // TODO: this will return an asset rate as well, so we can use it here
+                int perpetualTokenValue = getPerpetualTokenAssetValue(
+                    perpToken,
+                    balanceState[i].storedPerpetualTokenBalance,
+                    blockTime
+                );
+                netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+            }
+
+            AssetRateParameters memory assetRate;
+            if (cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                groupIndex += 1;
+            } else {
+                assetRate = AssetRate.buildAssetRateView(balanceState[i].currencyId);
+            }
+
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
+            int ethValue = ethRate.convertToETH(
+                assetRate.convertInternalToUnderlying(netLocalAssetValue)
+            );
+
+            netETHValue = netETHValue.add(ethValue);
+        }
+
+        return netETHValue;
+    }
+
+    function getPerpetualTokenAssetValue(
+        PerpetualTokenPortfolio memory perpToken,
+        int tokenBalance,
+        uint blockTime
+    ) internal view returns (int) {
+        // TODO: if the currency id is in the list we make two stateful calls to get the asset rate...not very efficient
+        // TODO: lots of storage reads to get this to work...can we make this more efficient?
+        // TODO: nextMaturingAsset is not set to a predictable value here, how do we make that better, it should
+        // be the reference time and then we just check if markets are initialized
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
+
+        (
+            /* currencyId */,
+            uint totalSupply,
+            /* incentiveRate */
+        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
+
+        (
+            int perpTokenPV,
+            /* ifCashBitmap */
+        ) = perpToken.getPerpetualTokenPV(accountContext, blockTime);
+
+        // No overflow in totalSupply, stored as a uint96
+        return tokenBalance.mul(perpTokenPV).div(int(totalSupply));
+    }
+
     /**
      * @notice Ensures that all cash groups in a set of active assets are in the list of cash groups.
      * Cash groups can be in the active assets but not loaded yet if they have been previously traded.
@@ -123,21 +198,13 @@ library FreeCollateral {
     function getAllCashGroupsStateful(
         PortfolioAsset[] memory assets
     ) internal returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+        (
+            CashGroupParameters[] memory cashGroups,
+            MarketParameters[][] memory marketStates
+        ) = allocateCashGroupsAndMarkets(assets);
+
         uint groupIndex;
         uint lastCurrencyId;
-
-        // Count the number of groups
-        for (uint i; i < assets.length; i++) {
-            if (lastCurrencyId != assets[i].currencyId) {
-                groupIndex += 1;
-                lastCurrencyId = assets[i].currencyId;
-            }
-        }
-
-        CashGroupParameters[] memory cashGroups = new CashGroupParameters[](groupIndex);
-        MarketParameters[][] memory marketStates = new MarketParameters[][](groupIndex);
-        groupIndex = 0;
-        lastCurrencyId = 0;
         for (uint i; i < assets.length; i++) {
             if (lastCurrencyId != assets[i].currencyId) {
                 (
@@ -151,4 +218,46 @@ library FreeCollateral {
 
         return (cashGroups, marketStates);
     }
+
+    function getAllCashGroupsView(
+        PortfolioAsset[] memory assets
+    ) internal view returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+        (
+            CashGroupParameters[] memory cashGroups,
+            MarketParameters[][] memory marketStates
+        ) = allocateCashGroupsAndMarkets(assets);
+
+        uint groupIndex;
+        uint lastCurrencyId;
+        for (uint i; i < assets.length; i++) {
+            if (lastCurrencyId != assets[i].currencyId) {
+                (
+                    cashGroups[groupIndex],
+                    marketStates[groupIndex]
+                ) = CashGroup.buildCashGroupView(assets[i].currencyId);
+                groupIndex += 1;
+                lastCurrencyId = assets[i].currencyId;
+            }
+        }
+
+        return (cashGroups, marketStates);
+    }
+
+    function allocateCashGroupsAndMarkets(
+        PortfolioAsset[] memory assets
+    ) private pure returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+        uint groupIndex;
+        uint lastCurrencyId;
+
+        // Count the number of groups
+        for (uint i; i < assets.length; i++) {
+            if (lastCurrencyId != assets[i].currencyId) {
+                groupIndex += 1;
+                lastCurrencyId = assets[i].currencyId;
+            }
+        }
+
+        return (new CashGroupParameters[](groupIndex), new MarketParameters[][](groupIndex));
+    }
+
 }
