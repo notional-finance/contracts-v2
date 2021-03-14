@@ -22,6 +22,8 @@ struct BalanceState {
     int netAssetTransferInternalPrecision;
     // Net perpetual token transfers into or out of the account
     int netPerpetualTokenTransfer;
+    // Net perpetual token supply change from minting or redeeming
+    int netPerpetualTokenSupplyChange;
     // The last time incentives were minted for this currency id
     uint lastIncentiveMint;
 }
@@ -151,7 +153,8 @@ library BalanceHandler {
         bool mustUpdate;
         if (balanceState.netPerpetualTokenTransfer < 0) {
             require(
-                balanceState.storedPerpetualTokenBalance >= balanceState.netPerpetualTokenTransfer.neg(),
+                balanceState.storedPerpetualTokenBalance
+                    .add(balanceState.netPerpetualTokenSupplyChange) >= balanceState.netPerpetualTokenTransfer.neg(),
                 "BH: cannot withdraw negative"
             );
         }
@@ -199,15 +202,16 @@ library BalanceHandler {
             .add(balanceState.netAssetTransferInternalPrecision);
         mustUpdate = balanceState.netCashChange != 0 || balanceState.netAssetTransferInternalPrecision != 0;
 
-        if (balanceState.netPerpetualTokenTransfer != 0) {
+        if (balanceState.netPerpetualTokenTransfer != 0 || balanceState.netPerpetualTokenSupplyChange != 0) {
             // It's crucial that this is minted before we do any sort of perpetual token transfer to prevent gaming
             // of the system. This method will update the lastIncentiveMint time in the balanceState for storage.
             mintIncentives(balanceState, account);
 
             // Perpetual tokens are within the notional system so we can update balances directly.
-            balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance.add(
-                balanceState.netPerpetualTokenTransfer
-            );
+            balanceState.storedPerpetualTokenBalance = balanceState.storedPerpetualTokenBalance
+                .add(balanceState.netPerpetualTokenTransfer)
+                .add(balanceState.netPerpetualTokenSupplyChange);
+
             mustUpdate = true;
         }
 
@@ -300,36 +304,19 @@ library BalanceHandler {
         AccountStorage memory accountContext
     ) internal view returns (BalanceState memory) {
         require(currencyId != 0, "BH: invalid currency id");
+        BalanceState memory balanceState;
+        balanceState.currencyId = currencyId;
 
         if (accountContext.isActiveCurrency(currencyId)) {
             // Storage Read
             (
-                int cashBalance,
-                int tokenBalance,
-                uint lastIncentiveMint
+                balanceState.storedCashBalance,
+                balanceState.storedPerpetualTokenBalance,
+                balanceState.lastIncentiveMint
             ) = getBalanceStorage(account, currencyId);
-
-            return BalanceState({
-                currencyId: currencyId,
-                storedCashBalance: cashBalance,
-                storedPerpetualTokenBalance: tokenBalance,
-                netCashChange: 0,
-                netAssetTransferInternalPrecision: 0,
-                netPerpetualTokenTransfer: 0,
-                lastIncentiveMint: lastIncentiveMint
-            });
         }
 
-        // TODO: does this need to set active currency to ensure reads?
-        return BalanceState({
-            currencyId: currencyId,
-            storedCashBalance: 0,
-            storedPerpetualTokenBalance: 0,
-            netCashChange: 0,
-            netAssetTransferInternalPrecision: 0,
-            netPerpetualTokenTransfer: 0,
-            lastIncentiveMint: 0
-        });
+        return balanceState;
     }
 
     function buildBalanceStateArray(
@@ -360,14 +347,12 @@ library BalanceHandler {
      * @notice Iterates over an array of balances and returns the total incentives to mint.
      */
     function calculateIncentivesToMint(
-        uint currencyId,
+        address tokenAddress,
         uint perpetualTokenBalance,
         uint lastMintTime,
         uint blockTime
     ) internal view returns (uint) {
         if (lastMintTime == 0 || lastMintTime >= blockTime) return 0;
-
-        address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         (
             /* currencyId */,
             uint totalSupply,
@@ -400,14 +385,21 @@ library BalanceHandler {
         address account
     ) internal {
         uint blockTime = block.timestamp;
+        address tokenAddress = PerpetualToken.getPerpetualTokenAddress(balanceState.currencyId);
+
         uint incentivesToMint = calculateIncentivesToMint(
-            balanceState.currencyId,
+            tokenAddress,
             uint(balanceState.storedPerpetualTokenBalance),
             balanceState.lastIncentiveMint,
             blockTime
         );
         balanceState.lastIncentiveMint = blockTime;
         TokenHandler.transferIncentive(account, incentivesToMint);
+
+        // Change the supply amount after incentives have been minted
+        if (balanceState.netPerpetualTokenSupplyChange != 0) {
+            PerpetualToken.changePerpetualTokenSupply(tokenAddress, balanceState.netPerpetualTokenSupplyChange);
+        }
     }
 
 }

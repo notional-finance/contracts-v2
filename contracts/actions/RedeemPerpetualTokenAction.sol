@@ -60,7 +60,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         );
 
         require(redeemerBalance.storedPerpetualTokenBalance >= tokensToRedeem, "Insufficient tokens");
-        redeemerBalance.netPerpetualTokenTransfer = tokensToRedeem.neg();
+        redeemerBalance.netPerpetualTokenSupplyChange = tokensToRedeem.neg();
 
         (
             int totalAssetCash,

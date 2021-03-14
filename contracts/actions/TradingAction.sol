@@ -170,17 +170,20 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
                     deposits[i].amountExternalPrecision
                 );
 
-                balanceStates[balanceStateIndex].netPerpetualTokenTransfer = balanceStates[balanceStateIndex]
-                    .netPerpetualTokenTransfer.add(tokensMinted);
+                balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange = balanceStates[balanceStateIndex]
+                    .netPerpetualTokenSupplyChange.add(tokensMinted);
             } else if (deposits[i].depositType == DepositType.RedeemPerpetual) {
                 require(
+                    // It is not possible to have transfers here
                     balanceStates[balanceStateIndex].storedPerpetualTokenBalance
-                        .add(balanceStates[balanceStateIndex].netPerpetualTokenTransfer) >= deposits[i].amountExternalPrecision,
-                    "I"
+                        .add(balanceStates[balanceStateIndex].netPerpetualTokenTransfer)
+                        .add(balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange)
+                    >= deposits[i].amountExternalPrecision,
+                    "Insufficient token balance"
                 );
 
-                balanceStates[balanceStateIndex].netPerpetualTokenTransfer = balanceStates[balanceStateIndex]
-                    .netPerpetualTokenTransfer.sub(deposits[i].amountExternalPrecision);
+                balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange = balanceStates[balanceStateIndex]
+                    .netPerpetualTokenSupplyChange.sub(deposits[i].amountExternalPrecision);
 
                 int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
                     deposits[i].currencyId,

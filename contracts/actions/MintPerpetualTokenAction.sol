@@ -37,7 +37,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         recipientBalance.netCashChange = recipientBalance.netCashChange.sub(amountToDepositInternal);
 
         int tokensMinted = _mintPerpetualToken(currencyId, amountToDepositInternal);
-        recipientBalance.netPerpetualTokenTransfer = tokensMinted;
+        recipientBalance.netPerpetualTokenSupplyChange = tokensMinted;
         recipientBalance.finalize(recipient, recipientContext, false);
         recipientContext.setAccountContext(recipient);
 

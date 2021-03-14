@@ -91,7 +91,7 @@ library PerpetualToken {
     function changePerpetualTokenSupply(
         address tokenAddress,
         int netChange
-    ) private {
+    ) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
 
         (
@@ -468,12 +468,9 @@ library PerpetualToken {
             
             // NOTE: this method call is here to reduce stack size in depositIntoPortfolio
             perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
-            // NOTE: balance state should not change as a result of this method
         }
 
-        // From the calculateTokensToMint function we know that tokensToMint will be positive.
-        changePerpetualTokenSupply(perpToken.tokenAddress, tokensToMint);
-
+        // NOTE: token supply change will happen after minting incentives
         return tokensToMint;
     }
 
@@ -666,11 +663,8 @@ library PerpetualToken {
         );
 
         perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
-        // Remove perpetual tokens from the supply
-        changePerpetualTokenSupply(perpToken.tokenAddress, -int(tokensToRedeem));
 
-        // All changes to perpetual token are finalized here, redeeming account can either sell or keep
-        // these assets.
+        // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
         return (newifCashAssets, assetCashShare);
     }
 

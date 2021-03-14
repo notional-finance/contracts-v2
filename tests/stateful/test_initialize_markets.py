@@ -413,7 +413,7 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
     perp_token_asserts(environment, currencyId, True, accounts)
 
 
-@pytest.mark.only
+@pytest.mark.skip
 def test_mint_above_leverage_threshold(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
