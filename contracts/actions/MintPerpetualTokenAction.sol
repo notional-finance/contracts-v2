@@ -42,7 +42,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         recipientContext.setAccountContext(recipient);
 
         if (recipientContext.hasDebt) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(recipient, true);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(recipient);
         }
 
         return uint(tokensMinted);
@@ -67,15 +67,12 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
         AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-        // TODO: make this a library and fetch these
-        AssetStorage[] storage perpTokenAssetStorage = assetArrayMapping[perpToken.tokenAddress];
 
         int tokensMinted = PerpetualToken.mintPerpetualToken(
             perpToken,
             perpTokenContext,
             amountToDepositInternal,
-            blockTime,
-            perpTokenAssetStorage
+            blockTime
         );
         require(tokensMinted >= 0, "Invalid token amount");
 

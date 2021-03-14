@@ -122,7 +122,8 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint blockTime
     ) public view returns (SettleAmount[] memory, PortfolioState memory) {
-        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         SettleAmount[] memory settleAmounts = SettleAssets.getSettleAssetContextView(pStateView, blockTime);
 
         return (settleAmounts, pStateView);
@@ -132,8 +133,9 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint blockTime
     ) public returns (SettleAmount[] memory) {
-        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, 0);
-        PortfolioState memory pState = PortfolioHandler.buildPortfolioState(account, 0);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory pStateView = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        PortfolioState memory pState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
 
         SettleAmount[] memory settleAmountView = SettleAssets.getSettleAssetContextView(pStateView, blockTime);
         SettleAmount[] memory settleAmount = SettleAssets.getSettleAssetContextStateful(pState, blockTime);
@@ -150,7 +152,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         }
 
         // This will change the stored asset array
-        pState.storeAssets(assetArrayMapping[account]);
+        pState.storeAssets(account, accountContext);
 
         // Assert that balance context is equal
         require(settleAmountView.length == settleAmount.length); // dev: settle amount length

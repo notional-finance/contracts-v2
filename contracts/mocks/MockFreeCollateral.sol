@@ -22,12 +22,12 @@ contract MockFreeCollateral is MockAssetHandler {
         address account,
         PortfolioAsset[] memory assets
     ) external {
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         portfolioState.newAssets = assets;
-        portfolioState.storeAssets(assetArrayMapping[account]);
+        portfolioState.storeAssets(account, accountContext);
 
         // TODO: fix this hack
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.setActiveCurrency(assets[0].currencyId, true);
         accountContext.setAccountContext(account);
     }
@@ -62,7 +62,7 @@ contract MockFreeCollateral is MockAssetHandler {
     function checkFreeCollateralAndRevert(
         address account
     ) external {
-        FreeCollateralExternal.checkFreeCollateralAndRevert(account, true);
+        FreeCollateralExternal.checkFreeCollateralAndRevert(account);
     }
 
 }

@@ -96,10 +96,12 @@ library PortfolioHandler {
      */
     function storeAssets(
         PortfolioState memory portfolioState,
-        AssetStorage[] storage assetStoragePointer
+        address account,
+        AccountStorage memory accountContext
     ) internal {
         uint assetStorageLength = portfolioState.storedAssets.length;
-        PortfolioAsset memory tmpM;
+        uint initialSlot = uint(keccak256(abi.encode(account, "account.array")));
+        // todo: set nextMaturingAsset, activeCurrencies, hasDebt
 
         // First delete assets from asset storage to maintain asset storage indexes
         for (uint i; i < assetStorageLength; i++) {
@@ -107,20 +109,21 @@ library PortfolioHandler {
                 // If notional = 0 then the asset is net off, delete it
                 || portfolioState.storedAssets[i].notional == 0) {
 
-                // Swap all the assets to the end of the array
                 // Storage Read / write
-                AssetStorage storage tmpS = assetStoragePointer[i];
-                assetStoragePointer[i] = assetStoragePointer[assetStorageLength - 1];
-                assetStoragePointer[assetStorageLength - 1] = tmpS;
-                assetStoragePointer.pop();
+                bytes32 lastAsset;
+                uint lastAssetSlot = initialSlot + assetStorageLength - 1;
+                uint currentSlot = initialSlot + i;
+                assembly { lastAsset := sload(lastAssetSlot) }
+                assembly { sstore(currentSlot, lastAsset) }
+                // Delete the last asset, it is now stored in currentSlot
+                assembly { sstore(lastAssetSlot, 0x00) }
 
                 // Mirror the swap in memory
-                tmpM = portfolioState.storedAssets[i];
-                portfolioState.storedAssets[i] = portfolioState.storedAssets[assetStorageLength - 1];
-                portfolioState.storedAssets[assetStorageLength - 1] = tmpM;
+                (portfolioState.storedAssets[assetStorageLength - 1], portfolioState.storedAssets[i]) = 
+                    (portfolioState.storedAssets[i], portfolioState.storedAssets[assetStorageLength - 1]);
 
-                assetStorageLength = assetStorageLength - 1;
-                i = i - 1;
+                assetStorageLength -= 1;
+                i -= 1;
             }
         }
 
@@ -128,34 +131,22 @@ library PortfolioHandler {
         for (uint i; i < assetStorageLength; i++) {
             if (portfolioState.storedAssets[i].storageState != AssetStorageState.Update) continue;
 
-            require(
-                portfolioState.storedAssets[i].notional <= type(int88).max
-                && portfolioState.storedAssets[i].notional >= type(int88).min
-            ); // dev: notional overflow
-
-            // Storage Write
-            assetStoragePointer[i].notional = int88(portfolioState.storedAssets[i].notional);
-            assetStoragePointer[i].assetType = uint8(portfolioState.storedAssets[i].assetType);
+            uint currentSlot = initialSlot + i;
+            bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
+            assembly { sstore(currentSlot, encodedAsset) }
         }
 
+        uint newAssetSlot = initialSlot + assetStorageLength;
         // Finally, add new assets
-        // TODO: add max assets parameter
         for (uint i; i < portfolioState.newAssets.length; i++) {
-            int88 notional = int88(portfolioState.newAssets[i].notional);
-            if (notional == 0) continue;
-
-            uint16 currencyId = uint16(portfolioState.newAssets[i].currencyId);
-            uint8 assetType = uint8(portfolioState.newAssets[i].assetType);
-            uint40 maturity = uint40(portfolioState.newAssets[i].maturity);
-
-            // Storage Write
-            assetStoragePointer.push(AssetStorage({
-                currencyId: currencyId,
-                assetType: assetType,
-                maturity: maturity,
-                notional: notional
-            }));
+            if (portfolioState.newAssets[i].notional == 0) continue;
+            bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
+            assembly { sstore(newAssetSlot, encodedAsset) }
+            newAssetSlot += 1;
         }
+
+        // Very unlikely potential for overflow here...
+        accountContext.assetArrayLength = uint8(newAssetSlot - initialSlot);
     }
 
     /**
@@ -182,6 +173,25 @@ library PortfolioHandler {
             bytes32(asset.currencyId) << 48 |
             bytes32(asset.maturity) << 8 |
             bytes32(asset.assetType)
+        );
+    }
+
+    /**
+     * @dev These ids determine the sort order of assets
+     */
+    function encodeAssetToBytes(
+        PortfolioAsset memory asset
+    ) internal pure returns (bytes32) {
+        require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
+        require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
+        require(asset.assetType > 0 && asset.assetType <= AssetHandler.LIQUIDITY_TOKEN_INDEX9); // dev: encode asset type invalid
+        require(asset.notional >= type(int88).min && asset.notional <= type(uint88).max); // dev: encode asset notional overflow
+
+        return (
+            bytes32(asset.currencyId)      |
+            bytes32(asset.maturity)  << 16 |
+            bytes32(asset.assetType) << 56 |
+            bytes32(asset.notional) << 64
         );
     }
 
@@ -228,7 +238,6 @@ library PortfolioHandler {
         int right
     ) internal pure {
         if (left == right) return;
-        // TODO: make these uints and save the conversion here
         int i = left;
         int j = right;
 
@@ -237,7 +246,6 @@ library PortfolioHandler {
             while (getEncodedId(assets[indexes[uint(i)]]) < pivot) i++;
             while (pivot < getEncodedId(assets[indexes[uint(j)]])) j--;
             if (i <= j) {
-                // Swap positions
                 (indexes[uint(i)], indexes[uint(j)]) = (indexes[uint(j)], indexes[uint(i)]);
                 i++;
                 j--;
@@ -248,63 +256,61 @@ library PortfolioHandler {
         if (i < right) _quickSort(assets, indexes, i, right);
     }
 
-    /**
-     * @notice Returns an single array that contains the new and stored assets merged and sorted by currency
-     * id and maturity.
-     */
-    function getMergedArray(
-        PortfolioState memory portfolioState
-    ) internal pure returns (PortfolioAsset[] memory) {
-        // Last new asset index is equal to the number of new assets inserted in the array
-        uint totalAssets = portfolioState.storedAssetLength + portfolioState.lastNewAssetIndex;
-        PortfolioAsset[] memory mergedAssets = new PortfolioAsset[](totalAssets);
+    function _quickSortInPlace(
+        PortfolioAsset[] memory assets,
+        int left,
+        int right
+    ) internal pure {
+        if (left == right) return;
+        int i = left;
+        int j = right;
 
-        uint storedAssetsIndex;
-        uint newAssetsIndex;
-        uint mergedAssetsIndex;
-        while (storedAssetsIndex < portfolioState.storedAssets.length
-               || newAssetsIndex < portfolioState.newAssets.length) {
-            PortfolioAsset memory storedAsset;
-            PortfolioAsset memory newAsset;
-
-            if (storedAssetsIndex < portfolioState.sortedIndex.length) {
-                storedAsset = portfolioState.storedAssets[portfolioState.sortedIndex[storedAssetsIndex]];
-            }
-
-            if (newAssetsIndex < portfolioState.newAssets.length) {
-                newAsset = portfolioState.newAssets[newAssetsIndex];
-            }
-
-            if (storedAsset.assetType == 0) {
-                // Stored asset is zero because there are no more stored assets so we will just insert the
-                // new asset.
-                mergedAssets[mergedAssetsIndex] = newAsset;
-                newAssetsIndex += 1;
-                mergedAssetsIndex += 1;
-            } else if (newAsset.assetType == 0) {
-                // If new asset is zero then there are no more, we insert the stored asset as long as it is not
-                // a delete
-                if (storedAsset.storageState != AssetStorageState.Delete) {
-                    mergedAssets[mergedAssetsIndex] = storedAsset;
-                    mergedAssetsIndex += 1;
-                }
-                // Continue to increment the index either way to get past a deleted asset.
-                storedAssetsIndex += 1;
-            } else if (getEncodedId(newAsset) < getEncodedId(storedAsset)) {
-                // Compare the assets and insert the one with a lower valued id. These should never be equal!
-                mergedAssets[mergedAssetsIndex] = newAsset;
-                newAssetsIndex += 1;
-                mergedAssetsIndex += 1;
-            } else {
-                if (storedAsset.storageState != AssetStorageState.Delete) {
-                    mergedAssets[mergedAssetsIndex] = storedAsset;
-                    mergedAssetsIndex += 1;
-                }
-                storedAssetsIndex += 1;
+        uint pivot = getEncodedId(assets[uint(left + (right - left) / 2)]);
+        while (i <= j) {
+            while (getEncodedId(assets[uint(i)]) < pivot) i++;
+            while (pivot < getEncodedId(assets[uint(j)])) j--;
+            if (i <= j) {
+                (assets[uint(i)], assets[uint(j)]) = (assets[uint(j)], assets[uint(i)]);
+                i++;
+                j--;
             }
         }
 
-        return mergedAssets;
+        if (left < j) _quickSortInPlace(assets, left, j);
+        if (i < right) _quickSortInPlace(assets, i, right);
+    }
+
+    function loadAssetArray(
+        address account,
+        uint8 length
+    ) private view returns (PortfolioAsset[] memory) {
+        PortfolioAsset[] memory assets = new PortfolioAsset[](length);
+        uint slot = uint(keccak256(abi.encode(account, "account.array")));
+
+        for (uint i; i < length; i++) {
+            bytes32 data;
+            assembly { data := sload(slot) }
+
+            assets[i].currencyId = uint(uint16(uint(data)));
+            assets[i].maturity = uint(uint40(uint(data >> 16)));
+            assets[i].assetType = uint(uint8(uint(data >> 56)));
+            assets[i].notional = int(int88(uint(data >> 64)));
+            slot = slot + 1;
+        }
+
+        return assets;
+    }
+
+    function getSortedPortfolio(
+        address account,
+        AccountStorage memory accountContext
+    ) internal view returns (PortfolioAsset[] memory) {
+        PortfolioAsset[] memory assets = loadAssetArray(account, accountContext.assetArrayLength);
+
+        if (assets.length <= 1) return assets;
+
+        _quickSortInPlace(assets, 0, int(assets.length) - 1);
+        return assets;
     }
 
     /**
@@ -314,35 +320,17 @@ library PortfolioHandler {
      */
     function buildPortfolioState(
         address account,
+        uint8 assetArrayLength,
         uint newAssetsHint
     ) internal view returns (PortfolioState memory) {
-        // TODO: change this to a string
-        bytes32 slot = keccak256(abi.encode(account, 3));
-        uint length;
-        assembly { length := sload(slot) }
-        PortfolioAsset[] memory result = new PortfolioAsset[](length);
-        // For an array in a mapping, the slot is rehashed for the offset.
-        uint arraySlot = uint(keccak256(abi.encode(slot)));
+        PortfolioState memory state;
+        if (assetArrayLength == 0) return state;
 
-        for (uint i; i < length; i++) {
-            bytes32 data;
-            assembly { data := sload(arraySlot) }
+        state.storedAssets = loadAssetArray(account, assetArrayLength);
+        state.storedAssetLength = assetArrayLength;
+        state.newAssets = new PortfolioAsset[](newAssetsHint);
 
-            result[i].currencyId = uint(uint16(uint(data)));
-            result[i].maturity = uint(uint40(uint(data >> 16)));
-            result[i].assetType = uint(uint8(uint(data >> 56)));
-            result[i].notional = int(int88(uint(data >> 64)));
-            arraySlot = arraySlot + 1;
-        }
-
-        return PortfolioState({
-            storedAssets: result,
-            newAssets: new PortfolioAsset[](newAssetsHint),
-            lastNewAssetIndex: 0,
-            storedAssetLength: result.length,
-            // This index is initiated if required during settlement or FC
-            sortedIndex: new uint[](0)
-        });
+        return state;
     }
 
 }

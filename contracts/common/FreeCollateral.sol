@@ -12,34 +12,26 @@ import "../storage/PortfolioHandler.sol";
 library FreeCollateral {
     using SafeInt256 for int;
     using Bitmap for bytes;
-    using PortfolioHandler for PortfolioState;
     using BalanceHandler for BalanceState;
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
     using PerpetualToken for PerpetualTokenPortfolio;
 
-    function setupFreeCollateralStateful(
-        PortfolioState memory portfolioState,
+    function getNetPortfolioValueStateful(
+        address account,
+        AccountStorage memory accountContext,
         uint blockTime
-    ) internal returns (
-        PortfolioAsset[] memory,
-        int[] memory,
-        CashGroupParameters[] memory,
-        MarketParameters[][] memory
-    ) {
-        portfolioState.calculateSortedIndex();
-        PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
-        (
-            CashGroupParameters[] memory cashGroups, 
-            MarketParameters[][] memory marketStates
-        ) = getAllCashGroupsStateful(portfolioState.storedAssets);
-
-        // This changes references in memory, must ensure that we optmisitically write
-        // changes to storage using _finalizeState in BaseAction before we execute this method
+    ) internal returns (int[] memory, CashGroupParameters[] memory) {
         int[] memory netPortfolioValue;
-        if (allActiveAssets.length > 0) {
+        CashGroupParameters[] memory cashGroups;
+        MarketParameters[][] memory marketStates;
+
+        if (accountContext.assetArrayLength > 0) {
+            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            (cashGroups, marketStates) = getAllCashGroupsStateful(portfolio);
+
             netPortfolioValue = AssetHandler.getPortfolioValue(
-                allActiveAssets,
+                portfolio,
                 cashGroups,
                 marketStates,
                 blockTime,
@@ -47,31 +39,24 @@ library FreeCollateral {
             );
         }
 
-        return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
+        return (netPortfolioValue, cashGroups);
     }
 
-    function setupFreeCollateralView(
-        PortfolioState memory portfolioState,
+    function getNetPortfolioValueView(
+        address account,
+        AccountStorage memory accountContext,
         uint blockTime
-    ) internal view returns (
-        PortfolioAsset[] memory,
-        int[] memory,
-        CashGroupParameters[] memory,
-        MarketParameters[][] memory
-    ) {
-        portfolioState.calculateSortedIndex();
-        PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
-        (
-            CashGroupParameters[] memory cashGroups, 
-            MarketParameters[][] memory marketStates
-        ) = getAllCashGroupsView(portfolioState.storedAssets);
-
-        // This changes references in memory, must ensure that we optmisitically write
-        // changes to storage using _finalizeState in BaseAction before we execute this method
+    ) internal view returns (int[] memory, CashGroupParameters[] memory) {
         int[] memory netPortfolioValue;
-        if (allActiveAssets.length > 0) {
+        CashGroupParameters[] memory cashGroups;
+        MarketParameters[][] memory marketStates;
+
+        if (accountContext.assetArrayLength > 0) {
+            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            (cashGroups, marketStates) = getAllCashGroupsView(portfolio);
+
             netPortfolioValue = AssetHandler.getPortfolioValue(
-                allActiveAssets,
+                portfolio,
                 cashGroups,
                 marketStates,
                 blockTime,
@@ -79,7 +64,7 @@ library FreeCollateral {
             );
         }
 
-        return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
+        return (netPortfolioValue, cashGroups);
     }
 
     /**

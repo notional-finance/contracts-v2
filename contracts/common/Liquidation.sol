@@ -44,7 +44,8 @@ library Liquidation {
      * @notice Calculates liquidation factors, assumes portfolio has already been settled
      */
     function calculateLiquidationFactors(
-        PortfolioState memory portfolioState,
+        address account,
+        AccountStorage memory accountContext,
         BalanceState[] memory balanceState,
         uint blockTime,
         uint localCurrencyId,
@@ -53,16 +54,23 @@ library Liquidation {
         LiquidationFactors memory,
         PortfolioAsset[] memory
     ) {
-        (
-            // TODO: Get merged portfolio isnt necessary here since we know there is no trading...
-            PortfolioAsset[] memory allActiveAssets,
-            int[] memory netPortfolioValue,
-            CashGroupParameters[] memory cashGroups,
-            MarketParameters[][] memory marketStates
-        ) = FreeCollateral.setupFreeCollateralStateful(
-            portfolioState,
-            blockTime
-        );
+        PortfolioAsset[] memory portfolio;
+        int[] memory netPortfolioValue;
+        CashGroupParameters[] memory cashGroups;
+        MarketParameters[][] memory marketStates;
+
+        if (accountContext.assetArrayLength > 0){
+            portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext);
+            (cashGroups, marketStates) = FreeCollateral.getAllCashGroupsStateful(portfolio);
+
+            netPortfolioValue = AssetHandler.getPortfolioValue(
+                portfolio,
+                cashGroups,
+                marketStates,
+                blockTime,
+                true // Must be risk adjusted
+            );
+        }
 
         LiquidationFactors memory factors = getLiquidationFactorsStateful(
             localCurrencyId,
@@ -74,7 +82,7 @@ library Liquidation {
             blockTime
         );
 
-        return (factors, allActiveAssets);
+        return (factors, portfolio);
     }
 
     /**

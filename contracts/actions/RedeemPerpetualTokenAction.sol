@@ -79,6 +79,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
 
             PortfolioState memory redeemerPortfolio = PortfolioHandler.buildPortfolioState(
                 redeemer,
+                redeemerContext.assetArrayLength,
                 newfCashAssets.length
             );
 
@@ -96,7 +97,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             }
 
             // TODO: this needs to check if has debt and also update context
-            redeemerPortfolio.storeAssets(assetArrayMapping[redeemer]);
+            redeemerPortfolio.storeAssets(redeemer, redeemerContext);
         }
 
         redeemerBalance.finalize(redeemer, redeemerContext, false);
@@ -104,7 +105,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
 
         // TODO: must free collateral check here if recipient is keeping LTs
         if (redeemerContext.hasDebt) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer, true);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
     }
 
@@ -125,7 +126,6 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(
                 perpToken,
                 perpTokenContext,
-                assetArrayMapping[perpToken.tokenAddress],
                 tokensToRedeem,
                 blockTime
             );

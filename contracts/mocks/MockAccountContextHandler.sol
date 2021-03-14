@@ -54,7 +54,7 @@ contract MockAccountContextHandler {
         address account,
         uint16 bitmapCurrencyId
     ) external view returns (BalanceState[] memory) {
-        AccountStorage memory accountContext = AccountStorage(0, false, bitmapCurrencyId, 0, activeCurrencies);
+        AccountStorage memory accountContext = AccountStorage(0, false, 0, bitmapCurrencyId, activeCurrencies);
         BalanceState[] memory bs = accountContext.getAllBalances(account);
 
         for (uint i; i < bs.length; i++) {

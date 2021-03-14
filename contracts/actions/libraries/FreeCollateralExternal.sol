@@ -8,20 +8,15 @@ import "../../storage/AccountContextHandler.sol";
 library FreeCollateralExternal {
     using AccountContextHandler for AccountStorage;
 
-    function getFreeCollateralView(
-        address account
-    ) external view returns (int) {
+    function getFreeCollateralView(address account) external view returns (int) {
+        uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
-        uint blockTime = block.timestamp;
 
         (
-            /* allActiveAssets */,
             int[] memory netPortfolioValue,
-            CashGroupParameters[] memory cashGroups,
-            /* marketStates */
-        ) = FreeCollateral.setupFreeCollateralView(portfolioState, blockTime);
+            CashGroupParameters[] memory cashGroups
+        ) = FreeCollateral.getNetPortfolioValueView(account, accountContext, blockTime);
 
         return FreeCollateral.getFreeCollateralView(
             balanceStates,
@@ -31,26 +26,15 @@ library FreeCollateralExternal {
         );
     }
 
-    function checkFreeCollateralAndRevert(
-        address account,
-        bool loadPortfolio // TODO: switch this in v2
-    ) external {
+    function checkFreeCollateralAndRevert(address account) external {
+        uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
-        uint blockTime = block.timestamp;
-
-        PortfolioState memory portfolioState;
-        if (loadPortfolio) {
-            // if required, load portfolio
-            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
-        }
 
         (
-            /* allActiveAssets */,
             int[] memory netPortfolioValue,
-            CashGroupParameters[] memory cashGroups,
-            /* marketStates */
-        ) = FreeCollateral.setupFreeCollateralStateful(portfolioState, blockTime);
+            CashGroupParameters[] memory cashGroups
+        ) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
 
         int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(
             balanceStates,

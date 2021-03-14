@@ -78,7 +78,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         AMMTrade[] calldata trades,
         Withdraw[] calldata withdraws
     ) external payable {
-        // TODO: authorize action
+        require(msg.sender == account || msg.sender == address(this), "Unauthorized");
         // TODO: handle ETH
 
         uint32 blockTime = uint32(block.timestamp);
@@ -89,7 +89,10 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         ) = initializeActionStateful(account, currencyIds, blockTime, trades.length > 0);
 
         if (deposits.length > 0) executeDeposits(account, deposits, balanceStates);
-        if (trades.length > 0) executeTrades(account, trades, portfolioState, balanceStates, blockTime);
+        if (trades.length > 0) {
+            executeTrades(account, trades, portfolioState, balanceStates, blockTime);
+            portfolioState.storeAssets(account, accountContext);
+        }
         // This will finalize balances internally and execute withdraws (if any) 
         finalizeBalances(account, withdraws, balanceStates, accountContext);
 
@@ -97,7 +100,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
         // collateral if required.
         accountContext.setAccountContext(account);
         if (accountContext.hasDebt) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(account, true);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
         }
     }
 
@@ -123,7 +126,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
             ) = SettleAssetsExternal.settleAssetsStateful(account, 0);
         } else if (loadPortfolio) {
             // We only fetch the portfolio state if there will be trades added or if the account must be settled.
-            portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
+            portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         }
 
 
@@ -264,7 +267,6 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
         // Finalize the last set of markets not caught by a cash group change
         finalizeMarkets(markets);
-        portfolioState.storeAssets(assetArrayMapping[account]);
     }
 
     // function executeLiquidityTrade(

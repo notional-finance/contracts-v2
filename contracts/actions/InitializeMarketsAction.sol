@@ -504,7 +504,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             ifCashBitmap = finalizeMarket(newMarket, currencyId, perpToken.tokenAddress, ifCashBitmap);
         }
 
-        perpToken.portfolioState.storeAssets(assetArrayMapping[perpToken.tokenAddress]);
+        perpToken.portfolioState.storeAssets(perpToken.tokenAddress, accountContext);
         // Special method that only stores the storedCashBalance for this method only since we know
         // there are no token transfers, incentives or anything else. Reduces code size by about 2kb
         perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);

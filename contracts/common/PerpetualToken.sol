@@ -293,9 +293,11 @@ library PerpetualToken {
     ) internal returns (PerpetualTokenPortfolio memory) {
         PerpetualTokenPortfolio memory perpToken;
         perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
+        // TODO: refactor this, we only need asset array length and nextMaturingAsset
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
+        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, accountContext.assetArrayLength, 0);
         perpToken.balanceState.currencyId = currencyId;
         (
             perpToken.balanceState.storedCashBalance,
@@ -311,9 +313,11 @@ library PerpetualToken {
     ) internal view returns (PerpetualTokenPortfolio memory) {
         PerpetualTokenPortfolio memory perpToken;
         perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
+        // TODO: refactor this, we only need asset array length and nextMaturingAsset
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupView(currencyId);
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, 0);
+        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, accountContext.assetArrayLength, 0);
         perpToken.balanceState.currencyId = currencyId;
         (
             perpToken.balanceState.storedCashBalance,
@@ -448,8 +452,7 @@ library PerpetualToken {
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         int assetCashDeposit,
-        uint blockTime,
-        AssetStorage[] storage perpTokenAssetStorage
+        uint blockTime
     ) internal returns (int) {
         (int tokensToMint, bytes32 ifCashBitmap) = calculateTokensToMint(
             perpToken,
@@ -467,7 +470,7 @@ library PerpetualToken {
             depositIntoPortfolio(perpToken, accountContext, ifCashBitmap, assetCashDeposit, blockTime);
             
             // NOTE: this method call is here to reduce stack size in depositIntoPortfolio
-            perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
+            perpToken.portfolioState.storeAssets(perpToken.tokenAddress, accountContext);
         }
 
         // NOTE: token supply change will happen after minting incentives
@@ -629,7 +632,6 @@ library PerpetualToken {
     function redeemPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory perpTokenAccountContext,
-        AssetStorage[] storage perpTokenAssetStorage,
         int tokensToRedeem,
         uint blockTime
     ) internal returns (PortfolioAsset[] memory, int) {
@@ -662,7 +664,7 @@ library PerpetualToken {
             _removeLiquidityTokens(perpToken, newifCashAssets, tokensToRedeem, int(totalSupply), blockTime)
         );
 
-        perpToken.portfolioState.storeAssets(perpTokenAssetStorage);
+        perpToken.portfolioState.storeAssets(perpToken.tokenAddress, perpTokenAccountContext);
 
         // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
         return (newifCashAssets, assetCashShare);

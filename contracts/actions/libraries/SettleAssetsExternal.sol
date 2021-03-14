@@ -12,7 +12,10 @@ library SettleAssetsExternal {
         uint newAssetsHint,
         uint blockTime
     ) external view returns (PortfolioState memory, SettleAmount[] memory) {
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, newAssetsHint);
+        // TODO: do memory allocations cross external calls?
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+            account, accountContext.assetArrayLength, newAssetsHint);
         SettleAmount[] memory settleAmounts = SettleAssets.getSettleAssetContextView(portfolioState, blockTime);
 
         return (portfolioState, settleAmounts);
@@ -22,7 +25,9 @@ library SettleAssetsExternal {
         address account,
         uint newAssetsHint
     ) external returns (PortfolioState memory, SettleAmount[] memory) {
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, newAssetsHint);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+            account, accountContext.assetArrayLength, newAssetsHint);
         SettleAmount[] memory settleAmounts = SettleAssets.getSettleAssetContextStateful(portfolioState, block.timestamp);
 
         return (portfolioState, settleAmounts);
