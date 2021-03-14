@@ -295,6 +295,10 @@ def test_mint_after_markets_initialized(environment, accounts):
         "Views"
     ].getAccountBalance(currencyId, accounts[0])
 
+    # Ensure that the clock ticks forward for lastMintTime check
+    blockTime = chain.time() + 1
+    chain.mine(1, timestamp=blockTime)
+
     environment.router["MintPerpetual"].perpetualTokenMint(
         currencyId, 100000e8, False, {"from": accounts[0]}
     )

@@ -146,29 +146,11 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         uint blockTime,
         uint nextMaturingAsset
     ) private returns (int, bytes32) {
-        int assetCashWitholding;
-
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
-        // TODO: recalculate what the total cash withholdings should be per quarter
         for (uint i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
-            // Only update if the asset type is fCash, meaning that there is some amount of
-            // net fCash from liquidity tokens
             if (asset.assetType != AssetHandler.FCASH_ASSET_TYPE) continue;
-
-            // Withhold cash value if the fCash notional is negative
-            if (asset.notional < 0) {
-                int pv = AssetHandler.getPresentValue(
-                    asset.notional,
-                    asset.maturity,
-                    blockTime,
-                    // This uses the old oracle rates, that is ok since we are going to interpolate later to
-                    // ensure that these rates continue to hold.
-                    perpToken.markets[i].oracleRate
-                );
-                assetCashWitholding = assetCashWitholding.sub(pv);
-            }
 
             ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
                 perpToken.tokenAddress,
@@ -179,9 +161,20 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                 ifCashBitmap
             );
 
-            // This will cause the array to be cleared and then we will update with new assets.
+            // Do not have fCash assets stored in the portfolio
             asset.storageState = AssetStorageState.Delete;
         }
+
+        // Recalculate what the witholdings are if there are any ifCash assets remaining
+        int assetCashWitholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWitholding(
+            perpToken.tokenAddress,
+            currencyId,
+            nextMaturingAsset,
+            blockTime,
+            ifCashBitmap,
+            perpToken.cashGroup,
+            perpToken.markets
+        );
 
         return (assetCashWitholding, ifCashBitmap);
     }
@@ -215,8 +208,9 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         // We do not consider "storedCashBalance" because it may be holding cash that is used to
         // collateralize negative fCash from previous settlements except on the first initialization when
         // we know that there are no fCash assets at all
-        netAssetCashAvailable = perpToken.balanceState.netCashChange.subNoNeg(assetCashWitholding);
-        if (isFirstInit) netAssetCashAvailable = netAssetCashAvailable.add(perpToken.balanceState.storedCashBalance);
+        netAssetCashAvailable = perpToken.balanceState.storedCashBalance
+            .add(perpToken.balanceState.netCashChange)
+            .subNoNeg(assetCashWitholding);
 
         // This is the new balance to store
         perpToken.balanceState.storedCashBalance = perpToken.balanceState.storedCashBalance

@@ -235,4 +235,46 @@ library BitmapAssetsHandler {
         return assets;
     }
 
+    /**
+     * @notice If a perpetual token incurs a negative fCash residual as a result of lending, this means
+     * that we are going to need to withold some amount of cash so that market makers can purchase and
+     * clear the debts off the balance sheet.
+     */
+    function getPerpetualTokenNegativefCashWitholding(
+        address account,
+        uint currencyId,
+        uint nextMaturingAsset,
+        uint blockTime,
+        bytes32 assetsBitmap,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets
+    ) internal view returns (int) {
+        int totalNegativePresentValue;
+        uint bitNum = 1;
+
+        while (assetsBitmap != 0) {
+            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
+                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+                bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+                int notional;
+                assembly { notional := sload(fCashSlot) }
+
+                if (notional < 0) {
+                    uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+
+                    totalNegativePresentValue.add(AssetHandler.getPresentValue(
+                        notional,
+                        maturity,
+                        blockTime,
+                        oracleRate
+                    ));
+                }
+            }
+
+            assetsBitmap = assetsBitmap << 1;
+            bitNum += 1;
+        }
+
+        return totalNegativePresentValue;
+    }
 }
