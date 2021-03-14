@@ -94,10 +94,10 @@ struct AccountStorage {
     uint40 nextMaturingAsset;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.
     bool hasDebt;
+    // Length of the account's asset array
+    uint8 assetArrayLength;
     // If this account has bitmaps set, this is the corresponding currency id
     uint16 bitmapCurrencyId;
-    // The initial offset for the asset array (is this sufficient?)
-    uint16 assetArrayInitialOffset;
     // 9 total active currencies possible (2 bytes each)
     bytes18 activeCurrencies;
 }

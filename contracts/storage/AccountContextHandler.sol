@@ -19,9 +19,9 @@ library AccountContextHandler {
         return AccountStorage({
             nextMaturingAsset: uint40(uint(data)),
             hasDebt: bytes1(data << 208) == 0x01,
-            bitmapCurrencyId: uint16(uint(data >> 48)),
-            assetArrayInitialOffset: uint16(uint(data >> 64)),
-            activeCurrencies: bytes18(data << 32)
+            assetArrayLength: uint8(uint(data >> 48)),
+            bitmapCurrencyId: uint16(uint(data >> 56)),
+            activeCurrencies: bytes18(data << 40)
         });
     }
 
@@ -33,9 +33,9 @@ library AccountContextHandler {
         bytes32 data = (
             bytes32(uint(accountContext.nextMaturingAsset)) |
             bytes32(accountContext.hasDebt ? bytes1(0x01) : bytes1(0x00)) >> 208 |
-            bytes32(uint(accountContext.bitmapCurrencyId)) << 48 |
-            bytes32(uint(accountContext.assetArrayInitialOffset)) << 64 |
-            bytes32(accountContext.activeCurrencies) >> 32
+            bytes32(uint(accountContext.assetArrayLength)) << 48 |
+            bytes32(uint(accountContext.bitmapCurrencyId)) << 56 |
+            bytes32(accountContext.activeCurrencies) >> 40
         );
 
         assembly { sstore (slot, data) }
@@ -153,7 +153,7 @@ library AccountContextHandler {
      * @notice With gas repricing of warm storage reads, this is probably cheaper than a more complex
      * method of using cached in memory balances. The additional re-read of storage is only 100 gas.
      *
-     * @dev Should this be merged with get all cash groups?
+     * @dev TODO: Should this be merged with get all cash groups?
      */
     function getAllBalances(
         AccountStorage memory accountContext,

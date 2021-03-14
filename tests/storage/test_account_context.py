@@ -42,18 +42,17 @@ def bytes_to_list(activeCurrencies):
 @given(
     length=strategy("uint", min_value=0, max_value=9),
     hasDebt=strategy("bool"),
-    initialOffset=strategy("uint8"),
+    arrayLength=strategy("uint8"),
     bitmapId=strategy("uint16"),
 )
-@pytest.mark.only
 def test_get_and_set_account_context(
-    accountContext, accounts, length, hasDebt, initialOffset, bitmapId
+    accountContext, accounts, length, hasDebt, arrayLength, bitmapId
 ):
     currencies = [random.randint(1, 2 ** 16) for i in range(0, length)]
     currenciesHex = brownie.convert.datatypes.HexString(
         get_active_currencies(currencies), "bytes18"
     )
-    expectedContext = (START_TIME, hasDebt, bitmapId, initialOffset, currenciesHex)
+    expectedContext = (START_TIME, hasDebt, arrayLength, bitmapId, currenciesHex)
 
     accountContext.setAccountContext(expectedContext, accounts[0])
     assert expectedContext == accountContext.getAccountContext(accounts[0])
