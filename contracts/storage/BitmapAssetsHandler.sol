@@ -249,7 +249,7 @@ library BitmapAssetsHandler {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets
     ) internal view returns (int) {
-        int totalNegativePresentValue;
+        int totalCashWitholding;
         uint bitNum = 1;
 
         while (assetsBitmap != 0) {
@@ -262,7 +262,7 @@ library BitmapAssetsHandler {
                 if (notional < 0) {
                     uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
 
-                    totalNegativePresentValue.add(AssetHandler.getPresentValue(
+                    totalCashWitholding.sub(AssetHandler.getPresentValue(
                         notional,
                         maturity,
                         blockTime,
@@ -275,6 +275,6 @@ library BitmapAssetsHandler {
             bitNum += 1;
         }
 
-        return totalNegativePresentValue;
+        return totalCashWitholding;
     }
 }

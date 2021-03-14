@@ -27,6 +27,7 @@ library FreeCollateral {
         CashGroupParameters[] memory,
         MarketParameters[][] memory
     ) {
+        portfolioState.calculateSortedIndex();
         PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
         (
             CashGroupParameters[] memory cashGroups, 
@@ -35,13 +36,16 @@ library FreeCollateral {
 
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method
-        int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
-            allActiveAssets,
-            cashGroups,
-            marketStates,
-            blockTime,
-            true // Must be risk adjusted
-        );
+        int[] memory netPortfolioValue;
+        if (allActiveAssets.length > 0) {
+            netPortfolioValue = AssetHandler.getPortfolioValue(
+                allActiveAssets,
+                cashGroups,
+                marketStates,
+                blockTime,
+                true // Must be risk adjusted
+            );
+        }
 
         return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
@@ -55,6 +59,7 @@ library FreeCollateral {
         CashGroupParameters[] memory,
         MarketParameters[][] memory
     ) {
+        portfolioState.calculateSortedIndex();
         PortfolioAsset[] memory allActiveAssets = portfolioState.getMergedArray();
         (
             CashGroupParameters[] memory cashGroups, 
@@ -63,13 +68,16 @@ library FreeCollateral {
 
         // This changes references in memory, must ensure that we optmisitically write
         // changes to storage using _finalizeState in BaseAction before we execute this method
-        int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
-            allActiveAssets,
-            cashGroups,
-            marketStates,
-            blockTime,
-            true // Must be risk adjusted
-        );
+        int[] memory netPortfolioValue;
+        if (allActiveAssets.length > 0) {
+            netPortfolioValue = AssetHandler.getPortfolioValue(
+                allActiveAssets,
+                cashGroups,
+                marketStates,
+                blockTime,
+                true // Must be risk adjusted
+            );
+        }
 
         return (allActiveAssets, netPortfolioValue, cashGroups, marketStates);
     }
@@ -103,8 +111,9 @@ library FreeCollateral {
             }
 
             AssetRateParameters memory assetRate;
-            if (cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+            if (cashGroups.length > 0 && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                assetRate = cashGroups[groupIndex].assetRate;
                 groupIndex += 1;
             } else {
                 assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
@@ -147,8 +156,9 @@ library FreeCollateral {
             }
 
             AssetRateParameters memory assetRate;
-            if (cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+            if (cashGroups.length > 0 && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                assetRate = cashGroups[groupIndex].assetRate;
                 groupIndex += 1;
             } else {
                 assetRate = AssetRate.buildAssetRateView(balanceState[i].currencyId);

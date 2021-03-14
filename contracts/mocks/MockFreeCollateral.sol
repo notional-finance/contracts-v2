@@ -4,10 +4,12 @@ pragma experimental ABIEncoderV2;
 
 import "../actions/libraries/FreeCollateralExternal.sol";
 import "../storage/PortfolioHandler.sol";
+import "../storage/AccountContextHandler.sol";
 import "./MockAssetHandler.sol";
 
 contract MockFreeCollateral is MockAssetHandler {
     using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountStorage;
 
     function setETHRateMapping(
         uint id,
@@ -23,6 +25,11 @@ contract MockFreeCollateral is MockAssetHandler {
         PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, 0);
         portfolioState.newAssets = assets;
         portfolioState.storeAssets(assetArrayMapping[account]);
+
+        // TODO: fix this hack
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.setActiveCurrency(assets[0].currencyId, true);
+        accountContext.setAccountContext(account);
     }
 
     function setBalance(
@@ -31,6 +38,10 @@ contract MockFreeCollateral is MockAssetHandler {
         int cashBalance,
         int perpTokenBalance
     ) external {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.setActiveCurrency(currencyId, true);
+        accountContext.setAccountContext(account);
+
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
 
         bytes32 data = (

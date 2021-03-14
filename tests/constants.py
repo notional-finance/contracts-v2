@@ -36,3 +36,24 @@ CASH_GROUP_PARAMETERS = (
     # 8: rate scalar (increments of 10)
     (10, 9, 8, 7, 6, 5, 4, 3, 2),
 )
+
+CURVE_SHAPES = {
+    "flat": {
+        "rates": [
+            r * RATE_PRECISION for r in [0.03, 0.035, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
+        ],
+        "proportion": 0.33,
+    },
+    "normal": {
+        "rates": [
+            r * RATE_PRECISION for r in [0.06, 0.065, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13]
+        ],
+        "proportion": 0.5,
+    },
+    "high": {
+        "rates": [
+            r * RATE_PRECISION for r in [0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16]
+        ],
+        "proportion": 0.8,
+    },
+}

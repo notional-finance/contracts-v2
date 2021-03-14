@@ -18,6 +18,10 @@ impliedRateStrategy = strategy(
 )
 
 
+def get_eth_rate_mapping(rateOracle, decimalPlaces=18, buffer=140, haircut=100, discount=105):
+    return (rateOracle.address, decimalPlaces, False, buffer, haircut, discount)
+
+
 def get_cash_group_with_max_markets(maxMarketIndex):
     cg = list(CASH_GROUP_PARAMETERS)
     cg[0] = maxMarketIndex
@@ -39,7 +43,7 @@ def get_market_curve(maxMarketIndex, curveShape):
                 MARKETS[i],
                 proportion=curveShape["proportion"],
                 lastImpliedRate=curveShape["rates"][i],
-                oracleRate=curveShape["rate"][i],
+                oracleRate=curveShape["rates"][i],
                 previousTradeTime=START_TIME,
             )
         )
