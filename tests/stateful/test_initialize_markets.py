@@ -422,11 +422,23 @@ def test_mint_above_leverage_threshold(environment, accounts):
         currencyId, [0.4e8, 0.4e8], [0.4e9, 0.4e9]
     )
 
+    perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
+    portfolioBefore = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
+    ifCashAssetsBefore = environment.router["Views"].getifCashAssets(perpTokenAddress)
+
     environment.router["MintPerpetual"].perpetualTokenMint(
         currencyId, 100e8, False, {"from": accounts[0]}
     )
 
-    # TODO: need a different set of assertions here
+    portfolioAfter = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
+    ifCashAssetsAfter = environment.router["Views"].getifCashAssets(perpTokenAddress)
+
+    # No liquidity tokens added
+    assert portfolioBefore == portfolioAfter
+
+    # fCash amounts have increased in the portfolio
+    for (i, asset) in enumerate(ifCashAssetsBefore):
+        assert asset[3] < ifCashAssetsAfter[i][3]
 
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))

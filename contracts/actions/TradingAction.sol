@@ -241,7 +241,7 @@ contract TradingAction is StorageLayoutV1, ReentrancyGuard {
 
                 netCashChange = market.calculateTrade(
                     cashGroup,
-                    fCashAmount,
+                    fCashAmount.neg(),
                     market.maturity.sub(blockTime),
                     trades[i].marketIndex
                 );

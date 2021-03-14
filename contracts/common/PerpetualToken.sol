@@ -508,7 +508,7 @@ library PerpetualToken {
         int fCashAmount = perMarketDeposit.mul(market.totalfCash).div(market.totalCurrentCash);
         int assetCash = market.calculateTrade(
             cashGroup,
-            fCashAmount,
+            fCashAmount.neg(),
             market.maturity.sub(blockTime),
             marketIndex
         );
