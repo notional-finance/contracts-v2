@@ -16,7 +16,6 @@ struct LiquidationFactors {
     int localAvailable;
     int collateralAvailable;
     int collateralPerpetualTokenValue;
-    int liquidationDiscount;
     ETHRate localETHRate;
     ETHRate collateralETHRate;
     CashGroupParameters localCashGroup;
@@ -90,12 +89,6 @@ library Liquidation {
         int[] memory netPortfolioValue,
         uint blockTime
     ) internal returns (LiquidationFactors memory) {
-        require(
-            localCurrencyId != collateralCurrencyId 
-            && localCurrencyId != 0
-            && collateralCurrencyId != 0,
-            "L: invalid currency id"
-        );
         require(cashGroups.length == netPortfolioValue.length); // dev: missing cash groups
 
         uint groupIndex;
@@ -172,10 +165,6 @@ library Liquidation {
         factors.localAssetRequired = factors.localCashGroup.assetRate.convertInternalFromUnderlying(
             localUnderlyingRequired
         );
-
-        // Get the max liquidation discount between the two rates
-        factors.liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
-            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
 
         return factors;
     }
@@ -329,12 +318,7 @@ library Liquidation {
         require(maxLiquidateAmount >= 0); // dev: invalid max liquidate
 
         // First determine how much local currency is required for the liquidation.
-        int localToTrade = calculateLocalToTrade(
-            factors.localAssetRequired,
-            factors.liquidationDiscount,
-            factors.localETHRate.buffer,
-            factors.localAvailable
-        );
+        int localToTrade = calculateLocalToTrade(factors);
 
         if (maxLiquidateAmount != 0 && maxLiquidateAmount < localToTrade) {
             localToTrade = maxLiquidateAmount;
@@ -529,10 +513,13 @@ library Liquidation {
         int localToTrade,
         int haircutCashClaim
     ) internal pure returns (int, int) {
+        int liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
+            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
+
         int rate = ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate);
         int collateralToSell = rate
             .mul(localToTrade)
-            .mul(factors.liquidationDiscount);
+            .mul(liquidationDiscount);
 
         // TODO: collapse these decimals into one multiply or divide
         collateralToSell = collateralToSell
@@ -552,18 +539,13 @@ library Liquidation {
             localToPurchase = localToPurchase
                 .mul(ExchangeRate.MULTIPLIER_DECIMALS)
                 .div(rate)
-                .div(factors.liquidationDiscount);
+                .div(liquidationDiscount);
 
             return (collateralToSell, localToPurchase);
         }
     }
 
-    function calculateLocalToTrade(
-        int localAssetRequired,
-        int liquidationDiscount,
-        int localCurrencyBuffer,
-        int localAvailable
-    ) internal pure returns (int) {
+    function calculateLocalToTrade(LiquidationFactors memory factors) internal pure returns (int) {
         // We calculate the max amount of local currency that the liquidator can trade for here. We set it to the min of the
         // localAvailable and the localCurrencyToTrade figure calculated below. The math for this figure is as follows:
 
@@ -585,15 +567,18 @@ library Liquidation {
         //
         // localCurrencyRequired is netLocalCurrencyBenefit after removing liquidity tokens
         // localCurrencyToTrade =  localCurrencyRequired / (buffer - discount)
-        require(localAssetRequired > 0, "L: local required negative");
-        require(localAvailable < 0, "L: no local debt");
+        require(factors.localAssetRequired > 0, "L: local required negative");
+        require(factors.localAvailable < 0, "L: no local debt");
 
-        int localCurrencyToTrade = localAssetRequired
+        int liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
+            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
+
+        int localCurrencyToTrade = factors.localAssetRequired
             .mul(ExchangeRate.MULTIPLIER_DECIMALS)
-            .div(localCurrencyBuffer.sub(liquidationDiscount));
+            .div(factors.localETHRate.buffer.sub(liquidationDiscount));
 
         // We do not trade past the amount of local currency debt the account has or this benefit will not longer be effective.
-        localCurrencyToTrade = localAvailable.neg() < localCurrencyToTrade ? localAvailable.neg() : localCurrencyToTrade;
+        localCurrencyToTrade = factors.localAvailable.neg() < localCurrencyToTrade ? factors.localAvailable.neg() : localCurrencyToTrade;
 
         return localCurrencyToTrade;
     }
@@ -615,12 +600,7 @@ library Liquidation {
             );
         }
 
-        int localToTrade = calculateLocalToTrade(
-            factors.localAssetRequired,
-            factors.liquidationDiscount,
-            factors.localETHRate.buffer,
-            factors.localAvailable
-        );
+        int localToTrade = calculateLocalToTrade(factors);
         if (maxLiquidateAmount > localToTrade) localToTrade = maxLiquidateAmount;
 
         // Calculates the collateral to sell taking into account what's available in the cash claim
