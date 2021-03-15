@@ -26,15 +26,14 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function setAssetArray(
         address account,
-        AssetStorage[] memory a
+        PortfolioAsset[] memory a
     ) external {
-        // Clear array
-        delete assetArrayMapping[account];
-
-        AssetStorage[] storage s = assetArrayMapping[account];
-        for (uint i; i < a.length; i++) {
-            s.push(a[i]);
-        }
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory state;
+        state.newAssets = a;
+        state.lastNewAssetIndex = a.length - 1;
+        state.storeAssets(account, accountContext);
+        accountContext.setAccountContext(account);
     }
 
     function setAssetRateMapping(
@@ -73,8 +72,9 @@ contract MockSettleAssets is StorageLayoutV1 {
         return rate;
     }
 
-    function getAssetArray(address account) external view returns (AssetStorage[] memory) {
-        return assetArrayMapping[account];
+    function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
     function setAccountContext(
@@ -153,6 +153,7 @@ contract MockSettleAssets is StorageLayoutV1 {
 
         // This will change the stored asset array
         pState.storeAssets(account, accountContext);
+        accountContext.setAccountContext(account);
 
         // Assert that balance context is equal
         require(settleAmountView.length == settleAmount.length); // dev: settle amount length

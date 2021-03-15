@@ -147,7 +147,7 @@ contract StorageLayoutV1 {
     // Asset arrays for accounts, if an account is using bitmaps then this may still
     // contain liquidity tokens
     // address => storage
-    mapping(address => AssetStorage[]) assetArrayMapping;
+    // mapping(address => AssetStorage[]) assetArrayMapping;
     // address => currency id => maturity => ifCash value
     mapping(address => mapping(uint => mapping(uint => int))) internal ifCashMapping;
 

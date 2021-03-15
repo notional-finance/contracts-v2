@@ -12,7 +12,7 @@ library BitmapAssetsHandler {
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
 
-    uint internal constant IFCASH_STORAGE_SLOT = 4;
+    uint internal constant IFCASH_STORAGE_SLOT = 3;
 
     function getAssetsBitmap(
         address account,

@@ -1,6 +1,7 @@
 import itertools
 import random
 
+from brownie.convert import to_uint
 from brownie.convert.datatypes import Wei
 from brownie.test import strategy
 from tests.constants import (
@@ -181,3 +182,8 @@ def random_asset_bitmap(numAssets, maxBit=254):
     bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
 
     return (bitmap, bitmapList)
+
+
+def active_currencies_to_list(activeCurrencies):
+    ba = bytearray(activeCurrencies)
+    return [to_uint(bytes(ba[i : i + 2])) for i in range(0, 18, 2)]

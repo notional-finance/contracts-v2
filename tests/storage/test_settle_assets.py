@@ -63,7 +63,7 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
 def generate_asset_array(numAssets):
     cashGroups = [(i, 9) for i in range(1, NUM_CURRENCIES)]
-    assets = [a[0:4] for a in get_portfolio_array(numAssets, cashGroups)]
+    assets = get_portfolio_array(numAssets, cashGroups)
     if len(assets) == 0:
         return (assets, 0)
 
@@ -138,7 +138,7 @@ def settled_balance_context(assetArray, blockTime):
             filter(
                 lambda x: x[3] != 0,
                 [
-                    (key[0], key[1], key[2], sum(int(a[3]) for a in value))
+                    (key[0], key[1], key[2], sum(int(a[3]) for a in value), 0)
                     for key, value in itertools.groupby(
                         remainingAssets, lambda x: (x[0], x[1], x[2])
                     )

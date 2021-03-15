@@ -2,7 +2,7 @@ import random
 
 import brownie
 import pytest
-from brownie.convert import to_bytes, to_uint
+from brownie.convert import to_bytes
 from brownie.test import given, strategy
 from tests.constants import START_TIME
 
@@ -32,11 +32,6 @@ def get_active_currencies(currenciesList):
         result.extend(to_bytes(0, "bytes1") * (18 - len(result)))
 
     return bytes(result)
-
-
-def bytes_to_list(activeCurrencies):
-    ba = bytearray(activeCurrencies)
-    return [to_uint(bytes(ba[i : i + 2])) for i in range(0, 18, 2)]
 
 
 @given(

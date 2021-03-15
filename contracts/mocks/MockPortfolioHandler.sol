@@ -10,21 +10,9 @@ contract MockPortfolioHandler is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
 
-    function setAssetArray(
-        address account,
-        AssetStorage[] memory a
-    ) external {
-        // Clear array
-        delete assetArrayMapping[account];
-
-        AssetStorage[] storage s = assetArrayMapping[account];
-        for (uint i; i < a.length; i++) {
-            s.push(a[i]);
-        }
-    }
-
-    function getAssetArray(address account) external view returns (AssetStorage[] memory) {
-        return assetArrayMapping[account];
+    function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
     function addAsset(
@@ -46,13 +34,19 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         return portfolioState;
     }
 
+    function getAccountContext(address account) external view returns (AccountStorage memory) {
+        return AccountContextHandler.getAccountContext(account);
+    }
+
     function storeAssets(
         address account,
         PortfolioState memory portfolioState
-    ) public {
+    ) public returns (bool, bytes32) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        portfolioState.storeAssets(account, accountContext);
+        (bool hasDebt, bytes32 activeCurrencies) = portfolioState.storeAssets(account, accountContext);
         accountContext.setAccountContext(account);
+
+        return (hasDebt, activeCurrencies);
     }
 
     function deleteAsset(

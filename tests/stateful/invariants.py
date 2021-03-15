@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from brownie.network.state import Chain
-from tests.storage.test_account_context import bytes_to_list
+from tests.helpers import active_currencies_to_list
 
 chain = Chain()
 QUARTER = 86400 * 90
@@ -174,7 +174,7 @@ def check_portfolio_invariants(env, accounts):
 def check_account_context(env, accounts):
     for account in accounts:
         context = env.router["Views"].getAccountContext(account.address)
-        activeCurrencies = list(bytes_to_list(context[-1]))
+        activeCurrencies = list(active_currencies_to_list(context[-1]))
 
         hasDebt = False
         for (_, currencyId) in env.currencyId.items():

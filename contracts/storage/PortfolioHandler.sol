@@ -104,6 +104,7 @@ library PortfolioHandler {
         uint initialSlot = uint(keccak256(abi.encode(account, "account.array")));
         bool hasDebt;
         bytes32 portfolioActiveCurrencies;
+        uint nextMaturingAsset;
 
         // First delete assets from asset storage to maintain asset storage indexes
         for (uint i; i < assetStorageLength; i++) {
@@ -128,11 +129,11 @@ library PortfolioHandler {
                 i -= 1;
             } else {
                 // Update account context parameters
-                if (accountContext.nextMaturingAsset == 0 || accountContext.nextMaturingAsset > asset.maturity) {
-                    accountContext.nextMaturingAsset = uint40(asset.maturity);
+                if (nextMaturingAsset == 0 || nextMaturingAsset > asset.maturity) {
+                    nextMaturingAsset = asset.maturity;
                 }
                 hasDebt = asset.notional < 0 || hasDebt;
-                portfolioActiveCurrencies = (portfolioActiveCurrencies >> 2) | (bytes32(asset.currencyId) << 240);
+                portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
             }
         }
 
@@ -150,21 +151,23 @@ library PortfolioHandler {
         for (uint i; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
             if (asset.notional == 0) continue;
-            bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
+            bytes32 encodedAsset = encodeAssetToBytes(portfolioState.newAssets[i]);
             uint newAssetSlot = initialSlot + assetStorageLength;
 
-            if (accountContext.nextMaturingAsset == 0 || accountContext.nextMaturingAsset > asset.maturity) {
-                accountContext.nextMaturingAsset = uint40(asset.maturity);
+            if (nextMaturingAsset == 0 || nextMaturingAsset > asset.maturity) {
+                nextMaturingAsset = asset.maturity;
             }
             hasDebt = asset.notional < 0 || hasDebt;
-            portfolioActiveCurrencies = (portfolioActiveCurrencies >> 2) | (bytes32(asset.currencyId) << 240);
+            portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
 
             assembly { sstore(newAssetSlot, encodedAsset) }
             assetStorageLength += 1;
         }
 
+        // TODO: allow liquidation to skip this check
         require(assetStorageLength <= CashGroup.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
         accountContext.assetArrayLength = uint8(assetStorageLength);
+        accountContext.nextMaturingAsset = uint40(nextMaturingAsset);
 
         return (hasDebt, portfolioActiveCurrencies);
     }
