@@ -344,7 +344,7 @@ library Liquidation {
             collateralCashClaim
         );
         // If there is no collateral available after this then no liquidation is possible.
-        require(factors.collateralAvailable > 0, "L: no collateral available");
+        require(factors.collateralAvailable > 0); // dev: no collateral available post fcash
 
         // Calculates the collateral to sell taking into account what's available in the cash claim
         (int collateralToSell, int localToPurchase) = calculateCollateralToSell(
