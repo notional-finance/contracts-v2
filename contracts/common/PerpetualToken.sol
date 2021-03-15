@@ -7,6 +7,7 @@ import "./CashGroup.sol";
 import "./AssetRate.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/BitmapAssetsHandler.sol";
+import "../storage/AccountContextHandler.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../math/SafeInt256.sol";

@@ -44,23 +44,17 @@ library Liquidation {
      * @notice Calculates liquidation factors, assumes portfolio has already been settled
      */
     function calculateLiquidationFactors(
-        address account,
-        AccountStorage memory accountContext,
+        PortfolioAsset[] memory portfolio,
         BalanceState[] memory balanceState,
         uint blockTime,
         uint localCurrencyId,
         uint collateralCurrencyId
-    ) internal returns (
-        LiquidationFactors memory,
-        PortfolioAsset[] memory
-    ) {
-        PortfolioAsset[] memory portfolio;
+    ) internal returns (LiquidationFactors memory) {
         int[] memory netPortfolioValue;
         CashGroupParameters[] memory cashGroups;
         MarketParameters[][] memory marketStates;
 
-        if (accountContext.assetArrayLength > 0){
-            portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+        if (portfolio.length > 0){
             (cashGroups, marketStates) = FreeCollateral.getAllCashGroupsStateful(portfolio);
 
             netPortfolioValue = AssetHandler.getPortfolioValue(
@@ -72,7 +66,7 @@ library Liquidation {
             );
         }
 
-        LiquidationFactors memory factors = getLiquidationFactorsStateful(
+        return getLiquidationFactorsStateful(
             localCurrencyId,
             collateralCurrencyId,
             balanceState,
@@ -81,8 +75,6 @@ library Liquidation {
             netPortfolioValue,
             blockTime
         );
-
-        return (factors, portfolio);
     }
 
     /**
@@ -98,10 +90,13 @@ library Liquidation {
         int[] memory netPortfolioValue,
         uint blockTime
     ) internal returns (LiquidationFactors memory) {
-        require(localCurrencyId != collateralCurrencyId, "L: invalid currency id");
-        require(localCurrencyId != 0, "L: invalid currency id");
-        require(collateralCurrencyId != 0, "L: invalid currency id");
-        require(cashGroups.length == netPortfolioValue.length, "L: missing cash groups");
+        require(
+            localCurrencyId != collateralCurrencyId 
+            && localCurrencyId != 0
+            && collateralCurrencyId != 0,
+            "L: invalid currency id"
+        );
+        require(cashGroups.length == netPortfolioValue.length); // dev: missing cash groups
 
         uint groupIndex;
         int netETHValue;
@@ -110,20 +105,20 @@ library Liquidation {
         for (uint i; i < balanceState.length; i++) {
             int netLocalAssetValue = balanceState[i].storedCashBalance;
             if (balanceState[i].storedPerpetualTokenBalance > 0) {
-                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-                    balanceState[i].currencyId
-                );
-                // TODO: this will return an asset rate as well, so we can use it here
-                int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
-                    perpToken,
-                    balanceState[i].storedPerpetualTokenBalance,
-                    blockTime
-                );
-                netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+                // PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
+                //     balanceState[i].currencyId
+                // );
+                // // TODO: this will return an asset rate as well, so we can use it here
+                // int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
+                //     perpToken,
+                //     balanceState[i].storedPerpetualTokenBalance,
+                //     blockTime
+                // );
+                // netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
 
-                if (balanceState[i].currencyId == collateralCurrencyId) {
-                    factors.collateralPerpetualTokenValue = perpetualTokenValue;
-                }
+                // if (balanceState[i].currencyId == collateralCurrencyId) {
+                //     factors.collateralPerpetualTokenValue = perpetualTokenValue;
+                // }
             }
 
             // If this is true then there is some collateral value within the system. Set this
@@ -131,7 +126,7 @@ library Liquidation {
             if (netLocalAssetValue > 0) factors.hasCollateral = true;
 
             AssetRateParameters memory assetRate;
-            if (cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
                 assetRate = cashGroups[groupIndex].assetRate;
 
@@ -198,7 +193,7 @@ library Liquidation {
         PortfolioState memory portfolioState,
         int repoIncentive
     ) internal view returns (int[] memory, int) {
-        require(portfolioState.newAssets.length == 0, "L: new assets exist");
+        require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
         int[] memory withdrawFactors = new int[](5);
         // withdrawFactors[0] = assetCash
         // withdrawFactors[1] = fCash
@@ -331,7 +326,7 @@ library Liquidation {
         int maxLiquidateAmount,
         uint blockTime
     ) internal view returns (int, int) {
-        require(maxLiquidateAmount >= 0, "L: invalid max liquidate");
+        require(maxLiquidateAmount >= 0); // dev: invalid max liquidate
 
         // First determine how much local currency is required for the liquidation.
         int localToTrade = calculateLocalToTrade(

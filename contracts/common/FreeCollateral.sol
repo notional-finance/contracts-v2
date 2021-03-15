@@ -96,7 +96,7 @@ library FreeCollateral {
             }
 
             AssetRateParameters memory assetRate;
-            if (cashGroups.length > 0 && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
                 assetRate = cashGroups[groupIndex].assetRate;
                 groupIndex += 1;
