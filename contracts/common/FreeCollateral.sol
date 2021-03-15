@@ -105,9 +105,7 @@ library FreeCollateral {
             }
 
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
-            int ethValue = ethRate.convertToETH(
-                assetRate.convertInternalToUnderlying(netLocalAssetValue)
-            );
+            int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
 
             netETHValue = netETHValue.add(ethValue);
         }
@@ -141,7 +139,7 @@ library FreeCollateral {
             }
 
             AssetRateParameters memory assetRate;
-            if (cashGroups.length > 0 && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
                 assetRate = cashGroups[groupIndex].assetRate;
                 groupIndex += 1;
@@ -150,9 +148,7 @@ library FreeCollateral {
             }
 
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
-            int ethValue = ethRate.convertToETH(
-                assetRate.convertInternalToUnderlying(netLocalAssetValue)
-            );
+            int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
 
             netETHValue = netETHValue.add(ethValue);
         }

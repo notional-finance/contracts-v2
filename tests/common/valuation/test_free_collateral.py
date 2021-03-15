@@ -127,6 +127,16 @@ def test_portfolio_debt(freeCollateral, accounts):
     assert fc < 0 and fc > -140e8
 
 
+def test_local_collateral_netting(freeCollateral, accounts):
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        freeCollateral.setMarketStorage(3, SETTLEMENT_DATE, m)
+    freeCollateral.setPortfolio(accounts[0], [get_fcash_token(1, currencyId=3, notional=-105e8)])
+    freeCollateral.setBalance(accounts[0], 3, 100e8, 0)
+    fc = freeCollateral.getFreeCollateralView(accounts[0])
+    assert fc > -5e8 * 1.4
+
+
 # def test_free_collateral_perp_token_value(freeCollateral, accounts):
 # def test_free_collateral_combined(freeCollateral):
 # def test_free_collateral_multiple_cash_groups()
