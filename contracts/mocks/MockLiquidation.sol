@@ -110,27 +110,18 @@ contract MockLiquidation is StorageLayoutV1 {
     }
 
     function liquidateLocalLiquidityTokens(
+        address account,
         LiquidationFactors memory factors,
-        uint blockTime,
-        BalanceState memory localBalanceContext,
-        PortfolioState memory portfolioState
-    ) public view returns (
-        int,
-        int,
-        BalanceState memory,
-        PortfolioState memory,
-        MarketParameters[] memory
-    ) {
-        int incentivePaid = factors.liquidateLocalLiquidityTokens(
-            blockTime,
-            localBalanceContext,
-            portfolioState
-        );
+        uint blockTime
+    ) public view returns (int, int, int, PortfolioState memory, MarketParameters[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        (int incentivePaid, int netCashChange) = factors.liquidateLocalLiquidityTokens(portfolioState, blockTime);
 
         return (
             incentivePaid,
             factors.localAssetRequired,
-            localBalanceContext,
+            netCashChange,
             portfolioState,
             factors.localMarketStates
         );

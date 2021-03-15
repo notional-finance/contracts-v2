@@ -195,7 +195,7 @@ library Liquidation {
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
-            if (!AssetHandler.isLiquidityToken(asset.assetType) && asset.currencyId != cashGroup.currencyId) continue;
+            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != cashGroup.currencyId) continue;
             
             MarketParameters memory market;
             {
@@ -216,20 +216,17 @@ library Liquidation {
                 // netCashIncrease = cashClaim * (1 - haircut)
                 // netCashIncrease = netCashToAccount + incentivePaid
                 // incentivePaid = netCashIncrease * incentive
-
                 int haircut = int(cashGroup.getLiquidityHaircut(asset.assetType));
                 // netCashIncrease
                 withdrawFactors[2] = withdrawFactors[0]
                     .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS.sub(haircut))
                     .div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
             }
+            int incentivePaid = withdrawFactors[2].mul(repoIncentive).div(Market.RATE_PRECISION);
 
-            // (netCashToAccount < assetAmountRemaining)
-            if (withdrawFactors[3] < assetAmountRemaining) {
-                int incentivePaid = withdrawFactors[2].mul(repoIncentive).div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
-                // incentivePaid
-                withdrawFactors[3] = withdrawFactors[3].add(incentivePaid);
-
+            // ((netCashIncrease - incentivePaid) < assetAmountRemaining))
+            // (netCashToAccount <= assetAmountRemaining)
+            if (withdrawFactors[2].subNoNeg(incentivePaid) <= assetAmountRemaining) {
                 // The additional cash is insufficient to cover asset amount required so we just remove
                 // all of it.
                 portfolioState.deleteAsset(i);
@@ -237,18 +234,20 @@ library Liquidation {
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
-                assetAmountRemaining = assetAmountRemaining.subNoNeg(withdrawFactors[2].sub(incentivePaid));
+                // overflow checked above
+                assetAmountRemaining = assetAmountRemaining - withdrawFactors[2].sub(incentivePaid);
             } else {
                 // incentivePaid
-                withdrawFactors[3] = withdrawFactors[3].add(
-                    assetAmountRemaining.mul(repoIncentive).div(CashGroup.TOKEN_HAIRCUT_DECIMALS)
-                );
+                incentivePaid = assetAmountRemaining.mul(repoIncentive).div(Market.RATE_PRECISION);
 
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // notional * totalCashOut / assetAmountRemaining
-                int tokensToRemove = asset.notional.mul(withdrawFactors[2]).div(assetAmountRemaining);
+                // notional * assetAmountRemaining / totalCashIncrease
+                int tokensToRemove = asset.notional
+                    .mul(assetAmountRemaining)
+                    .div(withdrawFactors[2]);
+
                 // assetCash, fCash
-                (withdrawFactors[0], withdrawFactors[1]) = market.removeLiquidity(asset.notional);
+                (withdrawFactors[0], withdrawFactors[1]) = market.removeLiquidity(tokensToRemove);
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
@@ -256,6 +255,8 @@ library Liquidation {
                 assetAmountRemaining = 0;
             }
 
+            // incentivePaid
+            withdrawFactors[3] = withdrawFactors[3].add(incentivePaid);
             // totalCashToAccount
             withdrawFactors[4] = withdrawFactors[4].add(withdrawFactors[0]);
 
@@ -280,10 +281,9 @@ library Liquidation {
      */
     function liquidateLocalLiquidityTokens(
         LiquidationFactors memory factors,
-        uint blockTime,
-        BalanceState memory localBalanceContext,
-        PortfolioState memory portfolioState
-    ) internal view returns (int) {
+        PortfolioState memory portfolioState,
+        uint blockTime
+    ) internal view returns (int, int) {
         // TODO: should short circuit this if there are no liquidity tokens.
 
         (int[] memory withdrawFactors, int assetAmountRemaining) = withdrawLiquidityTokens(
@@ -295,14 +295,9 @@ library Liquidation {
             factors.localCashGroup.getLiquidityTokenRepoDiscount()
         );
 
-        localBalanceContext.netCashChange = localBalanceContext.netCashChange.add(
-            // totalCashToAccount - incentivePaid
-            withdrawFactors[4].subNoNeg(withdrawFactors[3])
-        );
-
         factors.localAssetRequired = assetAmountRemaining;
-        // incentivePaid
-        return withdrawFactors[3];
+        // (incentivePaid, netCashChange = (totalCashToAccount - incentivePaid))
+        return (withdrawFactors[3], withdrawFactors[4].subNoNeg(withdrawFactors[3]));
     }
 
     /**

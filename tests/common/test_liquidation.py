@@ -1,3 +1,5 @@
+import math
+
 import brownie
 import pytest
 from brownie.network.state import Chain
@@ -6,6 +8,7 @@ from tests.helpers import (
     get_cash_group_with_max_markets,
     get_eth_rate_mapping,
     get_fcash_token,
+    get_liquidity_token,
     get_market_curve,
 )
 
@@ -168,61 +171,183 @@ def test_asset_factors_local_only(liquidation, accounts):
     assert factors[2] == 0
 
 
-# def test_liquidate_tokens(liquidation, ethAggregators, assetRateAggregator, accounts):
-#     setup_markets(liquidation)
-#     config = ((1, 1, 90), (2, 1, 90))
-#     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
+def test_liquidate_tokens_insufficient_no_fcash(liquidation, accounts):
+    liquidityTokenNotional = 1000e8
+    tokenHaircut = 99
 
-#     # This should be a function #
-#     balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0))
-#     netPortfolioValue = [-1e18, 0]
-#     factors = liquidation.getLiquidationFactors(
-#         1, 2, balanceStates, tuple(cashGroups), tuple(marketStates), tuple(netPortfolioValue)
-#     )
-#     # This should be a function #
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-#     portfolioState = (
-#         [
-#             # TODO: generate random token stuff
-#             (1, MARKETS[0], 2, 0.1e18, 0)
-#         ],
-#         (),
-#         0,
-#         1,
-#         (),
-#     )
+    liquidation.setPortfolio(accounts[0], [get_liquidity_token(1, notional=liquidityTokenNotional)])
+    liquidation.setBalance(accounts[0], 1, -5000e8, 0)
+    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 0).return_value
 
-#     # assetCash     = 100000000000000000
-#     # fCash         = 100000000000000000
-#     # totalCashOut  = 909090909090909
-#     # cashToAccount = 818181818181818
+    (
+        incentivePaid,
+        localAssetRequired,
+        netCashChange,
+        portfolioState,
+        localMarkets,
+    ) = liquidation.liquidateLocalLiquidityTokens(accounts[0], factors, START_TIME)
 
-#     (
-#         incentivePaid,
-#         localAssetRequired,
-#         newBalanceContext,
-#         newPortfolioState,
-#         newMarketStates,
-#     ) = liquidation.liquidateLocalLiquidityTokens(
-#         factors, START_TIME, balanceStates[0], portfolioState
-#     )
+    # all liquidity tokens have been removed
+    fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
 
-#     # assert that the balance transfers net out to what was required when entering the function
-#     totalCashClaim = newBalanceContext[3] + incentivePaid
+    # Liquidity token deleted
+    assert portfolioState[0][0][-1] == 2
+    assert portfolioState[1][0] == get_fcash_token(1, notional=fCashClaim)
+    assert cashClaim == netCashChange + incentivePaid
 
-#     # TODO: assert that market has updated properly
-#     # fCash amounts net off
-#     assert newMarketStates[0][2] + newPortfolioState[1][0][3] == 1e18
-#     # asset amounts net off
-#     assert newMarketStates[0][3] + totalCashClaim == 1e18
-#     # total liquidity amounts net off
-#     assert newMarketStates[0][3] + portfolioState[0][0][3] == 1e18
+    # assert market updates
+    assert localMarkets[0][2] + fCashClaim == markets[0][2]
+    assert localMarkets[0][3] + cashClaim == markets[0][3]
+    assert localMarkets[0][4] + liquidityTokenNotional == markets[0][4]
 
-#     # haircut amount - incentive = localAssetRequired change
-#     assert factors[0] >= localAssetRequired
-#     assert factors[0] - localAssetRequired == (
-#         (newBalanceContext[3] + incentivePaid) * (100 - 90) / 100 - incentivePaid
-#     )
+    assert (factors[0] - localAssetRequired + incentivePaid) == (
+        cashClaim * (100 - tokenHaircut) / 100
+    )
+
+
+def test_liquidate_tokens_insufficient_with_fcash(liquidation, accounts):
+    liquidityTokenNotional = 1000e8
+    fCashNotional = -500e8
+    tokenHaircut = 99
+
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+    liquidation.setPortfolio(
+        accounts[0],
+        [
+            get_liquidity_token(1, notional=liquidityTokenNotional),
+            get_fcash_token(1, notional=fCashNotional),
+        ],
+    )
+    liquidation.setBalance(accounts[0], 1, -5000e8, 0)
+    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 0).return_value
+
+    (
+        incentivePaid,
+        localAssetRequired,
+        netCashChange,
+        portfolioState,
+        localMarkets,
+    ) = liquidation.liquidateLocalLiquidityTokens(accounts[0], factors, START_TIME)
+
+    # all liquidity tokens have been removed
+    fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
+
+    # Liquidity token deleted
+    assert portfolioState[0][0][-1] == 2
+    # fCash updated with fCashClaim
+    assert portfolioState[0][1] == get_fcash_token(
+        1, notional=(fCashClaim + fCashNotional), storageState=1
+    )
+    assert cashClaim == netCashChange + incentivePaid
+
+    # assert market updates
+    assert localMarkets[0][2] + fCashClaim == markets[0][2]
+    assert localMarkets[0][3] + cashClaim == markets[0][3]
+    assert localMarkets[0][4] + liquidityTokenNotional == markets[0][4]
+
+    assert (factors[0] - localAssetRequired + incentivePaid) == (
+        cashClaim * (100 - tokenHaircut) / 100
+    )
+
+
+def test_liquidate_tokens_sufficient_no_fcash(liquidation, accounts):
+    liquidityTokenNotional = 1000e8
+    tokenHaircut = 99
+
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+    liquidation.setPortfolio(accounts[0], [get_liquidity_token(1, notional=liquidityTokenNotional)])
+    liquidation.setBalance(accounts[0], 1, -990e8, 0)
+    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 0).return_value
+
+    (
+        incentivePaid,
+        localAssetRequired,
+        netCashChange,
+        portfolioState,
+        localMarkets,
+    ) = liquidation.liquidateLocalLiquidityTokens(accounts[0], factors, START_TIME)
+
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
+    netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
+    tokensToRemove = math.trunc(liquidityTokenNotional * factors[0] / netCashIncrease)
+
+    # all liquidity tokens have been removed
+    fCashClaim = math.trunc(markets[0][2] * tokensToRemove / markets[0][4])
+    cashClaimRemoved = math.trunc(markets[0][3] * tokensToRemove / markets[0][4])
+
+    assert pytest.approx(portfolioState[0][0][3], abs=2) == (
+        liquidityTokenNotional - tokensToRemove
+    )
+    assert pytest.approx(portfolioState[1][0][3], abs=2) == fCashClaim
+    assert pytest.approx(cashClaimRemoved, abs=2) == netCashChange + incentivePaid
+
+    # assert market updates
+    assert pytest.approx(localMarkets[0][2] + fCashClaim, abs=2) == markets[0][2]
+    assert pytest.approx(localMarkets[0][3] + cashClaimRemoved, abs=2) == markets[0][3]
+    assert pytest.approx(localMarkets[0][4] + tokensToRemove, abs=2) == markets[0][4]
+
+    assert localAssetRequired == 0
+
+
+def test_liquidate_tokens_sufficient_with_fcash(liquidation, accounts):
+    liquidityTokenNotional = 1000e8
+    fCashNotional = -500e8
+    tokenHaircut = 99
+
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+    liquidation.setPortfolio(
+        accounts[0],
+        [
+            get_liquidity_token(1, notional=liquidityTokenNotional),
+            get_fcash_token(1, notional=fCashNotional),
+        ],
+    )
+    liquidation.setBalance(accounts[0], 1, -490e8, 0)
+    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 0).return_value
+
+    (
+        incentivePaid,
+        localAssetRequired,
+        netCashChange,
+        portfolioState,
+        localMarkets,
+    ) = liquidation.liquidateLocalLiquidityTokens(accounts[0], factors, START_TIME)
+
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
+    netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
+    tokensToRemove = math.trunc(liquidityTokenNotional * factors[0] / netCashIncrease)
+
+    # all liquidity tokens have been removed
+    fCashClaim = math.trunc(markets[0][2] * tokensToRemove / markets[0][4])
+    cashClaimRemoved = math.trunc(markets[0][3] * tokensToRemove / markets[0][4])
+
+    assert pytest.approx(portfolioState[0][0][3], abs=2) == (
+        liquidityTokenNotional - tokensToRemove
+    )
+    assert pytest.approx(portfolioState[0][1][3], abs=2) == fCashClaim + fCashNotional
+    assert pytest.approx(cashClaimRemoved, abs=2) == netCashChange + incentivePaid
+
+    # assert market updates
+    assert pytest.approx(localMarkets[0][2] + fCashClaim, abs=2) == markets[0][2]
+    assert pytest.approx(localMarkets[0][3] + cashClaimRemoved, abs=2) == markets[0][3]
+    assert pytest.approx(localMarkets[0][4] + tokensToRemove, abs=2) == markets[0][4]
+
+    assert localAssetRequired == 0
 
 
 # def test_liquidate_collateral(liquidation, ethAggregators, assetRateAggregator, accounts):
