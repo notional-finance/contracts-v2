@@ -91,11 +91,10 @@ def test_calculate_token_cash_claims(liquidationFixtures, accounts):
     # FCash token only
     portfolioState = ([get_fcash_token(1)], [], 0, 1, [])
 
-    (totalAssetCash, totalHaircutAssetCash) = liquidation.calculateTokenCashClaims(
+    totalAssetCash = liquidation.calculateTokenCashClaims(
         portfolioState, cashGroup, markets, START_TIME
     )
     assert totalAssetCash == 0
-    assert totalHaircutAssetCash == 0
 
     liquidityTokenNotional = 1000e8
     portfolioState = (
@@ -114,14 +113,13 @@ def test_calculate_token_cash_claims(liquidationFixtures, accounts):
         [],
     )
 
-    (totalAssetCash, totalHaircutAssetCash) = liquidation.calculateTokenCashClaims(
+    totalAssetCash = liquidation.calculateTokenCashClaims(
         portfolioState, cashGroup, markets, START_TIME
     )
 
     cashClaim = math.trunc(markets[1][3] * liquidityTokenNotional / markets[1][4])
 
     assert totalAssetCash == cashClaim
-    assert totalHaircutAssetCash == cashClaim * 0.98
 
 
 @given(
@@ -178,11 +176,8 @@ def test_post_fcash_value(
 @given(
     collateralAvailable=strategy("int", min_value=1, max_value=1000e8),
     localToTrade=strategy("int", min_value=1, max_value=1000e8),
-    haircutCashClaim=strategy("int", min_value=0, max_value=1000e8),
 )
-def test_collateral_to_sell(
-    liquidationFixtures, accounts, collateralAvailable, localToTrade, haircutCashClaim
-):
+def test_collateral_to_sell(liquidationFixtures, accounts, collateralAvailable, localToTrade):
     (_, liquidation) = liquidationFixtures
 
     localETHRate = liquidation.getETHRate(1)
@@ -205,20 +200,17 @@ def test_collateral_to_sell(
         True,
     )
     (collateralToSell, localToPurchase) = liquidation.calculateCollateralToSell(
-        factors, localToTrade, haircutCashClaim
+        factors, localToTrade
     )
 
     # All exchange rates are 1-1 here so we just want to ensure that the branches are caught
     collateralRequired = localToTrade * discount / 100
-    if collateralAvailable + haircutCashClaim > collateralRequired:
+    if collateralAvailable > collateralRequired:
         assert collateralToSell == collateralRequired
         assert localToPurchase == localToTrade
     else:
-        assert collateralToSell == collateralAvailable + haircutCashClaim
-        assert (
-            pytest.approx(localToPurchase, abs=2)
-            == (collateralAvailable + haircutCashClaim) * 100 / discount
-        )
+        assert collateralToSell == collateralAvailable
+        assert pytest.approx(localToPurchase, abs=2) == (collateralAvailable) * 100 / discount
 
 
 @given(
@@ -430,9 +422,81 @@ def test_not_sufficient_perpetual_tokens(liquidationFixtures, accounts):
     assert newBalanceContext[5] == -perpTokenBalance
 
 
-def test_sufficient_liquidity_tokens(liquidationFixtures, accounts):
-    pass
+def test_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts):
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -100e8
+    collateralBalance = 10e8
+    liquidityTokenNotional = 100e8
+
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        factorContract.setMarketStorage(2, SETTLEMENT_DATE, m)
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
+    fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
+
+    portfolio = [
+        get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional),
+        get_fcash_token(1, currencyId=2, notional=-fCashClaim),
+    ]
+
+    factorContract.setPortfolio(accounts[0], portfolio)
+    portfolioState = (portfolio, [], 0, 1, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = list(txn.return_value)
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedCashBalance=collateralBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    withdrawn = (
+        (localToPurchase * discount / 100 - collateralBalance) * liquidityTokenNotional / cashClaim
+    )
+    newfCashClaim = fCashClaim * withdrawn / liquidityTokenNotional - fCashClaim
+
+    assert localToPurchase < -localBalance
+    assert newBalanceContext[4] == -collateralBalance
+    assert newBalanceContext[5] == 0
+    assert pytest.approx(newPortfolioState[0][0][3], abs=5) == liquidityTokenNotional - withdrawn
+    assert pytest.approx(newPortfolioState[0][1][3], abs=5) == newfCashClaim
+    assert newPortfolioState[0][0][4] == 1
+    assert newPortfolioState[0][1][4] == 1
 
 
-def test_not_sufficient_liquidity_tokens(liquidationFixtures, accounts):
-    pass
+def test_not_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts):
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -1000e8
+    liquidityTokenNotional = 100e8
+
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        factorContract.setMarketStorage(2, SETTLEMENT_DATE, m)
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
+
+    portfolio = [get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional)]
+
+    factorContract.setPortfolio(accounts[0], portfolio)
+    portfolioState = (portfolio, [], 0, 1, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = list(txn.return_value)
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors, get_balance_state(2), portfolioState, 0, START_TIME
+    )
+
+    assert pytest.approx(localToPurchase, abs=2) == cashClaim * 100 / discount
+    assert newBalanceContext[4] == 0
+    assert newBalanceContext[5] == 0
+    assert newPortfolioState[0][0][4] == 2

@@ -91,7 +91,7 @@ contract MockLiquidateCollateral is BaseMockLiquidation {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory marketStates,
         uint blockTime
-    ) external view returns (int, int) {
+    ) external view returns (int) {
         return Liquidation.calculateTokenCashClaims(portfolioState, cashGroup, marketStates, blockTime);
     }
 
@@ -111,13 +111,11 @@ contract MockLiquidateCollateral is BaseMockLiquidation {
 
     function calculateCollateralToSell(
         LiquidationFactors memory factors,
-        int localToTrade,
-        int haircutCashClaim
+        int localToTrade
     ) external pure returns (int, int) {
         return Liquidation.calculateCollateralToSell(
             factors,
-            localToTrade,
-            haircutCashClaim
+            localToTrade
         );
     }
 
