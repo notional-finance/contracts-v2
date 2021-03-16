@@ -41,7 +41,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         uint settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, market.maturity, settlementDate);
+        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
         // ensure that state gets set
         market.storageState = 0xFF;
         market.setMarketStorage();

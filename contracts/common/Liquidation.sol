@@ -441,7 +441,7 @@ library Liquidation {
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
-            if (!AssetHandler.isLiquidityToken(asset.assetType) && asset.currencyId != cashGroup.currencyId) continue;
+            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != cashGroup.currencyId) continue;
 
             (uint marketIndex,  /* */) = cashGroup.getMarketIndex(asset.maturity, blockTime);
             MarketParameters memory market = cashGroup.getMarket(marketStates, marketIndex, blockTime, true);
@@ -472,7 +472,9 @@ library Liquidation {
 
         int fCashValue = collateralAvailable
             .sub(collateralBalance)
-            .sub(collateralCashClaim);
+            // Collateral cash claim is not included in the above because we have to calculate how
+            // much cash claim to remove in calculateCollateralToSell
+            .sub(collateralCashClaim); 
 
         if (fCashValue <= 0) {
             // If we have negative fCashValue then no adjustments are required.
@@ -525,7 +527,7 @@ library Liquidation {
             // Sufficient collateral available to cover all of local to trade
             return (collateralToSell, localToTrade);
         } else {
-            // In sufficient collateral so we calculate the amount required here
+            // Insufficient collateral so we calculate the amount required here
             collateralToSell = factors.collateralAvailable.add(haircutCashClaim);
             // This is the inverse of the calculation above
             int localToPurchase = collateralToSell
@@ -562,8 +564,8 @@ library Liquidation {
         //
         // localCurrencyRequired is netLocalCurrencyBenefit after removing liquidity tokens
         // localCurrencyToTrade =  localCurrencyRequired / (buffer - discount)
-        require(factors.localAssetRequired > 0, "L: local required negative");
-        require(factors.localAvailable < 0, "L: no local debt");
+        require(factors.localAssetRequired > 0); // dev: no local asset required
+        require(factors.localAvailable < 0); // dev: no local debt
 
         int liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
             factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;

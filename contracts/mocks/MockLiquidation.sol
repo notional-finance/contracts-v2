@@ -58,6 +58,12 @@ contract MockLiquidateCollateral is BaseMockLiquidation {
     using Liquidation for LiquidationFactors;
     using Market for MarketParameters;
 
+    function getETHRate(
+        uint currencyId
+    ) public view returns (ETHRate memory) {
+        return ExchangeRate.buildExchangeRate(currencyId);
+    }
+
     function liquidateCollateral(
         LiquidationFactors memory factors,
         BalanceState memory collateralBalanceContext,
@@ -82,6 +88,47 @@ contract MockLiquidateCollateral is BaseMockLiquidation {
             collateralBalanceContext,
             portfolioState
         );
+    }
+
+    function calculateTokenCashClaims(
+        PortfolioState memory portfolioState,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory marketStates,
+        uint blockTime
+    ) external view returns (int, int) {
+        return Liquidation.calculateTokenCashClaims(portfolioState, cashGroup, marketStates, blockTime);
+    }
+
+    function calculatePostfCashValue(
+        int collateralAvailable,
+        BalanceState memory collateralBalanceContext,
+        int collateralPerpetualTokenValue,
+        int collateralCashClaim
+    ) external pure returns (int, int) {
+        return Liquidation.calculatePostfCashValue(
+            collateralAvailable,
+            collateralBalanceContext,
+            collateralPerpetualTokenValue,
+            collateralCashClaim
+        );
+    }
+
+    function calculateCollateralToSell(
+        LiquidationFactors memory factors,
+        int localToTrade,
+        int haircutCashClaim
+    ) external pure returns (int, int) {
+        return Liquidation.calculateCollateralToSell(
+            factors,
+            localToTrade,
+            haircutCashClaim
+        );
+    }
+
+    function calculateLocalToTrade(
+        LiquidationFactors memory factors
+    ) external pure returns (int) {
+        return Liquidation.calculateLocalToTrade(factors);
     }
 }
 

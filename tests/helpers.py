@@ -19,6 +19,39 @@ impliedRateStrategy = strategy(
 )
 
 
+def get_balance_state(currencyId, **kwargs):
+    storedCashBalance = 0 if "storedCashBalance" not in kwargs else kwargs["storedCashBalance"]
+    netCashChange = 0 if "netCashChange" not in kwargs else kwargs["netCashChange"]
+    storedPerpetualTokenBalance = (
+        0 if "storedPerpetualTokenBalance" not in kwargs else kwargs["storedPerpetualTokenBalance"]
+    )
+    netAssetTransferInternalPrecision = (
+        0
+        if "netAssetTransferInternalPrecision" not in kwargs
+        else kwargs["netAssetTransferInternalPrecision"]
+    )
+    netPerpetualTokenTransfer = (
+        0 if "netPerpetualTokenTransfer" not in kwargs else kwargs["netPerpetualTokenTransfer"]
+    )
+    netPerpetualTokenSupplyChange = (
+        0
+        if "netPerpetualTokenSupplyChange" not in kwargs
+        else kwargs["netPerpetualTokenSupplyChange"]
+    )
+    lastIncentiveMint = 0 if "lastIncentiveMint" not in kwargs else kwargs["lastIncentiveMint"]
+
+    return (
+        currencyId,
+        storedCashBalance,
+        storedPerpetualTokenBalance,
+        netCashChange,
+        netAssetTransferInternalPrecision,
+        netPerpetualTokenTransfer,
+        netPerpetualTokenSupplyChange,
+        lastIncentiveMint,
+    )
+
+
 def get_eth_rate_mapping(rateOracle, decimalPlaces=18, buffer=140, haircut=100, discount=105):
     return (rateOracle.address, decimalPlaces, False, buffer, haircut, discount)
 
