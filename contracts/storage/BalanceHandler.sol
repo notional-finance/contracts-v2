@@ -35,8 +35,6 @@ library BalanceHandler {
     using TokenHandler for Token;
     using AccountContextHandler for AccountStorage;
 
-    uint internal constant BALANCE_STORAGE_SLOT = 8;
-
     /**
      * @notice Handles two special cases when depositing tokens into an account.
      *  - If a token has transfer fees then the amount specified does not equal the amount that the contract

@@ -143,10 +143,12 @@ library Liquidation {
             );
             netETHValue = netETHValue.add(ethValue);
 
-            // Store relevant factors here, there are asset value denominated
+            // Store relevant factors here
             if (balanceState[i].currencyId == localCurrencyId) {
                 factors.localAvailable = netLocalAssetValue;
                 factors.localETHRate = ethRate;
+                // Assign this here in case localCashGroup is not assigned above
+                factors.localCashGroup.assetRate = assetRate;
             } else if (balanceState[i].currencyId == collateralCurrencyId) {
                 factors.collateralAvailable = netLocalAssetValue;
                 factors.collateralETHRate = ethRate;
@@ -309,7 +311,7 @@ library Liquidation {
         PortfolioState memory portfolioState,
         int maxLiquidateAmount,
         uint blockTime
-    ) internal view returns (int, int) {
+    ) internal view returns (int) {
         require(maxLiquidateAmount >= 0); // dev: invalid max liquidate
 
         // First determine how much local currency is required for the liquidation.
@@ -354,7 +356,7 @@ library Liquidation {
         );
         // It's possible that collateralToSell is zero even if localToTrade > 0, this can be caused
         // by very small amounts of localToTrade
-        if (collateralToSell == 0) return (0, 0);
+        if (collateralToSell == 0) return 0;
 
         return calculateCollateralTransfers(
             factors,
@@ -375,7 +377,7 @@ library Liquidation {
         int localToPurchase,
         int collateralToSell,
         uint blockTime
-    ) internal view returns(int, int) {
+    ) internal view returns (int) {
         // This figure represents how much cash value of collateral is available to transfer in the
         // account, not including cash claims in liquidity tokens. The balance adjustment from the
         // calculatePostfCashValue is used to ensure that negative fCash balances are net off properly
@@ -384,33 +386,30 @@ library Liquidation {
             .add(collateralBalanceContext.netCashChange)
             .add(balanceAdjustment);
 
-        if (netAssetCash > collateralToSell) {
+        if (netAssetCash >= collateralToSell) {
             // Sufficient cash to cover collateral to sell
-            collateralBalanceContext.netCashChange = collateralBalanceContext
-                .netCashChange.sub(collateralToSell);
-
-            return (localToPurchase, 0);
+            collateralBalanceContext.netAssetTransferInternalPrecision = collateralToSell.neg();
+            return localToPurchase;
         } else if (netAssetCash > 0) {
             // Asset cash only partially covers collateral
-            collateralBalanceContext.netCashChange = collateralBalanceContext
-                .netCashChange.sub(netAssetCash);
-
+            collateralBalanceContext.netAssetTransferInternalPrecision = netAssetCash.neg();
             collateralToSell = collateralToSell.sub(netAssetCash);
         }
 
         // If asset cash is insufficient, perpetual liquidity tokens are next in the liquidation preference.
         // We calculate the proportional amount based on collateral to sell and return the amount to transfer.
-        int perpetualTokensToTransfer;
-        if (factors.collateralPerpetualTokenValue > collateralToSell) {
-            perpetualTokensToTransfer = collateralBalanceContext.storedPerpetualTokenBalance
-                .mul(collateralToSell)
-                .div(factors.collateralPerpetualTokenValue);
+        if (factors.collateralPerpetualTokenValue >= collateralToSell) {
+            collateralBalanceContext.netPerpetualTokenTransfer = (
+                collateralBalanceContext.storedPerpetualTokenBalance
+                    .mul(collateralToSell)
+                    .div(factors.collateralPerpetualTokenValue).neg()
+            );
 
-            return (localToPurchase, perpetualTokensToTransfer);
+            return localToPurchase;
         } else if (factors.collateralPerpetualTokenValue > 0) {
             // Transfer all the tokens in this case
             collateralToSell = collateralToSell.sub(factors.collateralPerpetualTokenValue);
-            perpetualTokensToTransfer = collateralBalanceContext.storedPerpetualTokenBalance;
+            collateralBalanceContext.netPerpetualTokenTransfer = collateralBalanceContext.storedPerpetualTokenBalance.neg();
         }
 
         // Finally we withdraw liquidity tokens
@@ -426,7 +425,7 @@ library Liquidation {
         // If we did not raise sufficient amount then something has gone wrong.
         require(amountRemaining > 0 && amountRemaining <= DUST, "L: liquidation failed");
 
-        return (localToPurchase, perpetualTokensToTransfer);
+        return localToPurchase;
     }
 
     function calculateTokenCashClaims(

@@ -42,15 +42,15 @@ def liquidationFixtures(
     ctoken.setAnswer(1e18)
     aggregator = cTokenAggregator.deploy(ctoken.address, {"from": accounts[0]})
 
-    rateStorage = (aggregator.address, 8)
-    liquidateTokens.setAssetRateMapping(1, rateStorage)
-    liquidateCollateral.setAssetRateMapping(1, rateStorage)
-
     cg = get_cash_group_with_max_markets(3)
-    liquidateTokens.setCashGroup(1, cg)
-    liquidateCollateral.setCashGroup(1, cg)
+    rateStorage = (aggregator.address, 8)
+
     ethAggregators[0].setAnswer(1e18)
+    liquidateTokens.setAssetRateMapping(1, rateStorage)
+    liquidateTokens.setCashGroup(1, cg)
     liquidateTokens.setETHRateMapping(1, get_eth_rate_mapping(ethAggregators[0], discount=104))
+    liquidateCollateral.setAssetRateMapping(1, rateStorage)
+    liquidateCollateral.setCashGroup(1, cg)
     liquidateCollateral.setETHRateMapping(1, get_eth_rate_mapping(ethAggregators[0], discount=104))
 
     ethAggregators[1].setAnswer(1e18)
@@ -72,6 +72,11 @@ def liquidationFixtures(
     chain.mine(1, timestamp=START_TIME)
 
     return (liquidateTokens, liquidateCollateral)
+
+
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
 
 
 # Test calculations
@@ -252,27 +257,177 @@ def test_local_to_trade(liquidationFixtures, accounts, localAssetRequired, local
 
 # Test liquidate collateral
 def test_sufficient_no_portfolio(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -100e8
+    collateralBalance = 120e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
+    portfolioState = ([], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = txn.return_value
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedCashBalance=collateralBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase < -localBalance
+    assert pytest.approx(newBalanceContext[4]) == -math.trunc(localToPurchase * discount / 100)
+    assert newBalanceContext[5] == 0
 
 
 def test_not_sufficient_no_portfolio(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -200e8
+    collateralBalance = 100e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
+    portfolioState = ([], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = txn.return_value
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedCashBalance=collateralBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase == collateralBalance * 100 / discount
+    assert pytest.approx(newBalanceContext[4]) == -collateralBalance
+    assert newBalanceContext[5] == 0
 
 
 def test_sufficient_with_fcash(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -100e8
+    collateralBalance = 120e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
+    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = txn.return_value
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedCashBalance=collateralBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase < -localBalance
+    assert pytest.approx(newBalanceContext[4]) == -math.trunc(localToPurchase * discount / 100)
+    assert newBalanceContext[5] == 0
 
 
 def test_not_sufficient_with_fcash(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -200e8
+    collateralBalance = 100e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
+    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = txn.return_value
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedCashBalance=collateralBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase == collateralBalance * 100 / discount
+    assert pytest.approx(newBalanceContext[4]) == -collateralBalance
+    assert newBalanceContext[5] == 0
 
 
 def test_sufficient_perpetual_tokens(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -100e8
+    perpTokenValue = 120e8
+    perpTokenBalance = 1000e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(
+        accounts[0], 2, perpTokenValue, 0
+    )  # Bit of a hack to get around valuation
+    portfolioState = ([], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = list(txn.return_value)
+    factors[2] = perpTokenValue
+    factors[3] = perpTokenValue
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedPerpetualTokenBalance=perpTokenBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase < -localBalance
+    assert newBalanceContext[4] == 0
+    assert pytest.approx(newBalanceContext[5], abs=10) == -math.trunc(
+        (localToPurchase * discount / 100) * perpTokenBalance / perpTokenValue
+    )
 
 
 def test_not_sufficient_perpetual_tokens(liquidationFixtures, accounts):
-    pass
+    (factorContract, liquidation) = liquidationFixtures
+    localBalance = -200e8
+    perpTokenValue = 100e8
+    perpTokenBalance = 1000e8
+
+    factorContract.setBalance(accounts[0], 1, localBalance, 0)
+    factorContract.setBalance(
+        accounts[0], 2, perpTokenValue, 0
+    )  # Bit of a hack to get around valuation
+    portfolioState = ([], [], 0, 0, [])
+
+    txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    factors = list(txn.return_value)
+    factors[2] = perpTokenValue
+    factors[3] = perpTokenValue
+
+    discount = max(factors[4][-1], factors[5][-1])
+    (localToPurchase, newBalanceContext, newPortfolioState) = liquidation.liquidateCollateral(
+        factors,
+        get_balance_state(2, storedPerpetualTokenBalance=perpTokenBalance),
+        portfolioState,
+        0,
+        START_TIME,
+    )
+
+    assert portfolioState == newPortfolioState
+    assert localToPurchase == perpTokenValue * 100 / discount
+    assert newBalanceContext[4] == 0
+    assert newBalanceContext[5] == -perpTokenBalance
 
 
 def test_sufficient_liquidity_tokens(liquidationFixtures, accounts):

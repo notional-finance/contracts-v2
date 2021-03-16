@@ -70,12 +70,8 @@ contract MockLiquidateCollateral is BaseMockLiquidation {
         PortfolioState memory portfolioState,
         int maxLiquidateAmount,
         uint blockTime
-    ) public view returns (
-        int,
-        BalanceState memory,
-        PortfolioState memory
-    ) {
-        (int localToPurchase, /* int perpetualTokensToTransfer */) = Liquidation.liquidateCollateral(
+    ) public view returns (int, BalanceState memory, PortfolioState memory) {
+        int localToPurchase = Liquidation.liquidateCollateral(
             factors,
             collateralBalanceContext,
             portfolioState,
