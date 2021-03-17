@@ -24,8 +24,6 @@ library CashGroup {
     using AssetRate for AssetRateParameters;
     using Market for MarketParameters;
 
-    uint internal constant CASH_GROUP_STORAGE_SLOT = 3;
-
     // Offsets for the bytes of the different parameters
     uint internal constant RATE_ORACLE_TIME_WINDOW = 8;
     uint internal constant LIQUIDITY_FEE = 16;
@@ -364,6 +362,8 @@ library CashGroup {
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
+            // NOTE: this subtraction should never overflow, the linear interpolation between two points above zero
+            // cannot go below zero
             return shortRate.sub(
                 // This is reversed to keep it it positive
                 (shortRate - longRate)

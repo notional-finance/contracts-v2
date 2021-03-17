@@ -320,13 +320,13 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
-            return shortRate.sub(
-                // This is reversed to keep it it positive
-                (shortRate - longRate)
-                    .mul(newMaturity - shortMaturity)
-                    // No underflow here, checked above
-                    .div(longMaturity - shortMaturity)
-            );
+            uint diff = (shortRate - longRate)
+                .mul(newMaturity - shortMaturity)
+                // No underflow here, checked above
+                .div(longMaturity - shortMaturity);
+            
+            // This interpolation may go below zero so we bottom out interpolated rates at zero
+            return shortRate > diff ? shortRate - diff : 0;
         }
     }
 
