@@ -351,6 +351,7 @@ library BalanceHandler {
         uint blockTime
     ) internal view returns (uint) {
         if (lastMintTime == 0 || lastMintTime >= blockTime) return 0;
+
         (
             /* currencyId */,
             uint totalSupply,
@@ -392,7 +393,7 @@ library BalanceHandler {
             blockTime
         );
         balanceState.lastIncentiveMint = blockTime;
-        TokenHandler.transferIncentive(account, incentivesToMint);
+        if (incentivesToMint > 0) TokenHandler.transferIncentive(account, incentivesToMint);
 
         // Change the supply amount after incentives have been minted
         if (balanceState.netPerpetualTokenSupplyChange != 0) {
