@@ -2,6 +2,7 @@ import math
 
 import brownie
 import pytest
+from brownie.network.state import Chain
 from brownie.test import given
 from tests.constants import (
     FCASH_ASSET_TYPE,
@@ -19,6 +20,8 @@ from tests.helpers import (
     get_portfolio_array,
     impliedRateStrategy,
 )
+
+chain = Chain()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -39,6 +42,8 @@ def assetLibrary(MockAssetHandler, MockCToken, cTokenAggregator, accounts):
 
     asset.setAssetRateMapping(3, rateStorage)
     asset.setCashGroup(3, cg)
+
+    chain.mine(1, timestamp=START_TIME)
 
     return asset
 
