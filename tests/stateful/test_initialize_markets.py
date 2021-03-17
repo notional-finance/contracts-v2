@@ -211,7 +211,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
     accountContext = environment.router["Views"].getAccountContext(perpTokenAddress)
     assert accountContext[0] < get_tref(blockTime) + SECONDS_IN_QUARTER
     assert not accountContext[1]
-    assert accountContext[2] == currencyId
+    assert accountContext[3] == currencyId
 
     check_system_invariants(environment, accounts)
 
@@ -457,3 +457,26 @@ def test_mint_above_leverage_threshold(environment, accounts):
 
 # def test_settle_and_negative_fcash(environment, accounts):
 #     pass
+
+
+def test_failing_initialize_time(environment, accounts):
+    initialize_markets(environment, accounts)
+    currencyId = 2
+
+    # Initializing again immediately will fail
+    with brownie.reverts("IM: invalid time"):
+        environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
+
+    # Cannot mint until markets are initialized
+    with brownie.reverts("PT: requires settlement"):
+        environment.router["MintPerpetual"].perpetualTokenMint(
+            currencyId, 100e8, False, {"from": accounts[0]}
+        )
+
+    with brownie.reverts("PT: requires settlement"):
+        environment.router["RedeemPerpetual"].perpetualTokenRedeem(
+            currencyId, 100e8, True, {"from": accounts[0]}
+        )

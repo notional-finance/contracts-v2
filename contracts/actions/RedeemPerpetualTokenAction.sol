@@ -121,8 +121,6 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         {
             // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
             AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-            require(perpTokenContext.nextMaturingAsset < blockTime, "RP: requires settlement");
-
             (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(
                 perpToken,
                 perpTokenContext,

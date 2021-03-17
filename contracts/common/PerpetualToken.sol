@@ -28,6 +28,7 @@ library PerpetualToken {
     using PortfolioHandler for PortfolioState;
     using CashGroup for CashGroupParameters;
     using BalanceHandler for BalanceState;
+    using AccountContextHandler for AccountStorage;
     using SafeInt256 for int;
     using SafeMath for uint;
 
@@ -438,7 +439,8 @@ library PerpetualToken {
 
         // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
         // that need to be settled. This is only done during market initialization.
-        require(accountContext.nextMaturingAsset < blockTime, "PT: requires settlement");
+        uint nextSettleTime = CashGroup.getReferenceTime(accountContext.nextMaturingAsset) + CashGroup.QUARTER;
+        require(nextSettleTime > blockTime, "PT: requires settlement");
 
         (int assetCashPV, bytes32 ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
@@ -638,6 +640,12 @@ library PerpetualToken {
     ) internal returns (PortfolioAsset[] memory, int) {
         uint totalSupply;
         PortfolioAsset[] memory newifCashAssets;
+
+        {
+            uint nextSettleTime = CashGroup.getReferenceTime(perpTokenAccountContext.nextMaturingAsset) + CashGroup.QUARTER;
+            require(nextSettleTime > blockTime, "PT: requires settlement");
+        }
+
         {
             uint currencyId;
             (currencyId, totalSupply, /* incentiveRate */) = getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
@@ -665,7 +673,12 @@ library PerpetualToken {
             _removeLiquidityTokens(perpToken, newifCashAssets, tokensToRedeem, int(totalSupply), blockTime)
         );
 
-        perpToken.portfolioState.storeAssets(perpToken.tokenAddress, perpTokenAccountContext);
+        {
+            uint8 lengthBefore = perpTokenAccountContext.assetArrayLength;
+            perpToken.portfolioState.storeAssets(perpToken.tokenAddress, perpTokenAccountContext);
+            // This can happen if the liquidity tokens are redeemed down to zero
+            if (perpTokenAccountContext.assetArrayLength != lengthBefore) perpTokenAccountContext.setAccountContext(perpToken.tokenAddress);
+        }
 
         // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
         return (newifCashAssets, assetCashShare);
