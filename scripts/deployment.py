@@ -24,14 +24,13 @@ from brownie import (
     nJumpRateModel,
     nPriceOracle,
     nProxyAdmin,
-    nTimelockController,
     nTransparentUpgradeableProxy,
     nWhitePaperInterestRateModel,
 )
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from scripts.config import CompoundConfig, CurrencyDefaults, TokenConfig
+from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
 
 chain = Chain()
 
@@ -39,7 +38,7 @@ TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "NonMintable": 3}
 
 
 class TestEnvironment:
-    def __init__(self, deployer):
+    def __init__(self, deployer, withGovernance=False, multisig=None):
         self.deployer = deployer
         self.proxyAdmin = nProxyAdmin.deploy({"from": self.deployer})
         self.compPriceOracle = nPriceOracle.deploy({"from": deployer})
@@ -52,43 +51,65 @@ class TestEnvironment:
         self.cTokenAggregator = {}
         self.perpToken = {}
         self.router = {}
+        self.multisig = multisig
+
+        if withGovernance:
+            self._deployGovernance()
+        else:
+            self._deployNoteERC20()
 
         self._deployNotional()
+
+        if withGovernance:
+            self.router["Governance"].transferOwnership(self.governor.address)
+            self.noteERC20.transfer(
+                self.governor.address,
+                GovernanceConfig["initialBalances"]["DAO"],
+                {"from": self.deployer},
+            )
+            self.noteERC20.transfer(
+                self.multisig.address,
+                GovernanceConfig["initialBalances"]["MULTISIG"],
+                {"from": self.deployer},
+            )
+        else:
+            # Transfer some initial supply for minting
+            self.noteERC20.transfer(self.proxy.address, 1_000_000e8, {"from": self.deployer})
+
         self.startTime = chain.time()
 
-    def _deployGovernance(self):
+    def _deployNoteERC20(self):
         # Deploy governance contracts
-        noteERC20 = NoteERC20.deploy({"from": self.deployer})
+        noteERC20Implementation = NoteERC20.deploy({"from": self.deployer})
         # This is a proxied ERC20
         initializeData = web3.eth.contract(abi=NoteERC20.abi).encodeABI(
             fn_name="initialize", args=[self.deployer.address]
         )
+
         self.noteERC20Proxy = nTransparentUpgradeableProxy.deploy(
-            noteERC20.address, self.proxyAdmin.address, initializeData, {"from": self.deployer}
+            noteERC20Implementation.address,
+            self.proxyAdmin.address,
+            initializeData,
+            {"from": self.deployer},
         )
 
-        self.timelock = nTimelockController.deploy(
-            1, [], [], {"from": self.deployer}  # minDelay is in seconds  # Proposers  # Executors
+        self.noteERC20 = Contract.from_abi(
+            "NoteERC20", self.noteERC20Proxy.address, abi=NoteERC20.abi
         )
 
+    def _deployGovernance(self):
+        self._deployNoteERC20()
+
+        # This is not a proxy but can be upgraded by deploying a new contract and changing ownership
         self.governor = GovernorAlpha.deploy(
-            self.timelock.address,
+            GovernanceConfig["governorConfig"]["quorumVotes"],
+            GovernanceConfig["governorConfig"]["proposalThreshold"],
+            GovernanceConfig["governorConfig"]["votingDelayBlocks"],
+            GovernanceConfig["governorConfig"]["votingPeriodBlocks"],
             self.noteERC20.address,
-            self.deployer,
-            {"from": self.deployer},  # Guardian address
-        )
-
-        self.timelock.grantRole(
-            self.timelock.TIMELOCK_ADMIN_ROLE(), self.governor.address, {"from": self.deployer}
-        )
-        self.timelock.grantRole(
-            self.timelock.PROPOSER_ROLE(), self.governor.address, {"from": self.deployer}
-        )
-        self.timelock.grantRole(
-            self.timelock.EXECUTOR_ROLE(), self.governor.address, {"from": self.deployer}
-        )
-        self.timelock.renounceRole(
-            self.timelock.TIMELOCK_ADMIN_ROLE(), self.deployer.address, {"from": self.deployer}
+            self.multisig,
+            GovernanceConfig["governorConfig"]["minDelay"],
+            {"from": self.deployer},
         )
 
     def _deployCToken(self, symbol, underlyingToken, rate):

@@ -18,10 +18,10 @@ contract NoteERC20 is Initializable {
     string public constant symbol = "NOTE";
 
     /// @notice EIP-20 token decimals for this token
-    uint8 public constant decimals = 9;
+    uint8 public constant decimals = 8;
 
     /// @notice Total number of tokens in circulation
-    uint public constant totalSupply = 100000000e9; // 100 million Note
+    uint public constant totalSupply = 100000000e8; // 100 million Note
 
     // Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;

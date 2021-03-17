@@ -1,3 +1,17 @@
+GovernanceConfig = {
+    "initialBalances": {
+        "DAO": 55_000_000e8,
+        "MULTISIG": 45_000_000e8,  # TODO: update this to account for airdrop
+    },
+    "governorConfig": {
+        "quorumVotes": 4_000_000e8,
+        "proposalThreshold": 1_000_000e8,
+        "votingDelayBlocks": 1,
+        "votingPeriodBlocks": 10,  # TODO: override ths for real
+        "minDelay": 86400,
+    },
+}
+
 TokenConfig = {
     "DAI": {"name": "Dai Stablecoin", "decimals": 18, "fee": 0, "rate": 0.01e18},
     "USDC": {"name": "USD Coin", "decimals": 6, "fee": 0, "rate": 0.01e18},

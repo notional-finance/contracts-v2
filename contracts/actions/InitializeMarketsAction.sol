@@ -47,7 +47,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         int[] proportions;
     }
 
-    function _getGovernanceParameters(
+    function getGovernanceParameters(
         uint currencyId,
         uint maxMarketIndex
     ) private view returns (GovernanceParameters memory) {
@@ -65,7 +65,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         return params;
     }
 
-    function _settlePerpetualTokenPortfolio(
+    function settlePerpetualTokenPortfolio(
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         uint blockTime
@@ -107,7 +107,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      * @notice Special method to get previous markets, normal usage would not reference previous markets
      * in this way
      */
-    function _getPreviousMarkets(
+    function getPreviousMarkets(
         uint currencyId,
         uint blockTime,
         PerpetualTokenPortfolio memory perpToken
@@ -139,7 +139,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      * @notice Check the net fCash assets set by the portfolio and withold cash to account for
      * the PV of negative ifCash. Also sets the ifCash assets into the perp token mapping.
      */
-    function _withholdAndSetfCashAssets(
+    function withholdAndSetfCashAssets(
         PerpetualTokenPortfolio memory perpToken,
         uint currencyId,
         bytes32 ifCashBitmap,
@@ -179,7 +179,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         return (assetCashWitholding, ifCashBitmap);
     }
 
-    function _getNetAssetCashAvailable(
+    function calculateNetAssetCashAvailable(
         PerpetualTokenPortfolio memory perpToken,
         AccountStorage memory accountContext,
         uint blockTime,
@@ -194,9 +194,9 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             // On first init we set the next settlement time, we don't have any assets to settle.
             accountContext.nextMaturingAsset = uint40(CashGroup.getTimeUTC0(blockTime));
         } else {
-            ifCashBitmap = _settlePerpetualTokenPortfolio(perpToken, accountContext, blockTime);
-            _getPreviousMarkets(currencyId, blockTime, perpToken);
-            (assetCashWitholding, ifCashBitmap) = _withholdAndSetfCashAssets(
+            ifCashBitmap = settlePerpetualTokenPortfolio(perpToken, accountContext, blockTime);
+            getPreviousMarkets(currencyId, blockTime, perpToken);
+            (assetCashWitholding, ifCashBitmap) = withholdAndSetfCashAssets(
                 perpToken,
                 currencyId,
                 ifCashBitmap,
@@ -235,7 +235,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      * otherwise the market will be the interpolation between the old 6 month and 1 year markets
      * which are now sitting at 3 month and 9 month time to maturity
      */
-    function _getSixMonthImpliedRate(
+    function getSixMonthImpliedRate(
         MarketParameters[] memory previousMarkets,
         uint referenceTime
     ) private pure returns (uint) {
@@ -265,7 +265,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      * exp = proportion * (1 + exp)
      * proportion = exp / (1 + exp)
      */
-    function _getProportionFromOracleRate(
+    function getProportionFromOracleRate(
         uint oracleRate,
         uint timeToMaturity,
         int rateScalar,
@@ -298,7 +298,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
      * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
      * interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
      */
-    function _interpolateFutureRate(
+    function interpolateFutureRate(
         uint shortMaturity,
         uint shortRate,
         MarketParameters memory longMarket
@@ -330,7 +330,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
         }
     }
 
-    function _setLiquidityAmount(
+    function setLiquidityAmount(
         int netAssetCashAvailable,
         int depositShare,
         uint assetType,
@@ -374,7 +374,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             require(perpToken.portfolioState.storedAssets.length == 0, "IM: not first init");
         }
 
-        (int netAssetCashAvailable, bytes32 ifCashBitmap) = _getNetAssetCashAvailable(
+        (int netAssetCashAvailable, bytes32 ifCashBitmap) = calculateNetAssetCashAvailable(
             perpToken,
             accountContext,
             blockTime,
@@ -382,7 +382,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             isFirstInit
         );
 
-        GovernanceParameters memory parameters = _getGovernanceParameters(
+        GovernanceParameters memory parameters = getGovernanceParameters(
             currencyId,
             perpToken.cashGroup.maxMarketIndex
         );
@@ -395,7 +395,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
             // Traded markets are 1-indexed
             newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i + 1));
 
-            int underlyingCashToMarket = _setLiquidityAmount(
+            int underlyingCashToMarket = setLiquidityAmount(
                 netAssetCashAvailable,
                 parameters.depositShares[i],
                 2 + i, // liquidity token asset type
@@ -454,7 +454,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                     // interpolation is different since the rate is between 3 and 9 months, for all the other interpolations we interpolate
                     // forward in time (i.e. use a 3 and 6 month rate to interpolate a 1 year rate). The first branch of this if statement
                     // will capture the case when the 1 year rate has not been set.
-                    oracleRate = _getSixMonthImpliedRate(
+                    oracleRate = getSixMonthImpliedRate(
                         perpToken.markets,
                         CashGroup.getReferenceTime(blockTime)
                     );
@@ -467,7 +467,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                     
                     // This is the previous market maturity, traded markets are 1-indexed
                     uint shortMarketMaturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i));
-                    oracleRate = _interpolateFutureRate(
+                    oracleRate = interpolateFutureRate(
                         shortMarketMaturity,
                         oracleRate,
                         perpToken.markets[i]
@@ -477,7 +477,7 @@ contract InitializeMarketsAction is StorageLayoutV1 {
                 // When initializing new markets we need to ensure that the new implied oracle rates align
                 // with the current yield curve or valuations for ifCash will spike. This should reference the
                 // previously calculated implied rate and the current market.
-                int proportion = _getProportionFromOracleRate(
+                int proportion = getProportionFromOracleRate(
                     oracleRate,
                     timeToMaturity,
                     rateScalar,

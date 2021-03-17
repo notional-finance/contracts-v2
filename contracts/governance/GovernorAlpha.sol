@@ -9,30 +9,27 @@ import "@openzeppelin/contracts/access/TimelockController.sol";
  * Fork of Compound Governor Alpha at commit hash
  * https://github.com/compound-finance/compound-protocol/commit/9bcff34a5c9c76d51e51bcb0ca1139588362ef96
  */
-contract GovernorAlpha {
+contract GovernorAlpha is TimelockController {
     /// @notice The name of this contract
     string public constant name = "Notional Governor Alpha";
 
-    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
-    function quorumVotes() public pure returns (uint) { return 4000000e18; } // 4,000,000 = 4% of NOTE
-
-    /// @notice The number of votes required in order for a voter to become a proposer
-    function proposalThreshold() public pure returns (uint) { return 1000000e18; } // 1,000,000 = 1% of NOTE
+    /// @notice The address of the Notional governance token
+    NoteInterface public immutable note;
 
     /// @notice The maximum number of actions that can be included in a proposal
-    function proposalMaxOperations() public pure returns (uint) { return 10; } // 10 actions
+    uint8 public constant proposalMaxOperations = 10;
+
+    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
+    uint96 public quorumVotes;
+
+    /// @notice The number of votes required in order for a voter to become a proposer
+    uint96 public proposalThreshold;
 
     /// @notice The delay before voting on a proposal may take place, once proposed
-    function votingDelay() public pure returns (uint) { return 1; } // 1 block
+    uint32 public votingDelayBlocks;
 
     /// @notice The duration of voting on a proposal, in blocks
-    function votingPeriod() public pure returns (uint) { return 17280; } // ~3 days in blocks (assuming 15s blocks)
-
-    /// @notice The address of the Notional Protocol Timelock
-    TimelockController public timelock;
-
-    /// @notice The address of the Notional governance token
-    NoteInterface public note;
+    uint32 public votingPeriodBlocks;
 
     /// @notice The address of the Governor Guardian
     address public guardian;
@@ -44,38 +41,30 @@ contract GovernorAlpha {
         // Unique id for looking up a proposal
         uint id;
 
-        // Creator of the proposal
-        address proposer;
+        // The timestamp at which voting begins: holders must delegate their votes prior to this block
+        uint32 startBlock;
 
-        // The timestamp that the proposal will be available for execution, set once the vote succeeds
-        uint eta;
-
-        // the ordered list of target addresses for calls to be made
-        address[] targets;
-
-        // The ordered list of values (i.e. msg.value) to be passed to the calls to be made
-        uint[] values;
-
-        // The ordered list of calldata to be passed to each call
-        bytes[] calldatas;
-
-        // The block at which voting begins: holders must delegate their votes prior to this block
-        uint startBlock;
-
-        // The block at which voting ends: votes must be cast prior to this block
-        uint endBlock;
+        // The timestamp at which voting ends: votes must be cast prior to this block
+        uint32 endBlock;
 
         // Current number of votes in favor of this proposal
-        uint forVotes;
+        uint96 forVotes;
 
         // Current number of votes in opposition to this proposal
-        uint againstVotes;
+        uint96 againstVotes;
+
+        // Creator of the proposal
+        address proposer;
 
         // Flag marking whether the proposal has been canceled
         bool canceled;
 
         // Flag marking whether the proposal has been executed
         bool executed;
+
+        // Hash of the operation to reduce storage cost
+        bytes32 operationHash;
+
     }
 
     // Ballot receipt record for a voter
@@ -117,7 +106,7 @@ contract GovernorAlpha {
     bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,bool support)");
 
     /// @notice An event emitted when a new proposal is created
-    event ProposalCreated(uint id, address proposer, address[] targets, uint[] values, bytes[] calldatas, uint startBlock, uint endBlock, string description);
+    event ProposalCreated(uint id, address proposer, address[] targets, uint[] values, bytes[] calldatas, uint startBlock, uint endBlock);
 
     /// @notice An event emitted when a vote has been cast on a proposal
     event VoteCast(address voter, uint proposalId, bool support, uint votes);
@@ -131,99 +120,154 @@ contract GovernorAlpha {
     /// @notice An event emitted when a proposal has been executed in the Timelock
     event ProposalExecuted(uint id);
 
-    constructor(address payable timelock_, address note_, address guardian_) {
-        timelock = TimelockController(timelock_);
+    constructor(
+        uint96 quorumVotes_,
+        uint96 proposalThreshold_,
+        uint32 votingDelayBlocks_,
+        uint32 votingPeriodBlocks_,
+        address note_,
+        address guardian_,
+        uint minDelay_
+    ) TimelockController(minDelay_, new address[](0), new address[](0)) {
+        quorumVotes = quorumVotes_;
+        proposalThreshold = proposalThreshold_;
+        votingDelayBlocks = votingDelayBlocks_;
+        votingPeriodBlocks = votingPeriodBlocks_;
         note = NoteInterface(note_);
         guardian = guardian_;
+
+        // Only the external methods can be used to execute governance
+        grantRole(PROPOSER_ROLE, address(this));
+        grantRole(EXECUTOR_ROLE, address(this));
+        revokeRole(TIMELOCK_ADMIN_ROLE, msg.sender);
     }
 
-    function propose(address[] memory targets, uint[] memory values, bytes[] memory calldatas, string memory description) public returns (uint) {
-        require(note.getPriorVotes(msg.sender, sub256(block.number, 1)) > proposalThreshold(), "GovernorAlpha::propose: proposer votes below proposal threshold");
+    function propose(
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas
+    ) external returns (uint) {
+        uint blockNumber = block.number;
+        require(blockNumber > 0 && blockNumber < type(uint32).max);
+
+        require(note.getPriorVotes(msg.sender, blockNumber - 1) > proposalThreshold, "GovernorAlpha::propose: proposer votes below proposal threshold");
         require(targets.length == values.length && targets.length == calldatas.length, "GovernorAlpha::propose: proposal function information arity mismatch");
         require(targets.length != 0, "GovernorAlpha::propose: must provide actions");
-        require(targets.length <= proposalMaxOperations(), "GovernorAlpha::propose: too many actions");
+        require(targets.length <= proposalMaxOperations, "GovernorAlpha::propose: too many actions");
 
-        uint latestProposalId = latestProposalIds[msg.sender];
-        if (latestProposalId != 0) {
-          ProposalState proposersLatestProposalState = state(latestProposalId);
-          require(proposersLatestProposalState != ProposalState.Active, "GovernorAlpha::propose: one live proposal per proposer, found an already active proposal");
-          require(proposersLatestProposalState != ProposalState.Pending, "GovernorAlpha::propose: one live proposal per proposer, found an already pending proposal");
+        {
+            uint latestProposalId = latestProposalIds[msg.sender];
+            if (latestProposalId != 0) {
+            ProposalState proposersLatestProposalState = state(latestProposalId);
+            require(proposersLatestProposalState != ProposalState.Active, "GovernorAlpha::propose: one live proposal per proposer, found an already active proposal");
+            require(proposersLatestProposalState != ProposalState.Pending, "GovernorAlpha::propose: one live proposal per proposer, found an already pending proposal");
+            }
         }
 
-        uint startBlock = add256(block.number, votingDelay());
-        uint endBlock = add256(startBlock, votingPeriod());
+        uint newProposalId = proposalCount + 1;
+        proposalCount = newProposalId;
 
-        proposalCount++;
+        uint32 startBlock = add32(uint32(blockNumber), votingDelayBlocks);
+        uint32 endBlock = add32(startBlock, votingPeriodBlocks);
+        bytes32 operationHash = _computeHash(targets, values, calldatas, newProposalId);
+
         Proposal memory newProposal = Proposal({
-            id: proposalCount,
+            id: newProposalId,
             proposer: msg.sender,
-            eta: 0,
-            targets: targets,
-            values: values,
-            calldatas: calldatas,
             startBlock: startBlock,
             endBlock: endBlock,
             forVotes: 0,
             againstVotes: 0,
             canceled: false,
-            executed: false
+            executed: false,
+            operationHash: operationHash
         });
 
         proposals[newProposal.id] = newProposal;
         latestProposalIds[newProposal.proposer] = newProposal.id;
 
-        emit ProposalCreated(newProposal.id, msg.sender, targets, values, calldatas, startBlock, endBlock, description);
+        emit ProposalCreated(newProposal.id, msg.sender, targets, values, calldatas, startBlock, endBlock);
         return newProposal.id;
     }
 
-    function queue(uint proposalId, uint delay) public {
-        require(state(proposalId) == ProposalState.Succeeded, "GovernorAlpha::queue: proposal can only be queued if it is succeeded");
-        Proposal storage proposal = proposals[proposalId];
-        uint eta = add256(block.timestamp, delay);
-        for (uint i = 0; i < proposal.targets.length; i++) {
-            _schedule(proposal.targets[i], proposal.values[i], proposal.calldatas[i], delay);
+    function _computeHash(
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas,
+        uint proposalId
+    ) private pure returns (bytes32) {
+        return hashOperationBatch(targets, values, calldatas, "", bytes32(proposalId));
+    }
+
+    function queueProposal(
+        uint proposalId,
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas,
+        uint delay
+    ) external {
+        require(state(proposalId) == ProposalState.Succeeded, "Proposal must be success");
+        bytes32 computedOperationHash = _computeHash(targets, values, calldatas, proposalId);
+        {
+            Proposal storage proposal = proposals[proposalId];
+            require(computedOperationHash == proposal.operationHash, "Operation hash mismatch");
         }
-        proposal.eta = eta;
-        emit ProposalQueued(proposalId, eta);
+
+        _scheduleBatch(targets, values, calldatas, proposalId, delay);
+
+        emit ProposalQueued(proposalId, delay);
     }
 
-    function _schedule(address target, uint value, bytes memory data, uint delay) internal {
-        // TODO: should we have predecessors and salts?
-        bytes32 timelockId = keccak256(abi.encode(target, value, data, "", ""));
-        require(!timelock.isOperationPending(timelockId), "GovernorAlpha::_queueOrRevert: proposal action already queued");
-        // This will check that delay > minDelay
-        timelock.schedule(target, value, data, "", "", delay);
+    function _scheduleBatch(
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas,
+        uint proposalId,
+        uint delay
+    ) private {
+        // NOTE: this will also emit events
+        this.scheduleBatch(targets, values, calldatas, "", bytes32(proposalId), delay);
     }
 
-    function execute(uint proposalId) public payable {
-        require(state(proposalId) == ProposalState.Queued, "GovernorAlpha::execute: proposal can only be executed if it is queued");
+    function executeProposal(
+        uint proposalId,
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas
+     ) external payable {
+        // require(state(proposalId) == ProposalState.Queued, "Proposal must be queued");
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
-            timelock.execute{value: proposal.values[i]}(proposal.targets[i], proposal.values[i], proposal.calldatas[i], "", "");
-        }
+
+        bytes32 computedOperationHash = _computeHash(targets, values, calldatas, proposalId);
+        require(computedOperationHash == proposal.operationHash, "Operation hash mismatch");
+        _executeBatch(targets, values, calldatas, proposalId);
+
         emit ProposalExecuted(proposalId);
     }
 
-    function cancel(uint proposalId) public {
-        ProposalState state = state(proposalId);
-        require(state != ProposalState.Executed, "GovernorAlpha::cancel: cannot cancel executed proposal");
-
-        Proposal storage proposal = proposals[proposalId];
-        require(msg.sender == guardian || note.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold(), "GovernorAlpha::cancel: proposer above threshold");
-
-        proposal.canceled = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
-            bytes32 timelockId = keccak256(abi.encode(proposal.targets[i], proposal.values[i], proposal.calldatas[i], "", ""));
-            timelock.cancel(timelockId);
-        }
-
-        emit ProposalCanceled(proposalId);
+    function _executeBatch(
+        address[] calldata targets,
+        uint[] calldata values,
+        bytes[] calldata calldatas,
+        uint proposalId
+    ) private {
+        this.executeBatch(targets, values, calldatas, "", bytes32(proposalId));
     }
 
-    function getActions(uint proposalId) public view returns (address[] memory targets, uint[] memory values, bytes[] memory calldatas) {
-        Proposal storage p = proposals[proposalId];
-        return (p.targets, p.values, p.calldatas);
+    function cancelProposal(uint proposalId) public {
+        ProposalState proposalState = state(proposalId);
+        require(proposalState != ProposalState.Executed, "Proposal already executed");
+
+        Proposal storage proposal = proposals[proposalId];
+        uint blockNumber = block.number;
+        require(blockNumber > 0);
+        require(msg.sender == guardian || note.getPriorVotes(proposal.proposer, blockNumber - 1) < proposalThreshold, "GovernorAlpha::cancel: proposer above threshold");
+
+        proposal.canceled = true;
+        cancel(proposal.operationHash);
+
+        emit ProposalCanceled(proposalId);
     }
 
     function getReceipt(uint proposalId, address voter) public view returns (Receipt memory) {
@@ -232,19 +276,24 @@ contract GovernorAlpha {
 
     function state(uint proposalId) public view returns (ProposalState) {
         require(proposalCount >= proposalId && proposalId > 0, "GovernorAlpha::state: invalid proposal id");
-        Proposal storage proposal = proposals[proposalId];
+        Proposal memory proposal = proposals[proposalId];
+        uint blockNumber = block.number;
+
         if (proposal.canceled) {
             return ProposalState.Canceled;
-        } else if (block.number <= proposal.startBlock) {
+        } else if (blockNumber <= proposal.startBlock) {
             return ProposalState.Pending;
-        } else if (block.number <= proposal.endBlock) {
+        } else if (blockNumber <= proposal.endBlock) {
             return ProposalState.Active;
-        } else if (proposal.forVotes <= proposal.againstVotes || proposal.forVotes < quorumVotes()) {
+        } else if (proposal.forVotes <= proposal.againstVotes || proposal.forVotes < quorumVotes) {
             return ProposalState.Defeated;
-        } else if (proposal.eta == 0) {
-            return ProposalState.Succeeded;
         } else if (proposal.executed) {
             return ProposalState.Executed;
+        } else if (proposal.forVotes > proposal.againstVotes
+            && proposal.forVotes > quorumVotes
+            && blockNumber >= proposal.endBlock
+        ) {
+            return ProposalState.Succeeded;
         } else {
             return ProposalState.Queued;
         }
@@ -271,9 +320,9 @@ contract GovernorAlpha {
         uint96 votes = note.getPriorVotes(voter, proposal.startBlock);
 
         if (support) {
-            proposal.forVotes = add256(proposal.forVotes, votes);
+            proposal.forVotes = add96(proposal.forVotes, votes);
         } else {
-            proposal.againstVotes = add256(proposal.againstVotes, votes);
+            proposal.againstVotes = add96(proposal.againstVotes, votes);
         }
 
         receipt.hasVoted = true;
@@ -288,15 +337,16 @@ contract GovernorAlpha {
         guardian = address(0);
     }
 
-    function add256(uint256 a, uint256 b) internal pure returns (uint) {
-        uint c = a + b;
+    function add96(uint96 a, uint96 b) internal pure returns (uint96) {
+        uint96 c = a + b;
         require(c >= a, "addition overflow");
         return c;
     }
 
-    function sub256(uint256 a, uint256 b) internal pure returns (uint) {
-        require(b <= a, "subtraction underflow");
-        return a - b;
+    function add32(uint32 a, uint32 b) internal pure returns (uint32) {
+        uint32 c = a + b;
+        require(c >= a, "addition overflow");
+        return c;
     }
 
     function getChainId() internal pure returns (uint) {
