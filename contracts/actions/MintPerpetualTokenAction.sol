@@ -53,15 +53,15 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
      * only be called by the contract itself.
      */
     function perpetualTokenMintViaBatch(
-        uint16 currencyId,
-        uint88 amountToDepositInternal
+        uint currencyId,
+        int amountToDepositInternal
     ) external nonReentrant returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
         return _mintPerpetualToken(currencyId, amountToDepositInternal);
     }
 
     function _mintPerpetualToken(
-        uint16 currencyId,
+        uint currencyId,
         int amountToDepositInternal
     ) private returns (int) {
         uint blockTime = block.timestamp;

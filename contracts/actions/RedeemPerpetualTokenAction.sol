@@ -28,8 +28,8 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
      * method will return the amount of asset cash sold.
      */
     function perpetualTokenRedeemViaBatch(
-        uint16 currencyId,
-        uint88 tokensToRedeem
+        uint currencyId,
+        int tokensToRedeem
     ) external nonReentrant returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
         uint blockTime = block.timestamp;
@@ -37,7 +37,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
             int totalAssetCash,
             bool hasResidual,
             /* PortfolioAssets[] memory newfCashAssets */
-        ) =  _redeemPerpetualToken(currencyId, int(tokensToRedeem), true, blockTime);
+        ) =  _redeemPerpetualToken(currencyId, tokensToRedeem, true, blockTime);
 
         require(!hasResidual, "Cannot redeem via batch, residual");
         return totalAssetCash;

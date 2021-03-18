@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./SettleAssets.sol";
 import "./StorageLayoutV1.sol";
 import "./TokenHandler.sol";
 import "./AccountContextHandler.sol";
@@ -147,8 +148,9 @@ library BalanceHandler {
         address account,
         AccountStorage memory accountContext,
         bool redeemToUnderlying
-    ) internal {
+    ) internal returns (int) {
         bool mustUpdate;
+        int transferAmountExternal;
         if (balanceState.netPerpetualTokenTransfer < 0) {
             require(
                 balanceState.storedPerpetualTokenBalance
@@ -168,7 +170,7 @@ library BalanceHandler {
 
         if (balanceState.netAssetTransferInternalPrecision != 0) {
             Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
-            int transferAmountExternal = assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
+            transferAmountExternal = assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
             if (redeemToUnderlying) {
                 // We use the internal amount here and then scale it to the external amount so that there is
@@ -220,6 +222,8 @@ library BalanceHandler {
             balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0
         );
         if (balanceState.storedCashBalance < 0) accountContext.hasDebt = true;
+
+        return transferAmountExternal;
     }
 
     /**
@@ -291,6 +295,34 @@ library BalanceHandler {
             int(uint96(uint(data))),             // Perpetual token balance
             uint(uint32(uint(data >> 96)))       // Last incentive mint blocktime
         );
+    }
+
+    function loadBalanceState(
+        BalanceState memory balanceState,
+        address account,
+        uint currencyId,
+        AccountStorage memory accountContext
+    ) internal view {
+        require(currencyId != 0, "BH: invalid currency id");
+        balanceState.currencyId = currencyId;
+
+        if (accountContext.isActiveCurrency(currencyId)) {
+            // Storage Read
+            (
+                balanceState.storedCashBalance,
+                balanceState.storedPerpetualTokenBalance,
+                balanceState.lastIncentiveMint
+            ) = getBalanceStorage(account, currencyId);
+        } else {
+            balanceState.storedCashBalance = 0;
+            balanceState.storedPerpetualTokenBalance = 0;
+            balanceState.lastIncentiveMint = 0;
+        }
+
+        balanceState.netCashChange = 0;
+        balanceState.netAssetTransferInternalPrecision = 0;
+        balanceState.netPerpetualTokenTransfer = 0;
+        balanceState.netPerpetualTokenSupplyChange = 0;
     }
 
     /**

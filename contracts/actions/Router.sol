@@ -50,7 +50,8 @@ contract Router is StorageLayoutV1 {
     }
 
     function initialize(address owner_) public {
-        // Cannot re-initialize once the contract has been initialized
+        // Cannot re-initialize once the contract has been initialized, ownership transfer does not
+        // allow address to be set back to zero
         require(owner == address(0), "R: already initialized");
 
         // Allow list currency to be called by this contract for the purposes of
