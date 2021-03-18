@@ -2,8 +2,8 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./libraries/FreeCollateralExternal.sol";
-import "./libraries/SettleAssetsExternal.sol";
+import "./FreeCollateralExternal.sol";
+import "./SettleAssetsExternal.sol";
 import "./MintPerpetualTokenAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
 import "../math/SafeInt256.sol";
@@ -41,7 +41,7 @@ struct BalanceActionWithTrades {
     bytes[] trades;
 }
 
-contract DepositWithdrawAction {
+library DepositWithdrawAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
@@ -319,7 +319,7 @@ contract DepositWithdrawAction {
             balanceState.netCashChange = balanceState.netCashChange.sub(depositActionAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
-            int tokensMinted = MintPerpetualTokenAction(address(this)).perpetualTokenMintViaBatch(
+            int tokensMinted = MintPerpetualTokenAction.perpetualTokenMintViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );
@@ -339,7 +339,7 @@ contract DepositWithdrawAction {
             balanceState.netPerpetualTokenSupplyChange = balanceState.netPerpetualTokenSupplyChange
                 .sub(depositActionAmount);
 
-            int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
+            int assetCash = RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );

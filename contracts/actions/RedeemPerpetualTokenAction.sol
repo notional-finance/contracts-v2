@@ -5,16 +5,13 @@ pragma experimental ABIEncoderV2;
 import "../common/Market.sol";
 import "../common/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
-import "../storage/StorageLayoutV1.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/TokenHandler.sol";
-import "./libraries/FreeCollateralExternal.sol";
+import "./FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
+library RedeemPerpetualTokenAction {
     using SafeInt256 for int;
     using SafeMath for uint;
     using BalanceHandler for BalanceState;
@@ -30,7 +27,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     function perpetualTokenRedeemViaBatch(
         uint currencyId,
         int tokensToRedeem
-    ) external nonReentrant returns (int) {
+    ) external returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
         uint blockTime = block.timestamp;
         (
@@ -47,7 +44,7 @@ contract RedeemPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint16 currencyId,
         uint88 tokensToRedeem_,
         bool sellTokenAssets
-    ) external nonReentrant {
+    ) external {
         uint blockTime = block.timestamp;
         address redeemer = msg.sender;
         int tokensToRedeem = int(tokensToRedeem_);

@@ -8,7 +8,6 @@ import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/PortfolioHandler.sol";
-import "../storage/StorageLayoutV1.sol";
 import "../storage/SettleAssets.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -28,7 +27,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  *     - percent of cash to deposit into the market set by governance
  *  - Set new markets and add liquidity tokens to portfolio
  */
-contract InitializeMarketsAction is StorageLayoutV1 {
+library InitializeMarketsAction {
     using SafeMath for uint;
     using SafeInt256 for int;
     using PortfolioHandler for PortfolioState;

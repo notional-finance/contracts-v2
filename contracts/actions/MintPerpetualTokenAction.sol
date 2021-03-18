@@ -4,13 +4,11 @@ pragma experimental ABIEncoderV2;
 
 import "../common/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
-import "../storage/StorageLayoutV1.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/AccountContextHandler.sol";
-import "./libraries/FreeCollateralExternal.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./FreeCollateralExternal.sol";
 
-contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
+library MintPerpetualTokenAction {
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountStorage;
@@ -19,7 +17,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
         uint16 currencyId,
         uint88 amountToDepositExternalPrecision,
         bool useCashBalance
-    ) external nonReentrant returns (uint) {
+    ) external returns (uint) {
         address recipient = msg.sender;
         AccountStorage memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance = BalanceHandler.buildBalanceState(
@@ -55,7 +53,7 @@ contract MintPerpetualTokenAction is StorageLayoutV1, ReentrancyGuard {
     function perpetualTokenMintViaBatch(
         uint currencyId,
         int amountToDepositInternal
-    ) external nonReentrant returns (int) {
+    ) external returns (int) {
         require(msg.sender == address(this), "Unauthorized caller");
         return _mintPerpetualToken(currencyId, amountToDepositInternal);
     }

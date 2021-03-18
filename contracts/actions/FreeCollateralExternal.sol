@@ -2,8 +2,8 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../common/FreeCollateral.sol";
-import "../../storage/AccountContextHandler.sol";
+import "../common/FreeCollateral.sol";
+import "../storage/AccountContextHandler.sol";
 
 library FreeCollateralExternal {
     using AccountContextHandler for AccountStorage;

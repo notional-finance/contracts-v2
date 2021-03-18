@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../actions/libraries/FreeCollateralExternal.sol";
+import "../actions/FreeCollateralExternal.sol";
 import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";

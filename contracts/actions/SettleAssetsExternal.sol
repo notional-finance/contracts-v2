@@ -2,9 +2,9 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../storage/PortfolioHandler.sol";
-import "../../storage/BalanceHandler.sol";
-import "../../storage/SettleAssets.sol";
+import "../storage/PortfolioHandler.sol";
+import "../storage/BalanceHandler.sol";
+import "../storage/SettleAssets.sol";
 
 library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
