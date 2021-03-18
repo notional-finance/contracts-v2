@@ -215,7 +215,16 @@ library BalanceHandler {
             mustUpdate = true;
         }
 
-        if (mustUpdate) setBalanceStorage(account, balanceState);
+        if (mustUpdate) {
+            setBalanceStorage(
+                account,
+                balanceState.currencyId,
+                balanceState.storedCashBalance,
+                balanceState.storedPerpetualTokenBalance,
+                balanceState.lastIncentiveMint
+            );
+        }
+
         accountContext.setActiveCurrency(
             balanceState.currencyId,
             // Set active currency to true if either balance is non-zero
@@ -225,6 +234,32 @@ library BalanceHandler {
 
         return transferAmountExternal;
     }
+
+    function finalizeSettleAmounts(
+        address account,
+        AccountStorage memory accountContext,
+        SettleAmount[] memory settleAmounts
+    ) internal {
+        for (uint i; i < settleAmounts.length; i++) {
+            if (settleAmounts[i].netCashChange == 0) continue;
+            (
+                int cashBalance,
+                int perpetualTokenBalance,
+                uint lastIncentiveMint
+            ) = getBalanceStorage(account, settleAmounts[i].currencyId);
+
+            cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
+            accountContext.setActiveCurrency(
+                settleAmounts[i].currencyId,
+                cashBalance != 0 || perpetualTokenBalance != 0
+            );
+
+            if (cashBalance < 0) accountContext.hasDebt = true;
+            setBalanceStorage(account, settleAmounts[i].currencyId, cashBalance,
+                perpetualTokenBalance, lastIncentiveMint);
+        }
+    }
+
 
     /**
      * @notice Special method for setting balance storage for perp token, during initialize
@@ -243,7 +278,7 @@ library BalanceHandler {
         // Perpetual token never mints incentives
         require(balanceState.lastIncentiveMint == 0); // dev: invalid perp token mint time
 
-        setBalanceStorage(perpToken, balanceState);
+        setBalanceStorage(perpToken, balanceState.currencyId, balanceState.storedCashBalance, 0, 0);
     }
 
     /**
@@ -251,29 +286,29 @@ library BalanceHandler {
      */
     function setBalanceStorage(
         address account,
-        BalanceState memory balanceState
+        uint currencyId,
+        int cashBalance,
+        int perpetualTokenBalance,
+        uint lastIncentiveMint
     ) private {
-        bytes32 slot = keccak256(abi.encode(balanceState.currencyId, account, "account.balances"));
+        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
 
         require(
-            balanceState.storedCashBalance >= type(int128).min
-            && balanceState.storedCashBalance <= type(int128).max
+            cashBalance >= type(int128).min && cashBalance <= type(int128).max
         ); // dev: stored cash balance overflow
 
         require(
-            balanceState.storedPerpetualTokenBalance >= 0
-            && balanceState.storedPerpetualTokenBalance <= type(uint96).max
+            perpetualTokenBalance >= 0 && perpetualTokenBalance <= type(uint96).max
         ); // dev: stored perpetual token balance overflow
 
         require(
-            balanceState.lastIncentiveMint >= 0
-            && balanceState.lastIncentiveMint <= type(uint32).max
+            lastIncentiveMint >= 0 && lastIncentiveMint <= type(uint32).max
         ); // dev: last incentive mint overflow
 
         bytes32 data = (
-            (bytes32(uint(balanceState.storedPerpetualTokenBalance))) |
-            (bytes32(balanceState.lastIncentiveMint) << 96) |
-            (bytes32(balanceState.storedCashBalance) << 128)
+            (bytes32(uint(perpetualTokenBalance))) |
+            (bytes32(lastIncentiveMint) << 96) |
+            (bytes32(cashBalance) << 128)
         );
 
         assembly { sstore(slot, data) }
@@ -307,7 +342,6 @@ library BalanceHandler {
         balanceState.currencyId = currencyId;
 
         if (accountContext.isActiveCurrency(currencyId)) {
-            // Storage Read
             (
                 balanceState.storedCashBalance,
                 balanceState.storedPerpetualTokenBalance,
