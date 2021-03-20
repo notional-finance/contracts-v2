@@ -6,6 +6,7 @@ import "./AssetHandler.sol";
 import "./CashGroup.sol";
 import "./ExchangeRate.sol";
 import "../math/SafeInt256.sol";
+import "../storage/AccountContextHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/PortfolioHandler.sol";
 
@@ -15,6 +16,7 @@ library FreeCollateral {
     using BalanceHandler for BalanceState;
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
+    using AccountContextHandler for AccountStorage;
     using PerpetualToken for PerpetualTokenPortfolio;
 
     function getNetPortfolioValueStateful(
@@ -79,7 +81,7 @@ library FreeCollateral {
     ) internal returns (int) {
         uint groupIndex;
         int netETHValue;
-        bytes18 currencies = accountContext.activeCurrencies;
+        bytes20 currencies = accountContext.getActiveCurrencyBytes();
 
         while (currencies != 0) {
             uint currencyId = uint(uint16(bytes2(currencies)));
@@ -130,7 +132,7 @@ library FreeCollateral {
     ) internal view returns (int) {
         uint groupIndex;
         int netETHValue;
-        bytes18 currencies = accountContext.activeCurrencies;
+        bytes20 currencies = accountContext.getActiveCurrencyBytes();
 
         while (currencies != 0) {
             uint currencyId = uint(uint16(bytes2(currencies)));

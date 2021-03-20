@@ -6,6 +6,7 @@ import "./AssetHandler.sol";
 import "./FreeCollateral.sol";
 import "./ExchangeRate.sol";
 import "./CashGroup.sol";
+import "../storage/AccountContextHandler.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -34,6 +35,7 @@ library Liquidation {
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
+    using AccountContextHandler for AccountStorage;
     using Market for MarketParameters;
 
     int internal constant LIQUIDATION_BUFFER = 1.01e18;
@@ -70,7 +72,7 @@ library Liquidation {
             account,
             localCurrencyId,
             collateralCurrencyId,
-            accountContext.activeCurrencies,
+            accountContext.getActiveCurrencyBytes(),
             cashGroups,
             marketStates,
             netPortfolioValue,
@@ -118,7 +120,7 @@ library Liquidation {
         address account,
         uint localCurrencyId,
         uint collateralCurrencyId,
-        bytes18 currencies,
+        bytes20 currencies,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue,

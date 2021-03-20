@@ -65,6 +65,21 @@ library AccountContextHandler {
         return false;
     }
 
+    function getActiveCurrencyBytes(
+        AccountStorage memory accountContext
+    ) internal pure returns (bytes20) {
+        // TODO: we could just make account context 32 bytes and this would be easier...
+        if (accountContext.bitmapCurrencyId == 0) {
+            return bytes20(accountContext.activeCurrencies);
+        } else {
+            // Prepend the bitmap currency id if it is set
+            return bytes20(
+                bytes20(bytes2(accountContext.bitmapCurrencyId)) |
+                bytes20(accountContext.activeCurrencies) >> 16
+            );
+        }
+    }
+
     /**
      * @notice Iterates through the active currency list and removes, inserts or does nothing
      * to ensure that the active currency list is an ordered byte array of uint16 currency ids
