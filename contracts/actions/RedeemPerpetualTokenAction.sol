@@ -93,8 +93,7 @@ library RedeemPerpetualTokenAction {
                 );
             }
 
-            // TODO: this needs to check if has debt and also update context
-            redeemerPortfolio.storeAssets(redeemer, redeemerContext);
+            redeemerContext.storeAssetsAndUpdateContext(redeemer, redeemerPortfolio);
         }
 
         redeemerBalance.finalize(redeemer, redeemerContext, false);

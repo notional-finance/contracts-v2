@@ -224,8 +224,7 @@ library DepositWithdrawAction {
             );
         }
 
-        portfolioState.storeAssets(account, accountContext);
-
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
         _finalizeAccountContext(account, accountContext);

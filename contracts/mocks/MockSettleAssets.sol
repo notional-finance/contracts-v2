@@ -32,7 +32,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         PortfolioState memory state;
         state.newAssets = a;
         state.lastNewAssetIndex = a.length - 1;
-        state.storeAssets(account, accountContext);
+        accountContext.storeAssetsAndUpdateContext(account, state);
         accountContext.setAccountContext(account);
     }
 
@@ -152,7 +152,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         }
 
         // This will change the stored asset array
-        pState.storeAssets(account, accountContext);
+        accountContext.storeAssetsAndUpdateContext(account, pState);
         accountContext.setAccountContext(account);
 
         // Assert that balance context is equal

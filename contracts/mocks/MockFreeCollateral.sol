@@ -25,10 +25,7 @@ contract MockFreeCollateral is MockAssetHandler {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         portfolioState.newAssets = assets;
-        portfolioState.storeAssets(account, accountContext);
-
-        // TODO: fix this hack
-        accountContext.setActiveCurrency(assets[0].currencyId, true);
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
         accountContext.setAccountContext(account);
     }
 
