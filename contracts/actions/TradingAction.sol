@@ -2,372 +2,403 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./MintPerpetualTokenAction.sol";
-import "./RedeemPerpetualTokenAction.sol";
-import "./libraries/FreeCollateralExternal.sol";
-import "./libraries/SettleAssetsExternal.sol";
+import "./FreeCollateralExternal.sol";
+import "./SettleAssetsExternal.sol";
+import "./DepositWithdrawAction.sol";
 import "../math/SafeInt256.sol";
 import "../common/Market.sol";
 import "../common/CashGroup.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/SettleAssets.sol";
 import "../storage/PortfolioHandler.sol";
-import "../storage/StorageLayoutV1.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-// enum OperationType {
-//     ContractCall,       // (address contract, bytes calldata)
-// }
-
-enum DepositType {
-    DepositAsset,
-    DepositAssetUseCashBalance,
-    DepositUnderlying,
-    MintPerpetual,
-    RedeemPerpetual
-}
-
-struct Deposit {
-    DepositType depositType;
-    uint16 currencyId;
-    // TODO: this must be marked as internal precision for mint perpetual tokens
-    uint88 amountExternalPrecision;
-}
-
-enum AMMTradeType {
-    Borrow,
+enum TradeActionType {
     Lend,
+    Borrow,
     AddLiquidity,
-    RemoveLiquidity
+    RemoveLiquidity,
+    MintCashPair,
+    PurchaseIdiosyncratic,
+    SettleCashDebt
 }
 
-struct AMMTrade {
-    AMMTradeType tradeType;
-    uint16 currencyId;
-    uint8 marketIndex;
-    uint88 amount;
-    uint32 minImpliedRate;
-    uint32 maxImpliedRate;
-}
-
-struct Withdraw {
-    uint16 currencyId;
-    uint88 amountInternalPrecision;
-    bool redeemToUnderlying;
-}
-
-
-contract TradingAction is StorageLayoutV1, ReentrancyGuard {
-    using BalanceHandler for BalanceState;
+library TradingAction {
     using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountStorage;
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
     using SafeInt256 for int;
     using SafeMath for uint;
-    using AccountContextHandler for AccountStorage;
 
-    // TODO: add shortcut deposit functions for topping up collateral
-    // function deposit() external payable {}
-    // function depositUnderlying() external payable {}
-
-    function batchOperation(
+    function executeTradesBitmapBatch(
         address account,
-        uint16[] calldata currencyIds,
-        Deposit[] calldata deposits,
-        AMMTrade[] calldata trades,
-        Withdraw[] calldata withdraws
-    ) external payable {
-        require(msg.sender == account || msg.sender == address(this), "Unauthorized");
-        // TODO: handle ETH
-
-        uint32 blockTime = uint32(block.timestamp);
-        (
-            AccountStorage memory accountContext,
-            PortfolioState memory portfolioState,
-            BalanceState[] memory balanceStates
-        ) = initializeActionStateful(account, currencyIds, blockTime, trades.length > 0);
-
-        if (deposits.length > 0) executeDeposits(account, deposits, balanceStates);
-        if (trades.length > 0) {
-            executeTrades(account, trades, portfolioState, balanceStates, blockTime);
-            portfolioState.storeAssets(account, accountContext);
-        }
-        // This will finalize balances internally and execute withdraws (if any) 
-        finalizeBalances(account, withdraws, balanceStates, accountContext);
-
-        // At this point all balances, market states and portfolio states should be finalized. Just need to check free
-        // collateral if required.
-        accountContext.setAccountContext(account);
-        if (accountContext.hasDebt) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
-        }
-    }
-
-    function initializeActionStateful(
-        address account,
-        uint16[] calldata currencyIds,
-        uint blockTime,
-        bool loadPortfolio
-    ) internal returns (
-        AccountStorage memory,
-        PortfolioState memory,
-        BalanceState[] memory
-    ) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory portfolioState;
-        bool mustSettle = (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= blockTime);
-        BalanceState[] memory balanceStates = BalanceHandler.buildBalanceStateArray(account, currencyIds, accountContext);
-
-        if (mustSettle) {
-            (
-                portfolioState, 
-                /* */ // TODO: merge settle amounts
-            ) = SettleAssetsExternal.settleAssetsStateful(account, 0);
-        } else if (loadPortfolio) {
-            // We only fetch the portfolio state if there will be trades added or if the account must be settled.
-            portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
-        }
-
-
-        return (accountContext, portfolioState, balanceStates);
-    }
-
-    function executeDeposits(
-        address account,
-        Deposit[] calldata deposits,
-        BalanceState[] memory balanceStates
-    ) internal {
-        uint balanceStateIndex;
-        for (uint i; i < deposits.length; i++) {
-            require(
-                i > 0 && deposits[i].currencyId >= deposits[i - 1].currencyId,
-                "Unsorted deposits"
-            );
-            while (balanceStates[balanceStateIndex].currencyId < deposits[i].currencyId) {
-                balanceStateIndex += 1;
-            }
-            require(balanceStates[balanceStateIndex].currencyId == deposits[i].currencyId, "Currency not loaded");
-
-            if (deposits[i].depositType == DepositType.DepositAsset
-                || deposits[i].depositType == DepositType.DepositAssetUseCashBalance) {
-                balanceStates[balanceStateIndex].depositAssetToken(
-                    account,
-                    deposits[i].amountExternalPrecision,
-                    deposits[i].depositType == DepositType.DepositAssetUseCashBalance
-                );
-            } else if (deposits[i].depositType == DepositType.DepositUnderlying) {
-                balanceStates[balanceStateIndex].depositUnderlyingToken(
-                    account,
-                    deposits[i].amountExternalPrecision
-                );
-            } else if (deposits[i].depositType == DepositType.MintPerpetual) {
-                checkSufficientCash(balanceStates[balanceStateIndex], deposits[i].amountExternalPrecision);
-
-                balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange
-                    .sub(deposits[i].amountExternalPrecision);
-
-                // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
-                int tokensMinted = MintPerpetualTokenAction(address(this)).perpetualTokenMintViaBatch(
-                    deposits[i].currencyId,
-                    deposits[i].amountExternalPrecision
-                );
-
-                balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange = balanceStates[balanceStateIndex]
-                    .netPerpetualTokenSupplyChange.add(tokensMinted);
-            } else if (deposits[i].depositType == DepositType.RedeemPerpetual) {
-                require(
-                    // It is not possible to have transfers here
-                    balanceStates[balanceStateIndex].storedPerpetualTokenBalance
-                        .add(balanceStates[balanceStateIndex].netPerpetualTokenTransfer)
-                        .add(balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange)
-                    >= deposits[i].amountExternalPrecision,
-                    "Insufficient token balance"
-                );
-
-                balanceStates[balanceStateIndex].netPerpetualTokenSupplyChange = balanceStates[balanceStateIndex]
-                    .netPerpetualTokenSupplyChange.sub(deposits[i].amountExternalPrecision);
-
-                int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
-                    deposits[i].currencyId,
-                    deposits[i].amountExternalPrecision
-                );
-
-                balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex]
-                    .netCashChange.add(assetCash);
-            }
-        }
-    }
-
-    function executeTrades(
-        address account,
-        AMMTrade[] calldata trades,
-        PortfolioState memory portfolioState,
-        BalanceState[] memory balanceStates,
-        uint blockTime
-    ) internal {
-        uint balanceStateIndex;
+        uint currencyId,
+        bytes32[] calldata trades
+    ) external returns (int) {
+        uint blockTime = block.timestamp;
         (
             CashGroupParameters memory cashGroup,
             MarketParameters[] memory markets
-        ) = CashGroup.buildCashGroupStateful(trades[0].currencyId);
+        ) = CashGroup.buildCashGroupStateful(currencyId);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        int[] memory values = new int[](3);
 
         for (uint i; i < trades.length; i++) {
-            require(
-                i > 0 && trades[i].currencyId >= trades[i - 1].currencyId,
-                "Unsorted trades"
+            uint maturity;
+            (
+                maturity,
+                values[1], // cash amount
+                values[2] // fCashAmount
+            ) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
+
+            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+                account,
+                currencyId,
+                maturity,
+                accountContext.nextMaturingAsset,
+                values[2], // fCashAmount
+                ifCashBitmap
             );
-
-            while (balanceStates[balanceStateIndex].currencyId < trades[i].currencyId) {
-                balanceStateIndex += 1;
-            }
-            require(balanceStates[balanceStateIndex].currencyId == trades[i].currencyId, "Currency not loaded");
-
-            if (i > 0 && trades[i].currencyId != trades[i - 1].currencyId) {
-                finalizeMarkets(markets);
-                (cashGroup, markets) = CashGroup.buildCashGroupStateful(trades[i].currencyId);
-            }
-
-            // bool needsLiquidity = (
-            //     trades[i].tradeType == AMMTradeType.AddLiquidity || trades[i].tradeType == AMMTradeType.RemoveLiquidity
-            // );
-            MarketParameters memory market = cashGroup.getMarket(markets, trades[i].marketIndex, blockTime, false);
-
-            int fCashAmount;
-            {
-                int netCashChange;
-                // if (needsLiquidity) {
-                    // (netCashChange, fCashAmount) = executeLiquidityTrade(portfolioState, trades[i], market);
-                // } else if (trades[i].tradeType == AMMTradeType.Borrow) {
-                if (trades[i].tradeType == AMMTradeType.Borrow) {
-                    fCashAmount = int(trades[i].amount).neg();
-                } else if (trades[i].tradeType == AMMTradeType.Lend) {
-                    fCashAmount = int(trades[i].amount);
-                }
-
-                netCashChange = market.calculateTrade(
-                    cashGroup,
-                    fCashAmount.neg(),
-                    market.maturity.sub(blockTime),
-                    trades[i].marketIndex
-                );
-                require(netCashChange != 0 && market.lastImpliedRate > trades[i].minImpliedRate, "Trade failed, slippage");
-                if (trades[i].maxImpliedRate > 0) require(market.lastImpliedRate < trades[i].maxImpliedRate, "Trade failed");
-
-                // if (trades[i].tradeType == AMMTradeType.AddLiquidity || trades[i].tradeType == AMMTradeType.Lend) {
-                if (trades[i].tradeType == AMMTradeType.Lend) {
-                    checkSufficientCash(balanceStates[balanceStateIndex], netCashChange);
-                }
-                balanceStates[balanceStateIndex].netCashChange = balanceStates[balanceStateIndex].netCashChange.add(netCashChange);
-            }
-
-            portfolioState.addAsset(trades[i].currencyId, market.maturity, AssetHandler.FCASH_ASSET_TYPE,
-                fCashAmount, false);
+            // netCash = netCash + cashAmount
+            values[0] = values[0].add(values[1]);
         }
 
-        // Finalize the last set of markets not caught by a cash group change
-        finalizeMarkets(markets);
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
+        return (values[0]);
     }
 
-    // function executeLiquidityTrade(
-    //     PortfolioState memory portfolioState,
-    //     AMMTrade calldata trade,
-    //     MarketParameters memory market
-    // ) private pure returns (int, int) {
-    //     int netCashChange;
-    //     int fCashAmount;
-
-    //     if (trade.tradeType == AMMTradeType.AddLiquidity) {
-    //         netCashChange = int(trade.amount);
-    //         int liquidityTokens;
-    //         (liquidityTokens, fCashAmount) = market.addLiquidity(netCashChange);
-
-    //         // Add liquidity token asset
-    //         portfolioState.addAsset(
-    //             trade.currencyId,
-    //             market.maturity,
-    //             (1 + trade.marketIndex),
-    //             liquidityTokens,
-    //             false
-    //         );
-    //     } else {
-    //         (netCashChange, fCashAmount) = market.removeLiquidity(trade.amount);
-    //         // Remove liquidity token asset
-    //         portfolioState.addAsset(
-    //             trade.currencyId,
-    //             market.maturity,
-    //             (1 + trade.marketIndex),
-    //             int(trade.amount).neg(),
-    //             false
-    //         );
-    //     }
-
-    //     return (netCashChange, fCashAmount);
-    // }
-
-    function finalizeBalances(
+    function executeTradesArrayBatch(
         address account,
-        Withdraw[] calldata withdraws,
-        BalanceState[] memory balanceStates,
-        AccountStorage memory accountContext
-    ) internal {
-        uint withdrawIndex;
+        uint currencyId,
+        PortfolioState memory portfolioState,
+        bytes32[] calldata trades
+    ) external returns (PortfolioState memory, int) {
+        uint blockTime = block.timestamp;
+        (
+            CashGroupParameters memory cashGroup,
+            MarketParameters[] memory markets
+        ) = CashGroup.buildCashGroupStateful(currencyId);
+        int[] memory values = new int[](3);
 
-        for (uint i; i < balanceStates.length; i++) {
-            require(
-                withdrawIndex > 0 && withdraws[withdrawIndex].currencyId >= withdraws[withdrawIndex - 1].currencyId,
-                "Unsorted withdraws"
-            );
+        for (uint i; i < trades.length; i++) {
+            TradeActionType tradeType = TradeActionType(uint(bytes32(bytes1(trades[i]))));
 
-            bool redeemToUnderlying;
-            if (withdraws[withdrawIndex].currencyId == balanceStates[i].currencyId) {
-                int withdrawAmount = withdraws[i].amountInternalPrecision;
-                if (withdrawAmount == 0) {
-                    // If the withdraw amount is set to zero, this signifies that the user wants to ensure that
-                    // there is no residual cash balance (if possible) left in their portfolio
-                    withdrawAmount = balanceStates[i].storedCashBalance
-                        .add(balanceStates[i].netCashChange)
-                        .add(balanceStates[i].netAssetTransferInternalPrecision);
-
-                    // If the account will be left with a negative cash balance then cannot withdraw
-                    if (withdrawAmount < 0) withdrawAmount = 0;
-                }
-
-                balanceStates[i].netAssetTransferInternalPrecision = balanceStates[i].netAssetTransferInternalPrecision
-                    .sub(withdrawAmount);
-                redeemToUnderlying = withdraws[i].redeemToUnderlying;
-
-                withdrawIndex += 1;
+            if (tradeType == TradeActionType.AddLiquidity || tradeType == TradeActionType.RemoveLiquidity) {
+                // cashAmount
+                values[1] = _executeLiquidityTrade(cashGroup, markets, tradeType, trades[i], portfolioState);
+            } else {
+                uint maturity;
+                // (maturity, cashAmount, fCashAmount)
+                (maturity, values[1], values[2]) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
+                // Stack issues here :(
+                _addfCashAsset(portfolioState, currencyId, maturity, values[2]);
             }
 
-            // This line is 2250 bytes if we include it
-            balanceStates[i].finalize(account, accountContext, redeemToUnderlying);
+            // netCash = netCash + cashAmount
+            values[0] = values[0].add(values[1]);
         }
+
+        return (portfolioState, values[0]);
     }
 
-    function finalizeMarkets(MarketParameters[] memory markets) internal {
-        // Finalize market states for previous trades
-        for (uint j; j < markets.length; j++) {
-            markets[j].setMarketStorage();
-        }
-    }
-
-    /**
-     * @notice When lending, adding liquidity or minting perpetual tokens the account
-     * must have a sufficient cash balance to do so otherwise they would go into a negative
-     * cash balance.
-     */
-    function checkSufficientCash(
-        BalanceState memory balanceState,
-        int amountInternalPrecision
+    function _addfCashAsset(
+        PortfolioState memory portfolioState,
+        uint currencyId,
+        uint maturity,
+        int notional
     ) internal pure {
-        require(
-            amountInternalPrecision >= 0 &&
-            balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
-            "Insufficient cash"
-        );
+        portfolioState.addAsset(currencyId, maturity, AssetHandler.FCASH_ASSET_TYPE, notional, false);
     }
 
+    function _executeTrade(
+        address account,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        bytes32 trade,
+        uint blockTime
+    ) internal returns (uint, int, int) {
+        TradeActionType tradeType = TradeActionType(uint(bytes32(bytes1(trade))));
+
+        uint maturity;
+        int cashAmount;
+        int fCashAmount;
+        if (tradeType == TradeActionType.MintCashPair) {
+            (maturity, fCashAmount) = _mintCashPair(account, cashGroup, blockTime, trade);
+        } else if (tradeType == TradeActionType.PurchaseIdiosyncratic) {
+            (maturity, cashAmount, fCashAmount) = _purchaseIdiosyncratic(cashGroup, markets, blockTime, trade);
+        } else if (tradeType == TradeActionType.SettleCashDebt) {
+            // Settling debts will use the oracle rate from the 3 month market
+            (maturity, cashAmount, fCashAmount) = _settleCashDebt(cashGroup, markets, blockTime, trade);
+        } else if (tradeType == TradeActionType.Lend || tradeType == TradeActionType.Borrow) {
+            (maturity, cashAmount, fCashAmount) = _executeLendBorrowTrade(
+                cashGroup,
+                markets,
+                tradeType,
+                blockTime,
+                trade
+            );
+        } else {
+            revert("Invalid trade type");
+        }
+
+        return (maturity, cashAmount, fCashAmount);
+    }
+
+    function _executeLiquidityTrade(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        TradeActionType tradeType,
+        bytes32 trade,
+        PortfolioState memory portfolioState
+    ) internal returns (int) {
+        int cashAmount;
+        int fCashAmount;
+        int tokens;
+        uint marketIndex = uint(uint8(bytes1(trade << 8)));
+        // TODO: refactor this to get rid of the markets array
+        MarketParameters memory market = cashGroup.getMarket(
+            markets,
+            marketIndex,
+            block.timestamp,
+            true // needs liquidity
+        );
+
+        if (tradeType == TradeActionType.AddLiquidity) {
+            cashAmount = int(int88(bytes11(trade << 16)));
+            (tokens, fCashAmount) = market.addLiquidity(cashAmount);
+        } else {
+            tokens = int(int88(bytes11(trade << 16)));
+            (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
+        }
+
+        {
+            uint minImpliedRate = uint(uint32(bytes4(trade << 104)));
+            uint maxImpliedRate = uint(uint32(bytes4(trade << 136)));
+            require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
+            if (maxImpliedRate != 0) require(market.lastImpliedRate <= maxImpliedRate, "Trade failed, slippage");
+            market.setMarketStorage();
+        }
+
+        // Add the assets in this order so they are sorted
+        portfolioState.addAsset(cashGroup.currencyId, market.maturity, AssetHandler.FCASH_ASSET_TYPE, fCashAmount, false);
+        portfolioState.addAsset(cashGroup.currencyId, market.maturity, marketIndex + 1, tokens, false);
+
+        return (cashAmount);
+    }
+
+    function _executeLendBorrowTrade(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        TradeActionType tradeType,
+        uint blockTime,
+        bytes32 trade
+    ) internal returns (uint, int, int) {
+        uint marketIndex = uint(uint8(bytes1(trade << 8)));
+        // TODO: refactor this to get rid of the markets array
+        MarketParameters memory market = cashGroup.getMarket(
+            markets,
+            marketIndex,
+            blockTime,
+            false
+        );
+
+        int fCashAmount;
+        if (tradeType == TradeActionType.Borrow) {
+            fCashAmount = int(int88(bytes11(trade << 16))).neg();
+        } else {
+            fCashAmount = int(int88(bytes11(trade << 16)));
+        }
+
+        int cashAmount = market.calculateTrade(
+            cashGroup,
+            fCashAmount.neg(),
+            market.maturity.sub(blockTime),
+            marketIndex
+        );
+
+        uint rateLimit = uint(uint32(bytes4(trade << 104)));
+        if (rateLimit != 0) {
+            if (tradeType == TradeActionType.Borrow) {
+                require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
+            } else {
+                require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
+            }
+        }
+        market.setMarketStorage();
+
+        return (market.maturity, cashAmount, fCashAmount);
+    }
+
+    function _settleCashDebt(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint blockTime,
+        bytes32 trade
+    ) internal returns (uint, int, int) {
+        address counterparty = address(bytes20(trade << 8));
+        int amountToSettle = int(int88(bytes11(trade << 168)));
+
+        AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
+        DepositWithdrawAction._settleAccountIfRequiredAndFinalize(counterparty, counterpartyContext);
+
+        // This will check if the amountToSettle is valid and revert if it is not. Amount to settle is a positive
+        // number always.
+        amountToSettle = BalanceHandler.setBalanceStorageForSettleCashDebt(
+            counterparty,
+            cashGroup.currencyId,
+            amountToSettle
+        );
+
+        // Settled account must borrow from the 3 month market at a penalty rate. Even if the market is
+        // not initialized we can still settle cash debts because we reference the previous 3 month market's oracle
+        // rate which is where the new 3 month market's oracle rate will be initialized to.
+        uint threeMonthMaturity = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        int fCashAmount = _getfCashSettleAmount(cashGroup, markets, threeMonthMaturity, blockTime, amountToSettle);
+
+        // It's possible that this action will put an account into negative free collateral. In this case they
+        // will immediately become eligible for liquidation and the account settling the debt can also liquidate
+        // them in the same transaction. Do not run a free collateral check here to allow this to happen.
+        _placefCashAssetInCounterparty(
+            counterparty,
+            counterpartyContext,
+            cashGroup.currencyId,
+            threeMonthMaturity,
+            fCashAmount.neg() // This is the debt the settled account will incur
+        );
+        counterpartyContext.setAccountContext(counterparty);
+
+        // NOTE: net cash change for the settler is negative, they must produce the cash, fCashAmount
+        // here is positive, it is the amount that the settler will receive
+        return (threeMonthMaturity, amountToSettle.neg(), fCashAmount);
+    }
+
+    function _getfCashSettleAmount(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint threeMonthMaturity,
+        uint blockTime,
+        int amountToSettle
+    ) internal view returns (int) {
+        uint oracleRate = cashGroup.getOracleRate(markets, threeMonthMaturity, blockTime);
+
+        int exchangeRate = Market.getExchangeRateFromImpliedRate(
+            oracleRate.add(cashGroup.getSettlementPenalty()),
+            threeMonthMaturity.sub(blockTime)
+        );
+        // Amount to settle is positive, this returns the fCashAmount that the settler will
+        // receive as a positive number
+        return amountToSettle.mul(exchangeRate).div(Market.RATE_PRECISION);
+    }
+
+    function _mintCashPair(
+        address account,
+        CashGroupParameters memory cashGroup,
+        uint blockTime,
+        bytes32 trade
+    ) internal returns (uint, int) {
+        address counterparty = address(bytes20(trade << 8));
+        uint maturity = uint(uint32(bytes4(trade << 168)));
+        // limit of 360 million
+        int fCashAmountForCounterparty = int(int56(bytes7(trade << 200)));
+
+        if (fCashAmountForCounterparty < 0) {
+            // TODO: Requires authorization to deposit borrow
+            require(account != address(0));
+        }
+
+        require(maturity > blockTime, "Invalid maturity");
+        AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
+        _placefCashAssetInCounterparty(
+            counterparty,
+            counterpartyContext,
+            cashGroup.currencyId,
+            maturity,
+            fCashAmountForCounterparty
+        );
+
+        if (counterpartyContext.hasDebt) {
+            // Do free collateral check on counterparty
+            FreeCollateralExternal.checkFreeCollateralAndRevert(counterparty);
+        }
+        counterpartyContext.setAccountContext(counterparty);
+
+        return (maturity, fCashAmountForCounterparty.neg());
+    }
+
+    function _purchaseIdiosyncratic(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint blockTime,
+        bytes32 trade
+    ) internal returns (uint, int, int) {
+        address counterparty = address(bytes20(trade << 8));
+        uint maturity = uint(uint32(bytes4(trade << 168)));
+        // limit of 360 million
+        int fCashAmountToPurchase = int(int56(bytes7(trade << 200)));
+
+        AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
+        require(counterpartyContext.bitmapCurrencyId == cashGroup.currencyId, "Invalid purchase");
+        require(maturity > blockTime, "Invalid maturity");
+        _placefCashAssetInCounterparty(
+            counterparty,
+            counterpartyContext,
+            cashGroup.currencyId,
+            maturity,
+            fCashAmountToPurchase
+        );
+
+        int cashAmount = _getCashPrice(cashGroup, markets, maturity, blockTime, fCashAmountToPurchase);
+
+        return (maturity, cashAmount, fCashAmountToPurchase.neg());
+    }
+
+    function _getCashPrice(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint maturity,
+        uint blockTime,
+        int fCashAmount
+    ) internal view returns (int) {
+        // TODO: this needs to be set somewhere and check fCashAmountToPurchase
+        uint priceDifference = 0;
+        uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+        int exchangeRate = Market.getExchangeRateFromImpliedRate(
+            oracleRate.add(priceDifference),
+            maturity.sub(blockTime)
+        );
+
+        return fCashAmount.mul(Market.RATE_PRECISION).div(exchangeRate);
+    }
+
+    function _placefCashAssetInCounterparty(
+        address counterparty,
+        AccountStorage memory counterpartyContext,
+        uint currencyId,
+        uint maturity,
+        int fCashAmount
+    ) internal {
+        if (counterpartyContext.bitmapCurrencyId != 0) {
+            require(counterpartyContext.bitmapCurrencyId == currencyId, "Invalid cash pair");
+            bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(counterparty, currencyId);
+            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+                counterparty,
+                currencyId,
+                maturity,
+                counterpartyContext.nextMaturingAsset,
+                fCashAmount,
+                ifCashBitmap
+            );
+            BitmapAssetsHandler.setAssetsBitmap(counterparty, currencyId, ifCashBitmap);
+        } else {
+            PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+                counterparty,
+                counterpartyContext.assetArrayLength,
+                1
+            );
+            portfolioState.addAsset(currencyId, maturity, AssetHandler.FCASH_ASSET_TYPE, fCashAmount, false);
+            portfolioState.storeAssets(counterparty, counterpartyContext);
+        }
+    }
 }

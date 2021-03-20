@@ -6,6 +6,7 @@ import "./FreeCollateralExternal.sol";
 import "./SettleAssetsExternal.sol";
 import "./MintPerpetualTokenAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
+import "./TradingAction.sol";
 import "../math/SafeInt256.sol";
 import "../storage/SettleAssets.sol";
 import "../storage/BalanceHandler.sol";
@@ -38,7 +39,7 @@ struct BalanceActionWithTrades {
     uint withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;
     bool redeemToUnderlying;
-    bytes[] trades;
+    bytes32[] trades;
 }
 
 library DepositWithdrawAction {
@@ -198,11 +199,16 @@ library DepositWithdrawAction {
                 actions[i].depositActionAmount
             );
 
-            // if (actions[i].trades.length > 0) {
-            //     bytes memory result = TradingAction.executeTradesArray(actions[i].currencyId, actions[i].trades);
-            //     bytes memory result = TradingAction.executeTradesBitmap(actions[i].currencyId, actions[i].trades);
-            //     portfolioState.addAsset(result);
-            // }
+            if (actions[i].trades.length > 0) {
+                int netCash;
+                (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
+                    account,
+                    actions[i].currencyId,
+                    portfolioState,
+                    actions[i].trades
+                );
+                balanceState.netCashChange = balanceState.netCashChange.add(netCash);
+            }
 
             _calculateWithdrawActionAndFinalize(
                 account,
@@ -214,7 +220,7 @@ library DepositWithdrawAction {
             );
         }
 
-        // portfolioState.storeAssets();
+        portfolioState.storeAssets(account, accountContext);
 
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);

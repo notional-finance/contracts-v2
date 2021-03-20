@@ -48,7 +48,6 @@ contract MockAssetHandler is StorageLayoutV1 {
 
     function getMarketStorage(
         uint currencyId,
-        uint settlementDate,
         uint maturity,
         uint blockTime
     ) public view returns (MarketParameters memory) {

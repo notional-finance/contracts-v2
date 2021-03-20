@@ -235,6 +235,27 @@ library BalanceHandler {
         return transferAmountExternal;
     }
 
+    function setBalanceStorageForSettleCashDebt(
+        address account,
+        uint currencyId,
+        int amountToSettle
+    ) internal returns (int) {
+        require(amountToSettle >= 0); // dev: amount to settle negative
+        (int cashBalance, int perpetualTokenBalance, uint lastIncentiveMint) = getBalanceStorage(account, currencyId);
+
+        require(cashBalance < 0, "Invalid settle balance");
+        if (amountToSettle == 0) {
+            amountToSettle = cashBalance.neg();
+            cashBalance = 0;
+        } else {
+            require(amountToSettle <= cashBalance.neg(), "Invalid amount to settle");
+            cashBalance = cashBalance.add(amountToSettle);
+        }
+
+        setBalanceStorage(account, currencyId, cashBalance, perpetualTokenBalance, lastIncentiveMint);
+        return amountToSettle;
+    }
+
     function finalizeSettleAmounts(
         address account,
         AccountStorage memory accountContext,
