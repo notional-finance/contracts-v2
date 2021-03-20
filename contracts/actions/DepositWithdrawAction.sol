@@ -200,6 +200,7 @@ library DepositWithdrawAction {
             );
 
             if (actions[i].trades.length > 0) {
+                // TODO: add bitmap
                 int netCash;
                 (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
                     account,
@@ -207,6 +208,9 @@ library DepositWithdrawAction {
                     portfolioState,
                     actions[i].trades
                 );
+
+                // If the account owes cash, ensure that it has enough
+                if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
                 balanceState.netCashChange = balanceState.netCashChange.add(netCash);
             }
 
