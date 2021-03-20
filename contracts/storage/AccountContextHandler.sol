@@ -4,8 +4,11 @@ pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
 import "./BalanceHandler.sol";
+import "./PortfolioHandler.sol";
 
 library AccountContextHandler {
+    using PortfolioHandler for PortfolioState;
+
     bytes18 private constant ZERO = bytes18(0);
     
     function getAccountContext(
@@ -77,6 +80,24 @@ library AccountContextHandler {
                 bytes20(bytes2(accountContext.bitmapCurrencyId)) |
                 bytes20(accountContext.activeCurrencies) >> 16
             );
+        }
+    }
+
+    function storeAssetsAndUpdateContext(
+        AccountStorage memory accountContext,
+        address account,
+        PortfolioState memory portfolioState
+    ) internal {
+        (bool hasDebt, bytes32 portfolioCurrencies) = portfolioState.storeAssets(account, accountContext);
+        accountContext.hasDebt = hasDebt || accountContext.hasDebt;
+
+        uint lastCurrency;
+        while (portfolioCurrencies != 0) {
+            uint currencyId = uint(uint16(bytes2(portfolioCurrencies)));
+            if (currencyId != lastCurrency) setActiveCurrency(accountContext, currencyId, true);
+            lastCurrency = currencyId;
+
+            portfolioCurrencies = portfolioCurrencies << 16;
         }
     }
 

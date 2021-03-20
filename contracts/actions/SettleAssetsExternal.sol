@@ -5,9 +5,11 @@ pragma experimental ABIEncoderV2;
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/SettleAssets.sol";
+import "../storage/AccountContextHandler.sol";
 
 library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountStorage;
     
     // TODO: can this be a static call?
     function settleAssetsView(
@@ -29,7 +31,7 @@ library SettleAssetsExternal {
             PortfolioState memory portfolioState
         ) = _settleAssetsArray(account);
 
-        portfolioState.storeAssets(account, accountContext);
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
 
         return accountContext;
@@ -43,8 +45,7 @@ library SettleAssetsExternal {
             SettleAmount[] memory settleAmounts,
             PortfolioState memory portfolioState
         ) = _settleAssetsArray(account);
-
-        portfolioState.storeAssets(account, accountContext);
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
 
         return (accountContext, settleAmounts);
     }

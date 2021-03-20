@@ -350,6 +350,7 @@ library TradingAction {
         );
 
         int cashAmount = _getCashPrice(cashGroup, markets, maturity, blockTime, fCashAmountToPurchase);
+        // TODO: set counterparty context?
 
         return (maturity, cashAmount, fCashAmountToPurchase.neg());
     }
@@ -398,7 +399,7 @@ library TradingAction {
                 1
             );
             portfolioState.addAsset(currencyId, maturity, AssetHandler.FCASH_ASSET_TYPE, fCashAmount, false);
-            portfolioState.storeAssets(counterparty, counterpartyContext);
+            counterpartyContext.storeAssetsAndUpdateContext(counterparty, portfolioState);
         }
     }
 }

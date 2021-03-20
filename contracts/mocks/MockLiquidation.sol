@@ -21,12 +21,12 @@ contract MockLiquidateTokens is BaseMockLiquidation {
         uint collateralCurrencyId
     ) public returns (LiquidationFactors memory) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState[] memory balanceState = accountContext.getAllBalances(account);
         PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
 
         return Liquidation.calculateLiquidationFactors(
+            account,
+            accountContext,
             portfolio,
-            balanceState,
             blockTime,
             localCurrencyId,
             collateralCurrencyId
