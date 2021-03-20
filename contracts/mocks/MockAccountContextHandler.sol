@@ -49,20 +49,4 @@ contract MockAccountContextHandler {
         return accountContext.activeCurrencies;
     }
 
-    function getAllBalances(
-        bytes18 activeCurrencies,
-        address account,
-        uint16 bitmapCurrencyId
-    ) external view returns (BalanceState[] memory) {
-        AccountStorage memory accountContext = AccountStorage(0, false, 0, bitmapCurrencyId, activeCurrencies);
-        BalanceState[] memory bs = accountContext.getAllBalances(account);
-
-        for (uint i; i < bs.length; i++) {
-            // Assert that currencies are ordered
-            if (i != 0) assert (bs[i - 1].currencyId < bs[i].currencyId);
-        }
-
-        return bs;
-    }
-
 }

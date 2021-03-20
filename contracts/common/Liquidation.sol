@@ -43,8 +43,9 @@ library Liquidation {
      * @notice Calculates liquidation factors, assumes portfolio has already been settled
      */
     function calculateLiquidationFactors(
+        address account,
+        AccountStorage memory accountContext,
         PortfolioAsset[] memory portfolio,
-        BalanceState[] memory balanceState,
         uint blockTime,
         uint localCurrencyId,
         uint collateralCurrencyId
@@ -66,9 +67,10 @@ library Liquidation {
         }
 
         return getLiquidationFactorsStateful(
+            account,
             localCurrencyId,
             collateralCurrencyId,
-            balanceState,
+            accountContext.activeCurrencies,
             cashGroups,
             marketStates,
             netPortfolioValue,
@@ -76,14 +78,47 @@ library Liquidation {
         );
     }
 
+    function _getBalances(
+        address account,
+        uint currencyId,
+        uint collateralCurrencyId,
+        LiquidationFactors memory factors
+    ) private view returns (int) {
+        (
+            int netLocalAssetValue,
+            int perpTokenBalance,
+            /* */
+        ) = BalanceHandler.getBalanceStorage(account, currencyId);
+
+        if (perpTokenBalance > 0) {
+            // PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
+            //     currencyId
+            // );
+            // // TODO: this will return an asset rate as well, so we can use it here
+            // int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
+            //     perpToken,
+            //     perpTokenBalance,
+            //     blockTime
+            // );
+            // netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+
+            // if (currencyId == collateralCurrencyId) {
+            //     factors.collateralPerpetualTokenValue = perpetualTokenValue;
+            // }
+        }
+
+        return (netLocalAssetValue);
+    }
+
     /**
      * @notice Calculates free collateral and liquidation factors required for the rest of the liquidation
      * procedure.
      */
     function getLiquidationFactorsStateful(
+        address account,
         uint localCurrencyId,
         uint collateralCurrencyId,
-        BalanceState[] memory balanceState,
+        bytes18 currencies,
         CashGroupParameters[] memory cashGroups,
         MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue,
@@ -95,64 +130,51 @@ library Liquidation {
         int netETHValue;
         LiquidationFactors memory factors;
 
-        for (uint i; i < balanceState.length; i++) {
-            int netLocalAssetValue = balanceState[i].storedCashBalance;
-            if (balanceState[i].storedPerpetualTokenBalance > 0) {
-                // PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-                //     balanceState[i].currencyId
-                // );
-                // // TODO: this will return an asset rate as well, so we can use it here
-                // int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
-                //     perpToken,
-                //     balanceState[i].storedPerpetualTokenBalance,
-                //     blockTime
-                // );
-                // netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+        while (currencies != 0) {
+            uint currencyId = uint(uint16(bytes2(currencies)));
+            int netLocalAssetValue = _getBalances(account, currencyId, collateralCurrencyId, factors);
 
-                // if (balanceState[i].currencyId == collateralCurrencyId) {
-                //     factors.collateralPerpetualTokenValue = perpetualTokenValue;
-                // }
+            AssetRateParameters memory assetRate;
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                assetRate = cashGroups[groupIndex].assetRate;
+
+                // Save cash groups and market states for checking liquidity token value and
+                // fcash value
+                if (currencyId == localCurrencyId) {
+                    factors.localCashGroup = cashGroups[groupIndex];
+                    factors.localMarketStates = marketStates[groupIndex];
+                } else if (currencyId == collateralCurrencyId) {
+                    factors.collateralCashGroup = cashGroups[groupIndex];
+                    factors.collateralMarketStates = marketStates[groupIndex];
+                }
+                groupIndex += 1;
+            } else {
+                assetRate = AssetRate.buildAssetRateStateful(currencyId);
             }
 
             // If this is true then there is some collateral value within the system. Set this
             // flag for the liquidate fcash function to check.
             if (netLocalAssetValue > 0) factors.hasCollateral = true;
 
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
-
-                // Save cash groups and market states for checking liquidity token value and
-                // fcash value
-                if (balanceState[i].currencyId == localCurrencyId) {
-                    factors.localCashGroup = cashGroups[groupIndex];
-                    factors.localMarketStates = marketStates[groupIndex];
-                } else if (balanceState[i].currencyId == collateralCurrencyId) {
-                    factors.collateralCashGroup = cashGroups[groupIndex];
-                    factors.collateralMarketStates = marketStates[groupIndex];
-                }
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
-            }
-
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int ethValue = ethRate.convertToETH(
                 assetRate.convertInternalToUnderlying(netLocalAssetValue)
             );
             netETHValue = netETHValue.add(ethValue);
 
             // Store relevant factors here
-            if (balanceState[i].currencyId == localCurrencyId) {
+            if (currencyId == localCurrencyId) {
                 factors.localAvailable = netLocalAssetValue;
                 factors.localETHRate = ethRate;
                 // Assign this here in case localCashGroup is not assigned above
                 factors.localCashGroup.assetRate = assetRate;
-            } else if (balanceState[i].currencyId == collateralCurrencyId) {
+            } else if (currencyId == collateralCurrencyId) {
                 factors.collateralAvailable = netLocalAssetValue;
                 factors.collateralETHRate = ethRate;
             }
+
+            currencies = currencies << 16;
         }
 
         require(netETHValue < 0, "L: sufficient free collateral");

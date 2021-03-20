@@ -71,86 +71,102 @@ library FreeCollateral {
      * @notice Aggregates the portfolio value with cash balances to get the net free collateral value.
      */
     function getFreeCollateralStateful(
-        BalanceState[] memory balanceState,
+        address account,
+        AccountStorage memory accountContext,
         CashGroupParameters[] memory cashGroups,
         int[] memory netPortfolioValue,
         uint blockTime
     ) internal returns (int) {
         uint groupIndex;
         int netETHValue;
+        bytes18 currencies = accountContext.activeCurrencies;
 
-        for (uint i; i < balanceState.length; i++) {
-            // TODO: we can just fetch the balance storage here
-            int netLocalAssetValue = balanceState[i].storedCashBalance;
-            if (balanceState[i].storedPerpetualTokenBalance > 0) {
+        while (currencies != 0) {
+            uint currencyId = uint(uint16(bytes2(currencies)));
+            (
+                int netLocalAssetValue,
+                int perpTokenBalance,
+                /* */
+            ) = BalanceHandler.getBalanceStorage(account, currencyId);
+
+            AssetRateParameters memory assetRate;
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                assetRate = cashGroups[groupIndex].assetRate;
+                groupIndex += 1;
+            } else {
+                assetRate = AssetRate.buildAssetRateStateful(currencyId);
+            }
+
+            if (perpTokenBalance > 0) {
                 PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-                    balanceState[i].currencyId
+                    currencyId
                 );
                 // TODO: this will return an asset rate as well, so we can use it here
                 int perpetualTokenValue = getPerpetualTokenAssetValue(
                     perpToken,
-                    balanceState[i].storedPerpetualTokenBalance,
+                    perpTokenBalance,
                     blockTime
                 );
                 netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
             }
 
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateStateful(balanceState[i].currencyId);
-            }
-
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
-
             netETHValue = netETHValue.add(ethValue);
+
+            currencies = currencies << 16;
         }
 
         return netETHValue;
     }
 
     function getFreeCollateralView(
-        BalanceState[] memory balanceState,
+        address account,
+        AccountStorage memory accountContext,
         CashGroupParameters[] memory cashGroups,
         int[] memory netPortfolioValue,
         uint blockTime
     ) internal view returns (int) {
         uint groupIndex;
         int netETHValue;
+        bytes18 currencies = accountContext.activeCurrencies;
 
-        for (uint i; i < balanceState.length; i++) {
-            // TODO: we can just fetch the balance storage here
-            int netLocalAssetValue = balanceState[i].storedCashBalance;
-            if (balanceState[i].storedPerpetualTokenBalance > 0) {
+        while (currencies != 0) {
+            uint currencyId = uint(uint16(bytes2(currencies)));
+            (
+                int netLocalAssetValue,
+                int perpTokenBalance,
+                /* */
+            ) = BalanceHandler.getBalanceStorage(account, currencyId);
+
+            AssetRateParameters memory assetRate;
+            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
+                assetRate = cashGroups[groupIndex].assetRate;
+                groupIndex += 1;
+            } else {
+                assetRate = AssetRate.buildAssetRateView(currencyId);
+            }
+
+            if (perpTokenBalance > 0) {
                 PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(
-                    balanceState[i].currencyId
+                    currencyId
                 );
                 // TODO: this will return an asset rate as well, so we can use it here
                 int perpetualTokenValue = getPerpetualTokenAssetValue(
                     perpToken,
-                    balanceState[i].storedPerpetualTokenBalance,
+                    perpTokenBalance,
                     blockTime
                 );
                 netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
             }
 
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == balanceState[i].currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateView(balanceState[i].currencyId);
-            }
-
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(balanceState[i].currencyId);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
-
             netETHValue = netETHValue.add(ethValue);
+
+            currencies = currencies << 16;
         }
 
         return netETHValue;

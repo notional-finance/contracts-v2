@@ -11,7 +11,6 @@ library FreeCollateralExternal {
     function getFreeCollateralView(address account) external view returns (int) {
         uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
 
         (
             int[] memory netPortfolioValue,
@@ -19,17 +18,18 @@ library FreeCollateralExternal {
         ) = FreeCollateral.getNetPortfolioValueView(account, accountContext, blockTime);
 
         return FreeCollateral.getFreeCollateralView(
-            balanceStates,
+            account,
+            accountContext,
             cashGroups,
             netPortfolioValue,
             blockTime
         );
     }
 
+    // TODO: have this return hasDebt
     function checkFreeCollateralAndRevert(address account) external {
         uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState[] memory balanceStates = accountContext.getAllBalances(account);
 
         (
             int[] memory netPortfolioValue,
@@ -37,7 +37,8 @@ library FreeCollateralExternal {
         ) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
 
         int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(
-            balanceStates,
+            account,
+            accountContext,
             cashGroups,
             netPortfolioValue,
             blockTime
