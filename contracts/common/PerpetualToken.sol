@@ -17,7 +17,9 @@ struct PerpetualTokenPortfolio {
     CashGroupParameters cashGroup;
     MarketParameters[] markets;
     PortfolioState portfolioState;
-    BalanceState balanceState;
+    int totalSupply;
+    int cashBalance;
+    uint lastInitializedTime;
     address tokenAddress;
 }
 
@@ -35,26 +37,26 @@ library PerpetualToken {
     int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
 
     /**
-     * @notice Returns the currency id for a perpetual token or 0 if the address is not a perpetual
-     * token. Also returns the total supply of the perpetual token.
+     * @notice Returns an account context object that is specific to perpetual tokens.
      */
-    function getPerpetualTokenCurrencyIdAndSupply(
+    function getPerpetualTokenContext(
         address tokenAddress
-    ) internal view returns (uint, uint, uint) {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+    ) internal view returns (uint, uint, uint, uint8, uint) {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
         assembly { data := sload(slot) }
 
         uint currencyId = uint(uint16(uint(data)));
         uint totalSupply = uint(uint96(uint(data >> 16)));
         uint incentiveAnnualEmissionRate = uint(uint32(uint(data >> 112)));
+        uint8 assetArrayLength = uint8(uint(data >> 144));
+        uint lastInitializedTime = uint(uint32(uint(data >> 152)));
 
-        return (currencyId, totalSupply, incentiveAnnualEmissionRate);
+        return (currencyId, totalSupply, incentiveAnnualEmissionRate, assetArrayLength, lastInitializedTime);
     }
 
     /**
      * @notice Returns the perpetual token address for a given currency
-     * @dev TODO: make this a CREATE2 lookup but would blow up the code size
      */
     function getPerpetualTokenAddress(
         uint currencyId
@@ -74,7 +76,7 @@ library PerpetualToken {
         address tokenAddress
     ) internal {
         bytes32 addressSlot = keccak256(abi.encode(currencyId, "perpetual.address"));
-        bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+        bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
 
         uint data;
         assembly { data := sload(addressSlot) }
@@ -94,23 +96,17 @@ library PerpetualToken {
         address tokenAddress,
         int netChange
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
+        bytes32 data;
+        assembly { data := sload(slot) }
+        int totalSupply = int(uint96(uint(data >> 16)));
+        int newSupply = totalSupply.add(netChange);
 
-        (
-            uint currencyId,
-            uint totalSupply,
-            uint incentiveAnnualEmissionRate
-        ) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
-        int newSupply = int(totalSupply).add(netChange);
         require(newSupply >= 0 && uint(newSupply) < type(uint96).max, "PT: total supply overflow");
 
-        uint96 storedSupply = uint96(newSupply);
-        bytes32 data = (
-            bytes32(currencyId) |
-            bytes32(uint(storedSupply)) << 16 |
-            bytes32(incentiveAnnualEmissionRate) << 112
-        );
-
+        // Clear the 12 bytes where stored supply will go and OR it in
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFF;
+        data = data | bytes32(uint(newSupply)) << 16;
         assembly { sstore(slot, data) }
     }
 
@@ -118,20 +114,30 @@ library PerpetualToken {
         address tokenAddress,
         uint32 newEmissionsRate
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.currencyId"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
 
-        (
-            uint currencyId,
-            uint totalSupply,
-            /* uint incentiveAnnualEmissionRate */
-        ) = getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+        bytes32 data;
+        assembly { data := sload(slot) }
+        // Clear the 4 bytes where emissions rate will go and OR it in
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data | bytes32(uint(newEmissionsRate)) << 112;
+        assembly { sstore(slot, data) }
+    }
 
-        bytes32 data = (
-            bytes32(currencyId) |
-            bytes32(totalSupply) << 16 |
-            bytes32(uint(newEmissionsRate)) << 112
-        );
+    function setArrayLengthAndInitializedTime(
+        address tokenAddress,
+        uint8 arrayLength,
+        uint lastInitializedTime
+    ) internal {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
+        require(lastInitializedTime >= 0 && uint(lastInitializedTime) < type(uint32).max); // dev: next settle time overflow
 
+        bytes32 data;
+        assembly { data := sload(slot) }
+        // Clear the 6 bytes where array length and settle time will go
+        data = data & 0xFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data | bytes32(uint(arrayLength)) << 144;
+        data = data | bytes32(uint(lastInitializedTime)) << 152;
         assembly { sstore(slot, data) }
     }
 
@@ -286,6 +292,31 @@ library PerpetualToken {
         if (i != 4 || i != 8) assembly { sstore(slot, data) }
     }
 
+    function buildPerpetualTokenPortfolioNoCashGroup(
+        uint currencyId
+    ) internal view returns (PerpetualTokenPortfolio memory) {
+        PerpetualTokenPortfolio memory perpToken;
+        perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
+        (
+            /* currencyId */,
+            uint totalSupply,
+            /* incentiveRate */,
+            uint8 assetArrayLength,
+            uint lastInitializedTime
+        ) = getPerpetualTokenContext(perpToken.tokenAddress);
+        perpToken.lastInitializedTime = lastInitializedTime;
+        perpToken.totalSupply = int(totalSupply);
+
+        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, assetArrayLength, 0);
+        (
+            perpToken.cashBalance,
+            /* perpToken.balanceState.storedPerpetualTokenBalance */,
+            /* lastIncentiveMint */
+        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
+
+        return perpToken;
+    }
+
     /**
      * @notice Given a currency id, will build a perpetual token portfolio object in order to get the value
      * of the portfolio.
@@ -293,19 +324,8 @@ library PerpetualToken {
     function buildPerpetualTokenPortfolioStateful(
         uint currencyId
     ) internal returns (PerpetualTokenPortfolio memory) {
-        PerpetualTokenPortfolio memory perpToken;
-        perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
-        // TODO: refactor this, we only need asset array length and nextMaturingAsset
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-
+        PerpetualTokenPortfolio memory perpToken = buildPerpetualTokenPortfolioNoCashGroup(currencyId);
         (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, accountContext.assetArrayLength, 0);
-        perpToken.balanceState.currencyId = currencyId;
-        (
-            perpToken.balanceState.storedCashBalance,
-            perpToken.balanceState.storedPerpetualTokenBalance, // TODO: this is always zero
-            /* lastIncentiveMint */
-        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
         return perpToken;
     }
@@ -313,21 +333,16 @@ library PerpetualToken {
     function buildPerpetualTokenPortfolioView(
         uint currencyId
     ) internal view returns (PerpetualTokenPortfolio memory) {
-        PerpetualTokenPortfolio memory perpToken;
-        perpToken.tokenAddress = getPerpetualTokenAddress(currencyId);
-        // TODO: refactor this, we only need asset array length and nextMaturingAsset
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-
+        PerpetualTokenPortfolio memory perpToken = buildPerpetualTokenPortfolioNoCashGroup(currencyId);
         (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupView(currencyId);
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, accountContext.assetArrayLength, 0);
-        perpToken.balanceState.currencyId = currencyId;
-        (
-            perpToken.balanceState.storedCashBalance,
-            perpToken.balanceState.storedPerpetualTokenBalance,
-            /* lastIncentiveMint */
-        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
         return perpToken;
+    }
+
+    function getNextSettleTime(
+        PerpetualTokenPortfolio memory perpToken
+    ) internal pure returns (uint) {
+        return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + CashGroup.QUARTER;
     }
 
     /**
@@ -337,7 +352,6 @@ library PerpetualToken {
      */
     function getPerpetualTokenPV(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         uint blockTime
     ) internal view returns (int, bytes32) {
         int totalAssetPV;
@@ -348,7 +362,7 @@ library PerpetualToken {
         );
 
         {
-            uint nextSettleTime = CashGroup.getReferenceTime(accountContext.nextMaturingAsset) + CashGroup.QUARTER;
+            uint nextSettleTime = getNextSettleTime(perpToken);
             // If the first asset maturity has passed (the 3 month), this means that all the LTs must
             // be settled except the 6 month (which is now the 3 month). We don't settle LTs except in
             // initialize markets so we calculate the cash value of the portfolio here.
@@ -391,7 +405,7 @@ library PerpetualToken {
             BitmapAssetsHandler.getifCashNetPresentValue(
                 perpToken.tokenAddress,
                 perpToken.cashGroup.currencyId,
-                accountContext.nextMaturingAsset,
+                perpToken.lastInitializedTime,
                 blockTime,
                 ifCashBitmap,
                 perpToken.cashGroup,
@@ -403,7 +417,7 @@ library PerpetualToken {
         // Return the total present value denominated in asset terms
         totalAssetPV = totalAssetPV
             .add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV))
-            .add(perpToken.balanceState.storedCashBalance);
+            .add(perpToken.cashBalance);
 
         return (totalAssetPV, ifCashBitmap);
     }
@@ -414,66 +428,48 @@ library PerpetualToken {
      */
     function calculateTokensToMint(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         int assetCashDeposit,
         uint blockTime
     ) internal view returns (int, bytes32) {
         require(assetCashDeposit >= 0); // dev: perpetual token deposit negative
         if (assetCashDeposit == 0) return (0, 0x0);
 
-        // If the account context has not been initialized, that means it has never had assets. In this
-        // case we simply use the stored asset balance as the base to calculate the tokens to mint.
-        if (accountContext.nextMaturingAsset == 0) {
-            // This is for the very first deposit
-            if (perpToken.balanceState.storedCashBalance == 0) {
-                return (assetCashDeposit, 0x0);
-            }
-
-            return (
-                assetCashDeposit
-                    .mul(perpToken.balanceState.storedCashBalance)
-                    .div(TokenHandler.INTERNAL_TOKEN_PRECISION),
-                0x0
-            );
+        if (perpToken.lastInitializedTime != 0) {
+            // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
+            // that need to be settled. This is only done during market initialization.
+            uint nextSettleTime = getNextSettleTime(perpToken);
+            require(nextSettleTime > blockTime, "PT: requires settlement");
         }
 
-        // For the sake of simplicity, perpetual tokens cannot be minted if they have assets
-        // that need to be settled. This is only done during market initialization.
-        uint nextSettleTime = CashGroup.getReferenceTime(accountContext.nextMaturingAsset) + CashGroup.QUARTER;
-        require(nextSettleTime > blockTime, "PT: requires settlement");
-
-        (int assetCashPV, bytes32 ifCashBitmap) = getPerpetualTokenPV(perpToken, accountContext, blockTime);
+        (int assetCashPV, bytes32 ifCashBitmap) = getPerpetualTokenPV(perpToken, blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
 
+        // Allow for the first deposit
+        if (perpToken.totalSupply == 0) return (assetCashDeposit, ifCashBitmap);
+
         return (
-            assetCashDeposit.mul(assetCashPV).div(TokenHandler.INTERNAL_TOKEN_PRECISION),
+            assetCashDeposit.mul(perpToken.totalSupply).div(assetCashPV),
             ifCashBitmap
         );
     }
 
     function mintPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         int assetCashDeposit,
         uint blockTime
     ) internal returns (int) {
         (int tokensToMint, bytes32 ifCashBitmap) = calculateTokensToMint(
             perpToken,
-            accountContext,
             assetCashDeposit,
             blockTime
         );
 
         if (perpToken.portfolioState.storedAssets.length == 0) {
             // If the perp token does not have any assets, then the markets must be initialized first.
-            perpToken.balanceState.netCashChange = perpToken.balanceState.netCashChange.add(assetCashDeposit);
-            // Finalize the balance change here
-            perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+            perpToken.cashBalance = perpToken.cashBalance.add(assetCashDeposit);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
         } else {
-            depositIntoPortfolio(perpToken, accountContext, ifCashBitmap, assetCashDeposit, blockTime);
-            
-            // NOTE: this method call is here to reduce stack size in depositIntoPortfolio
-            perpToken.portfolioState.storeAssets(perpToken.tokenAddress, accountContext);
+            depositIntoPortfolio(perpToken, ifCashBitmap, assetCashDeposit, blockTime);
         }
 
         // NOTE: token supply change will happen after minting incentives
@@ -533,7 +529,6 @@ library PerpetualToken {
      */
     function depositIntoPortfolio(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         bytes32 ifCashBitmap,
         int assetCashDeposit,
         uint blockTime
@@ -607,7 +602,7 @@ library PerpetualToken {
                 perpToken.tokenAddress,
                 perpToken.cashGroup.currencyId,
                 market.maturity,
-                accountContext.nextMaturingAsset,
+                perpToken.lastInitializedTime,
                 // fCash amount is negative and denominated in the underlying here as it always is
                 fCashAmount,
                 ifCashBitmap
@@ -618,14 +613,15 @@ library PerpetualToken {
             if (i == 0) break;
         }
 
-        // This will occur if the three month market is over levered and we cannot lend into it
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, perpToken.cashGroup.currencyId, ifCashBitmap);
+        perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
 
+        // This will occur if the three month market is over levered and we cannot lend into it
         if (residualCash != 0) {
             // Any remaining residual cash will be put into the perpetual token balance and added as liquidity on the
             // next market initialization
-            perpToken.balanceState.netCashChange = residualCash;
-            perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+            perpToken.cashBalance = perpToken.cashBalance.add(residualCash);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
         }
     }
 
@@ -634,50 +630,52 @@ library PerpetualToken {
      */
     function redeemPerpetualToken(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory perpTokenAccountContext,
         int tokensToRedeem,
         uint blockTime
     ) internal returns (PortfolioAsset[] memory, int) {
-        uint totalSupply;
         PortfolioAsset[] memory newifCashAssets;
+        uint nextSettleTime = getNextSettleTime(perpToken);
+        require(nextSettleTime > blockTime, "PT: requires settlement");
 
         {
-            uint nextSettleTime = CashGroup.getReferenceTime(perpTokenAccountContext.nextMaturingAsset) + CashGroup.QUARTER;
-            require(nextSettleTime > blockTime, "PT: requires settlement");
-        }
-
-        {
-            uint currencyId;
-            (currencyId, totalSupply, /* incentiveRate */) = getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
-
             // Get share of ifCash assets to remove
             newifCashAssets = BitmapAssetsHandler.reduceifCashAssetsProportional(
                 perpToken.tokenAddress,
-                currencyId,
-                perpTokenAccountContext.nextMaturingAsset,
+                perpToken.cashGroup.currencyId,
+                perpToken.lastInitializedTime,
                 tokensToRedeem,
-                int(totalSupply)
+                perpToken.totalSupply
             );
         }
 
         // Get asset cash share for the perp token, if it exists. It is required in balance handler that the
         // perp token can never have a negative cash asset cash balance.
-        int assetCashShare = perpToken.balanceState.storedCashBalance.mul(tokensToRedeem).div(int(totalSupply));
+        int assetCashShare = perpToken.cashBalance.mul(tokensToRedeem).div(perpToken.totalSupply);
         if (assetCashShare > 0) {
-            perpToken.balanceState.netCashChange = assetCashShare.neg();
-            BalanceHandler.setBalanceStorageForPerpToken(perpToken.balanceState, perpToken.tokenAddress);
+            perpToken.cashBalance = perpToken.cashBalance.subNoNeg(assetCashShare);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
         }
 
         // Get share of liquidity tokens to remove
         assetCashShare = assetCashShare.add(
-            _removeLiquidityTokens(perpToken, newifCashAssets, tokensToRedeem, int(totalSupply), blockTime)
+            _removeLiquidityTokens(perpToken, newifCashAssets, tokensToRedeem, perpToken.totalSupply, blockTime)
         );
 
         {
-            uint8 lengthBefore = perpTokenAccountContext.assetArrayLength;
-            perpToken.portfolioState.storeAssets(perpToken.tokenAddress, perpTokenAccountContext);
+            (
+                /* hasDebt */,
+                /* currencies */,
+                uint8 newStorageLength,
+                /* nextMaturingAsset */
+            ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
             // This can happen if the liquidity tokens are redeemed down to zero
-            if (perpTokenAccountContext.assetArrayLength != lengthBefore) perpTokenAccountContext.setAccountContext(perpToken.tokenAddress);
+            if (perpToken.portfolioState.storedAssets.length != uint(newStorageLength)) {
+                setArrayLengthAndInitializedTime(
+                    perpToken.tokenAddress,
+                    newStorageLength,
+                    perpToken.lastInitializedTime
+                );
+            }
         }
 
         // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
@@ -716,48 +714,5 @@ library PerpetualToken {
 
         return totalAssetCash;
     }
-
-    /**
-     * @notice Generic method for selling idiosyncratic fCash, any account can post standing offers
-     * for other accounts to purchase their idiosyncratic fCash.
-    function sellifCash(
-        address account,
-        CashGroupParameters memory cashGroup,
-        uint maturity,
-        int fCashToTransfer,
-        uint blockTime
-    ) internal view returns (int) {
-        // Can only purchase maturities that are not currently active markets
-        require(
-            !cashGroup.isValidMaturity(maturity, blockTime),
-            "PT: invalid maturity"
-        );
-        require(fCashToTransfer != 0, "PT: invalid transfer");
-
-        // Update the fCash position
-        int fCashAmount = ifCashMapping[perpetualTokenAddress][cashGroup.currencyId][maturity];
-        if (fCashAmount == 0) return;
-
-        if (fCashToTransfer > 0) {
-            // These are outstanding bids for purchasing ifCash, offer prices are denominated as
-            // annualized implied rate
-            uint annualizedImpliedRate = ifCashOfferRate[perpetualTokenAddress][cashGroup.currencyId][maturity];
-            int exchangeRate = Market.getExchangeRateFromImpliedRate(annualizedImpliedRate, maturity - blockTime);
-
-            // TODO: if this amount is less than some threshold we should just give it all away so that
-            // we do not end up with dust
-            fCashAmount = fCashAmount.subNoNeg(fCashToTransfer);
-
-            int assetCashRequired = fCashAmount.mul(Market.RATE_PRECISION).div(exchangeRate);
-            // TODO: need to update the bitmap if this is zero
-            ifCashMapping[perpetualTokenAddress][cashGroup.currencyId][maturity] = fCashAmount;
-
-            // TODO: for perp tokens this asset cash should go back into the portfolio
-            return assetCashRequired;
-        } else if (fCashToTransfer < 0) {
-            // TODO: need to figure this out
-        }
-    }
-     */
 
 }

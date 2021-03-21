@@ -179,25 +179,8 @@ library FreeCollateral {
         int tokenBalance,
         uint blockTime
     ) internal view returns (int) {
-        // TODO: if the currency id is in the list we make two stateful calls to get the asset rate...not very efficient
-        // TODO: lots of storage reads to get this to work...can we make this more efficient?
-        // TODO: nextMaturingAsset is not set to a predictable value here, how do we make that better, it should
-        // be the reference time and then we just check if markets are initialized
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-
-        (
-            /* currencyId */,
-            uint totalSupply,
-            /* incentiveRate */
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpToken.tokenAddress);
-
-        (
-            int perpTokenPV,
-            /* ifCashBitmap */
-        ) = perpToken.getPerpetualTokenPV(accountContext, blockTime);
-
-        // No overflow in totalSupply, stored as a uint96
-        return tokenBalance.mul(perpTokenPV).div(int(totalSupply));
+        (int perpTokenPV, /* ifCashBitmap */) = perpToken.getPerpetualTokenPV(blockTime);
+        return tokenBalance.mul(perpTokenPV).div(perpToken.totalSupply);
     }
 
     /**

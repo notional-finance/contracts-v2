@@ -114,16 +114,8 @@ library RedeemPerpetualTokenAction {
         int totalAssetCash;
         PortfolioAsset[] memory newfCashAssets;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
-        {
-            // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
-            AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-            (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(
-                perpToken,
-                perpTokenContext,
-                tokensToRedeem,
-                blockTime
-            );
-        }
+        // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
+        (newfCashAssets, totalAssetCash) = PerpetualToken.redeemPerpetualToken(perpToken, tokensToRedeem, blockTime);
 
         // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
         bool hasResidual = true;

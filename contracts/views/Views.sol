@@ -157,11 +157,9 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
             perpToken,
-            accountContext,
             amountToDepositInternal,
             block.timestamp
         );

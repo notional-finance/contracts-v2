@@ -88,8 +88,15 @@ library AccountContextHandler {
         address account,
         PortfolioState memory portfolioState
     ) internal {
-        (bool hasDebt, bytes32 portfolioCurrencies) = portfolioState.storeAssets(account, accountContext);
+        (
+            bool hasDebt,
+            bytes32 portfolioCurrencies,
+            uint8 assetArrayLength,
+            uint40 nextMaturingAsset
+        ) = portfolioState.storeAssets(account);
         accountContext.hasDebt = hasDebt || accountContext.hasDebt;
+        accountContext.assetArrayLength = assetArrayLength;
+        accountContext.nextMaturingAsset = nextMaturingAsset;
 
         uint lastCurrency;
         while (portfolioCurrencies != 0) {

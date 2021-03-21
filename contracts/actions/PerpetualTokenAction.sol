@@ -24,8 +24,10 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         (
             /* currencyId */,
             uint totalSupply,
-            /* incentiveRate */
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(
+            /* incentiveRate */,
+            /* length */,
+            /* lastInitialized */
+        ) = PerpetualToken.getPerpetualTokenContext(
             perpTokenAddress
         );
 
@@ -87,7 +89,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(msg.sender == perpTokenAddress, "PA: unauthorized caller");
 
-        return _transfer(perpTokenAddress, sender, recipient, amount);
+        return _transfer(currencyId, sender, recipient, amount);
     }
 
     /**
@@ -114,7 +116,7 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         }
 
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        return _transfer(perpTokenAddress, sender, recipient, amount);
+        return _transfer(currencyId, sender, recipient, amount);
     }
 
     // Custom implementations
@@ -158,11 +160,9 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     ) private view returns (int, PerpetualTokenPortfolio memory) {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         (int totalAssetPV, /* bytes memory ifCashMapping */) = PerpetualToken.getPerpetualTokenPV(
             perpToken,
-            accountContext,
             blockTime
         );
 
@@ -170,17 +170,11 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
     }
 
     function _transfer(
-        address perpTokenAddress,
+        uint currencyId,
         address sender,
         address recipient,
         uint amount
     ) internal returns (bool) {
-        (
-            uint currencyId,
-            /* uint totalSupply */,
-            /* incentiveRate */
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(perpTokenAddress);
-
         AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance = BalanceHandler.buildBalanceState(
             sender,

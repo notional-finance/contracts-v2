@@ -66,18 +66,14 @@ library InitializeMarketsAction {
 
     function settlePerpetualTokenPortfolio(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         uint blockTime
     ) private returns (bytes32) {
-        uint referenceTime = CashGroup.getReferenceTime(blockTime);
         // Perpetual token never has idiosyncratic cash between 90 day intervals but since it also has a
         // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
         // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
         // esoteric but will ensure that ifCash is never improperly settled.
-        require(
-            accountContext.nextMaturingAsset < referenceTime,
-            "IM: invalid time"
-        );
+        uint referenceTime = CashGroup.getReferenceTime(blockTime);
+        require(perpToken.lastInitializedTime < referenceTime, "IM: invalid time");
 
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
@@ -85,20 +81,20 @@ library InitializeMarketsAction {
                 perpToken.portfolioState,
                 blockTime
             );
-            perpToken.balanceState.netCashChange = settleAmount[0].netCashChange;
+            perpToken.cashBalance = perpToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
         (bytes32 ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
             perpToken.tokenAddress,
             perpToken.cashGroup.currencyId,
-            accountContext.nextMaturingAsset,
+            perpToken.lastInitializedTime,
             blockTime
         );
-        // The ifCashBitmap has been updated to reference this new settlement time
-        accountContext.nextMaturingAsset = uint40(CashGroup.getTimeUTC0(blockTime));
+        perpToken.cashBalance = perpToken.cashBalance.add(settledAssetCash);
 
-        // Assign settledAssetCash to the net cash change 
-        perpToken.balanceState.netCashChange = perpToken.balanceState.netCashChange.add(settledAssetCash);
+        // The ifCashBitmap has been updated to reference this new settlement time
+        perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
+
         return ifCashBitmap;
     }
 
@@ -180,7 +176,6 @@ library InitializeMarketsAction {
 
     function calculateNetAssetCashAvailable(
         PerpetualTokenPortfolio memory perpToken,
-        AccountStorage memory accountContext,
         uint blockTime,
         uint currencyId,
         bool isFirstInit
@@ -190,34 +185,26 @@ library InitializeMarketsAction {
         int assetCashWitholding;
 
         if (isFirstInit) {
-            // On first init we set the next settlement time, we don't have any assets to settle.
-            accountContext.nextMaturingAsset = uint40(CashGroup.getTimeUTC0(blockTime));
+            perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
         } else {
-            ifCashBitmap = settlePerpetualTokenPortfolio(perpToken, accountContext, blockTime);
+            ifCashBitmap = settlePerpetualTokenPortfolio(perpToken, blockTime);
             getPreviousMarkets(currencyId, blockTime, perpToken);
             (assetCashWitholding, ifCashBitmap) = withholdAndSetfCashAssets(
                 perpToken,
                 currencyId,
                 ifCashBitmap,
                 blockTime,
-                accountContext.nextMaturingAsset
+                perpToken.lastInitializedTime
             );
         }
 
         // We do not consider "storedCashBalance" because it may be holding cash that is used to
         // collateralize negative fCash from previous settlements except on the first initialization when
         // we know that there are no fCash assets at all
-        netAssetCashAvailable = perpToken.balanceState.storedCashBalance
-            .add(perpToken.balanceState.netCashChange)
-            .subNoNeg(assetCashWitholding);
+        netAssetCashAvailable = perpToken.cashBalance.subNoNeg(assetCashWitholding);
 
         // This is the new balance to store
-        perpToken.balanceState.storedCashBalance = perpToken.balanceState.storedCashBalance
-            .add(perpToken.balanceState.netCashChange)
-            .subNoNeg(netAssetCashAvailable);
-
-        // Zero this value out since we've already accounted for it.
-        perpToken.balanceState.netCashChange = 0;
+        perpToken.cashBalance = perpToken.cashBalance.subNoNeg(netAssetCashAvailable);
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
@@ -364,7 +351,6 @@ library InitializeMarketsAction {
     function initializeMarkets(uint currencyId, bool isFirstInit) external {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         // This should be sufficient to validate that the currency id is valid
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
@@ -375,7 +361,6 @@ library InitializeMarketsAction {
 
         (int netAssetCashAvailable, bytes32 ifCashBitmap) = calculateNetAssetCashAvailable(
             perpToken,
-            accountContext,
             blockTime,
             currencyId,
             isFirstInit
@@ -503,15 +488,19 @@ library InitializeMarketsAction {
             ifCashBitmap = finalizeMarket(newMarket, currencyId, perpToken.tokenAddress, ifCashBitmap);
         }
 
-        perpToken.portfolioState.storeAssets(perpToken.tokenAddress, accountContext);
-        // Special method that only stores the storedCashBalance for this method only since we know
-        // there are no token transfers, incentives or anything else. Reduces code size by about 2kb
-        perpToken.balanceState.setBalanceStorageForPerpToken(perpToken.tokenAddress);
+        (
+            /* hasDebt */,
+            /* activeCurrencies */,
+            uint8 assetArrayLength,
+            /* nextMaturingAsset */
+        ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
+        BalanceHandler.setBalanceStorageForPerpToken(perpToken);
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);
-        // TODO: reset this here because storeAssets updates this value internally, perhaps have a special method
-        // for storing liquidity tokens on the perp token
-        accountContext.nextMaturingAsset = uint40(CashGroup.getTimeUTC0(blockTime));
-        accountContext.setAccountContext(perpToken.tokenAddress);
+        PerpetualToken.setArrayLengthAndInitializedTime(
+            perpToken.tokenAddress,
+            assetArrayLength,
+            perpToken.lastInitializedTime
+        );
 
         emit MarketsInitialized(uint16(currencyId));
     }

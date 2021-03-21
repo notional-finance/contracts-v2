@@ -41,12 +41,17 @@ contract MockPortfolioHandler is StorageLayoutV1 {
     function storeAssets(
         address account,
         PortfolioState memory portfolioState
-    ) public returns (bool, bytes32) {
+    ) public returns (bool, bytes32, uint8, uint) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        (bool hasDebt, bytes32 activeCurrencies) = portfolioState.storeAssets(account, accountContext);
+        (
+            bool hasDebt,
+            bytes32 activeCurrencies,
+            uint8 assetArrayLength,
+            uint nextMaturingAsset
+        ) = portfolioState.storeAssets(account);
         accountContext.setAccountContext(account);
 
-        return (hasDebt, activeCurrencies);
+        return (hasDebt, activeCurrencies, assetArrayLength, nextMaturingAsset);
     }
 
     function deleteAsset(

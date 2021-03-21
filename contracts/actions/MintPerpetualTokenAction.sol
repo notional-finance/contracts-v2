@@ -64,11 +64,9 @@ library MintPerpetualTokenAction {
     ) private returns (int) {
         uint blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
-        AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         int tokensMinted = PerpetualToken.mintPerpetualToken(
             perpToken,
-            perpTokenContext,
             amountToDepositInternal,
             blockTime
         );

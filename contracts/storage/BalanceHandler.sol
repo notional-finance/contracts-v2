@@ -287,19 +287,14 @@ library BalanceHandler {
      * markets to reduce code size.
      */
     function setBalanceStorageForPerpToken(
-        BalanceState memory balanceState,
-        address perpToken
+        PerpetualTokenPortfolio memory perpToken
     ) internal {
-        // These factors must always be zero for the perpetual token account
-        require(balanceState.storedPerpetualTokenBalance == 0); // dev: invalid perp token balance
-        balanceState.storedCashBalance = balanceState.storedCashBalance.add(balanceState.netCashChange);
-
-        // Perpetual token can never have a negative cash balance
-        require(balanceState.storedCashBalance >= 0); // dev: invalid perp token cash balance
-        // Perpetual token never mints incentives
-        require(balanceState.lastIncentiveMint == 0); // dev: invalid perp token mint time
-
-        setBalanceStorage(perpToken, balanceState.currencyId, balanceState.storedCashBalance, 0, 0);
+        require(perpToken.cashBalance >= 0); // dev: invalid perp token cash balance
+        setBalanceStorage(
+            perpToken.tokenAddress,
+            perpToken.cashGroup.currencyId,
+            perpToken.cashBalance, 0, 0
+        );
     }
 
     /**
@@ -442,8 +437,10 @@ library BalanceHandler {
         (
             /* currencyId */,
             uint totalSupply,
-            uint incentiveAnnualEmissionRate
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+            uint incentiveAnnualEmissionRate,
+            /* arrayLength */,
+            /* initializedTime */
+        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
 
         uint timeSinceLastMint = blockTime - lastMintTime;
         // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION

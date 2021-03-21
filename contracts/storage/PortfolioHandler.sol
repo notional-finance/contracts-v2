@@ -96,9 +96,8 @@ library PortfolioHandler {
      */
     function storeAssets(
         PortfolioState memory portfolioState,
-        address account,
-        AccountStorage memory accountContext
-    ) internal returns (bool, bytes32) {
+        address account
+    ) internal returns (bool, bytes32, uint8, uint40) {
         uint initialSlot = uint(keccak256(abi.encode(account, "account.array")));
         bool hasDebt;
         bytes32 portfolioActiveCurrencies;
@@ -144,6 +143,7 @@ library PortfolioHandler {
             uint newAssetSlot = initialSlot + assetStorageLength;
 
             if (nextMaturingAsset == 0 || nextMaturingAsset > asset.maturity) {
+                // NOTE: this needs to be settlement time!
                 nextMaturingAsset = asset.maturity;
             }
             hasDebt = asset.notional < 0 || hasDebt;
@@ -155,10 +155,13 @@ library PortfolioHandler {
 
         // TODO: allow liquidation to skip this check
         require(assetStorageLength <= CashGroup.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
-        accountContext.assetArrayLength = uint8(assetStorageLength);
-        accountContext.nextMaturingAsset = uint40(nextMaturingAsset);
 
-        return (hasDebt, portfolioActiveCurrencies);
+        return (
+            hasDebt,
+            portfolioActiveCurrencies,
+            uint8(assetStorageLength),
+            uint40(nextMaturingAsset)
+        );
     }
 
     /**

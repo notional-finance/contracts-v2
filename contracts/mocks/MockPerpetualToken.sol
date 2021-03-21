@@ -14,17 +14,19 @@ contract MockPerpetualToken is StorageLayoutV1 {
         PerpetualToken.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
 
-    function getPerpetualTokenCurrencyIdAndSupply(
+    function getPerpetualTokenContext(
         address tokenAddress
-    ) external view returns (uint, uint, uint) {
+    ) external view returns (uint, uint, uint, uint8, uint) {
         (
             uint currencyId,
             uint totalSupply,
-            uint incentiveRate
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+            uint incentiveRate,
+            uint8 assetArrayLength,
+            uint lastInitializedTime
+        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, totalSupply, incentiveRate);
+        return (currencyId, totalSupply, incentiveRate, assetArrayLength, lastInitializedTime);
     }
 
     function getPerpetualTokenAddress(
@@ -34,8 +36,10 @@ contract MockPerpetualToken is StorageLayoutV1 {
         (
             uint currencyIdStored,
             /* uint totalSupply */,
-            /* incentiveRate */
-        ) = PerpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+            /* incentiveRate */,
+            /* assetArrayLength */,
+            /* lastInitializedTime */
+        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
 
         return tokenAddress;
@@ -49,7 +53,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
         // Test the assertions
         this.getPerpetualTokenAddress(currencyId);
-        this.getPerpetualTokenCurrencyIdAndSupply(tokenAddress);
+        this.getPerpetualTokenContext(tokenAddress);
     }
 
     function getDepositParameters(
@@ -90,11 +94,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
             currencyId
         );
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-
         (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.getPerpetualTokenPV(
             perpToken,
-            accountContext,
             blockTime
         );
 
@@ -110,11 +111,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
             currencyId
         );
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
-
         (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.calculateTokensToMint(
             perpToken,
-            accountContext,
             assetCashDeposit,
             blockTime
         );
@@ -130,11 +128,9 @@ contract MockPerpetualToken is StorageLayoutV1 {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
             currencyId
         );
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(perpToken.tokenAddress);
 
         return PerpetualToken.mintPerpetualToken(
             perpToken,
-            accountContext,
             assetCashDeposit,
             blockTime
         );
