@@ -30,14 +30,11 @@ library SettleAssets {
     ) internal pure returns (SettleAmount[] memory) {
         uint currenciesSettled;
         uint lastCurrencyId;
-        // This is required for iterations
-        portfolioState.calculateSortedIndex();
-        // TODO: using a linked list will prevent this from happening
-        if (portfolioState.sortedIndex.length == 0) return new SettleAmount[](0);
+        if (portfolioState.storedAssets.length == 0) return new SettleAmount[](0);
 
         // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
-        for (uint i = portfolioState.sortedIndex.length - 1; i >= 0; i--) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+        for (uint i = portfolioState.storedAssets.length - 1; i >= 0; i--) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) {
                 if (i == 0) break;
                 continue;
@@ -109,7 +106,7 @@ library SettleAssets {
         PortfolioState memory portfolioState,
         uint index
     ) internal view returns (int, SettlementMarket memory) {
-        PortfolioAsset memory liquidityToken = portfolioState.storedAssets[portfolioState.sortedIndex[index]];
+        PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
         (int cashClaim, int fCash, SettlementMarket memory market) = calculateMarketStorage(liquidityToken);
 
         // If the liquidity token's maturity is still in the future then we change the entry to be
@@ -117,7 +114,7 @@ library SettleAssets {
         if (index != 0) {
             // Check to see if the previous index is the matching fCash asset, this would be the case when the
             // portfolio is sorted
-            PortfolioAsset memory fCashAsset = portfolioState.storedAssets[portfolioState.sortedIndex[index - 1]];
+            PortfolioAsset memory fCashAsset = portfolioState.storedAssets[index - 1];
 
             if (fCashAsset.maturity == liquidityToken.maturity 
                 && fCashAsset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
@@ -151,8 +148,8 @@ library SettleAssets {
         uint settleAmountIndex;
         uint lastMaturity;
 
-        for (uint i; i < portfolioState.sortedIndex.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+        for (uint i; i < portfolioState.storedAssets.length; i++) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) continue;
 
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
@@ -177,13 +174,13 @@ library SettleAssets {
             int assetCash;
             if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-                portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+                portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 if (asset.maturity > blockTime) {
                     (assetCash, /* */) = settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
                     (assetCash, /* */) = settleLiquidityToken(asset, settlementRate);
-                    portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+                    portfolioState.deleteAsset(i);
                 }
             }
 
@@ -208,7 +205,7 @@ library SettleAssets {
         uint lastMaturity;
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[portfolioState.sortedIndex[i]];
+            PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) continue;
 
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
@@ -230,14 +227,14 @@ library SettleAssets {
             int assetCash;
             if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
-                portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+                portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 SettlementMarket memory market;
                 if (asset.maturity > blockTime) {
                     (assetCash, market) = settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
                     (assetCash, market) = settleLiquidityToken(asset, settlementRate);
-                    portfolioState.deleteAsset(portfolioState.sortedIndex[i]);
+                    portfolioState.deleteAsset(i);
                 }
 
                 // 2x storage write

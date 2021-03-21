@@ -82,8 +82,7 @@ library SettleAssetsExternal {
             storedAssets: ifCashAssets,
             newAssets: new PortfolioAsset[](0),
             lastNewAssetIndex: 0,
-            storedAssetLength: ifCashAssets.length,
-            sortedIndex: sortedIndex
+            storedAssetLength: ifCashAssets.length
         });
 
 

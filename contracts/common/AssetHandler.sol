@@ -23,6 +23,7 @@ struct PortfolioAsset {
     uint assetType;
     // fCash amount or liquidity token amount
     int notional;
+    uint storageSlot;
     // The state of the asset for when it is written to storage
     AssetStorageState storageState;
 }

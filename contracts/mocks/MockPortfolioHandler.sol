@@ -64,13 +64,6 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         return PortfolioHandler.getEncodedId(asset);
     }
 
-    function calculateSortedIndex(
-        PortfolioState memory portfolioState
-    ) public pure returns (uint[] memory) {
-        portfolioState.calculateSortedIndex();
-        return portfolioState.sortedIndex;
-    }
-
     function buildPortfolioState(
         address account,
         uint newAssetsHint
