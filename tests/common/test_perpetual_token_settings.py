@@ -4,6 +4,7 @@ import random
 import brownie
 import pytest
 from brownie.test import given, strategy
+from tests.constants import START_TIME
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -12,7 +13,7 @@ def perpetualToken(MockPerpetualToken, accounts):
 
 
 @given(currencyId=strategy("uint16"), tokenAddress=strategy("address"))
-def test_set_token_address(perpetualToken, currencyId, tokenAddress):
+def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     # This has assertions inside
     perpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress)
 
@@ -21,20 +22,74 @@ def test_set_token_address(perpetualToken, currencyId, tokenAddress):
         currencyIdStored,
         totalSupply,
         incentives,
-    ) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress)
+        assetArrayLength,
+        lastInitializeTime,
+    ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
     assert incentives == 0
+    assert assetArrayLength == 0
+    assert lastInitializeTime == 0
 
     perpetualToken.setIncentiveEmissionRate(tokenAddress, 0.01e9)
     (
         currencyIdStored,
         totalSupply,
         incentives,
-    ) = perpetualToken.getPerpetualTokenCurrencyIdAndSupply(tokenAddress)
+        assetArrayLength,
+        lastInitializeTime,
+    ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
     assert incentives == 0.01e9
+    assert assetArrayLength == 0
+    assert lastInitializeTime == 0
+
+    perpetualToken.setArrayLengthAndInitializedTime(tokenAddress, 5, START_TIME)
+
+    (
+        currencyIdStored,
+        totalSupply,
+        incentives,
+        assetArrayLength,
+        lastInitializeTime,
+    ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
+    assert currencyIdStored == currencyId
+    assert totalSupply == 0
+    assert incentives == 0.01e9
+    assert assetArrayLength == 5
+    assert lastInitializeTime == START_TIME
+
+    perpetualToken.changePerpetualTokenSupply(tokenAddress, 1e8)
+    (
+        currencyIdStored,
+        totalSupply,
+        incentives,
+        assetArrayLength,
+        lastInitializeTime,
+    ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
+    assert currencyIdStored == currencyId
+    assert totalSupply == 1e8
+    assert incentives == 0.01e9
+    assert assetArrayLength == 5
+    assert lastInitializeTime == START_TIME
+
+    perpetualToken.changePerpetualTokenSupply(tokenAddress, -0.5e8)
+    (
+        currencyIdStored,
+        totalSupply,
+        incentives,
+        assetArrayLength,
+        lastInitializeTime,
+    ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
+    assert currencyIdStored == currencyId
+    assert totalSupply == 0.5e8
+    assert incentives == 0.01e9
+    assert assetArrayLength == 5
+    assert lastInitializeTime == START_TIME
+
+    with brownie.reverts():
+        perpetualToken.changePerpetualTokenSupply(tokenAddress, -1e8)
 
 
 def test_deposit_parameters_failures(perpetualToken):

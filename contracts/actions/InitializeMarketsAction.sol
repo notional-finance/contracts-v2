@@ -470,6 +470,8 @@ library InitializeMarketsAction {
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
                 // provide liquidity. Governance must set a different rate anchor for the market.
+                // TODO: if this happens just set the proportion to the leverage threshold and then
+                // we recaclulate the oracle rate
                 require(proportion < parameters.leverageThresholds[i], "IM: proportion over threshold");
 
                 newMarket.totalfCash = underlyingCashToMarket

@@ -45,6 +45,21 @@ contract MockPerpetualToken is StorageLayoutV1 {
         return tokenAddress;
     }
 
+    function setArrayLengthAndInitializedTime(
+        address tokenAddress,
+        uint8 arrayLength,
+        uint lastInitializedTime
+    ) external {
+        PerpetualToken.setArrayLengthAndInitializedTime(tokenAddress, arrayLength, lastInitializedTime);
+    }
+
+    function changePerpetualTokenSupply(
+        address tokenAddress,
+        int netChange
+    ) external {
+        PerpetualToken.changePerpetualTokenSupply(tokenAddress, netChange);
+    }
+
     function setPerpetualTokenAddress(
         uint16 currencyId,
         address tokenAddress

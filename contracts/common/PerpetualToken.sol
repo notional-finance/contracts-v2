@@ -105,7 +105,7 @@ library PerpetualToken {
         require(newSupply >= 0 && uint(newSupply) < type(uint96).max, "PT: total supply overflow");
 
         // Clear the 12 bytes where stored supply will go and OR it in
-        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
         data = data | bytes32(uint(newSupply)) << 16;
         assembly { sstore(slot, data) }
     }
@@ -119,7 +119,7 @@ library PerpetualToken {
         bytes32 data;
         assembly { data := sload(slot) }
         // Clear the 4 bytes where emissions rate will go and OR it in
-        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         data = data | bytes32(uint(newEmissionsRate)) << 112;
         assembly { sstore(slot, data) }
     }
@@ -135,7 +135,7 @@ library PerpetualToken {
         bytes32 data;
         assembly { data := sload(slot) }
         // Clear the 6 bytes where array length and settle time will go
-        data = data & 0xFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         data = data | bytes32(uint(arrayLength)) << 144;
         data = data | bytes32(uint(lastInitializedTime)) << 152;
         assembly { sstore(slot, data) }

@@ -36,6 +36,8 @@ library TokenHandler {
     using SafeMath for uint256;
 
     int internal constant INTERNAL_TOKEN_PRECISION = 1e8;
+    // TODO: get this value in here somehow
+    address constant NOTE_TOKEN_ADDRESS = address(0);
 
     /**
      * @notice Gets token data for a particular currency id, if underlying is set to true then returns
