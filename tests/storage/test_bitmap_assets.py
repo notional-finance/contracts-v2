@@ -108,9 +108,9 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
 
     # TODO: test a random negative offset to next maturing asset to simulate an unsettled
     # perpetual token
-    nextMaturingAsset = START_TIME_TREF
+    nextSettleTime = START_TIME_TREF
     # Get the max bit given the time offset
-    (maxBit, isExact) = bitmapAssets.getBitNumFromMaturity(nextMaturingAsset, markets[-1][1])
+    (maxBit, isExact) = bitmapAssets.getBitNumFromMaturity(nextSettleTime, markets[-1][1])
     (assetsBitmap, assetsBitmapList) = random_asset_bitmap(10, maxBit)
     computedPV = 0
     computedRiskPV = 0
@@ -119,13 +119,13 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
     for i, b in enumerate(assetsBitmapList):
         if b == "1":
             notional = random.randint(-1e12, 1e12)
-            maturity = bitmapAssets.getMaturityFromBitNum(nextMaturingAsset, i + 1)
+            maturity = bitmapAssets.getMaturityFromBitNum(nextSettleTime, i + 1)
 
             bitmapAssets.setifCashAsset(
                 accounts[0],
                 1,
                 maturity,
-                nextMaturingAsset,
+                nextSettleTime,
                 notional,
                 "0x00",  # bitmap doesnt matter here
             )
@@ -146,7 +146,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
     pv = bitmapAssets.getifCashNetPresentValue(
         accounts[0],
         1,
-        nextMaturingAsset,
+        nextSettleTime,
         START_TIME,
         assetsBitmap,
         cashGroup,
@@ -157,7 +157,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
     riskPv = bitmapAssets.getifCashNetPresentValue(
         accounts[0],
         1,
-        nextMaturingAsset,
+        nextSettleTime,
         START_TIME,
         assetsBitmap,
         cashGroup,

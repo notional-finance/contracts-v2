@@ -52,12 +52,12 @@ library BitmapAssetsHandler {
         address account,
         uint currencyId,
         uint maturity,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         int notional,
         bytes32 assetsBitmap
     ) internal returns (bytes32) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextMaturingAsset, maturity);
+        (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
 
         if (assetsBitmap.isBitSet(bitNum)) {
@@ -121,7 +121,7 @@ library BitmapAssetsHandler {
     function getifCashNetPresentValue(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
@@ -133,7 +133,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
                 totalValueUnderlying = totalValueUnderlying.add(getPresentValue(
                     account,
                     currencyId,
@@ -155,7 +155,7 @@ library BitmapAssetsHandler {
     function getifCashArray(
         address account,
         uint currencyId,
-        uint nextMaturingAsset
+        uint nextSettleTime
     ) internal view returns (PortfolioAsset[] memory) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint index = assetsBitmap.totalBitsSet();
@@ -165,7 +165,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
                 int notional;
                 {
                     bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
@@ -193,7 +193,7 @@ library BitmapAssetsHandler {
     function reduceifCashAssetsProportional(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         int tokensToRedeem,
         int totalSupply
     ) internal returns (PortfolioAsset[] memory) {
@@ -205,7 +205,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
                 bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
                 int notional;
                 assembly { notional := sload(fCashSlot) }
@@ -243,7 +243,7 @@ library BitmapAssetsHandler {
     function getPerpetualTokenNegativefCashWitholding(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
@@ -254,12 +254,13 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
                 bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
                 int notional;
                 assembly { notional := sload(fCashSlot) }
 
                 if (notional < 0) {
+                    // TODO: Bump this witholding by some flat rate shift
                     uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
 
                     totalCashWitholding.sub(AssetHandler.getPresentValue(

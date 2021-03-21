@@ -189,7 +189,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint currencyId,
         bytes32 bitmap,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
@@ -197,7 +197,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         (bytes32 newBitmap, int newAssetCash) = SettleAssets.settleBitmappedCashGroup(
             account,
             currencyId,
-            nextMaturingAsset,
+            nextSettleTime,
             blockTime
         );
 
@@ -208,7 +208,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     function _settleBitmappedAsset(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime,
         uint bitNum,
         bytes32 bits
@@ -216,7 +216,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         return SettleAssets.settleBitmappedAsset(
             account,
             currencyId,
-            nextMaturingAsset,
+            nextSettleTime,
             blockTime,
             bitNum,
             bits
@@ -236,7 +236,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     }
 
     function _remapBitSection(
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTimeUTC0,
         uint bitOffset,
         uint bitTimeLength,
@@ -244,7 +244,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         bytes32 bits
     ) public pure returns (SplitBitmap memory, bytes32) {
         bytes32 newBits = SettleAssets.remapBitSection(
-            nextMaturingAsset,
+            nextSettleTime,
             blockTimeUTC0,
             bitOffset,
             bitTimeLength,

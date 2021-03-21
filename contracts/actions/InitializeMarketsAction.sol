@@ -139,7 +139,7 @@ library InitializeMarketsAction {
         uint currencyId,
         bytes32 ifCashBitmap,
         uint blockTime,
-        uint nextMaturingAsset
+        uint nextSettleTime
     ) private returns (int, bytes32) {
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
@@ -151,7 +151,7 @@ library InitializeMarketsAction {
                 perpToken.tokenAddress,
                 currencyId,
                 asset.maturity,
-                nextMaturingAsset,
+                nextSettleTime,
                 asset.notional,
                 ifCashBitmap
             );
@@ -164,7 +164,7 @@ library InitializeMarketsAction {
         int assetCashWitholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWitholding(
             perpToken.tokenAddress,
             currencyId,
-            nextMaturingAsset,
+            nextSettleTime,
             blockTime,
             ifCashBitmap,
             perpToken.cashGroup,
@@ -492,7 +492,7 @@ library InitializeMarketsAction {
             /* hasDebt */,
             /* activeCurrencies */,
             uint8 assetArrayLength,
-            /* nextMaturingAsset */
+            /* nextSettleTime */
         ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
         BalanceHandler.setBalanceStorageForPerpToken(perpToken);
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);

@@ -70,7 +70,7 @@ library RedeemPerpetualTokenAction {
         if (hasResidual) {
             // For simplicity's sake, you cannot redeem tokens if your portfolio must be settled.
             require(
-                redeemerContext.nextMaturingAsset == 0 || redeemerContext.nextMaturingAsset > blockTime,
+                redeemerContext.nextSettleTime == 0 || redeemerContext.nextSettleTime > blockTime,
                 "RP: must settle portfolio"
             );
 

@@ -91,7 +91,7 @@ struct MarketStorage {
  */
 struct AccountStorage {
     // Used to check when settlement must be trigged on an account
-    uint40 nextMaturingAsset;
+    uint40 nextSettleTime;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.
     bool hasDebt;
     // Length of the account's asset array

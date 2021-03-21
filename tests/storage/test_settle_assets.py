@@ -67,10 +67,10 @@ def generate_asset_array(numAssets):
     if len(assets) == 0:
         return (assets, 0)
 
-    nextMaturingAsset = min([a[1] for a in assets])
+    nextSettleTime = min([a[1] for a in assets])
 
     random.shuffle(assets)
-    return (assets, nextMaturingAsset)
+    return (assets, nextSettleTime)
 
 
 def assert_rates_settled(mockSettleAssets, assetArray, blockTime):
@@ -152,7 +152,7 @@ def settled_balance_context(assetArray, blockTime):
 def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[0:3]) + random.randint(0, 6000)
-    (assetArray, nextMaturingAsset) = generate_asset_array(numAssets)
+    (assetArray, nextSettleTime) = generate_asset_array(numAssets)
 
     # Set state
     mockSettleAssets.setAssetArray(accounts[1], assetArray)
@@ -182,17 +182,17 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
 
 
 @given(
-    nextMaturingAsset=strategy(
+    nextSettleTime=strategy(
         "uint", min_value=START_TIME, max_value=START_TIME + (40 * SECONDS_IN_YEAR)
     )
 )
 @settings(max_examples=5)
-def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
+def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextSettleTime):
     # Simulate that block time can be arbitrarily far into the future
     currencyId = 1
-    blockTime = nextMaturingAsset + random.randint(0, SECONDS_IN_YEAR)
+    blockTime = nextSettleTime + random.randint(0, SECONDS_IN_YEAR)
     # Make sure that this references UTC0 of the first bit
-    nextMaturingAsset = nextMaturingAsset - nextMaturingAsset % SECONDS_IN_DAY
+    nextSettleTime = nextSettleTime - nextSettleTime % SECONDS_IN_DAY
     # Choose K bits to set
     bitmapList = ["0"] * 256
     setBits = random.choices(range(0, 255), k=10)
@@ -206,8 +206,8 @@ def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
     for i, b in enumerate(bitmapList):
         if b == "1":
             notional = random.randint(-1e18, 1e18)
-            maturity = mockSettleAssets.getMaturityFromBitNum(nextMaturingAsset, i + 1)
-            (bitNum, isValid) = mockSettleAssets.getBitNumFromMaturity(nextMaturingAsset, maturity)
+            maturity = mockSettleAssets.getMaturityFromBitNum(nextSettleTime, i + 1)
+            (bitNum, isValid) = mockSettleAssets.getBitNumFromMaturity(nextSettleTime, maturity)
             assert isValid
             assert (i + 1) == bitNum
 
@@ -221,7 +221,7 @@ def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
 
     # Compute the new bitmap
     blockTimeUTC0 = blockTime - blockTime % SECONDS_IN_DAY
-    (lastSettleBit, _) = mockSettleAssets.getBitNumFromMaturity(nextMaturingAsset, blockTimeUTC0)
+    (lastSettleBit, _) = mockSettleAssets.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0)
     computedNewBitmap = ["0"] * 256
     for a in activeMaturities:
         if a[0] > blockTimeUTC0:
@@ -231,7 +231,7 @@ def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextMaturingAsset):
     joinedNewBitmap = "0x{:0{}x}".format(int("".join(computedNewBitmap), 2), 64)
 
     mockSettleAssets._settleBitmappedCashGroup(
-        accounts[0], currencyId, bitmap, nextMaturingAsset, blockTime
+        accounts[0], currencyId, bitmap, nextSettleTime, blockTime
     )
 
     newBitmap = mockSettleAssets.newBitmapStorage()

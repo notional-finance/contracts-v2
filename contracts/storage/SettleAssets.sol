@@ -255,7 +255,7 @@ library SettleAssets {
     function settleBitmappedAsset(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime,
         uint bitNum,
         bytes32 bits
@@ -263,7 +263,7 @@ library SettleAssets {
         int assetCash;
 
         if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
-            uint maturity = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitNum);
+            uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
             // Storage Read
             bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
             int ifCash;
@@ -292,7 +292,7 @@ library SettleAssets {
     function settleBitmappedCashGroup(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime
     ) internal returns (bytes32, int) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
@@ -300,9 +300,9 @@ library SettleAssets {
         int totalAssetCash;
         SplitBitmap memory splitBitmap = bitmap.splitfCashBitmap();
         uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
-        // This blockTimeUTC0 will be set to the new "nextMaturingAsset", this will refer to the
+        // This blockTimeUTC0 will be set to the new "nextSettleTime", this will refer to the
         // new next bit
-        (uint lastSettleBit, /* isValid */) = CashGroup.getBitNumFromMaturity(nextMaturingAsset, blockTimeUTC0);
+        (uint lastSettleBit, /* isValid */) = CashGroup.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
         if (lastSettleBit == 0) return (bitmap, totalAssetCash);
 
         // NOTE: bitNum is 1-indexed
@@ -318,7 +318,7 @@ library SettleAssets {
                 (splitBitmap.dayBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
-                    nextMaturingAsset,
+                    nextSettleTime,
                     blockTime,
                     bitNum,
                     splitBitmap.dayBits
@@ -337,7 +337,7 @@ library SettleAssets {
                 (splitBitmap.weekBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
-                    nextMaturingAsset,
+                    nextSettleTime,
                     blockTime,
                     bitNum,
                     splitBitmap.weekBits
@@ -356,7 +356,7 @@ library SettleAssets {
                 (splitBitmap.monthBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
-                    nextMaturingAsset,
+                    nextSettleTime,
                     blockTime,
                     bitNum,
                     splitBitmap.monthBits
@@ -375,7 +375,7 @@ library SettleAssets {
                 (splitBitmap.quarterBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
-                    nextMaturingAsset,
+                    nextSettleTime,
                     blockTime,
                     bitNum,
                     splitBitmap.quarterBits
@@ -387,7 +387,7 @@ library SettleAssets {
 
         remapBitmap(
             splitBitmap,
-            nextMaturingAsset,
+            nextSettleTime,
             blockTimeUTC0,
             lastSettleBit
         );
@@ -398,7 +398,7 @@ library SettleAssets {
 
     function remapBitmap(
         SplitBitmap memory splitBitmap,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTimeUTC0,
         uint lastSettleBit
     ) internal pure {
@@ -407,7 +407,7 @@ library SettleAssets {
             // starting from the lastSettleBit. Skips if the lastSettleBit is past the offset
             uint bitOffset = lastSettleBit > CashGroup.WEEK_BIT_OFFSET ? lastSettleBit : CashGroup.WEEK_BIT_OFFSET;
             splitBitmap.weekBits = remapBitSection(
-                nextMaturingAsset,
+                nextSettleTime,
                 blockTimeUTC0,
                 bitOffset,
                 CashGroup.WEEK,
@@ -419,7 +419,7 @@ library SettleAssets {
         if (splitBitmap.monthBits != ZERO  && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
             uint bitOffset = lastSettleBit > CashGroup.MONTH_BIT_OFFSET ? lastSettleBit : CashGroup.MONTH_BIT_OFFSET;
             splitBitmap.monthBits = remapBitSection(
-                nextMaturingAsset,
+                nextSettleTime,
                 blockTimeUTC0, bitOffset,
                 CashGroup.MONTH,
                 splitBitmap,
@@ -430,7 +430,7 @@ library SettleAssets {
         if (splitBitmap.quarterBits != ZERO && lastSettleBit < 256) {
             uint bitOffset = lastSettleBit > CashGroup.QUARTER_BIT_OFFSET ? lastSettleBit : CashGroup.QUARTER_BIT_OFFSET;
             splitBitmap.quarterBits = remapBitSection(
-                nextMaturingAsset,
+                nextSettleTime,
                 blockTimeUTC0,
                 bitOffset,
                 CashGroup.QUARTER,
@@ -444,7 +444,7 @@ library SettleAssets {
      * @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
      */
     function remapBitSection(
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTimeUTC0,
         uint bitOffset,
         uint bitTimeLength,
@@ -452,7 +452,7 @@ library SettleAssets {
         bytes32 bits
     ) internal pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset
-        uint firstBitRef = CashGroup.getMaturityFromBitNum(nextMaturingAsset, bitOffset + 1);
+        uint firstBitRef = CashGroup.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
         uint newFirstBitRef = CashGroup.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
         // NOTE: this will truncate the decimals
         uint bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;

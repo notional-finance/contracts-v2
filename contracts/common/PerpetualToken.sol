@@ -666,7 +666,7 @@ library PerpetualToken {
                 /* hasDebt */,
                 /* currencies */,
                 uint8 newStorageLength,
-                /* nextMaturingAsset */
+                /* nextSettleTime */
             ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
             // This can happen if the liquidity tokens are redeemed down to zero
             if (perpToken.portfolioState.storedAssets.length != uint(newStorageLength)) {

@@ -173,7 +173,7 @@ def get_portfolio_array(length, cashGroups, **kwargs):
 
 def generate_asset_array(numAssets, numCurrencies):
     assets = []
-    nextMaturingAsset = 2 ** 40
+    nextSettleTime = 2 ** 40
     assetsChoice = random.sample(
         list(itertools.product(range(1, numCurrencies), MARKETS)), numAssets
     )
@@ -190,10 +190,10 @@ def generate_asset_array(numAssets, numCurrencies):
             # Offsetting fCash asset
             assets.append((a[0], a[1], 1, -abs(notional)))
 
-        nextMaturingAsset = min(a[1], nextMaturingAsset)
+        nextSettleTime = min(a[1], nextSettleTime)
 
     random.shuffle(assets)
-    return (assets, nextMaturingAsset)
+    return (assets, nextSettleTime)
 
 
 def get_bitstring_from_bitmap(bitmap):

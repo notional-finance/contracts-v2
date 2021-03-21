@@ -20,7 +20,7 @@ library AccountContextHandler {
         assembly { data := sload(slot) }
 
         return AccountStorage({
-            nextMaturingAsset: uint40(uint(data)),
+            nextSettleTime: uint40(uint(data)),
             hasDebt: bytes1(data << 208) == 0x01,
             assetArrayLength: uint8(uint(data >> 48)),
             bitmapCurrencyId: uint16(uint(data >> 56)),
@@ -34,7 +34,7 @@ library AccountContextHandler {
     ) internal {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data = (
-            bytes32(uint(accountContext.nextMaturingAsset)) |
+            bytes32(uint(accountContext.nextSettleTime)) |
             bytes32(accountContext.hasDebt ? bytes1(0x01) : bytes1(0x00)) >> 208 |
             bytes32(uint(accountContext.assetArrayLength)) << 48 |
             bytes32(uint(accountContext.bitmapCurrencyId)) << 56 |
@@ -92,11 +92,11 @@ library AccountContextHandler {
             bool hasDebt,
             bytes32 portfolioCurrencies,
             uint8 assetArrayLength,
-            uint40 nextMaturingAsset
+            uint40 nextSettleTime
         ) = portfolioState.storeAssets(account);
         accountContext.hasDebt = hasDebt || accountContext.hasDebt;
         accountContext.assetArrayLength = assetArrayLength;
-        accountContext.nextMaturingAsset = nextMaturingAsset;
+        accountContext.nextSettleTime = nextSettleTime;
 
         uint lastCurrency;
         while (portfolioCurrencies != 0) {

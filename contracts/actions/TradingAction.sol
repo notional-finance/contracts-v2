@@ -57,7 +57,7 @@ library TradingAction {
                 account,
                 currencyId,
                 maturity,
-                accountContext.nextMaturingAsset,
+                accountContext.nextSettleTime,
                 values[2], // fCashAmount
                 ifCashBitmap
             );
@@ -387,7 +387,7 @@ library TradingAction {
                 counterparty,
                 currencyId,
                 maturity,
-                counterpartyContext.nextMaturingAsset,
+                counterpartyContext.nextSettleTime,
                 fCashAmount,
                 ifCashBitmap
             );

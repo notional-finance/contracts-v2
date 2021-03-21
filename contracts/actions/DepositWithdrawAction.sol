@@ -263,7 +263,7 @@ library DepositWithdrawAction {
         address account,
         AccountStorage memory accountContext
     ) internal returns (SettleAmount[] memory, PortfolioState memory) {
-        if (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= block.timestamp) {
+        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
             (
                 AccountStorage memory newAccountContext,
                 SettleAmount[] memory settleAmounts,
@@ -286,7 +286,7 @@ library DepositWithdrawAction {
     ) internal returns (SettleAmount[] memory) {
         SettleAmount[] memory settleAmounts;
 
-        if (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= block.timestamp) {
+        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
             (
                 accountContext,
                 settleAmounts
@@ -303,7 +303,7 @@ library DepositWithdrawAction {
         address account,
         AccountStorage memory accountContext
     ) internal {
-        if (accountContext.nextMaturingAsset != 0 && accountContext.nextMaturingAsset <= block.timestamp) {
+        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
         }
     }

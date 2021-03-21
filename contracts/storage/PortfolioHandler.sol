@@ -21,6 +21,7 @@ struct PortfolioState {
  */
 library PortfolioHandler {
     using SafeInt256 for int;
+    using AssetHandler for PortfolioAsset;
 
     function extendNewAssetArray(
         PortfolioAsset[] memory newAssets
@@ -101,7 +102,7 @@ library PortfolioHandler {
         uint initialSlot = uint(keccak256(abi.encode(account, "account.array")));
         bool hasDebt;
         bytes32 portfolioActiveCurrencies;
-        uint nextMaturingAsset;
+        uint nextSettleTime;
 
         // Mark any zero notional assets as deleted
         for (uint i; i < portfolioState.storedAssets.length; i++) {
@@ -127,8 +128,8 @@ library PortfolioHandler {
             }
 
             // Update account context parameters for active assets
-            if (nextMaturingAsset == 0 || nextMaturingAsset > asset.maturity) {
-                nextMaturingAsset = asset.maturity;
+            if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
+                nextSettleTime = asset.getSettlementDate();
             }
             hasDebt = asset.notional < 0 || hasDebt;
             portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
@@ -142,9 +143,8 @@ library PortfolioHandler {
             bytes32 encodedAsset = encodeAssetToBytes(portfolioState.newAssets[i]);
             uint newAssetSlot = initialSlot + assetStorageLength;
 
-            if (nextMaturingAsset == 0 || nextMaturingAsset > asset.maturity) {
-                // NOTE: this needs to be settlement time!
-                nextMaturingAsset = asset.maturity;
+            if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
+                nextSettleTime = asset.getSettlementDate();
             }
             hasDebt = asset.notional < 0 || hasDebt;
             portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
@@ -160,7 +160,7 @@ library PortfolioHandler {
             hasDebt,
             portfolioActiveCurrencies,
             uint8(assetStorageLength),
-            uint40(nextMaturingAsset)
+            uint40(nextSettleTime)
         );
     }
 

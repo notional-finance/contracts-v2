@@ -47,11 +47,11 @@ contract MockPortfolioHandler is StorageLayoutV1 {
             bool hasDebt,
             bytes32 activeCurrencies,
             uint8 assetArrayLength,
-            uint nextMaturingAsset
+            uint nextSettleTime
         ) = portfolioState.storeAssets(account);
         accountContext.setAccountContext(account);
 
-        return (hasDebt, activeCurrencies, assetArrayLength, nextMaturingAsset);
+        return (hasDebt, activeCurrencies, assetArrayLength, nextSettleTime);
     }
 
     function deleteAsset(

@@ -70,10 +70,10 @@ library SettleAssetsExternal {
     function settleBitmappedAccountView(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime
     ) external view returns (int) {
-        PortfolioAsset[] memory ifCashAssets = BitmapAssetsHandler.getifCashArray(account, currencyId, nextMaturingAsset);
+        PortfolioAsset[] memory ifCashAssets = BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
         uint[] memory sortedIndex = new uint[](ifCashAssets.length);
         // ifCash assets are already sorted
         for (uint i; i < sortedIndex.length; i++) sortedIndex[i] = i;
@@ -94,12 +94,12 @@ library SettleAssetsExternal {
     function settleBitmappedAccountStateful(
         address account,
         uint currencyId,
-        uint nextMaturingAsset
+        uint nextSettleTime
     ) external returns (bytes32, int) {
         return SettleAssets.settleBitmappedCashGroup(
             account,
             currencyId,
-            nextMaturingAsset,
+            nextSettleTime,
             block.timestamp
         );
     }

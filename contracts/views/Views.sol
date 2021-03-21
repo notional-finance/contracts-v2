@@ -146,7 +146,7 @@ contract Views is StorageLayoutV1 {
         return BitmapAssetsHandler.getifCashArray(
             account,
             accountContext.bitmapCurrencyId,
-            accountContext.nextMaturingAsset
+            accountContext.nextSettleTime
         );
     }
 

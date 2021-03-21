@@ -338,6 +338,7 @@ library Market {
         uint timeToMaturity
     ) internal pure returns (int) {
         int128 expValue = ABDKMath64x64.fromUInt(
+            // TODO: is this still true?
             // There is a bit of imprecision from this division here but if we use
             // int128 then we will get overflows so unclear how we can maintain the precision
             impliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME)

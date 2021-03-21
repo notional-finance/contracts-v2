@@ -58,7 +58,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         address account,
         uint currencyId,
         uint maturity,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         int notional,
         bytes32 assetsBitmap
     ) public returns (bytes32) {
@@ -66,7 +66,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
             account,
             currencyId,
             maturity,
-            nextMaturingAsset,
+            nextSettleTime,
             notional,
             assetsBitmap
         );
@@ -75,7 +75,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function getifCashNetPresentValue(
         address account,
         uint currencyId,
-        uint nextMaturingAsset,
+        uint nextSettleTime,
         uint blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
@@ -85,7 +85,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         return BitmapAssetsHandler.getifCashNetPresentValue(
             account,
             currencyId,
-            nextMaturingAsset,
+            nextSettleTime,
             blockTime,
             assetsBitmap,
             cashGroup,
@@ -145,8 +145,8 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function getifCashArray(
         address account,
         uint currencyId,
-        uint nextMaturingAsset
+        uint nextSettleTime
     ) external view returns (PortfolioAsset[] memory) {
-        return BitmapAssetsHandler.getifCashArray(account, currencyId, nextMaturingAsset);
+        return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
     }
 }

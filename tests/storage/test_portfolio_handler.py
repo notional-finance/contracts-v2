@@ -146,7 +146,7 @@ def test_add_delete_assets(portfolioHandler, accounts, num_assets):
     context = portfolioHandler.getAccountContext(accounts[1])
     assert context[2] == len(finalComputed)  # assert length is correct
 
-    # assert nextMaturingAsset is correct
+    # assert nextSettleTime is correct
     if len(finalComputed) == 0:
         assert context[0] == 0
     else:
