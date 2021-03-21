@@ -668,7 +668,7 @@ library Liquidation {
         // settlement or withdraw
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             // TODO: transfer fCash to liquidator in exchange for payment
-
+            // get asset present value at discounted rate, calculate share to transfer
         }
     }
 

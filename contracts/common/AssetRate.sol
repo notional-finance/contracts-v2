@@ -108,6 +108,8 @@ library AssetRate {
         uint8 underlyingDecimalPlaces = uint8(uint(data >> 160));
         // TODO: potentially change this such that it takes a currency id and we
         // hardcode a single adapter interface
+        // TODO: account for the fact that rateOracle can be set to zero for non
+        // convertable assets
         int rate = AssetRateAdapterInterface(rateOracle).getExchangeRateView();
         require(rate > 0, "AR: invalid rate");
 

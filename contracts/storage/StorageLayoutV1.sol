@@ -71,7 +71,6 @@ struct CashGroupParameterStorage {
  * fCash and liquidity tokens can be safely denominated at 9 decimal places and then
  * converted to their appropriate decimal precision when they are settled. uint80
  * allows each market to have a quadrillion in fCash which seems reasonable.
- * TODO: how high can cToken exchange rates go?
  *
  * Total storage: 32 bytes
 struct MarketStorage {

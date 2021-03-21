@@ -36,8 +36,6 @@ library TokenHandler {
     using SafeMath for uint256;
 
     int internal constant INTERNAL_TOKEN_PRECISION = 1e8;
-    // TODO: hardcode this or move it into an internal storage slot
-    address internal constant NOTE_TOKEN_ADDRESS = address(0);
 
     /**
      * @notice Gets token data for a particular currency id, if underlying is set to true then returns
@@ -122,9 +120,7 @@ library TokenHandler {
             return int(endingBalance.sub(startingBalance));
         }
 
-        // TODO: safe transfers are about 500 bytes codesize each, reduce these by making our own code checking wrapper here
         safeTransferIn(IERC20(token.tokenAddress), account, amount);
-
         return int(amount);
     }
 

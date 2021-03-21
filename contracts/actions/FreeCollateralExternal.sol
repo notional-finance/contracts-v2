@@ -26,7 +26,7 @@ library FreeCollateralExternal {
         );
     }
 
-    // TODO: have this return hasDebt
+    // TODO: have this return hasDebt for the bitmapped portfolio
     function checkFreeCollateralAndRevert(address account) external {
         uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);

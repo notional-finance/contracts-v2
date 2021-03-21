@@ -26,7 +26,6 @@ contract GovernanceAction is StorageLayoutV1 {
     event UpdatePerpetualDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
-    // TODO: add max assets parameter
     // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
