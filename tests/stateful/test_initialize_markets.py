@@ -40,18 +40,16 @@ def isolation(fn_isolation):
 
 def initialize_markets(environment, accounts):
     currencyId = 2
-    environment.router["Governance"].updatePerpetualDepositParameters(
+    environment.notional.updatePerpetualDepositParameters(
         currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9]
     )
 
-    environment.router["Governance"].updateInitializationParameters(
+    environment.notional.updateInitializationParameters(
         currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9]
     )
 
-    environment.router["MintPerpetual"].perpetualTokenMint(
-        currencyId, 100000e8, False, {"from": accounts[0]}
-    )
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    environment.notional.initializeMarkets(currencyId, True)
 
 
 def get_maturities(index):
@@ -114,20 +112,20 @@ def interpolate_market_rate(a, b, isSixMonth=False):
 
 def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
     blockTime = chain.time()
-    perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
-    (cashBalance, perpTokenBalance, lastMintTime) = environment.router["Views"].getAccountBalance(
+    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    (cashBalance, perpTokenBalance, lastMintTime) = environment.notional.getAccountBalance(
         currencyId, perpTokenAddress
     )
 
-    (cashGroup, assetRate) = environment.router["Views"].getCashGroupAndRate(currencyId)
-    portfolio = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
-    (depositShares, leverageThresholds) = environment.router["Views"].getPerpetualDepositParameters(
+    (cashGroup, assetRate) = environment.notional.getCashGroupAndRate(currencyId)
+    (portfolio, ifCashAssets) = environment.notional.getPerpetualTokenPortfolio(perpTokenAddress)
+    (depositShares, leverageThresholds) = environment.notional.getPerpetualDepositParameters(
         currencyId
     )
-    (rateAnchors, proportions) = environment.router["Views"].getInitializationParameters(currencyId)
+    (rateAnchors, proportions) = environment.notional.getInitializationParameters(currencyId)
     maturity = get_maturities(cashGroup[0])
-    markets = environment.router["Views"].getActiveMarkets(currencyId)
-    previousMarkets = environment.router["Views"].getActiveMarketsAtBlockTime(
+    markets = environment.notional.getActiveMarkets(currencyId)
+    previousMarkets = environment.notional.getActiveMarketsAtBlockTime(
         currencyId, blockTime - SECONDS_IN_QUARTER
     )
 
@@ -157,7 +155,6 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
             # Initialize amount is a percentage of the net cash amount
             assert asset[3] == totalAssetCashInMarkets * depositShares[i] / 1e8
 
-    ifCashAssets = environment.router["Views"].getifCashAssets(perpTokenAddress)
     assert len(ifCashAssets) >= len(portfolio)
     for (i, asset) in enumerate(ifCashAssets):
         assert asset[0] == currencyId
@@ -208,10 +205,9 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
             assert pytest.approx(market[5], abs=2) == computedOracleRate
             assert pytest.approx(market[6], abs=2) == computedOracleRate
 
-    accountContext = environment.router["Views"].getAccountContext(perpTokenAddress)
-    assert accountContext[0] < get_tref(blockTime) + SECONDS_IN_QUARTER
-    assert not accountContext[1]
-    assert accountContext[3] == currencyId
+    # TODO: where to check last initialized time?
+    # accountContext = environment.notional.getAccountContext(perpTokenAddress)
+    # assert accountContext[0] < get_tref(blockTime) + SECONDS_IN_QUARTER
 
     check_system_invariants(environment, accounts)
 
@@ -220,24 +216,22 @@ def test_first_initialization(environment, accounts):
     currencyId = 2
     with brownie.reverts("IM: insufficient cash"):
         # no parameters are set
-        environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+        environment.notional.initializeMarkets(currencyId, True)
 
-    environment.router["Governance"].updatePerpetualDepositParameters(
+    environment.notional.updatePerpetualDepositParameters(
         currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9]
     )
 
-    environment.router["Governance"].updateInitializationParameters(
+    environment.notional.updateInitializationParameters(
         currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
     )
 
     with brownie.reverts("IM: insufficient cash"):
         # no cash deposits
-        environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+        environment.notional.initializeMarkets(currencyId, True)
 
-    environment.router["MintPerpetual"].perpetualTokenMint(
-        currencyId, 100000e8, False, {"from": accounts[0]}
-    )
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    environment.notional.initializeMarkets(currencyId, True)
     perp_token_asserts(environment, currencyId, True, accounts)
 
 
@@ -248,7 +242,7 @@ def test_settle_and_initialize(environment, accounts):
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # No trading has occured
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
@@ -256,32 +250,32 @@ def test_settle_and_extend(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    cashGroup = list(environment.router["Views"].getCashGroup(currencyId))
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
     cashGroup[7] = CurrencyDefaults["tokenHaircut"][0:3]
     cashGroup[8] = CurrencyDefaults["rateScalar"][0:3]
-    environment.router["Governance"].updateCashGroup(currencyId, cashGroup)
+    environment.notional.updateCashGroup(currencyId, cashGroup)
 
-    environment.router["Governance"].updatePerpetualDepositParameters(
+    environment.notional.updatePerpetualDepositParameters(
         currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
-    environment.router["Governance"].updateInitializationParameters(
+    environment.notional.updateInitializationParameters(
         currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
 
     # Test re-initialization the second time
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
@@ -289,27 +283,29 @@ def test_mint_after_markets_initialized(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
-    tokensToMint = environment.router["Views"].calculatePerpetualTokensToMint(currencyId, 100000e8)
-    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
+    marketsBefore = environment.notional.getActiveMarkets(currencyId)
+    tokensToMint = environment.notional.calculatePerpetualTokensToMint(currencyId, 100000e8)
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
     # Ensure that the clock ticks forward for lastMintTime check
     blockTime = chain.time() + 1
     chain.mine(1, timestamp=blockTime)
 
-    environment.router["MintPerpetual"].perpetualTokenMint(
-        currencyId, 100000e8, False, {"from": accounts[0]}
-    )
+    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
     perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
     # Assert that no assets in portfolio
-    assert len(environment.router["Views"].getAccountPortfolio(accounts[0])) == 0
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
 
-    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
-    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
+    marketsAfter = environment.notional.getActiveMarkets(currencyId)
+    (
+        cashBalanceAfter,
+        perpTokenBalanceAfter,
+        lastMintTimeAfter,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
     # assert increase in market liquidity
     assert len(marketsBefore) == len(marketsAfter)
@@ -327,24 +323,26 @@ def test_redeem_and_sell_to_cash(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
-    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    marketsBefore = environment.notional.getActiveMarkets(currencyId)
     # TODO: need to add some trading in or this will net off to zero
 
-    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
-        currencyId, 1e8, True, {"from": accounts[0]}
-    )
+    environment.notional.perpetualTokenRedeem(currencyId, 1e8, True, {"from": accounts[0]})
     perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
 
-    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
-    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
+    marketsAfter = environment.notional.getActiveMarkets(currencyId)
+    (
+        cashBalanceAfter,
+        perpTokenBalanceAfter,
+        lastMintTimeAfter,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
     # Assert that no assets in portfolio
-    assert len(environment.router["Views"].getAccountPortfolio(accounts[0])) == 0
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
 
     # assert decrease in market liquidity
     assert len(marketsBefore) == len(marketsAfter)
@@ -361,24 +359,26 @@ def test_redeem_and_put_into_portfolio(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    (cashBalanceBefore, perpTokenBalanceBefore, lastMintTimeBefore) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
-    marketsBefore = environment.router["Views"].getActiveMarkets(currencyId)
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    marketsBefore = environment.notional.getActiveMarkets(currencyId)
 
     # TODO: need to add some trading in or this will net off to zero
 
-    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
-        currencyId, 100e8, False, {"from": accounts[0]}
-    )
+    environment.notional.perpetualTokenRedeem(currencyId, 100e8, False, {"from": accounts[0]})
     perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
 
-    marketsAfter = environment.router["Views"].getActiveMarkets(currencyId)
-    (cashBalanceAfter, perpTokenBalanceAfter, lastMintTimeAfter) = environment.router[
-        "Views"
-    ].getAccountBalance(currencyId, accounts[0])
+    marketsAfter = environment.notional.getActiveMarkets(currencyId)
+    (
+        cashBalanceAfter,
+        perpTokenBalanceAfter,
+        lastMintTimeAfter,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    portfolio = environment.router["Views"].getAccountPortfolio(accounts[0])
+    portfolio = environment.notional.getAccountPortfolio(accounts[0])
     assert len(portfolio) == 2
 
     # Assert that assets in portfolio
@@ -396,24 +396,24 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    environment.router["RedeemPerpetual"].perpetualTokenRedeem(
+    environment.notional.perpetualTokenRedeem(
         currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
     )
 
-    perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
-    portfolio = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
-    ifCashAssets = environment.router["Views"].getifCashAssets(perpTokenAddress)
+    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    portfolio = environment.notional.getAccountPortfolio(perpTokenAddress)
+    ifCashAssets = environment.notional.getifCashAssets(perpTokenAddress)
 
     # assert no assets in perp token
     assert len(portfolio) == 0
     assert len(ifCashAssets) == 0
 
-    environment.router["MintPerpetual"].perpetualTokenMint(
+    environment.notional.perpetualTokenMint(
         currencyId, INITIAL_CASH_AMOUNT, False, {"from": accounts[0]}
     )
 
     # Set is first init to true if the market does not have assets
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, True)
+    environment.notional.initializeMarkets(currencyId, True)
     perp_token_asserts(environment, currencyId, True, accounts)
 
 
@@ -422,20 +422,18 @@ def test_mint_above_leverage_threshold(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    environment.router["Governance"].updatePerpetualDepositParameters(
+    environment.notional.updatePerpetualDepositParameters(
         currencyId, [0.4e8, 0.4e8], [0.4e9, 0.4e9]
     )
 
-    perpTokenAddress = environment.router["Views"].getPerpetualTokenAddress(currencyId)
-    portfolioBefore = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
-    ifCashAssetsBefore = environment.router["Views"].getifCashAssets(perpTokenAddress)
+    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    portfolioBefore = environment.notional.getAccountPortfolio(perpTokenAddress)
+    ifCashAssetsBefore = environment.notional.getifCashAssets(perpTokenAddress)
 
-    environment.router["MintPerpetual"].perpetualTokenMint(
-        currencyId, 100e8, False, {"from": accounts[0]}
-    )
+    environment.notional.perpetualTokenMint(currencyId, 100e8, False, {"from": accounts[0]})
 
-    portfolioAfter = environment.router["Views"].getAccountPortfolio(perpTokenAddress)
-    ifCashAssetsAfter = environment.router["Views"].getifCashAssets(perpTokenAddress)
+    portfolioAfter = environment.notional.getAccountPortfolio(perpTokenAddress)
+    ifCashAssetsAfter = environment.notional.getifCashAssets(perpTokenAddress)
 
     # No liquidity tokens added
     assert portfolioBefore == portfolioAfter
@@ -447,11 +445,11 @@ def test_mint_above_leverage_threshold(environment, accounts):
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    environment.router["Governance"].updatePerpetualDepositParameters(
+    environment.notional.updatePerpetualDepositParameters(
         currencyId, [0.4e8, 0.4e8], [0.8e9, 0.8e9]
     )
 
-    environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(currencyId, False)
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
@@ -465,18 +463,14 @@ def test_failing_initialize_time(environment, accounts):
 
     # Initializing again immediately will fail
     with brownie.reverts("IM: invalid time"):
-        environment.router["InitializeMarkets"].initializeMarkets(currencyId, False)
+        environment.notional.initializeMarkets(currencyId, False)
 
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # Cannot mint until markets are initialized
     with brownie.reverts("PT: requires settlement"):
-        environment.router["MintPerpetual"].perpetualTokenMint(
-            currencyId, 100e8, False, {"from": accounts[0]}
-        )
+        environment.notional.perpetualTokenMint(currencyId, 100e8, False, {"from": accounts[0]})
 
     with brownie.reverts("PT: requires settlement"):
-        environment.router["RedeemPerpetual"].perpetualTokenRedeem(
-            currencyId, 100e8, True, {"from": accounts[0]}
-        )
+        environment.notional.perpetualTokenRedeem(currencyId, 100e8, True, {"from": accounts[0]})

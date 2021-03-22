@@ -53,7 +53,7 @@ class PerpetualTokenStateMachine:
 
     def rule_mint_tokens(self, provider, amountToDeposit):
         # Get the balances before we deposit
-        (cashBalance, perpTokenBalance) = self.env.router["Views"].getAccountBalance(
+        (cashBalance, perpTokenBalance) = self.env.notional.getAccountBalance(
             self.env.currencyId[self.currencySymbol], provider.address
         )
         tokenBalance = self.env.cToken[self.currencySymbol].balanceOf(provider.address)
@@ -61,7 +61,7 @@ class PerpetualTokenStateMachine:
         if cashBalance + tokenBalance < amountToDeposit:
             # Should revert with a transfer error
             with brownie.reverts():
-                self.env.router["MintPerpetual"].perpetualTokenMint(
+                self.env.notional.perpetualTokenMint(
                     self.env.currencyId[self.currencySymbol],
                     amountToDeposit,
                     True,  # Use cash balance here
@@ -69,19 +69,19 @@ class PerpetualTokenStateMachine:
                 )
 
         # Ensure that the tokens to mint matches what we actually mint
-        tokensToMint = self.env.router["MintPerpetual"].calculatePerpetualTokensToMint(
+        tokensToMint = self.env.notional.calculatePerpetualTokensToMint(
             self.env.currencyId[self.currencySymbol], amountToDeposit, {"from": provider}
         )
 
         useCashBalance = random.randint(0, 1)
-        self.env.router["MintPerpetual"].perpetualTokenMint(
+        self.env.notional.perpetualTokenMint(
             self.env.currencyId[self.currencySymbol],
             amountToDeposit,
             useCashBalance,  # If true, this will trigger an FC check
             {"from": provider},
         )
 
-        (cashBalanceAfter, perpTokenBalanceAfter) = self.env.router["Views"].getAccountBalance(
+        (cashBalanceAfter, perpTokenBalanceAfter) = self.env.notional.getAccountBalance(
             self.env.currencyId[self.currencySymbol], provider.address
         )
         tokenBalanceAfter = self.env.cToken[self.currencySymbol].balanceOf(provider.address)

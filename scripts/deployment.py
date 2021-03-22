@@ -30,6 +30,7 @@ from brownie import (
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
+from brownie.project import ContractsVProject
 from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
 
 chain = Chain()
@@ -61,7 +62,7 @@ class TestEnvironment:
         self._deployNotional()
 
         if withGovernance:
-            self.router["Governance"].transferOwnership(self.governor.address)
+            self.notional.transferOwnership(self.governor.address)
             self.noteERC20.transfer(
                 self.governor.address,
                 GovernanceConfig["initialBalances"]["DAO"],
@@ -192,7 +193,7 @@ class TestEnvironment:
         # Deploy logic contracts
         governance = GovernanceAction.deploy({"from": self.deployer})
         views = Views.deploy({"from": self.deployer})
-        initialize = InitializeMarketsAction.deploy({"from": self.deployer})
+        initializeMarkets = InitializeMarketsAction.deploy({"from": self.deployer})
         perpetualTokenMint = MintPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenRedeem = RedeemPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenAction = PerpetualTokenAction.deploy({"from": self.deployer})
@@ -201,7 +202,7 @@ class TestEnvironment:
         router = Router.deploy(
             governance.address,
             views.address,
-            initialize.address,
+            initializeMarkets.address,
             perpetualTokenAction.address,
             perpetualTokenMint.address,
             perpetualTokenRedeem.address,
@@ -221,39 +222,10 @@ class TestEnvironment:
             {"from": self.deployer},
         )
 
-        # TODO: brownie doesn't allow bringing in interface for the abi
-        self.router["Router"] = Contract.from_abi(
-            "Router", self.proxy.address, abi=Router.abi, owner=self.deployer
+        notionalInterfaceABI = ContractsVProject._build.get("NotionalProxy")["abi"]
+        self.notional = Contract.from_abi(
+            "Notional", self.proxy.address, abi=notionalInterfaceABI, owner=self.deployer
         )
-        self.router["Views"] = Contract.from_abi(
-            "Views", self.proxy.address, abi=Views.abi, owner=self.deployer
-        )
-        self.router["MintPerpetual"] = Contract.from_abi(
-            "MintPerpetual",
-            self.proxy.address,
-            abi=MintPerpetualTokenAction.abi,
-            owner=self.deployer,
-        )
-        self.router["RedeemPerpetual"] = Contract.from_abi(
-            "RedeemPerpetual",
-            self.proxy.address,
-            abi=RedeemPerpetualTokenAction.abi,
-            owner=self.deployer,
-        )
-        self.router["PerpetualAction"] = Contract.from_abi(
-            "PerpetualAction", self.proxy.address, abi=PerpetualTokenAction.abi, owner=self.deployer
-        )
-        self.router["InitializeMarkets"] = Contract.from_abi(
-            "InitializeMarkets",
-            self.proxy.address,
-            abi=InitializeMarketsAction.abi,
-            owner=self.deployer,
-        )
-        # TODO: events aren't being parse out properly unless this is at the end
-        self.router["Governance"] = Contract.from_abi(
-            "Governance", self.proxy.address, abi=GovernanceAction.abi, owner=self.deployer
-        )
-
         self.enableCurrency("ETH", CurrencyDefaults)
 
     def enableCurrency(self, symbol, config):
@@ -261,7 +233,7 @@ class TestEnvironment:
         if symbol != "ETH":
             self._deployMockCurrency(symbol)
 
-            txn = self.router["Governance"].listCurrency(
+            txn = self.notional.listCurrency(
                 (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
                 (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
                 self.ethOracle[symbol].address,
@@ -272,7 +244,7 @@ class TestEnvironment:
             )
             currencyId = txn.events["ListCurrency"]["newCurrencyId"]
 
-        self.router["Governance"].enableCashGroup(
+        self.notional.enableCashGroup(
             currencyId,
             self.cTokenAggregator[symbol].address,
             (
@@ -289,7 +261,7 @@ class TestEnvironment:
         )
 
         self.currencyId[symbol] = currencyId
-        perpTokenAddress = self.router["Views"].getPerpetualTokenAddress(currencyId)
+        perpTokenAddress = self.notional.getPerpetualTokenAddress(currencyId)
         self.perpToken[currencyId] = Contract.from_abi(
             "PerpetualToken", perpTokenAddress, abi=PerpetualTokenERC20.abi, owner=self.deployer
         )

@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from brownie.convert import to_bytes
+from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
 from tests.helpers import active_currencies_to_list
 
@@ -13,9 +13,7 @@ def get_all_markets(env, currencyId):
     current_time_ref = env.startTime - (env.startTime % QUARTER)
     markets = []
     while current_time_ref < block_time:
-        markets.append(
-            env.router["Views"].getActiveMarketsAtBlockTime(currencyId, current_time_ref)
-        )
+        markets.append(env.notional.getActiveMarketsAtBlockTime(currencyId, current_time_ref))
         current_time_ref = current_time_ref + QUARTER
 
     return markets
@@ -32,23 +30,23 @@ def check_cash_balance(env, accounts):
     # For every currency, check that the contract balance matches the account
     # balances and capital deposited trackers
     for (symbol, currencyId) in env.currencyId.items():
-        tokenBalance = env.token[symbol].balanceOf(env.router["Views"].address)
+        tokenBalance = env.token[symbol].balanceOf(env.notional.address)
         # Notional contract should never accumulate underlying balances
         assert tokenBalance == 0
 
-        contractBalance = env.cToken[symbol].balanceOf(env.router["Views"].address)
+        contractBalance = env.cToken[symbol].balanceOf(env.notional.address)
         accountBalances = 0
         perpTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, perpTokenBalance, lastMintTime) = env.router["Views"].getAccountBalance(
+            (cashBalance, perpTokenBalance, lastMintTime) = env.notional.getAccountBalance(
                 currencyId, account.address
             )
             accountBalances += cashBalance
             perpTokenTotalBalances += perpTokenBalance
 
         # Add perp token balances
-        (cashBalance, _, _) = env.router["Views"].getAccountBalance(
+        (cashBalance, _, _) = env.notional.getAccountBalance(
             currencyId, env.perpToken[currencyId].address
         )
         accountBalances += cashBalance
@@ -71,7 +69,7 @@ def check_perp_token(env, accounts):
         totalTokensHeld = 0
 
         for account in accounts:
-            (_, tokens, _) = env.router["Views"].getAccountBalance(currencyId, account.address)
+            (_, tokens, _) = env.notional.getAccountBalance(currencyId, account.address)
             totalTokensHeld += tokens
 
         # Ensure that total supply equals tokens held
@@ -79,7 +77,7 @@ def check_perp_token(env, accounts):
 
         # Ensure that the perp token never holds other balances
         for (_, testCurrencyId) in env.currencyId.items():
-            (cashBalance, tokens, lastMintTime) = env.router["Views"].getAccountBalance(
+            (cashBalance, tokens, lastMintTime) = env.notional.getAccountBalance(
                 testCurrencyId, perpToken.address
             )
             assert tokens == 0
@@ -97,7 +95,7 @@ def check_portfolio_invariants(env, accounts):
     liquidityToken = defaultdict(dict)
 
     for account in accounts:
-        portfolio = env.router["Views"].getAccountPortfolio(account.address)
+        portfolio = env.notional.getAccountPortfolio(account.address)
         for asset in portfolio:
             if asset[2] == 1:
                 if (asset[0], asset[1]) in fCash:
@@ -117,7 +115,7 @@ def check_portfolio_invariants(env, accounts):
 
     # Check perp token portfolios
     for (currencyId, perpToken) in env.perpToken.items():
-        portfolio = env.router["Views"].getAccountPortfolio(perpToken.address)
+        (portfolio, ifCashAssets) = env.notional.getPerpetualTokenPortfolio(perpToken.address)
 
         for asset in portfolio:
             # Perp token cannot have any other currencies in its portfolio
@@ -136,7 +134,6 @@ def check_portfolio_invariants(env, accounts):
                 else:
                     liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
 
-        ifCashAssets = env.router["Views"].getifCashAssets(perpToken.address)
         for asset in ifCashAssets:
             assert asset[0] == currencyId
             if (asset[0], asset[1]) in fCash:
@@ -174,13 +171,13 @@ def check_portfolio_invariants(env, accounts):
 
 def check_account_context(env, accounts):
     for account in accounts:
-        context = env.router["Views"].getAccountContext(account.address)
+        context = env.notional.getAccountContext(account.address)
         activeCurrencies = list(active_currencies_to_list(context[-1]))
 
         hasDebt = 0
         for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
-            (cashBalance, perpTokenBalance, lastMintTime) = env.router["Views"].getAccountBalance(
+            (cashBalance, perpTokenBalance, lastMintTime) = env.notional.getAccountBalance(
                 currencyId, account.address
             )
             if cashBalance != 0 or perpTokenBalance != 0:
@@ -189,7 +186,7 @@ def check_account_context(env, accounts):
             if cashBalance < 0:
                 hasDebt = hasDebt | 2
 
-        portfolio = env.router["Views"].getAccountPortfolio(account.address)
+        portfolio = env.notional.getAccountPortfolio(account.address)
         nextMaturity = 0
         if len(portfolio) > 0:
             nextMaturity = portfolio[0][1]
@@ -209,4 +206,4 @@ def check_account_context(env, accounts):
         # Check next maturity, TODO: this does not work with idiosyncratic accounts
         assert context[0] == nextMaturity
         # Check that has debt is set properly
-        assert context[1] == to_bytes(hasDebt, "bytes1")
+        assert context[1] == HexString(hasDebt, "bytes1")

@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../../contracts/actions/DepositWithdrawAction.sol";
 import "../../contracts/common/ExchangeRate.sol";
 import "../../contracts/common/CashGroup.sol";
 import "../../contracts/common/AssetRate.sol";
@@ -11,14 +12,13 @@ import "./PerpetualTokenActionInterface.sol";
 
 // TODO: split this proxy into smaller parts
 interface NotionalProxy is PerpetualTokenActionInterface {
-    event ListCurrency(uint newCurrencyId);
-    event UpdateETHRate(uint currencyId);
-    event UpdateAssetRate(uint currencyId);
-    event UpdateCashGroup(uint currencyId);
-    event UpdatePerpetualDepositParameters(uint currencyId);
-    event UpdateInitializationParameters(uint currencyId);
-    // TODO: add incentive settings
-    // TODO: add max assets parameter
+    event ListCurrency(uint16 newCurrencyId);
+    event UpdateETHRate(uint16 currencyId);
+    event UpdateAssetRate(uint16 currencyId);
+    event UpdateCashGroup(uint16 currencyId);
+    event UpdatePerpetualDepositParameters(uint16 currencyId);
+    event UpdateInitializationParameters(uint16 currencyId);
+    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -29,8 +29,8 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function transferOwnership(address newOwner) external;
 
     function listCurrency(
-        address assetTokenAddress,
-        bool tokenHasTransferFee,
+        TokenStorage calldata assetToken,
+        TokenStorage calldata underlyingToken,
         address rateOracle,
         bool mustInvert,
         uint8 buffer,
@@ -56,6 +56,11 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         uint32[] calldata proportions
     ) external;
 
+    function updateIncentiveEmissionRate(
+        uint16 currencyId,
+        uint32 newEmissionRate
+    ) external;
+
     function updateCashGroup(
         uint16 currencyId,
         CashGroupParameterStorage calldata cashGroup
@@ -76,28 +81,48 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     ) external;
 
     /** Mint Perpetual Token Action */
-    function calculatePerpetualTokensToMint(
-        uint16 currencyId,
-        uint88 amountToDeposit
-    ) external view returns (uint);
-
     function perpetualTokenMint(
         uint16 currencyId,
         uint88 amountToDeposit,
         bool useCashBalance
     ) external returns (uint);
 
-    function perpetualTokenMintFor(
-        uint16 currencyId,
-        address recipient,
-        uint88 amountToDeposit,
-        bool useCashBalance
-    ) external returns (uint);
-
+    /** Redeem Perpetual Token Action */
     function perpetualTokenRedeem(
         uint16 currencyId,
-        uint88 tokensToRedeem
-    ) external returns (bool);
+        uint88 tokensToRedeem_,
+        bool sellTokenAssets
+    ) external;
+
+    /** Deposit Withdraw Action */
+    function depositUnderlyingToken(
+        address account,
+        uint16 currencyId,
+        uint amountExternalPrecision
+    ) external returns (uint);
+
+    function depositAssetToken(
+        address account,
+        uint16 currencyId,
+        uint amountExternalPrecision
+    ) external returns (uint);
+
+    function withdraw(
+        address account,
+        uint16 currencyId,
+        uint88 amountInternalPrecision,
+        bool redeemToUnderlying
+    ) external returns (uint);
+
+    function batchBalanceAction(
+        address account,
+        BalanceAction[] calldata actions
+    ) external;
+
+    function batchBalanceAndTradeActions(
+        address account,
+        BalanceActionWithTrades[] calldata actions
+    ) external;
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
@@ -113,7 +138,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         uint16 currencyId
     ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory);
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
-    function getMarketsActiveAtBlockTime(
+    function getActiveMarketsAtBlockTime(
         uint16 currencyId,
         uint32 blockTime
     ) external view returns (MarketParameters[] memory);
@@ -121,14 +146,14 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function getPerpetualDepositParameters(uint16 currencyId) external view returns (int[] memory, int[] memory);
     function getPerpetualTokenAddress(uint16 currencyId) external view returns (address);
     function getOwner() external view returns (address);
-    function getAccountContext(
-        address account
-    ) external view returns (AccountStorage memory);
-    function getAccountBalance(
-        uint16 currencyId,
-        address account
-    ) external view returns (int, int);
-    function getAccountPortfolio(
-        address account
-    ) external view returns (PortfolioAsset[] memory);
+    function getAccountContext(address account) external view returns (AccountStorage memory);
+    function getAccountBalance(uint16 currencyId, address account) external view returns (int, int, uint);
+    function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
+    function getPerpetualTokenPortfolio(address tokenAddress) external view returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
+    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
+    function calculatePerpetualTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision) external view returns (uint);
+    function getifCashNotional(address account, uint currencyId, uint maturity) external view returns (int);
+    function getifCashBitmap(address account, uint currencyId) external view returns (bytes32);
+    function getFreeCollateralView(address account) external view returns (int);
+    function getIncentivesToMint(uint16 currencyId, uint perpetualTokenBalance, uint lastMintTime, uint blockTime) external view returns (uint);
 }

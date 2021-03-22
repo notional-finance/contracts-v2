@@ -93,11 +93,6 @@ contract GovernanceAction is StorageLayoutV1 {
         );
 
         PerpetualToken.setPerpetualTokenAddress(currencyId, perpetualTokenAddress);
-
-        // Turn on the ifcash bitmap for the perp token
-        AccountStorage memory perpTokenContext = AccountContextHandler.getAccountContext(perpetualTokenAddress);
-        perpTokenContext.bitmapCurrencyId = currencyId;
-        perpTokenContext.setAccountContext(perpetualTokenAddress);
     }
 
     function updatePerpetualDepositParameters(

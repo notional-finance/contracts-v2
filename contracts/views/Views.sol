@@ -134,6 +134,23 @@ contract Views is StorageLayoutV1 {
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
+    function getPerpetualTokenPortfolio(
+        address tokenAddress
+    ) external view returns (PortfolioAsset[] memory, PortfolioAsset[] memory) {
+        (
+            uint currencyId,
+            /* uint totalSupply */,
+            /* incentiveRate */,
+            uint8 assetArrayLength,
+            uint lastInitializedTime
+        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
+
+        return (
+            PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength),
+            BitmapAssetsHandler.getifCashArray(tokenAddress, currencyId, lastInitializedTime)
+        );
+    }
+
     function getifCashAssets(
         address account
     ) external view returns (PortfolioAsset[] memory) {
