@@ -56,23 +56,23 @@ def isolation(fn_isolation):
 def test_settlement_date(assetLibrary):
     with brownie.reverts():
         # invalid asset type
-        assetLibrary.getSettlementDate((1, START_TIME_TREF, 0, 0, 0))
+        assetLibrary.getSettlementDate((1, START_TIME_TREF, 0, 0, 0, 0))
 
     # fcash settlement date
-    assert MARKETS[1] == assetLibrary.getSettlementDate((1, MARKETS[1], FCASH_ASSET_TYPE, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[0], 2, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[1], 3, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[2], 4, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[3], 5, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[4], 6, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[5], 7, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[6], 8, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[7], 9, 0, 0))
-    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[8], 10, 0, 0))
+    assert MARKETS[1] == assetLibrary.getSettlementDate((1, MARKETS[1], FCASH_ASSET_TYPE, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[0], 2, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[1], 3, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[2], 4, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[3], 5, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[4], 6, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[5], 7, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[6], 8, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[7], 9, 0, 0, 0))
+    assert SETTLEMENT_DATE == assetLibrary.getSettlementDate((1, MARKETS[8], 10, 0, 0, 0))
 
     with brownie.reverts():
         # invalid asset type
-        assetLibrary.getSettlementDate((1, START_TIME_TREF, 11, 0, 0))
+        assetLibrary.getSettlementDate((1, START_TIME_TREF, 11, 0, 0, 0))
 
 
 def test_failure_liquidity_token_cash_claims(assetLibrary):
@@ -86,10 +86,12 @@ def test_failure_liquidity_token_cash_claims(assetLibrary):
         assetLibrary.getHaircutCashClaims(get_fcash_token(1), marketState, cashGroup)
 
     with brownie.reverts():
-        assetLibrary.getCashClaims((1, START_TIME_TREF, 11, 1e18, 0), marketState)
+        assetLibrary.getCashClaims((1, START_TIME_TREF, 11, 1e18, 0, 0), marketState)
 
     with brownie.reverts():
-        assetLibrary.getHaircutCashClaims((1, START_TIME_TREF, 11, 1e18, 0), marketState, cashGroup)
+        assetLibrary.getHaircutCashClaims(
+            (1, START_TIME_TREF, 11, 1e18, 0, 0), marketState, cashGroup
+        )
 
     with brownie.reverts():
         assetLibrary.getCashClaims(get_liquidity_token(1, notional=-1), marketState)

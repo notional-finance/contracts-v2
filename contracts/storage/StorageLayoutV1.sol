@@ -92,7 +92,7 @@ struct AccountStorage {
     // Used to check when settlement must be trigged on an account
     uint40 nextSettleTime;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.
-    bool hasDebt;
+    bytes1 hasDebt;
     // Length of the account's asset array
     uint8 assetArrayLength;
     // If this account has bitmaps set, this is the corresponding currency id

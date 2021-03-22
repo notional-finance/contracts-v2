@@ -138,9 +138,9 @@ def test_build_and_finalize_balances(
 
         # Assert hasDebt is set properly (storedCashBalance + netCashChange + netTransfer)
         if bsCopy[1] + bsCopy[3] + netTransfer < 0:
-            assert context[1]
+            assert context[1] == "0x02"
         else:
-            assert not context[1]
+            assert context[1] == "0x00"
 
         currency = balanceHandler.getCurrencyMapping(currencyId, False)
         externalPrecision = currency[2]

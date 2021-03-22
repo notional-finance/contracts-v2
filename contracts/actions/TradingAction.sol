@@ -318,7 +318,7 @@ library TradingAction {
             fCashAmountForCounterparty
         );
 
-        if (counterpartyContext.hasDebt) {
+        if (counterpartyContext.hasDebt != 0x00) {
             // Do free collateral check on counterparty
             FreeCollateralExternal.checkFreeCollateralAndRevert(counterparty);
         }

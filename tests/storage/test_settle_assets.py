@@ -138,7 +138,7 @@ def settled_balance_context(assetArray, blockTime):
             filter(
                 lambda x: x[3] != 0,
                 [
-                    (key[0], key[1], key[2], sum(int(a[3]) for a in value), 0)
+                    (key[0], key[1], key[2], sum(int(a[3]) for a in value))
                     for key, value in itertools.groupby(
                         remainingAssets, lambda x: (x[0], x[1], x[2])
                     )
@@ -149,6 +149,7 @@ def settled_balance_context(assetArray, blockTime):
 
 
 @given(numAssets=strategy("uint", min_value=0, max_value=4))
+@pytest.mark.only
 def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[0:3]) + random.randint(0, 6000)
@@ -178,6 +179,7 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
 
     # Assert that remaining assets are ok
     assets = mockSettleAssets.getAssetArray(accounts[1])
+    assets = [(a[0], a[1], a[2], a[3]) for a in assets]
     assert sorted(assets) == sorted(remainingAssets)
 
 

@@ -106,7 +106,8 @@ library PortfolioHandler {
 
         // Mark any zero notional assets as deleted
         for (uint i; i < portfolioState.storedAssets.length; i++) {
-            if (portfolioState.storedAssets[i].notional == 0) {
+            if (portfolioState.storedAssets[i].storageState != AssetStorageState.Delete &&
+                portfolioState.storedAssets[i].notional == 0) {
                 deleteAsset(portfolioState, i);
             }
         }
@@ -175,17 +176,33 @@ library PortfolioHandler {
         require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
         
         portfolioState.storedAssetLength -= 1;
+
+        uint maxActiveSlotIndex;
+        uint maxActiveSlot;
+        for (uint i; i < portfolioState.storedAssets.length; i++) {
+            if (portfolioState.storedAssets[i].storageSlot > maxActiveSlot
+                && portfolioState.storedAssets[i].storageState != AssetStorageState.Delete) {
+                maxActiveSlot = portfolioState.storedAssets[i].storageSlot;
+                maxActiveSlotIndex = i;
+            }
+        }
+
+        if (index == maxActiveSlotIndex) {
+            portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
+            return;
+        }
+
         // Swap the storage slots of the deleted asset with the last non-deleted asset in the array. Mark them accordingly
         // so that when we call store assets they will be updated approporiately
         (
-            portfolioState.storedAssets[portfolioState.storedAssetLength].storageSlot,
+            portfolioState.storedAssets[maxActiveSlotIndex].storageSlot,
             portfolioState.storedAssets[index].storageSlot
         ) = (
             portfolioState.storedAssets[index].storageSlot,
-            portfolioState.storedAssets[portfolioState.storedAssetLength].storageSlot
+            portfolioState.storedAssets[maxActiveSlotIndex].storageSlot
         );
-        portfolioState.storedAssets[index].storageState = AssetStorageState.Update;
-        portfolioState.storedAssets[portfolioState.storedAssetLength].storageState = AssetStorageState.Delete;
+        portfolioState.storedAssets[maxActiveSlotIndex].storageState = AssetStorageState.Update;
+        portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
     }
 
     /**

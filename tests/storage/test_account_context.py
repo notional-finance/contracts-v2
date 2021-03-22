@@ -3,6 +3,7 @@ import random
 import brownie
 import pytest
 from brownie.convert import to_bytes
+from brownie.convert.datatypes import HexString
 from brownie.test import given, strategy
 from tests.constants import START_TIME
 
@@ -36,7 +37,7 @@ def get_active_currencies(currenciesList):
 
 @given(
     length=strategy("uint", min_value=0, max_value=9),
-    hasDebt=strategy("bool"),
+    hasDebt=strategy("uint8", min_value=0, max_value=3),
     arrayLength=strategy("uint8"),
     bitmapId=strategy("uint16"),
 )
@@ -44,10 +45,14 @@ def test_get_and_set_account_context(
     accountContext, accounts, length, hasDebt, arrayLength, bitmapId
 ):
     currencies = [random.randint(1, 2 ** 16) for i in range(0, length)]
-    currenciesHex = brownie.convert.datatypes.HexString(
-        get_active_currencies(currencies), "bytes18"
+    currenciesHex = HexString(get_active_currencies(currencies), "bytes18")
+    expectedContext = (
+        START_TIME,
+        HexString(hasDebt, "bytes1"),
+        arrayLength,
+        bitmapId,
+        currenciesHex,
     )
-    expectedContext = (START_TIME, hasDebt, arrayLength, bitmapId, currenciesHex)
 
     accountContext.setAccountContext(expectedContext, accounts[0])
     assert expectedContext == accountContext.getAccountContext(accounts[0])
@@ -56,7 +61,7 @@ def test_get_and_set_account_context(
 @given(length=strategy("uint", min_value=0, max_value=9))
 def test_is_active_currency(accountContext, length):
     currencies = [random.randint(1, 2 ** 16) for i in range(0, length)]
-    ac = (0, False, 0, 0, get_active_currencies(currencies))
+    ac = (0, "0x00", 0, 0, get_active_currencies(currencies))
 
     for c in currencies:
         assert accountContext.isActiveCurrency(ac, c)
@@ -112,19 +117,3 @@ def test_set_active_currency(accountContext):
     with brownie.reverts("AC: too many currencies"):
         accountContext.setActiveCurrency(get_active_currencies(currenciesList), 1, True)
         accountContext.setActiveCurrency(get_active_currencies(currenciesList), 3, True)
-
-
-@given(length=strategy("uint", min_value=0, max_value=9))
-def test_get_all_balances(accountContext, accounts, length):
-    currenciesList = list(range(2, length * 2, 2))
-    # no bitmap currency id
-    bs = accountContext.getAllBalances(get_active_currencies(currenciesList), accounts[0], 0)
-    assert list(map(lambda x: x[0], bs)) == currenciesList
-
-    # with bitmap currency id inside list
-    bs = accountContext.getAllBalances(get_active_currencies(currenciesList), accounts[0], 3)
-    assert list(map(lambda x: x[0], bs)) == sorted(currenciesList + [3])
-
-    # with bitmap currency id end of list
-    bs = accountContext.getAllBalances(get_active_currencies(currenciesList), accounts[0], 25)
-    assert list(map(lambda x: x[0], bs)) == sorted(currenciesList + [25])

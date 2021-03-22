@@ -389,7 +389,7 @@ library DepositWithdrawAction {
         // At this point all balances, market states and portfolio states should be finalized. Just need to check free
         // collateral if required.
         accountContext.setAccountContext(account);
-        if (accountContext.hasDebt) {
+        if (accountContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(account);
         }
     }

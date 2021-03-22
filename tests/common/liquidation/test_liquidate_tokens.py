@@ -129,12 +129,15 @@ def test_liquidate_tokens_insufficient_with_fcash(liquidation, accounts):
     fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
     cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
 
-    # Liquidity token deleted
-    assert portfolioState[0][0][-1] == 2
     # fCash updated with fCashClaim
-    assert portfolioState[0][1] == get_fcash_token(
-        1, notional=(fCashClaim + fCashNotional), storageState=1
+    assert portfolioState[0][0] == get_fcash_token(
+        1,
+        notional=(fCashClaim + fCashNotional),
+        storageState=1,
+        storageSlot=portfolioState[0][0][4],
     )
+    # Liquidity token deleted
+    assert portfolioState[0][1][-1] == 2
     assert cashClaim == netCashChange + incentivePaid
 
     # assert market updates
@@ -224,10 +227,10 @@ def test_liquidate_tokens_sufficient_with_fcash(liquidation, accounts):
     fCashClaim = math.trunc(markets[0][2] * tokensToRemove / markets[0][4])
     cashClaimRemoved = math.trunc(markets[0][3] * tokensToRemove / markets[0][4])
 
-    assert pytest.approx(portfolioState[0][0][3], abs=2) == (
+    assert pytest.approx(portfolioState[0][0][3], abs=2) == fCashClaim + fCashNotional
+    assert pytest.approx(portfolioState[0][1][3], abs=2) == (
         liquidityTokenNotional - tokensToRemove
     )
-    assert pytest.approx(portfolioState[0][1][3], abs=2) == fCashClaim + fCashNotional
     assert pytest.approx(cashClaimRemoved, abs=2) == netCashChange + incentivePaid
 
     # assert market updates

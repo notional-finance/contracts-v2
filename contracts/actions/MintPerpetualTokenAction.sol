@@ -39,7 +39,7 @@ library MintPerpetualTokenAction {
         recipientBalance.finalize(recipient, recipientContext, false);
         recipientContext.setAccountContext(recipient);
 
-        if (recipientContext.hasDebt) {
+        if (recipientContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(recipient);
         }
 

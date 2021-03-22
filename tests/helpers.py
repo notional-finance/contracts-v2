@@ -123,9 +123,10 @@ def get_liquidity_token(marketIndex, **kwargs):
     maturity = MARKETS[marketIndex - 1] if "maturity" not in kwargs else kwargs["maturity"]
     assetType = marketIndex + 1
     notional = 1e18 if "notional" not in kwargs else kwargs["notional"]
+    storageSlot = 0 if "storageSlot" not in kwargs else kwargs["storageSlot"]
     storageState = 0 if "storageState" not in kwargs else kwargs["storageState"]
 
-    return (currencyId, maturity, assetType, Wei(notional), storageState)
+    return (currencyId, maturity, assetType, Wei(notional), storageSlot, storageState)
 
 
 def get_fcash_token(marketIndex, **kwargs):
@@ -133,9 +134,17 @@ def get_fcash_token(marketIndex, **kwargs):
     maturity = MARKETS[marketIndex - 1] if "maturity" not in kwargs else kwargs["maturity"]
     assetType = 1
     notional = 1e18 if "notional" not in kwargs else kwargs["notional"]
+    storageSlot = 0 if "storageSlot" not in kwargs else kwargs["storageSlot"]
     storageState = 0 if "storageState" not in kwargs else kwargs["storageState"]
 
-    return (currencyId, maturity, assetType, Wei(notional), storageState)
+    return (currencyId, maturity, assetType, Wei(notional), storageSlot, storageState)
+
+
+def get_settlement_date(asset, blockTime):
+    if asset[2] == 1:
+        return asset[1]
+    else:
+        return get_tref(blockTime) + 90 * SECONDS_IN_DAY
 
 
 def get_portfolio_array(length, cashGroups, **kwargs):
@@ -184,13 +193,14 @@ def generate_asset_array(numAssets, numCurrencies):
         isfCash = 0
         if isfCash:
             assets.append((a[0], a[1], 1, notional))
+            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
         else:
             index = MARKETS.index(a[1])
             assets.append((a[0], a[1], index + 2, abs(notional)))
+            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
             # Offsetting fCash asset
             assets.append((a[0], a[1], 1, -abs(notional)))
-
-        nextSettleTime = min(a[1], nextSettleTime)
+            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
 
     random.shuffle(assets)
     return (assets, nextSettleTime)

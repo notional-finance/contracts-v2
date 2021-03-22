@@ -89,7 +89,7 @@ def test_calculate_token_cash_claims(liquidationFixtures, accounts):
         liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
     # FCash token only
-    portfolioState = ([get_fcash_token(1)], [], 0, 1, [])
+    portfolioState = ([get_fcash_token(1)], [], 0, 1)
 
     totalAssetCash = liquidation.calculateTokenCashClaims(
         portfolioState, cashGroup, markets, START_TIME
@@ -110,7 +110,6 @@ def test_calculate_token_cash_claims(liquidationFixtures, accounts):
         [],
         0,
         3,
-        [],
     )
 
     totalAssetCash = liquidation.calculateTokenCashClaims(
@@ -255,7 +254,7 @@ def test_sufficient_no_portfolio(liquidationFixtures, accounts):
 
     factorContract.setBalance(accounts[0], 1, localBalance, 0)
     factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
-    portfolioState = ([], [], 0, 0, [])
+    portfolioState = ([], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = txn.return_value
@@ -282,7 +281,7 @@ def test_not_sufficient_no_portfolio(liquidationFixtures, accounts):
 
     factorContract.setBalance(accounts[0], 1, localBalance, 0)
     factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
-    portfolioState = ([], [], 0, 0, [])
+    portfolioState = ([], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = txn.return_value
@@ -309,7 +308,7 @@ def test_sufficient_with_fcash(liquidationFixtures, accounts):
 
     factorContract.setBalance(accounts[0], 1, localBalance, 0)
     factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
-    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0, [])
+    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = txn.return_value
@@ -336,7 +335,7 @@ def test_not_sufficient_with_fcash(liquidationFixtures, accounts):
 
     factorContract.setBalance(accounts[0], 1, localBalance, 0)
     factorContract.setBalance(accounts[0], 2, collateralBalance, 0)
-    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0, [])
+    portfolioState = ([get_fcash_token(2, notional=100e8)], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = txn.return_value
@@ -366,7 +365,7 @@ def test_sufficient_perpetual_tokens(liquidationFixtures, accounts):
     factorContract.setBalance(
         accounts[0], 2, perpTokenValue, 0
     )  # Bit of a hack to get around valuation
-    portfolioState = ([], [], 0, 0, [])
+    portfolioState = ([], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = list(txn.return_value)
@@ -400,7 +399,7 @@ def test_not_sufficient_perpetual_tokens(liquidationFixtures, accounts):
     factorContract.setBalance(
         accounts[0], 2, perpTokenValue, 0
     )  # Bit of a hack to get around valuation
-    portfolioState = ([], [], 0, 0, [])
+    portfolioState = ([], [], 0, 0)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = list(txn.return_value)
@@ -443,7 +442,7 @@ def test_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts):
     ]
 
     factorContract.setPortfolio(accounts[0], portfolio)
-    portfolioState = (portfolio, [], 0, 1, [])
+    portfolioState = (portfolio, [], 0, 1)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = list(txn.return_value)
@@ -467,8 +466,8 @@ def test_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts):
     assert newBalanceContext[5] == 0
     assert pytest.approx(newPortfolioState[0][0][3], abs=5) == liquidityTokenNotional - withdrawn
     assert pytest.approx(newPortfolioState[0][1][3], abs=5) == newfCashClaim
-    assert newPortfolioState[0][0][4] == 1
-    assert newPortfolioState[0][1][4] == 1
+    assert newPortfolioState[0][0][5] == 1
+    assert newPortfolioState[0][1][5] == 1
 
 
 def test_not_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts):
@@ -486,7 +485,7 @@ def test_not_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts)
     portfolio = [get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional)]
 
     factorContract.setPortfolio(accounts[0], portfolio)
-    portfolioState = (portfolio, [], 0, 1, [])
+    portfolioState = (portfolio, [], 0, 1)
 
     txn = factorContract.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
     factors = list(txn.return_value)
@@ -499,4 +498,4 @@ def test_not_sufficient_withdraw_liquidity_tokens(liquidationFixtures, accounts)
     assert pytest.approx(localToPurchase, abs=2) == cashClaim * 100 / discount
     assert newBalanceContext[4] == 0
     assert newBalanceContext[5] == 0
-    assert newPortfolioState[0][0][4] == 2
+    assert newPortfolioState[0][0][5] == 2

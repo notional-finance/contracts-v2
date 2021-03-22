@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from brownie.convert import to_bytes
 from brownie.network.state import Chain
 from tests.helpers import active_currencies_to_list
 
@@ -176,7 +177,7 @@ def check_account_context(env, accounts):
         context = env.router["Views"].getAccountContext(account.address)
         activeCurrencies = list(active_currencies_to_list(context[-1]))
 
-        hasDebt = False
+        hasDebt = 0
         for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
             (cashBalance, perpTokenBalance, lastMintTime) = env.router["Views"].getAccountBalance(
@@ -186,7 +187,7 @@ def check_account_context(env, accounts):
                 assert currencyId in activeCurrencies
 
             if cashBalance < 0:
-                hasDebt = True
+                hasDebt = hasDebt | 2
 
         portfolio = env.router["Views"].getAccountPortfolio(account.address)
         nextMaturity = 0
@@ -203,9 +204,9 @@ def check_account_context(env, accounts):
 
             if asset[3] < 0:
                 # Negative fcash
-                hasDebt = True
+                hasDebt = hasDebt | 1
 
         # Check next maturity, TODO: this does not work with idiosyncratic accounts
         assert context[0] == nextMaturity
         # Check that has debt is set properly
-        assert context[1] == hasDebt
+        assert context[1] == to_bytes(hasDebt, "bytes1")

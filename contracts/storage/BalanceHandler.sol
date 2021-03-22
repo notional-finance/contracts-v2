@@ -230,7 +230,12 @@ library BalanceHandler {
             // Set active currency to true if either balance is non-zero
             balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0
         );
-        if (balanceState.storedCashBalance < 0) accountContext.hasDebt = true;
+
+        if (balanceState.storedCashBalance < 0) {
+            // NOTE: this cannot be extinguished except by a free collateral check where all balances
+            // are examined
+            accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_CASH_DEBT;
+        }
 
         return transferAmountExternal;
     }
@@ -275,7 +280,9 @@ library BalanceHandler {
                 cashBalance != 0 || perpetualTokenBalance != 0
             );
 
-            if (cashBalance < 0) accountContext.hasDebt = true;
+            if (cashBalance < 0) {
+                accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_CASH_DEBT;
+            }
             setBalanceStorage(account, settleAmounts[i].currencyId, cashBalance,
                 perpetualTokenBalance, lastIncentiveMint);
         }

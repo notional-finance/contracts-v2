@@ -32,7 +32,7 @@ contract MockAccountContextHandler {
         uint currencyId,
         bool isActive
     ) external pure returns (bytes18) {
-        AccountStorage memory accountContext = AccountStorage(0, false, 0, 0, activeCurrencies);
+        AccountStorage memory accountContext = AccountStorage(0, 0x00, 0, 0, activeCurrencies);
         accountContext.setActiveCurrency(currencyId, isActive);
         assert (accountContext.isActiveCurrency(currencyId) == isActive);
 

@@ -2,14 +2,19 @@ import random
 
 import pytest
 from brownie.convert.datatypes import HexString
+from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import *
-from tests.helpers import active_currencies_to_list
+from tests.helpers import active_currencies_to_list, get_portfolio_array, get_settlement_date
+
+chain = Chain()
 
 
 @pytest.fixture(scope="module", autouse=True)
 def portfolioHandler(MockPortfolioHandler, accounts):
     handler = MockPortfolioHandler.deploy({"from": accounts[0]})
+    chain.mine(1, timestamp=START_TIME)
+
     return handler
 
 
@@ -18,42 +23,31 @@ def isolation(fn_isolation):
     pass
 
 
-def generate_random_asset():
-    currencyId = random.randint(1, 5)
-    assetType = random.randint(1, 7)
-    maturity = random.randrange(0, 360 * SECONDS_IN_DAY, 10)
-
-    if assetType == 1:
-        notional = random.randint(-1e18, 1e18)
-    else:
-        notional = random.randint(0.1e18, 1e18)
-
-    return (currencyId, maturity, assetType, notional, 0)
+def generate_asset_array(num_assets):
+    cashGroups = [(1, 7), (2, 7), (3, 7)]
+    return get_portfolio_array(num_assets, cashGroups)
 
 
 @given(num_assets=strategy("uint", min_value=0, max_value=9))
 def test_portfolio_sorting(portfolioHandler, accounts, num_assets):
-    newAssets = [generate_random_asset() for i in range(0, num_assets)]
-    portfolioHandler.storeAssets(accounts[1], ([], newAssets, num_assets, 0, []))
-    state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+    newAssets = generate_asset_array(num_assets)
+    portfolioHandler.storeAssets(accounts[1], ([], newAssets, num_assets, 0))
 
-    sortedIndexes = portfolioHandler.calculateSortedIndex(state)
-
-    pythonSorted = sorted(newAssets)
-    computedSort = tuple([state[0][i][0:3] for i in sortedIndexes])
-
-    assert computedSort == tuple([p[0:3] for p in pythonSorted])
-
+    computedSort = tuple([p[0:3] for p in sorted(newAssets)])
     sortedArray = portfolioHandler.getAssetArray(accounts[1])
     assert computedSort == tuple([s[0:3] for s in sortedArray])
 
 
 @given(num_assets=strategy("uint", min_value=0, max_value=9))
 def test_add_delete_assets(portfolioHandler, accounts, num_assets):
-    startingAssets = [generate_random_asset() for i in range(0, num_assets)]
+    assetArray = generate_asset_array(num_assets + 5)
+    startingAssets = assetArray[0:num_assets]
+    newAssets = assetArray[num_assets:]
 
-    portfolioHandler.storeAssets(accounts[1], ([], startingAssets, len(startingAssets), 0, []))
+    portfolioHandler.storeAssets(accounts[1], ([], startingAssets, len(startingAssets), 0))
     state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+    # build portfolio state returns a sorted list
+    startingAssets = list(state[0])
 
     # deletes will always come before adds
     num_deletes = random.randint(0, len(startingAssets))
@@ -63,16 +57,16 @@ def test_add_delete_assets(portfolioHandler, accounts, num_assets):
     for d in delete_indexes:
         state = portfolioHandler.deleteAsset(state, d)
         # Assert that asset has been marked as removed
-        assert state[0][d][4] == 2
+        assert state[0][d][5] == 2
+        assert state[-1] == len([x for x in state[0] if x[5] != 2])
         tmp = list(startingAssets[d])
         tmp[3] = 0  # mark notional as zero
         startingAssets[d] = tuple(tmp)
 
-    newAssets = sorted([generate_random_asset() for i in range(0, 5)])
     # do 5 random add asset operations
     for i in range(0, 5):
         action = random.randint(0, 2)
-        activeIndexes = [i for i, x in enumerate(state[0]) if x[4] != 2]
+        activeIndexes = [i for i, x in enumerate(state[0]) if x[5] != 2]
         if len(activeIndexes) == 0:
             action = 0
 
@@ -110,7 +104,7 @@ def test_add_delete_assets(portfolioHandler, accounts, num_assets):
                 False,
             )
 
-            assert state[0][index][4] == 1
+            assert state[0][index][5] == 1
             assert state[0][index][3] == asset[3] + notional
             tmp = list(startingAssets[index])
             tmp[3] += notional
@@ -131,41 +125,44 @@ def test_add_delete_assets(portfolioHandler, accounts, num_assets):
                 False,
             )
 
-            assert state[0][index][4] == 1
+            assert state[0][index][5] == 1
             assert state[0][index][3] == asset[3] + notional
             tmp = list(startingAssets[index])
             tmp[3] = 0  # mark notional as zero
             startingAssets[index] = tuple(tmp)
 
     txn = portfolioHandler.storeAssets(accounts[1], state)
-    (hasDebt, activeCurrencies) = txn.return_value
+    (context) = txn.return_value
     finalStored = portfolioHandler.getAssetArray(accounts[1])
     # Filter out the active assets with zero notional from the computed list
     finalComputed = tuple(list(filter(lambda x: x[3] != 0, startingAssets)))
 
-    context = portfolioHandler.getAccountContext(accounts[1])
     assert context[2] == len(finalComputed)  # assert length is correct
 
     # assert nextSettleTime is correct
     if len(finalComputed) == 0:
         assert context[0] == 0
     else:
-        assert context[0] == min([x[1] for x in finalComputed])
+        assert context[0] == min([get_settlement_date(x, chain.time()) for x in finalComputed])
 
     # assert that hasDebt is correct
     if len(finalComputed) == 0:
-        assert not hasDebt
+        assert context[1] == "0x00"
     else:
-        assert hasDebt == ((min([x[3] for x in finalComputed])) < 0)
+        hasDebt = (min([x[3] for x in finalComputed])) < 0
+        if hasDebt:
+            assert context[1] != "0x00"
+        else:
+            assert context[1] == "0x00"
 
     # assert that active currencies has all the currencies
     if len(finalComputed) == 0:
-        assert activeCurrencies == HexString("0x00", "bytes32")
+        assert context[4] == HexString("0x00", "bytes18")
     else:
         activeCurrencyList = list(
-            filter(lambda x: x != 0, sorted(active_currencies_to_list(activeCurrencies)))
+            filter(lambda x: x != 0, sorted(active_currencies_to_list(context[4])))
         )
-        currencies = [x[0] for x in sorted(finalComputed)]
+        currencies = list(set([x[0] for x in sorted(finalComputed)]))
         assert activeCurrencyList == currencies
 
-    assert sorted(finalStored) == sorted(finalComputed)
+    assert sorted([x[0:4] for x in finalStored]) == sorted([(x[0:4]) for x in finalComputed])

@@ -10,6 +10,8 @@ library AccountContextHandler {
     using PortfolioHandler for PortfolioState;
 
     bytes18 private constant ZERO = bytes18(0);
+    bytes1 internal constant HAS_ASSET_DEBT = 0x01;
+    bytes1 internal constant HAS_CASH_DEBT = 0x02;
     
     function getAccountContext(
         address account
@@ -21,7 +23,7 @@ library AccountContextHandler {
 
         return AccountStorage({
             nextSettleTime: uint40(uint(data)),
-            hasDebt: bytes1(data << 208) == 0x01,
+            hasDebt: bytes1(data << 208),
             assetArrayLength: uint8(uint(data >> 48)),
             bitmapCurrencyId: uint16(uint(data >> 56)),
             activeCurrencies: bytes18(data << 40)
@@ -35,7 +37,7 @@ library AccountContextHandler {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data = (
             bytes32(uint(accountContext.nextSettleTime)) |
-            bytes32(accountContext.hasDebt ? bytes1(0x01) : bytes1(0x00)) >> 208 |
+            bytes32(accountContext.hasDebt) >> 208 |
             bytes32(uint(accountContext.assetArrayLength)) << 48 |
             bytes32(uint(accountContext.bitmapCurrencyId)) << 56 |
             bytes32(accountContext.activeCurrencies) >> 40
@@ -94,13 +96,20 @@ library AccountContextHandler {
             uint8 assetArrayLength,
             uint40 nextSettleTime
         ) = portfolioState.storeAssets(account);
-        accountContext.hasDebt = hasDebt || accountContext.hasDebt;
+
+        if (hasDebt) {
+            accountContext.hasDebt = accountContext.hasDebt | HAS_ASSET_DEBT;
+        } else {
+            // Turns off the FCASH_DEBT flag
+            accountContext.hasDebt = accountContext.hasDebt & HAS_CASH_DEBT;
+        }
         accountContext.assetArrayLength = assetArrayLength;
         accountContext.nextSettleTime = nextSettleTime;
 
         uint lastCurrency;
         while (portfolioCurrencies != 0) {
             uint currencyId = uint(uint16(bytes2(portfolioCurrencies)));
+            // TODO: this is incorrect because it does not turn off deleted currencies
             if (currencyId != lastCurrency) setActiveCurrency(accountContext, currencyId, true);
             lastCurrency = currencyId;
 

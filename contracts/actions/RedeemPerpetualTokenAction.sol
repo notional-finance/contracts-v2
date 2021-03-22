@@ -100,7 +100,7 @@ library RedeemPerpetualTokenAction {
         redeemerContext.setAccountContext(redeemer);
 
         // TODO: must free collateral check here if recipient is keeping LTs
-        if (redeemerContext.hasDebt) {
+        if (redeemerContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
     }
