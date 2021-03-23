@@ -2,12 +2,12 @@ import math
 
 import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from hypothesis import settings
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment, TokenType
-from tests.helpers import get_balance_state
-from tests.storage.test_account_context import get_active_currencies
+from tests.helpers import currencies_list_to_active_currency_bytes, get_balance_state
 
 DAI_CURRENCY_ID = 7
 
@@ -63,17 +63,17 @@ def isolation(fn_isolation):
 def convert_to_external(internalValue, externalPrecision):
     if externalPrecision > 1e8:
         # floating point weirdness with python
-        return math.trunc(externalPrecision / 1e8) * internalValue
+        return math.trunc(Wei(externalPrecision) / Wei(1e8)) * Wei(internalValue)
     else:
-        return math.trunc(internalValue * externalPrecision / 1e8)
+        return math.trunc(Wei(internalValue) * Wei(externalPrecision) / Wei(1e8))
 
 
 def convert_to_internal(externalValue, externalPrecision):
     if externalPrecision < 1e8:
         # floating point weirdness with python
-        return math.trunc(1e8 / externalPrecision) * externalValue
+        return math.trunc(Wei(1e8) / Wei(externalPrecision)) * Wei(externalValue)
     else:
-        return math.trunc(externalValue * 1e8 / externalPrecision)
+        return math.trunc(Wei(externalValue) * Wei(1e8) / Wei(externalPrecision))
 
 
 @given(
@@ -103,9 +103,16 @@ def test_build_and_finalize_balances(
     # netPerpetualTokenTransfer = 0
     # netTransfer = -3
     # perpetualTokenBalance = 0
-    active_currencies = get_active_currencies([currencyId])
+    # Precision loss example
+    assetBalance = 0
+    currencyId = 6
+    netCashChange = 0
+    netPerpetualTokenTransfer = 0
+    netTransfer = 83952385
+    perpetualTokenBalance = 0
+    active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
     balanceHandler.setBalance(accounts[0], currencyId, assetBalance, perpetualTokenBalance)
-    context = (0, False, 0, 0, active_currencies)
+    context = (0, "0x00", 0, 0, active_currencies)
 
     (bs, context) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
     assert bs[0] == currencyId
@@ -305,8 +312,8 @@ def test_deposit_and_withdraw_underlying_asset_token(
     underlyingBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
     accountUnderlyingBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(accounts[0].address)
 
-    active_currencies = get_active_currencies([currencyId])
-    context = (0, False, 0, 0, active_currencies)
+    active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
+    context = (0, "0x00", 0, 0, active_currencies)
     # withdraw all the asset tokens received
     bs = get_balance_state(
         currencyId,
