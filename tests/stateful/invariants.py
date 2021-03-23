@@ -181,7 +181,7 @@ def check_account_context(env, accounts):
                 currencyId, account.address
             )
             if cashBalance != 0 or perpTokenBalance != 0:
-                assert currencyId in activeCurrencies
+                assert (currencyId, True) in [(a[0], a[2]) for a in activeCurrencies]
 
             if cashBalance < 0:
                 hasDebt = hasDebt | 2
@@ -193,7 +193,7 @@ def check_account_context(env, accounts):
 
         for asset in portfolio:
             # Check that currency id is in the active currencies list
-            assert asset[0] in activeCurrencies
+            assert (asset[0], True) in [(a[0], a[1]) for a in activeCurrencies]
 
             if asset[1] < nextMaturity:
                 # Set to the lowest maturity

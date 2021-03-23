@@ -157,7 +157,7 @@ library InitializeMarketsAction {
             );
 
             // Do not have fCash assets stored in the portfolio
-            asset.storageState = AssetStorageState.Delete;
+            perpToken.portfolioState.deleteAsset(i);
         }
 
         // Recalculate what the witholdings are if there are any ifCash assets remaining

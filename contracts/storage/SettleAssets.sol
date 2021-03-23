@@ -122,7 +122,7 @@ library SettleAssets {
                 fCashAsset.notional = fCashAsset.notional.add(fCash);
                 fCashAsset.storageState = AssetStorageState.Update;
 
-                liquidityToken.storageState = AssetStorageState.Delete;
+                portfolioState.deleteAsset(index);
                 return (cashClaim, market);
             }
         }
