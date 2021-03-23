@@ -336,3 +336,31 @@ def test_clear_portfolio_flags(accountContext):
     assert result == HexString(
         currencies_list_to_active_currency_bytes([(2, False, True), (512, False, True)]), "bytes18"
     )
+
+
+def test_enable_bitmap_currency(accountContext, accounts):
+    accountContext.enableBitmapForAccount(accounts[0], 1)
+    context = accountContext.getAccountContext(accounts[0])
+    assert context[3] == 1
+
+    accountContext.enableBitmapForAccount(accounts[0], 4)
+    context = accountContext.getAccountContext(accounts[0])
+    assert context[3] == 4
+
+    accountContext.enableBitmapForAccount(accounts[0], 0)
+    context = accountContext.getAccountContext(accounts[0])
+    assert context[3] == 0
+
+
+def test_fail_enable_bitmap_currency(accountContext, accounts):
+    with brownie.reverts("AC: invalid currency id"):
+        accountContext.enableBitmapForAccount(accounts[0], 16384)
+
+    with brownie.reverts("AC: cannot have assets"):
+        accountContext.setAccountContext((START_TIME, "0x00", 1, 0, "0x00"), accounts[0])
+        accountContext.enableBitmapForAccount(accounts[0], 1)
+
+    with brownie.reverts("AC: cannot have assets"):
+        accountContext.setAccountContext((START_TIME, "0x00", 0, 5, "0x00"), accounts[0])
+        accountContext.setAssetBitmap(accounts[0], 5, "0x1")
+        accountContext.enableBitmapForAccount(accounts[0], 1)

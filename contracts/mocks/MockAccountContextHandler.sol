@@ -7,6 +7,23 @@ import "../storage/AccountContextHandler.sol";
 contract MockAccountContextHandler {
     using AccountContextHandler for AccountStorage;
 
+    function setAssetBitmap(
+        address account,
+        uint id,
+        bytes32 bitmap
+    ) external {
+        BitmapAssetsHandler.setAssetsBitmap(account, id, bitmap);
+    }
+
+    function enableBitmapForAccount(
+        address account,
+        uint currencyId
+    ) external {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.enableBitmapForAccount(account, currencyId);
+        accountContext.setAccountContext(account);
+    }
+
     function getAccountContext(
         address account
     ) external view returns (AccountStorage memory) {

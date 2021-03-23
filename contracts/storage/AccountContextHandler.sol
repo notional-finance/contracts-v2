@@ -52,6 +52,23 @@ library AccountContextHandler {
         assembly { sstore (slot, data) }
     }
 
+    function enableBitmapForAccount(
+        AccountStorage memory accountContext,
+        address account,
+        uint currencyId
+    ) internal view {
+        // Allow setting the currency id to zero to turn off bitmap
+        require(currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
+        if (accountContext.bitmapCurrencyId == 0) {
+            require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
+        } else {
+            bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            require(ifCashBitmap == 0, "AC: cannot have assets");
+        }
+
+        accountContext.bitmapCurrencyId = uint16(currencyId);
+    }
+
     /**
      * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
      * context active currencies list.
