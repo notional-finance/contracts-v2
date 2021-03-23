@@ -11,11 +11,28 @@ library FreeCollateralExternal {
     function getFreeCollateralView(address account) external view returns (int) {
         uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        int[] memory netPortfolioValue;
+        CashGroupParameters[] memory cashGroups;
 
-        (
-            int[] memory netPortfolioValue,
-            CashGroupParameters[] memory cashGroups
-        ) = FreeCollateral.getNetPortfolioValueView(account, accountContext, blockTime);
+        if (accountContext.bitmapCurrencyId == 0) {
+            (netPortfolioValue, cashGroups) = FreeCollateral.getNetPortfolioValueView(account, accountContext, blockTime);
+        } else {
+            cashGroups = new CashGroupParameters[](1);
+            MarketParameters[] memory markets;
+            (cashGroups[0], markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
+            netPortfolioValue = new int[](1);
+            bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            netPortfolioValue[0] = BitmapAssetsHandler.getifCashNetPresentValue(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
+                blockTime,
+                assetsBitmap,
+                cashGroups[0],
+                markets,
+                true // risk adjusted
+            );
+        }
 
         return FreeCollateral.getFreeCollateralView(
             account,
@@ -30,11 +47,29 @@ library FreeCollateralExternal {
     function checkFreeCollateralAndRevert(address account) external {
         uint blockTime = block.timestamp;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        int[] memory netPortfolioValue;
+        CashGroupParameters[] memory cashGroups;
 
-        (
-            int[] memory netPortfolioValue,
-            CashGroupParameters[] memory cashGroups
-        ) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
+        if (accountContext.bitmapCurrencyId == 0) {
+            (netPortfolioValue, cashGroups) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
+        } else {
+            cashGroups = new CashGroupParameters[](1);
+            MarketParameters[] memory markets;
+            (cashGroups[0], markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            netPortfolioValue = new int[](1);
+            bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            netPortfolioValue[0] = BitmapAssetsHandler.getifCashNetPresentValue(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
+                blockTime,
+                assetsBitmap,
+                cashGroups[0],
+                markets,
+                true // risk adjusted
+            );
+        }
+
 
         int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(
             account,

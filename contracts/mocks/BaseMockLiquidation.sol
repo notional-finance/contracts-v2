@@ -72,7 +72,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         int perpTokenBalance
     ) external {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.setActiveCurrency(currencyId, true);
+        accountContext.setActiveCurrency(currencyId, true, AccountContextHandler.ACTIVE_IN_BALANCES_FLAG);
         accountContext.setAccountContext(account);
 
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));

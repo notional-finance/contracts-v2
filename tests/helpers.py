@@ -1,13 +1,15 @@
 import itertools
 import random
 
-from brownie.convert import to_uint
+from brownie.convert import to_bytes, to_uint
 from brownie.convert.datatypes import Wei
 from brownie.test import strategy
 from tests.constants import (
+    BALANCE_FLAG_INT,
     CASH_GROUP_PARAMETERS,
     CURVE_SHAPES,
     MARKETS,
+    PORTFOLIO_FLAG_INT,
     RATE_PRECISION,
     SECONDS_IN_DAY,
     START_TIME,
@@ -227,6 +229,55 @@ def random_asset_bitmap(numAssets, maxBit=254):
     return (bitmap, bitmapList)
 
 
+def currencies_list_to_active_currency_bytes(currenciesList):
+    if len(currenciesList) == 0:
+        return to_bytes(0, "bytes18")
+
+    if len(currenciesList) > 9:
+        raise Exception("Currency list too long")
+
+    result = bytearray()
+    for (cid, portfolioActive, balanceActive) in currenciesList:
+        if cid < 0 or cid > 2 ** 14:
+            raise Exception("Invalid currency id")
+
+        if portfolioActive:
+            cid = cid | PORTFOLIO_FLAG_INT
+
+        if balanceActive:
+            cid = cid | BALANCE_FLAG_INT
+
+        result.extend(to_bytes(cid, "bytes2"))
+
+    if len(result) < 18:
+        # Pad this out to 18 bytes
+        result.extend(to_bytes(0, "bytes1") * (18 - len(result)))
+
+    return bytes(result)
+
+
 def active_currencies_to_list(activeCurrencies):
     ba = bytearray(activeCurrencies)
-    return [to_uint(bytes(ba[i : i + 2])) for i in range(0, 18, 2)]
+
+    currencies_list = []
+    byteLen = len(activeCurrencies)
+    for i in range(0, byteLen, 2):
+        cid = to_uint(bytes(ba[i : i + 2]), "uint16")
+        if cid == b"\x00\x00":
+            break
+
+        currencyId = cid
+        if currencyId > PORTFOLIO_FLAG_INT:
+            currencyId = currencyId - PORTFOLIO_FLAG_INT
+        if currencyId > BALANCE_FLAG_INT:
+            currencyId = currencyId - BALANCE_FLAG_INT
+
+        currencies_list.append(
+            (
+                currencyId,
+                cid & (1 << 15) != 0,  # portfolio active
+                cid & (1 << 14) != 0,  # currency active
+            )
+        )
+
+    return currencies_list

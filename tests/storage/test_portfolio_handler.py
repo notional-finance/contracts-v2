@@ -162,7 +162,7 @@ def test_add_delete_assets(portfolioHandler, accounts, num_assets):
         activeCurrencyList = list(
             filter(lambda x: x != 0, sorted(active_currencies_to_list(context[4])))
         )
-        currencies = list(set([x[0] for x in sorted(finalComputed)]))
+        currencies = list(sorted(set([(x[0], True, False) for x in finalComputed])))
         assert activeCurrencyList == currencies
 
     assert sorted([x[0:4] for x in finalStored]) == sorted([(x[0:4]) for x in finalComputed])

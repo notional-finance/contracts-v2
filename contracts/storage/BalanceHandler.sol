@@ -228,7 +228,8 @@ library BalanceHandler {
         accountContext.setActiveCurrency(
             balanceState.currencyId,
             // Set active currency to true if either balance is non-zero
-            balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0
+            balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0,
+            AccountContextHandler.ACTIVE_IN_BALANCES_FLAG
         );
 
         if (balanceState.storedCashBalance < 0) {
@@ -277,7 +278,8 @@ library BalanceHandler {
             cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
             accountContext.setActiveCurrency(
                 settleAmounts[i].currencyId,
-                cashBalance != 0 || perpetualTokenBalance != 0
+                cashBalance != 0 || perpetualTokenBalance != 0,
+                AccountContextHandler.ACTIVE_IN_BALANCES_FLAG
             );
 
             if (cashBalance < 0) {

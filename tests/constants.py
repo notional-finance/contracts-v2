@@ -1,3 +1,6 @@
+from brownie.convert import to_int
+from brownie.convert.datatypes import HexString
+
 # Jan 1 2021
 START_TIME = 1609459200
 SECONDS_IN_DAY = 86400
@@ -10,6 +13,11 @@ NORMALIZED_RATE_TIME = 31104000
 START_TIME_TREF = START_TIME - START_TIME % (90 * SECONDS_IN_DAY)
 SETTLEMENT_DATE = START_TIME_TREF + (90 * SECONDS_IN_DAY)
 FCASH_ASSET_TYPE = 1
+
+PORTFOLIO_FLAG = HexString("0x8000", "bytes2")
+BALANCE_FLAG = HexString("0x4000", "bytes2")
+PORTFOLIO_FLAG_INT = to_int(HexString("0x8000", "bytes2"), "int")
+BALANCE_FLAG_INT = to_int(HexString("0x4000", "bytes2"), "int")
 
 MARKETS = [
     START_TIME_TREF + 90 * SECONDS_IN_DAY,
