@@ -11,6 +11,42 @@ contract MockFreeCollateral is MockAssetHandler {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
 
+    function getAccountContext(
+        address account
+    ) external view returns (AccountStorage memory) {
+        return AccountContextHandler.getAccountContext(account);
+    }
+
+    function enableBitmapForAccount(
+        address account,
+        uint currencyId
+    ) external {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.enableBitmapForAccount(account, currencyId);
+        accountContext.setAccountContext(account);
+    }
+
+    function setifCashAsset(
+        address account,
+        uint currencyId,
+        uint maturity,
+        int notional,
+        uint blockTime
+    ) external {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime != CashGroup.getTimeUTC0(blockTime)) {
+            revert(); // dev: invalid block time for test
+        }
+        accountContext.nextSettleTime = uint40(CashGroup.getTimeUTC0(blockTime));
+
+        bitmap = BitmapAssetsHandler.setifCashAsset(
+            account, currencyId, maturity, accountContext.nextSettleTime, notional, bitmap
+        );
+        accountContext.setAccountContext(account);
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
+    }
+
     function setETHRateMapping(
         uint id,
         ETHRateStorage calldata rs

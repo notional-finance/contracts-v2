@@ -10,9 +10,9 @@ library FreeCollateralExternal {
 
     function getFreeCollateralView(address account) external view returns (int) {
         uint blockTime = block.timestamp;
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         int[] memory netPortfolioValue;
         CashGroupParameters[] memory cashGroups;
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.bitmapCurrencyId == 0) {
             (netPortfolioValue, cashGroups) = FreeCollateral.getNetPortfolioValueView(account, accountContext, blockTime);
@@ -22,7 +22,7 @@ library FreeCollateralExternal {
             (cashGroups[0], markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
             netPortfolioValue = new int[](1);
             bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-            netPortfolioValue[0] = BitmapAssetsHandler.getifCashNetPresentValue(
+            (netPortfolioValue[0], /* hasDebt */) = BitmapAssetsHandler.getifCashNetPresentValue(
                 account,
                 accountContext.bitmapCurrencyId,
                 accountContext.nextSettleTime,
@@ -43,12 +43,11 @@ library FreeCollateralExternal {
         );
     }
 
-    // TODO: have this return hasDebt for the bitmapped portfolio
     function checkFreeCollateralAndRevert(address account) external {
         uint blockTime = block.timestamp;
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         int[] memory netPortfolioValue;
         CashGroupParameters[] memory cashGroups;
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.bitmapCurrencyId == 0) {
             (netPortfolioValue, cashGroups) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
@@ -58,7 +57,8 @@ library FreeCollateralExternal {
             (cashGroups[0], markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
             netPortfolioValue = new int[](1);
             bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-            netPortfolioValue[0] = BitmapAssetsHandler.getifCashNetPresentValue(
+            bool bitmapHasDebt;
+            (netPortfolioValue[0], bitmapHasDebt) = BitmapAssetsHandler.getifCashNetPresentValue(
                 account,
                 accountContext.bitmapCurrencyId,
                 accountContext.nextSettleTime,
@@ -68,6 +68,16 @@ library FreeCollateralExternal {
                 markets,
                 true // risk adjusted
             );
+
+            // Turns off has debt flag if it has changed
+            bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
+            if (bitmapHasDebt && !contextHasAssetDebt) {
+                accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+                accountContext.setAccountContext(account);
+            } else if (!bitmapHasDebt && contextHasAssetDebt) {
+                accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_ASSET_DEBT;
+                accountContext.setAccountContext(account);
+            }
         }
 
 

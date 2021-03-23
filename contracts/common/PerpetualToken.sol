@@ -401,18 +401,17 @@ library PerpetualToken {
         }
 
         // Then iterate over bitmapped assets and get present value
-        totalUnderlyingPV = totalUnderlyingPV.add(
-            BitmapAssetsHandler.getifCashNetPresentValue(
-                perpToken.tokenAddress,
-                perpToken.cashGroup.currencyId,
-                perpToken.lastInitializedTime,
-                blockTime,
-                ifCashBitmap,
-                perpToken.cashGroup,
-                perpToken.markets,
-                false
-            )
+        (int bitmapPv, /* */ ) = BitmapAssetsHandler.getifCashNetPresentValue(
+            perpToken.tokenAddress,
+            perpToken.cashGroup.currencyId,
+            perpToken.lastInitializedTime,
+            blockTime,
+            ifCashBitmap,
+            perpToken.cashGroup,
+            perpToken.markets,
+            false
         );
+        totalUnderlyingPV = totalUnderlyingPV.add(bitmapPv);
 
         // Return the total present value denominated in asset terms
         totalAssetPV = totalAssetPV

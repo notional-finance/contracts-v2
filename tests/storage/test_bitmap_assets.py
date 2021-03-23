@@ -143,7 +143,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
                 computedPV += pv
                 computedRiskPV += riskPv
 
-    pv = bitmapAssets.getifCashNetPresentValue(
+    (pv, _) = bitmapAssets.getifCashNetPresentValue(
         accounts[0],
         1,
         nextSettleTime,
@@ -154,7 +154,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
         False,  # non risk adjusted
     )
 
-    riskPv = bitmapAssets.getifCashNetPresentValue(
+    (riskPv, _) = bitmapAssets.getifCashNetPresentValue(
         accounts[0],
         1,
         nextSettleTime,

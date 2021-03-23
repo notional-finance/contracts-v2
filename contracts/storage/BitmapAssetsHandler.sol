@@ -127,14 +127,15 @@ library BitmapAssetsHandler {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
-    ) internal view returns (int) {
+    ) internal view returns (int, bool) {
         int totalValueUnderlying;
         uint bitNum = 1;
+        bool hasDebt;
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
                 uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
-                totalValueUnderlying = totalValueUnderlying.add(getPresentValue(
+                int pv = getPresentValue(
                     account,
                     currencyId,
                     maturity,
@@ -142,14 +143,17 @@ library BitmapAssetsHandler {
                     cashGroup,
                     markets,
                     riskAdjusted
-                ));
+                );
+                totalValueUnderlying = totalValueUnderlying.add(pv);
+
+                if (pv < 0) hasDebt = true;
             }
 
             assetsBitmap = assetsBitmap << 1;
             bitNum += 1;
         }
 
-        return totalValueUnderlying;
+        return (totalValueUnderlying, hasDebt);
     }
 
     function getifCashArray(

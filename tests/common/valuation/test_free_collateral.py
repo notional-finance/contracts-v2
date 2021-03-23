@@ -1,6 +1,7 @@
+import brownie
 import pytest
 from brownie.network.state import Chain
-from tests.constants import SETTLEMENT_DATE, START_TIME
+from tests.constants import SECONDS_IN_DAY, SETTLEMENT_DATE, START_TIME
 from tests.helpers import (
     get_cash_group_with_max_markets,
     get_eth_rate_mapping,
@@ -135,6 +136,60 @@ def test_local_collateral_netting(freeCollateral, accounts):
     freeCollateral.setBalance(accounts[0], 3, 100e8, 0)
     fc = freeCollateral.getFreeCollateralView(accounts[0])
     assert fc > -5e8 * 1.4
+
+
+def test_bitmap_has_debt(freeCollateral, accounts):
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+    freeCollateral.enableBitmapForAccount(accounts[0], 1)
+    freeCollateral.setifCashAsset(
+        accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, -100e8, START_TIME
+    )
+    freeCollateral.setifCashAsset(
+        accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 10, 1e8, START_TIME
+    )
+
+    with brownie.reverts("Insufficient free collateral"):
+        freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+
+    freeCollateral.setBalance(accounts[0], 1, 200e8, 0)
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+    context = freeCollateral.getAccountContext(accounts[0])
+
+    assert context[1] == "0x01"  # has asset debt
+
+
+def test_bitmap_remove_debt(freeCollateral, accounts):
+    markets = get_market_curve(3, "flat")
+    for m in markets:
+        freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+    freeCollateral.enableBitmapForAccount(accounts[0], 1)
+    freeCollateral.setifCashAsset(
+        accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, -100e8, START_TIME
+    )
+    freeCollateral.setBalance(accounts[0], 1, 200e8, 0)
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == "0x01"  # has asset debt
+
+    freeCollateral.setifCashAsset(
+        accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 10, 200e8, START_TIME
+    )
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == "0x01"  # has asset debt
+
+    # Net off asset debt
+    freeCollateral.setifCashAsset(
+        accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, 100e8, START_TIME
+    )
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == "0x00"  # no debt
 
 
 # def test_free_collateral_perp_token_value(freeCollateral, accounts):

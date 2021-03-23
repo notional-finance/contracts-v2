@@ -36,7 +36,10 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint currencyId,
         uint maturity
     ) public view returns (int) {
-        return ifCashMapping[account][currencyId][maturity];
+        bytes32 slot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
+        int notional;
+        assembly { notional := sload(slot) }
+        return notional;
     }
 
     function getAssetsBitmap(
@@ -81,7 +84,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
-    ) public view returns (int) {
+    ) public view returns (int, bool) {
         return BitmapAssetsHandler.getifCashNetPresentValue(
             account,
             currencyId,
