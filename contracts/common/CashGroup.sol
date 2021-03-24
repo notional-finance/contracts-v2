@@ -249,11 +249,9 @@ library CashGroup {
      * in basis points and will decrease with time to maturity.
      */
     function getLiquidityFee(
-        CashGroupParameters memory cashGroup,
-        uint timeToMaturity
+        CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
-        uint liquidityFee = uint(uint8(uint(cashGroup.data >> LIQUIDITY_FEE))) * Market.BASIS_POINT;
-        return liquidityFee.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME);
+        return uint(uint8(uint(cashGroup.data >> LIQUIDITY_FEE))) * Market.BASIS_POINT;
     }
 
     function getfCashHaircut(

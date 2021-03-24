@@ -28,7 +28,8 @@ def marketWithCToken(MockMarket, MockCToken, cTokenAggregator, accounts):
 
     rateStorage = (aggregator.address, 8)
     market.setAssetRateMapping(1, rateStorage)
-    market.setCashGroup(1, CASH_GROUP_PARAMETERS)
+    cgParams = list(CASH_GROUP_PARAMETERS)
+    market.setCashGroup(1, cgParams)
 
     return market
 
@@ -38,14 +39,12 @@ def isolation(fn_isolation):
     pass
 
 
-@given(
-    proportion=strategy("int256", min_value=0.01 * RATE_PRECISION, max_value=100 * RATE_PRECISION)
-)
+@given(proportion=strategy("int256", min_value=0.01 * RATE_PRECISION, max_value=RATE_PRECISION))
 def test_log_proportion(market, proportion):
     (lnProportion, success) = market.logProportion(proportion)
 
     assert success
-    assert lnProportion == math.log(proportion)
+    assert lnProportion == math.log((proportion * RATE_PRECISION) / (RATE_PRECISION - proportion))
 
 
 def test_log_proportion_negative(market):

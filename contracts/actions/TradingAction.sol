@@ -166,10 +166,10 @@ library TradingAction {
         );
 
         if (tradeType == TradeActionType.AddLiquidity) {
-            cashAmount = int(int88(bytes11(trade << 16)));
+            cashAmount = int(uint88(bytes11(trade << 16)));
             (tokens, fCashAmount) = market.addLiquidity(cashAmount);
         } else {
-            tokens = int(int88(bytes11(trade << 16)));
+            tokens = int(uint88(bytes11(trade << 16)));
             (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
         }
 
@@ -206,9 +206,9 @@ library TradingAction {
 
         int fCashAmount;
         if (tradeType == TradeActionType.Borrow) {
-            fCashAmount = int(int88(bytes11(trade << 16))).neg();
+            fCashAmount = int(uint88(bytes11(trade << 16))).neg();
         } else {
-            fCashAmount = int(int88(bytes11(trade << 16)));
+            fCashAmount = int(uint88(bytes11(trade << 16)));
         }
 
         int cashAmount = market.calculateTrade(

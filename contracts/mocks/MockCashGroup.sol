@@ -103,12 +103,9 @@ contract MockCashGroup is StorageLayoutV1 {
     }
 
     function getLiquidityFee(
-        CashGroupParameters memory cashGroup,
-        uint timeToMaturity
+        CashGroupParameters memory cashGroup
     ) public pure returns (uint) {
-        uint fee = cashGroup.getLiquidityFee(timeToMaturity);
-
-        return fee;
+        return cashGroup.getLiquidityFee();
     }
 
     function getLiquidityHaircut(

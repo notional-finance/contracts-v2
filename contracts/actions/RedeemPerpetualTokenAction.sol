@@ -171,7 +171,6 @@ library RedeemPerpetualTokenAction {
             uint timeToMaturity = fCashAssets[fCashIndex].maturity.sub(blockTime);
             int netAssetCash = markets[i].calculateTrade(
                 cashGroup,
-                // TODO: should this be negative?
                 fCashAssets[fCashIndex].notional,
                 timeToMaturity,
                 i + 1

@@ -178,13 +178,18 @@ library Market {
             if (!success) return 0;
         }
 
+        // Fees are specified in basis points which is an implied rate denomination. We convert this to
+        // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
+        // or divide depending on the side of the trade).
+        // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
+        // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
+        int fee = getExchangeRateFromImpliedRate(cashGroup.getLiquidityFee(), timeToMaturity);
         if (fCashAmount > 0) {
-            // TODO: change this because of exponents
-            uint fee = cashGroup.getLiquidityFee(timeToMaturity);
-            tradeExchangeRate = tradeExchangeRate.add(int(fee));
+            // Borrowing
+            tradeExchangeRate = tradeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
         } else {
-            uint fee = cashGroup.getLiquidityFee(timeToMaturity);
-            tradeExchangeRate = tradeExchangeRate.sub(int(fee));
+            // Lending
+            tradeExchangeRate = tradeExchangeRate.mul(Market.RATE_PRECISION).div(fee);
         }
 
         if (tradeExchangeRate < RATE_PRECISION) {
@@ -192,7 +197,7 @@ library Market {
             return 0;
         }
 
-        return getNewMarketState(
+        return setNewMarketState(
             marketState,
             cashGroup.assetRate,
             totalCashUnderlying,
@@ -204,7 +209,7 @@ library Market {
         );
     }
 
-    function getNewMarketState(
+    function setNewMarketState(
         MarketParameters memory marketState,
         AssetRateParameters memory assetRate,
         int totalCashUnderlying,
@@ -275,10 +280,6 @@ library Market {
             int proportion = totalfCash
                 .mul(RATE_PRECISION)
                 .div(totalfCash.add(totalCashUnderlying));
-
-            proportion = proportion
-                .mul(RATE_PRECISION)
-                .div(RATE_PRECISION.sub(proportion));
 
             (int lnProportion, bool success) = logProportion(proportion);
             if (!success) return (0, false);
@@ -374,11 +375,6 @@ library Market {
             .mul(RATE_PRECISION)
             .div(totalfCash.add(totalCashUnderlying));
 
-        // proportion' = proportion / (1 - proportion)
-        proportion = proportion
-            .mul(RATE_PRECISION)
-            .div(RATE_PRECISION.sub(proportion));
-
         (int lnProportion, bool success) = logProportion(proportion);
         if (!success) return (0, false);
 
@@ -395,6 +391,10 @@ library Market {
      * @dev This method does ln((proportion / (1 - proportion)) * 1e9)
      */
     function logProportion(int proportion) internal pure returns (int, bool) {
+        proportion = proportion
+            .mul(RATE_PRECISION)
+            .div(RATE_PRECISION.sub(proportion));
+
         // This is the max 64 bit integer for ABDKMath. This is unlikely to trip because the
         // value is 9.2e18 and the proportion is scaled by 1e9. We can hit very high levels of
         // pool utilization before this returns false.

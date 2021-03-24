@@ -119,9 +119,7 @@ def test_build_cash_group(cashGroup, aggregator):
         assert len(markets) == cg[1]
 
         assert cashGroupParameters[1] * 60 == cashGroup.getRateOracleTimeWindow(cg)
-        assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getLiquidityFee(
-            cg, NORMALIZED_RATE_TIME
-        )
+        assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getLiquidityFee(cg)
         assert cashGroupParameters[3] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
         assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
         assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
