@@ -500,6 +500,7 @@ library PerpetualToken {
         // This is the minimum amount of fCash that we expect to be able to lend. Since perMarketDeposit
         // is denominated in assetCash here we don't have to convert to underlying (the ratio between asset cash
         // and totalCurrentCash is the same in either denomination)
+        // TODO: change this to be based on implied rates
         int fCashAmount = perMarketDeposit.mul(market.totalfCash).div(market.totalCurrentCash);
         int assetCash = market.calculateTrade(
             cashGroup,

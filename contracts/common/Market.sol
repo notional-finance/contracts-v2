@@ -179,6 +179,7 @@ library Market {
         }
 
         if (fCashAmount > 0) {
+            // TODO: change this because of exponents
             uint fee = cashGroup.getLiquidityFee(timeToMaturity);
             tradeExchangeRate = tradeExchangeRate.add(int(fee));
         } else {
