@@ -69,6 +69,12 @@ library AccountContextHandler {
         accountContext.bitmapCurrencyId = uint16(currencyId);
     }
 
+    function mustSettleAssets(
+        AccountStorage memory accountContext
+    ) internal view returns (bool) {
+        return (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp);
+    }
+
     /**
      * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
      * context active currencies list.

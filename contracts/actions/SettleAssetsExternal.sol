@@ -24,49 +24,7 @@ library SettleAssetsExternal {
         return (portfolioState, settleAmounts);
     }
 
-    function settleAssetsAndFinalize(address account) external returns (AccountStorage memory) {
-        (
-            AccountStorage memory accountContext,
-            SettleAmount[] memory settleAmounts,
-            PortfolioState memory portfolioState
-        ) = _settleAssetsArray(account);
-
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
-        BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
-
-        return accountContext;
-    }
-
-    function settleAssetsAndStorePortfolio(
-        address account
-    ) external returns (AccountStorage memory, SettleAmount[] memory) {
-        (
-            AccountStorage memory accountContext,
-            SettleAmount[] memory settleAmounts,
-            PortfolioState memory portfolioState
-        ) = _settleAssetsArray(account);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
-
-        return (accountContext, settleAmounts);
-    }
-
-    function settleAssetsAndReturnPortfolio(
-        address account
-    ) external returns (AccountStorage memory, SettleAmount[] memory, PortfolioState memory) {
-        return _settleAssetsArray(account);
-    }
-
-    function _settleAssetsArray(
-        address account
-    ) internal returns (AccountStorage memory, SettleAmount[] memory, PortfolioState memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
-            account, accountContext.assetArrayLength, 0);
-        SettleAmount[] memory settleAmounts = SettleAssets.getSettleAssetContextStateful(portfolioState, block.timestamp);
-
-        return (accountContext, settleAmounts, portfolioState);
-    }
-
+    // TODO: can this be a static call?
     function settleBitmappedAccountView(
         address account,
         uint currencyId,
@@ -74,9 +32,6 @@ library SettleAssetsExternal {
         uint blockTime
     ) external view returns (int) {
         PortfolioAsset[] memory ifCashAssets = BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
-        uint[] memory sortedIndex = new uint[](ifCashAssets.length);
-        // ifCash assets are already sorted
-        for (uint i; i < sortedIndex.length; i++) sortedIndex[i] = i;
 
         PortfolioState memory portfolioState = PortfolioState({
             storedAssets: ifCashAssets,
@@ -91,16 +46,76 @@ library SettleAssetsExternal {
         return settleAmounts[0].netCashChange;
     }
 
+    function settleAssetsAndFinalize(address account) external returns (AccountStorage memory) {
+        (
+            AccountStorage memory accountContext,
+            /* SettleAmount[] memory settleAmounts */,
+            /* portfolioState */
+        ) = _settleAccount(account, true, true);
+
+        return accountContext;
+    }
+
+    function settleAssetsAndStorePortfolio(
+        address account
+    ) external returns (AccountStorage memory, SettleAmount[] memory) {
+        (
+            AccountStorage memory accountContext,
+            SettleAmount[] memory settleAmounts,
+            /* portfolioState */
+        ) = _settleAccount(account, true, false);
+
+        return (accountContext, settleAmounts);
+    }
+
+    function settleAssetsAndReturnPortfolio(
+        address account
+    ) external returns (AccountStorage memory, SettleAmount[] memory, PortfolioState memory) {
+        return _settleAccount(account, false, false);
+    }
+
+    function _settleAccount(
+        address account,
+        bool finalizePortfolio,
+        bool finalizeAmounts
+    ) internal returns (AccountStorage memory, SettleAmount[] memory, PortfolioState memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        SettleAmount[] memory settleAmounts;
+        PortfolioState memory portfolioState;
+
+        if (accountContext.bitmapCurrencyId != 0) {
+            settleAmounts = settleBitmappedAccountStateful(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime
+            );
+        } else {
+            portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+            settleAmounts = SettleAssets.getSettleAssetContextStateful(portfolioState, block.timestamp);
+            if (finalizePortfolio) accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+        }
+        
+        if (finalizeAmounts) BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
+
+        return (accountContext, settleAmounts, portfolioState);
+    }
+
     function settleBitmappedAccountStateful(
         address account,
         uint currencyId,
         uint nextSettleTime
-    ) external returns (bytes32, int) {
-        return SettleAssets.settleBitmappedCashGroup(
+    ) internal returns (SettleAmount[] memory) {
+        (bytes32 assetsBitmap, int settledCash) = SettleAssets.settleBitmappedCashGroup(
             account,
             currencyId,
             nextSettleTime,
             block.timestamp
         );
+
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
+        SettleAmount[] memory settleAmounts = new SettleAmount[](1);
+        settleAmounts[0].currencyId = currencyId;
+        settleAmounts[0].netCashChange = settledCash;
+        return settleAmounts;
     }
 }

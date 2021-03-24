@@ -115,7 +115,6 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
             perpTokenTransferAllowance[sender][recipient][currencyId] = allowance.sub(amount);
         }
 
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         return _transfer(currencyId, sender, recipient, amount);
     }
 

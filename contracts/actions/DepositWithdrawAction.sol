@@ -200,14 +200,25 @@ library DepositWithdrawAction {
             );
 
             if (actions[i].trades.length > 0) {
-                // TODO: add bitmap
                 int netCash;
-                (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
-                    account,
-                    actions[i].currencyId,
-                    portfolioState,
-                    actions[i].trades
-                );
+                if (accountContext.bitmapCurrencyId != 0) {
+                    require(
+                        accountContext.bitmapCurrencyId == actions[i].currencyId,
+                        "Invalid trades for account"
+                    );
+                    netCash = TradingAction.executeTradesBitmapBatch(
+                        account,
+                        actions[i].currencyId,
+                        actions[i].trades
+                    );
+                } else {
+                    (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
+                        account,
+                        actions[i].currencyId,
+                        portfolioState,
+                        actions[i].trades
+                    );
+                }
 
                 // If the account owes cash, ensure that it has enough
                 if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
@@ -224,11 +235,63 @@ library DepositWithdrawAction {
             );
         }
 
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+        if (accountContext.bitmapCurrencyId == 0) {
+            accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+        }
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
         _finalizeAccountContext(account, accountContext);
     }
+
+    function _settleAccountIfRequiredAndReturnPortfolio(
+        address account,
+        AccountStorage memory accountContext
+    ) internal returns (SettleAmount[] memory, PortfolioState memory) {
+        if (accountContext.mustSettleAssets()) {
+            (
+                AccountStorage memory newAccountContext,
+                SettleAmount[] memory settleAmounts,
+                PortfolioState memory portfolioState
+            ) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(account);
+
+            accountContext = newAccountContext;
+            return (settleAmounts, portfolioState);
+        }
+
+        return (
+            new SettleAmount[](0),
+            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
+        );
+    }
+
+    function _settleAccountIfRequiredAndStorePortfolio(
+        address account,
+        AccountStorage memory accountContext
+    ) internal returns (SettleAmount[] memory) {
+        SettleAmount[] memory settleAmounts;
+
+        if (accountContext.mustSettleAssets()) {
+            (
+                accountContext,
+                settleAmounts
+            ) = SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
+        }
+
+        return settleAmounts;
+    }
+
+    /**
+     * @notice Settles assets and finalizes portfolio changes and balances
+     */
+    function _settleAccountIfRequiredAndFinalize(
+        address account,
+        AccountStorage memory accountContext
+    ) internal {
+        if (accountContext.mustSettleAssets()) {
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+        }
+    }
+
 
     function _preTradeActions(
         address account,
@@ -257,55 +320,6 @@ library DepositWithdrawAction {
         _executeDepositAction(account, balanceState, depositType, depositActionAmount);
 
         return settleAmountIndex;
-    }
-
-    function _settleAccountIfRequiredAndReturnPortfolio(
-        address account,
-        AccountStorage memory accountContext
-    ) internal returns (SettleAmount[] memory, PortfolioState memory) {
-        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
-            (
-                AccountStorage memory newAccountContext,
-                SettleAmount[] memory settleAmounts,
-                PortfolioState memory portfolioState
-            ) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(account);
-
-            accountContext = newAccountContext;
-            return (settleAmounts, portfolioState);
-        }
-
-        return (
-            new SettleAmount[](0),
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
-        );
-    }
-
-    function _settleAccountIfRequiredAndStorePortfolio(
-        address account,
-        AccountStorage memory accountContext
-    ) internal returns (SettleAmount[] memory) {
-        SettleAmount[] memory settleAmounts;
-
-        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
-            (
-                accountContext,
-                settleAmounts
-            ) = SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
-        }
-
-        return settleAmounts;
-    }
-
-    /**
-     * @notice Settles assets and finalizes portfolio changes and balances
-     */
-    function _settleAccountIfRequiredAndFinalize(
-        address account,
-        AccountStorage memory accountContext
-    ) internal {
-        if (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
-        }
     }
 
     function _executeDepositAction(
