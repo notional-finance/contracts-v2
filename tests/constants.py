@@ -65,3 +65,12 @@ CURVE_SHAPES = {
         "proportion": 0.8,
     },
 }
+
+DEPOSIT_ACTION_TYPE = {
+    "None": 0,
+    "DepositAsset": 1,
+    "DepositUnderlying": 2,
+    "DepositAssetAndMintPerpetual": 3,
+    "DepositUnderlyingAndMintPerpetual": 4,
+    "RedeemPerpetual": 5,
+}

@@ -8,6 +8,7 @@ from tests.constants import (
     BALANCE_FLAG_INT,
     CASH_GROUP_PARAMETERS,
     CURVE_SHAPES,
+    DEPOSIT_ACTION_TYPE,
     MARKETS,
     PORTFOLIO_FLAG_INT,
     RATE_PRECISION,
@@ -281,3 +282,29 @@ def active_currencies_to_list(activeCurrencies):
         )
 
     return currencies_list
+
+
+def get_balance_action(currencyId, depositActionType, **kwargs):
+    depositActionAmount = (
+        0 if "depositActionAmount" not in kwargs else kwargs["depositActionAmount"]
+    )
+    withdrawAmountInternalPrecision = (
+        0
+        if "withdrawAmountInternalPrecision" not in kwargs
+        else kwargs["withdrawAmountInternalPrecision"]
+    )
+    withdrawEntireCashBalance = (
+        False if "withdrawEntireCashBalance" not in kwargs else kwargs["withdrawEntireCashBalance"]
+    )
+    redeemToUnderlying = (
+        False if "redeemToUnderlying" not in kwargs else kwargs["redeemToUnderlying"]
+    )
+
+    return (
+        DEPOSIT_ACTION_TYPE[depositActionType],
+        currencyId,
+        depositActionAmount,
+        withdrawAmountInternalPrecision,
+        withdrawEntireCashBalance,
+        redeemToUnderlying,
+    )

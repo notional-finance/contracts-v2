@@ -8,7 +8,7 @@ import "../storage/BalanceHandler.sol";
 import "../storage/AccountContextHandler.sol";
 import "./FreeCollateralExternal.sol";
 
-library MintPerpetualTokenAction {
+contract MintPerpetualTokenAction {
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountStorage;

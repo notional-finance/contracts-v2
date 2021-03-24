@@ -14,25 +14,34 @@ chain = Chain()
 def environment(accounts):
     env = TestEnvironment(accounts[0])
     env.enableCurrency("DAI", CurrencyDefaults)
+    env.enableCurrency("USDC", CurrencyDefaults)
 
     cToken = env.cToken["DAI"]
-    token = env.token["DAI"]
-    token.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-    token.approve(cToken.address, 2 ** 255, {"from": accounts[0]})
+    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+    env.token["DAI"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
     cToken.mint(10000000e18, {"from": accounts[0]})
-    cToken.approve(env.proxy.address, 2 ** 255, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+    cToken = env.cToken["USDC"]
+    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+    env.token["USDC"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
+    cToken.mint(10000000e6, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
 
     # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
     blockTime = chain.time()
     newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
     chain.mine(1, timestamp=newTime)
 
-    # TODO: maybe do multiple currencies?
     currencyId = 2
     env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-
     env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
+    env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    env.notional.initializeMarkets(currencyId, True)
 
+    currencyId = 3
+    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
+    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
     env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
     env.notional.initializeMarkets(currencyId, True)
 
@@ -45,7 +54,7 @@ def isolation(fn_isolation):
 
 
 def test_cannot_deposit_invalid_currency_id(environment, accounts):
-    currencyId = 3
+    currencyId = 4
 
     with brownie.reverts():
         environment.notional.depositUnderlyingToken(
@@ -189,6 +198,10 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     assert environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) > balanceBefore
 
     check_system_invariants(environment, accounts)
+
+
+def test_withdraw_asset_token_settle_first(environment, accounts):
+    pass
 
 
 def test_withdraw_asset_token_fail_fc(environment, accounts):

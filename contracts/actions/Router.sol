@@ -116,7 +116,8 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector
+            sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector ||
+            sig == RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
         ) {
             return PERPETUAL_TOKEN_REDEEM;
         }

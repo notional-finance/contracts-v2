@@ -11,7 +11,7 @@ import "../storage/TokenHandler.sol";
 import "./FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-library RedeemPerpetualTokenAction {
+contract RedeemPerpetualTokenAction {
     using SafeInt256 for int;
     using SafeMath for uint;
     using BalanceHandler for BalanceState;
@@ -159,6 +159,11 @@ library RedeemPerpetualTokenAction {
         bool hasResidual;
 
         for (uint i; i < markets.length; i++) {
+            if (fCashAssets[fCashIndex].notional == 0) {
+                fCashIndex += 1;
+                continue;
+            }
+
             while (fCashAssets[fCashIndex].maturity < markets[i].maturity) {
                 // Skip an idiosyncratic fCash asset, if this happens then we know there is a residual
                 // fCash asset

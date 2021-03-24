@@ -17,7 +17,8 @@ enum DepositActionType {
     None,
     DepositAsset,
     DepositUnderlying,
-    MintPerpetual,
+    DepositAssetAndMintPerpetual,
+    DepositUnderlyingAndMintPerpetual,
     RedeemPerpetual
 }
 
@@ -42,13 +43,14 @@ struct BalanceActionWithTrades {
     bytes32[] trades;
 }
 
-library DepositWithdrawAction {
+contract DepositWithdrawAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
     using SafeInt256 for int;
 
     event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
+    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
 
     /**
      * @notice Deposits and wraps the underlying token for a particular cToken. Notional should never have
@@ -120,7 +122,7 @@ library DepositWithdrawAction {
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
     ) external returns (uint) {
-        require(account == msg.sender, "Unauthorized");
+        require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
@@ -156,7 +158,7 @@ library DepositWithdrawAction {
         uint settleAmountIndex;
         BalanceState memory balanceState;
         for (uint i; i < actions.length; i++) {
-            if (i > 0) require(actions[i].currencyId >= actions[i - 1].currencyId, "Unsorted actions");
+            if (i > 0) require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
 
             settleAmountIndex = _preTradeActions(
                 account,
@@ -197,7 +199,7 @@ library DepositWithdrawAction {
         uint settleAmountIndex;
         BalanceState memory balanceState;
         for (uint i; i < actions.length; i++) {
-            if (i > 0) require(actions[i].currencyId >= actions[i - 1].currencyId, "Unsorted actions");
+            if (i > 0) require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
             settleAmountIndex = _preTradeActions(
                 account,
                 settleAmountIndex,
@@ -338,26 +340,34 @@ library DepositWithdrawAction {
         uint depositActionAmount_
     ) internal {
         int depositActionAmount = int(depositActionAmount_);
+        int assetInternalAmount;
         require(depositActionAmount >= 0);
 
         if (depositType == DepositActionType.None) {
             return;
-        } else if (depositType == DepositActionType.DepositAsset) {
-            balanceState.depositAssetToken(account, depositActionAmount, false);
-        } else if (depositType == DepositActionType.DepositUnderlying) {
-            balanceState.depositUnderlyingToken(account, depositActionAmount);
-        } else if (depositType == DepositActionType.MintPerpetual) {
-            _checkSufficientCash(balanceState, depositActionAmount);
-            balanceState.netCashChange = balanceState.netCashChange.sub(depositActionAmount);
+        } else if (depositType == DepositActionType.DepositAsset 
+            || depositType == DepositActionType.DepositAssetAndMintPerpetual) {
+            (assetInternalAmount, /* */) = balanceState.depositAssetToken(account, depositActionAmount, false);
+        } else if (depositType == DepositActionType.DepositUnderlying
+            || depositType == DepositActionType.DepositUnderlyingAndMintPerpetual) {
+            // Set this for mint perpetual potentially since it takes the internal cash amount
+            assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
+        }
+
+        if (depositType == DepositActionType.DepositAssetAndMintPerpetual
+            || depositType == DepositActionType.DepositUnderlyingAndMintPerpetual) {
+            _checkSufficientCash(balanceState, assetInternalAmount);
+            balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
-            int tokensMinted = MintPerpetualTokenAction.perpetualTokenMintViaBatch(
+            int tokensMinted = MintPerpetualTokenAction(address(this)).perpetualTokenMintViaBatch(
                 balanceState.currencyId,
-                depositActionAmount
+                assetInternalAmount
             );
 
             balanceState.netPerpetualTokenSupplyChange = balanceState.netPerpetualTokenSupplyChange
                 .add(tokensMinted);
+            emit PerpetualTokenSupplyChange(account, uint16(balanceState.currencyId), tokensMinted);
         } else if (depositType == DepositActionType.RedeemPerpetual) {
             require(
                 balanceState.storedPerpetualTokenBalance
@@ -371,12 +381,13 @@ library DepositWithdrawAction {
             balanceState.netPerpetualTokenSupplyChange = balanceState.netPerpetualTokenSupplyChange
                 .sub(depositActionAmount);
 
-            int assetCash = RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch(
+            int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
+            emit PerpetualTokenSupplyChange(account, uint16(balanceState.currencyId), depositActionAmount.neg());
         }
     }
 
@@ -389,7 +400,7 @@ library DepositWithdrawAction {
         bool redeemToUnderlying
     ) internal {
         int withdrawAmount = int(withdrawAmountInternalPrecision);
-        require(withdrawAmount > 0); // dev: withdraw action overflow
+        require(withdrawAmount >= 0); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
             withdrawAmount = balanceState.storedCashBalance
@@ -402,7 +413,13 @@ library DepositWithdrawAction {
 
         balanceState.netAssetTransferInternalPrecision = balanceState.netAssetTransferInternalPrecision
             .sub(withdrawAmount);
+
         balanceState.finalize(account, accountContext, redeemToUnderlying);
+        int finalBalanceChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
+
+        if (finalBalanceChange != 0) {
+            emit CashBalanceChange(account, uint16(balanceState.currencyId), finalBalanceChange);
+        }
     }
 
     function _finalizeAccountContext(
