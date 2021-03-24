@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/proxy/Initializable.sol";
  * @title Note ERC20 Token
  * Fork of Compound Comp token at commit hash
  * https://github.com/compound-finance/compound-protocol/commit/9bcff34a5c9c76d51e51bcb0ca1139588362ef96
- * TODO: add lockup, staking, airdrop, reserve
+ * TODO: add staking, reserve
  */
 contract NoteERC20 is Initializable {
     /// @notice EIP-20 token name for this token

@@ -408,30 +408,6 @@ library BalanceHandler {
         return balanceState;
     }
 
-    function buildBalanceStateArray(
-        address account,
-        uint16[] calldata currencyIds,
-        AccountStorage memory accountContext
-    ) internal view returns (BalanceState[] memory) {
-        BalanceState[] memory balanceStates = new BalanceState[](currencyIds.length);
-
-        for (uint i; i < currencyIds.length; i++) {
-            require(currencyIds[i] != 0, "BH: invalid currency id");
-            // TODO: how do we know that the currency id is valid?
-            if (i > 0) require(currencyIds[i] > currencyIds[i - 1], "BH: Unordered currency ids");
-
-            if (accountContext.isActiveCurrency(currencyIds[i])) {
-                (
-                    balanceStates[i].storedCashBalance,
-                    balanceStates[i].storedPerpetualTokenBalance,
-                    balanceStates[i].lastIncentiveMint
-                ) = getBalanceStorage(account, currencyIds[i]);
-            }
-        }
-
-        return balanceStates;
-    }
-
     /**
      * @notice Iterates over an array of balances and returns the total incentives to mint.
      */
