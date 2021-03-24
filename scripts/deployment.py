@@ -1,6 +1,7 @@
 from copy import copy
 
 from brownie import (
+    DepositWithdrawAction,
     FreeCollateralExternal,
     GovernanceAction,
     GovernorAlpha,
@@ -15,6 +16,7 @@ from brownie import (
     RedeemPerpetualTokenAction,
     Router,
     SettleAssetsExternal,
+    TradingAction,
     Views,
     accounts,
     cTokenAggregator,
@@ -189,6 +191,7 @@ class TestEnvironment:
         # Deploy Libraries
         FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
+        TradingAction.deploy({"from": self.deployer})
 
         # Deploy logic contracts
         governance = GovernanceAction.deploy({"from": self.deployer})
@@ -197,6 +200,7 @@ class TestEnvironment:
         perpetualTokenMint = MintPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenRedeem = RedeemPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenAction = PerpetualTokenAction.deploy({"from": self.deployer})
+        depositWithdrawAction = DepositWithdrawAction.deploy({"from": self.deployer})
 
         # Deploy router
         router = Router.deploy(
@@ -206,6 +210,7 @@ class TestEnvironment:
             perpetualTokenAction.address,
             perpetualTokenMint.address,
             perpetualTokenRedeem.address,
+            depositWithdrawAction.address,
             self.cToken["ETH"].address,
             self.token["ETH"].address,
             {"from": self.deployer},

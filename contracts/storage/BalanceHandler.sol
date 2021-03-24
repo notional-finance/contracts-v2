@@ -177,7 +177,7 @@ library BalanceHandler {
                 // no loss of precision between our internal accounting and the external account. In this case
                 // there will be no dust accrual since we will transfer the exact amount of underlying that was
                 // received.
-                require(transferAmountExternal < 0, "BH: cannot redeem negative");
+                require(transferAmountExternal < 0); // dev: invalid redeem balance
                 Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
                 int underlyingAmountExternalPrecision = assetToken.redeem(
                     underlyingToken,

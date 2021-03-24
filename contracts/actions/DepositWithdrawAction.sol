@@ -48,6 +48,8 @@ library DepositWithdrawAction {
     using AccountContextHandler for AccountStorage;
     using SafeInt256 for int;
 
+    event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
+
     /**
      * @notice Deposits and wraps the underlying token for a particular cToken. Notional should never have
      * any balances denominated in the underlying.
@@ -63,12 +65,16 @@ library DepositWithdrawAction {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
         // Int conversion overflow check done inside this method call
-        int assetTokensReceivedInternal = balanceState.depositUnderlyingToken(account, int(amountExternalPrecision));
+        // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
+        // be useful for on-demand collateral top ups from a third party
+        int assetTokensReceivedInternal = balanceState.depositUnderlyingToken(msg.sender, int(amountExternalPrecision));
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
+        emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
+
         // NOTE: no free collateral checks required for depositing
         return uint(assetTokensReceivedInternal);
     }
@@ -81,8 +87,8 @@ library DepositWithdrawAction {
         uint16 currencyId,
         uint amountExternalPrecision
     ) external returns (uint) {
-        // No other authorization required on depositing
-        require(msg.sender != address(this)); // dev: no internal call to deposit asset
+        // TODO: the way finalized is structured does not allow msg.sender to deposit
+        require(msg.sender == account, "Unauthorized"); // dev: no internal call to deposit asset
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
@@ -97,6 +103,8 @@ library DepositWithdrawAction {
         accountContext.setAccountContext(account);
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
+        emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
+
         // NOTE: no free collateral checks required for depositing
         return uint(assetTokensReceivedInternal);
     }
@@ -112,7 +120,7 @@ library DepositWithdrawAction {
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
     ) external returns (uint) {
-        require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        require(account == msg.sender, "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
@@ -127,6 +135,8 @@ library DepositWithdrawAction {
         _finalizeAccountContext(account, accountContext);
 
         require(amountWithdrawn <= 0);
+        emit CashBalanceChange(account, currencyId, int(amountInternalPrecision).neg());
+
         return uint(amountWithdrawn.neg());
     }
 
@@ -174,7 +184,7 @@ library DepositWithdrawAction {
         _finalizeAccountContext(account, accountContext);
     }
 
-    function batchBalanceAndTradeActions(
+    function batchBalanceAndTradeAction(
         address account,
         BalanceActionWithTrades[] calldata actions
     ) external {
@@ -291,7 +301,6 @@ library DepositWithdrawAction {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
         }
     }
-
 
     function _preTradeActions(
         address account,

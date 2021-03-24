@@ -22,6 +22,9 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    /** User trading events */
+    event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
+
     /** Initialize Markets Action */
     function initializeMarkets(uint currencyId, bool isFirstInit) external;
 
@@ -119,7 +122,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         BalanceAction[] calldata actions
     ) external;
 
-    function batchBalanceAndTradeActions(
+    function batchBalanceAndTradeAction(
         address account,
         BalanceActionWithTrades[] calldata actions
     ) external;

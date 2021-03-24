@@ -7,6 +7,7 @@ import "./GovernanceAction.sol";
 import "./PerpetualTokenAction.sol";
 import "./MintPerpetualTokenAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
+import "./DepositWithdrawAction.sol";
 import "./InitializeMarketsAction.sol";
 
 /**
@@ -26,6 +27,7 @@ contract Router is StorageLayoutV1 {
     address public immutable PERPETUAL_TOKEN_ACTIONS;
     address public immutable PERPETUAL_TOKEN_MINT;
     address public immutable PERPETUAL_TOKEN_REDEEM;
+    address public immutable DEPOSIT_WITHDRAW_ACTION;
     address public immutable cETH;
     address public immutable WETH;
 
@@ -36,6 +38,7 @@ contract Router is StorageLayoutV1 {
         address perpetualTokenActions_,
         address perpetualTokenMint_,
         address perpetualTokenRedeem_,
+        address depositWithdrawAction_,
         address cETH_,
         address weth_
     ) {
@@ -45,6 +48,7 @@ contract Router is StorageLayoutV1 {
         PERPETUAL_TOKEN_ACTIONS = perpetualTokenActions_;
         PERPETUAL_TOKEN_MINT = perpetualTokenMint_;
         PERPETUAL_TOKEN_REDEEM = perpetualTokenRedeem_;
+        DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
         cETH = cETH_;
         WETH = weth_;
     }
@@ -80,6 +84,16 @@ contract Router is StorageLayoutV1 {
      */
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         // TODO: order these by most commonly used
+        if (
+            sig == DepositWithdrawAction.depositUnderlyingToken.selector ||
+            sig == DepositWithdrawAction.depositAssetToken.selector ||
+            sig == DepositWithdrawAction.withdraw.selector ||
+            sig == DepositWithdrawAction.batchBalanceAction.selector ||
+            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector
+        ) {
+            return DEPOSIT_WITHDRAW_ACTION;
+        }
+
         if (
             sig == PerpetualTokenAction.perpetualTokenTotalSupply.selector ||
             sig == PerpetualTokenAction.perpetualTokenBalanceOf.selector ||
