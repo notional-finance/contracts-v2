@@ -14,12 +14,19 @@ import "../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 enum TradeActionType {
+    // (uint8, uint8, uint88, uint32)
     Lend,
+    // (uint8, uint8, uint88, uint32)
     Borrow,
+    // (uint8, uint8, uint88, uint32, uint32)
     AddLiquidity,
+    // (uint8, uint8, uint88, uint32, uint32)
     RemoveLiquidity,
+    // (uint8, address, uint32, int56)
     MintCashPair,
-    PurchaseIdiosyncratic,
+    // (uint8, int88)
+    PurchasePerpetualTokenResidual,
+    // (uint8, address, int88)
     SettleCashDebt
 }
 
@@ -30,6 +37,8 @@ library TradingAction {
     using CashGroup for CashGroupParameters;
     using SafeInt256 for int;
     using SafeMath for uint;
+
+    event BatchTradeExecution(address account, uint16 currencyId);
 
     function executeTradesBitmapBatch(
         address account,
@@ -66,6 +75,8 @@ library TradingAction {
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
+        emit BatchTradeExecution(account, uint16(currencyId));
+
         return (values[0]);
     }
 
@@ -83,11 +94,11 @@ library TradingAction {
         int[] memory values = new int[](3);
 
         for (uint i; i < trades.length; i++) {
-            TradeActionType tradeType = TradeActionType(uint(bytes32(bytes1(trades[i]))));
+            TradeActionType tradeType = TradeActionType(uint(uint8(bytes1(trades[i]))));
 
             if (tradeType == TradeActionType.AddLiquidity || tradeType == TradeActionType.RemoveLiquidity) {
                 // cashAmount
-                values[1] = _executeLiquidityTrade(cashGroup, markets, tradeType, trades[i], portfolioState);
+                values[1] = _executeLiquidityTrade(cashGroup, tradeType, trades[i], portfolioState, values[0]);
             } else {
                 uint maturity;
                 // (maturity, cashAmount, fCashAmount)
@@ -99,6 +110,8 @@ library TradingAction {
             // netCash = netCash + cashAmount
             values[0] = values[0].add(values[1]);
         }
+
+        emit BatchTradeExecution(account, uint16(currencyId));
 
         return (portfolioState, values[0]);
     }
@@ -119,15 +132,15 @@ library TradingAction {
         bytes32 trade,
         uint blockTime
     ) internal returns (uint, int, int) {
-        TradeActionType tradeType = TradeActionType(uint(bytes32(bytes1(trade))));
+        TradeActionType tradeType = TradeActionType(uint(uint8(bytes1(trade))));
 
         uint maturity;
         int cashAmount;
         int fCashAmount;
         if (tradeType == TradeActionType.MintCashPair) {
             (maturity, fCashAmount) = _mintCashPair(account, cashGroup, blockTime, trade);
-        } else if (tradeType == TradeActionType.PurchaseIdiosyncratic) {
-            (maturity, cashAmount, fCashAmount) = _purchaseIdiosyncratic(cashGroup, markets, blockTime, trade);
+        } else if (tradeType == TradeActionType.PurchasePerpetualTokenResidual) {
+            (maturity, cashAmount, fCashAmount) = _purchaseResidual(cashGroup, markets, blockTime, trade);
         } else if (tradeType == TradeActionType.SettleCashDebt) {
             // Settling debts will use the oracle rate from the 3 month market
             (maturity, cashAmount, fCashAmount) = _settleCashDebt(cashGroup, markets, blockTime, trade);
@@ -148,29 +161,46 @@ library TradingAction {
 
     function _executeLiquidityTrade(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         TradeActionType tradeType,
         bytes32 trade,
-        PortfolioState memory portfolioState
+        PortfolioState memory portfolioState,
+        int netCash
     ) internal returns (int) {
+        uint marketIndex = uint(uint8(bytes1(trade << 8)));
+        // TODO: refactor this to get rid of the markets array
+        MarketParameters memory market;
+        {
+            uint blockTime = block.timestamp;
+            uint maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
+            market.loadMarket(
+                cashGroup.currencyId,
+                maturity,
+                blockTime,
+                true,
+                cashGroup.getRateOracleTimeWindow()
+            );
+        }
+
         int cashAmount;
         int fCashAmount;
         int tokens;
-        uint marketIndex = uint(uint8(bytes1(trade << 8)));
-        // TODO: refactor this to get rid of the markets array
-        MarketParameters memory market = cashGroup.getMarket(
-            markets,
-            marketIndex,
-            block.timestamp,
-            true // needs liquidity
-        );
-
         if (tradeType == TradeActionType.AddLiquidity) {
             cashAmount = int(uint88(bytes11(trade << 16)));
+            // Setting cash amount to zero will deposit all net cash accumulated in this trade into
+            // liquidity. This feature allows accounts to borrow in one maturity to provide liquidity
+            // in another in a single transaction without dust. It also allows liquidity providers to 
+            // sell off the net cash residuals and use the cash amount in the new market without dust
+            if (cashAmount == 0) {
+                cashAmount = netCash;
+                require(cashAmount > 0, "Invalid cash roll");
+            }
+
             (tokens, fCashAmount) = market.addLiquidity(cashAmount);
+            cashAmount = cashAmount.neg(); // Net cash is negative
         } else {
             tokens = int(uint88(bytes11(trade << 16)));
             (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
+            tokens = tokens.neg();
         }
 
         {
@@ -241,7 +271,7 @@ library TradingAction {
         int amountToSettle = int(int88(bytes11(trade << 168)));
 
         AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
-        DepositWithdrawAction._settleAccountIfRequiredAndFinalize(counterparty, counterpartyContext);
+        // DepositWithdrawAction._settleAccountIfRequiredAndFinalize(counterparty, counterpartyContext);
 
         // This will check if the amountToSettle is valid and revert if it is not. Amount to settle is a positive
         // number always.
@@ -327,32 +357,29 @@ library TradingAction {
         return (maturity, fCashAmountForCounterparty.neg());
     }
 
-    function _purchaseIdiosyncratic(
+    function _purchaseResidual(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         uint blockTime,
         bytes32 trade
     ) internal returns (uint, int, int) {
-        address counterparty = address(bytes20(trade << 8));
         uint maturity = uint(uint32(bytes4(trade << 168)));
         // limit of 360 million
-        int fCashAmountToPurchase = int(int56(bytes7(trade << 200)));
+        int fCashAmountToPurchase = int(int88(bytes11(trade << 200)));
 
-        AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
-        require(counterpartyContext.bitmapCurrencyId == cashGroup.currencyId, "Invalid purchase");
         require(maturity > blockTime, "Invalid maturity");
-        _placefCashAssetInCounterparty(
-            counterparty,
-            counterpartyContext,
-            cashGroup.currencyId,
-            maturity,
-            fCashAmountToPurchase
-        );
+        // _placefCashAssetInCounterparty(
+        //     counterparty,
+        //     counterpartyContext,
+        //     cashGroup.currencyId,
+        //     maturity,
+        //     fCashAmountToPurchase
+        // );
 
-        int cashAmount = _getCashPrice(cashGroup, markets, maturity, blockTime, fCashAmountToPurchase);
-        // TODO: set counterparty context?
+        // int cashAmount = _getCashPrice(cashGroup, markets, maturity, blockTime, fCashAmountToPurchase);
+        // // TODO: set counterparty context?
 
-        return (maturity, cashAmount, fCashAmountToPurchase.neg());
+        // return (maturity, cashAmount, fCashAmountToPurchase.neg());
     }
 
     function _getCashPrice(

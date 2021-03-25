@@ -25,6 +25,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
     event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
+    event BatchTradeExecution(address account, uint16 currencyId);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint currencyId, bool isFirstInit) external;

@@ -227,7 +227,7 @@ library PortfolioHandler {
         require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
         require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
         require(asset.assetType > 0 && asset.assetType <= AssetHandler.LIQUIDITY_TOKEN_INDEX9); // dev: encode asset type invalid
-        require(asset.notional >= type(int88).min && asset.notional <= type(uint88).max); // dev: encode asset notional overflow
+        require(asset.notional >= type(int88).min && asset.notional <= type(int88).max); // dev: encode asset notional overflow
 
         return (
             bytes32(asset.currencyId)      |

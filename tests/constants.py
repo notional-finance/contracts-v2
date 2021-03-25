@@ -18,6 +18,9 @@ PORTFOLIO_FLAG = HexString("0x8000", "bytes2")
 BALANCE_FLAG = HexString("0x4000", "bytes2")
 PORTFOLIO_FLAG_INT = to_int(HexString("0x8000", "bytes2"), "int")
 BALANCE_FLAG_INT = to_int(HexString("0x4000", "bytes2"), "int")
+HAS_ASSET_DEBT = "0x01"
+HAS_CASH_DEBT = "0x02"
+HAS_BOTH_DEBT = "0x03"
 
 MARKETS = [
     START_TIME_TREF + 90 * SECONDS_IN_DAY,
@@ -73,4 +76,14 @@ DEPOSIT_ACTION_TYPE = {
     "DepositAssetAndMintPerpetual": 3,
     "DepositUnderlyingAndMintPerpetual": 4,
     "RedeemPerpetual": 5,
+}
+
+TRADE_ACTION_TYPE = {
+    "Lend": 0,
+    "Borrow": 1,
+    "AddLiquidity": 2,
+    "RemoveLiquidity": 3,
+    "MintCashPair": 4,
+    "PurchasePerpetualTokenResidual": 5,
+    "SettleCashDebt": 5,
 }

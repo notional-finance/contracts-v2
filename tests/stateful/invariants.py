@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
-from tests.helpers import active_currencies_to_list
+from tests.helpers import active_currencies_to_list, get_settlement_date
 
 chain = Chain()
 QUARTER = 86400 * 90
@@ -187,23 +187,24 @@ def check_account_context(env, accounts):
                 hasDebt = hasDebt | 2
 
         portfolio = env.notional.getAccountPortfolio(account.address)
-        nextMaturity = 0
+        nextSettleTime = 0
         if len(portfolio) > 0:
-            nextMaturity = portfolio[0][1]
+            nextSettleTime = get_settlement_date(portfolio[0], chain.time())
 
         for asset in portfolio:
             # Check that currency id is in the active currencies list
             assert (asset[0], True) in [(a[0], a[1]) for a in activeCurrencies]
+            settleTime = get_settlement_date(asset, chain.time())
 
-            if asset[1] < nextMaturity:
+            if settleTime < nextSettleTime:
                 # Set to the lowest maturity
-                nextMaturity = asset[1]
+                nextSettleTime = settleTime
 
             if asset[3] < 0:
                 # Negative fcash
                 hasDebt = hasDebt | 1
 
         # Check next maturity, TODO: this does not work with idiosyncratic accounts
-        assert context[0] == nextMaturity
+        assert context[0] == nextSettleTime
         # Check that has debt is set properly
         assert context[1] == HexString(hasDebt, "bytes1")

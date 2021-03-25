@@ -51,6 +51,10 @@ library PerpetualToken {
         uint incentiveAnnualEmissionRate = uint(uint32(uint(data >> 112)));
         uint8 assetArrayLength = uint8(uint(data >> 144));
         uint lastInitializedTime = uint(uint32(uint(data >> 152)));
+        // TODO: add purchase bps positive, negative (8, 8)
+        // TODO: add fc haircut value percentage (8)
+        // TODO: add purchase cash time buffer (8)
+        // TODO: cash witholding bps (8)
 
         return (currencyId, totalSupply, incentiveAnnualEmissionRate, assetArrayLength, lastInitializedTime);
     }
