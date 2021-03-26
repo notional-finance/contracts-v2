@@ -163,3 +163,37 @@ def test_slippage_decrease_on_rolldown(marketWithCToken, timeToMaturity, proport
         assert borrowAssetCash > lastBorrowAssetCash
         lastLendAssetCash = lendAssetCash
         lastBorrowAssetCash = borrowAssetCash
+
+
+# @pytest.mark.only
+# def test_fcash_convergence(marketWithCToken):
+#     cgParams = list(CASH_GROUP_PARAMETERS)
+#     cgParams[2] = 0
+#     marketWithCToken.setCashGroup(1, cgParams)
+#     (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
+#     marketIndex = 6
+
+#     marketState = get_market_state(
+#         MARKETS[5],
+#         totalfCash=300000e8,
+#         totalCurrentCash=100000e8,
+#         lastImpliedRate=0.02e9,
+#     )
+
+#     txn = marketWithCToken.getfCashAmountGivenCashAmount(
+#         marketState,
+#         cashGroup,
+#         1000e8,
+#         START_TIME
+#     )
+#     (fCashAmount, runs) = txn.return_value
+#     # rateScalar = 18000
+#     # rateAnchor = 1000333388
+#     # exchangeRate = 1000333388
+#     # cashAmount = -99998333483
+#     # gas amount: 86286
+
+
+#     (_, cashAmount) = marketWithCToken.calculateTrade(
+#         marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
+#     )

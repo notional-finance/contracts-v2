@@ -167,7 +167,7 @@ library AssetHandler {
         return numerator
             .mul(tokens)
             .mul(haircut)
-            .div(CashGroup.TOKEN_HAIRCUT_DECIMALS)
+            .div(CashGroup.PERCENTAGE_DECIMALS)
             .div(liquidity);
     }
 

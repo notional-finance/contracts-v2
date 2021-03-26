@@ -241,8 +241,8 @@ library Liquidation {
                 int haircut = int(cashGroup.getLiquidityHaircut(asset.assetType));
                 // netCashIncrease
                 withdrawFactors[2] = withdrawFactors[0]
-                    .mul(CashGroup.TOKEN_HAIRCUT_DECIMALS.sub(haircut))
-                    .div(CashGroup.TOKEN_HAIRCUT_DECIMALS);
+                    .mul(CashGroup.PERCENTAGE_DECIMALS.sub(haircut))
+                    .div(CashGroup.PERCENTAGE_DECIMALS);
             }
             int incentivePaid = withdrawFactors[2].mul(repoIncentive).div(Market.RATE_PRECISION);
 

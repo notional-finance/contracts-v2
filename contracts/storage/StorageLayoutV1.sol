@@ -44,8 +44,10 @@ struct CashGroupParameterStorage {
     uint8 maxMarketIndex;
     // Time window in minutes that the rate oracle will be averaged over
     uint8 rateOracleTimeWindowMin;
-    // Liquidity fee given to LPs per trade, specified in BPS
-    uint8 liquidityFeeBPS;
+    // Total fees per trade, specified in BPS
+    uint8 totalFeeBPS;
+    // Share of the fees given to the protocol, denominated in percentage
+    uint8 reserveFeeShare;
 
     /* Risk Parameters */
     // Debt buffer specified in 5 BPS increments

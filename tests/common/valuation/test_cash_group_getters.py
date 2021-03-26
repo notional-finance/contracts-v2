@@ -62,13 +62,13 @@ def test_invalid_rate_scalar_settings(cashGroup):
     with brownie.reverts():
         # invalid length
         cashGroupParameters[0] = 3
-        cashGroupParameters[7] = []
+        cashGroupParameters[8] = []
         cashGroup.setCashGroup(1, cashGroupParameters)
 
     with brownie.reverts():
         # cannot have zeros
         cashGroupParameters[0] = 3
-        cashGroupParameters[7] = [10, 9, 0]
+        cashGroupParameters[8] = [10, 9, 0]
         cashGroup.setCashGroup(1, cashGroupParameters)
 
 
@@ -78,13 +78,13 @@ def test_invalid_liquidity_haircut_settings(cashGroup):
     with brownie.reverts():
         # invalid length
         cashGroupParameters[0] = 3
-        cashGroupParameters[8] = []
+        cashGroupParameters[9] = []
         cashGroup.setCashGroup(1, cashGroupParameters)
 
     with brownie.reverts():
         # cannot have more than 100
         cashGroupParameters[0] = 3
-        cashGroupParameters[8] = [102, 50, 50]
+        cashGroupParameters[9] = [102, 50, 50]
         cashGroup.setCashGroup(1, cashGroupParameters)
 
 
@@ -99,7 +99,8 @@ def test_build_cash_group(cashGroup, aggregator):
         cashGroupParameters = (
             maxMarketIndex,
             random.randint(1, 255),  # 1 rateOracleTimeWindowMin,
-            random.randint(1, 255),  # 2 liquidityFeeBPS,
+            random.randint(1, 255),  # 2 totalFeeBPS,
+            random.randint(1, 100),  # 2 reserveFeeShare,
             random.randint(1, 255),  # 3 debtBuffer5BPS,
             random.randint(1, 255),  # 4 fCashHaircut5BPS,
             random.randint(1, 255),  # 4 settlement penalty bps,
@@ -119,17 +120,18 @@ def test_build_cash_group(cashGroup, aggregator):
         assert len(markets) == cg[1]
 
         assert cashGroupParameters[1] * 60 == cashGroup.getRateOracleTimeWindow(cg)
-        assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getLiquidityFee(cg)
-        assert cashGroupParameters[3] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
-        assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
-        assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
-        assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getLiquidityTokenRepoDiscount(
+        assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getTotalFee(cg)
+        assert cashGroupParameters[3] == cashGroup.getReserveFeeShare(cg)
+        assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
+        assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
+        assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
+        assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidityTokenRepoDiscount(
             cg
         )
 
         for m in range(0, maxMarketIndex):
-            assert cashGroupParameters[7][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
-            assert cashGroupParameters[8][m] * 10 == cashGroup.getRateScalar(
+            assert cashGroupParameters[8][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
+            assert cashGroupParameters[9][m] * 10 == cashGroup.getRateScalar(
                 cg, m + 1, NORMALIZED_RATE_TIME
             )
 

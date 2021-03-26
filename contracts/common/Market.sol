@@ -117,6 +117,82 @@ library Market {
         return (assetCash, fCash);
     }
 
+    function getExchangeRateFactors(
+        MarketParameters memory marketState,
+        CashGroupParameters memory cashGroup,
+        uint timeToMaturity,
+        uint marketIndex
+    ) internal view returns (int, int, int) {
+        int rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
+        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
+
+        // This will result in a divide by zero
+        if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
+
+        // Get the rate anchor given the market state, this will establish the baseline for where
+        // the exchange rate is set.
+        int rateAnchor;
+        {
+            bool success;
+            (rateAnchor, success) = getRateAnchor(
+                marketState.totalfCash,
+                marketState.lastImpliedRate,
+                totalCashUnderlying,
+                rateScalar,
+                timeToMaturity
+            );
+            if (!success) return (0, 0, 0);
+        }
+
+        return (rateScalar, totalCashUnderlying, rateAnchor);
+    }
+
+    function getExchangeRateViafCashAmount(
+        MarketParameters memory marketState,
+        uint totalAnnualizedFeeBasisPoints,
+        int totalCashUnderlying,
+        int rateScalar,
+        int rateAnchor,
+        int fCashAmount,
+        uint timeToMaturity
+    ) internal view returns (int, int) {
+        // Calculate the exchange rate between fCash and cash the user will trade at
+        int preFeeExchangeRate;
+        {
+            bool success;
+            (preFeeExchangeRate, success) = getExchangeRate(
+                marketState.totalfCash,
+                totalCashUnderlying,
+                rateScalar,
+                rateAnchor,
+                fCashAmount
+            );
+            if (!success) return (0, 0);
+        }
+
+        // Fees are specified in basis points which is an implied rate denomination. We convert this to
+        // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
+        // or divide depending on the side of the trade).
+        // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
+        // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
+        int fee = getExchangeRateFromImpliedRate(totalAnnualizedFeeBasisPoints, timeToMaturity);
+        int postFeeExchangeRate;
+        if (fCashAmount > 0) {
+            // Borrowing
+            postFeeExchangeRate = preFeeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
+        } else {
+            // Lending
+            postFeeExchangeRate = preFeeExchangeRate.mul(Market.RATE_PRECISION).div(fee);
+        }
+
+        if (postFeeExchangeRate < RATE_PRECISION) {
+            // We do not allow negative exchange rates.
+            return (0, 0);
+        }
+
+        return (preFeeExchangeRate, postFeeExchangeRate);
+    }
+
     /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
      * cash amounts are all specified at RATE_PRECISION.
@@ -134,114 +210,87 @@ library Market {
         uint timeToMaturity,
         uint marketIndex
     ) internal view returns (int) {
-        if (marketState.totalfCash + fCashAmount <= 0) {
-            // We return false if there is not enough fCash to support this trade.
-            return 0;
-        }
-        int rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
-        int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
+        // We return false if there is not enough fCash to support this trade.
+        if (marketState.totalfCash + fCashAmount <= 0) return 0;
 
-        // This will result in a divide by zero
+        (
+            int rateScalar,
+            int totalCashUnderlying,
+            int rateAnchor
+        ) = getExchangeRateFactors(marketState, cashGroup, timeToMaturity, marketIndex);
+        // Rate scalar can never be zero so this signifies a failure and we return zero
         if (rateScalar == 0) return 0;
-        // This will result in a divide by zero
-        if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return 0;
         // This will result in negative interest rates
         if (fCashAmount >= totalCashUnderlying) return 0;
 
-        // Get the rate anchor given the market state, this will establish the baseline for where
-        // the exchange rate is set.
-        int rateAnchor;
+        (
+            int preFeeExchangeRate,
+            int postFeeExchangeRate
+        ) = getExchangeRateViafCashAmount(
+            marketState,
+            cashGroup.getTotalFee(),
+            totalCashUnderlying,
+            rateScalar,
+            rateAnchor,
+            fCashAmount,
+            timeToMaturity
+        );
+        if (preFeeExchangeRate == 0) return 0;
+
+        // The new implied rate will be used to set the rate anchor for the next trade
+        uint newImpliedRate;
+        // cash = fCashAmount / exchangeRate
+        // The net cash amount will be the opposite direction of the fCash amount, if we add
+        // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
+        // is positive and greater than RATE_PRECISION here
+        int netCashPostFee = fCashAmount.mul(RATE_PRECISION).div(postFeeExchangeRate).neg();
         {
             bool success;
-            (rateAnchor, success) = getRateAnchor(
+            (newImpliedRate, success) = getImpliedRate(
                 marketState.totalfCash,
-                marketState.lastImpliedRate,
-                totalCashUnderlying,
+                totalCashUnderlying.add(netCashPostFee),
                 rateScalar,
+                rateAnchor,
                 timeToMaturity
             );
             if (!success) return 0;
-
-        }
-
-        // Calculate the exchange rate between fCash and cash the user will trade at
-        int tradeExchangeRate;
-        {
-            bool success;
-            (tradeExchangeRate, success) = getExchangeRate(
-                marketState.totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fCashAmount
-            );
-            if (!success) return 0;
-        }
-
-        // Fees are specified in basis points which is an implied rate denomination. We convert this to
-        // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
-        // or divide depending on the side of the trade).
-        // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
-        // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
-        int fee = getExchangeRateFromImpliedRate(cashGroup.getLiquidityFee(), timeToMaturity);
-        if (fCashAmount > 0) {
-            // Borrowing
-            tradeExchangeRate = tradeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
-        } else {
-            // Lending
-            tradeExchangeRate = tradeExchangeRate.mul(Market.RATE_PRECISION).div(fee);
-        }
-
-        if (tradeExchangeRate < RATE_PRECISION) {
-            // We do not allow negative exchange rates.
-            return 0;
         }
 
         return setNewMarketState(
             marketState,
-            cashGroup.assetRate,
-            totalCashUnderlying,
-            rateAnchor,
-            rateScalar,
+            cashGroup,
+            netCashPostFee,
             fCashAmount,
-            tradeExchangeRate,
-            timeToMaturity
+            newImpliedRate,
+            preFeeExchangeRate
         );
     }
 
     function setNewMarketState(
         MarketParameters memory marketState,
-        AssetRateParameters memory assetRate,
-        int totalCashUnderlying,
-        int rateAnchor,
-        int rateScalar,
+        CashGroupParameters memory cashGroup,
+        int netCashPostFee,
         int fCashAmount,
-        int tradeExchangeRate,
-        uint timeToMaturity
+        uint newImpliedRate,
+        int preFeeExchangeRate
     ) private view returns (int) {
-        // cash = fCashAmount / exchangeRate
-        // The net cash amount will be the opposite direction of the fCash amount, if we add
-        // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
-        // is positive and greater than RATE_PRECISION here
-        int netCash = fCashAmount.mul(RATE_PRECISION).div(tradeExchangeRate).neg();
-        int netAssetCash = assetRate.convertInternalFromUnderlying(netCash);
+        int netAssetCash = cashGroup.assetRate.convertInternalFromUnderlying(netCashPostFee);
+        int netAssetCashToReserve;
+        {
+            // Liquidity fees are split between liquidity providers and the protocol reserve. Calculate the amount
+            // that goes to the protocol reserve from here, LPs will accrue their fees in the pool.
+            int cashFeeAmount = fCashAmount.mul(RATE_PRECISION).div(preFeeExchangeRate).sub(netCashPostFee);
+            cashFeeAmount = cashFeeAmount.mul(cashGroup.getReserveFeeShare()).div(CashGroup.PERCENTAGE_DECIMALS);
+            netAssetCashToReserve = cashGroup.assetRate.convertInternalFromUnderlying(cashFeeAmount);
+        }
         
         // Underflow on netAssetCash
         if (marketState.totalCurrentCash + netAssetCash <= 0) return 0;
         marketState.totalfCash = marketState.totalfCash.add(fCashAmount);
         marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCash);
 
-        // The new implied rate will be used to set the rate anchor for the next trade
-        bool success;
-        (marketState.lastImpliedRate, success) = getImpliedRate(
-            marketState.totalfCash,
-            totalCashUnderlying.add(netCash),
-            rateScalar,
-            rateAnchor,
-            timeToMaturity
-        );
-        if (!success) return 0;
         // Sets the trade time for the next oracle update
+        marketState.lastImpliedRate = newImpliedRate;
         marketState.previousTradeTime = block.timestamp;
         marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_TRADE;
 
@@ -378,7 +427,8 @@ library Market {
         (int lnProportion, bool success) = logProportion(proportion);
         if (!success) return (0, false);
 
-        int rate = lnProportion.div(rateScalar).add(rateAnchor);
+        // Division will not overflow here because we know rateScalar > 0
+        int rate = (lnProportion / rateScalar).add(rateAnchor);
         // Do not succeed if interest rates fall below 1
         if (rate < RATE_PRECISION) {
             return (0, false);

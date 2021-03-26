@@ -102,10 +102,16 @@ contract MockCashGroup is StorageLayoutV1 {
         return rateScalar;
     }
 
-    function getLiquidityFee(
+    function getTotalFee(
         CashGroupParameters memory cashGroup
     ) public pure returns (uint) {
-        return cashGroup.getLiquidityFee();
+        return cashGroup.getTotalFee();
+    }
+
+    function getReserveFeeShare(
+        CashGroupParameters memory cashGroup
+    ) public pure returns (int) {
+        return cashGroup.getReserveFeeShare();
     }
 
     function getLiquidityHaircut(

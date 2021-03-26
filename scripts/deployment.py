@@ -255,7 +255,8 @@ class TestEnvironment:
             (
                 config["maxMarketIndex"],
                 config["rateOracleTimeWindow"],
-                config["liquidityFee"],
+                config["totalFee"],
+                config["reserveFeeShare"],
                 config["debtBuffer"],
                 config["fCashHaircut"],
                 config["settlementPenalty"],

@@ -26,15 +26,16 @@ library CashGroup {
 
     // Offsets for the bytes of the different parameters
     uint internal constant RATE_ORACLE_TIME_WINDOW = 8;
-    uint internal constant LIQUIDITY_FEE = 16;
-    uint internal constant DEBT_BUFFER = 24;
-    uint internal constant FCASH_HAIRCUT = 32;
-    uint internal constant SETTLEMENT_PENALTY = 40;
-    uint internal constant LIQUIDITY_TOKEN_REPO_DISCOUNT = 48;
+    uint internal constant TOTAL_FEE = 16;
+    uint internal constant RESERVE_FEE_SHARE = 24;
+    uint internal constant DEBT_BUFFER = 32;
+    uint internal constant FCASH_HAIRCUT = 40;
+    uint internal constant SETTLEMENT_PENALTY = 48;
+    uint internal constant LIQUIDITY_TOKEN_REPO_DISCOUNT = 56;
     // 9 bytes allocated per market on the liquidity token haircut
-    uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 56;
+    uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 64;
     // 9 bytes allocated per market on the rate scalar
-    uint internal constant RATE_SCALAR = 128;
+    uint internal constant RATE_SCALAR = 136;
 
     uint internal constant DAY = 86400;
     // We use six day weeks to ensure that all time references divide evenly
@@ -51,7 +52,7 @@ library CashGroup {
     uint internal constant WEEK_BIT_OFFSET = 90;
     uint internal constant MONTH_BIT_OFFSET = 135;
     uint internal constant QUARTER_BIT_OFFSET = 195;
-    int internal constant TOKEN_HAIRCUT_DECIMALS = 100;
+    int internal constant PERCENTAGE_DECIMALS = 100;
     uint internal constant MAX_TRADED_MARKET_INDEX = 9;
 
 
@@ -244,14 +245,16 @@ library CashGroup {
         return liquidityTokenHaircut;
     }
 
-    /**
-     * @notice Returns liquidity fees scaled by time to maturity. The liquidity fee is denominated
-     * in basis points and will decrease with time to maturity.
-     */
-    function getLiquidityFee(
+    function getTotalFee(
         CashGroupParameters memory cashGroup
     ) internal pure returns (uint) {
-        return uint(uint8(uint(cashGroup.data >> LIQUIDITY_FEE))) * Market.BASIS_POINT;
+        return uint(uint8(uint(cashGroup.data >> TOTAL_FEE))) * Market.BASIS_POINT;
+    }
+
+    function getReserveFeeShare(
+        CashGroupParameters memory cashGroup
+    ) internal pure returns (int) {
+        return int(uint8(uint(cashGroup.data >> RESERVE_FEE_SHARE)));
     }
 
     function getfCashHaircut(
@@ -443,6 +446,7 @@ library CashGroup {
         // The reason is that borrowers will not have a futher maturity to roll from their 3 month fixed to a 6 month
         // fixed. It also complicates the logic in the perpetual token initialization method
         require(cashGroup.maxMarketIndex != 1, "CG: invalid market index");
+        require(cashGroup.reserveFeeShare <= CashGroup.PERCENTAGE_DECIMALS, "CG: invalid reserve share");
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
         require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
 
@@ -454,7 +458,8 @@ library CashGroup {
         bytes32 data = (
             bytes32(uint(cashGroup.maxMarketIndex)) |
             bytes32(uint(cashGroup.rateOracleTimeWindowMin)) << RATE_ORACLE_TIME_WINDOW |
-            bytes32(uint(cashGroup.liquidityFeeBPS)) << LIQUIDITY_FEE |
+            bytes32(uint(cashGroup.totalFeeBPS)) << TOTAL_FEE |
+            bytes32(uint(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE |
             bytes32(uint(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER |
             bytes32(uint(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT |
             bytes32(uint(cashGroup.settlementPenaltyRateBPS)) << SETTLEMENT_PENALTY |
@@ -464,7 +469,7 @@ library CashGroup {
         // Per market group settings
         for (uint i; i < cashGroup.liquidityTokenHaircuts.length; i++) {
             require(
-                cashGroup.liquidityTokenHaircuts[i] <= CashGroup.TOKEN_HAIRCUT_DECIMALS,
+                cashGroup.liquidityTokenHaircuts[i] <= CashGroup.PERCENTAGE_DECIMALS,
                 "CG: invalid token haircut"
             );
 
@@ -489,18 +494,19 @@ library CashGroup {
         uint8[] memory rateScalars = new uint8[](uint(maxMarketIndex));
 
         for (uint8 i; i < maxMarketIndex; i++) {
-            tokenHaircuts[i] = uint8(data[24 - i]);
-            rateScalars[i] = uint8(data[15 - i]);
+            tokenHaircuts[i] = uint8(data[23 - i]);
+            rateScalars[i] = uint8(data[14 - i]);
         }
 
         return CashGroupParameterStorage({
             maxMarketIndex: maxMarketIndex,
             rateOracleTimeWindowMin: uint8(data[30]),
-            liquidityFeeBPS: uint8(data[29]),
-            debtBuffer5BPS: uint8(data[28]),
-            fCashHaircut5BPS: uint8(data[27]),
-            settlementPenaltyRateBPS: uint8(data[26]),
-            liquidityRepoDiscount: uint8(data[25]),
+            totalFeeBPS: uint8(data[29]),
+            reserveFeeShare: uint8(data[28]),
+            debtBuffer5BPS: uint8(data[27]),
+            fCashHaircut5BPS: uint8(data[26]),
+            settlementPenaltyRateBPS: uint8(data[25]),
+            liquidityRepoDiscount: uint8(data[24]),
             liquidityTokenHaircuts: tokenHaircuts,
             rateScalars: rateScalars
         });

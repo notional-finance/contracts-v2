@@ -26,7 +26,8 @@ CurrencyDefaults = {
     # Cash group settings
     "maxMarketIndex": 2,
     "rateOracleTimeWindow": 20,
-    "liquidityFee": 30,
+    "totalFee": 30,
+    "reserveFeeShare": 50,
     "debtBuffer": 30,
     "fCashHaircut": 30,
     "settlementPenalty": 40,

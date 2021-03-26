@@ -37,14 +37,15 @@ MARKETS = [
 CASH_GROUP_PARAMETERS = (
     9,  # 0: Max Market Index
     10,  # 1: time window, 10 min
-    30,  # 2: liquidity fee, 30 BPS
-    30,  # 3: debt buffer 150 bps
-    30,  # 4: fcash haircut 150 bps
-    40,  # 5: settlement penalty 400 bps
-    40,  # 6: liquidityRepoDiscount 400 bps
-    # 7: token haircuts (percentages)
+    30,  # 2: total fee, 30 BPS
+    50,  # 3: reserve fee share, percentage
+    30,  # 4: debt buffer 150 bps
+    30,  # 5: fcash haircut 150 bps
+    40,  # 6: settlement penalty 400 bps
+    40,  # 7: liquidityRepoDiscount 400 bps
+    # 8: token haircuts (percentages)
     (99, 98, 97, 96, 95, 94, 93, 92, 91),
-    # 8: rate scalar (increments of 10)
+    # 9: rate scalar (increments of 10)
     (10, 9, 8, 7, 6, 5, 4, 3, 2),
 )
 
