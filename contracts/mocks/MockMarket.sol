@@ -2,13 +2,16 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";
 import "../common/Market.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract MockMarket is StorageLayoutV1 {
+    using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
     using AssetRate for AssetRateParameters;
+    using SafeInt256 for int256;
 
     function getUint64(uint value) public pure returns (int128) {
         return ABDKMath64x64.fromUInt(value);
@@ -178,4 +181,31 @@ contract MockMarket is StorageLayoutV1 {
         return Market.setSettlementMarket(market);
     }
 
+    function getfCashAmountGivenCashAmount(
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup,
+        int netCashToAccount,
+        uint marketIndex,
+        uint timeToMaturity,
+        uint maxfCashDelta
+    ) external view returns (int) {
+        (
+            int rateScalar,
+            int totalCashUnderlying,
+            int rateAnchor
+        ) = Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
+        // Rate scalar can never be zero so this signifies a failure and we return zero
+        if (rateScalar == 0) return 0;
+        int fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+
+        return Market.getfCashGivenCashAmount(
+            market.totalfCash,
+            netCashToAccount.neg(),
+            totalCashUnderlying,
+            rateScalar,
+            rateAnchor,
+            fee,
+            maxfCashDelta
+        );
+    }
 }

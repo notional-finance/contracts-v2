@@ -7,6 +7,7 @@ import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
+import "../math/SafeInt256.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
@@ -14,6 +15,7 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
 contract Views is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
+    using SafeInt256 for int;
 
     function getMaxCurrencyId() external view returns (uint16) {
         return maxCurrencyId;
@@ -216,6 +218,41 @@ contract Views is StorageLayoutV1 {
     ) external view returns (uint) {
         address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         return BalanceHandler.calculateIncentivesToMint(tokenAddress, perpetualTokenBalance, lastMintTime, blockTime);
+    }
+
+    function getfCashAmountGivenCashAmount(
+        uint16 currencyId,
+        int88 netCashToAccount,
+        uint marketIndex,
+        uint blockTime
+    ) external view returns (int) {
+        CashGroupParameters memory cashGroup;
+        MarketParameters memory market;
+        {
+            MarketParameters[] memory markets;
+            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
+            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
+        }
+
+        require(market.maturity > blockTime, "Error");
+        uint timeToMaturity = market.maturity - blockTime;
+        (
+            int rateScalar,
+            int totalCashUnderlying,
+            int rateAnchor
+        ) = Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
+        require(rateScalar > 0, "Error");
+        int fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+
+        return Market.getfCashGivenCashAmount(
+            market.totalfCash,
+            int(netCashToAccount).neg(),
+            totalCashUnderlying,
+            rateScalar,
+            rateAnchor,
+            fee,
+            0
+        );
     }
 
     fallback() external {

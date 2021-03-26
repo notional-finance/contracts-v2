@@ -8,6 +8,7 @@ from tests.constants import (
     NORMALIZED_RATE_TIME,
     RATE_PRECISION,
     SECONDS_IN_DAY,
+    START_TIME,
 )
 from tests.helpers import get_market_state, impliedRateStrategy, timeToMaturityStrategy
 
@@ -165,35 +166,37 @@ def test_slippage_decrease_on_rolldown(marketWithCToken, timeToMaturity, proport
         lastBorrowAssetCash = borrowAssetCash
 
 
-# @pytest.mark.only
-# def test_fcash_convergence(marketWithCToken):
-#     cgParams = list(CASH_GROUP_PARAMETERS)
-#     cgParams[2] = 0
-#     marketWithCToken.setCashGroup(1, cgParams)
-#     (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
-#     marketIndex = 6
+@given(
+    marketIndex=strategy("uint8", min_value=1, max_value=9),
+    proportion=strategy(
+        "uint256", min_value=0.33 * RATE_PRECISION, max_value=0.66 * RATE_PRECISION
+    ),
+    impliedRate=impliedRateStrategy,
+    initialCashAmount=strategy("int88", min_value=-1e16, max_value=1e16),
+)
+def test_fcash_convergence(
+    marketWithCToken, marketIndex, proportion, impliedRate, initialCashAmount
+):
+    totalfCash = 1e18
+    totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
+    (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
 
-#     marketState = get_market_state(
-#         MARKETS[5],
-#         totalfCash=300000e8,
-#         totalCurrentCash=100000e8,
-#         lastImpliedRate=0.02e9,
-#     )
+    marketState = get_market_state(
+        MARKETS[marketIndex - 1],
+        totalfCash=totalfCash,
+        totalCurrentCash=totalCashUnderlying,
+        lastImpliedRate=impliedRate,
+    )
 
-#     txn = marketWithCToken.getfCashAmountGivenCashAmount(
-#         marketState,
-#         cashGroup,
-#         1000e8,
-#         START_TIME
-#     )
-#     (fCashAmount, runs) = txn.return_value
-#     # rateScalar = 18000
-#     # rateAnchor = 1000333388
-#     # exchangeRate = 1000333388
-#     # cashAmount = -99998333483
-#     # gas amount: 86286
+    fCashAmount = marketWithCToken.getfCashAmountGivenCashAmount(
+        marketState, cashGroup, initialCashAmount, marketIndex, marketState[1] - START_TIME, 0
+    )
 
+    if fCashAmount == 0:
+        return
 
-#     (_, cashAmount) = marketWithCToken.calculateTrade(
-#         marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
-#     )
+    (_, cashAmount) = marketWithCToken.calculateTrade(
+        marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
+    )
+
+    assert pytest.approx(cashAmount, abs=2) == initialCashAmount

@@ -194,6 +194,104 @@ library Market {
     }
 
     /**
+     * Uses Newton's method to converge on an fCash amount given the amount of
+     * cash. The relation between cash and fcash is:
+     * cashAmount * exchangeRate - fCash = 0
+     * where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
+     *       proportion = (totalfCash + fCash) / (totalfCash + totalCash)
+     *
+     * Newton's method is:
+     * fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
+     * 
+     * f(fCash) = cashAmount * exchangeRate * fee - fCash
+     * f'(fCash) = (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash + fCash) * (totalCash - fCash)] - 1
+     *
+     * NOTE: each iteration costs about 11.3k so this is only done via a view function.
+     */
+    function getfCashGivenCashAmount(
+        int totalfCash,
+        int netCashToMarket,
+        int totalCashUnderlying,
+        int rateScalar,
+        int rateAnchor,
+        int fee,
+        uint maxDelta
+    ) internal view returns (int) {
+        // TODO: can we do a better guess than the rate anchor?
+        // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
+        int fCashGuess = netCashToMarket.mul(rateAnchor).div(Market.RATE_PRECISION);
+        for (uint8 i; i < 20; i++) {
+            (int exchangeRate, bool success) = getExchangeRate(
+                totalfCash,
+                totalCashUnderlying,
+                rateScalar,
+                rateAnchor,
+                fCashGuess
+            );
+
+            if (!success) return 0;
+            int delta = calculateDelta(
+                netCashToMarket,
+                totalfCash,
+                totalCashUnderlying,
+                rateScalar,
+                fCashGuess,
+                exchangeRate,
+                fee
+            );
+
+            if (delta.abs() <= int(maxDelta)) return fCashGuess;
+            fCashGuess = fCashGuess.sub(delta);
+        }
+    }
+
+    function calculateDelta(
+        int cashAmount,
+        int totalfCash,
+        int totalCashUnderlying,
+        int rateScalar,
+        int fCashGuess,
+        int exchangeRate,
+        int fee
+    ) private pure returns (int) {
+        int derivative;
+        if (fCashGuess > 0) {
+            // Borrowing
+            exchangeRate = exchangeRate.mul(fee).div(Market.RATE_PRECISION);
+            require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
+            derivative = cashAmount
+                .mul(fee)
+                .mul(totalfCash.add(totalCashUnderlying));
+
+            int denominator = rateScalar
+                .mul(totalfCash.add(fCashGuess))
+                .mul(totalCashUnderlying.sub(fCashGuess));
+
+            derivative = derivative.div(denominator).sub(Market.RATE_PRECISION);
+        } else {
+            // Lending
+            exchangeRate = exchangeRate.mul(Market.RATE_PRECISION).div(fee);
+            require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
+
+            derivative = cashAmount
+                .mul(Market.RATE_PRECISION)
+                .mul(totalfCash.add(totalCashUnderlying));
+
+            int denominator = rateScalar
+                .mul(totalfCash.add(fCashGuess))
+                .mul(totalCashUnderlying.sub(fCashGuess))
+                .div(fee);
+
+            derivative = derivative.div(denominator).sub(Market.RATE_PRECISION);
+        }
+
+        int numerator = cashAmount.mul(exchangeRate).div(Market.RATE_PRECISION);
+        numerator = numerator.sub(fCashGuess);
+
+        return numerator.mul(Market.RATE_PRECISION).div(derivative);
+    }
+
+    /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
      * cash amounts are all specified at RATE_PRECISION.
      *
