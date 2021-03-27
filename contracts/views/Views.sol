@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/utils/SafeCast.sol";
 contract Views is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
+    using Market for MarketParameters;
     using SafeInt256 for int;
 
     function getMaxCurrencyId() external view returns (uint16) {
@@ -253,6 +254,26 @@ contract Views is StorageLayoutV1 {
             fee,
             0
         );
+    }
+
+    function getCashAmountGivenfCashAmount(
+        uint16 currencyId,
+        int88 fCashAmount,
+        uint marketIndex,
+        uint blockTime
+    ) external view returns (int) {
+        CashGroupParameters memory cashGroup;
+        MarketParameters memory market;
+        {
+            MarketParameters[] memory markets;
+            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
+            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
+        }
+
+        require(market.maturity > blockTime, "Error");
+        uint timeToMaturity = market.maturity - blockTime;
+
+        return market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
     }
 
     fallback() external {

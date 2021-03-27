@@ -178,11 +178,11 @@ library Market {
         int fee = getExchangeRateFromImpliedRate(totalAnnualizedFeeBasisPoints, timeToMaturity);
         int postFeeExchangeRate;
         if (fCashAmount > 0) {
-            // Borrowing
-            postFeeExchangeRate = preFeeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
-        } else {
             // Lending
             postFeeExchangeRate = preFeeExchangeRate.mul(Market.RATE_PRECISION).div(fee);
+        } else {
+            // Borrowing
+            postFeeExchangeRate = preFeeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
         }
 
         if (postFeeExchangeRate < RATE_PRECISION) {
@@ -256,8 +256,8 @@ library Market {
     ) private pure returns (int) {
         int derivative;
         if (fCashGuess > 0) {
-            // Borrowing
-            exchangeRate = exchangeRate.mul(fee).div(Market.RATE_PRECISION);
+            // Lending
+            exchangeRate = exchangeRate.mul(Market.RATE_PRECISION).div(fee);
             require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
             derivative = cashAmount
                 .mul(fee)
@@ -269,8 +269,8 @@ library Market {
 
             derivative = derivative.div(denominator).sub(Market.RATE_PRECISION);
         } else {
-            // Lending
-            exchangeRate = exchangeRate.mul(Market.RATE_PRECISION).div(fee);
+            // Borrowing
+            exchangeRate = exchangeRate.mul(fee).div(Market.RATE_PRECISION);
             require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
 
             derivative = cashAmount
@@ -382,10 +382,8 @@ library Market {
             netAssetCashToReserve = cashGroup.assetRate.convertInternalFromUnderlying(cashFeeAmount);
         }
         
-        // Underflow on netAssetCash
-        if (marketState.totalCurrentCash + netAssetCash <= 0) return 0;
-        marketState.totalfCash = marketState.totalfCash.add(fCashAmount);
-        marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCash);
+        marketState.totalfCash = marketState.totalfCash.subNoNeg(fCashAmount);
+        marketState.totalCurrentCash = marketState.totalCurrentCash.subNoNeg(netAssetCash);
 
         // Sets the trade time for the next oracle update
         marketState.lastImpliedRate = newImpliedRate;

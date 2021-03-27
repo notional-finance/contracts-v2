@@ -147,7 +147,6 @@ library TradingAction {
         } else if (tradeType == TradeActionType.Lend || tradeType == TradeActionType.Borrow) {
             (maturity, cashAmount, fCashAmount) = _executeLendBorrowTrade(
                 cashGroup,
-                markets,
                 tradeType,
                 blockTime,
                 trade
@@ -220,19 +219,24 @@ library TradingAction {
 
     function _executeLendBorrowTrade(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         TradeActionType tradeType,
         uint blockTime,
         bytes32 trade
     ) internal returns (uint, int, int) {
         uint marketIndex = uint(uint8(bytes1(trade << 8)));
         // TODO: refactor this to get rid of the markets array
-        MarketParameters memory market = cashGroup.getMarket(
-            markets,
-            marketIndex,
-            blockTime,
-            false
-        );
+        MarketParameters memory market;
+        {
+            require(marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
+            uint maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
+            market.loadMarket(
+                cashGroup.currencyId,
+                maturity,
+                blockTime,
+                false,
+                cashGroup.getRateOracleTimeWindow()
+            );
+        }
 
         int fCashAmount;
         if (tradeType == TradeActionType.Borrow) {
@@ -243,10 +247,11 @@ library TradingAction {
 
         int cashAmount = market.calculateTrade(
             cashGroup,
-            fCashAmount.neg(),
+            fCashAmount,
             market.maturity.sub(blockTime),
             marketIndex
         );
+        require(cashAmount != 0, "Trade failed");
 
         uint rateLimit = uint(uint32(bytes4(trade << 104)));
         if (rateLimit != 0) {

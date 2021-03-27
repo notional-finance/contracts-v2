@@ -161,4 +161,6 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function getifCashBitmap(address account, uint currencyId) external view returns (bytes32);
     function getFreeCollateralView(address account) external view returns (int);
     function getIncentivesToMint(uint16 currencyId, uint perpetualTokenBalance, uint lastMintTime, uint blockTime) external view returns (uint);
+    function getfCashAmountGivenCashAmount(uint16 currencyId, int88 netCashToAccount, uint marketIndex, uint blockTime) external view returns (int);
+    function getCashAmountGivenfCashAmount(uint16 currencyId, int88 fCashAmount, uint marketIndex, uint blockTime) external view returns (int);
 }
