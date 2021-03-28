@@ -16,6 +16,7 @@ contract Views is StorageLayoutV1 {
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
     using Market for MarketParameters;
+    using AssetRate for AssetRateParameters;
     using SafeInt256 for int;
 
     function getMaxCurrencyId() external view returns (uint16) {
@@ -247,7 +248,7 @@ contract Views is StorageLayoutV1 {
 
         return Market.getfCashGivenCashAmount(
             market.totalfCash,
-            int(netCashToAccount).neg(),
+            int(netCashToAccount),
             totalCashUnderlying,
             rateScalar,
             rateAnchor,
@@ -261,7 +262,7 @@ contract Views is StorageLayoutV1 {
         int88 fCashAmount,
         uint marketIndex,
         uint blockTime
-    ) external view returns (int) {
+    ) external view returns (int, int) {
         CashGroupParameters memory cashGroup;
         MarketParameters memory market;
         {
@@ -273,7 +274,15 @@ contract Views is StorageLayoutV1 {
         require(market.maturity > blockTime, "Error");
         uint timeToMaturity = market.maturity - blockTime;
 
-        return market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        (
+            int assetCash,
+            /* int fee */
+        ) = market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+
+        return (
+            assetCash,
+            cashGroup.assetRate.convertInternalToUnderlying(assetCash)
+        );
     }
 
     fallback() external {

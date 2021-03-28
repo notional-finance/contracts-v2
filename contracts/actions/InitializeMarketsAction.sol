@@ -414,8 +414,7 @@ library InitializeMarketsAction {
                     .div(Market.RATE_PRECISION.sub(parameters.proportions[i]));
 
                 newMarket.totalfCash = fCashAmount;
-                bool success;
-                (newMarket.oracleRate, success) = Market.getImpliedRate(
+                newMarket.oracleRate = Market.getImpliedRate(
                     fCashAmount,
                     underlyingCashToMarket,
                     rateScalar,
@@ -425,7 +424,7 @@ library InitializeMarketsAction {
 
                 // If this fails it is because the rate anchor and proportion are not set properly by
                 // governance.
-                require(success, "IM: implied rate failed");
+                require(newMarket.oracleRate > 0, "IM: implied rate failed");
             } else {
                 // Two special cases for the 3 month and 6 month market when interpolating implied rates. The 3 month market
                 // inherits the implied rate from the previous 6 month market (they are now at the same maturity).

@@ -147,70 +147,25 @@ library Market {
         return (rateScalar, totalCashUnderlying, rateAnchor);
     }
 
-    function getExchangeRateViafCashAmount(
-        MarketParameters memory marketState,
-        uint totalAnnualizedFeeBasisPoints,
-        int totalCashUnderlying,
-        int rateScalar,
-        int rateAnchor,
-        int fCashAmount,
-        uint timeToMaturity
-    ) internal view returns (int, int) {
-        // Calculate the exchange rate between fCash and cash the user will trade at
-        int preFeeExchangeRate;
-        {
-            bool success;
-            (preFeeExchangeRate, success) = getExchangeRate(
-                marketState.totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fCashAmount
-            );
-            if (!success) return (0, 0);
-        }
-
-        // Fees are specified in basis points which is an implied rate denomination. We convert this to
-        // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
-        // or divide depending on the side of the trade).
-        // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
-        // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
-        int fee = getExchangeRateFromImpliedRate(totalAnnualizedFeeBasisPoints, timeToMaturity);
-        int postFeeExchangeRate;
-        if (fCashAmount > 0) {
-            // Lending
-            postFeeExchangeRate = preFeeExchangeRate.mul(Market.RATE_PRECISION).div(fee);
-        } else {
-            // Borrowing
-            postFeeExchangeRate = preFeeExchangeRate.mul(fee).div(Market.RATE_PRECISION);
-        }
-
-        if (postFeeExchangeRate < RATE_PRECISION) {
-            // We do not allow negative exchange rates.
-            return (0, 0);
-        }
-
-        return (preFeeExchangeRate, postFeeExchangeRate);
-    }
-
     /**
      * Uses Newton's method to converge on an fCash amount given the amount of
      * cash. The relation between cash and fcash is:
-     * cashAmount * exchangeRate - fCash = 0
+     * cashAmount * exchangeRate + fCash = 0
      * where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
-     *       proportion = (totalfCash + fCash) / (totalfCash + totalCash)
+     *       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
      *
      * Newton's method is:
      * fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
      * 
-     * f(fCash) = cashAmount * exchangeRate * fee - fCash
-     * f'(fCash) = (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash + fCash) * (totalCash - fCash)] - 1
+     * f(fCash) = cashAmount * exchangeRate * fee + fCash
+     * f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
+     * https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
      *
      * NOTE: each iteration costs about 11.3k so this is only done via a view function.
      */
     function getfCashGivenCashAmount(
         int totalfCash,
-        int netCashToMarket,
+        int netCashToAccount,
         int totalCashUnderlying,
         int rateScalar,
         int rateAnchor,
@@ -219,30 +174,32 @@ library Market {
     ) internal view returns (int) {
         // TODO: can we do a better guess than the rate anchor?
         // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
-        int fCashGuess = netCashToMarket.mul(rateAnchor).div(Market.RATE_PRECISION);
-        for (uint8 i; i < 20; i++) {
+        int fCashChangeToAccountGuess = netCashToAccount.mul(rateAnchor).div(Market.RATE_PRECISION).neg();
+        for (uint8 i; i < 250; i++) {
             (int exchangeRate, bool success) = getExchangeRate(
                 totalfCash,
                 totalCashUnderlying,
                 rateScalar,
                 rateAnchor,
-                fCashGuess
+                fCashChangeToAccountGuess
             );
 
-            if (!success) return 0;
+            require(success); // dev: invalid exchange rate
             int delta = calculateDelta(
-                netCashToMarket,
+                netCashToAccount,
                 totalfCash,
                 totalCashUnderlying,
                 rateScalar,
-                fCashGuess,
+                fCashChangeToAccountGuess,
                 exchangeRate,
                 fee
             );
 
-            if (delta.abs() <= int(maxDelta)) return fCashGuess;
-            fCashGuess = fCashGuess.sub(delta);
+            if (delta.abs() <= int(maxDelta)) return fCashChangeToAccountGuess;
+            fCashChangeToAccountGuess = fCashChangeToAccountGuess.sub(delta);
         }
+
+        revert("No convergence");
     }
 
     function calculateDelta(
@@ -257,39 +214,75 @@ library Market {
         int derivative;
         if (fCashGuess > 0) {
             // Lending
-            exchangeRate = exchangeRate.mul(Market.RATE_PRECISION).div(fee);
-            require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
+            exchangeRate = exchangeRate.mul(RATE_PRECISION).div(fee);
+            require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
             derivative = cashAmount
                 .mul(fee)
                 .mul(totalfCash.add(totalCashUnderlying));
 
             int denominator = rateScalar
-                .mul(totalfCash.add(fCashGuess))
-                .mul(totalCashUnderlying.sub(fCashGuess));
+                .mul(totalfCash.sub(fCashGuess))
+                .mul(totalCashUnderlying.add(fCashGuess));
 
-            derivative = derivative.div(denominator).sub(Market.RATE_PRECISION);
+            derivative = RATE_PRECISION.sub(derivative.div(denominator));
         } else {
             // Borrowing
-            exchangeRate = exchangeRate.mul(fee).div(Market.RATE_PRECISION);
-            require(exchangeRate >= Market.RATE_PRECISION); // dev: rate underflow
+            exchangeRate = exchangeRate.mul(fee).div(RATE_PRECISION);
+            require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
 
             derivative = cashAmount
-                .mul(Market.RATE_PRECISION)
+                .mul(RATE_PRECISION)
                 .mul(totalfCash.add(totalCashUnderlying));
 
             int denominator = rateScalar
-                .mul(totalfCash.add(fCashGuess))
-                .mul(totalCashUnderlying.sub(fCashGuess))
+                .mul(totalfCash.sub(fCashGuess))
+                .mul(totalCashUnderlying.add(fCashGuess))
                 .div(fee);
 
-            derivative = derivative.div(denominator).sub(Market.RATE_PRECISION);
+            derivative = RATE_PRECISION.sub(derivative.div(denominator));
         }
 
-        int numerator = cashAmount.mul(exchangeRate).div(Market.RATE_PRECISION);
-        numerator = numerator.sub(fCashGuess);
+        int numerator = cashAmount.mul(exchangeRate).div(RATE_PRECISION);
+        numerator = numerator.add(fCashGuess);
 
         return numerator.mul(Market.RATE_PRECISION).div(derivative);
     }
+
+    function getNetCashAmounts(
+        CashGroupParameters memory cashGroup,
+        int preFeeExchangeRate,
+        int fCashToAccount,
+        uint timeToMaturity
+    ) internal view returns (int, int, int) {
+        // Fees are specified in basis points which is an implied rate denomination. We convert this to
+        // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
+        // or divide depending on the side of the trade).
+        // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
+        // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
+        int preFeeCashToAccount = fCashToAccount.mul(RATE_PRECISION).div(preFeeExchangeRate).neg();
+        int fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        if (fCashToAccount > 0) {
+            int postFeeExchangeRate = preFeeExchangeRate.mul(RATE_PRECISION).div(fee);
+            // It's possible that the fee pushes exchange rates into negative territory. This is not possible
+            // when borrowing.
+            if (postFeeExchangeRate < RATE_PRECISION) return (0, 0, 0);
+            // fee = (1 - fee) * preFeeCash
+            fee = RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(RATE_PRECISION);
+        } else {
+            // fee = (fee - 1) * preFeeCash / fee
+            fee = fee.sub(RATE_PRECISION).mul(preFeeCashToAccount).div(fee);
+        }
+        int cashToReserve = fee.mul(cashGroup.getReserveFeeShare()).div(CashGroup.PERCENTAGE_DECIMALS);
+
+        return (
+            // Net cash to account
+            preFeeCashToAccount.sub(fee),
+            // Net cash to market
+            preFeeCashToAccount.sub(fee).sub(cashToReserve).neg(),
+            cashToReserve
+        );
+    }
+
 
     /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
@@ -297,100 +290,98 @@ library Market {
      *
      * @param marketState the current market state
      * @param cashGroup cash group configuration parameters
-     * @param fCashAmount the fCash amount specified
+     * @param fCashToAccount the fCash amount that will be deposited into the user's portfolio. The net change
+     * to the market is in the opposite direction.
      * @param timeToMaturity number of seconds until maturity
      * @return netAssetCash
      */
     function calculateTrade(
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
-        int fCashAmount,
+        int fCashToAccount,
         uint timeToMaturity,
         uint marketIndex
-    ) internal view returns (int) {
+    ) internal view returns (int, int) {
         // We return false if there is not enough fCash to support this trade.
-        if (marketState.totalfCash + fCashAmount <= 0) return 0;
+        if (marketState.totalfCash - fCashToAccount <= 0) return (0, 0);
 
         (
             int rateScalar,
             int totalCashUnderlying,
             int rateAnchor
         ) = getExchangeRateFactors(marketState, cashGroup, timeToMaturity, marketIndex);
-        // Rate scalar can never be zero so this signifies a failure and we return zero
-        if (rateScalar == 0) return 0;
         // This will result in negative interest rates
-        if (fCashAmount >= totalCashUnderlying) return 0;
+        if (fCashToAccount >= totalCashUnderlying) return (0, 0);
 
-        (
-            int preFeeExchangeRate,
-            int postFeeExchangeRate
-        ) = getExchangeRateViafCashAmount(
-            marketState,
-            cashGroup.getTotalFee(),
-            totalCashUnderlying,
-            rateScalar,
-            rateAnchor,
-            fCashAmount,
-            timeToMaturity
-        );
-        if (preFeeExchangeRate == 0) return 0;
-
-        // The new implied rate will be used to set the rate anchor for the next trade
-        uint newImpliedRate;
-        // cash = fCashAmount / exchangeRate
-        // The net cash amount will be the opposite direction of the fCash amount, if we add
-        // fCash to the market then we subtract cash and vice versa. We know that tradeExchangeRate
-        // is positive and greater than RATE_PRECISION here
-        int netCashPostFee = fCashAmount.mul(RATE_PRECISION).div(postFeeExchangeRate).neg();
+        int preFeeExchangeRate;
         {
             bool success;
-            (newImpliedRate, success) = getImpliedRate(
+            (preFeeExchangeRate, success) = getExchangeRate(
                 marketState.totalfCash,
-                totalCashUnderlying.add(netCashPostFee),
+                totalCashUnderlying,
+                rateScalar,
+                rateAnchor,
+                fCashToAccount
+            );
+            if (!success) return (0, 0);
+        }
+
+        (
+            int netCashToAccount,
+            int netCashToMarket,
+            int netCashToReserve
+        ) = getNetCashAmounts(
+            cashGroup,
+            preFeeExchangeRate,
+            fCashToAccount,
+            timeToMaturity
+        );
+        if (netCashToAccount == 0) return (0, 0);
+
+        {
+            marketState.totalfCash = marketState.totalfCash.subNoNeg(fCashToAccount);
+            marketState.lastImpliedRate = getImpliedRate(
+                marketState.totalfCash,
+                totalCashUnderlying.add(netCashToMarket),
                 rateScalar,
                 rateAnchor,
                 timeToMaturity
             );
-            if (!success) return 0;
+            // It's technically possible that the implied rate is actually exactly zero (or
+            // more accurately the natural log rounds down to zero) but we will still fail
+            // in this case.
+            if (marketState.lastImpliedRate == 0) return (0, 0);
         }
 
         return setNewMarketState(
             marketState,
-            cashGroup,
-            netCashPostFee,
-            fCashAmount,
-            newImpliedRate,
-            preFeeExchangeRate
+            cashGroup.assetRate,
+            netCashToAccount,
+            netCashToMarket,
+            netCashToReserve
         );
     }
 
     function setNewMarketState(
         MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup,
-        int netCashPostFee,
-        int fCashAmount,
-        uint newImpliedRate,
-        int preFeeExchangeRate
-    ) private view returns (int) {
-        int netAssetCash = cashGroup.assetRate.convertInternalFromUnderlying(netCashPostFee);
-        int netAssetCashToReserve;
-        {
-            // Liquidity fees are split between liquidity providers and the protocol reserve. Calculate the amount
-            // that goes to the protocol reserve from here, LPs will accrue their fees in the pool.
-            int cashFeeAmount = fCashAmount.mul(RATE_PRECISION).div(preFeeExchangeRate).sub(netCashPostFee);
-            cashFeeAmount = cashFeeAmount.mul(cashGroup.getReserveFeeShare()).div(CashGroup.PERCENTAGE_DECIMALS);
-            netAssetCashToReserve = cashGroup.assetRate.convertInternalFromUnderlying(cashFeeAmount);
-        }
-        
-        marketState.totalfCash = marketState.totalfCash.subNoNeg(fCashAmount);
-        marketState.totalCurrentCash = marketState.totalCurrentCash.subNoNeg(netAssetCash);
+        AssetRateParameters memory assetRate,
+        int netCashToAccount,
+        int netCashToMarket,
+        int netCashToReserve
+    ) private view returns (int, int) {
+        int netAssetCashToMarket = assetRate.convertInternalFromUnderlying(netCashToMarket);
+        marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
-        marketState.lastImpliedRate = newImpliedRate;
         marketState.previousTradeTime = block.timestamp;
         marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_TRADE;
 
-        return netAssetCash;
+        int assetCashToReserve = assetRate.convertInternalFromUnderlying(netCashToReserve);
+        int netAssetCashToAccount = assetRate.convertInternalFromUnderlying(netCashToAccount);
+        return (
+            netAssetCashToAccount,
+            netCashToReserve
+        );
     }
 
     /**
@@ -446,7 +437,7 @@ library Market {
        int rateScalar,
        int rateAnchor,
        uint timeToMaturity
-   ) internal pure returns (uint, bool) {
+   ) internal pure returns (uint) {
         // This will check for exchange rates < RATE_PRECISION
         (int exchangeRate, bool success) = getExchangeRate(
            totalfCash,
@@ -455,7 +446,7 @@ library Market {
            rateAnchor,
            0
         );
-        if (!success) return (0, false);
+        if (!success) return 0;
 
         // Uses continuous compounding to calculate the implied rate:
         // ln(exchangeRate) * IMPLIED_RATE_TIME / timeToMaturity
@@ -466,14 +457,12 @@ library Market {
         int128 lnRateScaled = ABDKMath64x64.ln(rateScaled);
         uint lnRate = ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, RATE_PRECISION_64x64));
 
-        uint impliedRate = lnRate
-           .mul(IMPLIED_RATE_TIME)
-           .div(timeToMaturity);
+        uint impliedRate = lnRate.mul(IMPLIED_RATE_TIME).div(timeToMaturity);
 
         // Implied rates over 429% will overflow, this seems like a safe assumption
-        if (impliedRate > type(uint32).max) return (0, false);
+        if (impliedRate > type(uint32).max) return 0;
 
-       return (impliedRate, true);
+        return impliedRate;
     }
 
     /**
@@ -484,12 +473,7 @@ library Market {
         uint impliedRate,
         uint timeToMaturity
     ) internal pure returns (int) {
-        int128 expValue = ABDKMath64x64.fromUInt(
-            // TODO: is this still true?
-            // There is a bit of imprecision from this division here but if we use
-            // int128 then we will get overflows so unclear how we can maintain the precision
-            impliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME)
-        );
+        int128 expValue = ABDKMath64x64.fromUInt(impliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME));
         int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
         int128 expResult = ABDKMath64x64.exp(expValueScaled);
         int128 expResultScaled = ABDKMath64x64.mul(expResult, RATE_PRECISION_64x64);
@@ -510,9 +494,9 @@ library Market {
         int totalCashUnderlying,
         int rateScalar,
         int rateAnchor,
-        int fCashAmount
+        int fCashToAccount
     ) internal pure returns (int, bool) {
-        int numerator = totalfCash.add(fCashAmount);
+        int numerator = totalfCash.subNoNeg(fCashToAccount);
         if (numerator <= 0) return (0, false);
 
         // This is the proportion scaled by RATE_PRECISION
@@ -551,7 +535,12 @@ library Market {
         // return a negative log so we exit here
         if (abdkProportion <= 0) return (0, false);
 
-        int result = ABDKMath64x64.toUInt(ABDKMath64x64.ln(abdkProportion));
+        int result = ABDKMath64x64.toUInt(
+            ABDKMath64x64.mul(
+                ABDKMath64x64.ln(abdkProportion),
+                RATE_PRECISION_64x64
+            )
+        );
 
         return (result, true);
     }

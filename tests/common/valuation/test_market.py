@@ -256,24 +256,32 @@ def test_liquidity_failures(market):
 
 @given(fCashAmount=strategy("int", min_value=-10000e8, max_value=10000e8))
 def test_lend_and_borrow_state(market, fCashAmount):
-    if fCashAmount > -1e5 and fCashAmount < 1e5:
+    if fCashAmount > -1e8 and fCashAmount < 1e8:
         return
 
-    marketState = get_market_state(MARKETS[0])
+    marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
     market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
     marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
     (cashGroup, _) = market.buildCashGroupView(1)
 
-    (newMarket, assetCash) = market.calculateTrade(
+    (newMarket, assetCash, fee) = market.calculateTrade(
         marketState, cashGroup, fCashAmount, 30 * SECONDS_IN_DAY, 1
     )
     assert assetCash != 0
+    if fCashAmount > 0:
+        assert assetCash < 0
+    elif fCashAmount < 0:
+        assert assetCash > 0
+    assert fee > 0
 
-    assert newMarket[2] == marketState[2] + fCashAmount
-    assert newMarket[3] == marketState[3] + assetCash
+    assert newMarket[2] == marketState[2] - fCashAmount
+    assert newMarket[3] == marketState[3] - assetCash + fee
     assert newMarket[4] == marketState[4]
     # Last implied rate changed
-    assert newMarket[5] != marketState[5]
+    if fCashAmount > 0:
+        assert newMarket[5] < marketState[5]
+    if fCashAmount < 0:
+        assert newMarket[5] > marketState[5]
 
     # Oracle rate unchanged
     assert newMarket[6] == marketState[6]

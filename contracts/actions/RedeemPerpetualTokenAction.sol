@@ -174,7 +174,10 @@ contract RedeemPerpetualTokenAction {
             if (fCashAssets[fCashIndex].maturity > markets[i].maturity) continue;
 
             uint timeToMaturity = fCashAssets[fCashIndex].maturity.sub(blockTime);
-            int netAssetCash = markets[i].calculateTrade(
+            (
+                int netAssetCash,
+                /* int fee */
+            ) = markets[i].calculateTrade(
                 cashGroup,
                 fCashAssets[fCashIndex].notional,
                 timeToMaturity,

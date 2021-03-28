@@ -66,7 +66,7 @@ contract MockMarket is StorageLayoutV1 {
         int rateScalar,
         int rateAnchor,
         uint timeToMaturity
-    ) external pure returns (uint, bool) {
+    ) external pure returns (uint) {
         return Market.getImpliedRate(
             totalfCash,
             totalCashUnderlying,
@@ -98,15 +98,15 @@ contract MockMarket is StorageLayoutV1 {
        int fCashAmount,
        uint timeToMaturity,
        uint marketIndex
-   ) external view returns (MarketParameters memory, int) {
-        int assetCash = marketState.calculateTrade(
+   ) external view returns (MarketParameters memory, int, int) {
+        (int assetCash, int fee) = marketState.calculateTrade(
            cashGroup,
            fCashAmount,
            timeToMaturity,
            marketIndex
         );
 
-        return (marketState, assetCash);
+        return (marketState, assetCash, fee);
     }
 
     function addLiquidity(
@@ -195,12 +195,12 @@ contract MockMarket is StorageLayoutV1 {
             int rateAnchor
         ) = Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         // Rate scalar can never be zero so this signifies a failure and we return zero
-        if (rateScalar == 0) return 0;
+        if (rateScalar == 0) revert();
         int fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return Market.getfCashGivenCashAmount(
             market.totalfCash,
-            netCashToAccount.neg(),
+            netCashToAccount,
             totalCashUnderlying,
             rateScalar,
             rateAnchor,

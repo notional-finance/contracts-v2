@@ -506,9 +506,12 @@ library PerpetualToken {
         // and totalCurrentCash is the same in either denomination)
         // TODO: change this to be based on implied rates
         int fCashAmount = perMarketDeposit.mul(market.totalfCash).div(market.totalCurrentCash);
-        int assetCash = market.calculateTrade(
+        (
+            int assetCash,
+            /* int fee */
+        ) = market.calculateTrade(
             cashGroup,
-            fCashAmount.neg(),
+            fCashAmount,
             market.maturity.sub(blockTime),
             marketIndex
         );

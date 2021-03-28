@@ -245,7 +245,10 @@ library TradingAction {
             fCashAmount = int(uint88(bytes11(trade << 16)));
         }
 
-        int cashAmount = market.calculateTrade(
+        (
+            int cashAmount,
+            int fee
+        ) = market.calculateTrade(
             cashGroup,
             fCashAmount,
             market.maturity.sub(blockTime),
