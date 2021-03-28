@@ -46,7 +46,7 @@ CASH_GROUP_PARAMETERS = (
     # 8: token haircuts (percentages)
     (99, 98, 97, 96, 95, 94, 93, 92, 91),
     # 9: rate scalar (increments of 10)
-    (10, 9, 8, 7, 6, 5, 4, 3, 2),
+    (20, 19, 18, 17, 16, 15, 14, 13, 12),
 )
 
 CURVE_SHAPES = {

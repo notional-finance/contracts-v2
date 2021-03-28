@@ -172,7 +172,6 @@ library Market {
         int fee,
         uint maxDelta
     ) internal view returns (int) {
-        // TODO: can we do a better guess than the rate anchor?
         // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
         int fCashChangeToAccountGuess = netCashToAccount.mul(rateAnchor).div(Market.RATE_PRECISION).neg();
         for (uint8 i; i < 250; i++) {
@@ -212,40 +211,42 @@ library Market {
         int fee
     ) private pure returns (int) {
         int derivative;
+        int denominator;
+
         if (fCashGuess > 0) {
             // Lending
             exchangeRate = exchangeRate.mul(RATE_PRECISION).div(fee);
             require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
-            derivative = cashAmount
-                .mul(fee)
-                .mul(totalfCash.add(totalCashUnderlying));
 
-            int denominator = rateScalar
+            // Fees will never be big enough to make a difference in the derivative
+            derivative = cashAmount
+                .mul(RATE_PRECISION)
+                .mul(totalfCash.add(totalCashUnderlying))
+                .div(fee);
+
+            denominator = rateScalar
                 .mul(totalfCash.sub(fCashGuess))
                 .mul(totalCashUnderlying.add(fCashGuess));
-
-            derivative = RATE_PRECISION.sub(derivative.div(denominator));
         } else {
             // Borrowing
             exchangeRate = exchangeRate.mul(fee).div(RATE_PRECISION);
             require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
 
             derivative = cashAmount
-                .mul(RATE_PRECISION)
-                .mul(totalfCash.add(totalCashUnderlying));
+                .mul(fee)
+                .mul(totalfCash.add(totalCashUnderlying))
+                .div(RATE_PRECISION);
 
-            int denominator = rateScalar
+            denominator = rateScalar
                 .mul(totalfCash.sub(fCashGuess))
-                .mul(totalCashUnderlying.add(fCashGuess))
-                .div(fee);
-
-            derivative = RATE_PRECISION.sub(derivative.div(denominator));
+                .mul(totalCashUnderlying.add(fCashGuess));
         }
+        derivative = TokenHandler.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
 
         int numerator = cashAmount.mul(exchangeRate).div(RATE_PRECISION);
         numerator = numerator.add(fCashGuess);
 
-        return numerator.mul(Market.RATE_PRECISION).div(derivative);
+        return numerator.mul(TokenHandler.INTERNAL_TOKEN_PRECISION).div(derivative);
     }
 
     function getNetCashAmounts(
