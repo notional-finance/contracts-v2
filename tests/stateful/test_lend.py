@@ -241,37 +241,60 @@ def test_deposit_asset_and_lend(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-# @pytest.mark.skip
-# def test_roll_lend_to_maturity(environment, accounts):
-#     action = get_balance_trade_action(
-#         2,
-#         "DepositAsset",
-#         [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
-#         depositActionAmount=5100e8,
-#         withdrawEntireCashBalance=True,
-#     )
+def test_roll_lend_to_maturity(environment, accounts):
+    action = get_balance_trade_action(
+        2,
+        "DepositAsset",
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
+        depositActionAmount=5100e8,
+        withdrawEntireCashBalance=True,
+    )
 
-#     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
-#     marketsBefore = environment.notional.getActiveMarkets(2)
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+    marketsBefore = environment.notional.getActiveMarkets(2)
 
-#     blockTime = chain.time() + 1
-#     cashAmount = environment.notional.getCashAmountGivenfCashAmount(2, 100e8, 1, blockTime)
-#     fCashAmount = environment.notional.getfCashAmountGivenCashAmount(2, -cashAmount, 2, blockTime)
-#     assert False
-#     action = get_balance_trade_action(
-#         2,
-#         "None",
-#         [
-#             {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0},
-#             {
-#                 "tradeActionType": "Lend",
-#                 "marketIndex": 2,
-#                 "notional": fCashAmount,
-#                 "minSlippage": 0,
-#             },
-#         ],
-#     )
+    blockTime = chain.time() + 1
+    (assetCash, cash) = environment.notional.getCashAmountGivenfCashAmount(2, -100e8, 1, blockTime)
+    fCashAmount = environment.notional.getfCashAmountGivenCashAmount(2, -cash, 2, blockTime)
+    # fCashAmount = int(fCashAmount * 0.99999999999) # TODO: what is the source of this residual?
 
-#     txn = environment.notional.batchBalanceAndTradeAction(
-#         accounts[1], [action], {"from": accounts[1]}
-#     )
+    (assetCash2, cash2) = environment.notional.getCashAmountGivenfCashAmount(
+        2, fCashAmount, 2, blockTime
+    )
+    action = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0},
+            {
+                "tradeActionType": "Lend",
+                "marketIndex": 2,
+                "notional": fCashAmount,
+                "minSlippage": 0,
+            },
+        ],
+    )
+
+    txn = environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [action], {"from": accounts[1]}
+    )
+
+    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
+    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == [(2, True, True)]
+    assert context[1] == "0x00"
+    (residual, perp, mint) = environment.notional.getAccountBalance(2, accounts[1])
+    assert perp == 0
+    assert mint == 0
+    assert residual < 1e8
+
+    portfolio = environment.notional.getAccountPortfolio(accounts[1])
+    assert portfolio[0][0] == 2
+    assert portfolio[0][1] == marketsBefore[1][1]
+    assert portfolio[0][2] == 1
+    assert portfolio[0][3] == fCashAmount
+
+    check_system_invariants(environment, accounts)
