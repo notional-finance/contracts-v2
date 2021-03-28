@@ -279,7 +279,7 @@ library Market {
             // Net cash to account
             preFeeCashToAccount.sub(fee),
             // Net cash to market
-            preFeeCashToAccount.sub(fee).sub(cashToReserve).neg(),
+            preFeeCashToAccount.neg().add(fee).sub(cashToReserve),
             cashToReserve
         );
     }
@@ -381,7 +381,7 @@ library Market {
         int netAssetCashToAccount = assetRate.convertInternalFromUnderlying(netCashToAccount);
         return (
             netAssetCashToAccount,
-            netCashToReserve
+            assetCashToReserve
         );
     }
 

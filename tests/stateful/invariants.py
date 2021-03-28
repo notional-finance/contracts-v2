@@ -56,6 +56,8 @@ def check_cash_balance(env, accounts):
         for marketGroup in markets:
             accountBalances += sum([m[3] for (i, m) in enumerate(marketGroup)])
 
+        accountBalances += env.notional.getReserveBalance(currencyId)
+
         assert contractBalance == accountBalances
         # Check that total supply equals total balances
         assert perpTokenTotalBalances == env.perpToken[currencyId].totalSupply()

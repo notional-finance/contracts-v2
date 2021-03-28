@@ -36,6 +36,8 @@ library BalanceHandler {
     using TokenHandler for Token;
     using AccountContextHandler for AccountStorage;
 
+    address internal constant RESERVE = address(0);
+
     /**
      * @notice Handles two special cases when depositing tokens into an account.
      *  - If a token has transfer fees then the amount specified does not equal the amount that the contract
@@ -292,8 +294,7 @@ library BalanceHandler {
 
 
     /**
-     * @notice Special method for setting balance storage for perp token, during initialize
-     * markets to reduce code size.
+     * @notice Special method for setting balance storage for perp token
      */
     function setBalanceStorageForPerpToken(
         PerpetualTokenPortfolio memory perpToken
@@ -304,6 +305,16 @@ library BalanceHandler {
             perpToken.cashGroup.currencyId,
             perpToken.cashBalance, 0, 0
         );
+    }
+
+    function incrementFeeToReserve(
+        uint currencyId,
+        int fee
+    ) internal {
+        require(fee >= 0); // dev: invalid fee
+        (int totalReserve, /* */, /* */) = getBalanceStorage(RESERVE, currencyId);
+        totalReserve = totalReserve.add(fee);
+        setBalanceStorage(RESERVE, currencyId, totalReserve, 0, 0);
     }
 
     /**

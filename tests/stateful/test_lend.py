@@ -186,9 +186,11 @@ def test_deposit_underlying_and_lend_specify_fcash(environment, accounts):
     marketsAfter = environment.notional.getActiveMarkets(2)
 
     cTokenTransfer = txn.events["Transfer"][-2]["amount"] - txn.events["Transfer"][-1]["amount"]
+    reserveBalance = environment.notional.getReserveBalance(2)
+
     assert marketsBefore[1] == marketsAfter[1]
     assert marketsBefore[0][2] - marketsAfter[0][2] == portfolio[0][3]
-    assert marketsBefore[0][3] - marketsAfter[0][3] == -cTokenTransfer
+    assert marketsBefore[0][3] - marketsAfter[0][3] == -cTokenTransfer + reserveBalance
     assert marketsBefore[0][4] - marketsAfter[0][4] == 0
     assert marketsBefore[0][5] > marketsAfter[0][5]
 
@@ -225,11 +227,13 @@ def test_deposit_asset_and_lend(environment, accounts):
     assert portfolio[0][3] == 100e8
 
     marketsAfter = environment.notional.getActiveMarkets(2)
+    reserveBalance = environment.notional.getReserveBalance(2)
 
     assert marketsBefore[1] == marketsAfter[1]
     assert marketsBefore[0][2] - marketsAfter[0][2] == portfolio[0][3]
     assert (
-        marketsBefore[0][3] - marketsAfter[0][3] == -txn.events["Transfer"]["amount"]
+        marketsBefore[0][3] - marketsAfter[0][3]
+        == -txn.events["Transfer"]["amount"] + reserveBalance
     )  # cToken transfer amount
     assert marketsBefore[0][4] - marketsAfter[0][4] == 0
     assert marketsBefore[0][5] > marketsAfter[0][5]
@@ -237,7 +241,7 @@ def test_deposit_asset_and_lend(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-# @pytest.mark.only
+# @pytest.mark.skip
 # def test_roll_lend_to_maturity(environment, accounts):
 #     action = get_balance_trade_action(
 #         2,
@@ -250,10 +254,10 @@ def test_deposit_asset_and_lend(environment, accounts):
 #     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 #     marketsBefore = environment.notional.getActiveMarkets(2)
 
-#     cashAmount = environment.notional.getCashAmountGivenfCashAmount(2, 100e8, 1, chain.time() + 1)
-#     fCashAmount = environment.notional.getfCashAmountGivenCashAmount(
-#         2, -cashAmount, 2, chain.time() + 1
-#     )
+#     blockTime = chain.time() + 1
+#     cashAmount = environment.notional.getCashAmountGivenfCashAmount(2, 100e8, 1, blockTime)
+#     fCashAmount = environment.notional.getfCashAmountGivenCashAmount(2, -cashAmount, 2, blockTime)
+#     assert False
 #     action = get_balance_trade_action(
 #         2,
 #         "None",

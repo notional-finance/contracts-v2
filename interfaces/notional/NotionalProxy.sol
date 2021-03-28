@@ -153,6 +153,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function getOwner() external view returns (address);
     function getAccountContext(address account) external view returns (AccountStorage memory);
     function getAccountBalance(uint16 currencyId, address account) external view returns (int, int, uint);
+    function getReserveBalance(uint16 currencyId) external view returns (int);
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
     function getPerpetualTokenPortfolio(address tokenAddress) external view returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
     function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
@@ -162,5 +163,5 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function getFreeCollateralView(address account) external view returns (int);
     function getIncentivesToMint(uint16 currencyId, uint perpetualTokenBalance, uint lastMintTime, uint blockTime) external view returns (uint);
     function getfCashAmountGivenCashAmount(uint16 currencyId, int88 netCashToAccount, uint marketIndex, uint blockTime) external view returns (int);
-    function getCashAmountGivenfCashAmount(uint16 currencyId, int88 fCashAmount, uint marketIndex, uint blockTime) external view returns (int);
+    function getCashAmountGivenfCashAmount(uint16 currencyId, int88 fCashAmount, uint marketIndex, uint blockTime) external view returns (int, int);
 }

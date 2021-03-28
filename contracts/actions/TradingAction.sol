@@ -52,14 +52,16 @@ library TradingAction {
         ) = CashGroup.buildCashGroupStateful(currencyId);
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        int[] memory values = new int[](3);
+        int[] memory values = new int[](4);
 
         for (uint i; i < trades.length; i++) {
             uint maturity;
+            int fCashAmount;
             (
                 maturity,
-                values[1], // cash amount
-                values[2] // fCashAmount
+                values[2], // cash amount
+                fCashAmount,
+                values[3] // fee
             ) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
 
             ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
@@ -67,15 +69,18 @@ library TradingAction {
                 currencyId,
                 maturity,
                 accountContext.nextSettleTime,
-                values[2], // fCashAmount
+                fCashAmount,
                 ifCashBitmap
             );
             // netCash = netCash + cashAmount
-            values[0] = values[0].add(values[1]);
+            values[0] = values[0].add(values[2]);
+            // totalFee = totalFee + fee
+            values[1] = values[1].add(values[3]);
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
         emit BatchTradeExecution(account, uint16(currencyId));
+        BalanceHandler.incrementFeeToReserve(currencyId, values[1]);
 
         return (values[0]);
     }
@@ -91,27 +96,30 @@ library TradingAction {
             CashGroupParameters memory cashGroup,
             MarketParameters[] memory markets
         ) = CashGroup.buildCashGroupStateful(currencyId);
-        int[] memory values = new int[](3);
+        int[] memory values = new int[](4);
 
         for (uint i; i < trades.length; i++) {
             TradeActionType tradeType = TradeActionType(uint(uint8(bytes1(trades[i]))));
 
             if (tradeType == TradeActionType.AddLiquidity || tradeType == TradeActionType.RemoveLiquidity) {
                 // cashAmount
-                values[1] = _executeLiquidityTrade(cashGroup, tradeType, trades[i], portfolioState, values[0]);
+                values[2] = _executeLiquidityTrade(cashGroup, tradeType, trades[i], portfolioState, values[0]);
             } else {
                 uint maturity;
-                // (maturity, cashAmount, fCashAmount)
-                (maturity, values[1], values[2]) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
+                int fee;
+                // (maturity, cashAmount, fCashAmount, fee)
+                (maturity, values[2], values[3], fee) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
                 // Stack issues here :(
-                _addfCashAsset(portfolioState, currencyId, maturity, values[2]);
+                _addfCashAsset(portfolioState, currencyId, maturity, values[3]);
+                values[1] = values[1].add(fee);
             }
 
             // netCash = netCash + cashAmount
-            values[0] = values[0].add(values[1]);
+            values[0] = values[0].add(values[2]);
         }
 
         emit BatchTradeExecution(account, uint16(currencyId));
+        BalanceHandler.incrementFeeToReserve(currencyId, values[1]);
 
         return (portfolioState, values[0]);
     }
@@ -128,15 +136,17 @@ library TradingAction {
     function _executeTrade(
         address account,
         CashGroupParameters memory cashGroup,
+        // TODO: refactor this to get rid of the markets array
         MarketParameters[] memory markets,
         bytes32 trade,
         uint blockTime
-    ) internal returns (uint, int, int) {
+    ) internal returns (uint, int, int, int) {
         TradeActionType tradeType = TradeActionType(uint(uint8(bytes1(trade))));
 
         uint maturity;
         int cashAmount;
         int fCashAmount;
+        int fee;
         if (tradeType == TradeActionType.MintCashPair) {
             (maturity, fCashAmount) = _mintCashPair(account, cashGroup, blockTime, trade);
         } else if (tradeType == TradeActionType.PurchasePerpetualTokenResidual) {
@@ -145,7 +155,7 @@ library TradingAction {
             // Settling debts will use the oracle rate from the 3 month market
             (maturity, cashAmount, fCashAmount) = _settleCashDebt(cashGroup, markets, blockTime, trade);
         } else if (tradeType == TradeActionType.Lend || tradeType == TradeActionType.Borrow) {
-            (maturity, cashAmount, fCashAmount) = _executeLendBorrowTrade(
+            (maturity, cashAmount, fCashAmount, fee) = _executeLendBorrowTrade(
                 cashGroup,
                 tradeType,
                 blockTime,
@@ -155,7 +165,25 @@ library TradingAction {
             revert("Invalid trade type");
         }
 
-        return (maturity, cashAmount, fCashAmount);
+        return (maturity, cashAmount, fCashAmount, fee);
+    }
+
+    function _loadMarket(
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup,
+        uint marketIndex,
+        bool needsLiquidity
+    ) internal view {
+        require(marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
+        uint blockTime = block.timestamp;
+        uint maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
+        market.loadMarket(
+            cashGroup.currencyId,
+            maturity,
+            blockTime,
+            needsLiquidity,
+            cashGroup.getRateOracleTimeWindow()
+        );
     }
 
     function _executeLiquidityTrade(
@@ -168,17 +196,7 @@ library TradingAction {
         uint marketIndex = uint(uint8(bytes1(trade << 8)));
         // TODO: refactor this to get rid of the markets array
         MarketParameters memory market;
-        {
-            uint blockTime = block.timestamp;
-            uint maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
-            market.loadMarket(
-                cashGroup.currencyId,
-                maturity,
-                blockTime,
-                true,
-                cashGroup.getRateOracleTimeWindow()
-            );
-        }
+        _loadMarket(market, cashGroup, marketIndex, true);
 
         int cashAmount;
         int fCashAmount;
@@ -222,21 +240,10 @@ library TradingAction {
         TradeActionType tradeType,
         uint blockTime,
         bytes32 trade
-    ) internal returns (uint, int, int) {
+    ) internal returns (uint, int, int, int) {
         uint marketIndex = uint(uint8(bytes1(trade << 8)));
-        // TODO: refactor this to get rid of the markets array
         MarketParameters memory market;
-        {
-            require(marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
-            uint maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
-            market.loadMarket(
-                cashGroup.currencyId,
-                maturity,
-                blockTime,
-                false,
-                cashGroup.getRateOracleTimeWindow()
-            );
-        }
+        _loadMarket(market, cashGroup, marketIndex, false);
 
         int fCashAmount;
         if (tradeType == TradeActionType.Borrow) {
@@ -266,7 +273,7 @@ library TradingAction {
         }
         market.setMarketStorage();
 
-        return (market.maturity, cashAmount, fCashAmount);
+        return (market.maturity, cashAmount, fCashAmount, fee);
     }
 
     function _settleCashDebt(
