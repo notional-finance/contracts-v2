@@ -3,12 +3,14 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../storage/StorageLayoutV1.sol";
+import "../storage/TokenHandler.sol";
 import "./GovernanceAction.sol";
 import "./PerpetualTokenAction.sol";
 import "./MintPerpetualTokenAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
 import "./DepositWithdrawAction.sol";
 import "./InitializeMarketsAction.sol";
+import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -29,7 +31,6 @@ contract Router is StorageLayoutV1 {
     address public immutable PERPETUAL_TOKEN_REDEEM;
     address public immutable DEPOSIT_WITHDRAW_ACTION;
     address public immutable cETH;
-    address public immutable WETH;
 
     constructor(
         address governance_,
@@ -39,8 +40,7 @@ contract Router is StorageLayoutV1 {
         address perpetualTokenMint_,
         address perpetualTokenRedeem_,
         address depositWithdrawAction_,
-        address cETH_,
-        address weth_
+        address cETH_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
@@ -50,7 +50,6 @@ contract Router is StorageLayoutV1 {
         PERPETUAL_TOKEN_REDEEM = perpetualTokenRedeem_;
         DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
         cETH = cETH_;
-        WETH = weth_;
     }
 
     function initialize(address owner_) public {
@@ -67,7 +66,7 @@ contract Router is StorageLayoutV1 {
                 GovernanceAction.listCurrency.selector,
                 TokenStorage(cETH, false, TokenType.cETH),
                 // No underlying set for cETH
-                TokenStorage(address(0), false, TokenType.UnderlyingToken),
+                TokenStorage(address(0), false, TokenType.Ether),
                 address(0),
                 false,
                 140,
@@ -83,7 +82,6 @@ contract Router is StorageLayoutV1 {
      * @notice Returns the implementation contract for the method signature
      */
     function getRouterImplementation(bytes4 sig) public view returns (address) {
-        // TODO: order these by most commonly used
         if (
             sig == DepositWithdrawAction.depositUnderlyingToken.selector ||
             sig == DepositWithdrawAction.depositAssetToken.selector ||
@@ -171,8 +169,17 @@ contract Router is StorageLayoutV1 {
         }
     }
 
-    fallback() external {
+    fallback() external payable {
         _delegate(getRouterImplementation(msg.sig));
     }
 
+    // NOTE: receive() is overridden in "nTransparentUpgradeableProxy" to allow for eth transfers to succeed
+    // with limited gas so that is the contract that must be deployed, not the regular OZ proxy.
+}
+
+contract nTransparentUpgradeableProxy is TransparentUpgradeableProxy {
+    constructor(address _logic, address admin_, bytes memory _data)
+        TransparentUpgradeableProxy(_logic, admin_, _data) { }
+
+    receive() external payable override { }
 }

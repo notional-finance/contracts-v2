@@ -65,7 +65,8 @@ contract GovernanceAction is StorageLayoutV1 {
         // TODO: should check for listing of duplicate tokens?
 
         // Set the underlying first because the asset token may set an approval using the underlying
-        if (underlyingToken.tokenAddress != address(0)) {
+        if (underlyingToken.tokenAddress != address(0) || underlyingToken.tokenType == TokenType.Ether) {
+            // Ether has a token address of zero
             TokenHandler.setToken(currencyId, true, underlyingToken);
         }
         TokenHandler.setToken(currencyId, false, assetToken);

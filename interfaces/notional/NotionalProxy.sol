@@ -104,7 +104,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         address account,
         uint16 currencyId,
         uint amountExternalPrecision
-    ) external returns (uint);
+    ) external payable returns (uint);
 
     function depositAssetToken(
         address account,
@@ -122,12 +122,12 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function batchBalanceAction(
         address account,
         BalanceAction[] calldata actions
-    ) external;
+    ) external payable;
 
     function batchBalanceAndTradeAction(
         address account,
         BalanceActionWithTrades[] calldata actions
-    ) external;
+    ) external payable;
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);

@@ -30,7 +30,11 @@ def check_cash_balance(env, accounts):
     # For every currency, check that the contract balance matches the account
     # balances and capital deposited trackers
     for (symbol, currencyId) in env.currencyId.items():
-        tokenBalance = env.token[symbol].balanceOf(env.notional.address)
+        tokenBalance = None
+        if symbol == "ETH":
+            tokenBalance = env.notional.balance()
+        else:
+            tokenBalance = env.token[symbol].balanceOf(env.notional.address)
         # Notional contract should never accumulate underlying balances
         assert tokenBalance == 0
 

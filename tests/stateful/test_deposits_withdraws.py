@@ -93,6 +93,30 @@ def test_deposit_underlying_token_from_self(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+def test_deposit_eth_underlying(environment, accounts):
+    cTokenSupplyBefore = environment.cToken["ETH"].totalSupply()
+    txn = environment.notional.depositUnderlyingToken(
+        accounts[1], 1, 100e18, {"from": accounts[1], "value": 100e18}
+    )
+    assert environment.notional.balance() == 0
+    cTokenSupplyAfter = environment.cToken["ETH"].totalSupply()
+
+    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
+    assert txn.events["CashBalanceChange"]["currencyId"] == 1
+    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == [(1, False, True)]
+
+    balances = environment.notional.getAccountBalance(1, accounts[1])
+    assert balances[0] == cTokenSupplyAfter - cTokenSupplyBefore
+    assert balances[1] == 0
+    assert balances[2] == 0
+
+    check_system_invariants(environment, accounts)
+
+
 def test_deposit_underlying_token_from_other(environment, accounts):
     currencyId = 2
     cTokenSupplyBefore = environment.cToken["DAI"].totalSupply()
@@ -196,6 +220,35 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     assert balances[2] == 0
     assert environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) == 0
     assert environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) > balanceBefore
+
+    check_system_invariants(environment, accounts)
+
+
+def test_withdraw_and_redeem_eth(environment, accounts):
+    environment.notional.depositUnderlyingToken(
+        accounts[1], 1, 100e18, {"from": accounts[1], "value": 100e18}
+    )
+
+    balanceBefore = accounts[1].balance()
+    cTokenSupplyBefore = environment.cToken["ETH"].totalSupply()
+    txn = environment.notional.withdraw(accounts[1], 1, 5000e8, True, {"from": accounts[1]})
+    assert environment.notional.balance() == 0
+    cTokenSupplyAfter = environment.cToken["ETH"].totalSupply()
+
+    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
+    assert txn.events["CashBalanceChange"]["currencyId"] == 1
+    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == []
+
+    balances = environment.notional.getAccountBalance(1, accounts[1])
+    assert balances[0] == 0
+    assert balances[1] == 0
+    assert balances[2] == 0
+    assert environment.cToken["ETH"].balanceOf(accounts[1]) == 0
+    assert accounts[1].balance() > balanceBefore
 
     check_system_invariants(environment, accounts)
 

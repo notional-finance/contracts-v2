@@ -60,7 +60,7 @@ contract DepositWithdrawAction {
         address account,
         uint16 currencyId,
         uint amountExternalPrecision
-    ) external returns (uint) {
+    ) external payable returns (uint) {
         // No other authorization required on depositing
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
 
@@ -148,7 +148,7 @@ contract DepositWithdrawAction {
     function batchBalanceAction(
         address account,
         BalanceAction[] calldata actions
-    ) external {
+    ) external payable {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
@@ -189,7 +189,7 @@ contract DepositWithdrawAction {
     function batchBalanceAndTradeAction(
         address account,
         BalanceActionWithTrades[] calldata actions
-    ) external {
+    ) external payable {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         (
             SettleAmount[] memory settleAmounts,

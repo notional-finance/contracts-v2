@@ -123,10 +123,15 @@ library BalanceHandler {
         
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
-        underlyingAmountExternalPrecision = underlyingToken.transfer(account, underlyingAmountExternalPrecision);
+        if (underlyingToken.tokenType == TokenType.Ether) {
+            underlyingAmountExternalPrecision = int(msg.value);
+        } else {
+            underlyingAmountExternalPrecision = underlyingToken.transfer(account, underlyingAmountExternalPrecision);
+        }
 
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
-        require(assetToken.tokenType == TokenType.cToken); // dev: deposit underlying token invalid token type
+        require(assetToken.tokenType == TokenType.cToken
+            || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type
         int assetTokensReceivedExternalPrecision = assetToken.mint(uint(underlyingAmountExternalPrecision));
 
         // Some dust may be lost here due to internal conversion, however, for cTokens this will not be an issue

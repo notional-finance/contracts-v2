@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../math/SafeInt256.sol";
 import "./StorageLayoutV1.sol";
 import "interfaces/compound/CErc20Interface.sol";
+import "interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -12,6 +13,7 @@ enum TokenType {
     UnderlyingToken,
     cToken,
     cETH,
+    Ether,
     NonMintable
 }
 
@@ -38,6 +40,7 @@ library TokenHandler {
     int internal constant INTERNAL_TOKEN_PRECISION = 1e8;
     // TODO: get this value in here somehow
     address constant NOTE_TOKEN_ADDRESS = address(0);
+    address internal constant ETHER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /**
      * @notice Gets token data for a particular currency id, if underlying is set to true then returns
@@ -73,6 +76,20 @@ library TokenHandler {
         TokenStorage memory tokenStorage
     ) internal {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
+        if (tokenStorage.tokenType == TokenType.Ether && currencyId == 1) {
+            // Specific storage for Ether token type
+            bytes32 data = (
+                bytes32(bytes20(address(0))) >> 96 |
+                bytes32(bytes1(0x00)) >> 88 |
+                bytes32(uint(18) << 168) |
+                bytes32(uint(TokenType.Ether) << 176)
+            );
+            assembly { sstore(slot, data) }
+
+            return;
+        }
+        require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
+
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
         uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
         require(decimalPlaces != 0, "TH: decimals is zero");
@@ -133,11 +150,18 @@ library TokenHandler {
         Token memory token,
         uint underlyingAmountExternalPrecision
     ) internal returns (int) {
-        require(token.tokenType == TokenType.cToken, "TH: non mintable");
-
-        // TODO: Need special handling for ETH
         uint startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-        uint success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
+
+        uint success;
+        if (token.tokenType == TokenType.cToken) {
+            success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
+        } else if (token.tokenType == TokenType.cETH) {
+            // Reverts on error
+            CEtherInterface(token.tokenAddress).mint{value: msg.value}();
+        } else {
+            revert("Non mintable");
+        }
+
         require(success == 0, "TH: mint failure");
         uint endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
@@ -150,14 +174,24 @@ library TokenHandler {
         Token memory underlyingToken,
         uint assetAmountExternalPrecision
     ) internal returns (int) {
-        require(assetToken.tokenType == TokenType.cToken, "TH: non mintable");
-        require(underlyingToken.tokenType == TokenType.UnderlyingToken, "TH: not underlying");
+        uint startingBalance;
+        if (assetToken.tokenType == TokenType.cETH) {
+            startingBalance = address(this).balance;
+        } else if (assetToken.tokenType == TokenType.cToken) {
+            startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+        } else {
+            revert("Non redeemable token");
+        }
 
-        // TODO: need special handling for ETH
-        uint startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         uint success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternalPrecision);
-        require(success == 0, "TH: redeem failure");
-        uint endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+        require(success == 0, "Redeem failure");
+
+        uint endingBalance;
+        if (assetToken.tokenType == TokenType.cETH) {
+            endingBalance = address(this).balance;
+        } else {
+            endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+        }
 
         // Underlying token external precision
         return int(endingBalance.sub(startingBalance));
@@ -175,6 +209,10 @@ library TokenHandler {
         if (netTransferExternalPrecision > 0) {
             // Deposits must account for transfer fees.
             netTransferExternalPrecision = deposit(token, account, uint(netTransferExternalPrecision));
+        } else if (token.tokenType == TokenType.Ether) {
+            require(netTransferExternalPrecision < 0); // dev: cannot transfer ether
+            address payable accountPayable = payable(account);
+            accountPayable.transfer(uint(netTransferExternalPrecision.neg()));
         } else {
             safeTransferOut(IERC20(token.tokenAddress), account, uint(netTransferExternalPrecision.neg()));
         }

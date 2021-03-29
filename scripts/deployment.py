@@ -9,7 +9,6 @@ from brownie import (
     MintPerpetualTokenAction,
     MockAggregator,
     MockERC20,
-    MockWETH,
     NoteERC20,
     PerpetualTokenAction,
     PerpetualTokenERC20,
@@ -172,7 +171,6 @@ class TestEnvironment:
     def _deployMockCurrency(self, symbol):
         if symbol == "ETH":
             # This is required to initialize ETH
-            self.token["ETH"] = MockWETH.deploy({"from": self.deployer})
             self._deployCToken("ETH", None, None)
         else:
             config = TokenConfig[symbol]
@@ -212,7 +210,6 @@ class TestEnvironment:
             perpetualTokenRedeem.address,
             depositWithdrawAction.address,
             self.cToken["ETH"].address,
-            self.token["ETH"].address,
             {"from": self.deployer},
         )
 
