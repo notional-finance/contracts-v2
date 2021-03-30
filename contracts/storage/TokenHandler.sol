@@ -78,13 +78,13 @@ library TokenHandler {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
         if (tokenStorage.tokenType == TokenType.Ether && currencyId == 1) {
             // Specific storage for Ether token type
-            bytes32 data = (
+            bytes32 etherData = (
                 bytes32(bytes20(address(0))) >> 96 |
                 bytes32(bytes1(0x00)) >> 88 |
                 bytes32(uint(18) << 168) |
                 bytes32(uint(TokenType.Ether) << 176)
             );
-            assembly { sstore(slot, data) }
+            assembly { sstore(slot, etherData) }
 
             return;
         }
