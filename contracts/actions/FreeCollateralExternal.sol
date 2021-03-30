@@ -48,6 +48,7 @@ library FreeCollateralExternal {
         int[] memory netPortfolioValue;
         CashGroupParameters[] memory cashGroups;
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        bool updateContext;
 
         if (accountContext.bitmapCurrencyId == 0) {
             (netPortfolioValue, cashGroups) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
@@ -73,21 +74,31 @@ library FreeCollateralExternal {
             bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
             if (bitmapHasDebt && !contextHasAssetDebt) {
                 accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
-                accountContext.setAccountContext(account);
+                updateContext = true;
             } else if (!bitmapHasDebt && contextHasAssetDebt) {
                 accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_ASSET_DEBT;
-                accountContext.setAccountContext(account);
+                updateContext = true;
             }
         }
 
-
-        int ethDenominatedFC = FreeCollateral.getFreeCollateralStateful(
+        (int ethDenominatedFC, bool hasCashDebt) = FreeCollateral.getFreeCollateralStateful(
             account,
             accountContext,
             cashGroups,
             netPortfolioValue,
             blockTime
         );
+
+        // Free collateral is the only method that examines all cash balances for an account at once. If there is no cash debt (i.e.
+        // they have been repaid or settled via more debt) then this will turn off the flag. It's possible that this flag is out of
+        // sync temporarily after a cash settlement and before the next free collateral check. The only downside for that is forcing
+        // an account to do an extra free collateral check to turn off this setting.
+        if (accountContext.hasDebt & AccountContextHandler.HAS_CASH_DEBT == AccountContextHandler.HAS_CASH_DEBT && !hasCashDebt) {
+            accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_CASH_DEBT;
+            updateContext = true;
+        }
+
+        if (updateContext) accountContext.setAccountContext(account);
 
         require(ethDenominatedFC >= 0, "Insufficient free collateral");
     }

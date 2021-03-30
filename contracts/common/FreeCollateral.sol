@@ -78,10 +78,11 @@ library FreeCollateral {
         CashGroupParameters[] memory cashGroups,
         int[] memory netPortfolioValue,
         uint blockTime
-    ) internal returns (int) {
+    ) internal returns (int, bool) {
         uint groupIndex;
         int netETHValue;
         bytes20 currencies = accountContext.getActiveCurrencyBytes();
+        bool hasCashDebt;
 
         while (currencies != 0) {
             uint currencyId = uint(uint16(bytes2(currencies)));
@@ -90,6 +91,7 @@ library FreeCollateral {
                 int perpTokenBalance,
                 /* */
             ) = BalanceHandler.getBalanceStorage(account, currencyId);
+            hasCashDebt = hasCashDebt || netLocalAssetValue < 0;
 
             AssetRateParameters memory assetRate;
             if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
@@ -120,7 +122,7 @@ library FreeCollateral {
             currencies = currencies << 16;
         }
 
-        return netETHValue;
+        return (netETHValue, hasCashDebt);
     }
 
     function getFreeCollateralView(

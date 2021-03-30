@@ -72,6 +72,7 @@ contract MockFreeCollateral is MockAssetHandler {
         int perpTokenBalance
     ) external {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (cashBalance < 0) accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_CASH_DEBT;
         accountContext.setActiveCurrency(currencyId, true, AccountContextHandler.ACTIVE_IN_BALANCES_FLAG);
         accountContext.setAccountContext(account);
 

@@ -1,7 +1,13 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from tests.constants import SECONDS_IN_DAY, SETTLEMENT_DATE, START_TIME
+from tests.constants import (
+    HAS_ASSET_DEBT,
+    HAS_CASH_DEBT,
+    SECONDS_IN_DAY,
+    SETTLEMENT_DATE,
+    START_TIME,
+)
 from tests.helpers import (
     get_cash_group_with_max_markets,
     get_eth_rate_mapping,
@@ -158,7 +164,7 @@ def test_bitmap_has_debt(freeCollateral, accounts):
     freeCollateral.checkFreeCollateralAndRevert(accounts[0])
     context = freeCollateral.getAccountContext(accounts[0])
 
-    assert context[1] == "0x01"  # has asset debt
+    assert context[1] == HAS_ASSET_DEBT
 
 
 def test_bitmap_remove_debt(freeCollateral, accounts):
@@ -174,19 +180,41 @@ def test_bitmap_remove_debt(freeCollateral, accounts):
     freeCollateral.checkFreeCollateralAndRevert(accounts[0])
 
     context = freeCollateral.getAccountContext(accounts[0])
-    assert context[1] == "0x01"  # has asset debt
+    assert context[1] == HAS_ASSET_DEBT
 
     freeCollateral.setifCashAsset(
         accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 10, 200e8, START_TIME
     )
     freeCollateral.checkFreeCollateralAndRevert(accounts[0])
     context = freeCollateral.getAccountContext(accounts[0])
-    assert context[1] == "0x01"  # has asset debt
+    assert context[1] == HAS_ASSET_DEBT
 
     # Net off asset debt
     freeCollateral.setifCashAsset(
         accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, 100e8, START_TIME
     )
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == "0x00"  # no debt
+
+
+@pytest.mark.only
+def test_remove_cash_debt(freeCollateral, accounts):
+    freeCollateral.setBalance(accounts[0], 1, -200e8, 0)
+    freeCollateral.setBalance(accounts[0], 2, 400e8, 0)
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == HAS_CASH_DEBT
+
+    # Account still has cash debt, must not change setting
+    freeCollateral.checkFreeCollateralAndRevert(accounts[0])
+    context = freeCollateral.getAccountContext(accounts[0])
+    assert context[1] == HAS_CASH_DEBT
+
+    freeCollateral.setBalance(accounts[0], 1, 0, 0)
+    context = freeCollateral.getAccountContext(accounts[0])
+    # Cash debt setting is still temporarily on
+    assert context[1] == HAS_CASH_DEBT
+
     freeCollateral.checkFreeCollateralAndRevert(accounts[0])
     context = freeCollateral.getAccountContext(accounts[0])
     assert context[1] == "0x00"  # no debt
