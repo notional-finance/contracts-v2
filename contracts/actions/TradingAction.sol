@@ -286,14 +286,22 @@ library TradingAction {
         int amountToSettle = int(int88(bytes11(trade << 168)));
 
         AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
-        // DepositWithdrawAction._settleAccountIfRequiredAndFinalize(counterparty, counterpartyContext);
+        if (counterpartyContext.mustSettleAssets()) {
+            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty);
+        }
 
         // This will check if the amountToSettle is valid and revert if it is not. Amount to settle is a positive
-        // number always.
-        amountToSettle = BalanceHandler.setBalanceStorageForSettleCashDebt(
+        // number denominated in underlying terms. If amountToSettle is set equal to zero on the input, will return the
+        // max amount to settle.
+        int netAssetCashToSettler;
+        (
+            amountToSettle,
+            netAssetCashToSettler
+        ) = BalanceHandler.setBalanceStorageForSettleCashDebt(
             counterparty,
-            cashGroup.currencyId,
-            amountToSettle
+            cashGroup,
+            amountToSettle,
+            counterpartyContext
         );
 
         // Settled account must borrow from the 3 month market at a penalty rate. Even if the market is
@@ -314,9 +322,7 @@ library TradingAction {
         );
         counterpartyContext.setAccountContext(counterparty);
 
-        // NOTE: net cash change for the settler is negative, they must produce the cash, fCashAmount
-        // here is positive, it is the amount that the settler will receive
-        return (threeMonthMaturity, amountToSettle.neg(), fCashAmount);
+        return (threeMonthMaturity, netAssetCashToSettler, fCashAmount);
     }
 
     function _getfCashSettleAmount(

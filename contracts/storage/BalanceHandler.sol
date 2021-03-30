@@ -7,6 +7,7 @@ import "./StorageLayoutV1.sol";
 import "./TokenHandler.sol";
 import "./AccountContextHandler.sol";
 import "../common/PerpetualToken.sol";
+import "../common/AssetRate.sol";
 import "../math/Bitmap.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -34,6 +35,7 @@ library BalanceHandler {
     using SafeMath for uint;
     using Bitmap for bytes;
     using TokenHandler for Token;
+    using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountStorage;
 
     address internal constant RESERVE = address(0);
@@ -250,23 +252,42 @@ library BalanceHandler {
 
     function setBalanceStorageForSettleCashDebt(
         address account,
-        uint currencyId,
-        int amountToSettle
-    ) internal returns (int) {
+        CashGroupParameters memory cashGroup,
+        int amountToSettle,
+        AccountStorage memory accountContext
+    ) internal returns (int, int) {
         require(amountToSettle >= 0); // dev: amount to settle negative
-        (int cashBalance, int perpetualTokenBalance, uint lastIncentiveMint) = getBalanceStorage(account, currencyId);
+        (
+            int cashBalance,
+            int perpetualTokenBalance,
+            uint lastIncentiveMint
+        ) = getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
+        int amountToSettleAsset;
         if (amountToSettle == 0) {
-            amountToSettle = cashBalance.neg();
+            amountToSettleAsset = cashBalance.neg();
+            amountToSettle = cashGroup.assetRate.convertInternalToUnderlying(amountToSettleAsset);
             cashBalance = 0;
         } else {
-            require(amountToSettle <= cashBalance.neg(), "Invalid amount to settle");
-            cashBalance = cashBalance.add(amountToSettle);
+            amountToSettleAsset = cashGroup.assetRate.convertInternalFromUnderlying(amountToSettle);
+            require(amountToSettleAsset <= cashBalance.neg(), "Invalid amount to settle");
+            cashBalance = cashBalance.add(amountToSettleAsset);
         }
 
-        setBalanceStorage(account, currencyId, cashBalance, perpetualTokenBalance, lastIncentiveMint);
-        return amountToSettle;
+        if (cashBalance == 0) {
+            accountContext.setActiveCurrency(
+                cashGroup.currencyId,
+                false,
+                AccountContextHandler.ACTIVE_IN_BALANCES_FLAG
+            );
+        }
+
+        setBalanceStorage(account, cashGroup.currencyId, cashBalance, perpetualTokenBalance, lastIncentiveMint);
+        return (
+            amountToSettle,
+            amountToSettleAsset.neg()
+        );
     }
 
     function finalizeSettleAmounts(

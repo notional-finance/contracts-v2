@@ -1,7 +1,8 @@
 from collections import defaultdict
 
-from brownie.convert.datatypes import HexString
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
+from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, HAS_CASH_DEBT
 from tests.helpers import active_currencies_to_list, get_settlement_date
 
 chain = Chain()
@@ -24,6 +25,58 @@ def check_system_invariants(env, accounts):
     check_perp_token(env, accounts)
     check_portfolio_invariants(env, accounts)
     check_account_context(env, accounts)
+
+
+def computed_settled_asset_cash(env, asset, currencyId, symbol):
+    blockTime = chain.time()
+    settledCash = 0
+    settlementDate = get_settlement_date(asset, blockTime)
+    if settlementDate > blockTime:
+        return 0
+
+    assetRate = env.notional.getSettlementRate(currencyId, asset[1])
+    decimals = 10 ** env.token[symbol].decimals()
+    conversionRate = Wei(1e18) * Wei(decimals) / Wei(assetRate[1] * 1e8)
+    if asset[2] == 1:
+        settledCash += asset[3] * conversionRate
+    else:
+        market = list(
+            filter(
+                lambda x: x[1] == asset[1],
+                env.notional.getActiveMarketsAtBlockTime(currencyId, settlementDate - 1),
+            )
+        )[0]
+        settledCash += market[3] * asset[3] / market[4]
+
+        if asset[1] < blockTime:
+            settledCash += (market[2] * asset[3] / market[4]) * conversionRate
+
+    return settledCash
+
+
+def compute_settled_fcash(currencyId, symbol, env, accounts):
+    settledCash = 0
+
+    for account in accounts:
+        portfolio = env.notional.getAccountPortfolio(account.address)
+        for asset in portfolio:
+            if asset[0] == currencyId:
+                settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
+
+        # TODO: check for ifCash assets here too
+
+    # Check perp token portfolios
+    (portfolio, ifCashAssets) = env.notional.getPerpetualTokenPortfolio(
+        env.perpToken[currencyId].address
+    )
+
+    for asset in portfolio:
+        settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
+
+    for asset in ifCashAssets:
+        settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
+
+    return settledCash
 
 
 def check_cash_balance(env, accounts):
@@ -56,11 +109,12 @@ def check_cash_balance(env, accounts):
         accountBalances += cashBalance
 
         # Loop markets to check for cashBalances
-        markets = get_all_markets(env, currencyId)
-        for marketGroup in markets:
-            accountBalances += sum([m[3] for (i, m) in enumerate(marketGroup)])
+        markets = env.notional.getActiveMarkets(currencyId)
+        for m in markets:
+            accountBalances += m[3]
 
         accountBalances += env.notional.getReserveBalance(currencyId)
+        accountBalances += compute_settled_fcash(currencyId, symbol, env, accounts)
 
         assert contractBalance == accountBalances
         # Check that total supply equals total balances
@@ -102,6 +156,7 @@ def check_portfolio_invariants(env, accounts):
 
     for account in accounts:
         portfolio = env.notional.getAccountPortfolio(account.address)
+        env.notional.settleAccount(account.address)
         for asset in portfolio:
             if asset[2] == 1:
                 if (asset[0], asset[1]) in fCash:
@@ -121,6 +176,10 @@ def check_portfolio_invariants(env, accounts):
 
     # Check perp token portfolios
     for (currencyId, perpToken) in env.perpToken.items():
+        try:
+            env.notional.initializeMarkets(currencyId, False)
+        except Exception as e:
+            print(e)
         (portfolio, ifCashAssets) = env.notional.getPerpetualTokenPortfolio(perpToken.address)
 
         for asset in portfolio:
@@ -180,7 +239,7 @@ def check_account_context(env, accounts):
         context = env.notional.getAccountContext(account.address)
         activeCurrencies = list(active_currencies_to_list(context[-1]))
 
-        hasDebt = 0
+        hasCashDebt = False
         for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
             (cashBalance, perpTokenBalance, lastMintTime) = env.notional.getAccountBalance(
@@ -190,13 +249,14 @@ def check_account_context(env, accounts):
                 assert (currencyId, True) in [(a[0], a[2]) for a in activeCurrencies]
 
             if cashBalance < 0:
-                hasDebt = hasDebt | 2
+                hasCashDebt = True
 
         portfolio = env.notional.getAccountPortfolio(account.address)
         nextSettleTime = 0
         if len(portfolio) > 0:
             nextSettleTime = get_settlement_date(portfolio[0], chain.time())
 
+        hasPortfolioDebt = False
         for asset in portfolio:
             # Check that currency id is in the active currencies list
             assert (asset[0], True) in [(a[0], a[1]) for a in activeCurrencies]
@@ -208,9 +268,16 @@ def check_account_context(env, accounts):
 
             if asset[3] < 0:
                 # Negative fcash
-                hasDebt = hasDebt | 1
+                hasPortfolioDebt = True
 
         # Check next maturity, TODO: this does not work with idiosyncratic accounts
         assert context[0] == nextSettleTime
-        # Check that has debt is set properly
-        assert context[1] == HexString(hasDebt, "bytes1")
+        # Check that has debt is set properly.
+        if hasPortfolioDebt and hasCashDebt:
+            assert context[1] == HAS_BOTH_DEBT
+        elif hasPortfolioDebt:
+            # It's possible that cash debt is set to true  but out of sync due to not running
+            # a free collateral check after settling cash debts
+            assert context[1] == HAS_BOTH_DEBT or context[1] == HAS_ASSET_DEBT
+        elif hasCashDebt:
+            assert context[1] == HAS_CASH_DEBT

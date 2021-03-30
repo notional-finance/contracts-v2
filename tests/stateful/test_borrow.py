@@ -3,7 +3,7 @@ import pytest
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
-from tests.constants import HAS_ASSET_DEBT, RATE_PRECISION, SECONDS_IN_QUARTER
+from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, RATE_PRECISION, SECONDS_IN_QUARTER
 from tests.helpers import active_currencies_to_list, get_balance_trade_action, get_tref
 from tests.stateful.invariants import check_system_invariants
 
@@ -296,7 +296,6 @@ def test_deposit_asset_and_borrow(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_roll_borrow_to_maturity(environment, accounts):
     fCashAmount = 100e8
     borrowAction = get_balance_trade_action(
@@ -364,5 +363,67 @@ def test_roll_borrow_to_maturity(environment, accounts):
     assert portfolio[0][1] == marketsBefore[1][1]
     assert portfolio[0][2] == 1
     assert portfolio[0][3] == -fCashAmount
+
+    check_system_invariants(environment, accounts)
+
+
+@pytest.mark.only
+def test_settle_cash_debt(environment, accounts):
+    fCashAmount = 100e8
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 1,
+                "notional": fCashAmount,
+                "maxSlippage": 0,
+            }
+        ],
+        withdrawEntireCashBalance=True,
+    )
+
+    collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=500000e8)
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+    )
+
+    markets = environment.notional.getActiveMarkets(2)
+    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
+
+    blockTime = chain.time()
+    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
+    chain.mine(1, timestamp=newTime)
+
+    # Markets do not need to be initialized to settle debts...test that
+    action = get_balance_trade_action(
+        2,
+        "DepositAsset",
+        [
+            {
+                "tradeActionType": "SettleCashDebt",
+                "counterparty": accounts[1].address,
+                "amountToSettle": 0,
+            }
+        ],
+        depositActionAmount=100000e8,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})
+
+    settler = environment.notional.getAccountPortfolio(accounts[0])
+    settled = environment.notional.getAccountPortfolio(accounts[1])
+    assert settler[0][1] == markets[1][1]
+    assert settler[0][1] == settled[0][1]
+    assert settler[0][3] + settled[0][3] == 0
+
+    (settlerCashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[0])
+    assert settlerCashBalance == (100000e8 - 5000e8)
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == [(2, True, False), (3, False, True)]
+    assert context[1] == HAS_BOTH_DEBT  # TODO: need to clear this flag during the next FC
+    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
 
     check_system_invariants(environment, accounts)

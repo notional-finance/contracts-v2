@@ -10,6 +10,7 @@ from tests.constants import (
     CASH_GROUP_PARAMETERS,
     CURVE_SHAPES,
     DEPOSIT_ACTION_TYPE,
+    MARKET_LENGTH,
     MARKETS,
     PORTFOLIO_FLAG_INT,
     RATE_PRECISION,
@@ -149,7 +150,7 @@ def get_settlement_date(asset, blockTime):
     if asset[2] == 1:
         return asset[1]
     else:
-        return get_tref(blockTime) + 90 * SECONDS_IN_DAY
+        return asset[1] - MARKET_LENGTH[asset[2] - 2] + 90 * SECONDS_IN_DAY
 
 
 def get_portfolio_array(length, cashGroups, **kwargs):
@@ -374,4 +375,11 @@ def get_trade_action(**kwargs):
     elif tradeActionType == "PurchaseIdiosyncratic":
         pass
     elif tradeActionType == "SettleCashDebt":
-        pass
+        return encode_abi_packed(
+            ["uint8", "address", "uint88"],
+            [
+                TRADE_ACTION_TYPE[tradeActionType],
+                kwargs["counterparty"],
+                int(kwargs["amountToSettle"]),
+            ],
+        )

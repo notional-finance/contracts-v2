@@ -22,6 +22,18 @@ HAS_ASSET_DEBT = "0x01"
 HAS_CASH_DEBT = "0x02"
 HAS_BOTH_DEBT = "0x03"
 
+MARKET_LENGTH = [
+    90 * SECONDS_IN_DAY,
+    180 * SECONDS_IN_DAY,
+    SECONDS_IN_YEAR,
+    2 * SECONDS_IN_YEAR,
+    5 * SECONDS_IN_YEAR,
+    7 * SECONDS_IN_YEAR,
+    10 * SECONDS_IN_YEAR,
+    15 * SECONDS_IN_YEAR,
+    20 * SECONDS_IN_YEAR,
+]
+
 MARKETS = [
     START_TIME_TREF + 90 * SECONDS_IN_DAY,
     START_TIME_TREF + 180 * SECONDS_IN_DAY,
@@ -86,5 +98,5 @@ TRADE_ACTION_TYPE = {
     "RemoveLiquidity": 3,
     "MintCashPair": 4,
     "PurchasePerpetualTokenResidual": 5,
-    "SettleCashDebt": 5,
+    "SettleCashDebt": 6,
 }
