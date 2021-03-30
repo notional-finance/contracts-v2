@@ -1,10 +1,13 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from scripts.config import CurrencyDefaults
-from scripts.deployment import TestEnvironment
 from tests.constants import HAS_ASSET_DEBT, RATE_PRECISION, SECONDS_IN_QUARTER
-from tests.helpers import active_currencies_to_list, get_balance_trade_action, get_tref
+from tests.helpers import (
+    active_currencies_to_list,
+    get_balance_trade_action,
+    get_tref,
+    initialize_environment,
+)
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -12,50 +15,7 @@ chain = Chain()
 
 @pytest.fixture(scope="module", autouse=True)
 def environment(accounts):
-    env = TestEnvironment(accounts[0])
-    env.enableCurrency("DAI", CurrencyDefaults)
-    env.enableCurrency("USDC", CurrencyDefaults)
-
-    cToken = env.cToken["DAI"]
-    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-    env.token["DAI"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e18, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-
-    env.token["DAI"].transfer(accounts[1], 1000e18, {"from": accounts[0]})
-    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
-    cToken.transfer(accounts[1], 1000e8, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
-
-    cToken = env.cToken["USDC"]
-    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-    env.token["USDC"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e6, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-
-    env.token["USDC"].transfer(accounts[1], 1000e6, {"from": accounts[0]})
-    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
-    cToken.transfer(accounts[1], 1000e8, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
-
-    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
-    blockTime = chain.time()
-    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
-    chain.mine(1, timestamp=newTime)
-
-    currencyId = 2
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
-    env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
-    env.notional.initializeMarkets(currencyId, True)
-
-    currencyId = 3
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
-    env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
-    env.notional.initializeMarkets(currencyId, True)
-
-    return env
+    return initialize_environment(accounts)
 
 
 @pytest.fixture(autouse=True)

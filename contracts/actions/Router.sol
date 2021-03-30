@@ -27,7 +27,6 @@ contract Router is StorageLayoutV1 {
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
     address public immutable PERPETUAL_TOKEN_ACTIONS;
-    address public immutable PERPETUAL_TOKEN_MINT;
     address public immutable PERPETUAL_TOKEN_REDEEM;
     address public immutable DEPOSIT_WITHDRAW_ACTION;
     address public immutable cETH;
@@ -37,7 +36,6 @@ contract Router is StorageLayoutV1 {
         address views_,
         address initializeMarket_,
         address perpetualTokenActions_,
-        address perpetualTokenMint_,
         address perpetualTokenRedeem_,
         address depositWithdrawAction_,
         address cETH_
@@ -46,7 +44,6 @@ contract Router is StorageLayoutV1 {
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
         PERPETUAL_TOKEN_ACTIONS = perpetualTokenActions_;
-        PERPETUAL_TOKEN_MINT = perpetualTokenMint_;
         PERPETUAL_TOKEN_REDEEM = perpetualTokenRedeem_;
         DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
         cETH = cETH_;
@@ -105,13 +102,6 @@ contract Router is StorageLayoutV1 {
             sig == PerpetualTokenAction.perpetualTokenPresentValueUnderlyingDenominated.selector
         ) {
             return PERPETUAL_TOKEN_ACTIONS;
-        }
-
-        if (
-            sig == MintPerpetualTokenAction.perpetualTokenMintViaBatch.selector ||
-            sig == MintPerpetualTokenAction.perpetualTokenMint.selector
-        ) {
-            return PERPETUAL_TOKEN_MINT;
         }
 
         if (

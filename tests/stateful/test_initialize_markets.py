@@ -7,7 +7,7 @@ from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
 from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
-from tests.helpers import get_tref
+from tests.helpers import get_balance_action, get_tref
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -48,7 +48,15 @@ def initialize_markets(environment, accounts):
         currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9]
     )
 
-    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
     environment.notional.initializeMarkets(currencyId, True)
 
 
@@ -233,7 +241,15 @@ def test_first_initialization(environment, accounts):
         # no cash deposits
         environment.notional.initializeMarkets(currencyId, True)
 
-    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
     environment.notional.initializeMarkets(currencyId, True)
     perp_token_asserts(environment, currencyId, True, accounts)
 
@@ -282,6 +298,7 @@ def test_settle_and_extend(environment, accounts):
     perp_token_asserts(environment, currencyId, False, accounts)
 
 
+@pytest.mark.only
 def test_mint_after_markets_initialized(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
@@ -298,7 +315,15 @@ def test_mint_after_markets_initialized(environment, accounts):
     blockTime = chain.time() + 1
     chain.mine(1, timestamp=blockTime)
 
-    environment.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
     perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
     # Assert that no assets in portfolio
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
@@ -411,8 +436,14 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
     assert len(portfolio) == 0
     assert len(ifCashAssets) == 0
 
-    environment.notional.perpetualTokenMint(
-        currencyId, INITIAL_CASH_AMOUNT, False, {"from": accounts[0]}
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
     )
 
     # Set is first init to true if the market does not have assets
@@ -433,7 +464,15 @@ def test_mint_above_leverage_threshold(environment, accounts):
     portfolioBefore = environment.notional.getAccountPortfolio(perpTokenAddress)
     ifCashAssetsBefore = environment.notional.getifCashAssets(perpTokenAddress)
 
-    environment.notional.perpetualTokenMint(currencyId, 100e8, False, {"from": accounts[0]})
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
 
     portfolioAfter = environment.notional.getAccountPortfolio(perpTokenAddress)
     ifCashAssetsAfter = environment.notional.getifCashAssets(perpTokenAddress)
@@ -473,7 +512,17 @@ def test_failing_initialize_time(environment, accounts):
 
     # Cannot mint until markets are initialized
     with brownie.reverts("PT: requires settlement"):
-        environment.notional.perpetualTokenMint(currencyId, 100e8, False, {"from": accounts[0]})
+        environment.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId,
+                    "DepositAssetAndMintPerpetual",
+                    depositActionAmount=INITIAL_CASH_AMOUNT,
+                )
+            ],
+            {"from": accounts[0]},
+        )
 
     with brownie.reverts("PT: requires settlement"):
         environment.notional.perpetualTokenRedeem(currencyId, 100e8, True, {"from": accounts[0]})

@@ -1,10 +1,7 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from scripts.config import CurrencyDefaults
-from scripts.deployment import TestEnvironment
-from tests.constants import SECONDS_IN_QUARTER
-from tests.helpers import active_currencies_to_list, get_tref
+from tests.helpers import active_currencies_to_list, initialize_environment
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -12,40 +9,7 @@ chain = Chain()
 
 @pytest.fixture(scope="module", autouse=True)
 def environment(accounts):
-    env = TestEnvironment(accounts[0])
-    env.enableCurrency("DAI", CurrencyDefaults)
-    env.enableCurrency("USDC", CurrencyDefaults)
-
-    cToken = env.cToken["DAI"]
-    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-    env.token["DAI"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e18, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-
-    cToken = env.cToken["USDC"]
-    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-    env.token["USDC"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e6, {"from": accounts[0]})
-    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
-
-    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
-    blockTime = chain.time()
-    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
-    chain.mine(1, timestamp=newTime)
-
-    currencyId = 2
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
-    env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
-    env.notional.initializeMarkets(currencyId, True)
-
-    currencyId = 3
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
-    env.notional.perpetualTokenMint(currencyId, 100000e8, False, {"from": accounts[0]})
-    env.notional.initializeMarkets(currencyId, True)
-
-    return env
+    return initialize_environment(accounts)
 
 
 @pytest.fixture(autouse=True)
@@ -177,6 +141,7 @@ def test_withdraw_asset_token_pass_fc(environment, accounts):
     environment.cToken["DAI"].transfer(accounts[1], 100e8, {"from": accounts[0]})
     environment.cToken["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
     environment.notional.depositAssetToken(accounts[1], currencyId, 100e8, {"from": accounts[1]})
+    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
 
     txn = environment.notional.withdraw(
         accounts[1], currencyId, 100e8, False, {"from": accounts[1]}
@@ -193,7 +158,10 @@ def test_withdraw_asset_token_pass_fc(environment, accounts):
     assert balances[0] == 0
     assert balances[1] == 0
     assert balances[2] == 0
-    assert environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) == 100e8
+    assert (
+        environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
+        == balanceBefore + 100e8
+    )
 
     check_system_invariants(environment, accounts)
 
@@ -203,6 +171,7 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     environment.cToken["DAI"].transfer(accounts[1], 100e8, {"from": accounts[0]})
     environment.cToken["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
     environment.notional.depositAssetToken(accounts[1], currencyId, 100e8, {"from": accounts[1]})
+    cTokenBalanceBefore = environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
     txn = environment.notional.withdraw(accounts[1], currencyId, 100e8, True, {"from": accounts[1]})
@@ -218,7 +187,10 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     assert balances[0] == 0
     assert balances[1] == 0
     assert balances[2] == 0
-    assert environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) == 0
+    assert (
+        environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
+        == cTokenBalanceBefore
+    )
     assert environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]}) > balanceBefore
 
     check_system_invariants(environment, accounts)

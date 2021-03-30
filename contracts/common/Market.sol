@@ -122,7 +122,7 @@ library Market {
         CashGroupParameters memory cashGroup,
         uint timeToMaturity,
         uint marketIndex
-    ) internal view returns (int, int, int) {
+    ) internal pure returns (int, int, int) {
         int rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
         int totalCashUnderlying = cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
 
@@ -171,7 +171,7 @@ library Market {
         int rateAnchor,
         int fee,
         uint maxDelta
-    ) internal view returns (int) {
+    ) internal pure returns (int) {
         // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
         int fCashChangeToAccountGuess = netCashToAccount.mul(rateAnchor).div(Market.RATE_PRECISION).neg();
         for (uint8 i; i < 250; i++) {
@@ -254,7 +254,7 @@ library Market {
         int preFeeExchangeRate,
         int fCashToAccount,
         uint timeToMaturity
-    ) internal view returns (int, int, int) {
+    ) internal pure returns (int, int, int) {
         // Fees are specified in basis points which is an implied rate denomination. We convert this to
         // an exchange rate denomination for the given time to maturity. (i.e. get e^(fee * t) and multiply
         // or divide depending on the side of the trade).

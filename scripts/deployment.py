@@ -190,12 +190,12 @@ class TestEnvironment:
         FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
         TradingAction.deploy({"from": self.deployer})
+        MintPerpetualTokenAction.deploy({"from": self.deployer})
 
         # Deploy logic contracts
         governance = GovernanceAction.deploy({"from": self.deployer})
         views = Views.deploy({"from": self.deployer})
         initializeMarkets = InitializeMarketsAction.deploy({"from": self.deployer})
-        perpetualTokenMint = MintPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenRedeem = RedeemPerpetualTokenAction.deploy({"from": self.deployer})
         perpetualTokenAction = PerpetualTokenAction.deploy({"from": self.deployer})
         depositWithdrawAction = DepositWithdrawAction.deploy({"from": self.deployer})
@@ -206,7 +206,6 @@ class TestEnvironment:
             views.address,
             initializeMarkets.address,
             perpetualTokenAction.address,
-            perpetualTokenMint.address,
             perpetualTokenRedeem.address,
             depositWithdrawAction.address,
             self.cToken["ETH"].address,

@@ -370,7 +370,7 @@ contract DepositWithdrawAction {
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
-            int tokensMinted = MintPerpetualTokenAction(address(this)).perpetualTokenMintViaBatch(
+            int tokensMinted = MintPerpetualTokenAction.perpetualTokenMint(
                 balanceState.currencyId,
                 assetInternalAmount
             );

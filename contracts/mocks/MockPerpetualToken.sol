@@ -116,38 +116,4 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
         return assetPv;
     }
-
-    function calculateTokensToMint(
-        uint currencyId,
-        int assetCashDeposit,
-        uint blockTime
-    ) external view returns (int) {
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(
-            currencyId
-        );
-
-        (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.calculateTokensToMint(
-            perpToken,
-            assetCashDeposit,
-            blockTime
-        );
-
-        return assetPv;
-    }
-
-    function mintPerpetualToken(
-        uint currencyId,
-        int assetCashDeposit,
-        uint blockTime
-    ) external returns (int) {
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-            currencyId
-        );
-
-        return PerpetualToken.mintPerpetualToken(
-            perpToken,
-            assetCashDeposit,
-            blockTime
-        );
-    }
 }

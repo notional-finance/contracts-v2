@@ -7,6 +7,7 @@ import "../common/ExchangeRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetRate.sol";
 import "../common/PerpetualToken.sol";
+import "../actions/MintPerpetualTokenAction.sol";
 import "../math/SafeInt256.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
@@ -190,7 +191,7 @@ contract Views is StorageLayoutV1 {
         int amountToDepositInternal = token.convertToInternal(int(amountToDepositExternalPrecision));
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
 
-        (int tokensToMint, /* */) = PerpetualToken.calculateTokensToMint(
+        (int tokensToMint, /* */) = MintPerpetualTokenAction.calculateTokensToMint(
             perpToken,
             amountToDepositInternal,
             block.timestamp

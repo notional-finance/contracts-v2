@@ -3,8 +3,11 @@ import random
 
 from brownie.convert import to_bytes, to_uint
 from brownie.convert.datatypes import Wei
+from brownie.network.state import Chain
 from brownie.test import strategy
 from eth_abi.packed import encode_abi_packed
+from scripts.config import CurrencyDefaults
+from scripts.deployment import TestEnvironment
 from tests.constants import (
     BALANCE_FLAG_INT,
     CASH_GROUP_PARAMETERS,
@@ -15,6 +18,7 @@ from tests.constants import (
     PORTFOLIO_FLAG_INT,
     RATE_PRECISION,
     SECONDS_IN_DAY,
+    SECONDS_IN_QUARTER,
     START_TIME,
     TRADE_ACTION_TYPE,
 )
@@ -383,3 +387,67 @@ def get_trade_action(**kwargs):
                 int(kwargs["amountToSettle"]),
             ],
         )
+
+
+def initialize_environment(accounts):
+    chain = Chain()
+    env = TestEnvironment(accounts[0])
+    env.enableCurrency("DAI", CurrencyDefaults)
+    env.enableCurrency("USDC", CurrencyDefaults)
+
+    cToken = env.cToken["DAI"]
+    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+    env.token["DAI"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
+    cToken.mint(10000000e18, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+    env.token["DAI"].transfer(accounts[1], 100000e18, {"from": accounts[0]})
+    env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
+    cToken.transfer(accounts[1], 500000e8, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
+
+    cToken = env.cToken["USDC"]
+    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+    env.token["USDC"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
+    cToken.mint(10000000e6, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+    env.token["USDC"].transfer(accounts[1], 100000e6, {"from": accounts[0]})
+    env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
+    cToken.transfer(accounts[1], 500000e8, {"from": accounts[0]})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
+
+    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
+    blockTime = chain.time()
+    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
+    chain.mine(1, timestamp=newTime)
+
+    currencyId = 2
+    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
+    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100000e8
+            )
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(currencyId, True)
+
+    currencyId = 3
+    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
+    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100000e8
+            )
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(currencyId, True)
+
+    return env
