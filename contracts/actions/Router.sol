@@ -80,12 +80,14 @@ contract Router is StorageLayoutV1 {
      */
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         if (
+            // TODO: move these to their own contract?
             sig == DepositWithdrawAction.depositUnderlyingToken.selector ||
             sig == DepositWithdrawAction.depositAssetToken.selector ||
             sig == DepositWithdrawAction.withdraw.selector ||
+            sig == DepositWithdrawAction.settleAccount.selector ||
+            // TODO: move these to their own contract?
             sig == DepositWithdrawAction.batchBalanceAction.selector ||
-            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector ||
-            sig == DepositWithdrawAction.settleAccount.selector
+            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector
         ) {
             return DEPOSIT_WITHDRAW_ACTION;
         }

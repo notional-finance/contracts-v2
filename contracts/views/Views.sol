@@ -157,12 +157,12 @@ contract Views is StorageLayoutV1 {
             uint currencyId,
             /* uint totalSupply */,
             /* incentiveRate */,
-            uint8 assetArrayLength,
-            uint lastInitializedTime
+            uint lastInitializedTime,
+            bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
 
         return (
-            PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength),
+            PortfolioHandler.getSortedPortfolio(tokenAddress, uint8(parameters[PerpetualToken.ASSET_ARRAY_LENGTH])),
             BitmapAssetsHandler.getifCashArray(tokenAddress, currencyId, lastInitializedTime)
         );
     }

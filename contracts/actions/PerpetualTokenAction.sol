@@ -25,8 +25,8 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
             /* currencyId */,
             uint totalSupply,
             /* incentiveRate */,
-            /* length */,
-            /* lastInitialized */
+            /* lastInitialized */,
+            /* parameters */
         ) = PerpetualToken.getPerpetualTokenContext(
             perpTokenAddress
         );

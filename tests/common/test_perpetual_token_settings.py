@@ -22,28 +22,35 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
         currencyIdStored,
         totalSupply,
         incentives,
-        assetArrayLength,
         lastInitializeTime,
+        parameters,
     ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
     assert incentives == 0
-    assert assetArrayLength == 0
     assert lastInitializeTime == 0
+    assert parameters == "0x000000000000"
 
     perpetualToken.setIncentiveEmissionRate(tokenAddress, 0.01e9)
+    perpetualToken.updatePerpetualTokenCollateralParameters(currencyId, 40, 41, 95, 96, 50)
+
     (
         currencyIdStored,
         totalSupply,
         incentives,
-        assetArrayLength,
         lastInitializeTime,
+        parameters,
     ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
     assert incentives == 0.01e9
-    assert assetArrayLength == 0
     assert lastInitializeTime == 0
+    assert bytearray(parameters)[0] == 50
+    assert bytearray(parameters)[1] == 96
+    assert bytearray(parameters)[2] == 95
+    assert bytearray(parameters)[3] == 41
+    assert bytearray(parameters)[4] == 40
+    assert bytearray(parameters)[5] == 0
 
     perpetualToken.setArrayLengthAndInitializedTime(tokenAddress, 5, START_TIME)
 
@@ -51,42 +58,57 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
         currencyIdStored,
         totalSupply,
         incentives,
-        assetArrayLength,
         lastInitializeTime,
+        parameters,
     ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0
     assert incentives == 0.01e9
-    assert assetArrayLength == 5
     assert lastInitializeTime == START_TIME
+    assert bytearray(parameters)[0] == 50
+    assert bytearray(parameters)[1] == 96
+    assert bytearray(parameters)[2] == 95
+    assert bytearray(parameters)[3] == 41
+    assert bytearray(parameters)[4] == 40
+    assert bytearray(parameters)[5] == 5
 
     perpetualToken.changePerpetualTokenSupply(tokenAddress, 1e8)
     (
         currencyIdStored,
         totalSupply,
         incentives,
-        assetArrayLength,
         lastInitializeTime,
+        parameters,
     ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 1e8
     assert incentives == 0.01e9
-    assert assetArrayLength == 5
     assert lastInitializeTime == START_TIME
+    assert bytearray(parameters)[0] == 50
+    assert bytearray(parameters)[1] == 96
+    assert bytearray(parameters)[2] == 95
+    assert bytearray(parameters)[3] == 41
+    assert bytearray(parameters)[4] == 40
+    assert bytearray(parameters)[5] == 5
 
     perpetualToken.changePerpetualTokenSupply(tokenAddress, -0.5e8)
     (
         currencyIdStored,
         totalSupply,
         incentives,
-        assetArrayLength,
         lastInitializeTime,
+        parameters,
     ) = perpetualToken.getPerpetualTokenContext(tokenAddress)
     assert currencyIdStored == currencyId
     assert totalSupply == 0.5e8
     assert incentives == 0.01e9
-    assert assetArrayLength == 5
     assert lastInitializeTime == START_TIME
+    assert bytearray(parameters)[0] == 50
+    assert bytearray(parameters)[1] == 96
+    assert bytearray(parameters)[2] == 95
+    assert bytearray(parameters)[3] == 41
+    assert bytearray(parameters)[4] == 40
+    assert bytearray(parameters)[5] == 5
 
     with brownie.reverts():
         perpetualToken.changePerpetualTokenSupply(tokenAddress, -1e8)

@@ -16,17 +16,17 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
     function getPerpetualTokenContext(
         address tokenAddress
-    ) external view returns (uint, uint, uint, uint8, uint) {
+    ) external view returns (uint, uint, uint, uint, bytes6) {
         (
             uint currencyId,
             uint totalSupply,
             uint incentiveRate,
-            uint8 assetArrayLength,
-            uint lastInitializedTime
+            uint lastInitializedTime,
+            bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, totalSupply, incentiveRate, assetArrayLength, lastInitializedTime);
+        return (currencyId, totalSupply, incentiveRate, lastInitializedTime, parameters);
     }
 
     function getPerpetualTokenAddress(
@@ -37,8 +37,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
             uint currencyIdStored,
             /* uint totalSupply */,
             /* incentiveRate */,
-            /* assetArrayLength */,
-            /* lastInitializedTime */
+            /* lastInitializedTime */,
+            /* parameters */
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
 
@@ -115,5 +115,26 @@ contract MockPerpetualToken is StorageLayoutV1 {
         );
 
         return assetPv;
+    }
+
+    function updatePerpetualTokenCollateralParameters(
+        uint16 currencyId,
+        uint8 positiveResidualPurchaseIncentive10BPS,
+        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 pvHaircutPercentage,
+        uint8 residualPurchaseTimeBufferHours,
+        uint8 cashWitholdingBuffer10BPS
+    ) external {
+        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        require(perpTokenAddress != address(0), "Invalid currency");
+
+        PerpetualToken.setPerpetualTokenCollateralParameters(
+            perpTokenAddress,
+            positiveResidualPurchaseIncentive10BPS,
+            negativeResidualPurchaseIncentive10BPS,
+            pvHaircutPercentage,
+            residualPurchaseTimeBufferHours,
+            cashWitholdingBuffer10BPS
+        );
     }
 }

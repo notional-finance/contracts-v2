@@ -460,8 +460,8 @@ library BalanceHandler {
             /* currencyId */,
             uint totalSupply,
             uint incentiveAnnualEmissionRate,
-            /* arrayLength */,
-            /* initializedTime */
+            /* initializedTime */,
+            /* parameters */
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
 
         uint timeSinceLastMint = blockTime - lastMintTime;

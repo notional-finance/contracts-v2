@@ -26,6 +26,7 @@ contract GovernanceAction is StorageLayoutV1 {
     event UpdatePerpetualDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
+    event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
     // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -123,6 +124,28 @@ contract GovernanceAction is StorageLayoutV1 {
 
         PerpetualToken.setIncentiveEmissionRate(perpTokenAddress, newEmissionRate);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
+    }
+
+    function updatePerpetualTokenCollateralParameters(
+        uint16 currencyId,
+        uint8 positiveResidualPurchaseIncentive10BPS,
+        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 pvHaircutPercentage,
+        uint8 residualPurchaseTimeBufferHours,
+        uint8 cashWitholdingBuffer10BPS
+    ) external onlyOwner {
+        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        require(perpTokenAddress != address(0), "Invalid currency");
+
+        PerpetualToken.setPerpetualTokenCollateralParameters(
+            perpTokenAddress,
+            positiveResidualPurchaseIncentive10BPS,
+            negativeResidualPurchaseIncentive10BPS,
+            pvHaircutPercentage,
+            residualPurchaseTimeBufferHours,
+            cashWitholdingBuffer10BPS
+        );
+        emit UpdatePerpetualTokenCollateralParameters(currencyId);
     }
 
     function updateCashGroup(

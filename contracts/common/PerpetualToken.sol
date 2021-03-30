@@ -20,6 +20,7 @@ struct PerpetualTokenPortfolio {
     int totalSupply;
     int cashBalance;
     uint lastInitializedTime;
+    bytes6 parameters;
     address tokenAddress;
 }
 
@@ -35,13 +36,19 @@ library PerpetualToken {
     using SafeMath for uint;
 
     int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
+    uint8 internal constant CASH_WITHOLDING_BUFFER = 0;
+    uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 1;
+    uint8 internal constant PV_HAIRCUT_PERCENTAGE = 2;
+    uint8 internal constant NEGATIVE_RESIDUAL_PURCHASE_INCENTIVE = 3;
+    uint8 internal constant POSITIVE_RESIDUAL_PURCHASE_INCENTIVE = 4;
+    uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 
     /**
      * @notice Returns an account context object that is specific to perpetual tokens.
      */
     function getPerpetualTokenContext(
         address tokenAddress
-    ) internal view returns (uint, uint, uint, uint8, uint) {
+    ) internal view returns (uint, uint, uint, uint, bytes6) {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
         assembly { data := sload(slot) }
@@ -49,14 +56,10 @@ library PerpetualToken {
         uint currencyId = uint(uint16(uint(data)));
         uint totalSupply = uint(uint96(uint(data >> 16)));
         uint incentiveAnnualEmissionRate = uint(uint32(uint(data >> 112)));
-        uint8 assetArrayLength = uint8(uint(data >> 144));
-        uint lastInitializedTime = uint(uint32(uint(data >> 152)));
-        // TODO: add purchase bps positive, negative (8, 8)
-        // TODO: add fc haircut value percentage (8)
-        // TODO: add purchase cash time buffer (8)
-        // TODO: cash witholding bps (8)
+        uint lastInitializedTime = uint(uint32(uint(data >> 144)));
+        bytes6 parameters = bytes6(data << 32);
 
-        return (currencyId, totalSupply, incentiveAnnualEmissionRate, assetArrayLength, lastInitializedTime);
+        return (currencyId, totalSupply, incentiveAnnualEmissionRate, lastInitializedTime, parameters);
     }
 
     /**
@@ -91,6 +94,36 @@ library PerpetualToken {
         assembly { sstore(addressSlot, tokenAddress) }
         // This will also initialize the total supply at 0
         assembly { sstore(currencySlot, currencyId) }
+    }
+
+    /**
+     * @notice Set perpetual token collateral parameters
+     */
+    function setPerpetualTokenCollateralParameters(
+        address tokenAddress,
+        uint8 positiveResidualPurchaseIncentive10BPS,
+        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 pvHaircutPercentage,
+        uint8 residualPurchaseTimeBufferHours,
+        uint8 cashWitholdingBuffer10BPS
+    ) internal {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
+        bytes32 data;
+        assembly { data := sload(slot) }
+
+        require(pvHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS, "Invalid haircut");
+
+        // Clear the bytes where collateral parameters will go and OR the data in
+        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        bytes32 parameters = (
+            bytes32(uint(positiveResidualPurchaseIncentive10BPS))       |
+            bytes32(uint(negativeResidualPurchaseIncentive10BPS)) << 8  |
+            bytes32(uint(pvHaircutPercentage))                    << 16 |
+            bytes32(uint(residualPurchaseTimeBufferHours))        << 24 |
+            bytes32(uint(cashWitholdingBuffer10BPS))              << 32
+        );
+        data = data | bytes32(parameters) << 184;
+        assembly { sstore(slot, data) }
     }
 
     /**
@@ -140,8 +173,8 @@ library PerpetualToken {
         assembly { data := sload(slot) }
         // Clear the 6 bytes where array length and settle time will go
         data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        data = data | bytes32(uint(arrayLength)) << 144;
-        data = data | bytes32(uint(lastInitializedTime)) << 152;
+        data = data | bytes32(uint(lastInitializedTime)) << 144;
+        data = data | bytes32(uint(arrayLength)) << 176;
         assembly { sstore(slot, data) }
     }
 
@@ -305,13 +338,19 @@ library PerpetualToken {
             /* currencyId */,
             uint totalSupply,
             /* incentiveRate */,
-            uint8 assetArrayLength,
-            uint lastInitializedTime
+            uint lastInitializedTime,
+            bytes6 parameters
         ) = getPerpetualTokenContext(perpToken.tokenAddress);
         perpToken.lastInitializedTime = lastInitializedTime;
         perpToken.totalSupply = int(totalSupply);
+        perpToken.parameters = parameters;
 
-        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(perpToken.tokenAddress, assetArrayLength, 0);
+        perpToken.portfolioState = PortfolioHandler.buildPortfolioState(
+            perpToken.tokenAddress,
+            uint8(parameters[ASSET_ARRAY_LENGTH]),
+            0
+        );
+
         (
             perpToken.cashBalance,
             /* perpToken.balanceState.storedPerpetualTokenBalance */,
