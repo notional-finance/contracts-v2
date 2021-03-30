@@ -173,7 +173,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
         totalCashUnderlying = (market[3] * Wei(1e8) * assetRate[1]) / (assetRate[2] * Wei(1e18))
         proportion = int(market[2] * RATE_PRECISION / (totalCashUnderlying + market[2]))
         # assert that market proportions are not above leverage thresholds
-        assert proportion < leverageThresholds[i]
+        assert proportion <= leverageThresholds[i]
 
         # Ensure that fCash is greater than zero
         assert market[3] > 0
@@ -181,6 +181,9 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
         if previousMarkets[i][6] == 0:
             # This means that the market is initialized for the first time
             assert pytest.approx(proportion, abs=2) == proportions[i]
+        elif proportion == leverageThresholds[i]:
+            # In this case then the oracle rate is set by governance using Market.getImpliedRate
+            pass
         elif i == 0:
             # The 3 month market should have the same implied rate as the old 6 month
             assert market[5] == previousMarkets[1][5]
@@ -253,8 +256,8 @@ def test_settle_and_extend(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[7] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[8] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updatePerpetualDepositParameters(

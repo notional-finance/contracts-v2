@@ -269,16 +269,16 @@ library InitializeMarketsAction {
         expValue = ABDKMath64x64.div(expValue, Market.RATE_PRECISION_64x64);
         // Take the exponent
         expValue = ABDKMath64x64.exp(expValue);
-        // Scale this back to 1e9 precision
-        expValue = ABDKMath64x64.mul(expValue, Market.RATE_PRECISION_64x64);
-        int expResult = ABDKMath64x64.toInt(expValue);
-
         // proportion = exp / (1 + exp)
-        return expResult
-            .mul(Market.RATE_PRECISION)
-            .div(Market.RATE_PRECISION.add(expResult));
+        // NOTE: 2**64 == 1 in ABDKMath64x64
+        int128 proportion = ABDKMath64x64.div(expValue, ABDKMath64x64.add(expValue, 2**64));
+
+        // Scale this back to 1e9 precision
+        proportion = ABDKMath64x64.mul(proportion, Market.RATE_PRECISION_64x64);
+
+        return ABDKMath64x64.toInt(proportion);
     }
-    
+
     /**
      * @notice Returns the linear interpolation between two market rates. The formula is
      * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
@@ -468,14 +468,31 @@ library InitializeMarketsAction {
                 );
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
-                // provide liquidity. Governance must set a different rate anchor for the market.
-                // TODO: if this happens just set the proportion to the leverage threshold and then
-                // we recaclulate the oracle rate
-                require(proportion < parameters.leverageThresholds[i], "IM: proportion over threshold");
+                // provide liquidity without risk of liquidation. In this case, set the leverage threshold
+                // as the new proportion and calculate the oracle rate from it. This will result in fCash valuations
+                // changing on chain, however, adding liquidity via perpetual tokens would also end up with this
+                // result as well.
+                if (proportion > parameters.leverageThresholds[i]) {
+                    proportion = parameters.leverageThresholds[i];
+                    newMarket.totalfCash = underlyingCashToMarket
+                        .mul(proportion)
+                        .div(Market.RATE_PRECISION.sub(proportion));
 
-                newMarket.totalfCash = underlyingCashToMarket
-                    .mul(proportion)
-                    .div(Market.RATE_PRECISION.sub(proportion));
+                    oracleRate = Market.getImpliedRate(
+                        newMarket.totalfCash,
+                        underlyingCashToMarket,
+                        rateScalar,
+                        parameters.rateAnchors[i],
+                        timeToMaturity
+                    );
+
+                    require(oracleRate != 0, "Oracle rate overflow");
+                } else {
+                    newMarket.totalfCash = underlyingCashToMarket
+                        .mul(proportion)
+                        .div(Market.RATE_PRECISION.sub(proportion));
+                }
+
                 // It's possible for proportion to be equal to zero, in this case we set the totalfCash to a minimum
                 // value so that we don't have divide by zero errors.
                 if (proportion == 0) newMarket.totalfCash = 1;
