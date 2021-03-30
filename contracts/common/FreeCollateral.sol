@@ -182,7 +182,13 @@ library FreeCollateral {
         uint blockTime
     ) internal view returns (int) {
         (int perpTokenPV, /* ifCashBitmap */) = perpToken.getPerpetualTokenPV(blockTime);
-        return tokenBalance.mul(perpTokenPV).div(perpToken.totalSupply);
+
+        return tokenBalance
+            .mul(perpTokenPV)
+            // Haircut for perpetual token value
+            .mul(int(uint8(perpToken.parameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
+            .div(CashGroup.PERCENTAGE_DECIMALS)
+            .div(perpToken.totalSupply);
     }
 
     /**

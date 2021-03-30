@@ -4,10 +4,13 @@ pragma experimental ABIEncoderV2;
 
 import "../common/CashGroup.sol";
 import "../common/AssetHandler.sol";
+import "../common/PerpetualToken.sol";
 import "../math/Bitmap.sol";
 import "../math/SafeInt256.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library BitmapAssetsHandler {
+    using SafeMath for uint;
     using SafeInt256 for int;
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
@@ -43,6 +46,17 @@ library BitmapAssetsHandler {
                 keccak256(abi.encode(account, IFCASH_STORAGE_SLOT))
             ))
         ));
+    }
+
+    function getifCashNotional(
+        address account,
+        uint currencyId,
+        uint maturity
+    ) internal view returns (int) {
+        bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+        int notional;
+        assembly { notional := sload(fCashSlot) }
+        return notional;
     }
 
     /**
@@ -245,27 +259,26 @@ library BitmapAssetsHandler {
      * clear the debts off the balance sheet.
      */
     function getPerpetualTokenNegativefCashWitholding(
-        address account,
+        PerpetualTokenPortfolio memory perpToken,
         uint currencyId,
         uint nextSettleTime,
         uint blockTime,
-        bytes32 assetsBitmap,
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets
+        bytes32 assetsBitmap
     ) internal view returns (int) {
         int totalCashWitholding;
         uint bitNum = 1;
+        // This buffer is denominated in 10 basis point increments. It is used to shift the witholding rate to ensure
+        // that sufficient cash is withheld for negative fCash balances.
+        uint oracleRateBuffer = uint(uint8(perpToken.parameters[PerpetualToken.CASH_WITHOLDING_BUFFER])) * 10 * Market.BASIS_POINT;
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
                 uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
-                bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-                int notional;
-                assembly { notional := sload(fCashSlot) }
+                int notional = getifCashNotional(perpToken.tokenAddress, perpToken.cashGroup.currencyId, maturity);
 
                 if (notional < 0) {
-                    // TODO: Bump this witholding by some flat rate shift
-                    uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+                    uint oracleRate = perpToken.cashGroup.getOracleRate(perpToken.markets, maturity, blockTime);
+                    oracleRate = oracleRate.add(oracleRateBuffer);
 
                     totalCashWitholding.sub(AssetHandler.getPresentValue(
                         notional,

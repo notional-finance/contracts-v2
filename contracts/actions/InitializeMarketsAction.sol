@@ -162,13 +162,11 @@ library InitializeMarketsAction {
 
         // Recalculate what the witholdings are if there are any ifCash assets remaining
         int assetCashWitholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWitholding(
-            perpToken.tokenAddress,
+            perpToken,
             currencyId,
             nextSettleTime,
             blockTime,
-            ifCashBitmap,
-            perpToken.cashGroup,
-            perpToken.markets
+            ifCashBitmap
         );
 
         return (assetCashWitholding, ifCashBitmap);
