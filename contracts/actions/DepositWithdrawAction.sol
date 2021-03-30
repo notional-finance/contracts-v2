@@ -51,6 +51,16 @@ contract DepositWithdrawAction {
 
     event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
     event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
+    event AccountSettled(address indexed account);
+
+    function settleAccount(address account) external {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (accountContext.mustSettleAssets()) {
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext.setAccountContext(account);
+            emit AccountSettled(account);
+        }
+    }
 
     /**
      * @notice Deposits and wraps the underlying token for a particular cToken. Notional should never have

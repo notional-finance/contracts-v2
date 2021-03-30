@@ -25,6 +25,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
     event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
+    event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
 
     /** Initialize Markets Action */
@@ -100,6 +101,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     ) external;
 
     /** Deposit Withdraw Action */
+    function settleAccount(address account) external;
     function depositUnderlyingToken(
         address account,
         uint16 currencyId,
@@ -139,6 +141,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory);
     function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory);
     function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory);
+    function getSettlementRate(uint16 currencyId, uint32 maturity) external view returns (AssetRateParameters memory);
     function getCashGroupAndRate(
         uint16 currencyId
     ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory);

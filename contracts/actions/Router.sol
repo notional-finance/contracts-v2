@@ -87,7 +87,8 @@ contract Router is StorageLayoutV1 {
             sig == DepositWithdrawAction.depositAssetToken.selector ||
             sig == DepositWithdrawAction.withdraw.selector ||
             sig == DepositWithdrawAction.batchBalanceAction.selector ||
-            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector
+            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector ||
+            sig == DepositWithdrawAction.settleAccount.selector
         ) {
             return DEPOSIT_WITHDRAW_ACTION;
         }

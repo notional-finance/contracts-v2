@@ -58,6 +58,10 @@ contract Views is StorageLayoutV1 {
         return AssetRate.buildAssetRateView(currencyId);
     }
 
+    function getSettlementRate(uint16 currencyId, uint32 maturity) external view returns (AssetRateParameters memory) {
+        return AssetRate.buildSettlementRateView(currencyId, maturity);
+    }
+
     function getCashGroupAndRate(
         uint16 currencyId
     ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory) {
