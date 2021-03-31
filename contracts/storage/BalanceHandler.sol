@@ -463,6 +463,7 @@ library BalanceHandler {
             /* initializedTime */,
             /* parameters */
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
+        if (totalSupply == 0) return 0;
 
         uint timeSinceLastMint = blockTime - lastMintTime;
         // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
