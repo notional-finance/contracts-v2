@@ -23,6 +23,8 @@ library MintPerpetualTokenAction {
     using AssetRate for AssetRateParameters;
     using SafeMath for uint;
 
+    uint internal constant DELEVERAGE_BUFFER = 30000000; // 300 * Market.BASIS_POINT
+
     /**
      * @notice Converts the given amount of cash to perpetual tokens in the same currency. This method can
      * only be called by the contract itself.
@@ -133,15 +135,16 @@ library MintPerpetualTokenAction {
                 blockTime
             );
 
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
-                perpToken.tokenAddress,
-                perpToken.cashGroup.currencyId,
-                market.maturity,
-                perpToken.lastInitializedTime,
-                // fCash amount is negative and denominated in the underlying here as it always is
-                fCashAmount,
-                ifCashBitmap
-            );
+            if (fCashAmount != 0) {
+                ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+                    perpToken.tokenAddress,
+                    perpToken.cashGroup.currencyId,
+                    market.maturity,
+                    perpToken.lastInitializedTime,
+                    fCashAmount,
+                    ifCashBitmap
+                );
+            }
 
             market.setMarketStorage();
             // Reached end of loop
@@ -247,25 +250,34 @@ library MintPerpetualTokenAction {
     ) private returns (int, int) {
         uint timeToMaturity = market.maturity.sub(blockTime);
 
-        // Shift the last implied rate by 5% points and calculate the exchange rate to fCash. Hope that this
+        // Shift the last implied rate by some buffer and calculate the exchange rate to fCash. Hope that this
         // is sufficient to cover all potential slippage. We don't use the `getfCashGivenCashAmount` method here
         // because it is very gas inefficient.
-        int assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
-            market.lastImpliedRate.sub(500 * Market.BASIS_POINT),
-            timeToMaturity
-        );
-        int fCashAmount = perMarketDeposit.mul(assumedExchangeRate).div(Market.RATE_PRECISION);
-        (int netAssetCash, int fee) = market.calculateTrade(cashGroup, fCashAmount, marketIndex, timeToMaturity);
+        int assumedExchangeRate;
+        if (market.lastImpliedRate < DELEVERAGE_BUFFER) {
+            assumedExchangeRate = Market.RATE_PRECISION;
+        } else {
+            assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
+                market.lastImpliedRate.sub(DELEVERAGE_BUFFER),
+                timeToMaturity
+            );
+        }
+
+        int fCashAmount;
+        {
+            int perMarketDepositUnderlying = cashGroup.assetRate.convertInternalToUnderlying(perMarketDeposit);
+            fCashAmount = perMarketDepositUnderlying.mul(assumedExchangeRate).div(Market.RATE_PRECISION);
+        }
+        (int netAssetCash, int fee) = market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
         BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, fee);
 
         // This means that the trade failed
         if (netAssetCash == 0) return (perMarketDeposit, 0);
 
-        return (
-            // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
-            // given how we've calculated the exchange rate but extra caution here
-            perMarketDeposit.subNoNeg(netAssetCash.neg()),
-            fCashAmount
-        );
+        // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
+        // given how we've calculated the exchange rate but extra caution here
+        int residual = perMarketDeposit.add(netAssetCash);
+        require(residual >= 0); // dev: insufficient cash
+        return (residual, fCashAmount);
     }
 }

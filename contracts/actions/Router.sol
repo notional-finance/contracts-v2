@@ -125,7 +125,8 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateETHRate.selector ||
             sig == GovernanceAction.transferOwnership.selector ||
             sig == GovernanceAction.updatePerpetualDepositParameters.selector ||
-            sig == GovernanceAction.updateInitializationParameters.selector
+            sig == GovernanceAction.updateInitializationParameters.selector ||
+            sig == GovernanceAction.updatePerpetualTokenCollateralParameters.selector
         ) {
             return GOVERNANCE;
         }

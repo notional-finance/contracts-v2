@@ -506,7 +506,7 @@ library CashGroup {
             debtBuffer5BPS: uint8(data[27]),
             fCashHaircut5BPS: uint8(data[26]),
             settlementPenaltyRateBPS: uint8(data[25]),
-            liquidityRepoDiscount: uint8(data[24]),
+            liquidityRepoDiscount: uint8(data[24]), // TODO: Hardcode this
             liquidityTokenHaircuts: tokenHaircuts,
             rateScalars: rateScalars
         });

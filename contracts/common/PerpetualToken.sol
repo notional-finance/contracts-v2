@@ -218,10 +218,8 @@ library PerpetualToken {
             require(leverageThresholds[i] > 0 && leverageThresholds[i] < Market.RATE_PRECISION, "PT: leverage threshold");
         }
 
-        // Deposit shares must not add up to more than 100%. If it less than 100 that means some portion
-        // will remain in the cash balance for the perpetual token. This might be something that is desireable
-        // to collateralize negative fCash balances
-        require(shareSum <= uint(DEPOSIT_PERCENT_BASIS), "PT: deposit shares sum");
+        // Total deposit share must add up to 100%
+        require(shareSum == uint(DEPOSIT_PERCENT_BASIS), "PT: deposit shares sum");
         _setParameters(slot, depositShares, leverageThresholds);
     }
 

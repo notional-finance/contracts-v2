@@ -6,7 +6,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import strategy
 from eth_abi.packed import encode_abi_packed
-from scripts.config import CurrencyDefaults
+from scripts.config import CurrencyDefaults, PerpetualTokenDefaults
 from scripts.deployment import TestEnvironment
 from tests.constants import (
     BALANCE_FLAG_INT,
@@ -423,8 +423,15 @@ def initialize_environment(accounts):
     chain.mine(1, timestamp=newTime)
 
     currencyId = 2
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
+    env.notional.updatePerpetualDepositParameters(currencyId, *(PerpetualTokenDefaults["Deposit"]))
+
+    env.notional.updateInitializationParameters(
+        currencyId, *(PerpetualTokenDefaults["Initialization"])
+    )
+
+    env.notional.updatePerpetualTokenCollateralParameters(
+        currencyId, *(PerpetualTokenDefaults["Collateral"])
+    )
     env.notional.batchBalanceAction(
         accounts[0],
         [
@@ -437,8 +444,15 @@ def initialize_environment(accounts):
     env.notional.initializeMarkets(currencyId, True)
 
     currencyId = 3
-    env.notional.updatePerpetualDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
-    env.notional.updateInitializationParameters(currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9])
+    env.notional.updatePerpetualDepositParameters(currencyId, *(PerpetualTokenDefaults["Deposit"]))
+
+    env.notional.updateInitializationParameters(
+        currencyId, *(PerpetualTokenDefaults["Initialization"])
+    )
+
+    env.notional.updatePerpetualTokenCollateralParameters(
+        currencyId, *(PerpetualTokenDefaults["Collateral"])
+    )
     env.notional.batchBalanceAction(
         accounts[0],
         [

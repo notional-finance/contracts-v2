@@ -406,50 +406,6 @@ def test_failing_initialize_time(environment, accounts):
 
 
 @pytest.mark.skip
-def test_mint_above_leverage_threshold(environment, accounts):
-    initialize_markets(environment, accounts)
-    currencyId = 2
-
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.4e8], [0.4e9, 0.4e9]
-    )
-
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
-    portfolioBefore = environment.notional.getAccountPortfolio(perpTokenAddress)
-    ifCashAssetsBefore = environment.notional.getifCashAssets(perpTokenAddress)
-
-    environment.notional.batchBalanceAction(
-        accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
-            )
-        ],
-        {"from": accounts[0]},
-    )
-
-    portfolioAfter = environment.notional.getAccountPortfolio(perpTokenAddress)
-    ifCashAssetsAfter = environment.notional.getifCashAssets(perpTokenAddress)
-
-    # No liquidity tokens added
-    assert portfolioBefore == portfolioAfter
-
-    # fCash amounts have increased in the portfolio
-    for (i, asset) in enumerate(ifCashAssetsBefore):
-        assert asset[3] < ifCashAssetsAfter[i][3]
-
-    blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
-
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.4e8], [0.8e9, 0.8e9]
-    )
-
-    environment.notional.initializeMarkets(currencyId, False)
-    perp_token_asserts(environment, currencyId, False, accounts)
-
-
-@pytest.mark.skip
 def test_redeem_and_sell_to_cash(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2

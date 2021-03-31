@@ -36,6 +36,18 @@ CurrencyDefaults = {
     "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
 }
 
+PerpetualTokenDefaults = {
+    "Deposit": [[0.4e8, 0.6e8], [0.8e9, 0.8e9]],  # Deposit shares  # Leverage thresholds
+    "Initialization": [[1.01e9, 1.021e9], [0.5e9, 0.5e9]],  # Rate anchors  # Target proportion
+    "Collateral": [
+        30,  # positive purchase incentive bps
+        30,  # negative purchase incentive bps
+        95,  # pv haircut
+        96,  # time buffer hours
+        50,  # cash witholding
+    ],
+}
+
 CompoundConfig = {
     # cETH uses whitepaper interest rate model
     # cETH: https://etherscan.io/address/0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5
