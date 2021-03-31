@@ -260,7 +260,6 @@ library BitmapAssetsHandler {
      */
     function getPerpetualTokenNegativefCashWitholding(
         PerpetualTokenPortfolio memory perpToken,
-        uint currencyId,
         uint nextSettleTime,
         uint blockTime,
         bytes32 assetsBitmap

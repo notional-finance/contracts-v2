@@ -20,7 +20,6 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
-    // TODO: add gas price setting for liquidation
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /** User trading events */
