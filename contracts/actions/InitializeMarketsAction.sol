@@ -138,8 +138,7 @@ library InitializeMarketsAction {
         PerpetualTokenPortfolio memory perpToken,
         uint currencyId,
         bytes32 ifCashBitmap,
-        uint blockTime,
-        uint nextSettleTime
+        uint blockTime
     ) private returns (int, bytes32) {
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
@@ -151,7 +150,7 @@ library InitializeMarketsAction {
                 perpToken.tokenAddress,
                 currencyId,
                 asset.maturity,
-                nextSettleTime,
+                perpToken.lastInitializedTime,
                 asset.notional,
                 ifCashBitmap
             );
@@ -160,15 +159,14 @@ library InitializeMarketsAction {
             perpToken.portfolioState.deleteAsset(i);
         }
 
-        // Recalculate what the witholdings are if there are any ifCash assets remaining
-        int assetCashWitholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWitholding(
+        // Recalculate what the withholdings are if there are any ifCash assets remaining
+        int assetCashWithholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWithholding(
             perpToken,
-            nextSettleTime,
             blockTime,
             ifCashBitmap
         );
 
-        return (assetCashWitholding, ifCashBitmap);
+        return (assetCashWithholding, ifCashBitmap);
     }
 
     function calculateNetAssetCashAvailable(
@@ -179,26 +177,25 @@ library InitializeMarketsAction {
     ) private returns (int, bytes32) {
         int netAssetCashAvailable;
         bytes32 ifCashBitmap;
-        int assetCashWitholding;
+        int assetCashWithholding;
 
         if (isFirstInit) {
             perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
         } else {
             ifCashBitmap = settlePerpetualTokenPortfolio(perpToken, blockTime);
             getPreviousMarkets(currencyId, blockTime, perpToken);
-            (assetCashWitholding, ifCashBitmap) = withholdAndSetfCashAssets(
+            (assetCashWithholding, ifCashBitmap) = withholdAndSetfCashAssets(
                 perpToken,
                 currencyId,
                 ifCashBitmap,
-                blockTime,
-                perpToken.lastInitializedTime
+                blockTime
             );
         }
 
         // We do not consider "storedCashBalance" because it may be holding cash that is used to
         // collateralize negative fCash from previous settlements except on the first initialization when
         // we know that there are no fCash assets at all
-        netAssetCashAvailable = perpToken.cashBalance.subNoNeg(assetCashWitholding);
+        netAssetCashAvailable = perpToken.cashBalance.subNoNeg(assetCashWithholding);
 
         // This is the new balance to store
         perpToken.cashBalance = perpToken.cashBalance.subNoNeg(netAssetCashAvailable);
@@ -367,7 +364,6 @@ library InitializeMarketsAction {
             currencyId,
             perpToken.cashGroup.maxMarketIndex
         );
-
 
         MarketParameters memory newMarket;
         // Oracle rate is carried over between loops

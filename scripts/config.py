@@ -34,6 +34,7 @@ CurrencyDefaults = {
     "liquidityRepoDiscount": 40,
     "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
     "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
+    "incentiveEmissionRate": 0.02e9,
 }
 
 PerpetualTokenDefaults = {
@@ -44,7 +45,7 @@ PerpetualTokenDefaults = {
         30,  # negative purchase incentive bps
         95,  # pv haircut
         96,  # time buffer hours
-        50,  # cash witholding
+        50,  # cash withholding
     ],
 }
 

@@ -27,6 +27,8 @@ interface NotionalProxy is PerpetualTokenActionInterface {
     event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
     event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
+    // This is emitted from RedeemPerpetualTokenAction
+    event RedeemPerpetualToken(address indexed redeemer, uint16 currencyId, uint88 tokensRedeemed);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint currencyId, bool isFirstInit) external;
@@ -73,7 +75,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         uint8 negativeResidualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWitholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS
     ) external;
 
     function updateCashGroup(

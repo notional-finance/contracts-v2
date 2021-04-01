@@ -128,10 +128,10 @@ contract GovernanceAction is StorageLayoutV1 {
     function updatePerpetualTokenCollateralParameters(
         uint16 currencyId,
         uint8 positiveResidualPurchaseIncentive10BPS,
-        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 negativeResidualPurchaseIncentive10BPS, // todo: make this just one number
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWitholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS
     ) external onlyOwner {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
@@ -142,7 +142,7 @@ contract GovernanceAction is StorageLayoutV1 {
             negativeResidualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
-            cashWitholdingBuffer10BPS
+            cashWithholdingBuffer10BPS
         );
         emit UpdatePerpetualTokenCollateralParameters(currencyId);
     }

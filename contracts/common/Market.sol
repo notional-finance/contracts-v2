@@ -636,9 +636,6 @@ library Market {
         market.storageSlot = slot;
         market.maturity = maturity;
         market.totalfCash = int(uint80(uint(data)));
-        // TODO: compound exchange rates between cash and cToken vary between ~50 to 200. we should account
-        // for a buffer of like 100,000x here to be safe
-        // TODO: bump total current cash to uint88, that means also bump total liquidity
         market.totalCurrentCash = int(uint80(uint(data >> 80)));
         market.lastImpliedRate = uint(uint32(uint(data >> 160)));
         market.oracleRate = uint(uint32(uint(data >> 192)));

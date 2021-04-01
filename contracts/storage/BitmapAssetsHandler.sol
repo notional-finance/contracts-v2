@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../common/AssetRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetHandler.sol";
 import "../common/PerpetualToken.sol";
@@ -14,6 +15,7 @@ library BitmapAssetsHandler {
     using SafeInt256 for int;
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
+    using AssetRate for AssetRateParameters;
 
     uint internal constant IFCASH_STORAGE_SLOT = 3;
 
@@ -258,28 +260,32 @@ library BitmapAssetsHandler {
      * that we are going to need to withold some amount of cash so that market makers can purchase and
      * clear the debts off the balance sheet.
      */
-    function getPerpetualTokenNegativefCashWitholding(
+    function getPerpetualTokenNegativefCashWithholding(
         PerpetualTokenPortfolio memory perpToken,
-        uint nextSettleTime,
         uint blockTime,
         bytes32 assetsBitmap
     ) internal view returns (int) {
-        int totalCashWitholding;
+        int totalCashWithholding;
         uint bitNum = 1;
-        // This buffer is denominated in 10 basis point increments. It is used to shift the witholding rate to ensure
+        // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
         // that sufficient cash is withheld for negative fCash balances.
-        uint oracleRateBuffer = uint(uint8(perpToken.parameters[PerpetualToken.CASH_WITHOLDING_BUFFER])) * 10 * Market.BASIS_POINT;
+        uint oracleRateBuffer = uint(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) * 10 * Market.BASIS_POINT;
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                uint maturity = CashGroup.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
                 int notional = getifCashNotional(perpToken.tokenAddress, perpToken.cashGroup.currencyId, maturity);
 
                 if (notional < 0) {
-                    uint oracleRate = perpToken.cashGroup.getOracleRate(perpToken.markets, maturity, blockTime);
+                    (
+                        uint marketIndex,
+                        bool idiosyncratic
+                    ) = perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
+                    require(!idiosyncratic); // dev: fail on market index
+                    uint oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
                     oracleRate = oracleRate.add(oracleRateBuffer);
 
-                    totalCashWitholding.sub(AssetHandler.getPresentValue(
+                    totalCashWithholding = totalCashWithholding.sub(AssetHandler.getPresentValue(
                         notional,
                         maturity,
                         blockTime,
@@ -292,6 +298,6 @@ library BitmapAssetsHandler {
             bitNum += 1;
         }
 
-        return totalCashWitholding;
+        return perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalCashWithholding);
     }
 }

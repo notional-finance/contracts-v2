@@ -21,6 +21,8 @@ contract RedeemPerpetualTokenAction {
     using AccountContextHandler for AccountStorage;
     using PerpetualToken for PerpetualTokenPortfolio;
 
+    event RedeemPerpetualToken(address indexed redeemer, uint16 currencyId, uint88 tokensRedeemed);
+
     /**
      * @notice When redeeming perpetual tokens via the batch they must all be sold to cash and this
      * method will return the amount of asset cash sold.
@@ -84,6 +86,8 @@ contract RedeemPerpetualTokenAction {
 
         redeemerBalance.finalize(redeemer, redeemerContext, false);
         redeemerContext.setAccountContext(redeemer);
+
+        emit RedeemPerpetualToken(redeemer, currencyId, tokensToRedeem_);
 
         if (redeemerContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
@@ -265,7 +269,8 @@ contract RedeemPerpetualTokenAction {
                 int fee
             ) = markets[i].calculateTrade(
                 cashGroup,
-                fCashAssets[fCashIndex].notional,
+                // Use the negative of fCash notional here since we want to net it out
+                fCashAssets[fCashIndex].notional.neg(),
                 fCashAssets[fCashIndex].maturity.sub(blockTime),
                 i + 1
             );

@@ -74,9 +74,9 @@ class TestEnvironment:
                 GovernanceConfig["initialBalances"]["MULTISIG"],
                 {"from": self.deployer},
             )
-        else:
-            # Transfer some initial supply for minting
-            self.noteERC20.transfer(self.proxy.address, 1_000_000e8, {"from": self.deployer})
+
+        # Transfer some initial supply for minting
+        self.noteERC20.transfer(self.proxy.address, 1_000_000e8, {"from": self.deployer})
 
         self.startTime = chain.time()
 

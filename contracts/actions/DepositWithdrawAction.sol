@@ -25,7 +25,6 @@ enum DepositActionType {
 struct BalanceAction {
     DepositActionType actionType;
     uint16 currencyId;
-    // TODO: maybe make this just bytes to save gas
     uint depositActionAmount;
     uint withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;
@@ -35,7 +34,6 @@ struct BalanceAction {
 struct BalanceActionWithTrades {
     DepositActionType actionType;
     uint16 currencyId;
-    // TODO: maybe make this just bytes to save gas
     uint depositActionAmount;
     uint withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;

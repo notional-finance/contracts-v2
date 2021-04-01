@@ -36,7 +36,7 @@ library PerpetualToken {
     using SafeMath for uint;
 
     int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
-    uint8 internal constant CASH_WITHOLDING_BUFFER = 0;
+    uint8 internal constant CASH_WITHHOLDING_BUFFER = 0;
     uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 1;
     uint8 internal constant PV_HAIRCUT_PERCENTAGE = 2;
     uint8 internal constant NEGATIVE_RESIDUAL_PURCHASE_INCENTIVE = 3;
@@ -105,7 +105,7 @@ library PerpetualToken {
         uint8 negativeResidualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWitholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS
     ) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
@@ -120,7 +120,7 @@ library PerpetualToken {
             bytes32(uint(negativeResidualPurchaseIncentive10BPS)) << 8  |
             bytes32(uint(pvHaircutPercentage))                    << 16 |
             bytes32(uint(residualPurchaseTimeBufferHours))        << 24 |
-            bytes32(uint(cashWitholdingBuffer10BPS))              << 32
+            bytes32(uint(cashWithholdingBuffer10BPS))              << 32
         );
         data = data | bytes32(parameters) << 184;
         assembly { sstore(slot, data) }

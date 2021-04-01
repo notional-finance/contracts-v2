@@ -25,6 +25,7 @@ def check_system_invariants(env, accounts):
     check_perp_token(env, accounts)
     check_portfolio_invariants(env, accounts)
     check_account_context(env, accounts)
+    check_token_incentive_balance(env, accounts)
 
 
 def computed_settled_asset_cash(env, asset, currencyId, symbol):
@@ -281,3 +282,18 @@ def check_account_context(env, accounts):
             assert context[1] == HAS_BOTH_DEBT or context[1] == HAS_ASSET_DEBT
         elif hasCashDebt:
             assert context[1] == HAS_CASH_DEBT
+
+
+def check_token_incentive_balance(env, accounts):
+    totalTokenBalance = 0
+
+    for account in accounts:
+        totalTokenBalance += env.noteERC20.balanceOf(account)
+
+    totalTokenBalance += env.noteERC20.balanceOf(env.notional.address)
+
+    if hasattr(env, "governor"):
+        totalTokenBalance += env.noteERC20.balanceOf(env.governor.address)
+        totalTokenBalance += env.noteERC20.balanceOf(env.multisig.address)
+
+    assert totalTokenBalance == 100000000e8

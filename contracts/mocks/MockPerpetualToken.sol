@@ -123,7 +123,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint8 negativeResidualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWitholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS
     ) external {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
@@ -134,7 +134,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
             negativeResidualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
-            cashWitholdingBuffer10BPS
+            cashWithholdingBuffer10BPS
         );
     }
 }

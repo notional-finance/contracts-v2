@@ -432,6 +432,7 @@ def initialize_environment(accounts):
     env.notional.updatePerpetualTokenCollateralParameters(
         currencyId, *(PerpetualTokenDefaults["Collateral"])
     )
+    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],
         [
@@ -453,6 +454,7 @@ def initialize_environment(accounts):
     env.notional.updatePerpetualTokenCollateralParameters(
         currencyId, *(PerpetualTokenDefaults["Collateral"])
     )
+    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],
         [
