@@ -283,7 +283,11 @@ library BitmapAssetsHandler {
                     ) = perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
                     require(!idiosyncratic); // dev: fail on market index
                     uint oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
-                    oracleRate = oracleRate.add(oracleRateBuffer);
+                    if (oracleRateBuffer > oracleRate) {
+                        oracleRate = 0;
+                    } else {
+                        oracleRate = oracleRate.sub(oracleRateBuffer);
+                    }
 
                     totalCashWithholding = totalCashWithholding.sub(AssetHandler.getPresentValue(
                         notional,

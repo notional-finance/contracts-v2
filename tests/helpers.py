@@ -376,8 +376,16 @@ def get_trade_action(**kwargs):
         )
     elif tradeActionType == "MintCashPair":
         pass
-    elif tradeActionType == "PurchaseIdiosyncratic":
-        pass
+    elif tradeActionType == "PurchasePerpetualTokenResidual":
+        return encode_abi_packed(
+            ["uint8", "uint32", "int88", "uint128"],
+            [
+                TRADE_ACTION_TYPE[tradeActionType],
+                kwargs["maturity"],
+                int(kwargs["fCashAmountToPurchase"]),
+                0,
+            ],
+        )
     elif tradeActionType == "SettleCashDebt":
         return encode_abi_packed(
             ["uint8", "address", "uint88"],

@@ -32,7 +32,7 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     assert parameters == "0x000000000000"
 
     perpetualToken.setIncentiveEmissionRate(tokenAddress, 0.01e9)
-    perpetualToken.updatePerpetualTokenCollateralParameters(currencyId, 40, 41, 95, 96, 50)
+    perpetualToken.updatePerpetualTokenCollateralParameters(currencyId, 40, 95, 96, 50)
 
     (
         currencyIdStored,
@@ -48,9 +48,8 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     assert bytearray(parameters)[0] == 50
     assert bytearray(parameters)[1] == 96
     assert bytearray(parameters)[2] == 95
-    assert bytearray(parameters)[3] == 41
-    assert bytearray(parameters)[4] == 40
-    assert bytearray(parameters)[5] == 0
+    assert bytearray(parameters)[3] == 40
+    assert bytearray(parameters)[4] == 0
 
     perpetualToken.setArrayLengthAndInitializedTime(tokenAddress, 5, START_TIME)
 
@@ -68,9 +67,8 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     assert bytearray(parameters)[0] == 50
     assert bytearray(parameters)[1] == 96
     assert bytearray(parameters)[2] == 95
-    assert bytearray(parameters)[3] == 41
-    assert bytearray(parameters)[4] == 40
-    assert bytearray(parameters)[5] == 5
+    assert bytearray(parameters)[3] == 40
+    assert bytearray(parameters)[4] == 5
 
     perpetualToken.changePerpetualTokenSupply(tokenAddress, 1e8)
     (
@@ -87,9 +85,8 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     assert bytearray(parameters)[0] == 50
     assert bytearray(parameters)[1] == 96
     assert bytearray(parameters)[2] == 95
-    assert bytearray(parameters)[3] == 41
-    assert bytearray(parameters)[4] == 40
-    assert bytearray(parameters)[5] == 5
+    assert bytearray(parameters)[3] == 40
+    assert bytearray(parameters)[4] == 5
 
     perpetualToken.changePerpetualTokenSupply(tokenAddress, -0.5e8)
     (
@@ -106,9 +103,8 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     assert bytearray(parameters)[0] == 50
     assert bytearray(parameters)[1] == 96
     assert bytearray(parameters)[2] == 95
-    assert bytearray(parameters)[3] == 41
-    assert bytearray(parameters)[4] == 40
-    assert bytearray(parameters)[5] == 5
+    assert bytearray(parameters)[3] == 40
+    assert bytearray(parameters)[4] == 5
 
     with brownie.reverts():
         perpetualToken.changePerpetualTokenSupply(tokenAddress, -1e8)
@@ -131,12 +127,13 @@ def test_deposit_parameters_failures(perpetualToken):
         perpetualToken.setDepositParameters(1, [1e8, 100], [100] * 2)
 
 
-@given(maxMarketIndex=strategy("uint", min_value=5, max_value=5))
+@given(maxMarketIndex=strategy("uint", min_value=2, max_value=9))
 def test_deposit_parameters(perpetualToken, maxMarketIndex):
     currencyId = 1
     randNums = [random.random() for i in range(0, maxMarketIndex)]
     basis = sum(randNums)
     depositShares = [math.trunc(r / basis * 1e7) for r in randNums]
+    depositShares[0] = depositShares[0] + (1e8 - sum(depositShares))
     leverageThresholds = [random.randint(1e6, 1e7) for i in range(0, maxMarketIndex)]
 
     perpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds)

@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
@@ -278,7 +279,6 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     pass
 
 
-@pytest.mark.only
 def test_purchase_perp_token_residual_negative(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -319,15 +319,199 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
-    (cashBalance, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
 
-    assert False
+    with brownie.reverts("Insufficient block time"):
+        action = get_balance_trade_action(
+            2,
+            "None",
+            [
+                {
+                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "maturity": ifCashAssetsBefore[2][1],
+                    "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+                }
+            ],
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[2], [action], {"from": accounts[2]}
+        )
+
+    with brownie.reverts("Invalid maturity"):
+        action = get_balance_trade_action(
+            2,
+            "None",
+            [
+                {
+                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "maturity": ifCashAssetsBefore[1][1],
+                    "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+                }
+            ],
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[2], [action], {"from": accounts[2]}
+        )
+
+    blockTime = chain.time()
+    # 96 hour buffer period
+    chain.mine(1, timestamp=blockTime + 96 * 3600)
+
+    with brownie.reverts("Invalid amount"):
+        action = get_balance_trade_action(
+            2,
+            "None",
+            [
+                {
+                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "maturity": ifCashAssetsBefore[2][1],
+                    "fCashAmountToPurchase": 100e8,
+                }
+            ],
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[2], [action], {"from": accounts[2]}
+        )
+
+    action = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {
+                "tradeActionType": "PurchasePerpetualTokenResidual",
+                "maturity": ifCashAssetsBefore[2][1],
+                "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+            }
+        ],
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
+
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
+        perpTokenAddress
+    )
+    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (accountCashBalance, _, _) = environment.notional.getAccountBalance(currencyId, accounts[2])
+    accountPortfolio = environment.notional.getAccountPortfolio(accounts[2])
+
+    assert portfolioAfter == portfolioBefore
+    assert accountCashBalance == cashBalanceBefore - cashBalanceAfter
+    assert accountPortfolio[0][0:3] == ifCashAssetsBefore[2][0:3]
+    assert len(ifCashAssetsAfter) == 3
 
     check_system_invariants(environment, accounts)
 
 
 def test_purchase_perp_token_residual_positive(environment, accounts):
-    pass
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the one year market
+    cashGroup[0] = 3
+    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updatePerpetualDepositParameters(
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    # Do some trading to leave some perp token residual
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=10e18)
+
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+        depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
+        perpTokenAddress
+    )
+    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+
+    blockTime = chain.time()
+    # 96 hour buffer period
+    chain.mine(1, timestamp=blockTime + 96 * 3600)
+
+    with brownie.reverts("Invalid amount"):
+        action = get_balance_trade_action(
+            2,
+            "None",
+            [
+                {
+                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "maturity": ifCashAssetsBefore[2][1],
+                    "fCashAmountToPurchase": -100e8,
+                }
+            ],
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[2], [action], {"from": accounts[2]}
+        )
+
+    with brownie.reverts("Insufficient cash"):
+        action = get_balance_trade_action(
+            2,
+            "None",
+            [
+                {
+                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "maturity": ifCashAssetsBefore[2][1],
+                    "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+                }
+            ],
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[2], [action], {"from": accounts[2]}
+        )
+
+    # Use a different account
+    action = get_balance_trade_action(
+        2,
+        "DepositAsset",
+        [
+            {
+                "tradeActionType": "PurchasePerpetualTokenResidual",
+                "maturity": ifCashAssetsBefore[2][1],
+                "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+            }
+        ],
+        depositActionAmount=5500e8,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})
+
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
+        perpTokenAddress
+    )
+    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (accountCashBalance, _, _) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    accountPortfolio = environment.notional.getAccountPortfolio(accounts[0])
+
+    assert portfolioAfter == portfolioBefore
+    assert 5500e8 - accountCashBalance == cashBalanceAfter
+    assert accountPortfolio[0][0:3] == ifCashAssetsBefore[2][0:3]
+    assert len(ifCashAssetsAfter) == 3
+
+    check_system_invariants(environment, accounts)
 
 
 def test_transfer_tokens(environment, accounts):

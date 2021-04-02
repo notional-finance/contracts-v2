@@ -45,7 +45,7 @@ library MintPerpetualTokenAction {
         if (perpToken.portfolioState.storedAssets.length == 0) {
             // If the perp token does not have any assets, then the markets must be initialized first.
             perpToken.cashBalance = perpToken.cashBalance.add(amountToDepositInternal);
-            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken.tokenAddress, currencyId, perpToken.cashBalance);
         } else {
             depositIntoPortfolio(perpToken, ifCashBitmap, amountToDepositInternal, blockTime);
         }
@@ -159,7 +159,7 @@ library MintPerpetualTokenAction {
             // Any remaining residual cash will be put into the perpetual token balance and added as liquidity on the
             // next market initialization
             perpToken.cashBalance = perpToken.cashBalance.add(residualCash);
-            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken.tokenAddress, perpToken.cashGroup.currencyId, perpToken.cashBalance);
         }
     }
 

@@ -323,14 +323,12 @@ library BalanceHandler {
      * @notice Special method for setting balance storage for perp token
      */
     function setBalanceStorageForPerpToken(
-        PerpetualTokenPortfolio memory perpToken
+        address perpTokenAddress,
+        uint currencyId,
+        int cashBalance
     ) internal {
-        require(perpToken.cashBalance >= 0); // dev: invalid perp token cash balance
-        setBalanceStorage(
-            perpToken.tokenAddress,
-            perpToken.cashGroup.currencyId,
-            perpToken.cashBalance, 0, 0
-        );
+        require(cashBalance >= 0); // dev: invalid perp token cash balance
+        setBalanceStorage(perpTokenAddress, currencyId, cashBalance, 0, 0);
     }
 
     function incrementFeeToReserve(

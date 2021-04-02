@@ -505,7 +505,7 @@ library InitializeMarketsAction {
             uint8 assetArrayLength,
             /* nextSettleTime */
         ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
-        BalanceHandler.setBalanceStorageForPerpToken(perpToken);
+        BalanceHandler.setBalanceStorageForPerpToken(perpToken.tokenAddress, currencyId, perpToken.cashBalance);
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);
         PerpetualToken.setArrayLengthAndInitializedTime(
             perpToken.tokenAddress,

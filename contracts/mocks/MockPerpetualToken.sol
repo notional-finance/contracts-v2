@@ -16,13 +16,13 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
     function getPerpetualTokenContext(
         address tokenAddress
-    ) external view returns (uint, uint, uint, uint, bytes6) {
+    ) external view returns (uint, uint, uint, uint, bytes5) {
         (
             uint currencyId,
             uint totalSupply,
             uint incentiveRate,
             uint lastInitializedTime,
-            bytes6 parameters
+            bytes5 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
@@ -119,8 +119,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
     function updatePerpetualTokenCollateralParameters(
         uint16 currencyId,
-        uint8 positiveResidualPurchaseIncentive10BPS,
-        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS
@@ -130,8 +129,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
         PerpetualToken.setPerpetualTokenCollateralParameters(
             perpTokenAddress,
-            positiveResidualPurchaseIncentive10BPS,
-            negativeResidualPurchaseIncentive10BPS,
+            residualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
             cashWithholdingBuffer10BPS

@@ -71,8 +71,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
 
     function updatePerpetualTokenCollateralParameters(
         uint16 currencyId,
-        uint8 positiveResidualPurchaseIncentive10BPS,
-        uint8 negativeResidualPurchaseIncentive10BPS,
+        uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS

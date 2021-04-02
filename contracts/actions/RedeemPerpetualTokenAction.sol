@@ -157,7 +157,7 @@ contract RedeemPerpetualTokenAction {
         int assetCashShare = perpToken.cashBalance.mul(tokensToRedeem).div(perpToken.totalSupply);
         if (assetCashShare > 0) {
             perpToken.cashBalance = perpToken.cashBalance.subNoNeg(assetCashShare);
-            BalanceHandler.setBalanceStorageForPerpToken(perpToken);
+            BalanceHandler.setBalanceStorageForPerpToken(perpToken.tokenAddress, perpToken.cashGroup.currencyId, perpToken.cashBalance);
         }
 
         // Get share of liquidity tokens to remove

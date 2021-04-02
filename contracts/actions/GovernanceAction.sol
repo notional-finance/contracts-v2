@@ -127,8 +127,7 @@ contract GovernanceAction is StorageLayoutV1 {
 
     function updatePerpetualTokenCollateralParameters(
         uint16 currencyId,
-        uint8 positiveResidualPurchaseIncentive10BPS,
-        uint8 negativeResidualPurchaseIncentive10BPS, // todo: make this just one number
+        uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS
@@ -138,8 +137,7 @@ contract GovernanceAction is StorageLayoutV1 {
 
         PerpetualToken.setPerpetualTokenCollateralParameters(
             perpTokenAddress,
-            positiveResidualPurchaseIncentive10BPS,
-            negativeResidualPurchaseIncentive10BPS,
+            residualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
             cashWithholdingBuffer10BPS

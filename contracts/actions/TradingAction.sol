@@ -8,6 +8,7 @@ import "./DepositWithdrawAction.sol";
 import "../math/SafeInt256.sol";
 import "../common/Market.sol";
 import "../common/CashGroup.sol";
+import "../common/AssetRate.sol";
 import "../storage/BalanceHandler.sol";
 import "../storage/SettleAssets.sol";
 import "../storage/PortfolioHandler.sol";
@@ -35,6 +36,7 @@ library TradingAction {
     using AccountContextHandler for AccountStorage;
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
+    using AssetRate for AssetRateParameters;
     using SafeInt256 for int;
     using SafeMath for uint;
 
@@ -311,7 +313,7 @@ library TradingAction {
         // It's possible that this action will put an account into negative free collateral. In this case they
         // will immediately become eligible for liquidation and the account settling the debt can also liquidate
         // them in the same transaction. Do not run a free collateral check here to allow this to happen.
-        _placefCashAssetInCounterparty(
+        placefCashAssetInCounterparty(
             counterparty,
             counterpartyContext,
             cashGroup.currencyId,
@@ -350,6 +352,9 @@ library TradingAction {
         uint maturity = uint(uint32(bytes4(trade << 8)));
         int fCashAmountToPurchase = int(int88(bytes11(trade << 40)));
         require(maturity > blockTime, "Invalid maturity");
+        // Require that the residual to purchase does not fall on an existing maturity (i.e.
+        // it is an idiosyncratic maturity)
+        require(!cashGroup.isValidMaturity(maturity, blockTime), "Invalid maturity");
 
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(cashGroup.currencyId);
         (
@@ -357,7 +362,7 @@ library TradingAction {
             /* totalSupply */,
             /* incentiveRate */,
             uint lastInitializedTime,
-            bytes6 parameters
+            bytes5 parameters
         ) = PerpetualToken.getPerpetualTokenContext(perpTokenAddress);
 
         require(
@@ -377,20 +382,7 @@ library TradingAction {
             revert("Invalid amount");
         }
 
-        {
-            bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(perpTokenAddress, cashGroup.currencyId);
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
-                perpTokenAddress,
-                cashGroup.currencyId,
-                maturity,
-                lastInitializedTime,
-                notional.sub(fCashAmountToPurchase),
-                ifCashBitmap
-            );
-            BitmapAssetsHandler.setAssetsBitmap(perpTokenAddress, cashGroup.currencyId, ifCashBitmap);
-        }
-
-        int netAssetCash = getResidualPrice(
+        int netAssetCashPerpToken = getResidualPrice(
             cashGroup,
             markets,
             maturity,
@@ -399,7 +391,16 @@ library TradingAction {
             parameters
         );
 
-        return (maturity, netAssetCash, fCashAmountToPurchase);
+        updatePerpTokenPortfolio(
+            perpTokenAddress,
+            cashGroup,
+            maturity,
+            lastInitializedTime,
+            fCashAmountToPurchase,
+            netAssetCashPerpToken
+        );
+
+        return (maturity, netAssetCashPerpToken.neg(), fCashAmountToPurchase);
     }
 
     function getResidualPrice(
@@ -408,24 +409,54 @@ library TradingAction {
         uint maturity,
         uint blockTime,
         int fCashAmount,
-        bytes6 parameters
+        bytes5 parameters
     ) internal view returns (int) {
         uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+        uint purchaseIncentive = uint(uint8(parameters[PerpetualToken.RESIDUAL_PURCHASE_INCENTIVE])) * 10 * Market.BASIS_POINT;
+
         if (fCashAmount > 0) {
-            oracleRate = oracleRate.add(
-                uint(uint8(parameters[PerpetualToken.POSITIVE_RESIDUAL_PURCHASE_INCENTIVE])) * 10 * Market.BASIS_POINT
-            );
+            oracleRate = oracleRate.add(purchaseIncentive);
+        } else if (oracleRate > purchaseIncentive) {
+            oracleRate = oracleRate.sub(purchaseIncentive);
         } else {
-            oracleRate = oracleRate.sub(
-                uint(uint8(parameters[PerpetualToken.NEGATIVE_RESIDUAL_PURCHASE_INCENTIVE])) * 10 * Market.BASIS_POINT
-            );
+            // If the oracle rate is less than the purchase incentive floor the interest rate at zero
+            oracleRate = 0;
         }
 
         int exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
-        return fCashAmount.mul(Market.RATE_PRECISION).div(exchangeRate);
+        return cashGroup.assetRate.convertInternalFromUnderlying(fCashAmount.mul(Market.RATE_PRECISION).div(exchangeRate));
     }
 
-    function _placefCashAssetInCounterparty(
+    function updatePerpTokenPortfolio(
+        address perpTokenAddress,
+        CashGroupParameters memory cashGroup,
+        uint maturity,
+        uint lastInitializedTime,
+        int fCashAmountToPurchase,
+        int netAssetCashPerpToken
+    ) private {
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(perpTokenAddress, cashGroup.currencyId);
+        ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+            perpTokenAddress,
+            cashGroup.currencyId,
+            maturity,
+            lastInitializedTime,
+            fCashAmountToPurchase.neg(),
+            ifCashBitmap
+        );
+        BitmapAssetsHandler.setAssetsBitmap(perpTokenAddress, cashGroup.currencyId, ifCashBitmap);
+
+        (
+            int perpTokenCashBalance,
+            /* perpToken.balanceState.storedPerpetualTokenBalance */,
+            /* lastIncentiveMint */
+        ) = BalanceHandler.getBalanceStorage(perpTokenAddress, cashGroup.currencyId);
+        perpTokenCashBalance = perpTokenCashBalance.add(netAssetCashPerpToken);
+        // This will ensure that the cash balance is not negative
+        BalanceHandler.setBalanceStorageForPerpToken(perpTokenAddress, cashGroup.currencyId, perpTokenCashBalance);
+    }
+
+    function placefCashAssetInCounterparty(
         address counterparty,
         AccountStorage memory counterpartyContext,
         uint currencyId,
@@ -473,7 +504,7 @@ library TradingAction {
 
         require(maturity > blockTime, "Invalid maturity");
         AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
-        _placefCashAssetInCounterparty(
+        placefCashAssetInCounterparty(
             counterparty,
             counterpartyContext,
             cashGroup.currencyId,
