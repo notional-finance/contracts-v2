@@ -39,7 +39,7 @@ library TokenHandler {
 
     int internal constant INTERNAL_TOKEN_PRECISION = 1e8;
     // NOTE: this address is hardcoded in the library, must update this on deployment
-    address constant NOTE_TOKEN_ADDRESS = 0x6b4BDe1086912A6Cb24ce3dB43b3466e6c72AFd3;
+    address constant NOTE_TOKEN_ADDRESS = 0xe25EDE8b52d4DE741Bd61c30060a003f0F1151A5;
 
     /**
      * @notice Gets token data for a particular currency id, if underlying is set to true then returns

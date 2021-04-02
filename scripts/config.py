@@ -34,7 +34,7 @@ CurrencyDefaults = {
     "liquidityRepoDiscount": 40,
     "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
     "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
-    "incentiveEmissionRate": 0.02e9,
+    "incentiveEmissionRate": 0.005e8,
 }
 
 PerpetualTokenDefaults = {

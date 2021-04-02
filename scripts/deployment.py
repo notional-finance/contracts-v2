@@ -76,7 +76,7 @@ class TestEnvironment:
             )
 
         # Transfer some initial supply for minting
-        self.noteERC20.transfer(self.proxy.address, 1_000_000e8, {"from": self.deployer})
+        self.noteERC20.transfer(self.proxy.address, 1000000e8, {"from": self.deployer})
 
         self.startTime = chain.time()
 

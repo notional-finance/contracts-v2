@@ -42,6 +42,11 @@ interface PerpetualTokenActionInterface {
         uint amount
     ) external returns (bool);
 
+    function perpetualTokenMintIncentives(
+        uint16 currencyId,
+        address receiver
+    ) external returns (int);
+
     function perpetualTokenPresentValueAssetDenominated(
         uint16 currencyId
     ) external view returns (int);

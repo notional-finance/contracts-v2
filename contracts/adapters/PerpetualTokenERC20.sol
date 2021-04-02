@@ -49,6 +49,10 @@ contract PerpetualTokenERC20 is IERC20 {
     }
 
     // non-ERC20 methods
+    function mintIncentives(address recipient) external returns (int) {
+        return proxy.perpetualTokenMintIncentives(currencyId, recipient);
+    }
+
     function getPresentValueAssetDenominated() external view returns (int) {
         return proxy.perpetualTokenPresentValueAssetDenominated(currencyId);
     }

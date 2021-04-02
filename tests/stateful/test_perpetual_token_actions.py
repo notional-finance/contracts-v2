@@ -3,7 +3,7 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
-from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER
+from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER
 from tests.helpers import get_balance_action, get_balance_trade_action, initialize_environment
 from tests.stateful.invariants import check_system_invariants
 
@@ -515,8 +515,41 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
 
 
 def test_transfer_tokens(environment, accounts):
-    pass
+    currencyId = 2
+    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
+    assert totalSupplyBefore == environment.perpToken[currencyId].balanceOf(accounts[0])
+    (_, _, accountOneLastMintTime) = environment.notional.getAccountBalance(currencyId, accounts[1])
+    assert accountOneLastMintTime == 0
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
+    txn = environment.perpToken[currencyId].transfer(accounts[1], 100e8)
+
+    assert environment.perpToken[currencyId].totalSupply() == totalSupplyBefore
+    assert environment.perpToken[currencyId].balanceOf(accounts[1]) == 100e8
+    assert environment.perpToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8
+    assert environment.noteERC20.balanceOf(accounts[0]) > 0
+    assert environment.noteERC20.balanceOf(accounts[1]) == 0
+
+    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    (_, _, mintTimeAfterOne) = environment.notional.getAccountBalance(currencyId, accounts[1])
+    assert mintTimeAfterOne == mintTimeAfterZero == txn.timestamp
+
+    check_system_invariants(environment, accounts)
 
 
 def test_mint_incentives(environment, accounts):
-    pass
+    currencyId = 2
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
+    txn = environment.perpToken[currencyId].mintIncentives(accounts[0])
+    balanceBefore = environment.noteERC20.balanceOf(accounts[0])
+    assert balanceBefore > 0
+
+    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    assert mintTimeAfterZero == txn.timestamp
+
+    environment.perpToken[currencyId].mintIncentives(accounts[0])
+    assert environment.noteERC20.balanceOf(accounts[0]) == balanceBefore
+
+    check_system_invariants(environment, accounts)

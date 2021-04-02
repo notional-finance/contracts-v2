@@ -466,8 +466,8 @@ library BalanceHandler {
         uint timeSinceLastMint = blockTime - lastMintTime;
         // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
         // timeSinceLastMint and CashGroup.YEAR are both in seconds
-        // incentiveAnnualEmissionRate is an annualized rate in Market.RATE_PRECISION
-        // tokenPrecision * seconds * ratePrecision / (seconds * ratePrecision * tokenPrecision)
+        // incentiveAnnualEmissionRate is a per currency annualized rate in INTERNAL_TOKEN_PRECISION
+        // tokenPrecision * seconds * tokenPrecision / (seconds * tokenPrecision)
         uint incentivesToMint = perpetualTokenBalance
             .mul(timeSinceLastMint)
             .mul(uint(TokenHandler.INTERNAL_TOKEN_PRECISION))
@@ -475,7 +475,6 @@ library BalanceHandler {
 
         incentivesToMint = incentivesToMint
             .div(CashGroup.YEAR)
-            .div(uint(Market.RATE_PRECISION))
             .div(totalSupply);
 
         return incentivesToMint;
@@ -504,6 +503,23 @@ library BalanceHandler {
         if (balanceState.netPerpetualTokenSupplyChange != 0) {
             PerpetualToken.changePerpetualTokenSupply(tokenAddress, balanceState.netPerpetualTokenSupplyChange);
         }
+    }
+
+    /**
+     * @notice Used when manually minting incentives in PerpetualTokenAction
+     */
+    function mintIncentivesUpdateTime(
+        BalanceState memory balanceState,
+        address account
+    ) internal {
+        mintIncentives(balanceState, account);
+        setBalanceStorage(
+            account,
+            balanceState.currencyId,
+            balanceState.storedCashBalance,
+            balanceState.storedPerpetualTokenBalance,
+            balanceState.lastIncentiveMint
+        );
     }
 
 }

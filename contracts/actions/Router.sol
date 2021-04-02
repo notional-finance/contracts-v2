@@ -99,6 +99,7 @@ contract Router is StorageLayoutV1 {
             sig == PerpetualTokenAction.perpetualTokenTransferApprove.selector ||
             sig == PerpetualTokenAction.perpetualTokenTransfer.selector ||
             sig == PerpetualTokenAction.perpetualTokenTransferFrom.selector ||
+            sig == PerpetualTokenAction.perpetualTokenMintIncentives.selector ||
             sig == PerpetualTokenAction.perpetualTokenTransferApproveAll.selector ||
             sig == PerpetualTokenAction.perpetualTokenPresentValueAssetDenominated.selector ||
             sig == PerpetualTokenAction.perpetualTokenPresentValueUnderlyingDenominated.selector

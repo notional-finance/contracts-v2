@@ -135,6 +135,15 @@ contract PerpetualTokenAction is StorageLayoutV1, PerpetualTokenActionInterface 
         return true;
     }
 
+    function perpetualTokenMintIncentives(
+        uint16 currencyId,
+        address receiver
+    ) override external returns (int) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(receiver);
+        BalanceState memory balanceState = BalanceHandler.buildBalanceState(receiver, currencyId, accountContext);
+        BalanceHandler.mintIncentivesUpdateTime(balanceState, receiver);
+    }
+
     function perpetualTokenPresentValueAssetDenominated(
         uint16 currencyId
     ) override external view returns (int) {
