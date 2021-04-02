@@ -23,25 +23,56 @@ library FreeCollateral {
         address account,
         AccountStorage memory accountContext,
         uint blockTime
-    ) internal returns (int[] memory, CashGroupParameters[] memory) {
-        int[] memory netPortfolioValue;
-        CashGroupParameters[] memory cashGroups;
-        MarketParameters[][] memory marketStates;
+    ) internal returns (int[] memory, CashGroupParameters[] memory, bool) {
+        if (accountContext.bitmapCurrencyId != 0) {
+            CashGroupParameters[] memory cashGroups = new CashGroupParameters[](1);
+            MarketParameters[] memory markets;
+            (cashGroups[0], markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            int[] memory netPortfolioValue = new int[](1);
+            bool updateContext = false;
 
-        if (accountContext.assetArrayLength > 0) {
+            bool bitmapHasDebt;
+            bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            (netPortfolioValue[0], bitmapHasDebt) = BitmapAssetsHandler.getifCashNetPresentValue(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
+                blockTime,
+                assetsBitmap,
+                cashGroups[0],
+                markets,
+                true // risk adjusted
+            );
+
+            // Turns off has debt flag if it has changed
+            bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
+            if (bitmapHasDebt && !contextHasAssetDebt) {
+                accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+                updateContext = true;
+            } else if (!bitmapHasDebt && contextHasAssetDebt) {
+                accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_ASSET_DEBT;
+                updateContext = true;
+            }
+
+            return (netPortfolioValue, cashGroups, updateContext);
+        } else {
             PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-            (cashGroups, marketStates) = getAllCashGroupsStateful(portfolio);
+            (
+                CashGroupParameters[] memory cashGroups,
+                MarketParameters[][] memory marketStates
+            ) = getAllCashGroupsStateful(portfolio);
 
-            netPortfolioValue = AssetHandler.getPortfolioValue(
+            int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
                 portfolio,
                 cashGroups,
                 marketStates,
                 blockTime,
                 true // Must be risk adjusted
             );
-        }
 
-        return (netPortfolioValue, cashGroups);
+            // No need to update context in this branch
+            return (netPortfolioValue, cashGroups, false);
+        }
     }
 
     function getNetPortfolioValueView(
@@ -49,24 +80,42 @@ library FreeCollateral {
         AccountStorage memory accountContext,
         uint blockTime
     ) internal view returns (int[] memory, CashGroupParameters[] memory) {
-        int[] memory netPortfolioValue;
-        CashGroupParameters[] memory cashGroups;
-        MarketParameters[][] memory marketStates;
+        if (accountContext.bitmapCurrencyId != 0) {
+            CashGroupParameters[] memory cashGroups = new CashGroupParameters[](1);
+            MarketParameters[] memory markets;
+            (cashGroups[0], markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
+            int[] memory netPortfolioValue = new int[](1);
 
-        if (accountContext.assetArrayLength > 0) {
+            (netPortfolioValue[0], /* bitmapHasDebt */) = BitmapAssetsHandler.getifCashNetPresentValue(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
+                blockTime,
+                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId),
+                cashGroups[0],
+                markets,
+                true // risk adjusted
+            );
+
+            // No need to update context in this branch
+            return (netPortfolioValue, cashGroups);
+        } else {
             PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-            (cashGroups, marketStates) = getAllCashGroupsView(portfolio);
+            (
+                CashGroupParameters[] memory cashGroups,
+                MarketParameters[][] memory marketStates
+            ) = getAllCashGroupsView(portfolio);
 
-            netPortfolioValue = AssetHandler.getPortfolioValue(
+            int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
                 portfolio,
                 cashGroups,
                 marketStates,
                 blockTime,
                 true // Must be risk adjusted
             );
-        }
 
-        return (netPortfolioValue, cashGroups);
+            return (netPortfolioValue, cashGroups);
+        }
     }
 
     /**

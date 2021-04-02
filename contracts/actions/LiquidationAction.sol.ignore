@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity >0.7.0;
+pragma experimental ABIEncoderV2;
+
+contract LiquidationAction {
+
+    function liquidateDebtCurrency(
+        address liquidateAccount,
+        uint16 debtCurrency,
+        uint maxLiquidateAmount
+    ) external returns (uint) {
+        uint blockTime = block.timestamp;
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors
+        ) = preLiquidationActions(liquidateAccount, debtCurrency, 0, blockTime);
+
+        require(factors.localAvailable < 0, "No local debt");
+
+        int localBenefitRequired = factors.localAssetRequired
+            .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+            .div(factors.localETHRate.buffer);
+
+        // if (hasLiquidityTokens) {
+        //     (int incentivePaid, int netCashChange) = Liquidation.withdrawLiquidityTokens(
+        //         blockTime,
+        //         localBenefitRequired,
+        //         factors.localCashGroup,
+        //         // marketStates,
+        //         // portfoliostate,
+        //         factors.localCashGroup.getLiquidityTokenRepoDiscount()
+        //     );
+        // }
+
+        factors.perpetualTokenValue;
+    }
+
+    // function liquidateCrossCurrency
+    // function liquidatefCashLocalCurrency
+    // function liquidatefCashCrossCurrency
+
+
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint localCurrencyId,
+        uint collateralCurrencyId,
+        uint blockTime
+    ) private returns (AccountStorage memory, LiquidationFactors memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(liquidateAccount);
+
+        if (accountContext.mustSettleAssets()) {
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+        }
+
+        (
+            int[] memory netPortfolioValue,
+            CashGroupParameters[] memory cashGroups,
+            bool mustUpdateContext
+        ) = FreeCollateral.getNetPortfolioValueStateful(account, accountContext, blockTime);
+
+        if (mustUpdateContext) accountContext.setAccountContext(liquidateAccount);
+
+        LiquidationFactors memory factors = Liquidation.getLiquidationFactorsStateful(
+            liquidateAccount,
+            localCurrencyId,
+            collateralCurrencyId,
+            accountContext.getActiveCurrencyBytes(),
+            cashGroups,
+            netPortfolioValue,
+            blockTime
+        );
+
+        return (accountContext, factors);
+    }
+}

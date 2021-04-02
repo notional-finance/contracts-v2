@@ -74,7 +74,6 @@ library Liquidation {
             collateralCurrencyId,
             accountContext.getActiveCurrencyBytes(),
             cashGroups,
-            marketStates,
             netPortfolioValue,
             blockTime
         );
@@ -122,7 +121,6 @@ library Liquidation {
         uint collateralCurrencyId,
         bytes20 currencies,
         CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory marketStates,
         int[] memory netPortfolioValue,
         uint blockTime
     ) internal returns (LiquidationFactors memory) {
@@ -145,10 +143,8 @@ library Liquidation {
                 // fcash value
                 if (currencyId == localCurrencyId) {
                     factors.localCashGroup = cashGroups[groupIndex];
-                    factors.localMarketStates = marketStates[groupIndex];
                 } else if (currencyId == collateralCurrencyId) {
                     factors.collateralCashGroup = cashGroups[groupIndex];
-                    factors.collateralMarketStates = marketStates[groupIndex];
                 }
                 groupIndex += 1;
             } else {
