@@ -79,7 +79,7 @@ library AccountContextHandler {
      * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
      * context active currencies list.
      */
-    function isActiveCurrency(
+    function isActiveInBalances(
         AccountStorage memory accountContext,
         uint currencyId
     ) internal pure returns (bool) {
@@ -89,27 +89,31 @@ library AccountContextHandler {
         if (accountContext.bitmapCurrencyId == currencyId) return true;
 
         while (currencies != ZERO) {
-            if (uint(uint16(bytes2(currencies) & UNMASK_FLAGS)) == currencyId) return true;
+            uint cid = uint(uint16(bytes2(currencies) & UNMASK_FLAGS));
+            bool isActive = bytes2(currencies) & ACTIVE_IN_BALANCES_FLAG == ACTIVE_IN_BALANCES_FLAG;
+
+            if (cid == currencyId && isActive) return true;
             currencies = currencies << 16;
         }
 
         return false;
     }
 
-    function getActiveCurrencyBytes(
-        AccountStorage memory accountContext
-    ) internal pure returns (bytes20) {
-        bytes18 unmaskedCurrencies = accountContext.activeCurrencies & UNMASK_ALL_ACTIVE_CURRENCIES;
-        if (accountContext.bitmapCurrencyId == 0) {
-            return bytes20(unmaskedCurrencies);
-        } else {
-            // TODO: is this correct? Prepend the bitmap currency id if it is set
-            return bytes20(
-                bytes20(bytes2(accountContext.bitmapCurrencyId)) |
-                bytes20(unmaskedCurrencies) >> 16
-            );
-        }
-    }
+    // // TODO: remove
+    // function getActiveCurrencyBytes(
+    //     AccountStorage memory accountContext
+    // ) internal pure returns (bytes20) {
+    //     bytes18 unmaskedCurrencies = accountContext.activeCurrencies & UNMASK_ALL_ACTIVE_CURRENCIES;
+    //     if (accountContext.bitmapCurrencyId == 0) {
+    //         return bytes20(unmaskedCurrencies);
+    //     } else {
+    //         // TODO: is this correct? Prepend the bitmap currency id if it is set
+    //         return bytes20(
+    //             bytes20(bytes2(accountContext.bitmapCurrencyId)) |
+    //             bytes20(unmaskedCurrencies) >> 16
+    //         );
+    //     }
+    // }
 
     /**
      * @notice Iterates through the active currency list and removes, inserts or does nothing

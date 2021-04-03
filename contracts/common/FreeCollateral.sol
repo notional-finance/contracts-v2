@@ -19,217 +19,37 @@ library FreeCollateral {
     using AccountContextHandler for AccountStorage;
     using PerpetualToken for PerpetualTokenPortfolio;
 
-    function getNetPortfolioValueStateful(
+    function getCurrencyBalances(
         address account,
-        AccountStorage memory accountContext,
-        uint blockTime
-    ) internal returns (int[] memory, CashGroupParameters[] memory, bool) {
-        if (accountContext.bitmapCurrencyId != 0) {
-            CashGroupParameters[] memory cashGroups = new CashGroupParameters[](1);
-            MarketParameters[] memory markets;
-            (cashGroups[0], markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
-            int[] memory netPortfolioValue = new int[](1);
-            bool updateContext = false;
-
-            bool bitmapHasDebt;
-            bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-            (netPortfolioValue[0], bitmapHasDebt) = BitmapAssetsHandler.getifCashNetPresentValue(
-                account,
-                accountContext.bitmapCurrencyId,
-                accountContext.nextSettleTime,
-                blockTime,
-                assetsBitmap,
-                cashGroups[0],
-                markets,
-                true // risk adjusted
-            );
-
-            // Turns off has debt flag if it has changed
-            bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
-            if (bitmapHasDebt && !contextHasAssetDebt) {
-                accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
-                updateContext = true;
-            } else if (!bitmapHasDebt && contextHasAssetDebt) {
-                accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_ASSET_DEBT;
-                updateContext = true;
-            }
-
-            return (netPortfolioValue, cashGroups, updateContext);
-        } else {
-            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-            (
-                CashGroupParameters[] memory cashGroups,
-                MarketParameters[][] memory marketStates
-            ) = getAllCashGroupsStateful(portfolio);
-
-            int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
-                portfolio,
-                cashGroups,
-                marketStates,
-                blockTime,
-                true // Must be risk adjusted
-            );
-
-            // No need to update context in this branch
-            return (netPortfolioValue, cashGroups, false);
-        }
-    }
-
-    function getNetPortfolioValueView(
-        address account,
-        AccountStorage memory accountContext,
-        uint blockTime
-    ) internal view returns (int[] memory, CashGroupParameters[] memory) {
-        if (accountContext.bitmapCurrencyId != 0) {
-            CashGroupParameters[] memory cashGroups = new CashGroupParameters[](1);
-            MarketParameters[] memory markets;
-            (cashGroups[0], markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
-            int[] memory netPortfolioValue = new int[](1);
-
-            (netPortfolioValue[0], /* bitmapHasDebt */) = BitmapAssetsHandler.getifCashNetPresentValue(
-                account,
-                accountContext.bitmapCurrencyId,
-                accountContext.nextSettleTime,
-                blockTime,
-                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId),
-                cashGroups[0],
-                markets,
-                true // risk adjusted
-            );
-
-            // No need to update context in this branch
-            return (netPortfolioValue, cashGroups);
-        } else {
-            PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-            (
-                CashGroupParameters[] memory cashGroups,
-                MarketParameters[][] memory marketStates
-            ) = getAllCashGroupsView(portfolio);
-
-            int[] memory netPortfolioValue = AssetHandler.getPortfolioValue(
-                portfolio,
-                cashGroups,
-                marketStates,
-                blockTime,
-                true // Must be risk adjusted
-            );
-
-            return (netPortfolioValue, cashGroups);
-        }
-    }
-
-    /**
-     * @notice Aggregates the portfolio value with cash balances to get the net free collateral value.
-     */
-    function getFreeCollateralStateful(
-        address account,
-        AccountStorage memory accountContext,
-        CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue,
-        uint blockTime
-    ) internal returns (int, bool) {
-        uint groupIndex;
-        int netETHValue;
-        bytes20 currencies = accountContext.getActiveCurrencyBytes();
-        bool hasCashDebt;
-
-        while (currencies != 0) {
-            uint currencyId = uint(uint16(bytes2(currencies)));
+        bytes2 currencyBytes
+    ) internal view returns (int, int) {
+        if (currencyBytes & AccountContextHandler.ACTIVE_IN_BALANCES_FLAG 
+                == AccountContextHandler.ACTIVE_IN_BALANCES_FLAG) {
+            uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
             (
                 int netLocalAssetValue,
-                int perpTokenBalance,
-                /* */
-            ) = BalanceHandler.getBalanceStorage(account, currencyId);
-            hasCashDebt = hasCashDebt || netLocalAssetValue < 0;
-
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateStateful(currencyId);
-            }
-
-            if (perpTokenBalance > 0) {
-                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-                    currencyId
-                );
-                // TODO: this will return an asset rate as well, so we can use it here
-                int perpetualTokenValue = getPerpetualTokenAssetValue(
-                    perpToken,
-                    perpTokenBalance,
-                    blockTime
-                );
-                netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
-            }
-
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
-            int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
-            netETHValue = netETHValue.add(ethValue);
-
-            currencies = currencies << 16;
-        }
-
-        return (netETHValue, hasCashDebt);
-    }
-
-    function getFreeCollateralView(
-        address account,
-        AccountStorage memory accountContext,
-        CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue,
-        uint blockTime
-    ) internal view returns (int) {
-        uint groupIndex;
-        int netETHValue;
-        bytes20 currencies = accountContext.getActiveCurrencyBytes();
-
-        while (currencies != 0) {
-            uint currencyId = uint(uint16(bytes2(currencies)));
-            (
-                int netLocalAssetValue,
-                int perpTokenBalance,
-                /* */
+                int perpetualTokenBalance,
+                /* lastIncentiveMint */
             ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateView(currencyId);
-            }
-
-            if (perpTokenBalance > 0) {
-                PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(
-                    currencyId
-                );
-                // TODO: this will return an asset rate as well, so we can use it here
-                int perpetualTokenValue = getPerpetualTokenAssetValue(
-                    perpToken,
-                    perpTokenBalance,
-                    blockTime
-                );
-                netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
-            }
-
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
-            int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
-            netETHValue = netETHValue.add(ethValue);
-
-            currencies = currencies << 16;
+            return (netLocalAssetValue, perpetualTokenBalance);
         }
 
-        return netETHValue;
+        return (0, 0);
     }
 
     function getPerpetualTokenAssetValue(
-        PerpetualTokenPortfolio memory perpToken,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
         int tokenBalance,
         uint blockTime
     ) internal view returns (int) {
+        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioNoCashGroup(
+            cashGroup.currencyId
+        );
+        perpToken.cashGroup = cashGroup;
+        perpToken.markets = markets;
+
         (int perpTokenPV, /* ifCashBitmap */) = perpToken.getPerpetualTokenPV(blockTime);
 
         return tokenBalance
@@ -240,73 +60,152 @@ library FreeCollateral {
             .div(perpToken.totalSupply);
     }
 
-    /**
-     * @notice Ensures that all cash groups in a set of active assets are in the list of cash groups.
-     * Cash groups can be in the active assets but not loaded yet if they have been previously traded.
-     */
-    function getAllCashGroupsStateful(
-        PortfolioAsset[] memory assets
-    ) internal returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
+
+    function getPortfolioAndPerpTokenValue(
+        bytes2 currencyBytes,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint portfolioIndex,
+        int perpTokenBalance,
+        uint blockTime
+    ) internal view returns (int, uint, bool) {
+        int netAssetValue;
+        bool hasLiquidityTokens;
+
+        if (currencyBytes & AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG == AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG) {
+            (netCashGroupValue, portfolioIndex, hasLiquidityTokens) = AssetHandler.getNetCashGroupValue(
+                portfolio,
+                cashGroup,
+                markets,
+                blockTime,
+                portfolioIndex,
+                true
+            );
+
+            netAssetValue = netAssetValue.add(netCashGroupValue);
+        }
+
+        if (perpTokenBalance > 0) {
+            int perpetualTokenValue = getPerpetualTokenAssetValue(
+                cashGroup,
+                markets,
+                perpTokenBalance,
+                blockTime
+            );
+
+            netAssetValue = netAssetValue.add(perpetualTokenValue);
+        }
+
+        return (netAssetValue, portfolioIndex, hasLiquidityTokens);
+    }
+
+    function getBitmapCurrencyValue(
+        address account,
+        uint currencyId,
+        uint blockTime,
+        AccountStorage memory accountContext
+    ) internal view returns (int, bool) {
         (
-            CashGroupParameters[] memory cashGroups,
-            MarketParameters[][] memory marketStates
-        ) = allocateCashGroupsAndMarkets(assets);
+            CashGroupParameter memory cashGroup,
+            MarketParameters[] memory markets
+        ) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+        bool updateContext = false;
 
-        uint groupIndex;
-        uint lastCurrencyId;
-        for (uint i; i < assets.length; i++) {
-            if (lastCurrencyId != assets[i].currencyId) {
-                (
-                    cashGroups[groupIndex],
-                    marketStates[groupIndex]
-                ) = CashGroup.buildCashGroupStateful(assets[i].currencyId);
-                groupIndex += 1;
-                lastCurrencyId = assets[i].currencyId;
-            }
-        }
-
-        return (cashGroups, marketStates);
-    }
-
-    function getAllCashGroupsView(
-        PortfolioAsset[] memory assets
-    ) internal view returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
         (
-            CashGroupParameters[] memory cashGroups,
-            MarketParameters[][] memory marketStates
-        ) = allocateCashGroupsAndMarkets(assets);
+            int netLocalAssetValue,
+            int perpTokenBalance,
+            /* lastIncentiveMint */
+        ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
-        uint groupIndex;
-        uint lastCurrencyId;
-        for (uint i; i < assets.length; i++) {
-            if (lastCurrencyId != assets[i].currencyId) {
+        if (perpTokenBalance > 0) {
+            int perpetualTokenValue = getPerpetualTokenAssetValue(
+                cashGroup,
+                markets,
+                perpTokenBalance,
+                blockTime
+            );
+            netAssetValue = netAssetValue.add(perpetualTokenValue);
+        }
+
+        bool bitmapHasDebt;
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+        (int netPortfolioValue, bool bitmapHasDebt) = BitmapAssetsHandler.getifCashNetPresentValue(
+            account,
+            accountContext.bitmapCurrencyId,
+            accountContext.nextSettleTime,
+            blockTime,
+            assetsBitmap,
+            cashGroup,
+            markets,
+            true // risk adjusted
+        );
+        netAssetValue = netAssetValue.add(netPortfolioValue);
+
+        // Turns off has debt flag if it has changed
+        bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
+        if (bitmapHasDebt && !contextHasAssetDebt) {
+            accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+            updateContext = true;
+        } else if (!bitmapHasDebt && contextHasAssetDebt) {
+            accountContext.hasDebt = accountContext.hasDebt & ~AccountContextHandler.HAS_ASSET_DEBT;
+            updateContext = true;
+        }
+
+        ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+        int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
+
+        return (ethValue, updateContext);
+    }
+
+    function getFreeCollateralV2(
+        address account,
+        AccountStorage memory accountContext,
+        uint blockTime
+    ) internal returns (int, bool) {
+        int netETHValue;
+        if (accountContext.bitmapCurrencyId != 0) {
+            (netETHValue, updateContext) = getBitmapCurrencyValue(account,
+                blockTime,
+                accountContext
+            );
+        }
+
+        bytes18 currencies = accountContext.activeCurrencies;
+        PortfolioAsset[] memory portfolio;
+        uint portfolioIndex;
+        AssetRateParameters memory assetRate;
+
+        while (currencies != 0) {
+            bytes2 currencyBytes = bytes2(currencies);
+            (int netLocalAssetValue, int perpTokenBalance) = getCurrencyBalances(account, currencyBytes);
+
+            if (currencyBytes & AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG 
+                    == AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG || perpTokenBalance > 0) {
                 (
-                    cashGroups[groupIndex],
-                    marketStates[groupIndex]
-                ) = CashGroup.buildCashGroupView(assets[i].currencyId);
-                groupIndex += 1;
-                lastCurrencyId = assets[i].currencyId;
+                    CashGroupParameters memory cashGroup,
+                    MarketParameters[] memory markets
+                ) = CashGroup.buildCashGroupStateful(currencyId);
+
+                int netAssetValue;
+                (netAssetValue, portfolioIndex, /* hasLiquidityTokens */) = getPortfolioAndPerpTokenValue(
+                    currencyBytes,
+                    cashGroup,
+                    markets,
+                    portfolioIndex,
+                    perpTokenBalance,
+                    blockTime
+                );
+
+                assetRate = cashGroup.assetRate;
+            } else {
+                assetRate = AssetRate.buildAssetRateStateful(currencyId);
             }
+
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+            int ethValue = ethRate.convertToETH(assetRate.convertInternalToUnderlying(netLocalAssetValue));
+            netETHValue = netETHValue.add(ethValue);
+
+            currencies = currencies << 16;
         }
-
-        return (cashGroups, marketStates);
     }
-
-    function allocateCashGroupsAndMarkets(
-        PortfolioAsset[] memory assets
-    ) private pure returns (CashGroupParameters[] memory, MarketParameters[][] memory) {
-        uint groupIndex;
-        uint lastCurrencyId;
-
-        // Count the number of groups
-        for (uint i; i < assets.length; i++) {
-            if (lastCurrencyId != assets[i].currencyId) {
-                groupIndex += 1;
-                lastCurrencyId = assets[i].currencyId;
-            }
-        }
-
-        return (new CashGroupParameters[](groupIndex), new MarketParameters[][](groupIndex));
-    }
-
 }

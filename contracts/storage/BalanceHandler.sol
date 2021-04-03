@@ -401,7 +401,7 @@ library BalanceHandler {
         require(currencyId != 0, "BH: invalid currency id");
         balanceState.currencyId = currencyId;
 
-        if (accountContext.isActiveCurrency(currencyId)) {
+        if (accountContext.isActiveInBalances(currencyId)) {
             (
                 balanceState.storedCashBalance,
                 balanceState.storedPerpetualTokenBalance,
@@ -431,7 +431,7 @@ library BalanceHandler {
         BalanceState memory balanceState;
         balanceState.currencyId = currencyId;
 
-        if (accountContext.isActiveCurrency(currencyId)) {
+        if (accountContext.isActiveInBalances(currencyId)) {
             // Storage Read
             (
                 balanceState.storedCashBalance,
