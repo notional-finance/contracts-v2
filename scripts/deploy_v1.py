@@ -153,17 +153,19 @@ def deploy_v1(v2env):
     contracts["Escrow"].functions.addExchangeRate(
         1, 0, v2env.ethOracle["DAI"].address, int(1.4e18), int(1e18), False
     ).transact({"from": deployer.address})
+
     contracts["Escrow"].functions.listCurrency(
         v2env.token["USDC"].address, [False, False]
     ).transact({"from": deployer.address})
     contracts["Escrow"].functions.addExchangeRate(
-        1, 0, v2env.ethOracle["USDC"].address, int(1.4e18), int(1e18), False
+        2, 0, v2env.ethOracle["USDC"].address, int(1.4e18), int(1e18), False
     ).transact({"from": deployer.address})
+
     contracts["Escrow"].functions.listCurrency(
         v2env.token["WBTC"].address, [False, False]
     ).transact({"from": deployer.address})
     contracts["Escrow"].functions.addExchangeRate(
-        1, 0, v2env.ethOracle["WBTC"].address, int(1.4e18), int(1e18), False
+        3, 0, v2env.ethOracle["WBTC"].address, int(1.4e18), int(1e18), False
     ).transact({"from": deployer.address})
 
     contracts["DaiCashMarket"] = deploy_proxied_contract(
@@ -189,6 +191,29 @@ def deploy_v1(v2env):
         {"from": deployer.address}
     )
 
+    contracts["USDCCashMarket"] = deploy_proxied_contract(
+        "CashMarket",
+        artifacts,
+        deployer,
+        proxyAdmin,
+        contracts,
+        [contracts["Directory"].address, deployer.address],
+    )
+    contracts["USDCCashMarket"].functions.initializeDependencies().transact(
+        {"from": deployer.address}
+    )
+    contracts["Portfolios"].functions.createCashGroup(
+        2, 2592000 * 3, int(1e9), 2, contracts["USDCCashMarket"].address
+    ).transact({"from": deployer.address})
+
+    contracts["USDCCashMarket"].functions.setMaxTradeSize(int(2 ** 127)).transact(
+        {"from": deployer.address}
+    )
+    contracts["USDCCashMarket"].functions.setFee(int(7.5e5), 0).transact({"from": deployer.address})
+    contracts["USDCCashMarket"].functions.setRateFactors(int(1.1e9), 85).transact(
+        {"from": deployer.address}
+    )
+
     # add liquidity
     lp = v2env.deployer
     v2env.token["DAI"].approve(contracts["Escrow"].address, 2 ** 255)
@@ -199,6 +224,16 @@ def deploy_v1(v2env):
     for m in maturities:
         contracts["DaiCashMarket"].functions.addLiquidity(
             m, int(3000000e18), int(3000000e18), 0, int(1e9), 2 ** 31
+        ).transact({"from": lp.address})
+
+    v2env.token["USDC"].approve(contracts["Escrow"].address, 2 ** 255)
+    contracts["Escrow"].functions.deposit(v2env.token["USDC"].address, int(6100000e6)).transact(
+        {"from": lp.address}
+    )
+    maturities = contracts["USDCCashMarket"].functions.getActiveMaturities().call()
+    for m in maturities:
+        contracts["USDCCashMarket"].functions.addLiquidity(
+            m, int(3000000e6), int(3000000e6), 0, int(1e9), 2 ** 31
         ).transact({"from": lp.address})
 
     return contracts

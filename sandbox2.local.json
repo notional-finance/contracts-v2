@@ -1,10 +1,10 @@
 {
     "chainId": 1337,
-    "directory": "0xA335bCc2BE650d7234834A8ffF8C6462C9938D04",
-    "erc1155": "0xEfD583706e7a9a71ac349550cDBC004841162521",
-    "erc1155trade": "0x404C8c49D51A004865b39f9b30fD0AB36d130F8f",
-    "escrow": "0x4C5a7459f73cC0AB04d8B5427A5c6A16fcD0822C",
+    "directory": "0x77782bC61a4bc5b018260C4b64FC73067DE51b80",
+    "erc1155": "0x8941A807A68a81db385E3D91BAB5442Ac44fA253",
+    "erc1155trade": "0x32ba848abEE18b3dEF8520Bb78ee3bE4588e20aD",
+    "escrow": "0xd1b2591FcE72711871b37810fF9A6b355C4f6618",
     "networkName": "unknown",
-    "portfolios": "0x540ED96c3dBDc9bf7DE5D3FceF5B8F44EE077162",
+    "portfolios": "0x99A871be9a84aA9FfdC1fFBe28f2fBd7e9bCB3d4",
     "startBlock": 1
 }
