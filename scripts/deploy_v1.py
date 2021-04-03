@@ -1,6 +1,6 @@
 import json
 
-from brownie import nTransparentUpgradeableProxy
+from brownie import accounts, nTransparentUpgradeableProxy
 from brownie.network import web3
 
 ARTIFACTS = [
@@ -68,7 +68,7 @@ def deploy_contract(name, artifacts, deployer, contracts=None):
 def deploy_v1(v2env):
     artifacts = load_artifacts()
     contracts = {}
-    deployer = v2env.deployer
+    deployer = accounts[9]
     proxyAdmin = v2env.proxyAdmin
 
     contracts["ERC1820Registry"] = deploy_contract("ERC1820Registry", artifacts, deployer)
@@ -190,14 +190,15 @@ def deploy_v1(v2env):
     )
 
     # add liquidity
+    lp = v2env.deployer
     v2env.token["DAI"].approve(contracts["Escrow"].address, 2 ** 255)
     contracts["Escrow"].functions.deposit(v2env.token["DAI"].address, int(6100000e18)).transact(
-        {"from": deployer.address}
+        {"from": lp.address}
     )
     maturities = contracts["DaiCashMarket"].functions.getActiveMaturities().call()
     for m in maturities:
         contracts["DaiCashMarket"].functions.addLiquidity(
             m, int(3000000e18), int(3000000e18), 0, int(1e9), 2 ** 31
-        ).transact({"from": deployer.address})
+        ).transact({"from": lp.address})
 
     return contracts
