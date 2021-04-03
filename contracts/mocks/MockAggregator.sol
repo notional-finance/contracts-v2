@@ -24,6 +24,10 @@ contract MockAggregator {
         return (0, _answer, 0, 0, 0);
     }
 
+    function latestAnswer() external view returns (int256) {
+        return _answer;
+    }
+
     function setAnswer(int256 a) external {
         _answer = a;
         emit AnswerUpdated(a, 0, block.timestamp);
