@@ -9,4 +9,4 @@ ENTRYPOINT [ "node", \
              "--db", "/tmp/chaindb", \
              "--networkId", "1337", \
              "--verbose", \
-             "--mnemonic", "brownie" ]
+             "--mnemonic", "owner dignity sense" ]

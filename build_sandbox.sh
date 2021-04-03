@@ -1,6 +1,6 @@
 #!/bin/bash
 brownie networks delete sandbox
-brownie networks add development sandbox host=http://localhost cmd="ganache-cli" port=8646 db="chaindb" network_id=1337
+brownie networks add development sandbox host=http://localhost cmd="ganache-cli" port=8646 db="chaindb" network_id=1337 mnemonic="owner dignity sense"
 
 rm -Rf chaindb
 mkdir chaindb

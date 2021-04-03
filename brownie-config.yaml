@@ -11,6 +11,7 @@ networks:
   development:
     cmd_settings:
       port: 8646
+      mnemonic: owner dignity sense
   
 
 reports:

@@ -36,7 +36,7 @@ from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, T
 
 chain = Chain()
 
-TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "NonMintable": 3}
+TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
 
 
 class TestEnvironment:
