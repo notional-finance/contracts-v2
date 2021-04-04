@@ -60,6 +60,11 @@ class TestEnvironment:
         else:
             self._deployNoteERC20()
 
+        # First deploy tokens to ensure they are available
+        self._deployMockCurrency("ETH")
+        for symbol in TokenConfig.keys():
+            self._deployMockCurrency(symbol)
+
         self._deployNotional()
 
         if withGovernance:
@@ -183,9 +188,6 @@ class TestEnvironment:
             self.token[symbol] = token
 
     def _deployNotional(self):
-        # This must be deployed to enable Notional
-        self._deployMockCurrency("ETH")
-
         # Deploy Libraries
         FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
@@ -232,7 +234,6 @@ class TestEnvironment:
     def enableCurrency(self, symbol, config):
         currencyId = 1
         if symbol != "ETH":
-            self._deployMockCurrency(symbol)
 
             txn = self.notional.listCurrency(
                 (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),

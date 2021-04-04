@@ -1,22 +1,12 @@
 import json
-from copy import copy
 
 import scripts.deploy_v1
 from brownie import accounts
-from scripts.config import CurrencyDefaults, TokenConfig
 from scripts.deployment import TestEnvironment
 
 
 def main():
-    v2env = TestEnvironment(accounts[0], withGovernance=False, multisig=accounts[0])
-    for symbol in TokenConfig.keys():
-        config = copy(CurrencyDefaults)
-        if symbol == "USDT":
-            config["haircut"] = 0
-
-        # TODO: create a governance version of this enable currency
-        v2env.enableCurrency(symbol, config)
-
+    v2env = TestEnvironment(accounts[0], withGovernance=True, multisig=accounts[0])
     v1env = scripts.deploy_v1.deploy_v1(v2env)
 
     v1contractsFile = {
@@ -37,7 +27,7 @@ def main():
         "deployer": v2env.deployer.address,
         "notional": v2env.notional.address,
         "note": v2env.noteERC20.address,
-        # "governor": v2env.governor.address,
+        "governor": v2env.governor.address,
         "comptroller": v2env.comptroller.address,
         "startBlock": 1,
     }
