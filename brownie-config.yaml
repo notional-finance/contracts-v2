@@ -9,8 +9,9 @@ compiler:
 networks:
   default: development
   development:
-     cmd_settings:
+    cmd_settings:
       port: 8646
+      mnemonic: owner dignity sense
   
 
 reports:

@@ -36,7 +36,7 @@ from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, T
 
 chain = Chain()
 
-TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "NonMintable": 3}
+TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
 
 
 class TestEnvironment:
@@ -59,6 +59,11 @@ class TestEnvironment:
             self._deployGovernance()
         else:
             self._deployNoteERC20()
+
+        # First deploy tokens to ensure they are available
+        self._deployMockCurrency("ETH")
+        for symbol in TokenConfig.keys():
+            self._deployMockCurrency(symbol)
 
         self._deployNotional()
 
@@ -183,9 +188,6 @@ class TestEnvironment:
             self.token[symbol] = token
 
     def _deployNotional(self):
-        # This must be deployed to enable Notional
-        self._deployMockCurrency("ETH")
-
         # Deploy Libraries
         FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
@@ -232,7 +234,6 @@ class TestEnvironment:
     def enableCurrency(self, symbol, config):
         currencyId = 1
         if symbol != "ETH":
-            self._deployMockCurrency(symbol)
 
             txn = self.notional.listCurrency(
                 (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),

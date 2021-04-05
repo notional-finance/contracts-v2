@@ -1,0 +1,10 @@
+{
+    "chainId": 1337,
+    "comptroller": "0xfD2228687374b500664f9706a24FcF2402EF6BA0",
+    "deployer": "0x628029b5b7574296365EEF243f240aF83ffA7111",
+    "governor": "0x7EaEceb29Fb4eB4277E2761cE3607DF3e73f2d3e",
+    "networkName": "unknown",
+    "note": "0x46B2efE8BE4a97F05826264E88148fc083D595BD",
+    "notional": "0xeE5db72Fb832071d84B5B082D353dBeE23CC8d23",
+    "startBlock": 1
+}
