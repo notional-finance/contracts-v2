@@ -368,4 +368,50 @@ library AssetHandler {
 
         return presentValueAsset;
     }
+
+    function getNetCashGroupValue(
+        PortfolioAsset[] memory assets,
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint blockTime,
+        uint portfolioIndex
+    ) internal view returns(int, uint) {
+        int presentValueAsset;
+        int presentValueUnderlying;
+
+        for (uint i = portfolioIndex; i < assets.length; i++) {
+            if (!isLiquidityToken(assets[i].assetType)) continue;
+            if (assets[i].currencyId != cashGroup.currencyId) break;
+
+            (int assetCashClaim, int pv) = getLiquidityTokenValue(
+                assets[i],
+                cashGroup,
+                markets,
+                assets,
+                blockTime,
+                true // risk adjusted
+            );
+
+            presentValueAsset = presentValueAsset.add(assetCashClaim);
+            if (pv != 0) presentValueUnderlying = presentValueUnderlying.add(pv);
+        }
+
+        uint j = portfolioIndex;
+        for (; j < assets.length; j++) {
+            if (assets[j].assetType != FCASH_ASSET_TYPE) continue;
+            if (assets[j].currencyId != cashGroup.currencyId) break;
+            
+            uint maturity = assets[j].maturity;
+            uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+
+            int pv = getRiskAdjustedPresentValue(cashGroup, assets[j].notional, maturity, blockTime, oracleRate);
+            presentValueUnderlying = presentValueUnderlying.add(pv);
+        }
+
+        presentValueAsset =  presentValueAsset.add(
+            cashGroup.assetRate.convertInternalFromUnderlying(presentValueUnderlying)
+        );
+
+        return (presentValueAsset, j);
+    }
 }

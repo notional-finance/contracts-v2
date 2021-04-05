@@ -37,17 +37,11 @@ contract MockAccountContextHandler {
         return accountContext.setAccountContext(account);
     }
 
-    function isActiveCurrency(
+    function isActiveInBalances(
         AccountStorage memory accountContext,
         uint currencyId
     ) external pure returns (bool) {
-        return accountContext.isActiveCurrency(currencyId);
-    }
-
-    function getActiveCurrencyBytes(
-        AccountStorage memory accountContext
-    ) external pure returns (bytes20) {
-        return accountContext.getActiveCurrencyBytes();
+        return accountContext.isActiveInBalances(currencyId);
     }
 
     function clearPortfolioActiveFlags(

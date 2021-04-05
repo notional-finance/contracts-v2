@@ -99,22 +99,6 @@ library AccountContextHandler {
         return false;
     }
 
-    // // TODO: remove
-    // function getActiveCurrencyBytes(
-    //     AccountStorage memory accountContext
-    // ) internal pure returns (bytes20) {
-    //     bytes18 unmaskedCurrencies = accountContext.activeCurrencies & UNMASK_ALL_ACTIVE_CURRENCIES;
-    //     if (accountContext.bitmapCurrencyId == 0) {
-    //         return bytes20(unmaskedCurrencies);
-    //     } else {
-    //         // TODO: is this correct? Prepend the bitmap currency id if it is set
-    //         return bytes20(
-    //             bytes20(bytes2(accountContext.bitmapCurrencyId)) |
-    //             bytes20(unmaskedCurrencies) >> 16
-    //         );
-    //     }
-    // }
-
     /**
      * @notice Iterates through the active currency list and removes, inserts or does nothing
      * to ensure that the active currency list is an ordered byte array of uint16 currency ids
