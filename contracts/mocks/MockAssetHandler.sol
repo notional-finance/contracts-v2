@@ -157,39 +157,19 @@ contract MockAssetHandler is StorageLayoutV1 {
         return (assetValue, pv, fCashAssets);
     }
 
-    function getRiskAdjustedPortfolioValue(
+    function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory markets,
-        uint blockTime
-    ) public view returns(int[] memory) {
-        int[] memory assetValue = AssetHandler.getPortfolioValue(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint blockTime,
+        uint portfolioIndex
+    ) public view returns(int, uint) {
+        return AssetHandler.getNetCashGroupValue(
             assets,
-            cashGroups,
+            cashGroup,
             markets,
             blockTime,
-            // Set risk adjusted to true
-            true
+            portfolioIndex
         );
-
-        return assetValue;
-    }
-
-    function getPortfolioValue(
-        PortfolioAsset[] memory assets,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory markets,
-        uint blockTime
-    ) public view returns(int[] memory) {
-        int[] memory assetValue = AssetHandler.getPortfolioValue(
-            assets,
-            cashGroups,
-            markets,
-            blockTime,
-            // Set risk adjusted to true
-            false
-        );
-
-        return assetValue;
     }
 }

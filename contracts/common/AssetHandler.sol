@@ -240,6 +240,7 @@ library AssetHandler {
         }
 
         // Find the matching fCash asset and net off the value
+        // TODO: we can use the same logic in settlement here, look back one slot, need to pass in the index
         for (uint j; j < fCashAssets.length; j++) {
             if (fCashAssets[j].assetType == FCASH_ASSET_TYPE &&
                 fCashAssets[j].currencyId == liquidityToken.currencyId &&
@@ -272,101 +273,6 @@ library AssetHandler {
 
             return (assetCashClaim, pv);
         }
-    }
-
-    /**
-     * @notice Returns the risk adjusted net portfolio value. Assumes that settle matured assets has already
-     * been called so no assets have matured. Returns an array of present value figures per cash group.
-     *
-     * @dev Assumes that cashGroups and assets are sorted by cash group id. Also
-     * assumes that market states are sorted by maturity within each cash group.
-     */
-    function getPortfolioValue(
-        PortfolioAsset[] memory assets,
-        CashGroupParameters[] memory cashGroups,
-        MarketParameters[][] memory markets,
-        uint blockTime,
-        bool riskAdjusted
-    ) internal view returns(int[] memory) {
-        int[] memory presentValueAsset = new int[](cashGroups.length);
-        int[] memory presentValueUnderlying = new int[](cashGroups.length);
-        uint groupIndex;
-
-        for (uint i; i < assets.length; i++) {
-            if (!isLiquidityToken(assets[i].assetType)) continue;
-            while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // Assets and cash groups are sorted by currency id but there may be gaps
-                // between them currency groups
-                groupIndex += 1;
-                require(groupIndex <= cashGroups.length); // dev: get portfolio value, cash group not found
-            }
-
-            (int assetCashClaim, int pv) = getLiquidityTokenValue(
-                assets[i],
-                cashGroups[groupIndex],
-                markets[groupIndex],
-                assets,
-                blockTime,
-                riskAdjusted
-            );
-
-            presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(assetCashClaim);
-            if (pv != 0) presentValueUnderlying[groupIndex] = presentValueUnderlying[groupIndex].add(pv);
-        }
-
-        groupIndex = 0;
-        for (uint i; i < assets.length; i++) {
-            if (assets[i].assetType != FCASH_ASSET_TYPE) continue;
-            while(assets[i].currencyId != cashGroups[groupIndex].currencyId) {
-                // Assets and cash groups are sorted by currency id but there may be gaps
-                // between them currency groups
-
-                // Convert the PV of the underlying values before we move to the next group index.
-                if (presentValueUnderlying[groupIndex] != 0) {
-                    presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(
-                        cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(
-                            presentValueUnderlying[groupIndex]
-                        )
-                    );
-                }
-                groupIndex += 1;
-                require(groupIndex <= cashGroups.length); // dev: get portfolio value, cash group not found
-            }
-            
-            uint maturity = assets[i].maturity;
-            uint oracleRate = cashGroups[groupIndex].getOracleRate(
-                markets[groupIndex],
-                maturity,
-                blockTime
-            );
-
-            int pv;
-            if (riskAdjusted) {
-                pv = getRiskAdjustedPresentValue(
-                    cashGroups[groupIndex],
-                    assets[i].notional,
-                    maturity,
-                    blockTime,
-                    oracleRate
-                );
-            } else {
-                pv = getPresentValue(
-                    assets[i].notional,
-                    maturity,
-                    blockTime,
-                    oracleRate
-                );
-            }
-
-            presentValueUnderlying[groupIndex] = presentValueUnderlying[groupIndex].add(pv);
-        }
-
-        // This converts the last group which is not caught in the if statement above
-        presentValueAsset[groupIndex] = presentValueAsset[groupIndex].add(
-            cashGroups[groupIndex].assetRate.convertInternalFromUnderlying(presentValueUnderlying[groupIndex])
-        );
-
-        return presentValueAsset;
     }
 
     function getNetCashGroupValue(
