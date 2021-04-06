@@ -20,6 +20,16 @@ struct FreeCollateralFactors {
     AssetRateParameters assetRate;
 }
 
+struct LiquidationFactors {
+    int collateralCash;
+    int collateralAvailable;
+    int collateralPerpetualTokenValue;
+    ETHRate localETHRate;
+    ETHRate collateralETHRate;
+    CashGroupParameters collateralCashGroup;
+    MarketParameters[] collateralMarkets;
+}
+
 library FreeCollateral {
     using SafeInt256 for int;
     using Bitmap for bytes;
@@ -29,17 +39,17 @@ library FreeCollateral {
     using AccountContextHandler for AccountStorage;
     using PerpetualToken for PerpetualTokenPortfolio;
 
-    function isActiveInPortfolio(bytes2 currencyBytes) internal pure returns (bool) {
+    function isActiveInPortfolio(bytes2 currencyBytes) private pure returns (bool) {
         return currencyBytes & AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG == AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG;
     }
 
     /**
-     * @notice Checks if currency balances are active in the account returns then if true
+     * @notice Checks if currency balances are active in the account returns them if true
      */
     function getCurrencyBalances(
         address account,
         bytes2 currencyBytes
-    ) internal view returns (int, int) {
+    ) private view returns (int, int) {
         if (currencyBytes & AccountContextHandler.ACTIVE_IN_BALANCES_FLAG 
                 == AccountContextHandler.ACTIVE_IN_BALANCES_FLAG) {
             uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
@@ -81,68 +91,80 @@ library FreeCollateral {
     }
 
 
+    /**
+     * @notice Calculates portfolio and/or perpetual token values while using the supplied cash groups and
+     * markets. The reason these are grouped together is because they both require storage reads of the same
+     * values.
+     */
     function getPortfolioAndPerpTokenValue(
         FreeCollateralFactors memory factors,
         int perpetualTokenBalance,
         uint blockTime
-    ) internal view returns (int) {
-        int netAssetValue;
+    ) internal view returns (int, int) {
+        int netPortfolioValue;
+        int perpetualTokenValue;
 
         // If the next asset matches the currency id then we need to calculate the cash group value
         if (factors.portfolioIndex < factors.portfolio.length
             && factors.portfolio[factors.portfolioIndex].currencyId == factors.cashGroup.currencyId) {
-            int netCashGroupValue;
-            (netCashGroupValue, factors.portfolioIndex) = AssetHandler.getNetCashGroupValue(
+            (netPortfolioValue, factors.portfolioIndex) = AssetHandler.getNetCashGroupValue(
                 factors.portfolio,
                 factors.cashGroup,
                 factors.markets,
                 blockTime,
                 factors.portfolioIndex
             );
-
-            netAssetValue = netAssetValue.add(netCashGroupValue);
         }
 
         if (perpetualTokenBalance > 0) {
-            int perpetualTokenValue = getPerpetualTokenAssetValue(
+            perpetualTokenValue = getPerpetualTokenAssetValue(
                 factors.cashGroup,
                 factors.markets,
                 perpetualTokenBalance,
                 blockTime
             );
-
-            netAssetValue = netAssetValue.add(perpetualTokenValue);
         }
 
-        return netAssetValue;
+        return (netPortfolioValue, perpetualTokenValue);
     }
 
     /**
-     * @notice Returns the ETH value of the bitmapped currency if it is set. This requires some
-     * special handling since it works differently from a portfolio.
+     * @notice Returns balance values for the bitmapped currency
      */
-    function getBitmapCurrencyValue(
+    function getBitmapBalanceValue(
         address account,
         uint blockTime,
         AccountStorage memory accountContext,
         FreeCollateralFactors memory factors
-    ) internal view {
+    ) internal view returns (int, int) {
+        int perpetualTokenValue;
         (
-            int netLocalAssetValue,
+            int cashBalance,
             int perpTokenBalance,
             /* lastIncentiveMint */
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
         if (perpTokenBalance > 0) {
-            int perpetualTokenValue = getPerpetualTokenAssetValue(
+            perpetualTokenValue = getPerpetualTokenAssetValue(
                 factors.cashGroup,
                 factors.markets,
                 perpTokenBalance,
                 blockTime
             );
-            netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
         }
 
+        return (cashBalance, perpetualTokenValue);
+    }
+
+    /**
+     * @notice Returns portfolio value for the bitmapped currency
+     */
+    function getBitmapPortfolioValue(
+        address account,
+        uint blockTime,
+        AccountStorage memory accountContext,
+        FreeCollateralFactors memory factors
+    ) internal view returns (int) {
         bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
         (int netPortfolioValue, bool bitmapHasDebt) = BitmapAssetsHandler.getifCashNetPresentValue(
             account,
@@ -154,7 +176,6 @@ library FreeCollateral {
             factors.markets,
             true // risk adjusted
         );
-        netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue);
 
         // Turns off has debt flag if it has changed
         bool contextHasAssetDebt = accountContext.hasDebt & AccountContextHandler.HAS_ASSET_DEBT == AccountContextHandler.HAS_ASSET_DEBT;
@@ -166,11 +187,14 @@ library FreeCollateral {
             factors.updateContext = true;
         }
 
-        ETHRate memory ethRate = ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
-        int ethValue = ethRate.convertToETH(factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue));
-        factors.netETHValue = factors.netETHValue.add(ethValue);
+
+        return netPortfolioValue;
     }
 
+    /**
+     * @notice Stateful version of get free collateral, returns the total net ETH value and true or false if the account
+     * context needs to be updated.
+     */
     function getFreeCollateralStateful(
         address account,
         AccountStorage memory accountContext,
@@ -181,7 +205,12 @@ library FreeCollateral {
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
-            getBitmapCurrencyValue(account, blockTime, accountContext, factors);
+            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
+
+            int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
+            factors.netETHValue = ethRate.convertToETH(factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue));
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
         }
@@ -196,8 +225,8 @@ library FreeCollateral {
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
 
-                int netPortfolioValue = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue);
+                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
@@ -222,6 +251,10 @@ library FreeCollateral {
         return (factors.netETHValue, factors.updateContext);
     }
 
+    /**
+     * @notice View version of getFreeCollateral, does not use the stateful version of build cash group and skips
+     * all the update context logic.
+     */
     function getFreeCollateralView(
         address account,
         AccountStorage memory accountContext,
@@ -231,7 +264,12 @@ library FreeCollateral {
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
-            getBitmapCurrencyValue(account, blockTime, accountContext, factors);
+            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
+
+            int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
+            factors.netETHValue = ethRate.convertToETH(factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue));
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
         }
@@ -245,8 +283,8 @@ library FreeCollateral {
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(currencyId);
 
-                int netPortfolioValue = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue);
+                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 factors.assetRate = AssetRate.buildAssetRateView(currencyId);
@@ -260,5 +298,81 @@ library FreeCollateral {
         }
 
         return factors.netETHValue;
+    }
+
+    /**
+     * @notice A version of getFreeCollateral used during liquidation to save off necessary additional information.
+    */
+    function getLiquidationFactors(
+        address account,
+        AccountStorage memory accountContext,
+        uint blockTime,
+        uint collateralCurrencyId
+    ) internal returns (LiquidationFactors memory) {
+        FreeCollateralFactors memory factors;
+        LiquidationFactors memory liquidationFactors;
+
+        if (accountContext.bitmapCurrencyId != 0) {
+            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
+
+            int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
+            factors.netETHValue = ethRate.convertToETH(factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue));
+
+            if (accountContext.bitmapCurrencyId == collateralCurrencyId) {
+                liquidationFactors.collateralCash = netCashBalance;
+                liquidationFactors.collateralCashGroup = factors.cashGroup;
+                liquidationFactors.collateralMarkets = factors.markets;
+                liquidationFactors.collateralPerpetualTokenValue = perpetualTokenValue;
+                liquidationFactors.collateralAvailable = netLocalAssetValue;
+                liquidationFactors.collateralETHRate = ethRate;
+            }
+        } else {
+            factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+        }
+
+        bytes18 currencies = accountContext.activeCurrencies;
+        while (currencies != 0) {
+            bytes2 currencyBytes = bytes2(currencies);
+            uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
+            (int netLocalAssetValue, int perpTokenBalance) = getCurrencyBalances(account, currencyBytes);
+
+            if (currencyId == collateralCurrencyId) {
+                // Initially netLocalAssetValue is just the cash balance, reuse is required to get the stack to cooperate
+                liquidationFactors.collateralCash = netLocalAssetValue;
+            }
+
+            if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
+                (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
+                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
+                factors.assetRate = factors.cashGroup.assetRate;
+
+                if (currencyId == collateralCurrencyId) {
+                    liquidationFactors.collateralCashGroup = factors.cashGroup;
+                    liquidationFactors.collateralMarkets = factors.markets;
+                    liquidationFactors.collateralPerpetualTokenValue = perpetualTokenValue;
+                }
+            } else {
+                factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
+            }
+
+            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+            int ethValue = ethRate.convertToETH(factors.assetRate.convertInternalToUnderlying(netLocalAssetValue));
+            factors.netETHValue = factors.netETHValue.add(ethValue);
+
+            if (currencyId == collateralCurrencyId) {
+                // Here netLocalAssetValue is just the net total value in the current currency
+                liquidationFactors.collateralAvailable = netLocalAssetValue;
+                liquidationFactors.collateralETHRate = ethRate;
+            }
+
+            currencies = currencies << 16;
+        }
+
+        return liquidationFactors;
     }
 }
