@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./StorageLayoutV1.sol";
 import "./BalanceHandler.sol";
+import "./BitmapAssetsHandler.sol";
 import "./PortfolioHandler.sol";
 
 library AccountContextHandler {

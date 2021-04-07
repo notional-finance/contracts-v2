@@ -92,9 +92,12 @@ library Liquidation {
         LiquidationFactors memory factors
     ) private pure returns (int, int) {
         int liquidationDiscount;
-        // TODO: show math here
+        // This calculation returns the amount of benefit that selling collateral for local currency will
+        // be back to the account.
         int benefitRequired = factors.collateralETHRate.convertETHTo(factors.netETHValue.neg())
             .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+            // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
+            // collateral with a zero haircut will have no net benefit back to the liquidated account.
             .div(factors.collateralETHRate.haircut);
 
         if (factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount) {
@@ -116,9 +119,16 @@ library Liquidation {
         int collateralPresentValue,
         int collateralBalanceToSell
     ) private pure returns (int, int) {
+        // Converts collateral present value to the local amount along with the liquidation discount.
+        // exchangeRate = localRate / collateralRate
+        // discountedExchangeRate = exchangeRate / liquidationDiscount
+        //                        = localRate * liquidationDiscount / collateralRate
+        // localToPurchase = collateralPV * discountedExchangeRate
+        // localToPurchase = collateralPV * liquidationDiscount * localRate / collateralRate
         int localToPurchase = collateralPresentValue
             .mul(liquidationDiscount)
             .mul(factors.localETHRate.rateDecimals)
+            // TODO: should this be multiply instead?
             .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
             .div(ExchangeRate.MULTIPLIER_DECIMALS);
 
@@ -201,30 +211,54 @@ library Liquidation {
         // to the next specified fCash asset.
         return 0;
     }
+
+    /**
+     * @notice Liquidates an account by converting their local currency collateral into cash and
+     * eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
+     * on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
+     * encounter this scenario but this method is here for completeness.
+     */
+    function liquidateLocalCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint96 maxPerpetualTokenLiquidation,
+        uint blockTime
+    ) internal returns (BalanceState memory) {
         (
-            int netLocalAssetValue,
-            int perpTokenBalance,
-            /* */
-        ) = BalanceHandler.getBalanceStorage(account, currencyId);
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
 
-        if (perpTokenBalance > 0) {
-            // PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(
-            //     currencyId
-            // );
-            // // TODO: this will return an asset rate as well, so we can use it here
-            // int perpetualTokenValue = FreeCollateral.getPerpetualTokenAssetValue(
-            //     perpToken,
-            //     perpTokenBalance,
-            //     blockTime
-            // );
-            // netLocalAssetValue = netLocalAssetValue.add(perpetualTokenValue);
+        int benefitRequired = factors.localETHRate.convertETHTo(factors.netETHValue.neg())
+            .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+            .div(factors.localETHRate.buffer);
 
-            // if (currencyId == collateralCurrencyId) {
-            //     factors.collateralPerpetualTokenValue = perpetualTokenValue;
-            // }
+        BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+
+        if (hasLiquidityTokens(portfolio, localCurrency)) {
+            // TODO: withdraw liquidity tokens
         }
 
-        return (netLocalAssetValue);
+        // This will not underflow, checked when saving parameters
+        int haircutDiff = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])) -
+                int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])) * CashGroup.PERCENTAGE_DECIMALS;
+
+        // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
+        // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
+        // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
+        int perpetualTokensToLiquidate = benefitRequired
+            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
+            .div(factors.perpetualTokenValue.mul(haircutDiff).div(CashGroup.PERCENTAGE_DECIMALS));
+        
+        perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
+            perpetualTokensToLiquidate,
+            liquidatedBalanceState.storedPerpetualTokenBalance,
+            int(maxPerpetualTokenLiquidation)
+        );
+        liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+
+        return liquidatedBalanceState;
     }
 
     /**
