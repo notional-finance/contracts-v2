@@ -362,7 +362,7 @@ library TradingAction {
             /* totalSupply */,
             /* incentiveRate */,
             uint lastInitializedTime,
-            bytes5 parameters
+            bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(perpTokenAddress);
 
         require(
@@ -409,7 +409,7 @@ library TradingAction {
         uint maturity,
         uint blockTime,
         int fCashAmount,
-        bytes5 parameters
+        bytes6 parameters
     ) internal view returns (int) {
         uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
         uint purchaseIncentive = uint(uint8(parameters[PerpetualToken.RESIDUAL_PURCHASE_INCENTIVE])) * 10 * Market.BASIS_POINT;

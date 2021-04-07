@@ -130,7 +130,8 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWithholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS,
+        uint8 liquidationHaircutPercentage
     ) external onlyOwner {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
@@ -140,7 +141,8 @@ contract GovernanceAction is StorageLayoutV1 {
             residualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
-            cashWithholdingBuffer10BPS
+            cashWithholdingBuffer10BPS,
+            liquidationHaircutPercentage
         );
         emit UpdatePerpetualTokenCollateralParameters(currencyId);
     }

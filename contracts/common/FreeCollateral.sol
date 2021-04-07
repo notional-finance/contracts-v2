@@ -25,6 +25,7 @@ struct LiquidationFactors {
     int localAvailable;
     int collateralAvailable;
     int perpetualTokenValue;
+    bytes6 perpetualTokenParameters;
     ETHRate localETHRate;
     ETHRate collateralETHRate;
     CashGroupParameters cashGroup;
@@ -74,7 +75,7 @@ library FreeCollateral {
         MarketParameters[] memory markets,
         int tokenBalance,
         uint blockTime
-    ) internal view returns (int) {
+    ) internal view returns (int, bytes6) {
         PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioNoCashGroup(
             cashGroup.currencyId
         );
@@ -83,12 +84,14 @@ library FreeCollateral {
 
         (int perpTokenPV, /* ifCashBitmap */) = perpToken.getPerpetualTokenPV(blockTime);
 
-        return tokenBalance
+        int perpTokenHaircutPV = tokenBalance
             .mul(perpTokenPV)
             // Haircut for perpetual token value
             .mul(int(uint8(perpToken.parameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
             .div(CashGroup.PERCENTAGE_DECIMALS)
             .div(perpToken.totalSupply);
+
+        return (perpTokenHaircutPV, perpToken.parameters);
     }
 
 
@@ -101,9 +104,10 @@ library FreeCollateral {
         FreeCollateralFactors memory factors,
         int perpetualTokenBalance,
         uint blockTime
-    ) internal view returns (int, int) {
+    ) internal view returns (int, int, bytes6) {
         int netPortfolioValue;
         int perpetualTokenValue;
+        bytes6 perpTokenParameters;
 
         // If the next asset matches the currency id then we need to calculate the cash group value
         if (factors.portfolioIndex < factors.portfolio.length
@@ -118,7 +122,7 @@ library FreeCollateral {
         }
 
         if (perpetualTokenBalance > 0) {
-            perpetualTokenValue = getPerpetualTokenAssetValue(
+            (perpetualTokenValue, perpTokenParameters) = getPerpetualTokenAssetValue(
                 factors.cashGroup,
                 factors.markets,
                 perpetualTokenBalance,
@@ -126,7 +130,7 @@ library FreeCollateral {
             );
         }
 
-        return (netPortfolioValue, perpetualTokenValue);
+        return (netPortfolioValue, perpetualTokenValue, perpTokenParameters);
     }
 
     /**
@@ -137,8 +141,10 @@ library FreeCollateral {
         uint blockTime,
         AccountStorage memory accountContext,
         FreeCollateralFactors memory factors
-    ) internal view returns (int, int) {
+    ) internal view returns (int, int, bytes6) {
         int perpetualTokenValue;
+        bytes6 perpetualTokenParameters;
+
         (
             int cashBalance,
             int perpTokenBalance,
@@ -146,7 +152,7 @@ library FreeCollateral {
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
         if (perpTokenBalance > 0) {
-            perpetualTokenValue = getPerpetualTokenAssetValue(
+            (perpetualTokenValue, perpetualTokenParameters) = getPerpetualTokenAssetValue(
                 factors.cashGroup,
                 factors.markets,
                 perpTokenBalance,
@@ -154,7 +160,7 @@ library FreeCollateral {
             );
         }
 
-        return (cashBalance, perpetualTokenValue);
+        return (cashBalance, perpetualTokenValue, perpetualTokenParameters);
     }
 
     /**
@@ -206,7 +212,11 @@ library FreeCollateral {
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
-            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            (
+                int netCashBalance,
+                int perpetualTokenValue,
+                /* perpetualTokenParameters */
+            ) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
@@ -226,7 +236,11 @@ library FreeCollateral {
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
 
-                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+                (
+                    int netPortfolioValue,
+                    int perpetualTokenValue,
+                    /* perpTokenParameters */
+                ) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
@@ -265,7 +279,11 @@ library FreeCollateral {
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
-            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            (
+                int netCashBalance,
+                int perpetualTokenValue,
+                /* perpetualTokenParameters */
+            ) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
@@ -283,8 +301,12 @@ library FreeCollateral {
 
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(currencyId);
+                (
+                    int netPortfolioValue,
+                    int perpetualTokenValue,
+                    /* perpTokenParameters */
+                ) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
 
-                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
@@ -316,7 +338,11 @@ library FreeCollateral {
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
-            (int netCashBalance, int perpetualTokenValue) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            (
+                int netCashBalance,
+                int perpetualTokenValue,
+                bytes6 perpetualTokenParameters
+            ) = getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int portfolioBalance = getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int netLocalAssetValue = netCashBalance.add(perpetualTokenValue).add(portfolioBalance);
@@ -332,7 +358,10 @@ library FreeCollateral {
                 liquidationFactors.localETHRate = ethRate;
 
                 // This will be the case during local currency or local fCash liquidation
-                if (collateralCurrencyId == 0) liquidationFactors.perpetualTokenValue = perpetualTokenValue;
+                if (collateralCurrencyId == 0) {
+                    liquidationFactors.perpetualTokenValue = perpetualTokenValue;
+                    liquidationFactors.perpetualTokenParameters = perpetualTokenParameters;
+                }
             }
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
@@ -346,7 +375,11 @@ library FreeCollateral {
 
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
-                (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+                (
+                    int netPortfolioValue,
+                    int perpetualTokenValue,
+                    bytes6 perpTokenParameters
+                ) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
 
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
@@ -355,7 +388,7 @@ library FreeCollateral {
                 if ((currencyId == localCurrencyId && collateralCurrencyId == 0) || currencyId == collateralCurrencyId) {
                     liquidationFactors.cashGroup = factors.cashGroup;
                     liquidationFactors.markets = factors.markets;
-                    // TODO also need to know the haircut percentage here
+                    liquidationFactors.perpetualTokenParameters = perpTokenParameters;
                     liquidationFactors.perpetualTokenValue = perpetualTokenValue;
                 }
             } else {

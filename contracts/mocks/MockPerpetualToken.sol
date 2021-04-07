@@ -16,13 +16,13 @@ contract MockPerpetualToken is StorageLayoutV1 {
 
     function getPerpetualTokenContext(
         address tokenAddress
-    ) external view returns (uint, uint, uint, uint, bytes5) {
+    ) external view returns (uint, uint, uint, uint, bytes6) {
         (
             uint currencyId,
             uint totalSupply,
             uint incentiveRate,
             uint lastInitializedTime,
-            bytes5 parameters
+            bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
 
@@ -122,7 +122,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWithholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS,
+        uint8 liquidationHaircutPercentage
     ) external {
         address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
@@ -132,7 +133,8 @@ contract MockPerpetualToken is StorageLayoutV1 {
             residualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
-            cashWithholdingBuffer10BPS
+            cashWithholdingBuffer10BPS,
+            liquidationHaircutPercentage
         );
     }
 }

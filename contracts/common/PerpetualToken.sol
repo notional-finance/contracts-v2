@@ -20,7 +20,7 @@ struct PerpetualTokenPortfolio {
     int totalSupply;
     int cashBalance;
     uint lastInitializedTime;
-    bytes5 parameters;
+    bytes6 parameters;
     address tokenAddress;
 }
 
@@ -36,18 +36,19 @@ library PerpetualToken {
     using SafeMath for uint;
 
     int internal constant DEPOSIT_PERCENT_BASIS = 1e8;
-    uint8 internal constant CASH_WITHHOLDING_BUFFER = 0;
-    uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 1;
-    uint8 internal constant PV_HAIRCUT_PERCENTAGE = 2;
-    uint8 internal constant RESIDUAL_PURCHASE_INCENTIVE = 3;
-    uint8 internal constant ASSET_ARRAY_LENGTH = 4;
+    uint8 internal constant LIQUIDATION_HAIRCUT_PERCENTAGE = 0;
+    uint8 internal constant CASH_WITHHOLDING_BUFFER = 1;
+    uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 2;
+    uint8 internal constant PV_HAIRCUT_PERCENTAGE = 3;
+    uint8 internal constant RESIDUAL_PURCHASE_INCENTIVE = 4;
+    uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 
     /**
      * @notice Returns an account context object that is specific to perpetual tokens.
      */
     function getPerpetualTokenContext(
         address tokenAddress
-    ) internal view returns (uint, uint, uint, uint, bytes5) {
+    ) internal view returns (uint, uint, uint, uint, bytes6) {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
         assembly { data := sload(slot) }
@@ -56,7 +57,7 @@ library PerpetualToken {
         uint totalSupply = uint(uint96(uint(data >> 16)));
         uint incentiveAnnualEmissionRate = uint(uint32(uint(data >> 112)));
         uint lastInitializedTime = uint(uint32(uint(data >> 144)));
-        bytes5 parameters = bytes5(data << 40);
+        bytes6 parameters = bytes6(data << 32);
 
         return (currencyId, totalSupply, incentiveAnnualEmissionRate, lastInitializedTime, parameters);
     }
@@ -103,24 +104,29 @@ library PerpetualToken {
         uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
-        uint8 cashWithholdingBuffer10BPS
+        uint8 cashWithholdingBuffer10BPS,
+        uint8 liquidationHaircutPercentage
     ) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
         assembly { data := sload(slot) }
 
-        require(pvHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS, "Invalid haircut");
+        require(liquidationHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS, "Invalid haircut");
+        // The pv haircut percentage must be less than the liquidation percentage or else liquidators will not
+        // get profit for liquidating perpetual tokens.
+        require(pvHaircutPercentage < liquidationHaircutPercentage, "Invalid pv haircut");
         // Ensure that the cash withholding buffer is greater than the residual purchase incentive or
         // the perpetual token may not have enough cash to pay accounts to buy its negative ifCash
         require(residualPurchaseIncentive10BPS <= cashWithholdingBuffer10BPS, "Invalid discounts");
 
         // Clear the bytes where collateral parameters will go and OR the data in
-        data = data & 0xFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         bytes32 parameters = (
             bytes32(uint(residualPurchaseIncentive10BPS))        |
             bytes32(uint(pvHaircutPercentage))             << 8  |
             bytes32(uint(residualPurchaseTimeBufferHours)) << 16 |
-            bytes32(uint(cashWithholdingBuffer10BPS))      << 24
+            bytes32(uint(cashWithholdingBuffer10BPS))      << 24 |
+            bytes32(uint(liquidationHaircutPercentage))    << 32
         );
         data = data | bytes32(parameters) << 184;
         assembly { sstore(slot, data) }
@@ -337,7 +343,7 @@ library PerpetualToken {
             uint totalSupply,
             /* incentiveRate */,
             uint lastInitializedTime,
-            bytes5 parameters
+            bytes6 parameters
         ) = getPerpetualTokenContext(perpToken.tokenAddress);
         perpToken.lastInitializedTime = lastInitializedTime;
         perpToken.totalSupply = int(totalSupply);

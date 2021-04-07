@@ -158,7 +158,7 @@ contract Views is StorageLayoutV1 {
             /* uint totalSupply */,
             /* incentiveRate */,
             uint lastInitializedTime,
-            bytes5 parameters
+            bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
 
         return (
