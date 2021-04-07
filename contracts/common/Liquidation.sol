@@ -250,6 +250,8 @@ library Liquidation {
                 liquidatedBalanceState.netCashChange,
                 benefitRequired
             ) = withdrawLocalLiquidityTokens(portfolioState, factors, blockTime, benefitRequired);
+
+            // TODO: either store assets here or externally
         }
 
         // This will not underflow, checked when saving parameters
@@ -273,41 +275,173 @@ library Liquidation {
         return (liquidatedBalanceState, repoIncentivePaid);
     }
 
-    /**
-     * @notice Calculates free collateral and liquidation factors required for the rest of the liquidation
-     * procedure.
-     */
-    function getLiquidationFactorsStateful(
-        address account,
-        uint localCurrencyId,
-        uint collateralCurrencyId,
-        bytes20 currencies,
-        CashGroupParameters[] memory cashGroups,
-        int[] memory netPortfolioValue,
+    function liquidateCollateralCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) internal returns (LiquidationFactors memory) {
-        require(cashGroups.length == netPortfolioValue.length); // dev: missing cash groups
+    ) internal returns (BalanceState memory, int) {
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
+        require(factors.localAvailable < 0, "No local debt");
+        require(factors.collateralAvailable > 0, "No collateral available");
 
-        uint groupIndex;
-        int netETHValue;
-        LiquidationFactors memory factors;
+        (int benefitRequired, int liquidationDiscount) = calculateCrossCurrencyBenefitAndDiscount(factors);
+        (int collateralToRaise, int localToPurchase) = calculateCollateralToRaise(
+            factors,
+            benefitRequired,
+            liquidationDiscount,
+            int(maxCollateralLiquidation)
+        );
 
-        while (currencies != 0) {
-            uint currencyId = uint(uint16(bytes2(currencies)));
-            int netLocalAssetValue = _getBalances(account, currencyId, collateralCurrencyId, factors);
+        BalanceState memory balanceState = BalanceHandler.buildBalanceState(
+            liquidateAccount,
+            collateralCurrency,
+            accountContext
+        );
 
-            AssetRateParameters memory assetRate;
-            if (cashGroups.length > groupIndex && cashGroups[groupIndex].currencyId == currencyId) {
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue[groupIndex]);
-                assetRate = cashGroups[groupIndex].assetRate;
+        int collateralRemaining = calculateCollateralToTransfer(
+            balanceState,
+            portfolio,
+            factors,
+            collateralToRaise,
+            int(maxPerpetualTokenLiquidation),
+            blockTime
+        );
 
-                // Save cash groups and market states for checking liquidity token value and
-                // fcash value
-                if (currencyId == localCurrencyId) {
-                    factors.localCashGroup = cashGroups[groupIndex];
-                } else if (currencyId == collateralCurrencyId) {
-                    factors.collateralCashGroup = cashGroups[groupIndex];
-                }
+        if (collateralToRaise != collateralRemaining) {
+            (/* collateralToRaise */, localToPurchase) = calculateLocalToPurchase(
+                factors,
+                liquidationDiscount,
+                collateralRemaining,
+                collateralRemaining
+            );
+        }
+
+        return (balanceState, localToPurchase);
+    }
+
+    function calculateCollateralToRaise(
+        LiquidationFactors memory factors,
+        int benefitRequired,
+        int liquidationDiscount,
+        int maxCollateralLiquidation
+    ) internal pure returns (int, int) {
+        int collateralToRaise;
+        {
+            // TODO: show math here
+            int denominator = factors.localETHRate.buffer
+                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .div(liquidationDiscount)
+                .sub(factors.collateralETHRate.haircut);
+
+            collateralToRaise = benefitRequired
+                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .div(denominator);
+        }
+
+        collateralToRaise = calculateMaxLiquidationAmount(
+            collateralToRaise,
+            factors.collateralAvailable,
+            0 // will check userSpecifiedAmount below
+        );
+
+        int localToPurchase;
+        (collateralToRaise, localToPurchase) = calculateLocalToPurchase(
+            factors,
+            liquidationDiscount,
+            collateralToRaise,
+            collateralToRaise
+        );
+        
+        // Enforce the user specified max liquidation amount
+        if (collateralToRaise > maxCollateralLiquidation) {
+            collateralToRaise = maxCollateralLiquidation;
+
+            (/* collateralToRaise */, localToPurchase) = calculateLocalToPurchase(
+                factors,
+                liquidationDiscount,
+                collateralToRaise,
+                collateralToRaise
+            );
+        }
+
+        return (collateralToRaise, localToPurchase);
+    }
+
+    function calculateCollateralToTransfer(
+        BalanceState memory balanceState,
+        PortfolioAsset[] memory portfolio,
+        LiquidationFactors memory factors,
+        int collateralToRaise,
+        int maxPerpetualTokenLiquidation,
+        uint blockTime
+    ) internal view returns (int) {
+        int collateralRemaining = collateralToRaise;
+
+        if (balanceState.storedCashBalance > 0) {
+            if (balanceState.storedCashBalance > collateralRemaining) {
+                balanceState.netCashChange = collateralRemaining.neg();
+                collateralRemaining = 0;
+            } else {
+                // Sell off all cash balance and calculate remaining collateral
+                balanceState.netCashChange = balanceState.storedCashBalance.neg();
+                collateralRemaining = collateralRemaining.sub(balanceState.storedCashBalance);
+            }
+        }
+
+        if (hasLiquidityTokens(portfolio, balanceState.currencyId)) {
+            PortfolioState memory portfolioState = PortfolioState({
+                storedAssets: portfolio,
+                newAssets: new PortfolioAsset[](0),
+                lastNewAssetIndex: 0,
+                storedAssetLength: portfolio.length
+            });
+
+            collateralRemaining = withdrawCollateralLiquidityTokens(
+                portfolioState,
+                factors,
+                blockTime,
+                collateralRemaining
+            );
+
+            // TODO: either store assets here or externally
+        }
+
+        // TODO: why does this not account for FC?
+        // collateralToRaise = perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage
+        // perpetualTokenToLiquidate = collateralToRaise / (perpTokenPV * liquidateHaircutPercentage)
+        int perpetualTokenLiquidationHaircut = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE]));
+        int perpetualTokensToLiquidate = collateralRemaining 
+            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
+            .mul(CashGroup.PERCENTAGE_DECIMALS)
+            .div(factors.perpetualTokenValue.mul(perpetualTokenLiquidationHaircut));
+
+        if (maxPerpetualTokenLiquidation > 0 && perpetualTokensToLiquidate > maxPerpetualTokenLiquidation) {
+            perpetualTokensToLiquidate = maxPerpetualTokenLiquidation;
+        }
+
+        if (perpetualTokensToLiquidate > balanceState.storedPerpetualTokenBalance) {
+            perpetualTokensToLiquidate = balanceState.storedPerpetualTokenBalance;
+        }
+
+        balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate;
+        collateralRemaining = collateralRemaining.subNoNeg(
+            // collateralToRaise = perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage
+            perpetualTokensToLiquidate
+                .mul(factors.perpetualTokenValue)
+                .mul(perpetualTokenLiquidationHaircut)
+                .div(CashGroup.PERCENTAGE_DECIMALS)
+                .div(TokenHandler.INTERNAL_TOKEN_PRECISION)
+        );
+
+        return collateralRemaining;
+    }
                 groupIndex += 1;
             } else {
                 assetRate = AssetRate.buildAssetRateStateful(currencyId);
@@ -451,21 +585,20 @@ library Liquidation {
      * haircut amounts, we simply withdraw as much collateral as needed.
      */
     function withdrawCollateralLiquidityTokens(
+        PortfolioState memory portfolioState,
+        LiquidationFactors memory factors,
         uint blockTime,
-        int collateralToWithdraw,
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
-        PortfolioState memory portfolioState
-    ) internal view {
+        int collateralToWithdraw
+    ) internal view returns (int) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
         int collateralRemaining = collateralToWithdraw;
 
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
-            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != cashGroup.currencyId) continue;
+            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != factors.cashGroup.currencyId) continue;
             
-            MarketParameters memory market = cashGroup.getMarket(marketStates, asset.assetType - 1, blockTime, true);
+            MarketParameters memory market = factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
             (int cashClaim, int fCashClaim) = asset.getCashClaims(market);
 
             if (cashClaim <= collateralRemaining) {
@@ -489,17 +622,17 @@ library Liquidation {
 
             // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
             portfolioState.addAsset(
-                cashGroup.currencyId,
+                factors.cashGroup.currencyId,
                 asset.maturity,
                 AssetHandler.FCASH_ASSET_TYPE,
                 fCashClaim,
                 false
             );
 
-            if (collateralRemaining == 0) return;
+            if (collateralRemaining == 0) return 0;
         }
 
-        require(collateralRemaining == 0, "L: liquidation failed");
+        return collateralRemaining;
     }
 
 }
