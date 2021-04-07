@@ -36,7 +36,7 @@ library Liquidation {
         uint localCurrency,
         uint collateralCurrency,
         uint blockTime
-    ) private returns (AccountStorage memory, LiquidationFactors memory, PortfolioAsset[] memory) {
+    ) private returns (AccountStorage memory, LiquidationFactors memory, PortfolioState memory) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(liquidateAccount);
 
         if (accountContext.mustSettleAssets()) {
@@ -54,7 +54,14 @@ library Liquidation {
             collateralCurrency
         );
 
-        return (accountContext, factors, portfolio);
+        PortfolioState memory portfolioState = PortfolioState({
+            storedAssets: portfolio,
+            newAssets: new PortfolioAsset[](0),
+            lastNewAssetIndex: 0,
+            storedAssetLength: portfolio.length
+        });
+
+        return (accountContext, factors, portfolioState);
     }
 
     /**
@@ -223,11 +230,11 @@ library Liquidation {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) internal returns (BalanceState memory, int) {
+    ) internal returns (BalanceState memory, int, PortfolioState memory) {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
-            PortfolioAsset[] memory portfolio
+            PortfolioState memory portfolio
         ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
 
         int benefitRequired = factors.localETHRate.convertETHTo(factors.netETHValue.neg())
@@ -237,21 +244,12 @@ library Liquidation {
         BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int repoIncentivePaid;
-        if (hasLiquidityTokens(portfolio, localCurrency)) {
-            PortfolioState memory portfolioState = PortfolioState({
-                storedAssets: portfolio,
-                newAssets: new PortfolioAsset[](0),
-                lastNewAssetIndex: 0,
-                storedAssetLength: portfolio.length
-            });
-
+        if (hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
             (
                 repoIncentivePaid,
                 liquidatedBalanceState.netCashChange,
                 benefitRequired
-            ) = withdrawLocalLiquidityTokens(portfolioState, factors, blockTime, benefitRequired);
-
-            // TODO: either store assets here or externally
+            ) = withdrawLocalLiquidityTokens(portfolio, factors, blockTime, benefitRequired);
         }
 
         // This will not underflow, checked when saving parameters
@@ -272,7 +270,7 @@ library Liquidation {
         );
         liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
 
-        return (liquidatedBalanceState, repoIncentivePaid);
+        return (liquidatedBalanceState, repoIncentivePaid, portfolio);
     }
 
     function liquidateCollateralCurrency(
@@ -286,7 +284,7 @@ library Liquidation {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
-            PortfolioAsset[] memory portfolio
+            PortfolioState memory portfolio
         ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
         require(factors.localAvailable < 0, "No local debt");
         require(factors.collateralAvailable > 0, "No collateral available");
@@ -376,7 +374,7 @@ library Liquidation {
 
     function calculateCollateralToTransfer(
         BalanceState memory balanceState,
-        PortfolioAsset[] memory portfolio,
+        PortfolioState memory portfolio,
         LiquidationFactors memory factors,
         int collateralToRaise,
         int maxPerpetualTokenLiquidation,
@@ -395,22 +393,13 @@ library Liquidation {
             }
         }
 
-        if (hasLiquidityTokens(portfolio, balanceState.currencyId)) {
-            PortfolioState memory portfolioState = PortfolioState({
-                storedAssets: portfolio,
-                newAssets: new PortfolioAsset[](0),
-                lastNewAssetIndex: 0,
-                storedAssetLength: portfolio.length
-            });
-
+        if (hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)) {
             collateralRemaining = withdrawCollateralLiquidityTokens(
-                portfolioState,
+                portfolio,
                 factors,
                 blockTime,
                 collateralRemaining
             );
-
-            // TODO: either store assets here or externally
         }
 
         // TODO: why does this not account for FC?
@@ -449,11 +438,11 @@ library Liquidation {
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
         uint blockTime
-    ) internal returns (int[] memory, int) {
+    ) internal returns (int[] memory, int, PortfolioState memory) {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
-            PortfolioAsset[] memory portfolio
+            PortfolioState memory portfolio
         ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
 
         int benefitRequired;
@@ -475,7 +464,7 @@ library Liquidation {
             int notional = getfCashNotional(
                 liquidateAccount,
                 accountContext,
-                portfolio,
+                portfolio.storedAssets,
                 localCurrency,
                 fCashMaturities[i]
             );
@@ -518,7 +507,7 @@ library Liquidation {
             if (benefitRequired <= 0) break;
         }
 
-        return (fCashNotionalTransfers, localToPurchase);
+        return (fCashNotionalTransfers, localToPurchase, portfolio);
     }
 
     function calculateCrossCurrencyfCashToLiquidate(
@@ -581,11 +570,11 @@ library Liquidation {
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
         uint blockTime
-    ) internal returns (int[] memory, int) {
+    ) internal returns (int[] memory, int, PortfolioState memory) {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
-            PortfolioAsset[] memory portfolio
+            PortfolioState memory portfolio
         ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
 
         require(factors.localAvailable < 0, "No local debt");
@@ -599,7 +588,7 @@ library Liquidation {
             int notional = getfCashNotional(
                 liquidateAccount,
                 accountContext,
-                portfolio,
+                portfolio.storedAssets,
                 localCurrency,
                 fCashMaturities[i]
             );
@@ -623,7 +612,7 @@ library Liquidation {
             if (benefitRequired <= 0) break;
         }
 
-        return (fCashNotionalTransfers, totalLocalToPurchase);
+        return (fCashNotionalTransfers, totalLocalToPurchase, portfolio);
     }
 
     /**
