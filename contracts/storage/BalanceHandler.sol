@@ -463,7 +463,7 @@ library BalanceHandler {
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         if (totalSupply == 0) return 0;
 
-        uint timeSinceLastMint = blockTime - lastMintTime;
+        uint timeSinceLastMint = blockTime.sub(lastMintTime);
         // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
         // timeSinceLastMint and CashGroup.YEAR are both in seconds
         // incentiveAnnualEmissionRate is a per currency annualized rate in INTERNAL_TOKEN_PRECISION

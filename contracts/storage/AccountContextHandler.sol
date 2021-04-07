@@ -61,6 +61,8 @@ library AccountContextHandler {
         require(currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
         if (accountContext.bitmapCurrencyId == 0) {
             require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
+            // Account context also cannot have negative cash debts
+            require(accountContext.hasDebt == 0x00, "AC: cannot have debt");
         } else {
             bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
             require(ifCashBitmap == 0, "AC: cannot have assets");

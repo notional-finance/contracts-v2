@@ -6,25 +6,12 @@ import "./AssetHandler.sol";
 import "./FreeCollateral.sol";
 import "./ExchangeRate.sol";
 import "./CashGroup.sol";
+import "../actions/SettleAssetsExternal.sol";
 import "../storage/AccountContextHandler.sol";
+import "../storage/BitmapAssetsHandler.sol";
 import "../storage/PortfolioHandler.sol";
 import "../storage/BalanceHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-
-struct LiquidationFactors {
-    int localAssetRequired;
-    // These are denominated in AssetValue
-    int localAvailable;
-    int collateralAvailable;
-    int collateralPerpetualTokenValue;
-    ETHRate localETHRate;
-    ETHRate collateralETHRate;
-    CashGroupParameters localCashGroup;
-    CashGroupParameters collateralCashGroup;
-    MarketParameters[] localMarketStates;
-    MarketParameters[] collateralMarketStates;
-    bool hasCollateral;
-}
 
 library Liquidation {
     using SafeMath for uint;
@@ -38,53 +25,182 @@ library Liquidation {
     using AccountContextHandler for AccountStorage;
     using Market for MarketParameters;
 
-    int internal constant LIQUIDATION_BUFFER = 1.01e18;
-    int internal constant DUST = 1;
+    int internal constant MAX_LIQUIDATION_PORTION = 40;
+    int internal constant LIQUIDATION_PORTION_DECIMALS = 100;
 
     /**
-     * @notice Calculates liquidation factors, assumes portfolio has already been settled
+     * @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
      */
-    function calculateLiquidationFactors(
-        address account,
-        AccountStorage memory accountContext,
-        PortfolioAsset[] memory portfolio,
-        uint blockTime,
-        uint localCurrencyId,
-        uint collateralCurrencyId
-    ) internal returns (LiquidationFactors memory) {
-        int[] memory netPortfolioValue;
-        CashGroupParameters[] memory cashGroups;
-        MarketParameters[][] memory marketStates;
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint blockTime
+    ) private returns (AccountStorage memory, LiquidationFactors memory, PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(liquidateAccount);
 
-        if (portfolio.length > 0){
-            (cashGroups, marketStates) = FreeCollateral.getAllCashGroupsStateful(portfolio);
-
-            netPortfolioValue = AssetHandler.getPortfolioValue(
-                portfolio,
-                cashGroups,
-                marketStates,
-                blockTime,
-                true // Must be risk adjusted
-            );
+        if (accountContext.mustSettleAssets()) {
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(liquidateAccount);
         }
 
-        return getLiquidationFactorsStateful(
-            account,
-            localCurrencyId,
-            collateralCurrencyId,
-            accountContext.getActiveCurrencyBytes(),
-            cashGroups,
-            netPortfolioValue,
-            blockTime
+        (
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) = FreeCollateral.getLiquidationFactors(
+            liquidateAccount,
+            accountContext,
+            blockTime,
+            localCurrency,
+            collateralCurrency
         );
+
+        return (accountContext, factors, portfolio);
     }
 
-    function _getBalances(
-        address account,
-        uint currencyId,
-        uint collateralCurrencyId,
+    /**
+     * @notice We allow liquidators to purchase up to MAX_LIQUIDATION_PORTION percentage of collateral
+     * assets during liquidation to recollateralize an account as long as it does not also put the account
+     * further into negative free collateral (i.e. constraints on local available and collateral available).
+     * Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
+     * purchase so we also enforce that limit here.
+     */
+    function calculateMaxLiquidationAmount(
+        int initialAmountToLiquidate,
+        int maxTotalBalance,
+        int userSpecifiedMaximum
+    ) private pure returns (int) {
+        int maxAllowedAmount = maxTotalBalance
+            .mul(MAX_LIQUIDATION_PORTION)
+            .div(LIQUIDATION_PORTION_DECIMALS);
+
+        int result = initialAmountToLiquidate;
+
+        if (initialAmountToLiquidate < maxAllowedAmount) {
+            // Allow the liquidator to go up to the max allowed amount
+            result = maxAllowedAmount;
+        }
+
+        if (userSpecifiedMaximum > 0 && result > userSpecifiedMaximum) {
+            // Do not allow liquidation above the user specified maximum
+            result = userSpecifiedMaximum;
+        }
+
+        return result;
+    }
+
+    function calculateCrossCurrencyBenefitAndDiscount(
         LiquidationFactors memory factors
+    ) private pure returns (int, int) {
+        int liquidationDiscount;
+        // TODO: show math here
+        int benefitRequired = factors.collateralETHRate.convertETHTo(factors.netETHValue.neg())
+            .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+            .div(factors.collateralETHRate.haircut);
+
+        if (factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount) {
+            liquidationDiscount = factors.collateralETHRate.liquidationDiscount;
+        } else {
+            liquidationDiscount = factors.localETHRate.liquidationDiscount;
+        }
+
+        return (benefitRequired, liquidationDiscount);
+    }
+
+    /**
+     * @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
+     * is not so large that the account is put further into debt.
+     */
+    function calculateLocalToPurchase(
+        LiquidationFactors memory factors,
+        int liquidationDiscount,
+        int collateralPresentValue,
+        int collateralBalanceToSell
+    ) private pure returns (int, int) {
+        int localToPurchase = collateralPresentValue
+            .mul(liquidationDiscount)
+            .mul(factors.localETHRate.rateDecimals)
+            .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
+            .div(ExchangeRate.MULTIPLIER_DECIMALS);
+
+        if (localToPurchase > factors.localAvailable.neg()) {
+            // If the local to purchase will put the local available into negative territory we
+            // have to cut the collateral purchase amount back. Putting local available into negative
+            // territory will force the liquidated account to incur more debt.
+            collateralBalanceToSell = collateralBalanceToSell
+                .mul(factors.localAvailable.neg())
+                .div(localToPurchase);
+
+            localToPurchase = factors.localAvailable.neg();
+        }
+
+        return (collateralBalanceToSell, localToPurchase);
+    }
+
+    /**
+     * @notice Calculates the two discount factors relevant when liquidating fCash.
+     */
+    function calculatefCashDiscounts(
+        LiquidationFactors memory factors,
+        uint maturity,
+        uint blockTime
+    ) private view returns (int, int) {
+        uint oracleRate = factors.cashGroup.getOracleRate(factors.markets, maturity, blockTime);
+
+        uint timeToMaturity = maturity.sub(blockTime);
+        // This is the discount factor used to calculate the fCash present value during free collateral
+        int riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
+            timeToMaturity,
+            oracleRate.add(factors.cashGroup.getfCashHaircut())
+        );
+        // This is the discount factor that liquidators get to purchase fCash at, will be larger than
+        // the risk adjusted discount factor.
+        int liquidationDiscountFactor = AssetHandler.getDiscountFactor(
+            timeToMaturity,
+            oracleRate.add(factors.cashGroup.getLiquidationfCashHaircut())
+        );
+
+        return (riskAdjustedDiscountFactor, liquidationDiscountFactor);
+    }
+
+    function hasLiquidityTokens(
+        PortfolioAsset[] memory portfolio,
+        uint currencyId
+    ) private pure returns (bool) {
+        for (uint i; i < portfolio.length; i++) {
+            if (portfolio[i].currencyId == currencyId && AssetHandler.isLiquidityToken(portfolio[i].assetType)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function getfCashNotional(
+        address liquidateAccount,
+        AccountStorage memory accountContext,
+        PortfolioAsset[] memory portfolio,
+        uint currencyId,
+        uint maturity
     ) private view returns (int) {
+        if (accountContext.bitmapCurrencyId == currencyId) {
+            int notional = BitmapAssetsHandler.getifCashNotional(liquidateAccount, currencyId, maturity);
+            require(notional > 0, "Invalid fCash asset");
+        }
+
+        for (uint i; i < portfolio.length; i++) {
+            if (portfolio[i].currencyId == currencyId
+                && portfolio[i].assetType == AssetHandler.FCASH_ASSET_TYPE
+                && portfolio[i].maturity == maturity) {
+                require(portfolio[i].notional > 0, "Invalid fCash asset");
+                return portfolio[i].notional;
+            }
+        }
+
+        // If asset is not found then we return zero instead of failing in the case that a previous
+        // liquidation has already liquidated the specified fCash asset. This liquidation can continue
+        // to the next specified fCash asset.
+        return 0;
+    }
         (
             int netLocalAssetValue,
             int perpTokenBalance,
@@ -296,7 +412,6 @@ library Liquidation {
 
     /**
      * @notice Liquidates local liquidity tokens
-     */
     function liquidateLocalLiquidityTokens(
         LiquidationFactors memory factors,
         PortfolioState memory portfolioState,
@@ -317,124 +432,7 @@ library Liquidation {
         // (incentivePaid, netCashChange = (totalCashToAccount - incentivePaid))
         return (withdrawFactors[3], withdrawFactors[4].subNoNeg(withdrawFactors[3]));
     }
-
-    /**
-     * @notice Calculates collateral liquidation, returns localToPurchase and perpetualTokensToTransfer
      */
-    function liquidateCollateral(
-        LiquidationFactors memory factors,
-        BalanceState memory collateralBalanceContext,
-        PortfolioState memory portfolioState,
-        int maxLiquidateAmount,
-        uint blockTime
-    ) internal view returns (int) {
-        require(maxLiquidateAmount >= 0); // dev: invalid max liquidate
-
-        // First determine how much local currency is required for the liquidation.
-        int localToTrade = calculateLocalToTrade(factors);
-
-        if (maxLiquidateAmount != 0 && maxLiquidateAmount < localToTrade) {
-            localToTrade = maxLiquidateAmount;
-        }
-
-        int balanceAdjustment;
-        int collateralCashClaim;
-        if (factors.collateralCashGroup.currencyId != 0) {
-            // Only do this if there is a cash group set for the collateral group, meaning
-            // that they hold liquidity tokens or assets. It's possible that an account is holding
-            // liquidity tokens denominated in collateral terms and we will have to withdraw those
-            // tokens for the liquidation.
-            collateralCashClaim = calculateTokenCashClaims(
-                portfolioState,
-                factors.collateralCashGroup,
-                factors.collateralMarketStates,
-                blockTime
-            );
-        }
-
-        // Since we are not liquidating fCash, we must adjust the collateral available figure to remove
-        // fCash that does not net off negative balances.
-        (factors.collateralAvailable, balanceAdjustment) = calculatePostfCashValue(
-            factors.collateralAvailable,
-            collateralBalanceContext,
-            factors.collateralPerpetualTokenValue,
-            collateralCashClaim
-        );
-        // If there is no collateral available after this then no liquidation is possible.
-        require(factors.collateralAvailable > 0); // dev: no collateral available post fcash
-
-        // Calculates the collateral to sell taking into account what's available in the cash claim
-        (int collateralToSell, int localToPurchase) = calculateCollateralToSell(factors, localToTrade);
-
-        // It's possible that collateralToSell is zero even if localToTrade > 0, this can be caused
-        // by very small amounts of localToTrade
-        if (collateralToSell == 0) return 0;
-
-        return calculateCollateralTransfers(
-            factors,
-            collateralBalanceContext,
-            portfolioState,
-            balanceAdjustment,
-            localToPurchase,
-            collateralToSell,
-            blockTime
-        );
-    }
-
-    function calculateCollateralTransfers(
-        LiquidationFactors memory factors,
-        BalanceState memory collateralBalanceContext,
-        PortfolioState memory portfolioState,
-        int balanceAdjustment,
-        int localToPurchase,
-        int collateralToSell,
-        uint blockTime
-    ) internal view returns (int) {
-        // This figure represents how much cash value of collateral is available to transfer in the
-        // account, not including cash claims in liquidity tokens. The balance adjustment from the
-        // calculatePostfCashValue is used to ensure that negative fCash balances are net off properly
-        // and we do not put the account further undercollateralized.
-        int netAssetCash = collateralBalanceContext.storedCashBalance
-            .add(collateralBalanceContext.netCashChange)
-            .add(balanceAdjustment);
-
-        if (netAssetCash >= collateralToSell) {
-            // Sufficient cash to cover collateral to sell
-            collateralBalanceContext.netAssetTransferInternalPrecision = collateralToSell.neg();
-            return localToPurchase;
-        } else if (netAssetCash > 0) {
-            // Asset cash only partially covers collateral
-            collateralBalanceContext.netAssetTransferInternalPrecision = netAssetCash.neg();
-            collateralToSell = collateralToSell.sub(netAssetCash);
-        }
-
-        // If asset cash is insufficient, perpetual liquidity tokens are next in the liquidation preference.
-        // We calculate the proportional amount based on collateral to sell and return the amount to transfer.
-        if (factors.collateralPerpetualTokenValue >= collateralToSell) {
-            collateralBalanceContext.netPerpetualTokenTransfer = (
-                collateralBalanceContext.storedPerpetualTokenBalance
-                    .mul(collateralToSell)
-                    .div(factors.collateralPerpetualTokenValue).neg()
-            );
-
-            return localToPurchase;
-        } else if (factors.collateralPerpetualTokenValue > 0) {
-            // Transfer all the tokens in this case
-            collateralToSell = collateralToSell.sub(factors.collateralPerpetualTokenValue);
-            collateralBalanceContext.netPerpetualTokenTransfer = collateralBalanceContext.storedPerpetualTokenBalance.neg();
-        }
-
-        // Finally we withdraw liquidity tokens
-        withdrawCollateralLiquidityTokens(
-            blockTime,
-            collateralToSell,
-            factors.collateralCashGroup,
-            factors.collateralMarketStates,
-            portfolioState
-        );
-
-        return localToPurchase;
-    }
 
     /**
      * @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
@@ -490,182 +488,6 @@ library Liquidation {
         }
 
         require(collateralRemaining == 0, "L: liquidation failed");
-    }
-
-    function calculateTokenCashClaims(
-        PortfolioState memory portfolioState,
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
-        uint blockTime
-    ) internal view returns (int) {
-        int totalAssetCash;
-
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (asset.storageState == AssetStorageState.Delete) continue;
-            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != cashGroup.currencyId) continue;
-
-            MarketParameters memory market = cashGroup.getMarket(marketStates, asset.assetType - 1, blockTime, true);
-
-            (int assetCash, /* int fCash */) = asset.getCashClaims(market);
-            totalAssetCash = totalAssetCash.add(assetCash);
-        }
-
-        return totalAssetCash;
-    }
-
-    /**
-     * @notice Adjusts collateral available and collateral balance post fCash value. We do not trade fCash in this
-     * scenario so we want to only allow fCash to net out against negative collateral balance and no more.
-     */
-    function calculatePostfCashValue(
-        int collateralAvailable,
-        BalanceState memory collateralBalanceContext,
-        int collateralPerpetualTokenValue,
-        int collateralCashClaim
-    ) internal pure returns (int, int) {
-        int collateralBalance = collateralBalanceContext.storedCashBalance
-            .add(collateralBalanceContext.netCashChange)
-            .add(collateralPerpetualTokenValue);
-
-        int fCashValue = collateralAvailable
-            .sub(collateralBalance)
-            // Collateral cash claim is not included in the above because we have to calculate how
-            // much cash claim to remove in calculateCollateralToSell
-            .sub(collateralCashClaim); 
-
-        if (fCashValue <= 0) {
-            // If we have negative fCashValue then no adjustments are required.
-            return (collateralAvailable, 0);
-        }
-
-        if (collateralBalance >= 0) {
-            // If payer has a positive collateral balance then we don't need to net off against it. We remove
-            // the fCashValue from net available.
-            return (collateralAvailable.sub(fCashValue), 0);
-        }
-
-        // In these scenarios the payer has a negative collateral balance and we need to partially offset the balance
-        // so that the payer gets the benefit of their positive fCashValue.
-        int netBalanceWithfCashValue = collateralBalance.add(fCashValue);
-        if (netBalanceWithfCashValue > 0) {
-            // We have more fCashValue than required to net out the balance. We remove the excess from collateralNetAvailable
-            // and adjust the netPayerBalance to zero.
-            return (collateralAvailable.sub(netBalanceWithfCashValue), collateralBalance.neg());
-        } else {
-            // We don't have enough fCashValue to net out the balance. collateralNetAvailable is unchanged because it already takes
-            // into account this netting. We adjust the balance to account for fCash only
-            return (collateralAvailable, fCashValue);
-        }
-    }
-
-    /**
-     * @notice Calculates the collateral amount to sell in exchange for local currency, accounting for
-     * the liquidation discount and potential liquidity token claims.
-     */
-    function calculateCollateralToSell(
-        LiquidationFactors memory factors,
-        int localToTrade
-    ) internal pure returns (int, int) {
-        int liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
-            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
-
-        int rate = ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate);
-        int collateralToSell = rate
-            .mul(localToTrade)
-            .mul(liquidationDiscount);
-
-        // TODO: collapse these decimals into one multiply or divide
-        collateralToSell = collateralToSell
-            .div(factors.localETHRate.rateDecimals)
-            .div(ExchangeRate.MULTIPLIER_DECIMALS);
-
-        if (factors.collateralAvailable >= collateralToSell) {
-            // Sufficient collateral available to cover all of local to trade
-            return (collateralToSell, localToTrade);
-        } else {
-            // Insufficient collateral so we calculate the amount required here
-            collateralToSell = factors.collateralAvailable;
-            // This is the inverse of the calculation above
-            int localToPurchase = collateralToSell
-                .mul(factors.localETHRate.rateDecimals);
-            
-            localToPurchase = localToPurchase
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
-                .div(rate)
-                .div(liquidationDiscount);
-
-            return (collateralToSell, localToPurchase);
-        }
-    }
-
-    function calculateLocalToTrade(LiquidationFactors memory factors) internal pure returns (int) {
-        // We calculate the max amount of local currency that the liquidator can trade for here. We set it to the min of the
-        // localAvailable and the localCurrencyToTrade figure calculated below. The math for this figure is as follows:
-
-        // The benefit given to free collateral in local currency terms:
-        //   localCurrencyBenefit = localCurrencyToTrade * localCurrencyBuffer
-        // NOTE: this only holds true while maxLocalCurrencyDebt <= 0
-
-        // The penalty for trading collateral currency in local currency terms:
-        //   localCurrencyPenalty = collateralCurrencyPurchased * exchangeRate[collateralCurrency][localCurrency]
-        //
-        //  netLocalCurrencyBenefit = localCurrencyBenefit - localCurrencyPenalty
-        //
-        // collateralCurrencyPurchased = localCurrencyToTrade * exchangeRate[localCurrency][collateralCurrency] * liquidationDiscount
-        // localCurrencyPenalty = localCurrencyToTrade * exchangeRate[localCurrency][collateralCurrency] * exchangeRate[collateralCurrency][localCurrency] * liquidationDiscount
-        // localCurrencyPenalty = localCurrencyToTrade * liquidationDiscount
-        // netLocalCurrencyBenefit =  localCurrencyToTrade * localCurrencyBuffer - localCurrencyToTrade * liquidationDiscount
-        // netLocalCurrencyBenefit =  localCurrencyToTrade * (localCurrencyBuffer - liquidationDiscount)
-        // localCurrencyToTrade =  netLocalCurrencyBenefit / (buffer - discount)
-        //
-        // localCurrencyRequired is netLocalCurrencyBenefit after removing liquidity tokens
-        // localCurrencyToTrade =  localCurrencyRequired / (buffer - discount)
-        require(factors.localAssetRequired > 0); // dev: no local asset required
-        require(factors.localAvailable < 0); // dev: no local debt
-
-        int liquidationDiscount = factors.localETHRate.liquidationDiscount > factors.collateralETHRate.liquidationDiscount ?
-            factors.localETHRate.liquidationDiscount : factors.collateralETHRate.liquidationDiscount;
-
-        int localCurrencyToTrade = factors.localAssetRequired
-            .mul(ExchangeRate.MULTIPLIER_DECIMALS)
-            .div(factors.localETHRate.buffer.sub(liquidationDiscount));
-
-        // We do not trade past the amount of local currency debt the account has or this benefit will not longer be effective.
-        localCurrencyToTrade = factors.localAvailable.neg() < localCurrencyToTrade ? factors.localAvailable.neg() : localCurrencyToTrade;
-
-        return localCurrencyToTrade;
-    }
-
-    function liquidatefCash(
-        LiquidationFactors memory factors,
-        uint[] memory fCashAssetMaturities,
-        int maxLiquidateAmount,
-        PortfolioState memory portfolioState
-    ) internal pure returns (int) {
-        // TODO: must check that has collateral is false but check collateral currency again in case the
-        // liquidation is falling through from liquidating collateral to liquidating fcash
-        require(!factors.hasCollateral, "L: has collateral");
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
-            if (portfolioState.storedAssets[i].storageState == AssetStorageState.Delete) continue;
-            require(
-                !AssetHandler.isLiquidityToken(portfolioState.storedAssets[i].assetType),
-                "L: has liquidity tokens"
-            );
-        }
-
-        int localToTrade = calculateLocalToTrade(factors);
-        if (maxLiquidateAmount > localToTrade) localToTrade = maxLiquidateAmount;
-
-        // Calculates the collateral to sell taking into account what's available in the cash claim
-        (int collateralToSell, int localToPurchase) = calculateCollateralToSell(factors, localToTrade);
-
-        // It may be possible that the fCash asset is in "newAssets" due to liquidity token
-        // settlement or withdraw
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
-            // TODO: transfer fCash to liquidator in exchange for payment
-            // get asset present value at discounted rate, calculate share to transfer
-        }
     }
 
 }

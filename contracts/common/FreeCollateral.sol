@@ -21,13 +21,14 @@ struct FreeCollateralFactors {
 }
 
 struct LiquidationFactors {
-    int collateralCash;
+    int netETHValue;
+    int localAvailable;
     int collateralAvailable;
-    int collateralPerpetualTokenValue;
+    int perpetualTokenValue;
     ETHRate localETHRate;
     ETHRate collateralETHRate;
-    CashGroupParameters collateralCashGroup;
-    MarketParameters[] collateralMarkets;
+    CashGroupParameters cashGroup;
+    MarketParameters[] markets;
 }
 
 library FreeCollateral {
@@ -307,8 +308,9 @@ library FreeCollateral {
         address account,
         AccountStorage memory accountContext,
         uint blockTime,
+        uint localCurrencyId,
         uint collateralCurrencyId
-    ) internal returns (LiquidationFactors memory) {
+    ) internal returns (LiquidationFactors memory, PortfolioAsset[] memory) {
         FreeCollateralFactors memory factors;
         LiquidationFactors memory liquidationFactors;
 
@@ -321,13 +323,16 @@ library FreeCollateral {
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
             factors.netETHValue = ethRate.convertToETH(factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue));
 
-            if (accountContext.bitmapCurrencyId == collateralCurrencyId) {
-                liquidationFactors.collateralCash = netCashBalance;
-                liquidationFactors.collateralCashGroup = factors.cashGroup;
-                liquidationFactors.collateralMarkets = factors.markets;
-                liquidationFactors.collateralPerpetualTokenValue = perpetualTokenValue;
-                liquidationFactors.collateralAvailable = netLocalAssetValue;
-                liquidationFactors.collateralETHRate = ethRate;
+            // If the bitmap currency id can only ever be the local currency where debt is held. During enable bitmap we check that
+            // the account has no assets in their portfolio and no cash debts.
+            if (accountContext.bitmapCurrencyId == localCurrencyId) {
+                liquidationFactors.cashGroup = factors.cashGroup;
+                liquidationFactors.markets = factors.markets;
+                liquidationFactors.localAvailable = netLocalAssetValue;
+                liquidationFactors.localETHRate = ethRate;
+
+                // This will be the case during local currency or local fCash liquidation
+                if (collateralCurrencyId == 0) liquidationFactors.perpetualTokenValue = perpetualTokenValue;
             }
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
@@ -339,11 +344,6 @@ library FreeCollateral {
             uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
             (int netLocalAssetValue, int perpTokenBalance) = getCurrencyBalances(account, currencyBytes);
 
-            if (currencyId == collateralCurrencyId) {
-                // Initially netLocalAssetValue is just the cash balance, reuse is required to get the stack to cooperate
-                liquidationFactors.collateralCash = netLocalAssetValue;
-            }
-
             if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
                 (int netPortfolioValue, int perpetualTokenValue) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
@@ -351,10 +351,12 @@ library FreeCollateral {
                 netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
 
-                if (currencyId == collateralCurrencyId) {
-                    liquidationFactors.collateralCashGroup = factors.cashGroup;
-                    liquidationFactors.collateralMarkets = factors.markets;
-                    liquidationFactors.collateralPerpetualTokenValue = perpetualTokenValue;
+                // If collateralCurrencyId is set to zero then this is a local currency liquidation
+                if ((currencyId == localCurrencyId && collateralCurrencyId == 0) || currencyId == collateralCurrencyId) {
+                    liquidationFactors.cashGroup = factors.cashGroup;
+                    liquidationFactors.markets = factors.markets;
+                    // TODO also need to know the haircut percentage here
+                    liquidationFactors.perpetualTokenValue = perpetualTokenValue;
                 }
             } else {
                 factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
@@ -365,14 +367,25 @@ library FreeCollateral {
             factors.netETHValue = factors.netETHValue.add(ethValue);
 
             if (currencyId == collateralCurrencyId) {
-                // Here netLocalAssetValue is just the net total value in the current currency
                 liquidationFactors.collateralAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
+            } else if (currencyId == localCurrencyId) {
+                liquidationFactors.localAvailable = netLocalAssetValue;
+                liquidationFactors.localETHRate = ethRate;
             }
 
             currencies = currencies << 16;
         }
 
-        return liquidationFactors;
+        liquidationFactors.netETHValue = factors.netETHValue;
+        require(liquidationFactors.netETHValue < 0, "Sufficient collateral");
+
+        // Refetch the portfolio if it exists, AssetHandler.getNetCashValue updates values in memory to do fCash
+        // netting which will make further calculations incurreoct.
+        if (accountContext.assetArrayLength > 0) {
+            factors.portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+        }
+
+        return (liquidationFactors, factors.portfolio);
     }
 }

@@ -75,7 +75,7 @@ library AssetHandler {
     function getDiscountFactor(
         uint timeToMaturity,
         uint oracleRate
-    ) private pure returns (int) {
+    ) internal pure returns (int) {
         int128 expValue = ABDKMath64x64.fromUInt(
             oracleRate.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME)
         );
@@ -281,7 +281,7 @@ library AssetHandler {
         MarketParameters[] memory markets,
         uint blockTime,
         uint portfolioIndex
-    ) internal view returns(int, uint) {
+    ) internal view returns (int, uint) {
         int presentValueAsset;
         int presentValueUnderlying;
 
