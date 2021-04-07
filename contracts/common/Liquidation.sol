@@ -521,44 +521,109 @@ library Liquidation {
         return (fCashNotionalTransfers, localToPurchase);
     }
 
-            // If this is true then there is some collateral value within the system. Set this
-            // flag for the liquidate fcash function to check.
-            if (netLocalAssetValue > 0) factors.hasCollateral = true;
+    function calculateCrossCurrencyfCashToLiquidate(
+        LiquidationFactors memory factors,
+        uint maturity,
+        uint blockTime,
+        int liquidationDiscount,
+        int benefitRequired,
+        int maxfCashLiquidateAmount,
+        int notional
+    ) private view returns (int, int, int) {
+        (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
+            factors,
+            maturity,
+            blockTime
+        );
 
-            ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
-            int ethValue = ethRate.convertToETH(
-                assetRate.convertInternalToUnderlying(netLocalAssetValue)
-            );
-            netETHValue = netETHValue.add(ethValue);
+        int fCashBenefit = benefitRequired.div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
+        // todo: show math
+        int collateralBenefit = liquidationDiscountFactor
+            .mul(factors.localETHRate.buffer)
+            .div(liquidationDiscount)
+            .sub(factors.collateralETHRate.haircut);
 
-            // Store relevant factors here
-            if (currencyId == localCurrencyId) {
-                factors.localAvailable = netLocalAssetValue;
-                factors.localETHRate = ethRate;
-                // Assign this here in case localCashGroup is not assigned above
-                factors.localCashGroup.assetRate = assetRate;
-            } else if (currencyId == collateralCurrencyId) {
-                factors.collateralAvailable = netLocalAssetValue;
-                factors.collateralETHRate = ethRate;
-            }
+        int fCashToLiquidate = calculateMaxLiquidationAmount(
+            fCashBenefit.add(collateralBenefit),
+            notional,
+            maxfCashLiquidateAmount
+        );
 
-            currencies = currencies << 16;
+        // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
+        // this is the discounted value that the liquidator will purchase it at.
+        int fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(Market.RATE_PRECISION);
+        // Ensures that collateralAvailable does not go below zero
+        if (fCashLiquidationPV > factors.collateralAvailable.add(fCashBenefit)) {
+            fCashToLiquidate = factors.collateralAvailable
+                .mul(Market.RATE_PRECISION)
+                .div(liquidationDiscountFactor);
         }
 
-        require(netETHValue < 0, "L: sufficient free collateral");
-        int localUnderlyingRequired = factors.localETHRate.convertETHTo(
-            // Bump the eth value by a small amount to account for dust and loss of precision during
-            // exchange rate conversion
-            netETHValue.mul(LIQUIDATION_BUFFER).div(ExchangeRate.ETH_DECIMALS).neg()
+        // Ensures that local available does not go above zero
+        int localToPurchase;
+        (fCashToLiquidate, localToPurchase) = calculateLocalToPurchase(
+            factors,
+            liquidationDiscount,
+            fCashLiquidationPV,
+            fCashToLiquidate
         );
 
-        // Convert back to asset values because liquidation will occur using cash balances that are
-        // denominated in asset values
-        factors.localAssetRequired = factors.localCashGroup.assetRate.convertInternalFromUnderlying(
-            localUnderlyingRequired
-        );
+        // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+        int benefitGained = fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
 
-        return factors;
+        return (fCashToLiquidate, localToPurchase, benefitGained);
+    }
+
+    function liquidatefCashCrossCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint[] calldata fCashMaturities,
+        uint[] calldata maxfCashLiquidateAmounts,
+        uint blockTime
+    ) internal returns (int[] memory, int) {
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
+
+        require(factors.localAvailable < 0, "No local debt");
+        require(factors.collateralAvailable > 0, "No collateral assets");
+
+        (int benefitRequired, int liquidationDiscount) = calculateCrossCurrencyBenefitAndDiscount(factors);
+        int[] memory fCashNotionalTransfers = new int[](fCashMaturities.length);
+        int totalLocalToPurchase;
+
+        for (uint i; i < fCashMaturities.length; i++) {
+            int notional = getfCashNotional(
+                liquidateAccount,
+                accountContext,
+                portfolio,
+                localCurrency,
+                fCashMaturities[i]
+            );
+            if (notional == 0) continue;
+
+            int localToPurchase;
+            int benefitGained;
+            (fCashNotionalTransfers[i], localToPurchase, benefitGained) = calculateCrossCurrencyfCashToLiquidate(
+                factors,
+                fCashMaturities[i],
+                blockTime,
+                liquidationDiscount,
+                benefitRequired,
+                int(maxfCashLiquidateAmounts[i]),
+                notional
+            );
+
+            benefitRequired = benefitRequired.sub(benefitGained);
+            totalLocalToPurchase = totalLocalToPurchase.add(localToPurchase);
+
+            if (benefitRequired <= 0) break;
+        }
+
+        return (fCashNotionalTransfers, totalLocalToPurchase);
     }
 
     /**
