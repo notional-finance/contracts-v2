@@ -442,10 +442,84 @@ library Liquidation {
 
         return collateralRemaining;
     }
-                groupIndex += 1;
-            } else {
-                assetRate = AssetRate.buildAssetRateStateful(currencyId);
-            }
+
+    function liquidatefCashLocal(
+        address liquidateAccount,
+        uint localCurrency,
+        uint[] calldata fCashMaturities,
+        uint[] calldata maxfCashLiquidateAmounts,
+        uint blockTime
+    ) internal returns (int[] memory, int) {
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
+
+        int benefitRequired;
+        int localToPurchase;
+        int[] memory fCashNotionalTransfers = new int[](fCashMaturities.length);
+
+        // todo: show math here
+        if (factors.localAvailable > 0) {
+            benefitRequired = factors.localETHRate.convertETHTo(factors.netETHValue.neg())
+                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .div(factors.localETHRate.haircut);
+        } else {
+            benefitRequired = factors.localAvailable.neg()
+                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .div(factors.localETHRate.buffer);
+        }
+
+        for (uint i; i < fCashMaturities.length; i++) {
+            int notional = getfCashNotional(
+                liquidateAccount,
+                accountContext,
+                portfolio,
+                localCurrency,
+                fCashMaturities[i]
+            );
+            if (notional == 0) continue;
+
+            (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
+                factors,
+                fCashMaturities[i],
+                blockTime
+            );
+
+            // The benefit to the liquidated account is the difference between the liquidation discount factor
+            // and the risk adjusted discount factor:
+            // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // fCash = localCurrencyBeneift / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            fCashNotionalTransfers[i] = benefitRequired
+                .mul(Market.RATE_PRECISION)
+                .div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
+
+            fCashNotionalTransfers[i] = calculateMaxLiquidationAmount(
+                fCashNotionalTransfers[i],
+                notional,
+                int(maxfCashLiquidateAmounts[i])
+            );
+
+            // Calculate the amount of local currency required from the liquidator
+            localToPurchase = localToPurchase.add(
+                fCashNotionalTransfers[i]
+                    .mul(Market.RATE_PRECISION)
+                    .div(liquidationDiscountFactor)
+            );
+
+            // Deduct the total benefit gained from liquidating this fCash position
+            benefitRequired = benefitRequired.sub(
+                fCashNotionalTransfers[i]
+                    .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
+                    .div(Market.RATE_PRECISION)
+            );
+
+            if (benefitRequired <= 0) break;
+        }
+
+        return (fCashNotionalTransfers, localToPurchase);
+    }
 
             // If this is true then there is some collateral value within the system. Set this
             // flag for the liquidate fcash function to check.
