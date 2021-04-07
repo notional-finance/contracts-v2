@@ -145,10 +145,10 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.getSettlementPenalty();
     }
 
-    function getLiquidityTokenRepoDiscount(
+    function getLiquidationfCashHaircut(
         CashGroupParameters memory cashGroup
-    ) public pure returns (int) {
-        return cashGroup.getLiquidityTokenRepoDiscount();
+    ) public pure returns (uint) {
+        return cashGroup.getLiquidationfCashHaircut();
     }
 
     function getMarketIndex(

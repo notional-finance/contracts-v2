@@ -57,7 +57,7 @@ struct CashGroupParameterStorage {
 
     /* Liquidation Parameters */
     uint8 settlementPenaltyRateBPS;
-    uint8 liquidityRepoDiscount;
+    uint8 liquidationfCashHaircut5BPS;
 
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
     uint8[] liquidityTokenHaircuts;

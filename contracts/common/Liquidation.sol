@@ -26,7 +26,7 @@ library Liquidation {
     using Market for MarketParameters;
 
     int internal constant MAX_LIQUIDATION_PORTION = 40;
-    int internal constant LIQUIDATION_PORTION_DECIMALS = 100;
+    int internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
 
     /**
      * @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
@@ -71,7 +71,7 @@ library Liquidation {
     ) private pure returns (int) {
         int maxAllowedAmount = maxTotalBalance
             .mul(MAX_LIQUIDATION_PORTION)
-            .div(LIQUIDATION_PORTION_DECIMALS);
+            .div(CashGroup.PERCENTAGE_DECIMALS);
 
         int result = initialAmountToLiquidate;
 
@@ -223,7 +223,7 @@ library Liquidation {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) internal returns (BalanceState memory) {
+    ) internal returns (BalanceState memory, int) {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
@@ -236,8 +236,20 @@ library Liquidation {
 
         BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
 
+        int repoIncentivePaid;
         if (hasLiquidityTokens(portfolio, localCurrency)) {
-            // TODO: withdraw liquidity tokens
+            PortfolioState memory portfolioState = PortfolioState({
+                storedAssets: portfolio,
+                newAssets: new PortfolioAsset[](0),
+                lastNewAssetIndex: 0,
+                storedAssetLength: portfolio.length
+            });
+
+            (
+                repoIncentivePaid,
+                liquidatedBalanceState.netCashChange,
+                benefitRequired
+            ) = withdrawLocalLiquidityTokens(portfolioState, factors, blockTime, benefitRequired);
         }
 
         // This will not underflow, checked when saving parameters
@@ -258,7 +270,7 @@ library Liquidation {
         );
         liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
 
-        return liquidatedBalanceState;
+        return (liquidatedBalanceState, repoIncentivePaid);
     }
 
     /**
@@ -346,37 +358,31 @@ library Liquidation {
      * liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
      * not create new assets, the net fCash asset will replace the liquidity token asset.
      */
-    function withdrawLiquidityTokens(
-        uint blockTime,
-        int assetAmountRemaining,
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
+    function withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
-        int repoIncentive
-    ) internal view returns (int[] memory, int) {
+        LiquidationFactors memory factors,
+        uint blockTime,
+        int assetAmountRemaining
+    ) internal view returns (int, int, int) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
-        int[] memory withdrawFactors = new int[](5);
-        // withdrawFactors[0] = assetCash
-        // withdrawFactors[1] = fCash
-        // withdrawFactors[2] = netCashIncrease
-        // withdrawFactors[3] = incentivePaid
-        // withdrawFactors[4] = totalCashClaim
+        int totalIncentivePaid;
+        int totalCashClaim;
 
         // NOTE: even if stored assets have been modified in memory as a result of the Asset.getRiskAdjustedPortfolioValue
         // method getting the haircut value will still work here because we do not reference the fCash value.
         for (uint i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
-            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != cashGroup.currencyId) continue;
+            if (!AssetHandler.isLiquidityToken(asset.assetType) || asset.currencyId != factors.cashGroup.currencyId) continue;
             
-            MarketParameters memory market = cashGroup.getMarket(marketStates, asset.assetType - 1, blockTime, true);
+            MarketParameters memory market = factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
 
             // NOTE: we do not give any credit to the haircut fCash in this procedure but it will end up adding
             // additional collateral value back into the account. It's probably too complex to deal with this so
             // we will just leave it as such.
-            // (assetCash, fCash)
-            (withdrawFactors[0], withdrawFactors[1]) = asset.getCashClaims(market);
+            (int assetCash, int fCash) = asset.getCashClaims(market);
 
+            int netCashIncrease;
             {
                 // We can only recollateralize the local currency using the part of the liquidity token that
                 // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
@@ -384,38 +390,31 @@ library Liquidation {
                 // netCashIncrease = cashClaim * (1 - haircut)
                 // netCashIncrease = netCashToAccount + incentivePaid
                 // incentivePaid = netCashIncrease * incentive
-                int haircut = int(cashGroup.getLiquidityHaircut(asset.assetType));
-                // netCashIncrease
-                withdrawFactors[2] = withdrawFactors[0]
+                int haircut = int(factors.cashGroup.getLiquidityHaircut(asset.assetType));
+                netCashIncrease = assetCash
                     .mul(CashGroup.PERCENTAGE_DECIMALS.sub(haircut))
                     .div(CashGroup.PERCENTAGE_DECIMALS);
             }
-            int incentivePaid = withdrawFactors[2].mul(repoIncentive).div(Market.RATE_PRECISION);
+            int incentivePaid = netCashIncrease.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(CashGroup.PERCENTAGE_DECIMALS);
 
-            // ((netCashIncrease - incentivePaid) < assetAmountRemaining))
             // (netCashToAccount <= assetAmountRemaining)
-            if (withdrawFactors[2].subNoNeg(incentivePaid) <= assetAmountRemaining) {
-                // The additional cash is insufficient to cover asset amount required so we just remove
-                // all of it.
+            if (netCashIncrease.subNoNeg(incentivePaid) <= assetAmountRemaining) {
+                // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
                 market.removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
                 // overflow checked above
-                assetAmountRemaining = assetAmountRemaining - withdrawFactors[2].sub(incentivePaid);
+                assetAmountRemaining = assetAmountRemaining - netCashIncrease.sub(incentivePaid);
             } else {
                 // incentivePaid
-                incentivePaid = assetAmountRemaining.mul(repoIncentive).div(Market.RATE_PRECISION);
+                incentivePaid = assetAmountRemaining.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(CashGroup.PERCENTAGE_DECIMALS);
 
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // notional * assetAmountRemaining / totalCashIncrease
-                int tokensToRemove = asset.notional
-                    .mul(assetAmountRemaining)
-                    .div(withdrawFactors[2]);
+                int tokensToRemove = asset.notional.mul(assetAmountRemaining).div(netCashIncrease);
 
-                // assetCash, fCash
-                (withdrawFactors[0], withdrawFactors[1]) = market.removeLiquidity(tokensToRemove);
+                (assetCash, fCash) = market.removeLiquidity(tokensToRemove);
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
@@ -423,50 +422,29 @@ library Liquidation {
                 assetAmountRemaining = 0;
             }
 
-            // incentivePaid
-            withdrawFactors[3] = withdrawFactors[3].add(incentivePaid);
-            // totalCashToAccount
-            withdrawFactors[4] = withdrawFactors[4].add(withdrawFactors[0]);
+            totalIncentivePaid = totalIncentivePaid.add(incentivePaid);
+            totalCashClaim = totalCashClaim.add(assetCash);
 
             // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
             portfolioState.addAsset(
-                cashGroup.currencyId,
+                factors.cashGroup.currencyId,
                 asset.maturity,
                 AssetHandler.FCASH_ASSET_TYPE,
-                withdrawFactors[1],
+                fCash,
                 false
             );
 
             if (assetAmountRemaining == 0) break;
         }
 
-        // This is pretty ugly but we have to deal with stack issues
-        return (withdrawFactors, assetAmountRemaining);
-    }
-
-    /**
-     * @notice Liquidates local liquidity tokens
-    function liquidateLocalLiquidityTokens(
-        LiquidationFactors memory factors,
-        PortfolioState memory portfolioState,
-        uint blockTime
-    ) internal view returns (int, int) {
-        // TODO: should short circuit this if there are no liquidity tokens.
-
-        (int[] memory withdrawFactors, int assetAmountRemaining) = withdrawLiquidityTokens(
-            blockTime,
-            factors.localAssetRequired,
-            factors.localCashGroup,
-            factors.localMarketStates,
-            portfolioState,
-            factors.localCashGroup.getLiquidityTokenRepoDiscount()
+        return (
+            totalIncentivePaid,
+            // Net cash change for liquidated account
+            totalCashClaim.sub(totalIncentivePaid),
+            // Remaining amount to raise (if any)
+            assetAmountRemaining
         );
-
-        factors.localAssetRequired = assetAmountRemaining;
-        // (incentivePaid, netCashChange = (totalCashToAccount - incentivePaid))
-        return (withdrawFactors[3], withdrawFactors[4].subNoNeg(withdrawFactors[3]));
     }
-     */
 
     /**
      * @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about

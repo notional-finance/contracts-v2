@@ -31,7 +31,7 @@ library CashGroup {
     uint internal constant DEBT_BUFFER = 32;
     uint internal constant FCASH_HAIRCUT = 40;
     uint internal constant SETTLEMENT_PENALTY = 48;
-    uint internal constant LIQUIDITY_TOKEN_REPO_DISCOUNT = 56;
+    uint internal constant LIQUIDATION_FCASH_HAIRCUT = 56;
     // 9 bytes allocated per market on the liquidity token haircut
     uint internal constant LIQUIDITY_TOKEN_HAIRCUT = 64;
     // 9 bytes allocated per market on the rate scalar
@@ -282,11 +282,10 @@ library CashGroup {
         return uint(uint8(uint(cashGroup.data >> SETTLEMENT_PENALTY))) * (5 * Market.BASIS_POINT);
     }
 
-    function getLiquidityTokenRepoDiscount(
+    function getLiquidationfCashHaircut(
         CashGroupParameters memory cashGroup
-    ) internal pure returns (int) {
-        uint discount = uint(uint8(uint(cashGroup.data >> LIQUIDITY_TOKEN_REPO_DISCOUNT))) * (5 * Market.BASIS_POINT);
-        return int(discount);
+    ) internal pure returns (uint) {
+        return uint(uint8(uint(cashGroup.data >> LIQUIDATION_FCASH_HAIRCUT))) * (5 * Market.BASIS_POINT);
     }
 
     function getMarketIndex(
@@ -463,7 +462,7 @@ library CashGroup {
             bytes32(uint(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER |
             bytes32(uint(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT |
             bytes32(uint(cashGroup.settlementPenaltyRateBPS)) << SETTLEMENT_PENALTY |
-            bytes32(uint(cashGroup.liquidityRepoDiscount)) << LIQUIDITY_TOKEN_REPO_DISCOUNT
+            bytes32(uint(cashGroup.liquidationfCashHaircut5BPS)) << LIQUIDATION_FCASH_HAIRCUT
         );
 
         // Per market group settings
@@ -506,7 +505,7 @@ library CashGroup {
             debtBuffer5BPS: uint8(data[27]),
             fCashHaircut5BPS: uint8(data[26]),
             settlementPenaltyRateBPS: uint8(data[25]),
-            liquidityRepoDiscount: uint8(data[24]), // TODO: Hardcode this
+            liquidationfCashHaircut5BPS: uint8(data[24]),
             liquidityTokenHaircuts: tokenHaircuts,
             rateScalars: rateScalars
         });
