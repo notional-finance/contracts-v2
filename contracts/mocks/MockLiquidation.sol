@@ -8,11 +8,18 @@ import "../common/Liquidation.sol";
 import "../storage/StorageLayoutV1.sol";
 import "./BaseMockLiquidation.sol";
 
-contract MockLocalLiquidation is BaseMockLiquidation {
-    using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
-    using Market for MarketParameters;
+contract MockLiquidationSetup is BaseMockLiquidation {
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint blockTime
+    ) external returns (AccountStorage memory, LiquidationFactors memory, PortfolioState memory) {
+        return Liquidation.preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
+    }
+}
 
+contract MockLocalLiquidation is BaseMockLiquidation {
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint localCurrency,

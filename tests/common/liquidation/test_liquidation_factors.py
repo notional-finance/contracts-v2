@@ -23,8 +23,16 @@ def ethAggregators(MockAggregator, accounts):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def liquidation(MockLiquidateTokens, MockCToken, cTokenAggregator, ethAggregators, accounts):
-    liq = accounts[0].deploy(MockLiquidateTokens)
+def liquidation(
+    MockLiquidationSetup,
+    SettleAssetsExternal,
+    MockCToken,
+    cTokenAggregator,
+    ethAggregators,
+    accounts,
+):
+    SettleAssetsExternal.deploy({"from": accounts[0]})
+    liq = accounts[0].deploy(MockLiquidationSetup)
     ctoken = accounts[0].deploy(MockCToken, 8)
     # This is the identity rate
     ctoken.setAnswer(1e18)
@@ -60,14 +68,14 @@ def isolation(fn_isolation):
 def test_revert_on_sufficient_collateral(liquidation, accounts):
     liquidation.setBalance(accounts[0], 1, 100e8, 0)
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 1, 2, START_TIME)
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 2, 1)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 2, 1, START_TIME)
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 3, 2)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 3, 2, START_TIME)
 
 
 def test_revert_on_sufficient_portfolio_value(liquidation, accounts):
@@ -77,65 +85,22 @@ def test_revert_on_sufficient_portfolio_value(liquidation, accounts):
 
     liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=100e8)])
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 1, 2, START_TIME)
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 2, 1)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 2, 1, START_TIME)
 
-    with brownie.reverts("L: sufficient free collateral"):
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 3, 2)
+    with brownie.reverts("Sufficient collateral"):
+        liquidation.preLiquidationActions(accounts[0], 3, 2, START_TIME)
 
 
 def test_revert_on_invalid_currencies(liquidation, accounts):
     with brownie.reverts():
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 1)
+        liquidation.preLiquidationActions(accounts[0], 1, 1, START_TIME)
 
     with brownie.reverts():
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 0)
-
-    with brownie.reverts():
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 0, 1)
-
-    with brownie.reverts():
-        liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 0, 0)
-
-
-def test_has_no_collateral_fcash(liquidation, accounts):
-    liquidation.setBalance(accounts[0], 1, -1000e8, 0)
-    markets = get_market_curve(3, "flat")
-    for m in markets:
-        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
-
-    liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=100e8)])
-    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2).return_value
-
-    # only has fCash at this point
-    assert not factors[-1]
-
-
-def test_has_no_collateral_insolvent(liquidation, accounts):
-    markets = get_market_curve(3, "flat")
-    for m in markets:
-        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
-
-    liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
-    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 2).return_value
-
-    # is insolvent
-    assert not factors[-1]
-
-
-def test_has_collateral(liquidation, accounts):
-    markets = get_market_curve(3, "flat")
-    for m in markets:
-        liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
-    liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
-    liquidation.setBalance(accounts[0], 3, 100e8, 0)
-
-    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 3).return_value
-    # has collateral balance
-    assert factors[-1]
+        liquidation.preLiquidationActions(accounts[0], 0, 1, START_TIME)
 
 
 def test_asset_factors_local_and_collateral(liquidation, accounts):
@@ -146,11 +111,16 @@ def test_asset_factors_local_and_collateral(liquidation, accounts):
     liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
     liquidation.setBalance(accounts[0], 3, 100e8, 0)
 
-    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 3).return_value
+    (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 3, START_TIME).return_value
 
-    assert factors[1] > -100e8 and factors[1] < -99e8
-    assert pytest.approx(factors[0], abs=2) == -int(((factors[1] * 1.40) + 100e8) * 1.01)
-    assert factors[2] == 100e8
+    # Local available
+    assert factors[2] > -100e8 and factors[2] < -99e8
+    # Collateral available
+    assert factors[3] == 100e8
+    # Markets unset (collateral has no assets)
+    assert len(factors[9]) == 0
+    # Cash group unset (collateral has no assets)
+    assert factors[8][0] == 0
 
 
 def test_asset_factors_local_only(liquidation, accounts):
@@ -161,28 +131,13 @@ def test_asset_factors_local_only(liquidation, accounts):
     liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
     liquidation.setBalance(accounts[0], 1, 10e8, 0)
 
-    factors = liquidation.calculateLiquidationFactors(accounts[0], START_TIME, 1, 3).return_value
+    (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 0, START_TIME).return_value
 
-    assert factors[1] > -90e8 and factors[1] < -89e8
-    assert pytest.approx(factors[0], abs=2) == -int((factors[1] * 1.40) * 1.01)
-    assert factors[2] == 0
-
-
-# def test_liquidate_collateral(liquidation, ethAggregators, assetRateAggregator, accounts):
-#     setup_markets(liquidation)
-#     config = ((1, 1, 97), (2, 1, 97))
-#     (cashGroups, marketStates) = get_cash_groups_and_market_states(config)
-
-#     balanceStates = ((1, 0, 0, 0, 0, 0), (2, 0.7e18, 0, 0, 0, 0))
-#     portfolioState = ([(2, MARKETS[0], 2, 0.1e18, 0)], (), 0, 1, ())
-#     netPortfolioValue = [-1e18, 0]
-
-#     factors = liquidation.getLiquidationFactors(
-#         1, 2, balanceStates, tuple(cashGroups), tuple(marketStates), tuple(netPortfolioValue)
-#     )
-
-#     (localToPurchase, newCollateralBalance, newPortfolioState) = liquidation.liquidateCollateral(
-#         factors, balanceStates[1], portfolioState, 0, START_TIME
-#     )
-
-#     assert False
+    # Local available
+    assert factors[2] > -90e8 and factors[2] < -89e8
+    # Collateral available
+    assert factors[3] == 0
+    # Markets set
+    assert len(factors[9]) == 3
+    # Cash group set to local
+    assert factors[8][0] == 1

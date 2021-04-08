@@ -36,7 +36,10 @@ library Liquidation {
         uint localCurrency,
         uint collateralCurrency,
         uint blockTime
-    ) private returns (AccountStorage memory, LiquidationFactors memory, PortfolioState memory) {
+    ) internal returns (AccountStorage memory, LiquidationFactors memory, PortfolioState memory) {
+        require(localCurrency != 0);
+        // Collateral currency must be unset or not equal to the local currency
+        require(collateralCurrency == 0 || collateralCurrency != localCurrency);
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(liquidateAccount);
 
         if (accountContext.mustSettleAssets()) {
