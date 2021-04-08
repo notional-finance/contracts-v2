@@ -257,7 +257,7 @@ class TestEnvironment:
                 config["debtBuffer"],
                 config["fCashHaircut"],
                 config["settlementPenalty"],
-                config["liquidityRepoDiscount"],
+                config["liquidationfCashDiscount"],
                 config["tokenHaircut"][0 : config["maxMarketIndex"]],
                 config["rateScalar"][0 : config["maxMarketIndex"]],
             ),

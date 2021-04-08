@@ -5,7 +5,7 @@ import pytest
 from brownie.convert.datatypes import HexString
 from brownie.test import given, strategy
 from tests.constants import BALANCE_FLAG, PORTFOLIO_FLAG, START_TIME
-from tests.helpers import active_currencies_to_list, currencies_list_to_active_currency_bytes
+from tests.helpers import currencies_list_to_active_currency_bytes
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -48,26 +48,12 @@ def test_get_and_set_account_context(
 
 
 @given(length=strategy("uint", min_value=0, max_value=9))
-def test_is_active_currency(accountContext, length):
+def test_is_active_in_balances(accountContext, length):
     currencies = [get_random_flags(random.randint(1, 2 ** 14)) for i in range(0, length)]
     ac = (0, "0x00", 0, 0, currencies_list_to_active_currency_bytes(currencies))
 
-    for (c, _, _) in currencies:
-        assert accountContext.isActiveCurrency(ac, c)
-
-    for i in range(0, 10):
-        c = random.randint(1, 2 ** 14)
-        if c in currencies:
-            assert accountContext.isActiveCurrency(ac, c)
-        else:
-            assert not accountContext.isActiveCurrency(ac, c)
-
-    activeCurrencyList = active_currencies_to_list(accountContext.getActiveCurrencyBytes(ac))
-    assert [x[0] for x in activeCurrencyList] == [x[0] for x in currencies]
-
-    for (_, a, b) in activeCurrencyList:
-        # all flags are set to zero
-        assert not a and not b
+    for (c, _, balanceActive) in currencies:
+        assert accountContext.isActiveInBalances(ac, c) == balanceActive
 
 
 def test_active_and_set_portfolio_flag(accountContext):

@@ -104,7 +104,7 @@ def test_build_cash_group(cashGroup, aggregator):
             random.randint(1, 255),  # 3 debtBuffer5BPS,
             random.randint(1, 255),  # 4 fCashHaircut5BPS,
             random.randint(1, 255),  # 4 settlement penalty bps,
-            random.randint(1, 255),  # 5 liquidity repo discount bps,
+            random.randint(1, 255),  # 5 liquidation fcash haircut
             # 7: token haircuts (percentages)
             tuple([100 - i for i in range(0, maxMarketIndex)]),
             # 8: rate scalar (increments of 10)
@@ -125,9 +125,7 @@ def test_build_cash_group(cashGroup, aggregator):
         assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
         assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
         assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
-        assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidityTokenRepoDiscount(
-            cg
-        )
+        assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidationfCashHaircut(cg)
 
         for m in range(0, maxMarketIndex):
             assert cashGroupParameters[8][m] == cashGroup.getLiquidityHaircut(cg, m + 2)

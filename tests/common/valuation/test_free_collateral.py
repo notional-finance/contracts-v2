@@ -198,7 +198,6 @@ def test_bitmap_remove_debt(freeCollateral, accounts):
     assert context[1] == "0x00"  # no debt
 
 
-@pytest.mark.only
 def test_remove_cash_debt(freeCollateral, accounts):
     freeCollateral.setBalance(accounts[0], 1, -200e8, 0)
     freeCollateral.setBalance(accounts[0], 2, 400e8, 0)

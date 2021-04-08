@@ -231,7 +231,7 @@ def test_oracle_rate_failure(assetLibrary):
 
     # Fails due to unset market
     with brownie.reverts():
-        assetLibrary.getRiskAdjustedPortfolioValue(assets, [cashGroup], [markets], START_TIME)
+        assetLibrary.getNetCashGroupValue(assets, cashGroup, markets, START_TIME, 0)
 
 
 def test_portfolio_value_cash_group_not_found(assetLibrary):
@@ -239,8 +239,9 @@ def test_portfolio_value_cash_group_not_found(assetLibrary):
     assets = [get_fcash_token(1, currencyId=2)]
 
     # Cash group not found
-    with brownie.reverts():
-        assetLibrary.getRiskAdjustedPortfolioValue(assets, [cashGroup], [markets], START_TIME)
+    (pvAsset, index) = assetLibrary.getNetCashGroupValue(assets, cashGroup, markets, START_TIME, 0)
+    assert pvAsset == 0
+    assert index == 0
 
 
 def test_portfolio_value(assetLibrary):
@@ -263,14 +264,14 @@ def test_portfolio_value(assetLibrary):
     markets = [markets1, markets2, markets3]
     assets = get_portfolio_array(5, cashGroups, sorted=True)
 
-    assetValuesRiskAdjusted = assetLibrary.getRiskAdjustedPortfolioValue(
-        assets, cashGroups, markets, START_TIME
-    )
-
-    assetValues = assetLibrary.getPortfolioValue(assets, cashGroups, markets, START_TIME)
+    assetValuesRiskAdjusted = []
+    i = 0
+    for (c, m) in zip(cashGroups, markets):
+        (av, i) = assetLibrary.getNetCashGroupValue(assets, c, m, START_TIME, i)
+        assetValuesRiskAdjusted.append(av)
 
     assert len(assetValuesRiskAdjusted) == 3
-    assert len(assetValues) == 3
+    assert i == len(assets)
 
     totalPV = [0, 0, 0]
     for asset in assets:
@@ -287,10 +288,8 @@ def test_portfolio_value(assetLibrary):
             totalPV[currencyId - 1] += pv
             totalPV[currencyId - 1] += assetCash
 
-    assert totalPV == assetValues
-
-    for (i, v) in enumerate(assetValues):
-        if v == 0:
+    for (i, pv) in enumerate(totalPV):
+        if pv == 0:
             assert assetValuesRiskAdjusted[i] == 0
         else:
-            assert v > assetValuesRiskAdjusted[i]
+            assert pv > assetValuesRiskAdjusted[i]
