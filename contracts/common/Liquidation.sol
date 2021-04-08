@@ -233,7 +233,7 @@ library Liquidation {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) internal returns (BalanceState memory, int, PortfolioState memory) {
+    ) internal returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
@@ -254,25 +254,30 @@ library Liquidation {
             liquidatedBalanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        // This will not underflow, checked when saving parameters
-        int haircutDiff = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])) -
-                int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])) * CashGroup.PERCENTAGE_DECIMALS;
+        if (factors.perpetualTokenValue > 0) {
+            int perpetualTokensToLiquidate;
+            {
+                // This will not underflow, checked when saving parameters
+                int haircutDiff = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])) -
+                        int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])) * CashGroup.PERCENTAGE_DECIMALS;
 
-        // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
-        // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
-        // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
-        int perpetualTokensToLiquidate = benefitRequired
-            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
-            .div(factors.perpetualTokenValue.mul(haircutDiff).div(CashGroup.PERCENTAGE_DECIMALS));
-        
-        perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
-            perpetualTokensToLiquidate,
-            liquidatedBalanceState.storedPerpetualTokenBalance,
-            int(maxPerpetualTokenLiquidation)
-        );
-        liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+                // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
+                // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
+                // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
+                perpetualTokensToLiquidate = benefitRequired
+                    .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
+                    .div(factors.perpetualTokenValue.mul(haircutDiff).div(CashGroup.PERCENTAGE_DECIMALS));
+            }
+            
+            perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
+                perpetualTokensToLiquidate,
+                liquidatedBalanceState.storedPerpetualTokenBalance,
+                int(maxPerpetualTokenLiquidation)
+            );
+            liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+        }
 
-        return (liquidatedBalanceState, repoIncentivePaid, portfolio);
+        return (liquidatedBalanceState, repoIncentivePaid, portfolio, factors.markets);
     }
 
     function liquidateCollateralCurrency(

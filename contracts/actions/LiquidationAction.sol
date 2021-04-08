@@ -11,7 +11,7 @@ contract LiquidationAction {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) external returns (BalanceState memory, int, PortfolioState memory) {
+    ) external returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
         return Liquidation.liquidateLocalCurrency(liquidateAccount, localCurrency, maxPerpetualTokenLiquidation, blockTime);
     }
 
