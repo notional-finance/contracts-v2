@@ -26,7 +26,46 @@ contract MockLocalLiquidation is BaseMockLiquidation {
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
     ) external returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
-        return Liquidation.liquidateLocalCurrency(liquidateAccount, localCurrency, maxPerpetualTokenLiquidation, blockTime);
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioState memory portfolio
+        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
+        BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+
+        int netLocalFromLiquidator = Liquidation.liquidateLocalCurrency(
+            localCurrency,
+            maxPerpetualTokenLiquidation,
+            blockTime,
+            liquidatedBalanceState,
+            factors,
+            portfolio
+        );
+
+        return (liquidatedBalanceState, netLocalFromLiquidator, portfolio, factors.markets);
+    }
+}
+
+contract MockLocalLiquidationOverride is BaseMockLiquidation {
+    function liquidateLocalCurrencyOverride(
+        uint localCurrency,
+        uint96 maxPerpetualTokenLiquidation,
+        uint blockTime,
+        BalanceState memory liquidatedBalanceState,
+        LiquidationFactors memory factors
+    ) external returns (BalanceState memory, int, MarketParameters[] memory) {
+        PortfolioState memory portfolio;
+
+        int netLocalFromLiquidator = Liquidation.liquidateLocalCurrency(
+            localCurrency,
+            maxPerpetualTokenLiquidation,
+            blockTime,
+            liquidatedBalanceState,
+            factors,
+            portfolio
+        );
+
+        return (liquidatedBalanceState, netLocalFromLiquidator, factors.markets);
     }
 }
 
@@ -39,8 +78,14 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
     ) external returns (BalanceState memory, int) {
-        return Liquidation.liquidateCollateralCurrency(liquidateAccount, localCurrency,
-            collateralCurrency, maxCollateralLiquidation, maxPerpetualTokenLiquidation, blockTime);
+        return Liquidation.liquidateCollateralCurrency(
+            liquidateAccount,
+            localCurrency,
+            collateralCurrency,
+            maxCollateralLiquidation,
+            maxPerpetualTokenLiquidation,
+            blockTime
+        );
     }
 }
 

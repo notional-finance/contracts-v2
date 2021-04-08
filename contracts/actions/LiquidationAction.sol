@@ -11,8 +11,22 @@ contract LiquidationAction {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) external returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
-        return Liquidation.liquidateLocalCurrency(liquidateAccount, localCurrency, maxPerpetualTokenLiquidation, blockTime);
+    ) external returns (int) {
+        (
+            AccountStorage memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioState memory portfolio
+        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
+        BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+
+        return Liquidation.liquidateLocalCurrency(
+            localCurrency,
+            maxPerpetualTokenLiquidation,
+            blockTime,
+            liquidatedBalanceState,
+            factors,
+            portfolio
+        );
     }
 
     function liquidateCollateralCurrency(

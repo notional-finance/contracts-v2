@@ -85,6 +85,10 @@ library Liquidation {
 
         int result = initialAmountToLiquidate;
 
+        if (initialAmountToLiquidate > maxTotalBalance) {
+            result = maxTotalBalance;
+        }
+
         if (initialAmountToLiquidate < maxAllowedAmount) {
             // Allow the liquidator to go up to the max allowed amount
             result = maxAllowedAmount;
@@ -229,37 +233,34 @@ library Liquidation {
      * encounter this scenario but this method is here for completeness.
      */
     function liquidateLocalCurrency(
-        address liquidateAccount,
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
-        uint blockTime
-    ) internal returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
-        (
-            AccountStorage memory accountContext,
-            LiquidationFactors memory factors,
-            PortfolioState memory portfolio
-        ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-
+        uint blockTime,
+        BalanceState memory liquidatedBalanceState,
+        LiquidationFactors memory factors,
+        PortfolioState memory portfolio
+    ) internal returns (int) {
         int benefitRequired = factors.localETHRate.convertETHTo(factors.netETHValue.neg())
             .mul(ExchangeRate.MULTIPLIER_DECIMALS)
             .div(factors.localETHRate.buffer);
+        int netLocalFromLiquidator;
 
-        BalanceState memory liquidatedBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
-
-        int repoIncentivePaid;
         if (hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
             WithdrawFactors memory w;
             (w, benefitRequired) = withdrawLocalLiquidityTokens(portfolio, factors, blockTime, benefitRequired);
-            repoIncentivePaid = w.totalIncentivePaid;
+            netLocalFromLiquidator = w.totalIncentivePaid.neg();
             liquidatedBalanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
+        int localToPurchase;
         if (factors.perpetualTokenValue > 0) {
             int perpetualTokensToLiquidate;
             {
                 // This will not underflow, checked when saving parameters
-                int haircutDiff = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])) -
-                        int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])) * CashGroup.PERCENTAGE_DECIMALS;
+                int haircutDiff = (
+                    int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])) -
+                    int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE]))
+                ) * CashGroup.PERCENTAGE_DECIMALS;
 
                 // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
                 // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
@@ -275,9 +276,21 @@ library Liquidation {
                 int(maxPerpetualTokenLiquidation)
             );
             liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+
+            {
+                // fullPerpTokenPV = haircutTokenPV / haircutPercentage
+                // localFromLiquidator = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
+                int value = perpetualTokensToLiquidate
+                    .mul(int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])))
+                    .mul(factors.perpetualTokenValue)
+                    .div(int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
+                    .div(liquidatedBalanceState.storedPerpetualTokenBalance);
+
+                netLocalFromLiquidator = netLocalFromLiquidator.add(value);
+            }
         }
 
-        return (liquidatedBalanceState, repoIncentivePaid, portfolio, factors.markets);
+        return netLocalFromLiquidator;
     }
 
     function liquidateCollateralCurrency(

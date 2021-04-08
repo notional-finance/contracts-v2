@@ -12,7 +12,6 @@ from tests.helpers import (
 )
 
 chain = Chain()
-LIQUIDATION_BUFFER = 1.01e18
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -89,7 +88,7 @@ def test_liquidate_tokens_insufficient_no_fcash(liquidation, accounts):
     # Liquidity token deleted
     assert portfolioState[0][0][-1] == 2
     assert portfolioState[1][0] == get_fcash_token(1, notional=fCashClaim)
-    assert cashClaim == balanceState[3] + incentivePaid
+    assert cashClaim == balanceState[3] - incentivePaid
 
     # assert market updates
     assert newMarkets[0][2] + fCashClaim == markets[0][2]
@@ -132,7 +131,7 @@ def test_liquidate_tokens_insufficient_with_fcash(liquidation, accounts):
     )
     # Liquidity token deleted
     assert portfolioState[0][1][-1] == 2
-    assert cashClaim == balanceState[3] + incentivePaid
+    assert cashClaim == balanceState[3] - incentivePaid
 
     # assert market updates
     assert newMarkets[0][2] + fCashClaim == markets[0][2]
@@ -165,7 +164,7 @@ def test_liquidate_tokens_sufficient_no_fcash(liquidation, accounts):
     cashClaimRemoved = math.trunc(markets[0][3] * tokensRemoved / markets[0][4])
 
     assert pytest.approx(portfolioState[1][0][3], abs=2) == fCashClaim
-    assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] + incentivePaid
+    assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] - incentivePaid
 
     # assert market updates
     assert pytest.approx(newMarkets[0][2] + fCashClaim, abs=2) == markets[0][2]
@@ -205,7 +204,7 @@ def test_liquidate_tokens_sufficient_with_fcash(liquidation, accounts):
     cashClaimRemoved = math.trunc(markets[0][3] * tokensRemoved / markets[0][4])
 
     assert pytest.approx(portfolioState[0][0][3], abs=2) == fCashClaim + fCashNotional
-    assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] + incentivePaid
+    assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] - incentivePaid
 
     # assert market updates
     assert pytest.approx(newMarkets[0][2] + fCashClaim, abs=2) == markets[0][2]
