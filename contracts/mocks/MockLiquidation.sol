@@ -8,133 +8,58 @@ import "../common/Liquidation.sol";
 import "../storage/StorageLayoutV1.sol";
 import "./BaseMockLiquidation.sol";
 
-contract MockLiquidateTokens is BaseMockLiquidation {
+contract MockLocalLiquidation is BaseMockLiquidation {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
-    using Liquidation for LiquidationFactors;
     using Market for MarketParameters;
 
-    function calculateLiquidationFactors(
-        address account,
-        uint blockTime,
-        uint localCurrencyId,
-        uint collateralCurrencyId
-    ) public returns (LiquidationFactors memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioAsset[] memory portfolio = PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-
-        return Liquidation.calculateLiquidationFactors(
-            account,
-            accountContext,
-            portfolio,
-            blockTime,
-            localCurrencyId,
-            collateralCurrencyId
-        );
-    }
-
-    function liquidateLocalLiquidityTokens(
-        address account,
-        LiquidationFactors memory factors,
+    function liquidateLocalCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) public view returns (int, int, int, PortfolioState memory, MarketParameters[] memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
-        (int incentivePaid, int netCashChange) = factors.liquidateLocalLiquidityTokens(portfolioState, blockTime);
-
-        return (
-            incentivePaid,
-            factors.localAssetRequired,
-            netCashChange,
-            portfolioState,
-            factors.localMarketStates
-        );
+    ) external returns (BalanceState memory, int, PortfolioState memory) {
+        return Liquidation.liquidateLocalCurrency(liquidateAccount, localCurrency, maxPerpetualTokenLiquidation, blockTime);
     }
 }
 
-contract MockLiquidateCollateral is BaseMockLiquidation {
-    using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
-    using Liquidation for LiquidationFactors;
-    using Market for MarketParameters;
-
-    function getETHRate(
-        uint currencyId
-    ) public view returns (ETHRate memory) {
-        return ExchangeRate.buildExchangeRate(currencyId);
-    }
-
-    function liquidateCollateral(
-        LiquidationFactors memory factors,
-        BalanceState memory collateralBalanceContext,
-        PortfolioState memory portfolioState,
-        int maxLiquidateAmount,
+contract MockCollateralLiquidation is BaseMockLiquidation {
+    function liquidateCollateralCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) public view returns (int, BalanceState memory, PortfolioState memory) {
-        int localToPurchase = Liquidation.liquidateCollateral(
-            factors,
-            collateralBalanceContext,
-            portfolioState,
-            maxLiquidateAmount,
-            blockTime
-        );
-
-        return (
-            localToPurchase,
-            collateralBalanceContext,
-            portfolioState
-        );
-    }
-
-    function calculateTokenCashClaims(
-        PortfolioState memory portfolioState,
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory marketStates,
-        uint blockTime
-    ) external view returns (int) {
-        return Liquidation.calculateTokenCashClaims(portfolioState, cashGroup, marketStates, blockTime);
-    }
-
-    function calculatePostfCashValue(
-        int collateralAvailable,
-        BalanceState memory collateralBalanceContext,
-        int collateralPerpetualTokenValue,
-        int collateralCashClaim
-    ) external pure returns (int, int) {
-        return Liquidation.calculatePostfCashValue(
-            collateralAvailable,
-            collateralBalanceContext,
-            collateralPerpetualTokenValue,
-            collateralCashClaim
-        );
-    }
-
-    function calculateCollateralToSell(
-        LiquidationFactors memory factors,
-        int localToTrade
-    ) external pure returns (int, int) {
-        return Liquidation.calculateCollateralToSell(
-            factors,
-            localToTrade
-        );
-    }
-
-    function calculateLocalToTrade(
-        LiquidationFactors memory factors
-    ) external pure returns (int) {
-        return Liquidation.calculateLocalToTrade(factors);
+    ) external returns (BalanceState memory, int) {
+        return Liquidation.liquidateCollateralCurrency(liquidateAccount, localCurrency,
+            collateralCurrency, maxCollateralLiquidation, maxPerpetualTokenLiquidation, blockTime);
     }
 }
 
-    // function liquidatefCash(
-    //     LiquidationFactors memory factors,
-    //     uint[] memory fCashAssetMaturities,
-    //     int maxLiquidateAmount,
-    //     PortfolioState memory portfolioState
-    // ) public pure returns (int) {
-    //     return factors.liquidatefCash(
-    //         fCashAssetMaturities,
-    //         maxLiquidateAmount,
-    //         portfolioState
-    //     );
-    // }
+contract MockfCashLiquidation is BaseMockLiquidation {
+
+    function liquidatefCashLocal(
+        address liquidateAccount,
+        uint localCurrency,
+        uint[] calldata fCashMaturities,
+        uint[] calldata maxfCashLiquidateAmounts,
+        uint blockTime
+    ) external returns (int[] memory, int, PortfolioState memory) {
+        return Liquidation.liquidatefCashLocal(liquidateAccount, localCurrency,
+            fCashMaturities, maxfCashLiquidateAmounts, blockTime);
+    }
+
+    function liquidatefCashCrossCurrency(
+        address liquidateAccount,
+        uint localCurrency,
+        uint collateralCurrency,
+        uint[] calldata fCashMaturities,
+        uint[] calldata maxfCashLiquidateAmounts,
+        uint blockTime
+    ) external returns (int[] memory, int, PortfolioState memory) {
+        return Liquidation.liquidatefCashCrossCurrency(liquidateAccount, localCurrency,
+            collateralCurrency, fCashMaturities, maxfCashLiquidateAmounts, blockTime);
+    }
+
+}

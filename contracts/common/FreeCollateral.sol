@@ -21,6 +21,7 @@ struct FreeCollateralFactors {
 }
 
 struct LiquidationFactors {
+    address account;
     int netETHValue;
     int localAvailable;
     int collateralAvailable;
@@ -323,6 +324,41 @@ library FreeCollateral {
         return factors.netETHValue;
     }
 
+    function calculateLiquidationAssetValue(
+        FreeCollateralFactors memory factors,
+        LiquidationFactors memory liquidationFactors,
+        bytes2 currencyBytes,
+        bool setLiquidationFactors,
+        uint blockTime
+    ) private returns (int) {
+        uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
+        (int netLocalAssetValue, int perpTokenBalance) = getCurrencyBalances(liquidationFactors.account, currencyBytes);
+
+        if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
+            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
+            (
+                int netPortfolioValue,
+                int perpetualTokenValue,
+                bytes6 perpTokenParameters
+            ) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
+
+            netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
+            factors.assetRate = factors.cashGroup.assetRate;
+
+            // If collateralCurrencyId is set to zero then this is a local currency liquidation
+            if (setLiquidationFactors) {
+                liquidationFactors.cashGroup = factors.cashGroup;
+                liquidationFactors.markets = factors.markets;
+                liquidationFactors.perpetualTokenParameters = perpTokenParameters;
+                liquidationFactors.perpetualTokenValue = perpetualTokenValue;
+            }
+        } else {
+            factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
+        }
+
+        return netLocalAssetValue;
+    }
+
     /**
      * @notice A version of getFreeCollateral used during liquidation to save off necessary additional information.
     */
@@ -335,6 +371,8 @@ library FreeCollateral {
     ) internal returns (LiquidationFactors memory, PortfolioAsset[] memory) {
         FreeCollateralFactors memory factors;
         LiquidationFactors memory liquidationFactors;
+        // This is only set to reduce the stack size
+        liquidationFactors.account = account;
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
@@ -370,31 +408,16 @@ library FreeCollateral {
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
-            uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
-            (int netLocalAssetValue, int perpTokenBalance) = getCurrencyBalances(account, currencyBytes);
 
-            if (isActiveInPortfolio(currencyBytes) || perpTokenBalance > 0) {
-                (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
-                (
-                    int netPortfolioValue,
-                    int perpetualTokenValue,
-                    bytes6 perpTokenParameters
-                ) = getPortfolioAndPerpTokenValue(factors, perpTokenBalance, blockTime);
-
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(perpetualTokenValue);
-                factors.assetRate = factors.cashGroup.assetRate;
-
-                // If collateralCurrencyId is set to zero then this is a local currency liquidation
-                if ((currencyId == localCurrencyId && collateralCurrencyId == 0) || currencyId == collateralCurrencyId) {
-                    liquidationFactors.cashGroup = factors.cashGroup;
-                    liquidationFactors.markets = factors.markets;
-                    liquidationFactors.perpetualTokenParameters = perpTokenParameters;
-                    liquidationFactors.perpetualTokenValue = perpetualTokenValue;
-                }
-            } else {
-                factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
+            // This next bit of code here is annoyingly structured to get around stack size issues
+            bool setLiquidationFactors;
+            {
+                uint tempId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
+                setLiquidationFactors = (tempId == localCurrencyId && collateralCurrencyId == 0) || tempId == collateralCurrencyId;
             }
+            int netLocalAssetValue = calculateLiquidationAssetValue(factors, liquidationFactors, currencyBytes, setLiquidationFactors, blockTime);
 
+            uint currencyId = uint(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int ethValue = ethRate.convertToETH(factors.assetRate.convertInternalToUnderlying(netLocalAssetValue));
             factors.netETHValue = factors.netETHValue.add(ethValue);
