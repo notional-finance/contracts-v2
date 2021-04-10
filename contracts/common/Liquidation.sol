@@ -529,29 +529,81 @@ library Liquidation {
         uint blockTime,
         int maxfCashLiquidateAmount,
         int notional
-    ) private view returns (int) {
+    ) private returns (int) {
         (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
             c.factors,
             maturity,
             blockTime
         );
 
-        int fCashBenefit = c.benefitRequired.div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
-        // todo: show math
-        int collateralBenefit = liquidationDiscountFactor
-            .mul(c.factors.localETHRate.buffer)
-            .div(c.liquidationDiscount)
-            .sub(c.factors.collateralETHRate.haircut);
+        // collateralPurchased = fCashToLiquidate * fCashDiscountFactor
+        // (see: calculateCollateralToRaise)
+        // collateralBenefit = collateralPurchased * (localBuffer / liquidationDiscount - collateralHaircut)
+        // totalBenefit = fCashBenefit + collateralBenefit
+        // totalBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
+        //      fCashToLiquidate * liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut)
+        // totalBenefit = fCashToLiquidate * [
+        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
+        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
+        // ]
+        // fCashToLiquidate = totalBenefit / [
+        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
+        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
+        // ]
+        int benefitMultiplier; 
+        {
+            int termTwo = (
+                c.factors.localETHRate.buffer
+                    .mul(CashGroup.PERCENTAGE_DECIMALS)
+                    .div(c.liquidationDiscount)
+                ).sub(c.factors.collateralETHRate.haircut);
+            termTwo = liquidationDiscountFactor.mul(termTwo).div(CashGroup.PERCENTAGE_DECIMALS);
+            int termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
+            benefitMultiplier = termOne.add(termTwo);
+        }
 
-        int fCashToLiquidate = calculateMaxLiquidationAmount(
-            fCashBenefit.add(collateralBenefit),
+        int fCashToLiquidate = c.benefitRequired.mul(Market.RATE_PRECISION).div(benefitMultiplier);
+        fCashToLiquidate = calculateMaxLiquidationAmount(
+            fCashToLiquidate,
             notional,
             maxfCashLiquidateAmount
         );
 
+        // Ensures that local available does not go above zero and collateral available does not go below zero
+        int localToPurchase;
+        (fCashToLiquidate, localToPurchase) = limitPurchaseByAvailableAmounts(
+            c,
+            liquidationDiscountFactor,
+            riskAdjustedDiscountFactor,
+            fCashToLiquidate
+        );
+
+        // inverse of initial fCashToLiquidate calculation above
+        // totalBenefit = fCashToLiquidate * [
+        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
+        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
+        // ]
+        int benefitGained = fCashToLiquidate.mul(benefitMultiplier).div(Market.RATE_PRECISION);
+
+        c.benefitRequired = c.benefitRequired.sub(benefitGained);
+        c.localToPurchase = c.localToPurchase.add(localToPurchase);
+
+        return fCashToLiquidate;
+    }
+
+    function limitPurchaseByAvailableAmounts(
+        fCashContext memory c,
+        int liquidationDiscountFactor,
+        int riskAdjustedDiscountFactor,
+        int fCashToLiquidate
+    ) private pure returns (int, int) {
         // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
         // this is the discounted value that the liquidator will purchase it at.
         int fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(Market.RATE_PRECISION);
+        int fCashBenefit = fCashToLiquidate
+            .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
+            .div(Market.RATE_PRECISION);
+
         // Ensures that collateralAvailable does not go below zero
         if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
             fCashToLiquidate = c.factors.collateralAvailable
@@ -559,7 +611,6 @@ library Liquidation {
                 .div(liquidationDiscountFactor);
         }
 
-        // Ensures that local available does not go above zero
         int localToPurchase;
         (fCashToLiquidate, localToPurchase) = calculateLocalToPurchase(
             c.factors,
@@ -568,18 +619,20 @@ library Liquidation {
             fCashToLiquidate
         );
 
-        // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-        int benefitGained = fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
+        // As we liquidate here the local available and collateral available will change. Update values accordingly so
+        // that the limits will be hit on subsequent iterations.
+        c.factors.collateralAvailable = c.factors.collateralAvailable.sub(
+            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Market.RATE_PRECISION)
+        );
+        // Local available does not have any buffers applied to it
+        c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
 
-        c.benefitRequired = c.benefitRequired.sub(benefitGained);
-        c.localToPurchase = c.localToPurchase.add(localToPurchase);
-
-        return fCashToLiquidate;
+        return (fCashToLiquidate, localToPurchase);
     }
 
+    event Test(int collateralAvailable);
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint localCurrency,
         uint collateralCurrency,
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
@@ -596,7 +649,7 @@ library Liquidation {
             int notional = getfCashNotional(
                 liquidateAccount,
                 c,
-                localCurrency,
+                collateralCurrency,
                 fCashMaturities[i]
             );
             if (notional == 0) continue;
@@ -609,7 +662,8 @@ library Liquidation {
                 notional
             );
 
-            if (c.benefitRequired <= 0) break;
+            emit Test(c.factors.collateralAvailable);
+            if (c.benefitRequired <= 0 || c.factors.collateralAvailable <= 0) break;
         }
 
         return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);

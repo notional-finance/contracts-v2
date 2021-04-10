@@ -114,7 +114,6 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint localCurrency,
         uint collateralCurrency,
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
@@ -125,7 +124,6 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
         return Liquidation.liquidatefCashCrossCurrency(
             liquidateAccount,
-            localCurrency,
             collateralCurrency,
             fCashMaturities,
             maxfCashLiquidateAmounts,
