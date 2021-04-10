@@ -134,17 +134,12 @@ library Liquidation {
         int collateralBalanceToSell
     ) private pure returns (int, int) {
         // Converts collateral present value to the local amount along with the liquidation discount.
-        // exchangeRate = localRate / collateralRate
-        // discountedExchangeRate = exchangeRate / liquidationDiscount
-        //                        = localRate * liquidationDiscount / collateralRate
-        // localToPurchase = collateralPV * discountedExchangeRate
-        // localToPurchase = collateralPV * liquidationDiscount * localRate / collateralRate
+        // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
         int localToPurchase = collateralPresentValue
-            .mul(liquidationDiscount)
+            .mul(ExchangeRate.MULTIPLIER_DECIMALS)
             .mul(factors.localETHRate.rateDecimals)
-            // TODO: should this be multiply instead?
             .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
-            .div(ExchangeRate.MULTIPLIER_DECIMALS);
+            .div(liquidationDiscount);
 
         if (localToPurchase > factors.localAvailable.neg()) {
             // If the local to purchase will put the local available into negative territory we
@@ -236,10 +231,10 @@ library Liquidation {
         uint localCurrency,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime,
-        BalanceState memory liquidatedBalanceState,
+        BalanceState memory balanceState,
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
-    ) internal returns (int) {
+    ) internal view returns (int) {
         int benefitRequired = factors.localETHRate.convertETHTo(factors.netETHValue.neg())
             .mul(ExchangeRate.MULTIPLIER_DECIMALS)
             .div(factors.localETHRate.buffer);
@@ -249,7 +244,7 @@ library Liquidation {
             WithdrawFactors memory w;
             (w, benefitRequired) = withdrawLocalLiquidityTokens(portfolio, factors, blockTime, benefitRequired);
             netLocalFromLiquidator = w.totalIncentivePaid.neg();
-            liquidatedBalanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
+            balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
         int localToPurchase;
@@ -272,10 +267,10 @@ library Liquidation {
             
             perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
                 perpetualTokensToLiquidate,
-                liquidatedBalanceState.storedPerpetualTokenBalance,
+                balanceState.storedPerpetualTokenBalance,
                 int(maxPerpetualTokenLiquidation)
             );
-            liquidatedBalanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+            balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
 
             {
                 // fullPerpTokenPV = haircutTokenPV / haircutPercentage
@@ -284,7 +279,7 @@ library Liquidation {
                     .mul(int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])))
                     .mul(factors.perpetualTokenValue)
                     .div(int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
-                    .div(liquidatedBalanceState.storedPerpetualTokenBalance);
+                    .div(balanceState.storedPerpetualTokenBalance);
 
                 netLocalFromLiquidator = netLocalFromLiquidator.add(value);
             }
@@ -294,20 +289,15 @@ library Liquidation {
     }
 
     function liquidateCollateralCurrency(
-        address liquidateAccount,
-        uint localCurrency,
-        uint collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxPerpetualTokenLiquidation,
-        uint blockTime
-    ) internal returns (BalanceState memory, int) {
-        (
-            AccountStorage memory accountContext,
-            LiquidationFactors memory factors,
-            PortfolioState memory portfolio
-        ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
+        uint blockTime,
+        BalanceState memory balanceState,
+        LiquidationFactors memory factors,
+        PortfolioState memory portfolio
+    ) internal returns (int) {
         require(factors.localAvailable < 0, "No local debt");
-        require(factors.collateralAvailable > 0, "No collateral available");
+        require(factors.collateralAvailable > 0, "No collateral");
 
         (
             int collateralToRaise,
@@ -316,12 +306,6 @@ library Liquidation {
         ) = calculateCollateralToRaise(
             factors,
             int(maxCollateralLiquidation)
-        );
-
-        BalanceState memory balanceState = BalanceHandler.buildBalanceState(
-            liquidateAccount,
-            collateralCurrency,
-            accountContext
         );
 
         int collateralRemaining = collateralToRaise;
@@ -336,7 +320,7 @@ library Liquidation {
             }
         }
 
-        if (hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)) {
+        if (collateralRemaining > 0 && hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)) {
             collateralRemaining = withdrawCollateralLiquidityTokens(
                 portfolio,
                 factors,
@@ -345,23 +329,25 @@ library Liquidation {
             );
         }
 
-        collateralRemaining = calculateCollateralPerpetualTokenTransfer(
-            balanceState,
-            factors,
-            collateralRemaining,
-            int(maxPerpetualTokenLiquidation)
-        );
-
-        if (collateralToRaise != collateralRemaining) {
-            (/* collateralToRaise */, localToPurchase) = calculateLocalToPurchase(
+        if (collateralRemaining > 0 && factors.perpetualTokenValue > 0) {
+            collateralRemaining = calculateCollateralPerpetualTokenTransfer(
+                balanceState,
                 factors,
-                liquidationDiscount,
                 collateralRemaining,
-                collateralRemaining
+                int(maxPerpetualTokenLiquidation)
             );
         }
 
-        return (balanceState, localToPurchase);
+        if (collateralRemaining > 0) {
+            (/* collateralToRaise */, localToPurchase) = calculateLocalToPurchase(
+                factors,
+                liquidationDiscount,
+                collateralToRaise.sub(collateralRemaining),
+                collateralToRaise.sub(collateralRemaining)
+            );
+        }
+
+        return localToPurchase;
     }
 
     function calculateCollateralToRaise(
@@ -371,7 +357,15 @@ library Liquidation {
         (int benefitRequired, int liquidationDiscount) = calculateCrossCurrencyBenefitAndDiscount(factors);
         int collateralToRaise;
         {
-            // TODO: show math here
+            // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
+            //      collateralToSell * collateralHaircut
+            // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
+            //
+            // collateralCurrencyBenefit = [collateralToSell / (exchangeRate * liquidationDiscount)] * localBuffer * exchangeRate -
+            //      collateralToSell * collateralHaircut
+            // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
+            // collateralCurrencyBenefit = collateralToSell * (localBuffer / liquidationDiscount - collateralHaircut)
+            // collateralToSell = collateralCurrencyBeneift / [(localBuffer / liquidationDiscount - collateralHaircut)]
             int denominator = factors.localETHRate.buffer
                 .mul(ExchangeRate.MULTIPLIER_DECIMALS)
                 .div(liquidationDiscount)
@@ -397,7 +391,7 @@ library Liquidation {
         );
         
         // Enforce the user specified max liquidation amount
-        if (collateralToRaise > maxCollateralLiquidation) {
+        if (maxCollateralLiquidation > 0 && collateralToRaise > maxCollateralLiquidation) {
             collateralToRaise = maxCollateralLiquidation;
 
             (/* collateralToRaise */, localToPurchase) = calculateLocalToPurchase(
@@ -417,13 +411,14 @@ library Liquidation {
         int collateralRemaining,
         int maxPerpetualTokenLiquidation
     ) internal view returns (int) {
-        // TODO: why does this not account for FC?
-        // collateralToRaise = perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage
-        // perpetualTokenToLiquidate = collateralToRaise / (perpTokenPV * liquidateHaircutPercentage)
+        // fullPerpTokenPV = haircutTokenPV / haircutPercentage
+        // collateralToRaise = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
+        // tokensToLiquidate = collateralToRaise * totalBalance / (fullPerpTokenPV * liquidationHaircut)
         int perpetualTokenLiquidationHaircut = int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE]));
+        int perpetualTokenHaircut = int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE]));
         int perpetualTokensToLiquidate = collateralRemaining 
-            .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
-            .mul(CashGroup.PERCENTAGE_DECIMALS)
+            .mul(balanceState.storedPerpetualTokenBalance)
+            .mul(perpetualTokenHaircut)
             .div(factors.perpetualTokenValue.mul(perpetualTokenLiquidationHaircut));
 
         if (maxPerpetualTokenLiquidation > 0 && perpetualTokensToLiquidate > maxPerpetualTokenLiquidation) {
@@ -434,14 +429,14 @@ library Liquidation {
             perpetualTokensToLiquidate = balanceState.storedPerpetualTokenBalance;
         }
 
-        balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate;
+        balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
         collateralRemaining = collateralRemaining.subNoNeg(
-            // collateralToRaise = perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage
+            // collateralToRaise = (perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage) / perpetualTokenBalance
             perpetualTokensToLiquidate
                 .mul(factors.perpetualTokenValue)
                 .mul(perpetualTokenLiquidationHaircut)
-                .div(CashGroup.PERCENTAGE_DECIMALS)
-                .div(TokenHandler.INTERNAL_TOKEN_PRECISION)
+                .div(perpetualTokenHaircut)
+                .div(balanceState.storedPerpetualTokenBalance)
         );
 
         return collateralRemaining;

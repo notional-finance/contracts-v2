@@ -71,21 +71,23 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
 
 contract MockCollateralLiquidation is BaseMockLiquidation {
     function liquidateCollateralCurrency(
-        address liquidateAccount,
-        uint localCurrency,
-        uint collateralCurrency,
+        BalanceState memory liquidatedBalanceState, 
+        LiquidationFactors memory factors,
+        PortfolioState memory portfolio,
         uint128 maxCollateralLiquidation,
         uint96 maxPerpetualTokenLiquidation,
         uint blockTime
-    ) external returns (BalanceState memory, int) {
-        return Liquidation.liquidateCollateralCurrency(
-            liquidateAccount,
-            localCurrency,
-            collateralCurrency,
+    ) external returns (BalanceState memory, int, PortfolioState memory, MarketParameters[] memory) {
+        int localToPurchase = Liquidation.liquidateCollateralCurrency(
             maxCollateralLiquidation,
             maxPerpetualTokenLiquidation,
-            blockTime
+            blockTime,
+            liquidatedBalanceState,
+            factors,
+            portfolio
         );
+
+        return (liquidatedBalanceState, localToPurchase, portfolio, factors.markets);
     }
 }
 
