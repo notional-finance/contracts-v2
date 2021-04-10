@@ -54,7 +54,7 @@ CASH_GROUP_PARAMETERS = (
     30,  # 4: debt buffer 150 bps
     30,  # 5: fcash haircut 150 bps
     40,  # 6: settlement penalty 400 bps
-    40,  # 7: liquidityRepoDiscount 400 bps
+    20,  # 7: liquidation discount 100 bps
     # 8: token haircuts (percentages)
     (99, 98, 97, 96, 95, 94, 93, 92, 91),
     # 9: rate scalar (increments of 10)

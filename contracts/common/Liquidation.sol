@@ -196,7 +196,7 @@ library Liquidation {
 
     function getfCashNotional(
         address liquidateAccount,
-        Context memory context,
+        fCashContext memory context,
         uint currencyId,
         uint maturity
     ) private view returns (int) {
@@ -442,7 +442,7 @@ library Liquidation {
         return collateralRemaining;
     }
 
-    struct Context {
+    struct fCashContext {
         AccountStorage accountContext;
         LiquidationFactors factors;
         PortfolioState portfolio;
@@ -457,22 +457,16 @@ library Liquidation {
         uint localCurrency,
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
+        fCashContext memory c,
         uint blockTime
     ) internal returns (int[] memory, int, PortfolioState memory) {
-        Context memory c;
-        (
-            c.accountContext,
-            c.factors,
-            c.portfolio
-        ) = preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        c.fCashNotionalTransfers = new int[](fCashMaturities.length);
-
-        // todo: show math here
         if (c.factors.localAvailable > 0) {
+            // If local available is positive then we can bring it down to zero
             c.benefitRequired = c.factors.localETHRate.convertETHTo(c.factors.netETHValue.neg())
                 .mul(ExchangeRate.MULTIPLIER_DECIMALS)
                 .div(c.factors.localETHRate.haircut);
         } else {
+            // If local available is negative then we can bring it up to zero
             c.benefitRequired = c.factors.localAvailable.neg()
                 .mul(ExchangeRate.MULTIPLIER_DECIMALS)
                 .div(c.factors.localETHRate.buffer);
@@ -487,6 +481,8 @@ library Liquidation {
             );
             if (notional == 0) continue;
 
+            // We know that liquidation discount > risk adjusted discount because they are required to
+            // be this way when setting cash group variables.
             (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
                 c.factors,
                 fCashMaturities[i],
@@ -510,8 +506,8 @@ library Liquidation {
             // Calculate the amount of local currency required from the liquidator
             c.localToPurchase = c.localToPurchase.add(
                 c.fCashNotionalTransfers[i]
-                    .mul(Market.RATE_PRECISION)
-                    .div(liquidationDiscountFactor)
+                    .mul(liquidationDiscountFactor)
+                    .div(Market.RATE_PRECISION)
             );
 
             // Deduct the total benefit gained from liquidating this fCash position
@@ -528,24 +524,24 @@ library Liquidation {
     }
 
     function calculateCrossCurrencyfCashToLiquidate(
-        Context memory context,
+        fCashContext memory c,
         uint maturity,
         uint blockTime,
         int maxfCashLiquidateAmount,
         int notional
     ) private view returns (int) {
         (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
-            context.factors,
+            c.factors,
             maturity,
             blockTime
         );
 
-        int fCashBenefit = context.benefitRequired.div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
+        int fCashBenefit = c.benefitRequired.div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
         // todo: show math
         int collateralBenefit = liquidationDiscountFactor
-            .mul(context.factors.localETHRate.buffer)
-            .div(context.liquidationDiscount)
-            .sub(context.factors.collateralETHRate.haircut);
+            .mul(c.factors.localETHRate.buffer)
+            .div(c.liquidationDiscount)
+            .sub(c.factors.collateralETHRate.haircut);
 
         int fCashToLiquidate = calculateMaxLiquidationAmount(
             fCashBenefit.add(collateralBenefit),
@@ -557,8 +553,8 @@ library Liquidation {
         // this is the discounted value that the liquidator will purchase it at.
         int fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(Market.RATE_PRECISION);
         // Ensures that collateralAvailable does not go below zero
-        if (fCashLiquidationPV > context.factors.collateralAvailable.add(fCashBenefit)) {
-            fCashToLiquidate = context.factors.collateralAvailable
+        if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
+            fCashToLiquidate = c.factors.collateralAvailable
                 .mul(Market.RATE_PRECISION)
                 .div(liquidationDiscountFactor);
         }
@@ -566,8 +562,8 @@ library Liquidation {
         // Ensures that local available does not go above zero
         int localToPurchase;
         (fCashToLiquidate, localToPurchase) = calculateLocalToPurchase(
-            context.factors,
-            context.liquidationDiscount,
+            c.factors,
+            c.liquidationDiscount,
             fCashLiquidationPV,
             fCashToLiquidate
         );
@@ -575,8 +571,8 @@ library Liquidation {
         // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
         int benefitGained = fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
 
-        context.benefitRequired = context.benefitRequired.sub(benefitGained);
-        context.localToPurchase = context.localToPurchase.add(localToPurchase);
+        c.benefitRequired = c.benefitRequired.sub(benefitGained);
+        c.localToPurchase = c.localToPurchase.add(localToPurchase);
 
         return fCashToLiquidate;
     }
@@ -587,14 +583,9 @@ library Liquidation {
         uint collateralCurrency,
         uint[] calldata fCashMaturities,
         uint[] calldata maxfCashLiquidateAmounts,
+        fCashContext memory c,
         uint blockTime
     ) internal returns (int[] memory, int, PortfolioState memory) {
-        Context memory c;
-        (
-            c.accountContext,
-            c.factors,
-            c.portfolio
-        ) = preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
         require(c.factors.localAvailable < 0, "No local debt");
         require(c.factors.collateralAvailable > 0, "No collateral assets");
 

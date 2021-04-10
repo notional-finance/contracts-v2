@@ -448,6 +448,8 @@ library CashGroup {
         require(cashGroup.reserveFeeShare <= CashGroup.PERCENTAGE_DECIMALS, "CG: invalid reserve share");
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
         require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
+        // This is required so that fCash liquidation can proceed correctly
+        require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
 
         // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
         uint8 previousMaxMarketIndex = uint8(uint(getCashGroupStorageBytes(currencyId)));
