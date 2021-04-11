@@ -226,12 +226,17 @@ contract DepositWithdrawAction {
                         accountContext.bitmapCurrencyId == actions[i].currencyId,
                         "Invalid trades for account"
                     );
-                    netCash = TradingAction.executeTradesBitmapBatch(
+                    bool didIncurDebt;
+                    (netCash, didIncurDebt) = TradingAction.executeTradesBitmapBatch(
                         account,
-                        actions[i].currencyId,
+                        accountContext,
                         actions[i].trades
                     );
+                    if (didIncurDebt) accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
                 } else {
+                    // TODO: see if passing in account context and calling storeAssetsAndUpdateContext inside trading action
+                    // will be more efficient, would return accountContext here instead of portfolioState. Should result in fewer
+                    // memory operations
                     (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
                         account,
                         actions[i].currencyId,

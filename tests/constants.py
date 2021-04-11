@@ -96,7 +96,6 @@ TRADE_ACTION_TYPE = {
     "Borrow": 1,
     "AddLiquidity": 2,
     "RemoveLiquidity": 3,
-    "MintCashPair": 4,
-    "PurchasePerpetualTokenResidual": 5,
-    "SettleCashDebt": 6,
+    "PurchasePerpetualTokenResidual": 4,
+    "SettleCashDebt": 5,
 }

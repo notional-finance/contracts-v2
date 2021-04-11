@@ -23,8 +23,6 @@ enum TradeActionType {
     AddLiquidity,
     // (uint8, uint8, uint88, uint32, uint32)
     RemoveLiquidity,
-    // (uint8, address, uint32, int56)
-    MintCashPair,
     // (uint8, uint32, int88)
     PurchasePerpetualTokenResidual,
     // (uint8, address, int88)
@@ -42,49 +40,57 @@ library TradingAction {
 
     event BatchTradeExecution(address account, uint16 currencyId);
 
+    struct BitmapTradeContext {
+        int cash;
+        int fCashAmount;
+        int fee;
+        int netCash;
+        int totalFee;
+        uint blockTime;
+    }
+
     function executeTradesBitmapBatch(
         address account,
-        uint currencyId,
+        AccountStorage calldata accountContext,
         bytes32[] calldata trades
-    ) external returns (int) {
-        uint blockTime = block.timestamp;
+    ) external returns (int, bool) {
         (
             CashGroupParameters memory cashGroup,
             MarketParameters[] memory markets
-        ) = CashGroup.buildCashGroupStateful(currencyId);
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        int[] memory values = new int[](4);
+        ) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+        bool didIncurDebt;
+        BitmapTradeContext memory c;
+        c.blockTime = block.timestamp;
 
         for (uint i; i < trades.length; i++) {
             uint maturity;
-            int fCashAmount;
             (
                 maturity,
-                values[2], // cash amount
-                fCashAmount,
-                values[3] // fee
-            ) = _executeTrade(account, cashGroup, markets, trades[i], blockTime);
+                c.cash,
+                c.fCashAmount,
+                c.fee
+            ) = _executeTrade(account, cashGroup, markets, trades[i], c.blockTime);
 
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+            (ifCashBitmap, c.fCashAmount) = BitmapAssetsHandler.addifCashAsset(
                 account,
-                currencyId,
+                accountContext.bitmapCurrencyId,
                 maturity,
                 accountContext.nextSettleTime,
-                fCashAmount,
+                c.fCashAmount,
                 ifCashBitmap
             );
-            // netCash = netCash + cashAmount
-            values[0] = values[0].add(values[2]);
-            // totalFee = totalFee + fee
-            values[1] = values[1].add(values[3]);
+
+            if (c.fCashAmount < 0) didIncurDebt = true;
+            c.netCash = c.netCash.add(c.cash);
+            c.totalFee = c.totalFee.add(c.fee);
         }
 
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
-        emit BatchTradeExecution(account, uint16(currencyId));
-        BalanceHandler.incrementFeeToReserve(currencyId, values[1]);
+        BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
+        emit BatchTradeExecution(account, uint16(accountContext.bitmapCurrencyId));
+        BalanceHandler.incrementFeeToReserve(accountContext.bitmapCurrencyId, c.totalFee);
 
-        return (values[0]);
+        return (c.netCash, didIncurDebt);
     }
 
     function executeTradesArrayBatch(
@@ -149,9 +155,7 @@ library TradingAction {
         int cashAmount;
         int fCashAmount;
         int fee;
-        if (tradeType == TradeActionType.MintCashPair) {
-            (maturity, fCashAmount) = _mintCashPair(account, cashGroup, blockTime, trade);
-        } else if (tradeType == TradeActionType.PurchasePerpetualTokenResidual) {
+        if (tradeType == TradeActionType.PurchasePerpetualTokenResidual) {
             (maturity, cashAmount, fCashAmount) = _purchasePerpetualTokenResidual(cashGroup, markets, blockTime, trade);
         } else if (tradeType == TradeActionType.SettleCashDebt) {
             // Settling debts will use the oracle rate from the 3 month market
@@ -436,7 +440,7 @@ library TradingAction {
         int netAssetCashPerpToken
     ) private {
         bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(perpTokenAddress, cashGroup.currencyId);
-        ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+        (ifCashBitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
             perpTokenAddress,
             cashGroup.currencyId,
             maturity,
@@ -466,7 +470,8 @@ library TradingAction {
         if (counterpartyContext.bitmapCurrencyId != 0) {
             require(counterpartyContext.bitmapCurrencyId == currencyId, "Invalid cash pair");
             bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(counterparty, currencyId);
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+            int notional;
+            (ifCashBitmap, notional) = BitmapAssetsHandler.addifCashAsset(
                 counterparty,
                 currencyId,
                 maturity,
@@ -474,6 +479,7 @@ library TradingAction {
                 fCashAmount,
                 ifCashBitmap
             );
+            if (notional < 0) counterpartyContext.hasDebt = counterpartyContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
             BitmapAssetsHandler.setAssetsBitmap(counterparty, currencyId, ifCashBitmap);
         } else {
             PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
@@ -485,40 +491,4 @@ library TradingAction {
             counterpartyContext.storeAssetsAndUpdateContext(counterparty, portfolioState);
         }
     }
-
-    function _mintCashPair(
-        address account,
-        CashGroupParameters memory cashGroup,
-        uint blockTime,
-        bytes32 trade
-    ) internal returns (uint, int) {
-        address counterparty = address(bytes20(trade << 8));
-        uint maturity = uint(uint32(bytes4(trade << 168)));
-        // limit of 360 million
-        int fCashAmountForCounterparty = int(int56(bytes7(trade << 200)));
-
-        if (fCashAmountForCounterparty < 0) {
-            // TODO: Requires authorization to deposit borrow
-            require(account != address(0));
-        }
-
-        require(maturity > blockTime, "Invalid maturity");
-        AccountStorage memory counterpartyContext = AccountContextHandler.getAccountContext(counterparty);
-        placefCashAssetInCounterparty(
-            counterparty,
-            counterpartyContext,
-            cashGroup.currencyId,
-            maturity,
-            fCashAmountForCounterparty
-        );
-
-        if (counterpartyContext.hasDebt != 0x00) {
-            // Do free collateral check on counterparty
-            FreeCollateralExternal.checkFreeCollateralAndRevert(counterparty);
-        }
-        counterpartyContext.setAccountContext(counterparty);
-
-        return (maturity, fCashAmountForCounterparty.neg());
-    }
-
 }
