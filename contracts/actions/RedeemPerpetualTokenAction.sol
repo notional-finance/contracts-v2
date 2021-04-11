@@ -348,18 +348,6 @@ contract RedeemPerpetualTokenAction {
             balanceState.netCashChange = balanceState.netCashChange.add(settleAmounts[0].netCashChange);
         }
 
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(redeemer, balanceState.currencyId);
-        for (uint i; i < newfCashAssets.length; i++) {
-            if (newfCashAssets[i].notional == 0) continue;
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
-                redeemer,
-                balanceState.currencyId,
-                newfCashAssets[i].maturity,
-                redeemerContext.nextSettleTime,
-                newfCashAssets[i].notional,
-                ifCashBitmap
-            );
-        }
-        BitmapAssetsHandler.setAssetsBitmap(redeemer, balanceState.currencyId, ifCashBitmap);
+        BitmapAssetsHandler.addMultipleifCashAssets(redeemer, redeemerContext, newfCashAssets);
     }
 }

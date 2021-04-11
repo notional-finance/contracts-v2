@@ -57,15 +57,15 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         return BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
     }
 
-    function setifCashAsset(
+    function addifCashAsset(
         address account,
         uint currencyId,
         uint maturity,
         uint nextSettleTime,
         int notional,
         bytes32 assetsBitmap
-    ) public returns (bytes32) {
-        return BitmapAssetsHandler.setifCashAsset(
+    ) public returns (bytes32, int) {
+        return BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,

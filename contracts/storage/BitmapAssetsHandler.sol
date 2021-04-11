@@ -61,17 +61,48 @@ library BitmapAssetsHandler {
         return notional;
     }
 
+    function addMultipleifCashAssets(
+        address account,
+        AccountStorage memory accountContext,
+        PortfolioAsset[] memory assets
+    ) internal {
+        uint currencyId = accountContext.bitmapCurrencyId;
+        require(currencyId != 0); // dev: invalid account in set ifcash assets
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+
+        for (uint i; i < assets.length; i++) {
+            if (assets[i].notional == 0) continue;
+            require(assets[i].currencyId == currencyId); // dev: invalid asset in set ifcash assets
+            require(assets[i].assetType == AssetHandler.FCASH_ASSET_TYPE); // dev: invalid asset in set ifcash assets
+            int finalNotional;
+
+            (ifCashBitmap, finalNotional) = addifCashAsset(
+                account,
+                currencyId,
+                assets[i].maturity,
+                accountContext.nextSettleTime,
+                assets[i].notional,
+                ifCashBitmap
+            );
+
+            if (finalNotional < 0) accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+        }
+
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
+    }
+
     /**
-     * @notice Set an ifCash asset in the bitmap and mapping. Updates the bitmap in memory but not in storage.
+     * @notice Add an ifCash asset in the bitmap and mapping. Updates the bitmap in memory
+     * but not in storage.
      */
-    function setifCashAsset(
+    function addifCashAsset(
         address account,
         uint currencyId,
         uint maturity,
         uint nextSettleTime,
         int notional,
         bytes32 assetsBitmap
-    ) internal returns (bytes32) {
+    ) internal returns (bytes32, int) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
         (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
@@ -87,13 +118,15 @@ library BitmapAssetsHandler {
             if (existingNotional == 0) {
                 assetsBitmap = assetsBitmap.setBit(bitNum, false);
             }
-        } else {
-            // Bit is not set so we turn it on and update the mapping directly, no read required.
-            assembly { sstore(fCashSlot, notional) }
-            assetsBitmap = assetsBitmap.setBit(bitNum, true);
+
+            return (assetsBitmap, existingNotional);
         }
 
-        return assetsBitmap;
+        // Bit is not set so we turn it on and update the mapping directly, no read required.
+        assembly { sstore(fCashSlot, notional) }
+        assetsBitmap = assetsBitmap.setBit(bitNum, true);
+
+        return (assetsBitmap, notional);
     }
 
     function getPresentValue(
@@ -276,12 +309,14 @@ library BitmapAssetsHandler {
                 uint maturity = CashGroup.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
                 int notional = getifCashNotional(perpToken.tokenAddress, perpToken.cashGroup.currencyId, maturity);
 
+                // Withholding only applies for negative cash balances
                 if (notional < 0) {
                     (
                         uint marketIndex,
                         bool idiosyncratic
                     ) = perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
                     require(!idiosyncratic); // dev: fail on market index
+
                     uint oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
                     if (oracleRateBuffer > oracleRate) {
                         oracleRate = 0;

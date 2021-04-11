@@ -136,7 +136,7 @@ library MintPerpetualTokenAction {
             );
 
             if (fCashAmount != 0) {
-                ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+                (ifCashBitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
                     perpToken.tokenAddress,
                     perpToken.cashGroup.currencyId,
                     market.maturity,

@@ -40,7 +40,7 @@ contract MockFreeCollateral is MockAssetHandler {
         }
         accountContext.nextSettleTime = uint40(CashGroup.getTimeUTC0(blockTime));
 
-        bitmap = BitmapAssetsHandler.setifCashAsset(
+        (bitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
             account, currencyId, maturity, accountContext.nextSettleTime, notional, bitmap
         );
         accountContext.setAccountContext(account);

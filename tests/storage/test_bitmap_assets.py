@@ -44,22 +44,24 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum)
     notional = random.randint(-1e18, 1e18)
 
-    txn = bitmapAssets.setifCashAsset(accounts[0], 1, maturity, START_TIME, notional, bitmap)
-    newBitmap = txn.return_value
+    txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, notional, bitmap)
+    (newBitmap, returnVal) = txn.return_value
 
     setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
     newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
+    assert setValue == returnVal
     assert setValue == notional
     assert newBitlist[bitNum - 1] == "1"
 
     # This should net off the value
-    txn = bitmapAssets.setifCashAsset(accounts[0], 1, maturity, START_TIME, -notional, newBitmap)
-    newBitmap = txn.return_value
+    txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, -notional, newBitmap)
+    (newBitmap, returnVal) = txn.return_value
 
     setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
     newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
+    assert setValue == returnVal
     assert setValue == 0
     assert newBitlist[bitNum - 1] == "0"
 
@@ -74,7 +76,7 @@ def test_get_ifcash_array(bitmapAssets, accounts):
         maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum + 1)
         maturities.append(maturity)
         notional = 1e8
-        bitmapAssets.setifCashAsset(accounts[0], currencyId, maturity, START_TIME, notional, "")
+        bitmapAssets.addifCashAsset(accounts[0], currencyId, maturity, START_TIME, notional, "")
 
     bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
     portfolio = bitmapAssets.getifCashArray(accounts[0], currencyId, START_TIME)
@@ -121,7 +123,7 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
             notional = random.randint(-1e12, 1e12)
             maturity = bitmapAssets.getMaturityFromBitNum(nextSettleTime, i + 1)
 
-            bitmapAssets.setifCashAsset(
+            bitmapAssets.addifCashAsset(
                 accounts[0],
                 1,
                 maturity,

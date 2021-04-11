@@ -146,7 +146,7 @@ library InitializeMarketsAction {
             PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
             if (asset.assetType != AssetHandler.FCASH_ASSET_TYPE) continue;
 
-            ifCashBitmap = BitmapAssetsHandler.setifCashAsset(
+            (ifCashBitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
                 perpToken.tokenAddress,
                 currencyId,
                 asset.maturity,
@@ -529,7 +529,7 @@ library InitializeMarketsAction {
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();
 
-        return BitmapAssetsHandler.setifCashAsset(
+        (bytes32 bitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
             tokenAddress,
             currencyId,
             market.maturity,
@@ -537,5 +537,7 @@ library InitializeMarketsAction {
             market.totalfCash.neg(),
             ifCashBitmap
         );
+
+        return bitmap;
     }
 }
