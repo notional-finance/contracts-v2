@@ -70,6 +70,18 @@ library SettleAssetsExternal {
 
     function settleAssetsAndReturnPortfolio(
         address account
+    ) external returns (AccountStorage memory, PortfolioState memory) {
+        (
+            AccountStorage memory accountContext,
+            /* SettleAmount[] memory settleAmounts */,
+            PortfolioState memory portfolioState
+        ) = _settleAccount(account, true, false);
+
+        return (accountContext, portfolioState);
+    }
+
+    function settleAssetsAndReturnAll(
+        address account
     ) external returns (AccountStorage memory, SettleAmount[] memory, PortfolioState memory) {
         return _settleAccount(account, false, false);
     }

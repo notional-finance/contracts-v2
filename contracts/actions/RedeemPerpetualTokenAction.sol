@@ -307,7 +307,7 @@ contract RedeemPerpetualTokenAction {
                 redeemerContext,
                 settleAmounts,
                 portfolioState
-            ) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(redeemer);
+            ) = SettleAssetsExternal.settleAssetsAndReturnAll(redeemer);
             
             // Merge a cash change in the current currency into the balance state to save a storage write
             for (uint i; i < settleAmounts.length; i++) {

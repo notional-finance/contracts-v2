@@ -26,7 +26,7 @@ library PortfolioHandler {
     function addMultipleAssets(
         PortfolioState memory portfolioState,
         PortfolioAsset[] memory assets
-    ) internal {
+    ) internal pure {
         for (uint i; i < assets.length; i++) {
             if (assets[i].notional == 0) continue;
 

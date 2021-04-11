@@ -102,7 +102,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         uint blockTime
     ) external returns (int[] memory, int, PortfolioState memory) {
         c.fCashNotionalTransfers = new int[](fCashMaturities.length);
-        return Liquidation.liquidatefCashLocal(
+        Liquidation.liquidatefCashLocal(
             liquidateAccount,
             localCurrency,
             fCashMaturities,
@@ -110,6 +110,8 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             c,
             blockTime
         );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
     }
 
     function liquidatefCashCrossCurrency(
@@ -122,7 +124,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
     ) external returns (int[] memory, int, PortfolioState memory) {
         c.fCashNotionalTransfers = new int[](fCashMaturities.length);
 
-        return Liquidation.liquidatefCashCrossCurrency(
+        Liquidation.liquidatefCashCrossCurrency(
             liquidateAccount,
             collateralCurrency,
             fCashMaturities,
@@ -130,6 +132,8 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             c,
             blockTime
         );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
     }
 
 }

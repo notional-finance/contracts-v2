@@ -247,7 +247,6 @@ library Liquidation {
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        int localToPurchase;
         if (factors.perpetualTokenValue > 0) {
             int perpetualTokensToLiquidate;
             {
@@ -275,13 +274,14 @@ library Liquidation {
             {
                 // fullPerpTokenPV = haircutTokenPV / haircutPercentage
                 // localFromLiquidator = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
-                int value = perpetualTokensToLiquidate
+                int localCashValue = perpetualTokensToLiquidate
                     .mul(int(uint8(factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE])))
                     .mul(factors.perpetualTokenValue)
                     .div(int(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
                     .div(balanceState.storedPerpetualTokenBalance);
 
-                netLocalFromLiquidator = netLocalFromLiquidator.add(value);
+                balanceState.netCashChange = balanceState.netCashChange.add(localCashValue);
+                netLocalFromLiquidator = netLocalFromLiquidator.add(localCashValue);
             }
         }
 
@@ -295,7 +295,7 @@ library Liquidation {
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
-    ) internal returns (int) {
+    ) internal view returns (int) {
         require(factors.localAvailable < 0, "No local debt");
         require(factors.collateralAvailable > 0, "No collateral");
 
@@ -321,12 +321,14 @@ library Liquidation {
         }
 
         if (collateralRemaining > 0 && hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)) {
-            collateralRemaining = withdrawCollateralLiquidityTokens(
+            int postWithdrawCollateral = withdrawCollateralLiquidityTokens(
                 portfolio,
                 factors,
                 blockTime,
                 collateralRemaining
             );
+            balanceState.netCashChange = balanceState.netCashChange.add(collateralRemaining.sub(postWithdrawCollateral));
+            collateralRemaining = postWithdrawCollateral;
         }
 
         if (collateralRemaining > 0 && factors.perpetualTokenValue > 0) {
@@ -410,7 +412,7 @@ library Liquidation {
         LiquidationFactors memory factors,
         int collateralRemaining,
         int maxPerpetualTokenLiquidation
-    ) internal view returns (int) {
+    ) internal pure returns (int) {
         // fullPerpTokenPV = haircutTokenPV / haircutPercentage
         // collateralToRaise = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
         // tokensToLiquidate = collateralToRaise * totalBalance / (fullPerpTokenPV * liquidationHaircut)
@@ -459,7 +461,7 @@ library Liquidation {
         uint[] calldata maxfCashLiquidateAmounts,
         fCashContext memory c,
         uint blockTime
-    ) internal returns (int[] memory, int, PortfolioState memory) {
+    ) internal view {
         if (c.factors.localAvailable > 0) {
             // If local available is positive then we can bring it down to zero
             c.benefitRequired = c.factors.localETHRate.convertETHTo(c.factors.netETHValue.neg())
@@ -519,8 +521,6 @@ library Liquidation {
 
             if (c.benefitRequired <= 0) break;
         }
-
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
     }
 
     function calculateCrossCurrencyfCashToLiquidate(
@@ -529,7 +529,7 @@ library Liquidation {
         uint blockTime,
         int maxfCashLiquidateAmount,
         int notional
-    ) private returns (int) {
+    ) private view returns (int) {
         (int riskAdjustedDiscountFactor, int liquidationDiscountFactor) = calculatefCashDiscounts(
             c.factors,
             maturity,
@@ -630,7 +630,6 @@ library Liquidation {
         return (fCashToLiquidate, localToPurchase);
     }
 
-    event Test(int collateralAvailable);
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
         uint collateralCurrency,
@@ -638,7 +637,7 @@ library Liquidation {
         uint[] calldata maxfCashLiquidateAmounts,
         fCashContext memory c,
         uint blockTime
-    ) internal returns (int[] memory, int, PortfolioState memory) {
+    ) internal {
         require(c.factors.localAvailable < 0, "No local debt");
         require(c.factors.collateralAvailable > 0, "No collateral assets");
 
@@ -662,11 +661,8 @@ library Liquidation {
                 notional
             );
 
-            emit Test(c.factors.collateralAvailable);
             if (c.benefitRequired <= 0 || c.factors.collateralAvailable <= 0) break;
         }
-
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
     }
 
     struct WithdrawFactors {

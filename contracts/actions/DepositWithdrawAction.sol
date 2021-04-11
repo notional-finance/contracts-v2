@@ -277,7 +277,7 @@ contract DepositWithdrawAction {
                 AccountStorage memory newAccountContext,
                 SettleAmount[] memory settleAmounts,
                 PortfolioState memory portfolioState
-            ) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(account);
+            ) = SettleAssetsExternal.settleAssetsAndReturnAll(account);
 
             accountContext = newAccountContext;
             return (settleAmounts, portfolioState);
