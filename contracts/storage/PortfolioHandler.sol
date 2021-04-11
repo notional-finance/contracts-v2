@@ -23,6 +23,24 @@ library PortfolioHandler {
     using SafeInt256 for int;
     using AssetHandler for PortfolioAsset;
 
+    function addMultipleAssets(
+        PortfolioState memory portfolioState,
+        PortfolioAsset[] memory assets
+    ) internal {
+        for (uint i; i < assets.length; i++) {
+            if (assets[i].notional == 0) continue;
+
+            addAsset(
+                portfolioState,
+                assets[i].currencyId,
+                assets[i].maturity,
+                assets[i].assetType,
+                assets[i].notional,
+                false
+            );
+        }
+    }
+
     function extendNewAssetArray(
         PortfolioAsset[] memory newAssets
     ) internal pure returns (PortfolioAsset[] memory) {

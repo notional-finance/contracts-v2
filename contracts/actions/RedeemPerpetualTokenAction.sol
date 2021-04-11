@@ -327,18 +327,7 @@ contract RedeemPerpetualTokenAction {
             );
         }
 
-        for (uint i; i < newfCashAssets.length; i++) {
-            if (newfCashAssets[i].notional == 0) continue;
-
-            portfolioState.addAsset(
-                newfCashAssets[i].currencyId,
-                newfCashAssets[i].maturity,
-                newfCashAssets[i].assetType,
-                newfCashAssets[i].notional,
-                false
-            );
-        }
-
+        portfolioState.addMultipleAssets(newfCashAssets);
         redeemerContext.storeAssetsAndUpdateContext(redeemer, portfolioState);
     }
 
