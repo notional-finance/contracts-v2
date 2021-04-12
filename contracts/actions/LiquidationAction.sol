@@ -297,25 +297,21 @@ contract LiquidatefCashLocal {
             c.localToPurchase
         );
 
-        LiquidationHelpers.transferAssets(
-            liquidateAccount,
-            msg.sender,
-            liquidatorContext,
-            localCurrency,
-            fCashMaturities,
-            c
-        );
+        // TODO: this causes size to overflow, maybe use ERC1155?
+        // LiquidationHelpers.transferAssets(
+        //     liquidateAccount,
+        //     msg.sender,
+        //     liquidatorContext,
+        //     localCurrency,
+        //     fCashMaturities,
+        //     c
+        // );
 
         liquidatorContext.setAccountContext(msg.sender);
-        c.accountContext.setAccountContext(msg.sender);
+        c.accountContext.setAccountContext(liquidateAccount);
 
         return (c.fCashNotionalTransfers, c.localToPurchase);
     }
-}
-
-contract LiquidatefCashCrossCurrency {
-    using AccountContextHandler for AccountStorage;
-    using SafeInt256 for int;
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
@@ -356,17 +352,18 @@ contract LiquidatefCashCrossCurrency {
             c.localToPurchase
         );
 
-        LiquidationHelpers.transferAssets(
-            liquidateAccount,
-            msg.sender,
-            liquidatorContext,
-            collateralCurrency,
-            fCashMaturities,
-            c
-        );
+        // TODO: this causes size to overflow, maybe use ERC1155?
+        // LiquidationHelpers.transferAssets(
+        //     liquidateAccount,
+        //     msg.sender,
+        //     liquidatorContext,
+        //     collateralCurrency,
+        //     fCashMaturities,
+        //     c
+        // );
 
         liquidatorContext.setAccountContext(msg.sender);
-        c.accountContext.setAccountContext(msg.sender);
+        c.accountContext.setAccountContext(liquidateAccount);
 
         return (c.fCashNotionalTransfers, c.localToPurchase);
     }

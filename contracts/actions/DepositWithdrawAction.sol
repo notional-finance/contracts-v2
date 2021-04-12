@@ -198,6 +198,8 @@ contract DepositWithdrawAction {
         address account,
         BalanceActionWithTrades[] calldata actions
     ) external payable {
+        require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         (
             SettleAmount[] memory settleAmounts,

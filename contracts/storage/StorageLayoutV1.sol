@@ -165,4 +165,8 @@ contract StorageLayoutV1 {
     // Individual transfer allowances for perpetual tokens used for ERC20
     // owner => spender => currencyId => transferAllowance
     mapping(address => mapping(address => mapping(uint16 => uint))) internal perpTokenTransferAllowance;
+
+    // Transfer operators
+    mapping(address => bool) internal globalTransferOperator;
+    mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
 }

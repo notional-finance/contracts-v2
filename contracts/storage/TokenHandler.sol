@@ -223,6 +223,7 @@ library TokenHandler {
         Token memory token,
         int amount
     ) internal pure returns (int) {
+        // todo: short circuit if equal
         return amount.mul(INTERNAL_TOKEN_PRECISION).div(token.decimals);
     }
 
