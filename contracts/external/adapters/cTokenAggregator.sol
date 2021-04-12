@@ -31,32 +31,20 @@ contract cTokenAggregator is AssetRateAdapter {
     /** @notice Returns the current exchange rate for the cToken to the underlying */
     function getExchangeRateStateful() external override returns (int256) {
         uint256 exchangeRate = CTokenInterface(token).exchangeRateCurrent();
-        require(
-            exchangeRate <= uint256(type(int256).max),
-            "cTokenAdapter: overflow"
-        );
+        require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
 
         return int256(exchangeRate);
     }
 
     function getExchangeRateView() external view override returns (int256) {
         uint256 exchangeRate = CTokenInterface(token).exchangeRateStored();
-        require(
-            exchangeRate <= uint256(type(int256).max),
-            "cTokenAdapter: overflow"
-        );
+        require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
 
         return int256(exchangeRate);
     }
 
-    function getAnnualizedSupplyRate()
-        external
-        view
-        override
-        returns (uint256)
-    {
-        uint256 supplyRatePerBlock =
-            CTokenInterface(token).supplyRatePerBlock();
+    function getAnnualizedSupplyRate() external view override returns (uint256) {
+        uint256 supplyRatePerBlock = CTokenInterface(token).supplyRatePerBlock();
 
         // Supply rate per block * blocks per year * notional rate precision / supply rate precision
         return supplyRatePerBlock.mul(BLOCKS_PER_YEAR).div(SCALE_RATE);

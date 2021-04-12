@@ -70,15 +70,7 @@ contract GovernorAlpha is TimelockController {
     }
 
     // Possible states that a proposal may be in
-    enum ProposalState {
-        Pending,
-        Active,
-        Canceled,
-        Defeated,
-        Succeeded,
-        Queued,
-        Executed
-    }
+    enum ProposalState {Pending, Active, Canceled, Defeated, Succeeded, Queued, Executed}
 
     /// @notice The official record of all proposals ever proposed
     mapping(uint256 => Proposal) public proposals;
@@ -91,13 +83,10 @@ contract GovernorAlpha is TimelockController {
 
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH =
-        keccak256(
-            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
-        );
+        keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
     /// @notice The EIP-712 typehash for the ballot struct uComp by the contract
-    bytes32 public constant BALLOT_TYPEHASH =
-        keccak256("Ballot(uint256 proposalId,bool support)");
+    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,bool support)");
 
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(
@@ -111,12 +100,7 @@ contract GovernorAlpha is TimelockController {
     );
 
     /// @notice An event emitted when a vote has been cast on a proposal
-    event VoteCast(
-        address voter,
-        uint256 proposalId,
-        bool support,
-        uint256 votes
-    );
+    event VoteCast(address voter, uint256 proposalId, bool support, uint256 votes);
 
     /// @notice An event emitted when a proposal has been canceled
     event ProposalCanceled(uint256 id);
@@ -168,14 +152,10 @@ contract GovernorAlpha is TimelockController {
             "GovernorAlpha::propose: proposer votes below proposal threshold"
         );
         require(
-            targets.length == values.length &&
-                targets.length == calldatas.length,
+            targets.length == values.length && targets.length == calldatas.length,
             "GovernorAlpha::propose: proposal function information arity mismatch"
         );
-        require(
-            targets.length != 0,
-            "GovernorAlpha::propose: must provide actions"
-        );
+        require(targets.length != 0, "GovernorAlpha::propose: must provide actions");
         require(
             targets.length <= proposalMaxOperations,
             "GovernorAlpha::propose: too many actions"
@@ -184,8 +164,7 @@ contract GovernorAlpha is TimelockController {
         {
             uint256 latestProposalId = latestProposalIds[msg.sender];
             if (latestProposalId != 0) {
-                ProposalState proposersLatestProposalState =
-                    state(latestProposalId);
+                ProposalState proposersLatestProposalState = state(latestProposalId);
                 require(
                     proposersLatestProposalState != ProposalState.Active,
                     "GovernorAlpha::propose: one live proposal per proposer, found an already active proposal"
@@ -202,8 +181,7 @@ contract GovernorAlpha is TimelockController {
 
         uint32 startBlock = _add32(uint32(blockNumber), votingDelayBlocks);
         uint32 endBlock = _add32(startBlock, votingPeriodBlocks);
-        bytes32 operationHash =
-            _computeHash(targets, values, calldatas, newProposalId);
+        bytes32 operationHash = _computeHash(targets, values, calldatas, newProposalId);
 
         Proposal memory newProposal =
             Proposal({
@@ -240,14 +218,7 @@ contract GovernorAlpha is TimelockController {
         bytes[] calldata calldatas,
         uint256 proposalId
     ) private pure returns (bytes32) {
-        return
-            hashOperationBatch(
-                targets,
-                values,
-                calldatas,
-                "",
-                bytes32(proposalId)
-            );
+        return hashOperationBatch(targets, values, calldatas, "", bytes32(proposalId));
     }
 
     /// @notice Adds a proposal to the timelock queue only after its vote has passed, `targets`,
@@ -264,18 +235,11 @@ contract GovernorAlpha is TimelockController {
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) external {
-        require(
-            state(proposalId) == ProposalState.Succeeded,
-            "Proposal must be success"
-        );
-        bytes32 computedOperationHash =
-            _computeHash(targets, values, calldatas, proposalId);
+        require(state(proposalId) == ProposalState.Succeeded, "Proposal must be success");
+        bytes32 computedOperationHash = _computeHash(targets, values, calldatas, proposalId);
         {
             Proposal storage proposal = proposals[proposalId];
-            require(
-                computedOperationHash == proposal.operationHash,
-                "Operation hash mismatch"
-            );
+            require(computedOperationHash == proposal.operationHash, "Operation hash mismatch");
         }
 
         _scheduleBatch(targets, values, calldatas, proposalId);
@@ -291,14 +255,7 @@ contract GovernorAlpha is TimelockController {
         uint256 proposalId
     ) private {
         // NOTE: this will also emit events
-        this.scheduleBatch(
-            targets,
-            values,
-            calldatas,
-            "",
-            bytes32(proposalId),
-            getMinDelay()
-        );
+        this.scheduleBatch(targets, values, calldatas, "", bytes32(proposalId), getMinDelay());
     }
 
     /// @notice Executes a proposal in the timelock queue after its delay has passed, `targets`,
@@ -317,12 +274,8 @@ contract GovernorAlpha is TimelockController {
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
 
-        bytes32 computedOperationHash =
-            _computeHash(targets, values, calldatas, proposalId);
-        require(
-            computedOperationHash == proposal.operationHash,
-            "Operation hash mismatch"
-        );
+        bytes32 computedOperationHash = _computeHash(targets, values, calldatas, proposalId);
+        require(computedOperationHash == proposal.operationHash, "Operation hash mismatch");
         // Execute batch will revert if the call has not been scheduled
         _executeBatch(targets, values, calldatas, proposalId);
 
@@ -346,18 +299,14 @@ contract GovernorAlpha is TimelockController {
     /// @dev emit:ProposalCanceled emit:Cancelled
     function cancelProposal(uint256 proposalId) public {
         ProposalState proposalState = state(proposalId);
-        require(
-            proposalState != ProposalState.Executed,
-            "Proposal already executed"
-        );
+        require(proposalState != ProposalState.Executed, "Proposal already executed");
 
         Proposal storage proposal = proposals[proposalId];
         uint256 blockNumber = block.number;
         require(blockNumber > 0);
         require(
             msg.sender == guardian ||
-                note.getPriorVotes(proposal.proposer, blockNumber - 1) <
-                proposalThreshold,
+                note.getPriorVotes(proposal.proposer, blockNumber - 1) < proposalThreshold,
             "GovernorAlpha::cancel: proposer above threshold"
         );
 
@@ -371,11 +320,7 @@ contract GovernorAlpha is TimelockController {
     /// @notice Returns the voting receipt for a voter on a proposal
     /// @param proposalId unique identifier for the proposal
     /// @param voter address of the voter
-    function getReceipt(uint256 proposalId, address voter)
-        public
-        view
-        returns (Receipt memory)
-    {
+    function getReceipt(uint256 proposalId, address voter) public view returns (Receipt memory) {
         return receipts[proposalId][voter];
     }
 
@@ -396,10 +341,7 @@ contract GovernorAlpha is TimelockController {
             return ProposalState.Pending;
         } else if (blockNumber <= proposal.endBlock) {
             return ProposalState.Active;
-        } else if (
-            proposal.forVotes <= proposal.againstVotes ||
-            proposal.forVotes < quorumVotes
-        ) {
+        } else if (proposal.forVotes <= proposal.againstVotes || proposal.forVotes < quorumVotes) {
             return ProposalState.Defeated;
         } else if (proposal.executed) {
             return ProposalState.Executed;
@@ -438,24 +380,12 @@ contract GovernorAlpha is TimelockController {
     ) public {
         bytes32 domainSeparator =
             keccak256(
-                abi.encode(
-                    DOMAIN_TYPEHASH,
-                    keccak256(bytes(name)),
-                    _getChainId(),
-                    address(this)
-                )
+                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), _getChainId(), address(this))
             );
-        bytes32 structHash =
-            keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
-        bytes32 digest =
-            keccak256(
-                abi.encodePacked("\x19\x01", domainSeparator, structHash)
-            );
+        bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
-        require(
-            signatory != address(0),
-            "GovernorAlpha::castVoteBySig: invalid signature"
-        );
+        require(signatory != address(0), "GovernorAlpha::castVoteBySig: invalid signature");
         return _castVote(signatory, proposalId, support);
     }
 
@@ -471,10 +401,7 @@ contract GovernorAlpha is TimelockController {
         );
         Proposal storage proposal = proposals[proposalId];
         Receipt storage receipt = receipts[proposalId][voter];
-        require(
-            receipt.hasVoted == false,
-            "GovernorAlpha::_castVote: voter already voted"
-        );
+        require(receipt.hasVoted == false, "GovernorAlpha::_castVote: voter already voted");
         uint96 votes = note.getPriorVotes(voter, proposal.startBlock);
 
         if (support) {
@@ -492,10 +419,7 @@ contract GovernorAlpha is TimelockController {
 
     /// @dev Hidden public method
     function __abdicate() public {
-        require(
-            msg.sender == guardian,
-            "GovernorAlpha::__abdicate: sender must be gov guardian"
-        );
+        require(msg.sender == guardian, "GovernorAlpha::__abdicate: sender must be gov guardian");
         guardian = address(0);
     }
 
@@ -524,8 +448,5 @@ contract GovernorAlpha is TimelockController {
 }
 
 interface NoteInterface {
-    function getPriorVotes(address account, uint256 blockNumber)
-        external
-        view
-        returns (uint96);
+    function getPriorVotes(address account, uint256 blockNumber) external view returns (uint96);
 }

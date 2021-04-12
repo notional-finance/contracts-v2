@@ -45,12 +45,7 @@ contract nTokenERC20Proxy is IERC20 {
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
-    function balanceOf(address account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function balanceOf(address account) external view override returns (uint256) {
         return proxy.nTokenBalanceOf(currencyId, account);
     }
 
@@ -58,12 +53,7 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param account The address of the account holding the funds
     /// @param spender The address of the account spending the funds
     /// @return The number of tokens approved
-    function allowance(address account, address spender)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function allowance(address account, address spender) external view override returns (uint256) {
         return proxy.nTokenTransferAllowance(currencyId, account, spender);
     }
 
@@ -74,20 +64,10 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param spender The address of the account which may transfer tokens
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
-    function approve(address spender, uint256 amount)
-        external
-        override
-        returns (bool)
-    {
+    function approve(address spender, uint256 amount) external override returns (bool) {
         // Emit approvals here so that they come from the correct contract address
         emit Approval(msg.sender, spender, amount);
-        return
-            proxy.nTokenTransferApprove(
-                currencyId,
-                msg.sender,
-                spender,
-                amount
-            );
+        return proxy.nTokenTransferApprove(currencyId, msg.sender, spender, amount);
     }
 
     /// @notice Transfer `amount` tokens from `msg.sender` to `dst`
@@ -95,11 +75,7 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
-    function transfer(address to, uint256 amount)
-        external
-        override
-        returns (bool)
-    {
+    function transfer(address to, uint256 amount) external override returns (bool) {
         // Emit transfer events here so they come from the correct contract
         emit Transfer(msg.sender, to, amount);
         return proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
@@ -129,11 +105,7 @@ contract nTokenERC20Proxy is IERC20 {
     /// @notice Returns the claimable incentives for a particular currency
     /// @param account The address of the account which holds the tokens
     /// @return Incentives an account is eligible to claim
-    function getClaimableIncentives(address account)
-        external
-        view
-        returns (uint256)
-    {
+    function getClaimableIncentives(address account) external view returns (uint256) {
         return proxy.nTokenGetClaimableIncentives(currencyId, account);
     }
 
@@ -143,11 +115,7 @@ contract nTokenERC20Proxy is IERC20 {
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
-    function getPresentValueUnderlyingDenominated()
-        external
-        view
-        returns (int256)
-    {
+    function getPresentValueUnderlyingDenominated() external view returns (int256) {
         return proxy.nTokenPresentValueUnderlyingDenominated(currencyId);
     }
 }

@@ -3,8 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./actions/nTokenAction.sol";
+import "./actions/nTokenMintAction.sol";
 import "../actions/GovernanceAction.sol";
-import "../actions/MintPerpetualTokenAction.sol";
 import "../actions/RedeemPerpetualTokenAction.sol";
 import "../actions/DepositWithdrawAction.sol";
 import "../actions/InitializeMarketsAction.sol";
@@ -112,8 +112,7 @@ contract Router is StorageLayoutV1 {
 
         if (
             sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector ||
-            sig ==
-            RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
+            sig == RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
         ) {
             return NTOKEN_REDEEM;
         }
@@ -132,8 +131,7 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateIncentiveEmissionRate.selector ||
             sig == GovernanceAction.updatePerpetualDepositParameters.selector ||
             sig == GovernanceAction.updateInitializationParameters.selector ||
-            sig ==
-            GovernanceAction.updatePerpetualTokenCollateralParameters.selector
+            sig == GovernanceAction.updatePerpetualTokenCollateralParameters.selector
         ) {
             return GOVERNANCE;
         }
@@ -158,14 +156,7 @@ contract Router is StorageLayoutV1 {
 
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(
-                gas(),
-                implementation,
-                0,
-                calldatasize(),
-                0,
-                0
-            )
+            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
 
             // Copy the returned data.
             returndatacopy(0, 0, returndatasize())

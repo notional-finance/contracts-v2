@@ -172,18 +172,10 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     /// @notice Claims incentives accrued on the nToken and transfers them to the msg.sender
     /// @param currencyId Currency id associated with the nToken
     /// @return Total amount of incentives claimed
-    function nTokenClaimIncentives(uint16 currencyId)
-        external
-        returns (uint256)
-    {
-        AccountStorage memory accountContext =
-            AccountContextHandler.getAccountContext(msg.sender);
+    function nTokenClaimIncentives(uint16 currencyId) external returns (uint256) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
         BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(
-                msg.sender,
-                currencyId,
-                accountContext
-            );
+            BalanceHandler.buildBalanceState(msg.sender, currencyId, accountContext);
 
         // NOTE: no need to set account context after claiming incentives
         return BalanceHandler.claimIncentivesManual(balanceState, msg.sender);
@@ -199,14 +191,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         override
         returns (uint256)
     {
-        AccountStorage memory accountContext =
-            AccountContextHandler.getAccountContext(account);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(
-                account,
-                currencyId,
-                accountContext
-            );
+            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
 
         uint256 incentives =
             BalanceHandler.calculateIncentivesToClaim(
@@ -245,10 +232,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (int256 totalAssetPV, PerpetualTokenPortfolio memory nToken) =
             _getPerpetualTokenPV(currencyId);
 
-        return
-            nToken.cashGroup.assetRate.convertInternalToUnderlying(
-                totalAssetPV
-            );
+        return nToken.cashGroup.assetRate.convertInternalToUnderlying(totalAssetPV);
     }
 
     function _getPerpetualTokenPV(uint256 currencyId)
@@ -276,19 +260,13 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
-        AccountStorage memory senderContext =
-            AccountContextHandler.getAccountContext(sender);
+        AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance =
             BalanceHandler.buildBalanceState(sender, currencyId, senderContext);
 
-        AccountStorage memory recipientContext =
-            AccountContextHandler.getAccountContext(recipient);
+        AccountStorage memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance =
-            BalanceHandler.buildBalanceState(
-                recipient,
-                currencyId,
-                recipientContext
-            );
+            BalanceHandler.buildBalanceState(recipient, currencyId, recipientContext);
 
         int256 amountInt = SafeCast.toInt256(amount);
         senderBalance.netPerpetualTokenTransfer = amountInt.neg();

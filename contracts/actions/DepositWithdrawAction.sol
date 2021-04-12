@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./FreeCollateralExternal.sol";
 import "./SettleAssetsExternal.sol";
-import "./MintPerpetualTokenAction.sol";
+import "../external/actions/nTokenMintAction.sol";
 import "./RedeemPerpetualTokenAction.sol";
 import "./TradingAction.sol";
 import "../math/SafeInt256.sol";
@@ -25,8 +25,8 @@ enum DepositActionType {
 struct BalanceAction {
     DepositActionType actionType;
     uint16 currencyId;
-    uint depositActionAmount;
-    uint withdrawAmountInternalPrecision;
+    uint256 depositActionAmount;
+    uint256 withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;
     bool redeemToUnderlying;
 }
@@ -34,8 +34,8 @@ struct BalanceAction {
 struct BalanceActionWithTrades {
     DepositActionType actionType;
     uint16 currencyId;
-    uint depositActionAmount;
-    uint withdrawAmountInternalPrecision;
+    uint256 depositActionAmount;
+    uint256 withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;
     bool redeemToUnderlying;
     bytes32[] trades;
@@ -45,10 +45,10 @@ contract DepositWithdrawAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
-    event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
-    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
+    event CashBalanceChange(address indexed account, uint16 currencyId, int256 amount);
+    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int256 amount);
     event AccountSettled(address indexed account);
 
     function settleAccount(address account) external {
@@ -67,17 +67,19 @@ contract DepositWithdrawAction {
     function depositUnderlyingToken(
         address account,
         uint16 currencyId,
-        uint amountExternalPrecision
-    ) external payable returns (uint) {
+        uint256 amountExternalPrecision
+    ) external payable returns (uint256) {
         // No other authorization required on depositing
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState =
+            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
         // Int conversion overflow check done inside this method call
         // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
         // be useful for on-demand collateral top ups from a third party
-        int assetTokensReceivedInternal = balanceState.depositUnderlyingToken(msg.sender, int(amountExternalPrecision));
+        int256 assetTokensReceivedInternal =
+            balanceState.depositUnderlyingToken(msg.sender, int256(amountExternalPrecision));
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
@@ -86,7 +88,7 @@ contract DepositWithdrawAction {
         emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
 
         // NOTE: no free collateral checks required for depositing
-        return uint(assetTokensReceivedInternal);
+        return uint256(assetTokensReceivedInternal);
     }
 
     /**
@@ -95,19 +97,19 @@ contract DepositWithdrawAction {
     function depositAssetToken(
         address account,
         uint16 currencyId,
-        uint amountExternalPrecision
-    ) external returns (uint) {
+        uint256 amountExternalPrecision
+    ) external returns (uint256) {
         // TODO: the way finalized is structured does not allow msg.sender to deposit
         require(msg.sender == account, "Unauthorized"); // dev: no internal call to deposit asset
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState =
+            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
         // Int conversion overflow check done inside this method call, useCashBalance is set to false. It does
         // not make sense in this context.
-        (
-            int assetTokensReceivedInternal,
+        (int256 assetTokensReceivedInternal, ) =
             /* assetAmountTransferred */
-        ) = balanceState.depositAssetToken(account, int(amountExternalPrecision), false);
+            balanceState.depositAssetToken(account, int256(amountExternalPrecision), false);
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
@@ -116,7 +118,7 @@ contract DepositWithdrawAction {
         emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
 
         // NOTE: no free collateral checks required for depositing
-        return uint(assetTokensReceivedInternal);
+        return uint256(assetTokensReceivedInternal);
     }
 
     /**
@@ -129,44 +131,47 @@ contract DepositWithdrawAction {
         uint16 currencyId,
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
-    ) external returns (uint) {
+    ) external returns (uint256) {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
         _settleAccountIfRequiredAndFinalize(account, accountContext);
 
-        BalanceState memory balanceState = BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState =
+            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
-        balanceState.netAssetTransferInternalPrecision = int(amountInternalPrecision).neg();
+        balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 
-        int amountWithdrawn = balanceState.finalize(account, accountContext, redeemToUnderlying);
+        int256 amountWithdrawn = balanceState.finalize(account, accountContext, redeemToUnderlying);
         // This will trigger a free collateral check if required
         _finalizeAccountContext(account, accountContext);
 
         require(amountWithdrawn <= 0);
-        emit CashBalanceChange(account, currencyId, int(amountInternalPrecision).neg());
+        emit CashBalanceChange(account, currencyId, int256(amountInternalPrecision).neg());
 
-        return uint(amountWithdrawn.neg());
+        return uint256(amountWithdrawn.neg());
     }
 
     /**
      * @notice Executes a batch of balance transfers including minting and redeeming perpetual tokens.
      */
-    function batchBalanceAction(
-        address account,
-        BalanceAction[] calldata actions
-    ) external payable {
+    function batchBalanceAction(address account, BalanceAction[] calldata actions)
+        external
+        payable
+    {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
-        SettleAmount[] memory settleAmounts = _settleAccountIfRequiredAndStorePortfolio(account, accountContext);
+        SettleAmount[] memory settleAmounts =
+            _settleAccountIfRequiredAndStorePortfolio(account, accountContext);
 
-        uint settleAmountIndex;
+        uint256 settleAmountIndex;
         BalanceState memory balanceState;
-        for (uint i; i < actions.length; i++) {
-            if (i > 0) require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
+        for (uint256 i; i < actions.length; i++) {
+            if (i > 0)
+                require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
 
             settleAmountIndex = _preTradeActions(
                 account,
@@ -194,22 +199,21 @@ contract DepositWithdrawAction {
         _finalizeAccountContext(account, accountContext);
     }
 
-    function batchBalanceAndTradeAction(
-        address account,
-        BalanceActionWithTrades[] calldata actions
-    ) external payable {
+    function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
+        external
+        payable
+    {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        (
-            SettleAmount[] memory settleAmounts,
-            PortfolioState memory portfolioState
-        ) = _settleAccountIfRequiredAndReturnPortfolio(account, accountContext);
+        (SettleAmount[] memory settleAmounts, PortfolioState memory portfolioState) =
+            _settleAccountIfRequiredAndReturnPortfolio(account, accountContext);
 
-        uint settleAmountIndex;
+        uint256 settleAmountIndex;
         BalanceState memory balanceState;
-        for (uint i; i < actions.length; i++) {
-            if (i > 0) require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
+        for (uint256 i; i < actions.length; i++) {
+            if (i > 0)
+                require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
             settleAmountIndex = _preTradeActions(
                 account,
                 settleAmountIndex,
@@ -222,7 +226,7 @@ contract DepositWithdrawAction {
             );
 
             if (actions[i].trades.length > 0) {
-                int netCash;
+                int256 netCash;
                 if (accountContext.bitmapCurrencyId != 0) {
                     require(
                         accountContext.bitmapCurrencyId == actions[i].currencyId,
@@ -234,7 +238,10 @@ contract DepositWithdrawAction {
                         accountContext,
                         actions[i].trades
                     );
-                    if (didIncurDebt) accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+                    if (didIncurDebt)
+                        accountContext.hasDebt =
+                            accountContext.hasDebt |
+                            AccountContextHandler.HAS_ASSET_DEBT;
                 } else {
                     // TODO: see if passing in account context and calling storeAssetsAndUpdateContext inside trading action
                     // will be more efficient, would return accountContext here instead of portfolioState. Should result in fewer
@@ -298,10 +305,9 @@ contract DepositWithdrawAction {
         SettleAmount[] memory settleAmounts;
 
         if (accountContext.mustSettleAssets()) {
-            (
-                accountContext,
-                settleAmounts
-            ) = SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
+            (accountContext, settleAmounts) = SettleAssetsExternal.settleAssetsAndStorePortfolio(
+                account
+            );
         }
 
         return settleAmounts;
@@ -321,16 +327,18 @@ contract DepositWithdrawAction {
 
     function _preTradeActions(
         address account,
-        uint settleAmountIndex,
-        uint currencyId,
+        uint256 settleAmountIndex,
+        uint256 currencyId,
         SettleAmount[] memory settleAmounts,
         BalanceState memory balanceState,
         AccountStorage memory accountContext,
-        DepositActionType depositType, 
-        uint depositActionAmount
-    ) internal returns (uint) {
-        while (settleAmountIndex < settleAmounts.length
-            && settleAmounts[settleAmountIndex].currencyId < currencyId) {
+        DepositActionType depositType,
+        uint256 depositActionAmount
+    ) internal returns (uint256) {
+        while (
+            settleAmountIndex < settleAmounts.length &&
+            settleAmounts[settleAmountIndex].currencyId < currencyId
+        ) {
             // Loop through settleAmounts to find a matching currency
             settleAmountIndex += 1;
         }
@@ -352,57 +360,71 @@ contract DepositWithdrawAction {
         address account,
         BalanceState memory balanceState,
         DepositActionType depositType,
-        uint depositActionAmount_
+        uint256 depositActionAmount_
     ) internal {
-        int depositActionAmount = int(depositActionAmount_);
-        int assetInternalAmount;
+        int256 depositActionAmount = int256(depositActionAmount_);
+        int256 assetInternalAmount;
         require(depositActionAmount >= 0);
 
         if (depositType == DepositActionType.None) {
             return;
-        } else if (depositType == DepositActionType.DepositAsset 
-            || depositType == DepositActionType.DepositAssetAndMintPerpetual) {
-            (assetInternalAmount, /* */) = balanceState.depositAssetToken(account, depositActionAmount, false);
-        } else if (depositType == DepositActionType.DepositUnderlying
-            || depositType == DepositActionType.DepositUnderlyingAndMintPerpetual) {
+        } else if (
+            depositType == DepositActionType.DepositAsset ||
+            depositType == DepositActionType.DepositAssetAndMintPerpetual
+        ) {
+            (
+                assetInternalAmount, /* */
+
+            ) = balanceState.depositAssetToken(account, depositActionAmount, false);
+        } else if (
+            depositType == DepositActionType.DepositUnderlying ||
+            depositType == DepositActionType.DepositUnderlyingAndMintPerpetual
+        ) {
             // Set this for mint perpetual potentially since it takes the internal cash amount
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
         }
 
-        if (depositType == DepositActionType.DepositAssetAndMintPerpetual
-            || depositType == DepositActionType.DepositUnderlyingAndMintPerpetual) {
+        if (
+            depositType == DepositActionType.DepositAssetAndMintPerpetual ||
+            depositType == DepositActionType.DepositUnderlyingAndMintPerpetual
+        ) {
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
-            int tokensMinted = MintPerpetualTokenAction.perpetualTokenMint(
-                balanceState.currencyId,
-                assetInternalAmount
-            );
+            int256 tokensMinted =
+                nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
 
-            balanceState.netPerpetualTokenSupplyChange = balanceState.netPerpetualTokenSupplyChange
+            balanceState.netPerpetualTokenSupplyChange = balanceState
+                .netPerpetualTokenSupplyChange
                 .add(tokensMinted);
             emit PerpetualTokenSupplyChange(account, uint16(balanceState.currencyId), tokensMinted);
         } else if (depositType == DepositActionType.RedeemPerpetual) {
             require(
-                balanceState.storedPerpetualTokenBalance
-                    // It is not possible to have transfers here
+                balanceState
+                    .storedPerpetualTokenBalance
+                // It is not possible to have transfers here
                     .add(balanceState.netPerpetualTokenTransfer)
-                    .add(balanceState.netPerpetualTokenSupplyChange)
-                >= depositActionAmount,
+                    .add(balanceState.netPerpetualTokenSupplyChange) >= depositActionAmount,
                 "Insufficient token balance"
             );
 
-            balanceState.netPerpetualTokenSupplyChange = balanceState.netPerpetualTokenSupplyChange
+            balanceState.netPerpetualTokenSupplyChange = balanceState
+                .netPerpetualTokenSupplyChange
                 .sub(depositActionAmount);
 
-            int assetCash = RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
-                balanceState.currencyId,
-                depositActionAmount
-            );
+            int256 assetCash =
+                RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
+                    balanceState.currencyId,
+                    depositActionAmount
+                );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
-            emit PerpetualTokenSupplyChange(account, uint16(balanceState.currencyId), depositActionAmount.neg());
+            emit PerpetualTokenSupplyChange(
+                account,
+                uint16(balanceState.currencyId),
+                depositActionAmount.neg()
+            );
         }
     }
 
@@ -410,37 +432,38 @@ contract DepositWithdrawAction {
         address account,
         AccountStorage memory accountContext,
         BalanceState memory balanceState,
-        uint withdrawAmountInternalPrecision,
+        uint256 withdrawAmountInternalPrecision,
         bool withdrawEntireCashBalance,
         bool redeemToUnderlying
     ) internal {
-        int withdrawAmount = int(withdrawAmountInternalPrecision);
+        int256 withdrawAmount = int256(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
-            withdrawAmount = balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision);
+            withdrawAmount = balanceState.storedCashBalance.add(balanceState.netCashChange).add(
+                balanceState.netAssetTransferInternalPrecision
+            );
 
             // If the account has a negative cash balance then cannot withdraw
             if (withdrawAmount < 0) withdrawAmount = 0;
         }
 
-        balanceState.netAssetTransferInternalPrecision = balanceState.netAssetTransferInternalPrecision
+        balanceState.netAssetTransferInternalPrecision = balanceState
+            .netAssetTransferInternalPrecision
             .sub(withdrawAmount);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
-        int finalBalanceChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
+        int256 finalBalanceChange =
+            balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
 
         if (finalBalanceChange != 0) {
             emit CashBalanceChange(account, uint16(balanceState.currencyId), finalBalanceChange);
         }
     }
 
-    function _finalizeAccountContext(
-        address account,
-        AccountStorage memory accountContext
-    ) internal {
+    function _finalizeAccountContext(address account, AccountStorage memory accountContext)
+        internal
+    {
         // At this point all balances, market states and portfolio states should be finalized. Just need to check free
         // collateral if required.
         accountContext.setAccountContext(account);
@@ -454,17 +477,17 @@ contract DepositWithdrawAction {
      * must have a sufficient cash balance to do so otherwise they would go into a negative
      * cash balance.
      */
-    function _checkSufficientCash(
-        BalanceState memory balanceState,
-        int amountInternalPrecision
-    ) internal pure {
+    function _checkSufficientCash(BalanceState memory balanceState, int256 amountInternalPrecision)
+        internal
+        pure
+    {
         require(
             amountInternalPrecision >= 0 &&
-            balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
+                balanceState.storedCashBalance.add(balanceState.netCashChange).add(
+                    balanceState.netAssetTransferInternalPrecision
+                ) >=
+                amountInternalPrecision,
             "Insufficient cash"
         );
     }
-
 }

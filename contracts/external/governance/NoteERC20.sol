@@ -43,9 +43,7 @@ contract NoteERC20 is Initializable {
 
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH =
-        keccak256(
-            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
-        );
+        keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
     /// @notice The EIP-712 typehash for the delegation struct used by the contract
     bytes32 public constant DELEGATION_TYPEHASH =
@@ -72,11 +70,7 @@ contract NoteERC20 is Initializable {
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
     /// @notice The standard EIP-20 approval event
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 amount
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     /// @notice Construct a new Note token
     /// @param account the initial account to grant all the tokens
@@ -89,11 +83,7 @@ contract NoteERC20 is Initializable {
     /// @param account The address of the account holding the funds
     /// @param spender The address of the account spending the funds
     /// @return The number of tokens approved
-    function allowance(address account, address spender)
-        external
-        view
-        returns (uint256)
-    {
+    function allowance(address account, address spender) external view returns (uint256) {
         return allowances[account][spender];
     }
 
@@ -104,18 +94,12 @@ contract NoteERC20 is Initializable {
     /// @param spender The address of the account which may transfer tokens
     /// @param rawAmount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
-    function approve(address spender, uint256 rawAmount)
-        external
-        returns (bool)
-    {
+    function approve(address spender, uint256 rawAmount) external returns (bool) {
         uint96 amount;
         if (rawAmount == uint256(-1)) {
             amount = uint96(-1);
         } else {
-            amount = _safe96(
-                rawAmount,
-                "Note::approve: amount exceeds 96 bits"
-            );
+            amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
         }
 
         allowances[msg.sender][spender] = amount;
@@ -137,8 +121,7 @@ contract NoteERC20 is Initializable {
     /// @param rawAmount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
     function transfer(address dst, uint256 rawAmount) external returns (bool) {
-        uint96 amount =
-            _safe96(rawAmount, "Note::transfer: amount exceeds 96 bits");
+        uint96 amount = _safe96(rawAmount, "Note::transfer: amount exceeds 96 bits");
         _transferTokens(msg.sender, dst, amount);
         return true;
     }
@@ -156,8 +139,7 @@ contract NoteERC20 is Initializable {
     ) external returns (bool) {
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
-        uint96 amount =
-            _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
+        uint96 amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
 
         if (spender != src && spenderAllowance != uint96(-1)) {
             uint96 newAllowance =
@@ -200,34 +182,14 @@ contract NoteERC20 is Initializable {
     ) public {
         bytes32 domainSeparator =
             keccak256(
-                abi.encode(
-                    DOMAIN_TYPEHASH,
-                    keccak256(bytes(name)),
-                    _getChainId(),
-                    address(this)
-                )
+                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), _getChainId(), address(this))
             );
-        bytes32 structHash =
-            keccak256(
-                abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry)
-            );
-        bytes32 digest =
-            keccak256(
-                abi.encodePacked("\x19\x01", domainSeparator, structHash)
-            );
+        bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
         address signatory = ecrecover(digest, v, r, s);
-        require(
-            signatory != address(0),
-            "Note::delegateBySig: invalid signature"
-        );
-        require(
-            nonce == nonces[signatory]++,
-            "Note::delegateBySig: invalid nonce"
-        );
-        require(
-            block.timestamp <= expiry,
-            "Note::delegateBySig: signature expired"
-        );
+        require(signatory != address(0), "Note::delegateBySig: invalid signature");
+        require(nonce == nonces[signatory]++, "Note::delegateBySig: invalid nonce");
+        require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
         return _delegate(signatory, delegatee);
     }
 
@@ -237,8 +199,7 @@ contract NoteERC20 is Initializable {
     function getCurrentVotes(address account) external view returns (uint96) {
         // TODO: this must count non minted votes
         uint32 nCheckpoints = numCheckpoints[account];
-        return
-            nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
+        return nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
     }
 
     /// @notice Determine the prior number of votes for an account as of a block number
@@ -246,15 +207,8 @@ contract NoteERC20 is Initializable {
     /// @param account The address of the account to check
     /// @param blockNumber The block number to get the vote balance at
     /// @return The number of votes the account had as of the given block
-    function getPriorVotes(address account, uint256 blockNumber)
-        public
-        view
-        returns (uint96)
-    {
-        require(
-            blockNumber < block.number,
-            "Note::getPriorVotes: not yet determined"
-        );
+    function getPriorVotes(address account, uint256 blockNumber) public view returns (uint96) {
+        require(blockNumber < block.number, "Note::getPriorVotes: not yet determined");
 
         uint32 nCheckpoints = numCheckpoints[account];
         if (nCheckpoints == 0) {
@@ -304,14 +258,8 @@ contract NoteERC20 is Initializable {
         address dst,
         uint96 amount
     ) internal {
-        require(
-            src != address(0),
-            "Note::_transferTokens: cannot transfer from the zero address"
-        );
-        require(
-            dst != address(0),
-            "Note::_transferTokens: cannot transfer to the zero address"
-        );
+        require(src != address(0), "Note::_transferTokens: cannot transfer from the zero address");
+        require(dst != address(0), "Note::_transferTokens: cannot transfer to the zero address");
 
         balances[src] = _sub96(
             balances[src],
@@ -337,31 +285,17 @@ contract NoteERC20 is Initializable {
         if (srcRep != dstRep && amount > 0) {
             if (srcRep != address(0)) {
                 uint32 srcRepNum = numCheckpoints[srcRep];
-                uint96 srcRepOld =
-                    srcRepNum > 0
-                        ? checkpoints[srcRep][srcRepNum - 1].votes
-                        : 0;
+                uint96 srcRepOld = srcRepNum > 0 ? checkpoints[srcRep][srcRepNum - 1].votes : 0;
                 uint96 srcRepNew =
-                    _sub96(
-                        srcRepOld,
-                        amount,
-                        "Note::_moveVotes: vote amount underflows"
-                    );
+                    _sub96(srcRepOld, amount, "Note::_moveVotes: vote amount underflows");
                 _writeCheckpoint(srcRep, srcRepNum, srcRepOld, srcRepNew);
             }
 
             if (dstRep != address(0)) {
                 uint32 dstRepNum = numCheckpoints[dstRep];
-                uint96 dstRepOld =
-                    dstRepNum > 0
-                        ? checkpoints[dstRep][dstRepNum - 1].votes
-                        : 0;
+                uint96 dstRepOld = dstRepNum > 0 ? checkpoints[dstRep][dstRepNum - 1].votes : 0;
                 uint96 dstRepNew =
-                    _add96(
-                        dstRepOld,
-                        amount,
-                        "Note::_moveVotes: vote amount overflows"
-                    );
+                    _add96(dstRepOld, amount, "Note::_moveVotes: vote amount overflows");
                 _writeCheckpoint(dstRep, dstRepNum, dstRepOld, dstRepNew);
             }
         }
@@ -380,41 +314,24 @@ contract NoteERC20 is Initializable {
         uint96 newVotes
     ) internal {
         uint32 blockNumber =
-            _safe32(
-                block.number,
-                "Note::_writeCheckpoint: block number exceeds 32 bits"
-            );
+            _safe32(block.number, "Note::_writeCheckpoint: block number exceeds 32 bits");
 
-        if (
-            nCheckpoints > 0 &&
-            checkpoints[delegatee][nCheckpoints - 1].fromBlock == blockNumber
-        ) {
+        if (nCheckpoints > 0 && checkpoints[delegatee][nCheckpoints - 1].fromBlock == blockNumber) {
             checkpoints[delegatee][nCheckpoints - 1].votes = newVotes;
         } else {
-            checkpoints[delegatee][nCheckpoints] = Checkpoint(
-                blockNumber,
-                newVotes
-            );
+            checkpoints[delegatee][nCheckpoints] = Checkpoint(blockNumber, newVotes);
             numCheckpoints[delegatee] = nCheckpoints + 1;
         }
 
         emit DelegateVotesChanged(delegatee, oldVotes, newVotes);
     }
 
-    function _safe32(uint256 n, string memory errorMessage)
-        private
-        pure
-        returns (uint32)
-    {
+    function _safe32(uint256 n, string memory errorMessage) private pure returns (uint32) {
         require(n < 2**32, errorMessage);
         return uint32(n);
     }
 
-    function _safe96(uint256 n, string memory errorMessage)
-        private
-        pure
-        returns (uint96)
-    {
+    function _safe96(uint256 n, string memory errorMessage) private pure returns (uint96) {
         require(n < 2**96, errorMessage);
         return uint96(n);
     }
