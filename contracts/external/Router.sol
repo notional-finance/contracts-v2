@@ -101,7 +101,8 @@ contract Router is StorageLayoutV1 {
             sig == nTokenAction.nTokenTransferApprove.selector ||
             sig == nTokenAction.nTokenTransfer.selector ||
             sig == nTokenAction.nTokenTransferFrom.selector ||
-            sig == nTokenAction.nTokenMintIncentives.selector ||
+            sig == nTokenAction.nTokenClaimIncentives.selector ||
+            sig == nTokenAction.nTokenGetClaimableIncentives.selector ||
             sig == nTokenAction.nTokenTransferApproveAll.selector ||
             sig == nTokenAction.nTokenPresentValueAssetDenominated.selector ||
             sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector

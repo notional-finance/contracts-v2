@@ -53,11 +53,7 @@ interface nTokenERC20 {
         external
         returns (bool);
 
-    function nTokenMintIncentives(uint16 currencyId, address receiver)
-        external
-        returns (uint256);
-
-    function nTokenGetMintableIncentives(uint16 currencyId, address receiver)
+    function nTokenGetClaimableIncentives(uint16 currencyId, address account)
         external
         view
         returns (uint256);

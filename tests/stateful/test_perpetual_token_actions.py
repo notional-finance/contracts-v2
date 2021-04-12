@@ -542,14 +542,14 @@ def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
-    txn = environment.perpToken[currencyId].mintIncentives(accounts[0])
+    txn = environment.perpToken[currencyId].claimIncentives(accounts[0])
     balanceBefore = environment.noteERC20.balanceOf(accounts[0])
     assert balanceBefore > 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
 
-    environment.perpToken[currencyId].mintIncentives(accounts[0])
+    environment.perpToken[currencyId].claimIncentives(accounts[0])
     assert environment.noteERC20.balanceOf(accounts[0]) == balanceBefore
 
     check_system_invariants(environment, accounts)

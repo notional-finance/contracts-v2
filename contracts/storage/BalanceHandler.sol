@@ -263,7 +263,7 @@ library BalanceHandler {
         ) {
             // It's crucial that this is minted before we do any sort of perpetual token transfer to prevent gaming
             // of the system. This method will update the lastIncentiveMint time in the balanceState for storage.
-            mintIncentives(balanceState, account);
+            claimIncentives(balanceState, account);
 
             // Perpetual tokens are within the notional system so we can update balances directly.
             balanceState.storedPerpetualTokenBalance = balanceState
@@ -310,11 +310,8 @@ library BalanceHandler {
         AccountStorage memory accountContext
     ) internal returns (int256, int256) {
         require(amountToSettle >= 0); // dev: amount to settle negative
-        (
-            int256 cashBalance,
-            int256 perpetualTokenBalance,
-            uint256 lastIncentiveMint
-        ) = getBalanceStorage(account, cashGroup.currencyId);
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveMint) =
+            getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
         int256 amountToSettleAsset;
@@ -347,7 +344,7 @@ library BalanceHandler {
             account,
             cashGroup.currencyId,
             cashBalance,
-            perpetualTokenBalance,
+            nTokenBalance,
             lastIncentiveMint
         );
         return (amountToSettle, amountToSettleAsset.neg());
@@ -362,14 +359,14 @@ library BalanceHandler {
             if (settleAmounts[i].netCashChange == 0) continue;
             (
                 int256 cashBalance,
-                int256 perpetualTokenBalance,
+                int256 nTokenBalance,
                 uint256 lastIncentiveMint
             ) = getBalanceStorage(account, settleAmounts[i].currencyId);
 
             cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
             accountContext.setActiveCurrency(
                 settleAmounts[i].currencyId,
-                cashBalance != 0 || perpetualTokenBalance != 0,
+                cashBalance != 0 || nTokenBalance != 0,
                 AccountContextHandler.ACTIVE_IN_BALANCES_FLAG
             );
 
@@ -382,7 +379,7 @@ library BalanceHandler {
                 account,
                 settleAmounts[i].currencyId,
                 cashBalance,
-                perpetualTokenBalance,
+                nTokenBalance,
                 lastIncentiveMint
             );
         }
@@ -418,7 +415,7 @@ library BalanceHandler {
         address account,
         uint256 currencyId,
         int256 cashBalance,
-        int256 perpetualTokenBalance,
+        int256 nTokenBalance,
         uint256 lastIncentiveMint
     ) private {
         bytes32 slot =
@@ -428,17 +425,14 @@ library BalanceHandler {
             cashBalance >= type(int128).min && cashBalance <= type(int128).max
         ); // dev: stored cash balance overflow
 
-        require(
-            perpetualTokenBalance >= 0 &&
-                perpetualTokenBalance <= type(uint96).max
-        ); // dev: stored perpetual token balance overflow
+        require(nTokenBalance >= 0 && nTokenBalance <= type(uint96).max); // dev: stored perpetual token balance overflow
 
         require(
             lastIncentiveMint >= 0 && lastIncentiveMint <= type(uint32).max
         ); // dev: last incentive mint overflow
 
         bytes32 data =
-            ((bytes32(uint256(perpetualTokenBalance))) |
+            ((bytes32(uint256(nTokenBalance))) |
                 (bytes32(lastIncentiveMint) << 96) |
                 (bytes32(cashBalance) << 128));
 
@@ -525,68 +519,62 @@ library BalanceHandler {
         return balanceState;
     }
 
-    /**
-     * @notice Iterates over an array of balances and returns the total incentives to mint.
-     */
-    function calculateIncentivesToMint(
+    /// @notice Calculates the claimable incentives for a particular nToken and account
+    function calculateIncentivesToClaim(
         address tokenAddress,
-        uint256 perpetualTokenBalance,
-        uint256 lastMintTime,
+        uint256 nTokenBalance,
+        uint256 lastClaimTime,
         uint256 blockTime
     ) internal view returns (uint256) {
-        if (lastMintTime == 0 || lastMintTime >= blockTime) return 0;
+        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return 0;
 
+        // prettier-ignore
         (
-            ,
-            /* currencyId */
+            /* currencyId */,
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
-            ,
-
-        ) =
-            /* initializedTime */
+            /* initializedTime */,
             /* parameters */
-            PerpetualToken.getPerpetualTokenContext(tokenAddress);
+        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         if (totalSupply == 0) return 0;
 
-        uint256 timeSinceLastMint = blockTime.sub(lastMintTime);
-        // perpetualTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
-        // timeSinceLastMint and CashGroup.YEAR are both in seconds
+        uint256 timeSinceLastClaim = blockTime.sub(lastClaimTime);
+        // nTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
+        // timeSinceLastClaim and CashGroup.YEAR are both in seconds
         // incentiveAnnualEmissionRate is a per currency annualized rate in INTERNAL_TOKEN_PRECISION
         // tokenPrecision * seconds * tokenPrecision / (seconds * tokenPrecision)
-        uint256 incentivesToMint =
-            perpetualTokenBalance
-                .mul(timeSinceLastMint)
+        uint256 incentivesToClaim =
+            nTokenBalance
+                .mul(timeSinceLastClaim)
                 .mul(uint256(TokenHandler.INTERNAL_TOKEN_PRECISION))
                 .mul(incentiveAnnualEmissionRate);
 
-        incentivesToMint = incentivesToMint.div(CashGroup.YEAR).div(
+        incentivesToClaim = incentivesToClaim.div(CashGroup.YEAR).div(
             totalSupply
         );
 
-        return incentivesToMint;
+        return incentivesToClaim;
     }
 
-    /**
-     * @notice Incentives must be minted every time perpetual token balance changes
-     */
-    function mintIncentives(BalanceState memory balanceState, address account)
+    /// @notice Incentives must be minted every time nToken balance changes
+    function claimIncentives(BalanceState memory balanceState, address account)
         internal
+        returns (uint256)
     {
         uint256 blockTime = block.timestamp;
         address tokenAddress =
             PerpetualToken.nTokenAddress(balanceState.currencyId);
 
-        uint256 incentivesToMint =
-            calculateIncentivesToMint(
+        uint256 incentivesToClaim =
+            calculateIncentivesToClaim(
                 tokenAddress,
                 uint256(balanceState.storedPerpetualTokenBalance),
                 balanceState.lastIncentiveMint,
                 blockTime
             );
         balanceState.lastIncentiveMint = blockTime;
-        if (incentivesToMint > 0)
-            TokenHandler.transferIncentive(account, incentivesToMint);
+        if (incentivesToClaim > 0)
+            TokenHandler.transferIncentive(account, incentivesToClaim);
 
         // Change the supply amount after incentives have been minted
         if (balanceState.netPerpetualTokenSupplyChange != 0) {
@@ -595,16 +583,16 @@ library BalanceHandler {
                 balanceState.netPerpetualTokenSupplyChange
             );
         }
+
+        return incentivesToClaim;
     }
 
-    /**
-     * @notice Used when manually minting incentives in PerpetualTokenAction
-     */
-    function mintIncentivesUpdateTime(
+    /// @notice Used when manually claiming incentives in nTokenAction
+    function claimIncentivesManual(
         BalanceState memory balanceState,
         address account
-    ) internal {
-        mintIncentives(balanceState, account);
+    ) internal returns (uint256) {
+        uint256 incentivesClaimed = claimIncentives(balanceState, account);
         setBalanceStorage(
             account,
             balanceState.currencyId,
@@ -612,5 +600,7 @@ library BalanceHandler {
             balanceState.storedPerpetualTokenBalance,
             balanceState.lastIncentiveMint
         );
+
+        return incentivesClaimed;
     }
 }

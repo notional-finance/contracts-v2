@@ -144,12 +144,13 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             nTokenAllowance[from][spender][currencyId] = allowance;
         }
 
-        return (_transfer(currencyId, from, to, amount), allowance);
+        bool success = _transfer(currencyId, from, to, amount);
+        return (success, allowance);
     }
 
-    /// @notice This method will approve perpetual all perpetual token transfers to the specific sender. This
-    /// is used for simplifying UX, a user can approve all perpetual token transfers to an external exchange or
-    /// protocol in a single txn. This must be called directly on the proxy, not available via the ERC20 proxy.
+    /// @notice Will approve all nToken transfers to the specific sender. This is used for simplifying UX, a user can approve
+    /// all token transfers to an external exchange or protocol in a single txn. This must be called directly
+    /// on the Notional contract, not available via the ERC20 proxy.
     /// @dev emit:Approval
     /// @param spender The address of the account which may transfer tokens
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
@@ -168,31 +169,57 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return true;
     }
 
-    function nTokenMintIncentives(uint16 currencyId, address receiver)
+    /// @notice Claims incentives accrued on the nToken and transfers them to the msg.sender
+    /// @param currencyId Currency id associated with the nToken
+    /// @return Total amount of incentives claimed
+    function nTokenClaimIncentives(uint16 currencyId)
         external
-        override
         returns (uint256)
     {
         AccountStorage memory accountContext =
-            AccountContextHandler.getAccountContext(receiver);
+            AccountContextHandler.getAccountContext(msg.sender);
         BalanceState memory balanceState =
             BalanceHandler.buildBalanceState(
-                receiver,
+                msg.sender,
                 currencyId,
                 accountContext
             );
-        BalanceHandler.mintIncentivesUpdateTime(balanceState, receiver);
+
+        // NOTE: no need to set account context after claiming incentives
+        return BalanceHandler.claimIncentivesManual(balanceState, msg.sender);
     }
 
-    function nTokenGetMintableIncentives(uint16 currencyId, address receiver)
+    /// @notice Returns the claimable incentives for a particular currency
+    /// @param currencyId Currency id associated with the nToken
+    /// @param account The address of the account which holds the tokens
+    /// @return Incentives an account is eligible to claim
+    function nTokenGetClaimableIncentives(uint16 currencyId, address account)
         external
         view
         override
         returns (uint256)
     {
-        return 0;
+        AccountStorage memory accountContext =
+            AccountContextHandler.getAccountContext(account);
+        BalanceState memory balanceState =
+            BalanceHandler.buildBalanceState(
+                account,
+                currencyId,
+                accountContext
+            );
+
+        uint256 incentives =
+            BalanceHandler.calculateIncentivesToClaim(
+                PerpetualToken.nTokenAddress(currencyId),
+                uint256(balanceState.storedPerpetualTokenBalance),
+                balanceState.lastIncentiveMint,
+                block.timestamp
+            );
+
+        return incentives;
     }
 
+    /// @notice Returns the present value of the nToken's assets denominated in asset tokens
     function nTokenPresentValueAssetDenominated(uint16 currencyId)
         external
         view
@@ -208,6 +235,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return totalAssetPV;
     }
 
+    /// @notice Returns the present value of the nToken's assets denominated in underlying
     function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
         external
         view
@@ -232,14 +260,16 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         PerpetualTokenPortfolio memory nToken =
             PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
 
+        // prettier-ignore
         (
-            int256 totalAssetPV, /* bytes memory ifCashMapping */
-
+            int256 totalAssetPV,
+            /* ifCashMapping */
         ) = PerpetualToken.getPerpetualTokenPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }
 
+    /// @notice Transfering tokens will also claim incentives at the same time
     function _transfer(
         uint256 currencyId,
         address sender,
@@ -266,7 +296,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
 
         senderBalance.finalize(sender, senderContext, false);
         recipientBalance.finalize(recipient, recipientContext, false);
-        // Finalize will update account contexts
         senderContext.setAccountContext(sender);
         recipientContext.setAccountContext(recipient);
 

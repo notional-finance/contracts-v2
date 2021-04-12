@@ -333,22 +333,6 @@ contract Views is StorageLayoutV1 {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
 
-    function getIncentivesToMint(
-        uint16 currencyId,
-        uint256 perpetualTokenBalance,
-        uint256 lastMintTime,
-        uint256 blockTime
-    ) external view returns (uint256) {
-        address tokenAddress = PerpetualToken.nTokenAddress(currencyId);
-        return
-            BalanceHandler.calculateIncentivesToMint(
-                tokenAddress,
-                perpetualTokenBalance,
-                lastMintTime,
-                blockTime
-            );
-    }
-
     function getfCashAmountGivenCashAmount(
         uint16 currencyId,
         int88 netCashToAccount,
