@@ -48,7 +48,7 @@ library nTokenMintAction {
                 nToken.cashBalance
             );
         } else {
-            depositIntoPortfolio(nToken, ifCashBitmap, amountToDepositInternal, blockTime);
+            _depositIntoPortfolio(nToken, ifCashBitmap, amountToDepositInternal, blockTime);
         }
 
         require(tokensToMint >= 0, "Invalid token amount");
@@ -89,7 +89,7 @@ library nTokenMintAction {
     /// @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
     /// entering this method we know that assetCashDeposit is positive and the nToken has been
     /// initialized to have liquidity tokens.
-    function depositIntoPortfolio(
+    function _depositIntoPortfolio(
         PerpetualTokenPortfolio memory nToken,
         bytes32 ifCashBitmap,
         int256 assetCashDeposit,
@@ -125,7 +125,7 @@ library nTokenMintAction {
                     .div(PerpetualToken.DEPOSIT_PERCENT_BASIS)
                     .add(residualCash);
 
-            (fCashAmount, residualCash) = lendOrAddLiquidity(
+            (fCashAmount, residualCash) = _lendOrAddLiquidity(
                 nToken,
                 market,
                 perMarketDeposit,
@@ -176,7 +176,7 @@ library nTokenMintAction {
 
     /// @notice For a given amount of cash to deposit, decides how much to lend or provide
     /// given the market conditions.
-    function lendOrAddLiquidity(
+    function _lendOrAddLiquidity(
         PerpetualTokenPortfolio memory nToken,
         MarketParameters memory market,
         int256 perMarketDeposit,
@@ -186,10 +186,10 @@ library nTokenMintAction {
     ) private returns (int256, int256) {
         int256 fCashAmount;
         bool marketOverLeveraged =
-            isMarketOverLeveraged(nToken.cashGroup, market, leverageThreshold);
+            _isMarketOverLeveraged(nToken.cashGroup, market, leverageThreshold);
 
         if (marketOverLeveraged) {
-            (perMarketDeposit, fCashAmount) = deleverageMarket(
+            (perMarketDeposit, fCashAmount) = _deleverageMarket(
                 nToken.cashGroup,
                 market,
                 perMarketDeposit,
@@ -198,7 +198,7 @@ library nTokenMintAction {
             );
 
             // Recalculate this after lending into the market
-            marketOverLeveraged = isMarketOverLeveraged(
+            marketOverLeveraged = _isMarketOverLeveraged(
                 nToken.cashGroup,
                 market,
                 leverageThreshold
@@ -207,7 +207,7 @@ library nTokenMintAction {
 
         if (!marketOverLeveraged) {
             fCashAmount = fCashAmount.add(
-                addLiquidityToMarket(nToken, market, index, perMarketDeposit)
+                _addLiquidityToMarket(nToken, market, index, perMarketDeposit)
             );
             // No residual cash if we're adding liquidity
             return (fCashAmount, 0);
@@ -220,7 +220,7 @@ library nTokenMintAction {
     /// threshold. At this point, providing liquidity will incur too much negative fCash on the nToken
     /// account for the given amount of cash deposited, putting the nToken account at risk of liquidation.
     /// If the market is overleveraged, we call `deleverageMarket` to lend to the market instead.
-    function isMarketOverLeveraged(
+    function _isMarketOverLeveraged(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         int256 leverageThreshold
@@ -236,7 +236,7 @@ library nTokenMintAction {
         return proportion > leverageThreshold;
     }
 
-    function addLiquidityToMarket(
+    function _addLiquidityToMarket(
         PerpetualTokenPortfolio memory nToken,
         MarketParameters memory market,
         uint256 index,
@@ -262,7 +262,7 @@ library nTokenMintAction {
 
     /// @notice Lends into the market to reduce the leverage that the nToken will add liquidity at. May fail due
     /// to slippage or result in some amount of residual cash.
-    function deleverageMarket(
+    function _deleverageMarket(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         int256 perMarketDeposit,

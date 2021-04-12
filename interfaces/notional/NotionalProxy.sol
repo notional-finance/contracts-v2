@@ -18,35 +18,17 @@ interface NotionalProxy is nTokenERC20 {
     event UpdateCashGroup(uint16 currencyId);
     event UpdatePerpetualDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
-    event UpdateIncentiveEmissionRate(
-        uint16 currencyId,
-        uint32 newEmissionRate
-    );
+    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /** User trading events */
-    event CashBalanceChange(
-        address indexed account,
-        uint16 currencyId,
-        int256 amount
-    );
-    event PerpetualTokenSupplyChange(
-        address indexed account,
-        uint16 currencyId,
-        int256 amount
-    );
+    event CashBalanceChange(address indexed account, uint16 currencyId, int256 amount);
+    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int256 amount);
     event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
     // This is emitted from RedeemPerpetualTokenAction
-    event RedeemPerpetualToken(
-        address indexed redeemer,
-        uint16 currencyId,
-        uint88 tokensRedeemed
-    );
+    event nTokenRedeemed(address indexed redeemer, uint16 currencyId, uint96 tokensRedeemed);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
@@ -82,10 +64,7 @@ interface NotionalProxy is nTokenERC20 {
         uint32[] calldata proportions
     ) external;
 
-    function updateIncentiveEmissionRate(
-        uint16 currencyId,
-        uint32 newEmissionRate
-    ) external;
+    function updateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate) external;
 
     function updatePerpetualTokenCollateralParameters(
         uint16 currencyId,
@@ -96,10 +75,8 @@ interface NotionalProxy is nTokenERC20 {
         uint8 liquidationHaircutPercentage
     ) external;
 
-    function updateCashGroup(
-        uint16 currencyId,
-        CashGroupParameterStorage calldata cashGroup
-    ) external;
+    function updateCashGroup(uint16 currencyId, CashGroupParameterStorage calldata cashGroup)
+        external;
 
     function updateAssetRate(uint16 currencyId, address rateOracle) external;
 
@@ -112,15 +89,8 @@ interface NotionalProxy is nTokenERC20 {
         uint8 liquidationDiscount
     ) external;
 
-    /** Mint Perpetual Token Action */
-    function perpetualTokenMint(
-        uint16 currencyId,
-        uint88 amountToDeposit,
-        bool useCashBalance
-    ) external returns (uint256);
-
     /** Redeem Perpetual Token Action */
-    function perpetualTokenRedeem(
+    function nTokenRedeem(
         uint16 currencyId,
         uint88 tokensToRedeem_,
         bool sellTokenAssets
@@ -148,38 +118,22 @@ interface NotionalProxy is nTokenERC20 {
         bool redeemToUnderlying
     ) external returns (uint256);
 
-    function batchBalanceAction(
-        address account,
-        BalanceAction[] calldata actions
-    ) external payable;
+    function batchBalanceAction(address account, BalanceAction[] calldata actions) external payable;
 
-    function batchBalanceAndTradeAction(
-        address account,
-        BalanceActionWithTrades[] calldata actions
-    ) external payable;
+    function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
+        external
+        payable;
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
 
-    function getCurrency(uint16 currencyId)
-        external
-        view
-        returns (Token memory);
+    function getCurrency(uint16 currencyId) external view returns (Token memory);
 
-    function getUnderlying(uint16 currencyId)
-        external
-        view
-        returns (Token memory);
+    function getUnderlying(uint16 currencyId) external view returns (Token memory);
 
-    function getETHRateStorage(uint16 currencyId)
-        external
-        view
-        returns (ETHRateStorage memory);
+    function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory);
 
-    function getETHRate(uint16 currencyId)
-        external
-        view
-        returns (ETHRate memory);
+    function getETHRate(uint16 currencyId) external view returns (ETHRate memory);
 
     function getCurrencyAndRate(uint16 currencyId)
         external
@@ -191,15 +145,9 @@ interface NotionalProxy is nTokenERC20 {
         view
         returns (CashGroupParameterStorage memory);
 
-    function getAssetRateStorage(uint16 currencyId)
-        external
-        view
-        returns (AssetRateStorage memory);
+    function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory);
 
-    function getAssetRate(uint16 currencyId)
-        external
-        view
-        returns (AssetRateParameters memory);
+    function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory);
 
     function getSettlementRate(uint16 currencyId, uint32 maturity)
         external
@@ -211,10 +159,7 @@ interface NotionalProxy is nTokenERC20 {
         view
         returns (CashGroupParameterStorage memory, AssetRateParameters memory);
 
-    function getActiveMarkets(uint16 currencyId)
-        external
-        view
-        returns (MarketParameters[] memory);
+    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
 
     function getActiveMarketsAtBlockTime(uint16 currencyId, uint32 blockTime)
         external
@@ -235,10 +180,7 @@ interface NotionalProxy is nTokenERC20 {
 
     function getOwner() external view returns (address);
 
-    function getAccountContext(address account)
-        external
-        view
-        returns (AccountStorage memory);
+    function getAccountContext(address account) external view returns (AccountStorage memory);
 
     function getAccountBalance(uint16 currencyId, address account)
         external
@@ -249,25 +191,16 @@ interface NotionalProxy is nTokenERC20 {
             uint256
         );
 
-    function getReserveBalance(uint16 currencyId)
-        external
-        view
-        returns (int256);
+    function getReserveBalance(uint16 currencyId) external view returns (int256);
 
-    function getAccountPortfolio(address account)
-        external
-        view
-        returns (PortfolioAsset[] memory);
+    function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
 
     function getPerpetualTokenPortfolio(address tokenAddress)
         external
         view
         returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
 
-    function getifCashAssets(address account)
-        external
-        view
-        returns (PortfolioAsset[] memory);
+    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
 
     function calculatePerpetualTokensToMint(
         uint16 currencyId,
@@ -280,15 +213,9 @@ interface NotionalProxy is nTokenERC20 {
         uint256 maturity
     ) external view returns (int256);
 
-    function getifCashBitmap(address account, uint256 currencyId)
-        external
-        view
-        returns (bytes32);
+    function getifCashBitmap(address account, uint256 currencyId) external view returns (bytes32);
 
-    function getFreeCollateralView(address account)
-        external
-        view
-        returns (int256);
+    function getFreeCollateralView(address account) external view returns (int256);
 
     function getIncentivesToMint(
         uint16 currencyId,

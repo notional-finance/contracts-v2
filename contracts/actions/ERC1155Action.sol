@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./DepositWithdrawAction.sol";
-import "./RedeemPerpetualTokenAction.sol";
+import "../external/actions/nTokenRedeemAction.sol";
 import "./FreeCollateralExternal.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/AccountContextHandler.sol";
@@ -140,17 +140,16 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
     function _checkPostTransferEvent(address from, AccountStorage memory fromContext, bytes calldata data) internal {
         bytes4 sig = abi.decode(data[:4], (bytes4));
 
-        if (sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector ||
+        // These are the only two methods allowed to occur in a post transfer event. Either of these actions ensure
+        // that accounts may take any sort of trading action as a result of their transfer. Both of these actions will
+        // handle checking free collateral so no additional check is necessary here.
+        if (sig == nTokenRedeemAction.nTokenRedeem.selector ||
             sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector) {
             // Ensure that the "account" parameter of the call is set to the from address
             require(abi.decode(data[4:32], (address)) == from, "Unauthorized call");
             (bool status,) = address(this).delegatecall(data);
             require(status);
-
-            return;
-        } 
-        
-        if (fromContext.hasDebt != 0x00) {
+        } else if (fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
     }

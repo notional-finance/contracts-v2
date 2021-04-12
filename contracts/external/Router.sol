@@ -4,8 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
+import "./actions/nTokenRedeemAction.sol";
 import "../actions/GovernanceAction.sol";
-import "../actions/RedeemPerpetualTokenAction.sol";
 import "../actions/DepositWithdrawAction.sol";
 import "../actions/InitializeMarketsAction.sol";
 import "../storage/StorageLayoutV1.sol";
@@ -111,8 +111,8 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector ||
-            sig == RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
+            sig == nTokenRedeemAction.nTokenRedeem.selector ||
+            sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
         ) {
             return NTOKEN_REDEEM;
         }
@@ -146,7 +146,7 @@ contract Router is StorageLayoutV1 {
      *
      * This function does not return to its internal call site, it will return directly to the external caller.
      */
-    function _delegate(address implementation) internal {
+    function _delegate(address implementation) private {
         // solhint-disable-next-line no-inline-assembly
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly

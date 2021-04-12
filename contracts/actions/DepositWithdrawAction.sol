@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./FreeCollateralExternal.sol";
 import "./SettleAssetsExternal.sol";
 import "../external/actions/nTokenMintAction.sol";
-import "./RedeemPerpetualTokenAction.sol";
+import "../external/actions/nTokenRedeemAction.sol";
 import "./TradingAction.sol";
 import "../math/SafeInt256.sol";
 import "../storage/SettleAssets.sol";
@@ -414,7 +414,7 @@ contract DepositWithdrawAction {
                 .sub(depositActionAmount);
 
             int256 assetCash =
-                RedeemPerpetualTokenAction(address(this)).perpetualTokenRedeemViaBatch(
+                nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
                     balanceState.currencyId,
                     depositActionAmount
                 );
