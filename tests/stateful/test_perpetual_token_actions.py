@@ -39,7 +39,7 @@ def test_deleverage_markets_no_lend(environment, accounts):
         currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9]
     )
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
@@ -81,7 +81,7 @@ def test_deleverage_markets_lend(environment, accounts):
         currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9]
     )
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
@@ -125,7 +125,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
         currencyId, [0.4e8, 0.6e8], [0.49e9, 0.49e9]
     )
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
@@ -175,7 +175,7 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
@@ -228,7 +228,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    # perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    # perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
@@ -315,7 +315,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )
@@ -442,7 +442,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
         perpTokenAddress
     )

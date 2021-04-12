@@ -12,13 +12,11 @@ struct ETHRateStorage {
     uint8 rateDecimalPlaces;
     // True of the exchange rate must be inverted
     bool mustInvert;
-
     // NOTE: both of these governance values are set with BUFFER_DECIMALS precision
     // Amount of buffer to apply to the exchange rate for negative balances.
     uint8 buffer;
     // Amount of haircut to apply to the exchange rate for positive balances
     uint8 haircut;
-
     // Liquidation discount in percentage point terms, 106 means a 6% discount
     uint8 liquidationDiscount;
 }
@@ -48,20 +46,16 @@ struct CashGroupParameterStorage {
     uint8 totalFeeBPS;
     // Share of the fees given to the protocol, denominated in percentage
     uint8 reserveFeeShare;
-
     /* Risk Parameters */
     // Debt buffer specified in 5 BPS increments
     uint8 debtBuffer5BPS;
     // fCash haircut specified in 5 BPS increments
     uint8 fCashHaircut5BPS;
-
     /* Liquidation Parameters */
     uint8 settlementPenaltyRateBPS;
     uint8 liquidationfCashHaircut5BPS;
-
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
     uint8[] liquidityTokenHaircuts;
-
     // Rate scalar used to determine the slippage of the market
     uint8[] rateScalars;
 }
@@ -129,16 +123,15 @@ contract StorageLayoutV1 {
 
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
-    mapping(uint => ETHRateStorage) internal underlyingToETHRateMapping;
+    mapping(uint256 => ETHRateStorage) internal underlyingToETHRateMapping;
     // Returns the exchange rate between an underlying currency and asset for trading
     // and free collateral. Mapping is from currency id to rate storage object.
-    mapping(uint => AssetRateStorage) internal assetToUnderlyingRateMapping;
+    mapping(uint256 => AssetRateStorage) internal assetToUnderlyingRateMapping;
 
     /* Cash group and market storage */
     // Contains all cash group configuration information
     // currencyId => storage
     // mapping(uint => CashGroupParameterStorage) internal cashGroupMapping;
-
 
     /* Account Storage */
     // Mapping account context information used to determine how its assets and currencies
@@ -150,7 +143,8 @@ contract StorageLayoutV1 {
     // address => storage
     // mapping(address => AssetStorage[]) assetArrayMapping;
     // address => currency id => maturity => ifCash value
-    mapping(address => mapping(uint => mapping(uint => int))) internal ifCashMapping;
+    mapping(address => mapping(uint256 => mapping(uint256 => int256)))
+        internal ifCashMapping;
 
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions
@@ -158,15 +152,17 @@ contract StorageLayoutV1 {
     // This is set to the governance token address
     address internal token;
 
-    // A blanket allowance for a spender to transfer any of an account's perpetual tokens. This would allow a user
-    // to set an allowance on all perpetual tokens for a particular integrating contract system.
+    // A blanket allowance for a spender to transfer any of an account's nTokens. This would allow a user
+    // to set an allowance on all nTokens for a particular integrating contract system.
     // owner => spender => transferAllowance
-    mapping(address => mapping(address => uint)) internal perpTokenWhitelist;
-    // Individual transfer allowances for perpetual tokens used for ERC20
+    mapping(address => mapping(address => uint256)) internal nTokenWhitelist;
+    // Individual transfer allowances for nTokens used for ERC20
     // owner => spender => currencyId => transferAllowance
-    mapping(address => mapping(address => mapping(uint16 => uint))) internal perpTokenTransferAllowance;
+    mapping(address => mapping(address => mapping(uint16 => uint256)))
+        internal nTokenAllowance;
 
     // Transfer operators
     mapping(address => bool) internal globalTransferOperator;
-    mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
+    mapping(address => mapping(address => bool))
+        internal accountAuthorizedTransferOperator;
 }

@@ -8,30 +8,48 @@ import "../../contracts/common/CashGroup.sol";
 import "../../contracts/common/AssetRate.sol";
 import "../../contracts/common/PerpetualToken.sol";
 import "../../contracts/storage/TokenHandler.sol";
-import "./PerpetualTokenActionInterface.sol";
+import "./nTokenERC20.sol";
 
 // TODO: split this proxy into smaller parts
-interface NotionalProxy is PerpetualTokenActionInterface {
+interface NotionalProxy is nTokenERC20 {
     event ListCurrency(uint16 newCurrencyId);
     event UpdateETHRate(uint16 currencyId);
     event UpdateAssetRate(uint16 currencyId);
     event UpdateCashGroup(uint16 currencyId);
     event UpdatePerpetualDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
-    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
+    event UpdateIncentiveEmissionRate(
+        uint16 currencyId,
+        uint32 newEmissionRate
+    );
     event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     /** User trading events */
-    event CashBalanceChange(address indexed account, uint16 currencyId, int amount);
-    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int amount);
+    event CashBalanceChange(
+        address indexed account,
+        uint16 currencyId,
+        int256 amount
+    );
+    event PerpetualTokenSupplyChange(
+        address indexed account,
+        uint16 currencyId,
+        int256 amount
+    );
     event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
     // This is emitted from RedeemPerpetualTokenAction
-    event RedeemPerpetualToken(address indexed redeemer, uint16 currencyId, uint88 tokensRedeemed);
+    event RedeemPerpetualToken(
+        address indexed redeemer,
+        uint16 currencyId,
+        uint88 tokensRedeemed
+    );
 
     /** Initialize Markets Action */
-    function initializeMarkets(uint currencyId, bool isFirstInit) external;
+    function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
 
     /** Governance Action */
     function transferOwnership(address newOwner) external;
@@ -83,10 +101,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         CashGroupParameterStorage calldata cashGroup
     ) external;
 
-    function updateAssetRate(
-        uint16 currencyId,
-        address rateOracle
-    ) external;
+    function updateAssetRate(uint16 currencyId, address rateOracle) external;
 
     function updateETHRate(
         uint16 currencyId,
@@ -102,7 +117,7 @@ interface NotionalProxy is PerpetualTokenActionInterface {
         uint16 currencyId,
         uint88 amountToDeposit,
         bool useCashBalance
-    ) external returns (uint);
+    ) external returns (uint256);
 
     /** Redeem Perpetual Token Action */
     function perpetualTokenRedeem(
@@ -113,24 +128,25 @@ interface NotionalProxy is PerpetualTokenActionInterface {
 
     /** Deposit Withdraw Action */
     function settleAccount(address account) external;
+
     function depositUnderlyingToken(
         address account,
         uint16 currencyId,
-        uint amountExternalPrecision
-    ) external payable returns (uint);
+        uint256 amountExternalPrecision
+    ) external payable returns (uint256);
 
     function depositAssetToken(
         address account,
         uint16 currencyId,
-        uint amountExternalPrecision
-    ) external returns (uint);
+        uint256 amountExternalPrecision
+    ) external returns (uint256);
 
     function withdraw(
         address account,
         uint16 currencyId,
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
-    ) external returns (uint);
+    ) external returns (uint256);
 
     function batchBalanceAction(
         address account,
@@ -144,38 +160,154 @@ interface NotionalProxy is PerpetualTokenActionInterface {
 
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
-    function getCurrency(uint16 currencyId) external view returns (Token memory);
-    function getUnderlying(uint16 currencyId) external view returns (Token memory);
-    function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory);
-    function getETHRate(uint16 currencyId) external view returns (ETHRate memory);
-    function getCurrencyAndRate(uint16 currencyId) external view returns (Token memory, ETHRate memory);
-    function getCashGroup(uint16 currencyId) external view returns (CashGroupParameterStorage memory);
-    function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory);
-    function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory);
-    function getSettlementRate(uint16 currencyId, uint32 maturity) external view returns (AssetRateParameters memory);
-    function getCashGroupAndRate(
-        uint16 currencyId
-    ) external view returns (CashGroupParameterStorage memory, AssetRateParameters memory);
-    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
-    function getActiveMarketsAtBlockTime(
-        uint16 currencyId,
-        uint32 blockTime
-    ) external view returns (MarketParameters[] memory);
-    function getInitializationParameters(uint16 currencyId) external view returns (int[] memory, int[] memory);
-    function getPerpetualDepositParameters(uint16 currencyId) external view returns (int[] memory, int[] memory);
-    function getPerpetualTokenAddress(uint16 currencyId) external view returns (address);
+
+    function getCurrency(uint16 currencyId)
+        external
+        view
+        returns (Token memory);
+
+    function getUnderlying(uint16 currencyId)
+        external
+        view
+        returns (Token memory);
+
+    function getETHRateStorage(uint16 currencyId)
+        external
+        view
+        returns (ETHRateStorage memory);
+
+    function getETHRate(uint16 currencyId)
+        external
+        view
+        returns (ETHRate memory);
+
+    function getCurrencyAndRate(uint16 currencyId)
+        external
+        view
+        returns (Token memory, ETHRate memory);
+
+    function getCashGroup(uint16 currencyId)
+        external
+        view
+        returns (CashGroupParameterStorage memory);
+
+    function getAssetRateStorage(uint16 currencyId)
+        external
+        view
+        returns (AssetRateStorage memory);
+
+    function getAssetRate(uint16 currencyId)
+        external
+        view
+        returns (AssetRateParameters memory);
+
+    function getSettlementRate(uint16 currencyId, uint32 maturity)
+        external
+        view
+        returns (AssetRateParameters memory);
+
+    function getCashGroupAndRate(uint16 currencyId)
+        external
+        view
+        returns (CashGroupParameterStorage memory, AssetRateParameters memory);
+
+    function getActiveMarkets(uint16 currencyId)
+        external
+        view
+        returns (MarketParameters[] memory);
+
+    function getActiveMarketsAtBlockTime(uint16 currencyId, uint32 blockTime)
+        external
+        view
+        returns (MarketParameters[] memory);
+
+    function getInitializationParameters(uint16 currencyId)
+        external
+        view
+        returns (int256[] memory, int256[] memory);
+
+    function getPerpetualDepositParameters(uint16 currencyId)
+        external
+        view
+        returns (int256[] memory, int256[] memory);
+
+    function nTokenAddress(uint16 currencyId) external view returns (address);
+
     function getOwner() external view returns (address);
-    function getAccountContext(address account) external view returns (AccountStorage memory);
-    function getAccountBalance(uint16 currencyId, address account) external view returns (int, int, uint);
-    function getReserveBalance(uint16 currencyId) external view returns (int);
-    function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
-    function getPerpetualTokenPortfolio(address tokenAddress) external view returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
-    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
-    function calculatePerpetualTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision) external view returns (uint);
-    function getifCashNotional(address account, uint currencyId, uint maturity) external view returns (int);
-    function getifCashBitmap(address account, uint currencyId) external view returns (bytes32);
-    function getFreeCollateralView(address account) external view returns (int);
-    function getIncentivesToMint(uint16 currencyId, uint perpetualTokenBalance, uint lastMintTime, uint blockTime) external view returns (uint);
-    function getfCashAmountGivenCashAmount(uint16 currencyId, int88 netCashToAccount, uint marketIndex, uint blockTime) external view returns (int);
-    function getCashAmountGivenfCashAmount(uint16 currencyId, int88 fCashAmount, uint marketIndex, uint blockTime) external view returns (int, int);
+
+    function getAccountContext(address account)
+        external
+        view
+        returns (AccountStorage memory);
+
+    function getAccountBalance(uint16 currencyId, address account)
+        external
+        view
+        returns (
+            int256,
+            int256,
+            uint256
+        );
+
+    function getReserveBalance(uint16 currencyId)
+        external
+        view
+        returns (int256);
+
+    function getAccountPortfolio(address account)
+        external
+        view
+        returns (PortfolioAsset[] memory);
+
+    function getPerpetualTokenPortfolio(address tokenAddress)
+        external
+        view
+        returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
+
+    function getifCashAssets(address account)
+        external
+        view
+        returns (PortfolioAsset[] memory);
+
+    function calculatePerpetualTokensToMint(
+        uint16 currencyId,
+        uint88 amountToDepositExternalPrecision
+    ) external view returns (uint256);
+
+    function getifCashNotional(
+        address account,
+        uint256 currencyId,
+        uint256 maturity
+    ) external view returns (int256);
+
+    function getifCashBitmap(address account, uint256 currencyId)
+        external
+        view
+        returns (bytes32);
+
+    function getFreeCollateralView(address account)
+        external
+        view
+        returns (int256);
+
+    function getIncentivesToMint(
+        uint16 currencyId,
+        uint256 perpetualTokenBalance,
+        uint256 lastMintTime,
+        uint256 blockTime
+    ) external view returns (uint256);
+
+    function getfCashAmountGivenCashAmount(
+        uint16 currencyId,
+        int88 netCashToAccount,
+        uint256 marketIndex,
+        uint256 blockTime
+    ) external view returns (int256);
+
+    function getCashAmountGivenfCashAmount(
+        uint16 currencyId,
+        int88 fCashAmount,
+        uint256 marketIndex,
+        uint256 blockTime
+    ) external view returns (int256, int256);
 }

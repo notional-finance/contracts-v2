@@ -2,14 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./actions/nTokenAction.sol";
+import "../actions/GovernanceAction.sol";
+import "../actions/MintPerpetualTokenAction.sol";
+import "../actions/RedeemPerpetualTokenAction.sol";
+import "../actions/DepositWithdrawAction.sol";
+import "../actions/InitializeMarketsAction.sol";
 import "../storage/StorageLayoutV1.sol";
 import "../storage/TokenHandler.sol";
-import "./GovernanceAction.sol";
-import "./PerpetualTokenAction.sol";
-import "./MintPerpetualTokenAction.sol";
-import "./RedeemPerpetualTokenAction.sol";
-import "./DepositWithdrawAction.sol";
-import "./InitializeMarketsAction.sol";
 import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
 
 /**
@@ -26,8 +26,8 @@ contract Router is StorageLayoutV1 {
     address public immutable GOVERNANCE;
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
-    address public immutable PERPETUAL_TOKEN_ACTIONS;
-    address public immutable PERPETUAL_TOKEN_REDEEM;
+    address public immutable NTOKEN_ACTIONS;
+    address public immutable NTOKEN_REDEEM;
     address public immutable DEPOSIT_WITHDRAW_ACTION;
     address public immutable cETH;
 
@@ -35,16 +35,16 @@ contract Router is StorageLayoutV1 {
         address governance_,
         address views_,
         address initializeMarket_,
-        address perpetualTokenActions_,
-        address perpetualTokenRedeem_,
+        address nTokenActions_,
+        address nTokenRedeem_,
         address depositWithdrawAction_,
         address cETH_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
-        PERPETUAL_TOKEN_ACTIONS = perpetualTokenActions_;
-        PERPETUAL_TOKEN_REDEEM = perpetualTokenRedeem_;
+        NTOKEN_ACTIONS = nTokenActions_;
+        NTOKEN_REDEEM = nTokenRedeem_;
         DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
         cETH = cETH_;
     }
@@ -58,19 +58,21 @@ contract Router is StorageLayoutV1 {
         // initializing ETH as a currency
         owner = msg.sender;
         // List ETH as currency id == 1, NOTE: return value is ignored here
-        address(GOVERNANCE).delegatecall(
-            abi.encodeWithSelector(
-                GovernanceAction.listCurrency.selector,
-                TokenStorage(cETH, false, TokenType.cETH),
-                // No underlying set for cETH
-                TokenStorage(address(0), false, TokenType.Ether),
-                address(0),
-                false,
-                140,
-                100,
-                106
-            )
-        );
+        (bool status, ) =
+            address(GOVERNANCE).delegatecall(
+                abi.encodeWithSelector(
+                    GovernanceAction.listCurrency.selector,
+                    TokenStorage(cETH, false, TokenType.cETH),
+                    // No underlying set for cETH
+                    TokenStorage(address(0), false, TokenType.Ether),
+                    address(0),
+                    false,
+                    140,
+                    100,
+                    106
+                )
+            );
+        require(status);
 
         owner = owner_;
     }
@@ -93,25 +95,26 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == PerpetualTokenAction.perpetualTokenTotalSupply.selector ||
-            sig == PerpetualTokenAction.perpetualTokenBalanceOf.selector ||
-            sig == PerpetualTokenAction.perpetualTokenTransferAllowance.selector ||
-            sig == PerpetualTokenAction.perpetualTokenTransferApprove.selector ||
-            sig == PerpetualTokenAction.perpetualTokenTransfer.selector ||
-            sig == PerpetualTokenAction.perpetualTokenTransferFrom.selector ||
-            sig == PerpetualTokenAction.perpetualTokenMintIncentives.selector ||
-            sig == PerpetualTokenAction.perpetualTokenTransferApproveAll.selector ||
-            sig == PerpetualTokenAction.perpetualTokenPresentValueAssetDenominated.selector ||
-            sig == PerpetualTokenAction.perpetualTokenPresentValueUnderlyingDenominated.selector
+            sig == nTokenAction.nTokenTotalSupply.selector ||
+            sig == nTokenAction.nTokenBalanceOf.selector ||
+            sig == nTokenAction.nTokenTransferAllowance.selector ||
+            sig == nTokenAction.nTokenTransferApprove.selector ||
+            sig == nTokenAction.nTokenTransfer.selector ||
+            sig == nTokenAction.nTokenTransferFrom.selector ||
+            sig == nTokenAction.nTokenMintIncentives.selector ||
+            sig == nTokenAction.nTokenTransferApproveAll.selector ||
+            sig == nTokenAction.nTokenPresentValueAssetDenominated.selector ||
+            sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
         ) {
-            return PERPETUAL_TOKEN_ACTIONS;
+            return NTOKEN_ACTIONS;
         }
 
         if (
             sig == RedeemPerpetualTokenAction.perpetualTokenRedeem.selector ||
-            sig == RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
+            sig ==
+            RedeemPerpetualTokenAction.perpetualTokenRedeemViaBatch.selector
         ) {
-            return PERPETUAL_TOKEN_REDEEM;
+            return NTOKEN_REDEEM;
         }
 
         if (sig == InitializeMarketsAction.initializeMarkets.selector) {
@@ -128,7 +131,8 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateIncentiveEmissionRate.selector ||
             sig == GovernanceAction.updatePerpetualDepositParameters.selector ||
             sig == GovernanceAction.updateInitializationParameters.selector ||
-            sig == GovernanceAction.updatePerpetualTokenCollateralParameters.selector
+            sig ==
+            GovernanceAction.updatePerpetualTokenCollateralParameters.selector
         ) {
             return GOVERNANCE;
         }
@@ -153,15 +157,26 @@ contract Router is StorageLayoutV1 {
 
             // Call the implementation.
             // out and outsize are 0 because we don't know the size yet.
-            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
+            let result := delegatecall(
+                gas(),
+                implementation,
+                0,
+                calldatasize(),
+                0,
+                0
+            )
 
             // Copy the returned data.
             returndatacopy(0, 0, returndatasize())
 
             switch result
-            // delegatecall returns 0 on error.
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+                // delegatecall returns 0 on error.
+                case 0 {
+                    revert(0, returndatasize())
+                }
+                default {
+                    return(0, returndatasize())
+                }
         }
     }
 
@@ -174,8 +189,11 @@ contract Router is StorageLayoutV1 {
 }
 
 contract nTransparentUpgradeableProxy is TransparentUpgradeableProxy {
-    constructor(address _logic, address admin_, bytes memory _data)
-        TransparentUpgradeableProxy(_logic, admin_, _data) { }
+    constructor(
+        address _logic,
+        address admin_,
+        bytes memory _data
+    ) TransparentUpgradeableProxy(_logic, admin_, _data) {}
 
-    receive() external payable override { }
+    receive() external payable override {}
 }

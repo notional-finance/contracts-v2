@@ -6,7 +6,6 @@ import "../common/PerpetualToken.sol";
 import "../storage/StorageLayoutV1.sol";
 
 contract MockPerpetualToken is StorageLayoutV1 {
-
     function setIncentiveEmissionRate(
         address tokenAddress,
         uint32 newEmissionsRate
@@ -14,32 +13,43 @@ contract MockPerpetualToken is StorageLayoutV1 {
         PerpetualToken.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
 
-    function getPerpetualTokenContext(
-        address tokenAddress
-    ) external view returns (uint, uint, uint, uint, bytes6) {
+    function getPerpetualTokenContext(address tokenAddress)
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            bytes6
+        )
+    {
         (
-            uint currencyId,
-            uint totalSupply,
-            uint incentiveRate,
-            uint lastInitializedTime,
+            uint256 currencyId,
+            uint256 totalSupply,
+            uint256 incentiveRate,
+            uint256 lastInitializedTime,
             bytes6 parameters
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
-        assert(PerpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress);
+        assert(PerpetualToken.nTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, totalSupply, incentiveRate, lastInitializedTime, parameters);
+        return (
+            currencyId,
+            totalSupply,
+            incentiveRate,
+            lastInitializedTime,
+            parameters
+        );
     }
 
-    function getPerpetualTokenAddress(
-        uint currencyId
-    ) external view returns (address) {
-        address tokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
-        (
-            uint currencyIdStored,
-            /* uint totalSupply */,
-            /* incentiveRate */,
-            /* lastInitializedTime */,
+    function nTokenAddress(uint256 currencyId) external view returns (address) {
+        address tokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        (uint256 currencyIdStored, , , , ) =
+            /* uint totalSupply */
+            /* incentiveRate */
+            /* lastInitializedTime */
             /* parameters */
-        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
+            PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
 
         return tokenAddress;
@@ -48,71 +58,86 @@ contract MockPerpetualToken is StorageLayoutV1 {
     function setArrayLengthAndInitializedTime(
         address tokenAddress,
         uint8 arrayLength,
-        uint lastInitializedTime
+        uint256 lastInitializedTime
     ) external {
-        PerpetualToken.setArrayLengthAndInitializedTime(tokenAddress, arrayLength, lastInitializedTime);
+        PerpetualToken.setArrayLengthAndInitializedTime(
+            tokenAddress,
+            arrayLength,
+            lastInitializedTime
+        );
     }
 
-    function changePerpetualTokenSupply(
-        address tokenAddress,
-        int netChange
-    ) external {
+    function changePerpetualTokenSupply(address tokenAddress, int256 netChange)
+        external
+    {
         PerpetualToken.changePerpetualTokenSupply(tokenAddress, netChange);
     }
 
-    function setPerpetualTokenAddress(
-        uint16 currencyId,
-        address tokenAddress
-    ) external {
+    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress)
+        external
+    {
         PerpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress);
 
         // Test the assertions
-        this.getPerpetualTokenAddress(currencyId);
+        this.nTokenAddress(currencyId);
         this.getPerpetualTokenContext(tokenAddress);
     }
 
-    function getDepositParameters(
-        uint currencyId,
-        uint maxMarketIndex
-    ) external view returns (int[] memory, int[] memory) {
+    function getDepositParameters(uint256 currencyId, uint256 maxMarketIndex)
+        external
+        view
+        returns (int256[] memory, int256[] memory)
+    {
         return PerpetualToken.getDepositParameters(currencyId, maxMarketIndex);
     }
 
     function setDepositParameters(
-        uint currencyId,
+        uint256 currencyId,
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external {
-        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
+        PerpetualToken.setDepositParameters(
+            currencyId,
+            depositShares,
+            leverageThresholds
+        );
     }
 
     function getInitializationParameters(
-        uint currencyId,
-        uint maxMarketIndex
-    ) external view returns (int[] memory, int[] memory) {
-        return PerpetualToken.getInitializationParameters(currencyId, maxMarketIndex);
+        uint256 currencyId,
+        uint256 maxMarketIndex
+    ) external view returns (int256[] memory, int256[] memory) {
+        return
+            PerpetualToken.getInitializationParameters(
+                currencyId,
+                maxMarketIndex
+            );
     }
 
     function setInitializationParameters(
-        uint currencyId,
+        uint256 currencyId,
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external {
-        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+        PerpetualToken.setInitializationParameters(
+            currencyId,
+            rateAnchors,
+            proportions
+        );
     }
 
-    function getPerpetualTokenPV(
-        uint currencyId,
-        uint blockTime
-    ) external view returns (int) {
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioView(
-            currencyId
-        );
+    function getPerpetualTokenPV(uint256 currencyId, uint256 blockTime)
+        external
+        view
+        returns (int256)
+    {
+        PerpetualTokenPortfolio memory perpToken =
+            PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
 
-        (int assetPv, /* ifCashBitmap */ ) = PerpetualToken.getPerpetualTokenPV(
-            perpToken,
-            blockTime
-        );
+        (
+            int256 assetPv, /* ifCashBitmap */
+
+        ) = PerpetualToken.getPerpetualTokenPV(perpToken, blockTime);
 
         return assetPv;
     }
@@ -125,7 +150,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        address perpTokenAddress = PerpetualToken.nTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
 
         PerpetualToken.setPerpetualTokenCollateralParameters(

@@ -17,7 +17,7 @@ def test_set_perpetual_token_setters(perpetualToken, currencyId, tokenAddress):
     # This has assertions inside
     perpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress)
 
-    assert perpetualToken.getPerpetualTokenAddress(currencyId) == tokenAddress
+    assert perpetualToken.nTokenAddress(currencyId) == tokenAddress
     (
         currencyIdStored,
         totalSupply,

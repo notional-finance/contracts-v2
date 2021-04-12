@@ -120,7 +120,7 @@ def interpolate_market_rate(a, b, isSixMonth=False):
 
 def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
     blockTime = chain.time()
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     (cashBalance, perpTokenBalance, lastMintTime) = environment.notional.getAccountBalance(
         currencyId, perpTokenAddress
     )
@@ -353,7 +353,7 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
         currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
     )
 
-    perpTokenAddress = environment.notional.getPerpetualTokenAddress(currencyId)
+    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
     portfolio = environment.notional.getAccountPortfolio(perpTokenAddress)
     ifCashAssets = environment.notional.getifCashAssets(perpTokenAddress)
 

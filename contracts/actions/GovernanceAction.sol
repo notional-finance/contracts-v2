@@ -7,8 +7,8 @@ import "../common/CashGroup.sol";
 import "../common/PerpetualToken.sol";
 import "../storage/TokenHandler.sol";
 import "../storage/StorageLayoutV1.sol";
-import "../adapters/AssetRateAdapterInterface.sol";
-import "../adapters/PerpetualTokenERC20.sol";
+import "../external/adapters/nTokenERC20Proxy.sol";
+import "interfaces/notional/AssetRateAdapter.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 /**
@@ -25,9 +25,15 @@ contract GovernanceAction is StorageLayoutV1 {
     event UpdateCashGroup(uint16 currencyId);
     event UpdatePerpetualDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
-    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
+    event UpdateIncentiveEmissionRate(
+        uint16 currencyId,
+        uint32 newEmissionRate
+    );
     event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     /**
      * @dev Throws if called by any account other than the owner.
@@ -42,7 +48,10 @@ contract GovernanceAction is StorageLayoutV1 {
      * Can only be called by the current owner.
      */
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
@@ -65,13 +74,23 @@ contract GovernanceAction is StorageLayoutV1 {
         // TODO: should check for listing of duplicate tokens?
 
         // Set the underlying first because the asset token may set an approval using the underlying
-        if (underlyingToken.tokenAddress != address(0) || underlyingToken.tokenType == TokenType.Ether) {
+        if (
+            underlyingToken.tokenAddress != address(0) ||
+            underlyingToken.tokenType == TokenType.Ether
+        ) {
             // Ether has a token address of zero
             TokenHandler.setToken(currencyId, true, underlyingToken);
         }
         TokenHandler.setToken(currencyId, false, assetToken);
 
-        _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
+        _updateETHRate(
+            currencyId,
+            rateOracle,
+            mustInvert,
+            buffer,
+            haircut,
+            liquidationDiscount
+        );
 
         // Set the new max currency id
         emit ListCurrency(currencyId);
@@ -87,13 +106,20 @@ contract GovernanceAction is StorageLayoutV1 {
 
         // Creates the perpetual token erc20 proxy that points back to the main proxy
         // and routes methods to PerpetualTokenAction
-        address perpetualTokenAddress = Create2.deploy(
-            0,
-            bytes32(uint(currencyId)),
-            abi.encodePacked(type(PerpetualTokenERC20).creationCode, abi.encode(address(this), currencyId))
-        );
+        address perpetualTokenAddress =
+            Create2.deploy(
+                0,
+                bytes32(uint256(currencyId)),
+                abi.encodePacked(
+                    type(nTokenERC20Proxy).creationCode,
+                    abi.encode(address(this), currencyId)
+                )
+            );
 
-        PerpetualToken.setPerpetualTokenAddress(currencyId, perpetualTokenAddress);
+        PerpetualToken.setPerpetualTokenAddress(
+            currencyId,
+            perpetualTokenAddress
+        );
     }
 
     function updatePerpetualDepositParameters(
@@ -101,7 +127,11 @@ contract GovernanceAction is StorageLayoutV1 {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external onlyOwner {
-        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
+        PerpetualToken.setDepositParameters(
+            currencyId,
+            depositShares,
+            leverageThresholds
+        );
         emit UpdatePerpetualDepositParameters(currencyId);
     }
 
@@ -110,7 +140,11 @@ contract GovernanceAction is StorageLayoutV1 {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external onlyOwner {
-        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+        PerpetualToken.setInitializationParameters(
+            currencyId,
+            rateAnchors,
+            proportions
+        );
         emit UpdateInitializationParameters(currencyId);
     }
 
@@ -118,10 +152,13 @@ contract GovernanceAction is StorageLayoutV1 {
         uint16 currencyId,
         uint32 newEmissionRate
     ) external onlyOwner {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        address perpTokenAddress = PerpetualToken.nTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
 
-        PerpetualToken.setIncentiveEmissionRate(perpTokenAddress, newEmissionRate);
+        PerpetualToken.setIncentiveEmissionRate(
+            perpTokenAddress,
+            newEmissionRate
+        );
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
     }
 
@@ -133,7 +170,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external onlyOwner {
-        address perpTokenAddress = PerpetualToken.getPerpetualTokenAddress(currencyId);
+        address perpTokenAddress = PerpetualToken.nTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
 
         PerpetualToken.setPerpetualTokenCollateralParameters(
@@ -154,10 +191,10 @@ contract GovernanceAction is StorageLayoutV1 {
         _updateCashGroup(currencyId, cashGroup);
     }
 
-    function updateAssetRate(
-        uint16 currencyId,
-        address rateOracle
-    ) external onlyOwner {
+    function updateAssetRate(uint16 currencyId, address rateOracle)
+        external
+        onlyOwner
+    {
         _updateAssetRate(currencyId, rateOracle);
     }
 
@@ -169,11 +206,18 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 haircut,
         uint8 liquidationDiscount
     ) external onlyOwner {
-        _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount); 
+        _updateETHRate(
+            currencyId,
+            rateOracle,
+            mustInvert,
+            buffer,
+            haircut,
+            liquidationDiscount
+        );
     }
 
     function _updateCashGroup(
-        uint currencyId,
+        uint256 currencyId,
         CashGroupParameterStorage calldata cashGroup
     ) internal {
         require(currencyId != 0, "G: invalid currency id");
@@ -184,15 +228,12 @@ contract GovernanceAction is StorageLayoutV1 {
         emit UpdateCashGroup(uint16(currencyId));
     }
 
-    function _updateAssetRate(
-        uint currencyId,
-        address rateOracle
-    ) internal {
+    function _updateAssetRate(uint256 currencyId, address rateOracle) internal {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 
         // Sanity check that the rate oracle refers to the proper asset token
-        address token = AssetRateAdapterInterface(rateOracle).token();
+        address token = AssetRateAdapter(rateOracle).token();
         Token memory assetToken = TokenHandler.getToken(currencyId, false);
         require(assetToken.tokenAddress == token, "G: invalid rate oracle");
 
@@ -201,7 +242,7 @@ contract GovernanceAction is StorageLayoutV1 {
             // If currencyId is one then this is referring to cETH and there is no underlying() to call
             underlyingDecimals = 18;
         } else {
-            address underlyingToken = AssetRateAdapterInterface(rateOracle).underlying();
+            address underlyingToken = AssetRateAdapter(rateOracle).underlying();
             underlyingDecimals = ERC20(underlyingToken).decimals();
         }
 
@@ -214,7 +255,7 @@ contract GovernanceAction is StorageLayoutV1 {
     }
 
     function _updateETHRate(
-        uint currencyId,
+        uint256 currencyId,
         address rateOracle,
         bool mustInvert,
         uint8 buffer,
@@ -233,9 +274,18 @@ contract GovernanceAction is StorageLayoutV1 {
             require(rateOracle != address(0), "G: zero rate oracle address");
             rateDecimalPlaces = AggregatorV2V3Interface(rateOracle).decimals();
         }
-        require(buffer >= ExchangeRate.MULTIPLIER_DECIMALS, "G: buffer must be gte decimals");
-        require(haircut <= ExchangeRate.MULTIPLIER_DECIMALS, "G: buffer must be lte decimals");
-        require(liquidationDiscount > ExchangeRate.MULTIPLIER_DECIMALS, "G: discount must be gt decimals");
+        require(
+            buffer >= ExchangeRate.MULTIPLIER_DECIMALS,
+            "G: buffer must be gte decimals"
+        );
+        require(
+            haircut <= ExchangeRate.MULTIPLIER_DECIMALS,
+            "G: buffer must be lte decimals"
+        );
+        require(
+            liquidationDiscount > ExchangeRate.MULTIPLIER_DECIMALS,
+            "G: discount must be gt decimals"
+        );
 
         underlyingToETHRateMapping[currencyId] = ETHRateStorage({
             rateOracle: rateOracle,
@@ -248,5 +298,4 @@ contract GovernanceAction is StorageLayoutV1 {
 
         emit UpdateETHRate(uint16(currencyId));
     }
-
 }

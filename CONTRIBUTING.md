@@ -53,7 +53,7 @@ All Solidity code is formatted using [Prettier](https://prettier.io/) and [Prett
 - Internal constants **must** be declared in the `global/Constants.sol` file.
 - Natspec docstrings **must** use the `///` comment format.
 - All `external` and `public` methods **must** have natspec docstrings.
-- All methods **must** have at least a `@dev` docstring.
+- All methods **should** have at least a `@dev` docstring.
 - Private methods **should** be declared near the methods that they are related to.
 - Private methods **must** be prefixed with an underscore.
 - Where possible, use named return values for clarity.
