@@ -48,7 +48,7 @@ def get_balance_state(currencyId, **kwargs):
         if "netPerpetualTokenSupplyChange" not in kwargs
         else kwargs["netPerpetualTokenSupplyChange"]
     )
-    lastIncentiveMint = 0 if "lastIncentiveMint" not in kwargs else kwargs["lastIncentiveMint"]
+    lastIncentiveClaim = 0 if "lastIncentiveClaim" not in kwargs else kwargs["lastIncentiveClaim"]
 
     return (
         currencyId,
@@ -58,7 +58,7 @@ def get_balance_state(currencyId, **kwargs):
         netAssetTransferInternalPrecision,
         netPerpetualTokenTransfer,
         netPerpetualTokenSupplyChange,
-        lastIncentiveMint,
+        lastIncentiveClaim,
     )
 
 

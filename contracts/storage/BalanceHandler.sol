@@ -26,8 +26,8 @@ struct BalanceState {
     int256 netPerpetualTokenTransfer;
     // Net perpetual token supply change from minting or redeeming
     int256 netPerpetualTokenSupplyChange;
-    // The last time incentives were minted for this currency id
-    uint256 lastIncentiveMint;
+    // The last time incentives were claimed for this currency
+    uint256 lastIncentiveClaim;
 }
 
 library BalanceHandler {
@@ -261,8 +261,8 @@ library BalanceHandler {
             balanceState.netPerpetualTokenTransfer != 0 ||
             balanceState.netPerpetualTokenSupplyChange != 0
         ) {
-            // It's crucial that this is minted before we do any sort of perpetual token transfer to prevent gaming
-            // of the system. This method will update the lastIncentiveMint time in the balanceState for storage.
+            // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
+            // of the system. This method will update the lastIncentiveClaim time in the balanceState for storage.
             claimIncentives(balanceState, account);
 
             // Perpetual tokens are within the notional system so we can update balances directly.
@@ -280,7 +280,7 @@ library BalanceHandler {
                 balanceState.currencyId,
                 balanceState.storedCashBalance,
                 balanceState.storedPerpetualTokenBalance,
-                balanceState.lastIncentiveMint
+                balanceState.lastIncentiveClaim
             );
         }
 
@@ -310,7 +310,7 @@ library BalanceHandler {
         AccountStorage memory accountContext
     ) internal returns (int256, int256) {
         require(amountToSettle >= 0); // dev: amount to settle negative
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveMint) =
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveClaim) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
@@ -345,7 +345,7 @@ library BalanceHandler {
             cashGroup.currencyId,
             cashBalance,
             nTokenBalance,
-            lastIncentiveMint
+            lastIncentiveClaim
         );
         return (amountToSettle, amountToSettleAsset.neg());
     }
@@ -360,7 +360,7 @@ library BalanceHandler {
             (
                 int256 cashBalance,
                 int256 nTokenBalance,
-                uint256 lastIncentiveMint
+                uint256 lastIncentiveClaim
             ) = getBalanceStorage(account, settleAmounts[i].currencyId);
 
             cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
@@ -380,7 +380,7 @@ library BalanceHandler {
                 settleAmounts[i].currencyId,
                 cashBalance,
                 nTokenBalance,
-                lastIncentiveMint
+                lastIncentiveClaim
             );
         }
     }
@@ -416,7 +416,7 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance,
         int256 nTokenBalance,
-        uint256 lastIncentiveMint
+        uint256 lastIncentiveClaim
     ) private {
         bytes32 slot =
             keccak256(abi.encode(currencyId, account, "account.balances"));
@@ -428,12 +428,12 @@ library BalanceHandler {
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint96).max); // dev: stored perpetual token balance overflow
 
         require(
-            lastIncentiveMint >= 0 && lastIncentiveMint <= type(uint32).max
-        ); // dev: last incentive mint overflow
+            lastIncentiveClaim >= 0 && lastIncentiveClaim <= type(uint32).max
+        ); // dev: last incentive claim overflow
 
         bytes32 data =
             ((bytes32(uint256(nTokenBalance))) |
-                (bytes32(lastIncentiveMint) << 96) |
+                (bytes32(lastIncentiveClaim) << 96) |
                 (bytes32(cashBalance) << 128));
 
         assembly {
@@ -464,7 +464,7 @@ library BalanceHandler {
         return (
             int256(int128(int256(data >> 128))), // Cash balance
             int256(uint96(uint256(data))), // Perpetual token balance
-            uint256(uint32(uint256(data >> 96))) // Last incentive mint blocktime
+            uint256(uint32(uint256(data >> 96))) // Last incentive claimed blocktime
         );
     }
 
@@ -481,12 +481,12 @@ library BalanceHandler {
             (
                 balanceState.storedCashBalance,
                 balanceState.storedPerpetualTokenBalance,
-                balanceState.lastIncentiveMint
+                balanceState.lastIncentiveClaim
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = 0;
             balanceState.storedPerpetualTokenBalance = 0;
-            balanceState.lastIncentiveMint = 0;
+            balanceState.lastIncentiveClaim = 0;
         }
 
         balanceState.netCashChange = 0;
@@ -512,7 +512,7 @@ library BalanceHandler {
             (
                 balanceState.storedCashBalance,
                 balanceState.storedPerpetualTokenBalance,
-                balanceState.lastIncentiveMint
+                balanceState.lastIncentiveClaim
             ) = getBalanceStorage(account, currencyId);
         }
 
@@ -556,7 +556,7 @@ library BalanceHandler {
         return incentivesToClaim;
     }
 
-    /// @notice Incentives must be minted every time nToken balance changes
+    /// @notice Incentives must be claimed every time nToken balance changes
     function claimIncentives(BalanceState memory balanceState, address account)
         internal
         returns (uint256)
@@ -569,14 +569,14 @@ library BalanceHandler {
             calculateIncentivesToClaim(
                 tokenAddress,
                 uint256(balanceState.storedPerpetualTokenBalance),
-                balanceState.lastIncentiveMint,
+                balanceState.lastIncentiveClaim,
                 blockTime
             );
-        balanceState.lastIncentiveMint = blockTime;
+        balanceState.lastIncentiveClaim = blockTime;
         if (incentivesToClaim > 0)
             TokenHandler.transferIncentive(account, incentivesToClaim);
 
-        // Change the supply amount after incentives have been minted
+        // Change the supply amount after incentives have been claimed
         if (balanceState.netPerpetualTokenSupplyChange != 0) {
             PerpetualToken.changePerpetualTokenSupply(
                 tokenAddress,
@@ -598,7 +598,7 @@ library BalanceHandler {
             balanceState.currencyId,
             balanceState.storedCashBalance,
             balanceState.storedPerpetualTokenBalance,
-            balanceState.lastIncentiveMint
+            balanceState.lastIncentiveClaim
         );
 
         return incentivesClaimed;

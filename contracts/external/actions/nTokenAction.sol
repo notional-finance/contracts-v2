@@ -50,7 +50,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (
             /* int cashBalance */,
             int256 nTokenBalance,
-            /* uint lastIncentiveMint */
+            /* uint lastIncentiveClaim */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance
@@ -212,7 +212,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             BalanceHandler.calculateIncentivesToClaim(
                 PerpetualToken.nTokenAddress(currencyId),
                 uint256(balanceState.storedPerpetualTokenBalance),
-                balanceState.lastIncentiveMint,
+                balanceState.lastIncentiveClaim,
                 block.timestamp
             );
 
