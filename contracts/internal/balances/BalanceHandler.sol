@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 import "./Incentives.sol";
 import "./TokenHandler.sol";
 import "../AccountContextHandler.sol";
-import "../markets/AssetRate.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
@@ -227,7 +226,7 @@ library BalanceHandler {
             int256 underlyingAmountExternal =
                 assetToken.redeem(
                     underlyingToken,
-                    // TODO: dust may accrue at the lowest decimal place
+                    // NOTE: dust may accrue at the lowest decimal place
                     uint256(transferAmountExternal.neg())
                 );
 
@@ -252,23 +251,20 @@ library BalanceHandler {
     function setBalanceStorageForSettleCashDebt(
         address account,
         CashGroupParameters memory cashGroup,
-        int256 amountToSettle,
+        int256 amountToSettleAsset,
         AccountStorage memory accountContext
-    ) internal returns (int256, int256) {
-        require(amountToSettle >= 0); // dev: amount to settle negative
+    ) internal returns (int256) {
+        require(amountToSettleAsset >= 0); // dev: amount to settle negative
         (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveClaim) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
-        int256 amountToSettleAsset;
-        if (amountToSettle == 0) {
+        if (amountToSettleAsset == 0) {
             // Symbolizes that the entire debt should be settled
             amountToSettleAsset = cashBalance.neg();
-            amountToSettle = cashGroup.assetRate.convertInternalToUnderlying(amountToSettleAsset);
             cashBalance = 0;
         } else {
             // A partial settlement of the debt
-            amountToSettleAsset = cashGroup.assetRate.convertInternalFromUnderlying(amountToSettle);
             require(amountToSettleAsset <= cashBalance.neg(), "Invalid amount to settle");
             cashBalance = cashBalance.add(amountToSettleAsset);
         }
@@ -291,8 +287,7 @@ library BalanceHandler {
             lastIncentiveClaim
         );
 
-        // amountToSettle is in underlying cash terms, amountToSettleAsset is in asset terms
-        return (amountToSettle, amountToSettleAsset.neg());
+        return amountToSettleAsset;
     }
 
     /// @notice Helper method for settling the output of the SettleAssets method

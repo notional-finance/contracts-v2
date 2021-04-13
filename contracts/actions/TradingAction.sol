@@ -329,22 +329,22 @@ library TradingAction {
         )
     {
         address counterparty = address(bytes20(trade << 8));
-        int256 amountToSettle = int256(int88(bytes11(trade << 168)));
+        int256 amountToSettleAsset = int256(int88(bytes11(trade << 168)));
 
         AccountStorage memory counterpartyContext =
             AccountContextHandler.getAccountContext(counterparty);
+
         if (counterpartyContext.mustSettleAssets()) {
             counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty);
         }
 
-        // This will check if the amountToSettle is valid and revert if it is not. Amount to settle is a positive
-        // number denominated in underlying terms. If amountToSettle is set equal to zero on the input, will return the
+        // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive
+        // number denominated in asset terms. If amountToSettleAsset is set equal to zero on the input, will return the
         // max amount to settle.
-        int256 netAssetCashToSettler;
-        (amountToSettle, netAssetCashToSettler) = BalanceHandler.setBalanceStorageForSettleCashDebt(
+        amountToSettleAsset = BalanceHandler.setBalanceStorageForSettleCashDebt(
             counterparty,
             cashGroup,
-            amountToSettle,
+            amountToSettleAsset,
             counterpartyContext
         );
 
@@ -358,7 +358,7 @@ library TradingAction {
                 markets,
                 threeMonthMaturity,
                 blockTime,
-                amountToSettle
+                amountToSettleAsset
             );
 
         // It's possible that this action will put an account into negative free collateral. In this case they
@@ -373,7 +373,7 @@ library TradingAction {
         );
         counterpartyContext.setAccountContext(counterparty);
 
-        return (threeMonthMaturity, netAssetCashToSettler, fCashAmount);
+        return (threeMonthMaturity, amountToSettleAsset.neg(), fCashAmount);
     }
 
     function _getfCashSettleAmount(
@@ -381,7 +381,7 @@ library TradingAction {
         MarketParameters[] memory markets,
         uint256 threeMonthMaturity,
         uint256 blockTime,
-        int256 amountToSettle
+        int256 amountToSettleAsset
     ) internal view returns (int256) {
         uint256 oracleRate = cashGroup.getOracleRate(markets, threeMonthMaturity, blockTime);
 
@@ -390,9 +390,15 @@ library TradingAction {
                 oracleRate.add(cashGroup.getSettlementPenalty()),
                 threeMonthMaturity.sub(blockTime)
             );
+
         // Amount to settle is positive, this returns the fCashAmount that the settler will
         // receive as a positive number
-        return amountToSettle.mul(exchangeRate).div(Constants.RATE_PRECISION);
+        return
+            cashGroup
+                .assetRate
+                .convertInternalToUnderlying(amountToSettleAsset)
+                .mul(exchangeRate)
+                .div(Constants.RATE_PRECISION);
     }
 
     function _purchasePerpetualTokenResidual(
