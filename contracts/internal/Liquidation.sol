@@ -28,9 +28,8 @@ library Liquidation {
     int256 internal constant MAX_LIQUIDATION_PORTION = 40;
     int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
 
-    /**
-     * @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
-     */
+    /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
+
     function preLiquidationActions(
         address liquidateAccount,
         uint256 localCurrency,
@@ -74,13 +73,12 @@ library Liquidation {
         return (accountContext, factors, portfolioState);
     }
 
-    /**
-     * @notice We allow liquidators to purchase up to MAX_LIQUIDATION_PORTION percentage of collateral
-     * assets during liquidation to recollateralize an account as long as it does not also put the account
-     * further into negative free collateral (i.e. constraints on local available and collateral available).
-     * Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
-     * purchase so we also enforce that limit here.
-     */
+    /// @notice We allow liquidators to purchase up to MAX_LIQUIDATION_PORTION percentage of collateral
+    /// assets during liquidation to recollateralize an account as long as it does not also put the account
+    /// further into negative free collateral (i.e. constraints on local available and collateral available).
+    /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
+    /// purchase so we also enforce that limit here.
+
     function calculateMaxLiquidationAmount(
         int256 initialAmountToLiquidate,
         int256 maxTotalBalance,
@@ -136,10 +134,9 @@ library Liquidation {
         return (benefitRequired, liquidationDiscount);
     }
 
-    /**
-     * @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
-     * is not so large that the account is put further into debt.
-     */
+    /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
+    /// is not so large that the account is put further into debt.
+
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
@@ -169,9 +166,8 @@ library Liquidation {
         return (collateralBalanceToSell, localToPurchase);
     }
 
-    /**
-     * @notice Calculates the two discount factors relevant when liquidating fCash.
-     */
+    /// @notice Calculates the two discount factors relevant when liquidating fCash.
+
     function calculatefCashDiscounts(
         LiquidationFactors memory factors,
         uint256 maturity,
@@ -244,12 +240,11 @@ library Liquidation {
         return 0;
     }
 
-    /**
-     * @notice Liquidates an account by converting their local currency collateral into cash and
-     * eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
-     * on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
-     * encounter this scenario but this method is here for completeness.
-     */
+    /// @notice Liquidates an account by converting their local currency collateral into cash and
+    /// eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
+    /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
+    /// encounter this scenario but this method is here for completeness.
+
     function liquidateLocalCurrency(
         uint256 localCurrency,
         uint96 maxPerpetualTokenLiquidation,
@@ -765,11 +760,10 @@ library Liquidation {
         int256 incentivePaid;
     }
 
-    /**
-     * @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
-     * liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
-     * not create new assets, the net fCash asset will replace the liquidity token asset.
-     */
+    /// @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
+    /// liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
+    /// not create new assets, the net fCash asset will replace the liquidity token asset.
+
     function withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -862,10 +856,9 @@ library Liquidation {
         return (w, assetAmountRemaining);
     }
 
-    /**
-     * @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
-     * haircut amounts, we simply withdraw as much collateral as needed.
-     */
+    /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
+    /// haircut amounts, we simply withdraw as much collateral as needed.
+
     function withdrawCollateralLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,

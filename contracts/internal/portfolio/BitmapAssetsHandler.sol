@@ -104,10 +104,9 @@ library BitmapAssetsHandler {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
     }
 
-    /**
-     * @notice Add an ifCash asset in the bitmap and mapping. Updates the bitmap in memory
-     * but not in storage.
-     */
+    /// @notice Add an ifCash asset in the bitmap and mapping. Updates the bitmap in memory
+    /// but not in storage.
+
     function addifCashAsset(
         address account,
         uint256 currencyId,
@@ -181,9 +180,8 @@ library BitmapAssetsHandler {
         return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
     }
 
-    /**
-     * @notice Get the net present value of all the ifCash assets
-     */
+    /// @notice Get the net present value of all the ifCash assets
+
     function getifCashNetPresentValue(
         address account,
         uint256 currencyId,
@@ -259,10 +257,9 @@ library BitmapAssetsHandler {
         return assets;
     }
 
-    /**
-     * @notice Used to reduce a perpetual token ifCash assets portfolio proportionately when redeeming
-     * perpetual tokens to its underlying assets.
-     */
+    /// @notice Used to reduce a perpetual token ifCash assets portfolio proportionately when redeeming
+    /// perpetual tokens to its underlying assets.
+
     function reduceifCashAssetsProportional(
         address account,
         uint256 currencyId,
@@ -312,11 +309,10 @@ library BitmapAssetsHandler {
         return assets;
     }
 
-    /**
-     * @notice If a perpetual token incurs a negative fCash residual as a result of lending, this means
-     * that we are going to need to withold some amount of cash so that market makers can purchase and
-     * clear the debts off the balance sheet.
-     */
+    /// @notice If a perpetual token incurs a negative fCash residual as a result of lending, this means
+    /// that we are going to need to withold some amount of cash so that market makers can purchase and
+    /// clear the debts off the balance sheet.
+
     function getPerpetualTokenNegativefCashWithholding(
         PerpetualTokenPortfolio memory perpToken,
         uint256 blockTime,

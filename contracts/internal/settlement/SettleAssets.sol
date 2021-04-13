@@ -52,9 +52,8 @@ library SettleAssets {
         return settleAmounts;
     }
 
-    /**
-     * @notice Shared calculation for liquidity token settlement
-     */
+    /// @notice Shared calculation for liquidity token settlement
+
     function calculateMarketStorage(PortfolioAsset memory asset)
         internal
         view
@@ -82,10 +81,9 @@ library SettleAssets {
         return (cashClaim, fCash, market);
     }
 
-    /**
-     * @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
-     * converting the fCash portion to cash at the settlement rate.
-     */
+    /// @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
+    /// converting the fCash portion to cash at the settlement rate.
+
     function settleLiquidityToken(
         PortfolioAsset memory asset,
         AssetRateParameters memory settlementRate
@@ -98,9 +96,8 @@ library SettleAssets {
         return (assetCash, market);
     }
 
-    /**
-     * @notice Settles a liquidity token to idiosyncratic fCash
-     */
+    /// @notice Settles a liquidity token to idiosyncratic fCash
+
     function settleLiquidityTokenTofCash(PortfolioState memory portfolioState, uint256 index)
         internal
         view
@@ -137,10 +134,9 @@ library SettleAssets {
         return (cashClaim, market);
     }
 
-    /**
-     * @notice View version of settle asset with a call to getSettlementRateView, the reason here is that
-     * in the stateful version we will set the settlement rate if it is not set.
-     */
+    /// @notice View version of settle asset with a call to getSettlementRateView, the reason here is that
+    /// in the stateful version we will set the settlement rate if it is not set.
+
     function getSettleAssetContextView(PortfolioState memory portfolioState, uint256 blockTime)
         internal
         view
@@ -202,9 +198,8 @@ library SettleAssets {
         return settleAmounts;
     }
 
-    /**
-     * @notice Stateful version of settle asset, the only difference is the call to getSettlementRateStateful
-     */
+    /// @notice Stateful version of settle asset, the only difference is the call to getSettlementRateStateful
+
     function getSettleAssetContextStateful(PortfolioState memory portfolioState, uint256 blockTime)
         internal
         returns (SettleAmount[] memory)
@@ -260,10 +255,9 @@ library SettleAssets {
         return settleAmounts;
     }
 
-    /**
-     * @notice Stateful settlement function to settle a bitmapped asset. Deletes the
-     * asset from storage after calculating it.
-     */
+    /// @notice Stateful settlement function to settle a bitmapped asset. Deletes the
+    /// asset from storage after calculating it.
+
     function settleBitmappedAsset(
         address account,
         uint256 currencyId,
@@ -298,10 +292,9 @@ library SettleAssets {
         return (bits, assetCash);
     }
 
-    /**
-     * @notice Given a bitmap for a cash group and timestamps, will settle all assets
-     * that have matured and remap the bitmap to correspond to the current time.
-     */
+    /// @notice Given a bitmap for a cash group and timestamps, will settle all assets
+    /// that have matured and remap the bitmap to correspond to the current time.
+
     function settleBitmappedCashGroup(
         address account,
         uint256 currencyId,
@@ -461,9 +454,8 @@ library SettleAssets {
         }
     }
 
-    /**
-     * @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
-     */
+    /// @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
+
     function remapBitSection(
         uint256 nextSettleTime,
         uint256 blockTimeUTC0,

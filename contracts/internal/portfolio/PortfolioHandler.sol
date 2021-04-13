@@ -53,9 +53,8 @@ library PortfolioHandler {
         return extendedArray;
     }
 
-    /**
-     * @notice Adds or updates a new asset in memory
-     */
+    /// @notice Adds or updates a new asset in memory
+
     function addAsset(
         PortfolioState memory portfolioState,
         uint256 currencyId,
@@ -112,9 +111,8 @@ library PortfolioHandler {
         portfolioState.lastNewAssetIndex += 1;
     }
 
-    /**
-     * @notice Takes a portfolio state and writes it to storage
-     */
+    /// @notice Takes a portfolio state and writes it to storage
+
     function storeAssets(PortfolioState memory portfolioState, address account)
         internal
         returns (
@@ -202,9 +200,8 @@ library PortfolioHandler {
         );
     }
 
-    /**
-     * @notice Deletes an asset, should only be used during settlement
-     */
+    /// @notice Deletes an asset, should only be used during settlement
+
     function deleteAsset(PortfolioState memory portfolioState, uint256 index) internal pure {
         require(index < portfolioState.storedAssets.length); // dev: stored assets bounds
         require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
@@ -241,9 +238,8 @@ library PortfolioHandler {
         portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
     }
 
-    /**
-     * @dev These ids determine the sort order of assets
-     */
+    /// @dev These ids determine the sort order of assets
+
     function getEncodedId(PortfolioAsset memory asset) internal pure returns (uint256) {
         return
             uint256(
@@ -253,9 +249,8 @@ library PortfolioHandler {
             );
     }
 
-    /**
-     * @dev These ids determine the sort order of assets
-     */
+    /// @dev These ids determine the sort order of assets
+
     function encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
         require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
         require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
@@ -330,11 +325,10 @@ library PortfolioHandler {
         return assets;
     }
 
-    /**
-     * @notice Builds a portfolio array from storage. The new assets hint parameter will
-     * be used to provision a new array for the new assets. This will increase gas efficiency
-     * so that we don't have to make copies when we extend the array.
-     */
+    /// @notice Builds a portfolio array from storage. The new assets hint parameter will
+    /// be used to provision a new array for the new assets. This will increase gas efficiency
+    /// so that we don't have to make copies when we extend the array.
+
     function buildPortfolioState(
         address account,
         uint8 assetArrayLength,

@@ -20,9 +20,8 @@ contract MockTokenHandler is StorageLayoutV1 {
         return TokenHandler.setToken(id, underlying, ts);
     }
 
-    /**
-     * @dev This method does not update internal balances...must use currency handler.
-     */
+    /// @dev This method does not update internal balances...must use currency handler.
+
     function transfer(
         uint256 currencyId,
         address account,

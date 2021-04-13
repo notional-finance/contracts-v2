@@ -14,18 +14,17 @@ library AssetRate {
     uint256 private constant ASSET_RATE_STORAGE_SLOT = 2;
     int256 private constant ASSET_RATE_DECIMALS = 1e18;
 
-    /**
-     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-     * externally from the system.
-     *
-     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
-     * Underlying is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
-     * in these exchange rates.
-     *
-     * @param ar exchange rate object between asset and underlying
-     * @param assetBalance amount (denominated in asset value) to convert to underlying
-     */
+    /// @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
+    /// at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+    /// externally from the system.
+
+    /// Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
+    /// Underlying is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
+    /// in these exchange rates.
+
+    /// @param ar exchange rate object between asset and underlying
+    /// @param assetBalance amount (denominated in asset value) to convert to underlying
+
     function convertInternalToUnderlying(AssetRateParameters memory ar, int256 assetBalance)
         internal
         pure
@@ -46,17 +45,16 @@ library AssetRate {
         return underlyingBalance;
     }
 
-    /**
-     * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-     * externally from the system.
-     *
-     * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
-     * underlyingBalance. Underlying is referred to as the quote currency in these exchange rates.
-     *
-     * @param ar exchange rate object between asset and underlying
-     * @param underlyingBalance amount (denominated in internal precision) to convert to asset value
-     */
+    /// @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
+    /// at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+    /// externally from the system.
+
+    /// Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
+    /// underlyingBalance. Underlying is referred to as the quote currency in these exchange rates.
+
+    /// @param ar exchange rate object between asset and underlying
+    /// @param underlyingBalance amount (denominated in internal precision) to convert to asset value
+
     function convertInternalFromUnderlying(AssetRateParameters memory ar, int256 underlyingBalance)
         internal
         pure

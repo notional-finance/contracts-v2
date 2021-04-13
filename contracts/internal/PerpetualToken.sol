@@ -43,9 +43,8 @@ library PerpetualToken {
     uint8 internal constant RESIDUAL_PURCHASE_INCENTIVE = 4;
     uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 
-    /**
-     * @notice Returns an account context object that is specific to perpetual tokens.
-     */
+    /// @notice Returns an account context object that is specific to perpetual tokens.
+
     function getPerpetualTokenContext(address tokenAddress)
         internal
         view
@@ -78,9 +77,8 @@ library PerpetualToken {
         );
     }
 
-    /**
-     * @notice Returns the perpetual token address for a given currency
-     */
+    /// @notice Returns the perpetual token address for a given currency
+
     function nTokenAddress(uint256 currencyId) internal view returns (address) {
         bytes32 slot = keccak256(abi.encode(currencyId, "perpetual.address"));
         address tokenAddress;
@@ -90,10 +88,9 @@ library PerpetualToken {
         return tokenAddress;
     }
 
-    /**
-     * @notice Called by governance to set the perpetual token address and its reverse lookup. Cannot be
-     * reset once this is set.
-     */
+    /// @notice Called by governance to set the perpetual token address and its reverse lookup. Cannot be
+    /// reset once this is set.
+
     function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress) internal {
         bytes32 addressSlot = keccak256(abi.encode(currencyId, "perpetual.address"));
         bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
@@ -117,9 +114,8 @@ library PerpetualToken {
         }
     }
 
-    /**
-     * @notice Set perpetual token collateral parameters
-     */
+    /// @notice Set perpetual token collateral parameters
+
     function setPerpetualTokenCollateralParameters(
         address tokenAddress,
         uint8 residualPurchaseIncentive10BPS,
@@ -156,9 +152,8 @@ library PerpetualToken {
         }
     }
 
-    /**
-     * @notice Updates the perpetual token supply amount when minting or redeeming.
-     */
+    /// @notice Updates the perpetual token supply amount when minting or redeeming.
+
     function changePerpetualTokenSupply(address tokenAddress, int256 netChange) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
@@ -217,10 +212,9 @@ library PerpetualToken {
         }
     }
 
-    /**
-     * @notice Returns the array of deposit shares and leverage thresholds for a
-     * perpetual liquidity token.
-     */
+    /// @notice Returns the array of deposit shares and leverage thresholds for a
+    /// perpetual liquidity token.
+
     function getDepositParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
@@ -230,11 +224,10 @@ library PerpetualToken {
         return _getParameters(slot, maxMarketIndex, false);
     }
 
-    /**
-     * @notice Sets the deposit parameters for a perpetual liquidity token. We pack the values in alternating
-     * between the two parameters into either one or two storage slots depending on the number of markets. This
-     * is to save storage reads when we use the parameters.
-     */
+    /// @notice Sets the deposit parameters for a perpetual liquidity token. We pack the values in alternating
+    /// between the two parameters into either one or two storage slots depending on the number of markets. This
+    /// is to save storage reads when we use the parameters.
+
     function setDepositParameters(
         uint256 currencyId,
         uint32[] calldata depositShares,
@@ -263,10 +256,9 @@ library PerpetualToken {
         _setParameters(slot, depositShares, leverageThresholds);
     }
 
-    /**
-     * @notice Sets the initialization parameters for the markets, these are read only when markets
-     * are initialized by the perpetual liquidity token.
-     */
+    /// @notice Sets the initialization parameters for the markets, these are read only when markets
+    /// are initialized by the perpetual liquidity token.
+
     function setInitializationParameters(
         uint256 currencyId,
         uint32[] calldata rateAnchors,
@@ -291,9 +283,8 @@ library PerpetualToken {
         _setParameters(slot, rateAnchors, proportions);
     }
 
-    /**
-     * @notice Returns the array of initialization parameters for a given currency.
-     */
+    /// @notice Returns the array of initialization parameters for a given currency.
+
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
@@ -411,10 +402,9 @@ library PerpetualToken {
         return perpToken;
     }
 
-    /**
-     * @notice Given a currency id, will build a perpetual token portfolio object in order to get the value
-     * of the portfolio.
-     */
+    /// @notice Given a currency id, will build a perpetual token portfolio object in order to get the value
+    /// of the portfolio.
+
     function buildPerpetualTokenPortfolioStateful(uint256 currencyId)
         internal
         returns (PerpetualTokenPortfolio memory)
@@ -446,11 +436,10 @@ library PerpetualToken {
         return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + Constants.QUARTER;
     }
 
-    /**
-     * @notice Returns the perpetual token present value denominated in asset terms.
-     * @dev We assume that the perpetual token portfolio array is only liquidity tokens and
-     * sorted ascending by maturity.
-     */
+    /// @notice Returns the perpetual token present value denominated in asset terms.
+    /// @dev We assume that the perpetual token portfolio array is only liquidity tokens and
+    /// sorted ascending by maturity.
+
     function getPerpetualTokenPV(PerpetualTokenPortfolio memory perpToken, uint256 blockTime)
         internal
         view

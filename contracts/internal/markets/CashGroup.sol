@@ -28,11 +28,10 @@ library CashGroup {
     // 9 bytes allocated per market on the rate scalar
     uint256 private constant RATE_SCALAR = 136;
 
-    /**
-     * @notice These are the predetermined market offsets for trading, they are 1-indexed because
-     * the 0 index means that no markets are listed for the cash group.
-     * @dev This is a function because array types are not allowed to be constants yet.
-     */
+    /// @notice These are the predetermined market offsets for trading, they are 1-indexed because
+    /// the 0 index means that no markets are listed for the cash group.
+    /// @dev This is a function because array types are not allowed to be constants yet.
+
     function getTradedMarket(uint256 index) internal pure returns (uint256) {
         require(index != 0); // dev: get traded market index is zero
 
@@ -49,24 +48,21 @@ library CashGroup {
         revert("CG: invalid index");
     }
 
-    /**
-     * @notice Returns the current reference time which is how all the AMM dates are
-     * calculated.
-     */
+    /// @notice Returns the current reference time which is how all the AMM dates are
+    /// calculated.
+
     function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {
         return blockTime.sub(blockTime % Constants.QUARTER);
     }
 
-    /**
-     * @notice Truncates a date to midnight UTC time
-     */
+    /// @notice Truncates a date to midnight UTC time
+
     function getTimeUTC0(uint256 time) internal pure returns (uint256) {
         return time.sub(time % Constants.DAY);
     }
 
-    /**
-     * @notice Determines if the maturity falls on one of the valid on chain market dates.
-     */
+    /// @notice Determines if the maturity falls on one of the valid on chain market dates.
+
     function isValidMaturity(
         CashGroupParameters memory cashGroup,
         uint256 maturity,
@@ -86,12 +82,11 @@ library CashGroup {
         return false;
     }
 
-    /**
-     * @notice Determines if an idiosyncratic maturity is valid and returns the bit reference
-     * that is the case.
-     *
-     * @return True or false if the maturity is valid
-     */
+    /// @notice Determines if an idiosyncratic maturity is valid and returns the bit reference
+    /// that is the case.
+
+    /// @return True or false if the maturity is valid
+
     function isValidIdiosyncraticMaturity(
         CashGroupParameters memory cashGroup,
         uint256 maturity,
@@ -109,12 +104,11 @@ library CashGroup {
         return isValid;
     }
 
-    /**
-     * @notice Given a bit number and the reference time of the first bit, returns the bit number
-     * of a given maturity.
-     *
-     * @return bitNum and a true or false if the maturity falls on the exact bit
-     */
+    /// @notice Given a bit number and the reference time of the first bit, returns the bit number
+    /// of a given maturity.
+
+    /// @return bitNum and a true or false if the maturity falls on the exact bit
+
     function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
         internal
         pure
@@ -168,10 +162,9 @@ library CashGroup {
         return (256, false);
     }
 
-    /**
-     * @notice Given a bit number and a block time returns the maturity that the bit number
-     * should reference. Bit numbers are one indexed.
-     */
+    /// @notice Given a bit number and a block time returns the maturity that the bit number
+    /// should reference. Bit numbers are one indexed.
+
     function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
         internal
         pure
@@ -212,11 +205,10 @@ library CashGroup {
         return firstBit + (bitNum - Constants.QUARTER_BIT_OFFSET) * Constants.QUARTER;
     }
 
-    /**
-     * @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
-     * the ln() portion of the liquidity curve as an inverse so it increases with time to
-     * maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
-     */
+    /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
+    /// the ln() portion of the liquidity curve as an inverse so it increases with time to
+    /// maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
+
     function getRateScalar(
         CashGroupParameters memory cashGroup,
         uint256 marketIndex,
@@ -232,10 +224,9 @@ library CashGroup {
         return rateScalar;
     }
 
-    /**
-     * @notice Haircut on liquidity tokens to account for the risk associated with changes in the
-     * proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
-     */
+    /// @notice Haircut on liquidity tokens to account for the risk associated with changes in the
+    /// proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
+
     function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 assetType)
         internal
         pure
@@ -345,11 +336,10 @@ library CashGroup {
         return market;
     }
 
-    /**
-     * @notice Returns the linear interpolation between two market rates. The formula is
-     * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
-     * interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
-     */
+    /// @notice Returns the linear interpolation between two market rates. The formula is
+    /// slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
+    /// interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
+
     function interpolateOracleRate(
         uint256 shortMaturity,
         uint256 longMaturity,
@@ -566,9 +556,8 @@ library CashGroup {
         );
     }
 
-    /**
-     * @notice Converts cash group storage object into memory object
-     */
+    /// @notice Converts cash group storage object into memory object
+
     function buildCashGroupView(uint256 currencyId)
         internal
         view

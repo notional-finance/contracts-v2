@@ -4,16 +4,15 @@ pragma solidity >0.7.0;
 library SafeInt256 {
     int256 private constant _INT256_MIN = -2**255;
 
-    /**
-     * @dev Returns the multiplication of two signed integers, reverting on
-     * overflow.
-     *
-     * Counterpart to Solidity's `*` operator.
-     *
-     * Requirements:
-     *
-     * - Multiplication cannot overflow.
-     */
+    /// @dev Returns the multiplication of two signed integers, reverting on
+    /// overflow.
+
+    /// Counterpart to Solidity's `*` operator.
+
+    /// Requirements:
+
+    /// - Multiplication cannot overflow.
+
     function mul(int256 a, int256 b) internal pure returns (int256) {
         // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
         // benefit is lost if 'b' is also tested.
@@ -30,18 +29,17 @@ library SafeInt256 {
         return c;
     }
 
-    /**
-     * @dev Returns the integer division of two signed integers. Reverts on
-     * division by zero. The result is rounded towards zero.
-     *
-     * Counterpart to Solidity's `/` operator. Note: this function uses a
-     * `revert` opcode (which leaves remaining gas untouched) while Solidity
-     * uses an invalid opcode to revert (consuming all remaining gas).
-     *
-     * Requirements:
-     *
-     * - The divisor cannot be zero.
-     */
+    /// @dev Returns the integer division of two signed integers. Reverts on
+    /// division by zero. The result is rounded towards zero.
+
+    /// Counterpart to Solidity's `/` operator. Note: this function uses a
+    /// `revert` opcode (which leaves remaining gas untouched) while Solidity
+    /// uses an invalid opcode to revert (consuming all remaining gas).
+
+    /// Requirements:
+
+    /// - The divisor cannot be zero.
+
     function div(int256 a, int256 b) internal pure returns (int256) {
         require(b != 0); // dev: int256 div by zero
         require(!(b == -1 && a == _INT256_MIN)); // dev: int256 div overflow

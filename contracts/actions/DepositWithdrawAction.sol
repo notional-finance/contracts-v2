@@ -32,10 +32,8 @@ contract DepositWithdrawAction {
         }
     }
 
-    /**
-     * @notice Deposits and wraps the underlying token for a particular cToken. Notional should never have
-     * any balances denominated in the underlying.
-     */
+    /// @notice Deposits and wraps the underlying token for a particular cToken. Notional should never have
+    /// any balances denominated in the underlying.
     function depositUnderlyingToken(
         address account,
         uint16 currencyId,
@@ -63,9 +61,7 @@ contract DepositWithdrawAction {
         return uint256(assetTokensReceivedInternal);
     }
 
-    /**
-     * @notice Deposits tokens that are already wrapped.
-     */
+    /// @notice Deposits tokens that are already wrapped.
     function depositAssetToken(
         address account,
         uint16 currencyId,
@@ -93,11 +89,9 @@ contract DepositWithdrawAction {
         return uint256(assetTokensReceivedInternal);
     }
 
-    /**
-     * @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. This method
-     * requires authentication and will settle an account if required. If the account has debt, it will also trigger
-     * a free collateral check.
-     */
+    /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. This method
+    /// requires authentication and will settle an account if required. If the account has debt, it will also trigger
+    /// a free collateral check.
     function withdraw(
         address account,
         uint16 currencyId,
@@ -125,9 +119,7 @@ contract DepositWithdrawAction {
         return uint256(amountWithdrawn.neg());
     }
 
-    /**
-     * @notice Executes a batch of balance transfers including minting and redeeming perpetual tokens.
-     */
+    /// @notice Executes a batch of balance transfers including minting and redeeming perpetual tokens.
     function batchBalanceAction(address account, BalanceAction[] calldata actions)
         external
         payable
@@ -285,9 +277,7 @@ contract DepositWithdrawAction {
         return settleAmounts;
     }
 
-    /**
-     * @notice Settles assets and finalizes portfolio changes and balances
-     */
+    /// @notice Settles assets and finalizes portfolio changes and balances
     function _settleAccountIfRequiredAndFinalize(
         address account,
         AccountStorage memory accountContext
@@ -444,11 +434,9 @@ contract DepositWithdrawAction {
         }
     }
 
-    /**
-     * @notice When lending, adding liquidity or minting perpetual tokens the account
-     * must have a sufficient cash balance to do so otherwise they would go into a negative
-     * cash balance.
-     */
+    /// @notice When lending, adding liquidity or minting perpetual tokens the account
+    /// must have a sufficient cash balance to do so otherwise they would go into a negative
+    /// cash balance.
     function _checkSufficientCash(BalanceState memory balanceState, int256 amountInternalPrecision)
         internal
         pure

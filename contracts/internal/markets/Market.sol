@@ -24,12 +24,11 @@ library Market {
     // Max positive value for a ABDK64x64 integer
     int256 private constant MAX64 = 0x7FFFFFFFFFFFFFFF;
 
-    /**
-     * @notice Used to add liquidity to a market, assuming that it is initialized. If not then
-     * this method will revert and the market must be initialized via the perpetual token.
-     *
-     * @return (new market state, liquidityTokens, negative fCash position generated)
-     */
+    /// @notice Used to add liquidity to a market, assuming that it is initialized. If not then
+    /// this method will revert and the market must be initialized via the perpetual token.
+
+    /// @return (new market state, liquidityTokens, negative fCash position generated)
+
     function addLiquidity(MarketParameters memory marketState, int256 assetCash)
         internal
         pure
@@ -52,11 +51,10 @@ library Market {
         return (liquidityTokens, fCash.neg());
     }
 
-    /**
-     * @notice Used to remove liquidity from a market, assuming that it is initialized.
-     *
-     * @return (new market state, liquidityTokens, negative fCash position generated)
-     */
+    /// @notice Used to remove liquidity from a market, assuming that it is initialized.
+
+    /// @return (new market state, liquidityTokens, negative fCash position generated)
+
     function removeLiquidity(MarketParameters memory marketState, int256 tokensToRemove)
         internal
         pure
@@ -116,22 +114,21 @@ library Market {
         return (rateScalar, totalCashUnderlying, rateAnchor);
     }
 
-    /**
-     * Uses Newton's method to converge on an fCash amount given the amount of
-     * cash. The relation between cash and fcash is:
-     * cashAmount * exchangeRate + fCash = 0
-     * where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
-     *       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
-     *
-     * Newton's method is:
-     * fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
-     *
-     * f(fCash) = cashAmount * exchangeRate * fee + fCash
-     * f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
-     * https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
-     *
-     * NOTE: each iteration costs about 11.3k so this is only done via a view function.
-     */
+    /// Uses Newton's method to converge on an fCash amount given the amount of
+    /// cash. The relation between cash and fcash is:
+    /// cashAmount * exchangeRate + fCash = 0
+    /// where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
+    ///       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
+
+    /// Newton's method is:
+    /// fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
+
+    /// f(fCash) = cashAmount * exchangeRate * fee + fCash
+    /// f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
+    /// https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
+
+    /// NOTE: each iteration costs about 11.3k so this is only done via a view function.
+
     function getfCashGivenCashAmount(
         int256 totalfCash,
         int256 netCashToAccount,
@@ -267,17 +264,16 @@ library Market {
         );
     }
 
-    /**
-     * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
-     * cash amounts are all specified at Constants.RATE_PRECISION.
-     *
-     * @param marketState the current market state
-     * @param cashGroup cash group configuration parameters
-     * @param fCashToAccount the fCash amount that will be deposited into the user's portfolio. The net change
-     * to the market is in the opposite direction.
-     * @param timeToMaturity number of seconds until maturity
-     * @return netAssetCash
-     */
+    /// @notice Does the trade calculation and returns the new market state and cash amount, fCash and
+    /// cash amounts are all specified at Constants.RATE_PRECISION.
+
+    /// @param marketState the current market state
+    /// @param cashGroup cash group configuration parameters
+    /// @param fCashToAccount the fCash amount that will be deposited into the user's portfolio. The net change
+    /// to the market is in the opposite direction.
+    /// @param timeToMaturity number of seconds until maturity
+    /// @return netAssetCash
+
     function calculateTrade(
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
@@ -354,22 +350,21 @@ library Market {
         return (netAssetCashToAccount, assetCashToReserve);
     }
 
-    /**
-     * @notice Rate anchors update as the market gets closer to maturity. Rate anchors are not comparable
-     * across time or markets but implied rates are. The goal here is to ensure that the implied rate
-     * before and after the rate anchor update is the same. Therefore, the market will trade at the same implied
-     * rate that it last traded at. If these anchors do not update then it opens up the opportunity for arbitrage
-     * which will hurt the liquidity providers.
-     *
-     * The rate anchor will update as the market rolls down to maturity. The calculation is:
-     * newExchangeRate = e^(lastImpliedRate * timeToMaturity / Constants.IMPLIED_RATE_TIME)
-     * newAnchor = newExchangeRate - ln((proportion / (1 - proportion)) / rateScalar
-     * where:
-     * lastImpliedRate = ln(exchangeRate') * (Constants.IMPLIED_RATE_TIME / timeToMaturity')
-     *      (calculated when the last trade in the market was made)
-     *
-     * @return the new rate anchor and a boolean that signifies success
-     */
+    /// @notice Rate anchors update as the market gets closer to maturity. Rate anchors are not comparable
+    /// across time or markets but implied rates are. The goal here is to ensure that the implied rate
+    /// before and after the rate anchor update is the same. Therefore, the market will trade at the same implied
+    /// rate that it last traded at. If these anchors do not update then it opens up the opportunity for arbitrage
+    /// which will hurt the liquidity providers.
+
+    /// The rate anchor will update as the market rolls down to maturity. The calculation is:
+    /// newExchangeRate = e^(lastImpliedRate * timeToMaturity / Constants.IMPLIED_RATE_TIME)
+    /// newAnchor = newExchangeRate - ln((proportion / (1 - proportion)) / rateScalar
+    /// where:
+    /// lastImpliedRate = ln(exchangeRate') * (Constants.IMPLIED_RATE_TIME / timeToMaturity')
+    ///      (calculated when the last trade in the market was made)
+
+    /// @return the new rate anchor and a boolean that signifies success
+
     function getRateAnchor(
         int256 totalfCash,
         uint256 lastImpliedRate,
@@ -395,11 +390,10 @@ library Market {
         return (rateAnchor, true);
     }
 
-    /**
-     * @notice Calculates the current market implied rate.
-     *
-     * @return the implied rate and a bool that is true on success
-     */
+    /// @notice Calculates the current market implied rate.
+
+    /// @return the implied rate and a bool that is true on success
+
     function getImpliedRate(
         int256 totalfCash,
         int256 totalCashUnderlying,
@@ -430,10 +424,9 @@ library Market {
         return impliedRate;
     }
 
-    /**
-     * @notice Converts an implied rate to an exchange rate given a time to maturity. The
-     * formula is E = e^rt
-     */
+    /// @notice Converts an implied rate to an exchange rate given a time to maturity. The
+    /// formula is E = e^rt
+
     function getExchangeRateFromImpliedRate(uint256 impliedRate, uint256 timeToMaturity)
         internal
         pure
@@ -450,14 +443,13 @@ library Market {
         return ABDKMath64x64.toInt(expResultScaled);
     }
 
-    /**
-     * @dev Returns the exchange rate between fCash and cash for the given market
-     *
-     * Takes a market in memory and calculates the following exchange rate:
-     * (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
-     * where:
-     * proportion = totalfCash / (totalfCash + totalCurrentCash)
-     */
+    /// @dev Returns the exchange rate between fCash and cash for the given market
+
+    /// Takes a market in memory and calculates the following exchange rate:
+    /// (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
+    /// where:
+    /// proportion = totalfCash / (totalfCash + totalCurrentCash)
+
     function getExchangeRate(
         int256 totalfCash,
         int256 totalCashUnderlying,
@@ -485,9 +477,8 @@ library Market {
         }
     }
 
-    /**
-     * @dev This method does ln((proportion / (1 - proportion)) * 1e9)
-     */
+    /// @dev This method does ln((proportion / (1 - proportion)) * 1e9)
+
     function logProportion(int256 proportion) internal pure returns (int256, bool) {
         proportion = proportion.mul(Constants.RATE_PRECISION).div(
             Constants.RATE_PRECISION.sub(proportion)
@@ -511,21 +502,20 @@ library Market {
         return (result, true);
     }
 
-    /**
-     * @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
-     * on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
-     * a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
-     * Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
-     * be liquidated.
-     *
-     * Oracle rates are calculated when the market is loaded from storage.
-     *
-     * The oracle rate is a lagged weighted average over a short term price window. If we are past
-     * the short term window then we just set the rate to the lastImpliedRate, otherwise we take the
-     * weighted average:
-     * lastImpliedRatePreTrade * (currentTs - previousTs) / timeWindow +
-     *      oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
-     */
+    /// @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
+    /// on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
+    /// a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
+    /// Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
+    /// be liquidated.
+
+    /// Oracle rates are calculated when the market is loaded from storage.
+
+    /// The oracle rate is a lagged weighted average over a short term price window. If we are past
+    /// the short term window then we just set the rate to the lastImpliedRate, otherwise we take the
+    /// weighted average:
+    /// lastImpliedRatePreTrade * (currentTs - previousTs) / timeWindow +
+    ///      oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
+
     function updateRateOracle(
         uint256 previousTradeTime,
         uint256 lastImpliedRate,
@@ -567,10 +557,9 @@ library Market {
         return keccak256(abi.encode(maturity, settlementDate, currencyId, "market"));
     }
 
-    /**
-     * @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
-     * do need to load the liquidity amount.
-     */
+    /// @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
+    /// do need to load the liquidity amount.
+
     function getTotalLiquidity(MarketParameters memory market) internal view {
         int256 totalLiquidity;
         bytes32 slot = bytes32(uint256(market.storageSlot) + 1);
@@ -581,10 +570,9 @@ library Market {
         market.totalLiquidity = totalLiquidity;
     }
 
-    /**
-     * @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
-     * which ensures that the rate oracle is set properly.
-     */
+    /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
+    /// which ensures that the rate oracle is set properly.
+
     function loadMarketStorage(
         MarketParameters memory market,
         uint256 currencyId,
@@ -616,9 +604,8 @@ library Market {
         }
     }
 
-    /**
-     * @notice Writes market parameters to storage if the market is marked as updated.
-     */
+    /// @notice Writes market parameters to storage if the market is marked as updated.
+
     function setMarketStorage(MarketParameters memory market) internal {
         if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
         bytes32 slot = market.storageSlot;
@@ -662,9 +649,8 @@ library Market {
         }
     }
 
-    /**
-     * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
-     */
+    /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
+
     function loadMarket(
         MarketParameters memory market,
         uint256 currencyId,
@@ -686,10 +672,9 @@ library Market {
         );
     }
 
-    /**
-     * @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
-     * is mainly used in the InitializeMarketAction contract.
-     */
+    /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
+    /// is mainly used in the InitializeMarketAction contract.
+
     function loadMarketWithSettlementDate(
         MarketParameters memory market,
         uint256 currencyId,
@@ -710,10 +695,9 @@ library Market {
         );
     }
 
-    /**
-     * @notice When settling liquidity tokens we only need to get half of the market paramteers and the settlement
-     * date must be specified.
-     */
+    /// @notice When settling liquidity tokens we only need to get half of the market paramteers and the settlement
+    /// date must be specified.
+
     function getSettlementMarket(
         uint256 currencyId,
         uint256 maturity,

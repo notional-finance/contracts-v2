@@ -16,18 +16,17 @@ library BalanceHandler {
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountStorage;
 
-    /**
-     * @notice Handles two special cases when depositing tokens into an account.
-     *  - If a token has transfer fees then the amount specified does not equal the amount that the contract
-     *    will receive. Complete the deposit here rather than in finalize so that the contract has the correct
-     *    balance to work with.
-     *  - A method may specify that it wants to apply positive cash balances against the deposit, netting off the
-     *    amount that must actually be transferred. In this case we use the cash balance to determine the net amount
-     *    required to deposit
-     * @return Returns two values:
-     *  - assetAmountInternal which is the converted asset amount accounting for transfer fees
-     *  - assetAmountTransferred which is the internal precision amount transferred into the account
-     */
+    /// @notice Handles two special cases when depositing tokens into an account.
+    ///  - If a token has transfer fees then the amount specified does not equal the amount that the contract
+    ///    will receive. Complete the deposit here rather than in finalize so that the contract has the correct
+    ///    balance to work with.
+    ///  - A method may specify that it wants to apply positive cash balances against the deposit, netting off the
+    ///    amount that must actually be transferred. In this case we use the cash balance to determine the net amount
+    ///    required to deposit
+    /// @return Returns two values:
+    ///  - assetAmountInternal which is the converted asset amount accounting for transfer fees
+    ///  - assetAmountTransferred which is the internal precision amount transferred into the account
+
     function depositAssetToken(
         BalanceState memory balanceState,
         address account,
@@ -92,12 +91,11 @@ library BalanceHandler {
         return (assetAmountInternal, assetAmountTransferred);
     }
 
-    /**
-     * @notice If the user specifies and underlying token amount to deposit then we will need to transfer the
-     * underlying and then wrap it into the asset token. In any case, to get the exact amount of asset tokens the
-     * contract will receive we must transfer and wrap immediately, it is not possible to precisely net off underlying
-     * transfers because they will change the composition of the asset token.
-     */
+    /// @notice If the user specifies and underlying token amount to deposit then we will need to transfer the
+    /// underlying and then wrap it into the asset token. In any case, to get the exact amount of asset tokens the
+    /// contract will receive we must transfer and wrap immediately, it is not possible to precisely net off underlying
+    /// transfers because they will change the composition of the asset token.
+
     function depositUnderlyingToken(
         BalanceState memory balanceState,
         address account,
@@ -132,13 +130,11 @@ library BalanceHandler {
         return assetTokensReceivedInternal;
     }
 
-    /**
-     * @notice Call this in order to transfer cash in and out of the Notional system as well as update
-     * internal cash balances.
-     *
-     * @dev This method SHOULD NOT be used for perpetual token accounts, for that use setBalanceStorageForPerpToken
-     * as the perp token is limited in what types of balances it can hold.
-     */
+    /// @notice Call this in order to transfer cash in and out of the Notional system as well as update
+    /// internal cash balances.
+    /// @dev This method SHOULD NOT be used for perpetual token accounts, for that use setBalanceStorageForPerpToken
+    /// as the perp token is limited in what types of balances it can hold.
+
     function finalize(
         BalanceState memory balanceState,
         address account,
@@ -322,9 +318,8 @@ library BalanceHandler {
         }
     }
 
-    /**
-     * @notice Special method for setting balance storage for perp token
-     */
+    /// @notice Special method for setting balance storage for perp token
+
     function setBalanceStorageForPerpToken(
         address perpTokenAddress,
         uint256 currencyId,
@@ -345,9 +340,8 @@ library BalanceHandler {
         setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0);
     }
 
-    /**
-     * @notice Sets internal balance storage.
-     */
+    /// @notice Sets internal balance storage.
+
     function setBalanceStorage(
         address account,
         uint256 currencyId,
@@ -373,9 +367,8 @@ library BalanceHandler {
         }
     }
 
-    /**
-     * @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
-     */
+    /// @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
+
     function getBalanceStorage(address account, uint256 currencyId)
         internal
         view
@@ -426,9 +419,8 @@ library BalanceHandler {
         balanceState.netPerpetualTokenSupplyChange = 0;
     }
 
-    /**
-     * @notice Builds a currency state object, assumes a valid currency id
-     */
+    /// @notice Builds a currency state object, assumes a valid currency id
+
     function buildBalanceState(
         address account,
         uint256 currencyId,

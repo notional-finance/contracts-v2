@@ -23,13 +23,12 @@ library ExchangeRate {
     int256 public constant MULTIPLIER_DECIMALS = 100;
     int256 public constant ETH_DECIMALS = 1e18;
 
-    /**
-     * @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
-     * always applied in this method.
-     *
-     * @param er exchange rate object from base to ETH
-     * @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
-     */
+    /// @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
+    /// always applied in this method.
+
+    /// @param er exchange rate object from base to ETH
+    /// @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
+
     function convertToETH(ETHRate memory er, int256 balance) internal pure returns (int256) {
         if (balance == 0) return 0;
         int256 multiplier = balance > 0 ? er.haircut : er.buffer;
@@ -43,13 +42,12 @@ library ExchangeRate {
         return result;
     }
 
-    /**
-     * @notice Converts the balance denominated in ETH to the equivalent value in a base currency.
-     * Buffers and haircuts ARE NOT applied in this method.
-     *
-     * @param er exchange rate object from base to ETH
-     * @param balance amount (denominated in ETH) to convert
-     */
+    /// @notice Converts the balance denominated in ETH to the equivalent value in a base currency.
+    /// Buffers and haircuts ARE NOT applied in this method.
+
+    /// @param er exchange rate object from base to ETH
+    /// @param balance amount (denominated in ETH) to convert
+
     function convertETHTo(ETHRate memory er, int256 balance) internal pure returns (int256) {
         if (balance == 0) return 0;
 
@@ -60,13 +58,12 @@ library ExchangeRate {
         return result;
     }
 
-    /**
-     * @notice Calculates the exchange rate between two currencies via ETH. Returns the rate denominated in
-     * base exchange rate decimals: (baseRateDecimals * quoteRateDecimals) / quoteRateDecimals
-     *
-     * @param baseER base exchange rate struct
-     * @param quoteER quote exchange rate struct
-     */
+    /// @notice Calculates the exchange rate between two currencies via ETH. Returns the rate denominated in
+    /// base exchange rate decimals: (baseRateDecimals * quoteRateDecimals) / quoteRateDecimals
+
+    /// @param baseER base exchange rate struct
+    /// @param quoteER quote exchange rate struct
+
     function exchangeRate(ETHRate memory baseER, ETHRate memory quoteER)
         internal
         pure
@@ -75,9 +72,8 @@ library ExchangeRate {
         return baseER.rate.mul(quoteER.rateDecimals).div(quoteER.rate);
     }
 
-    /**
-     * @notice Returns an ETHRate object used to calculate free collateral
-     */
+    /// @notice Returns an ETHRate object used to calculate free collateral
+
     function buildExchangeRate(uint256 currencyId) internal view returns (ETHRate memory) {
         bytes32 slot = keccak256(abi.encode(currencyId, ETH_RATE_STORAGE_SLOT));
         bytes32 data;

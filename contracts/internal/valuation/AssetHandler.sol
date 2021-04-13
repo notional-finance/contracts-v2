@@ -23,10 +23,9 @@ library AssetHandler {
             assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX;
     }
 
-    /**
-     * @notice Liquidity tokens settle every 90 days (not at the designated maturity). This method
-     * calculates the settlement date for any PortfolioAsset.
-     */
+    /// @notice Liquidity tokens settle every 90 days (not at the designated maturity). This method
+    /// calculates the settlement date for any PortfolioAsset.
+
     function getSettlementDate(PortfolioAsset memory asset) internal pure returns (uint256) {
         require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: settlement date invalid asset type
         // 3 month tokens and fCash tokens settle at maturity
@@ -40,10 +39,9 @@ library AssetHandler {
         return asset.maturity.sub(marketLength).add(Constants.QUARTER);
     }
 
-    /**
-     * @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
-     * notional * e^(-rate * timeToMaturity).
-     */
+    /// @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
+    /// notional * e^(-rate * timeToMaturity).
+
     function getDiscountFactor(uint256 timeToMaturity, uint256 oracleRate)
         internal
         pure
@@ -59,9 +57,8 @@ library AssetHandler {
         return discountFactor;
     }
 
-    /**
-     * @notice Present value of an fCash asset without any risk adjustments.
-     */
+    /// @notice Present value of an fCash asset without any risk adjustments.
+
     function getPresentValue(
         int256 notional,
         uint256 maturity,
@@ -77,10 +74,9 @@ library AssetHandler {
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
-    /**
-     * @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
-     * heavily than the oracle rate given and vice versa for negative fCash.
-     */
+    /// @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
+    /// heavily than the oracle rate given and vice versa for negative fCash.
+
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
         int256 notional,
@@ -111,11 +107,10 @@ library AssetHandler {
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
-    /**
-     * @notice Returns the unhaircut claims on cash and fCash by the liquidity token.
-     *
-     * @return (assetCash, fCash)
-     */
+    /// @notice Returns the unhaircut claims on cash and fCash by the liquidity token.
+
+    /// @return (assetCash, fCash)
+
     function getCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
@@ -142,11 +137,10 @@ library AssetHandler {
         return numerator.mul(tokens).mul(haircut).div(Constants.PERCENTAGE_DECIMALS).div(liquidity);
     }
 
-    /**
-     * @notice Returns the haircut claims on cash and fCash
-     *
-     * @return (assetCash, fCash)
-     */
+    /// @notice Returns the haircut claims on cash and fCash
+
+    /// @return (assetCash, fCash)
+
     function getHaircutCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,

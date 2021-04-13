@@ -20,74 +20,56 @@ library ABDKMath64x64 {
     /* Maximum value signed 64.64-bit fixed point number may have. */
     int128 internal constant MAX_64x64 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-    /**
-     * Convert signed 256-bit integer number into signed 64.64-bit fixed point
-     * number.    Revert on overflow.
-     *
-     * @param x signed 256-bit integer number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Convert signed 256-bit integer number into signed 64.64-bit fixed point
+    /// number.    Revert on overflow.
+    /// @param x signed 256-bit integer number
+    /// @return signed 64.64-bit fixed point number
     function fromInt(int256 x) internal pure returns (int128) {
         require(x >= -0x8000000000000000 && x <= 0x7FFFFFFFFFFFFFFF); // dev: abdk int256 overflow
         return int128(x << 64);
     }
 
-    /**
-     * Convert signed 64.64 fixed point number into signed 64-bit integer number
-     * rounding down.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return signed 64-bit integer number
-     */
+    /// Convert signed 64.64 fixed point number into signed 64-bit integer number
+    /// rounding down.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return signed 64-bit integer number
     function toInt(int128 x) internal pure returns (int64) {
         return int64(x >> 64);
     }
 
-    /**
-     * Convert unsigned 256-bit integer number into signed 64.64-bit fixed point
-     * number.    Revert on overflow.
-     *
-     * @param x unsigned 256-bit integer number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Convert unsigned 256-bit integer number into signed 64.64-bit fixed point
+    /// number.    Revert on overflow.
+    /// @param x unsigned 256-bit integer number
+    /// @return signed 64.64-bit fixed point number
     function fromUInt(uint256 x) internal pure returns (int128) {
         require(x <= 0x7FFFFFFFFFFFFFFF); // dev: abdk uint overflow
         return int128(x << 64);
     }
 
-    /**
-     * Convert signed 64.64 fixed point number into unsigned 64-bit integer
-     * number rounding down.    Revert on underflow.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return unsigned 64-bit integer number
-     */
+    /// Convert signed 64.64 fixed point number into unsigned 64-bit integer
+    /// number rounding down.    Revert on underflow.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return unsigned 64-bit integer number
     function toUInt(int128 x) internal pure returns (uint64) {
         require(x >= 0); // dev: abdk uint overflow
         return uint64(x >> 64);
     }
 
-    /**
-     * Calculate x * y rounding down.  Revert on overflow.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @param y signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate x * y rounding down.  Revert on overflow.
+    /// @param x signed 64.64-bit fixed point number
+    /// @param y signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function mul(int128 x, int128 y) internal pure returns (int128) {
         int256 result = (int256(x) * y) >> 64;
         require(result >= MIN_64x64 && result <= MAX_64x64); // dev: abdk mul overflow
         return int128(result);
     }
 
-    /**
-     * Calculate x / y rounding towards zero.  Revert on overflow or when y is
-     * zero.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @param y signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate x / y rounding towards zero.  Revert on overflow or when y is
+    /// zero.
+    /// @param x signed 64.64-bit fixed point number
+    /// @param y signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function div(int128 x, int128 y) internal pure returns (int128) {
         require(y != 0);
         int256 result = (int256(x) << 64) / y;
@@ -101,12 +83,9 @@ library ABDKMath64x64 {
         return int128(result);
     }
 
-    /**
-     * Calculate binary logarithm of x.    Revert if x <= 0.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate binary logarithm of x.    Revert if x <= 0.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function log_2(int128 x) internal pure returns (int128) {
         require(x > 0); // dev: abdk neg log
 
@@ -150,24 +129,18 @@ library ABDKMath64x64 {
         return int128(result);
     }
 
-    /**
-     * Calculate natural logarithm of x.    Revert if x <= 0.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate natural logarithm of x.    Revert if x <= 0.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function ln(int128 x) internal pure returns (int128) {
         require(x > 0); // dev: abdk neg log
 
         return int128((uint256(log_2(x)) * 0xB17217F7D1CF79ABC9E3B39803F2F6AF) >> 128);
     }
 
-    /**
-     * Calculate binary exponent of x.    Revert on overflow.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate binary exponent of x.    Revert on overflow.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function exp_2(int128 x) internal pure returns (int128) {
         require(x < 0x400000000000000000); // dev: abdk exp overflow
 
@@ -258,12 +231,9 @@ library ABDKMath64x64 {
         return int128(result);
     }
 
-    /**
-     * Calculate natural exponent of x.    Revert on overflow.
-     *
-     * @param x signed 64.64-bit fixed point number
-     * @return signed 64.64-bit fixed point number
-     */
+    /// Calculate natural exponent of x.    Revert on overflow.
+    /// @param x signed 64.64-bit fixed point number
+    /// @return signed 64.64-bit fixed point number
     function exp(int128 x) internal pure returns (int128) {
         require(x < 0x400000000000000000); // dev: abdk exp overflow
 

@@ -17,10 +17,9 @@ library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    /**
-     * @notice Gets token data for a particular currency id, if underlying is set to true then returns
-     * the underlying token. (These may not always exist)
-     */
+    /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
+    /// the underlying token. (These may not always exist)
+
     function getToken(uint256 currencyId, bool underlying) internal view returns (Token memory) {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
         bytes32 data;
@@ -42,9 +41,8 @@ library TokenHandler {
             });
     }
 
-    /**
-     * @notice Sets a token for a currency id.
-     */
+    /// @notice Sets a token for a currency id.
+
     function setToken(
         uint256 currencyId,
         bool underlying,
@@ -100,11 +98,10 @@ library TokenHandler {
         }
     }
 
-    /**
-     * @notice Handles token deposits into Notional. If there is a transfer fee then we must
-     * calculate the net balance after transfer. Amounts are denominated in the destination token's
-     * precision.
-     */
+    /// @notice Handles token deposits into Notional. If there is a transfer fee then we must
+    /// calculate the net balance after transfer. Amounts are denominated in the destination token's
+    /// precision.
+
     function deposit(
         Token memory token,
         address account,
@@ -123,9 +120,8 @@ library TokenHandler {
         return int256(amount);
     }
 
-    /**
-     * @notice This method only works with cTokens, it's unclear how we can make this more generic
-     */
+    /// @notice This method only works with cTokens, it's unclear how we can make this more generic
+
     function mint(Token memory token, uint256 underlyingAmountExternalPrecision)
         internal
         returns (int256)
@@ -178,10 +174,9 @@ library TokenHandler {
         return int256(endingBalance.sub(startingBalance));
     }
 
-    /**
-     * @notice Handles transfers into and out of the system denominated in the external token decimal
-     * precision.
-     */
+    /// @notice Handles transfers into and out of the system denominated in the external token decimal
+    /// precision.
+
     function transfer(
         Token memory token,
         address account,

@@ -98,10 +98,9 @@ library InitializeMarketsAction {
         return ifCashBitmap;
     }
 
-    /**
-     * @notice Special method to get previous markets, normal usage would not reference previous markets
-     * in this way
-     */
+    /// @notice Special method to get previous markets, normal usage would not reference previous markets
+    /// in this way
+
     function getPreviousMarkets(
         uint256 currencyId,
         uint256 blockTime,
@@ -130,10 +129,9 @@ library InitializeMarketsAction {
         }
     }
 
-    /**
-     * @notice Check the net fCash assets set by the portfolio and withold cash to account for
-     * the PV of negative ifCash. Also sets the ifCash assets into the perp token mapping.
-     */
+    /// @notice Check the net fCash assets set by the portfolio and withold cash to account for
+    /// the PV of negative ifCash. Also sets the ifCash assets into the perp token mapping.
+
     function withholdAndSetfCashAssets(
         PerpetualTokenPortfolio memory perpToken,
         uint256 currencyId,
@@ -214,11 +212,10 @@ library InitializeMarketsAction {
         return (netAssetCashAvailable, ifCashBitmap);
     }
 
-    /**
-     * @notice The six month implied rate is zero if there have never been any markets initialized
-     * otherwise the market will be the interpolation between the old 6 month and 1 year markets
-     * which are now sitting at 3 month and 9 month time to maturity
-     */
+    /// @notice The six month implied rate is zero if there have never been any markets initialized
+    /// otherwise the market will be the interpolation between the old 6 month and 1 year markets
+    /// which are now sitting at 3 month and 9 month time to maturity
+
     function getSixMonthImpliedRate(
         MarketParameters[] memory previousMarkets,
         uint256 referenceTime
@@ -236,20 +233,17 @@ library InitializeMarketsAction {
             );
     }
 
-    /**
-     * @notice Calculates a market proportion via the implied rate. The formula is:
-     * exchangeRate = e ^ (impliedRate * timeToMaturity)
-     * exchangeRate = (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
-     *
-     * proportion / (1 - proportion) = e^((exchangeRate - rateAnchor) * rateScalar)
-     * exp = e^((exchangeRate - rateAnchor) * rateScalar)
-     * proportion / (1 - proportion) = exp
-     * exp * (1 - proportion) = proportion
-     * exp - exp * proportion = proportion
-     * exp = proportion + exp * proportion
-     * exp = proportion * (1 + exp)
-     * proportion = exp / (1 + exp)
-     */
+    /// @notice Calculates a market proportion via the implied rate. The formula is:
+    ///    exchangeRate = e ^ (impliedRate * timeToMaturity)
+    ///    exchangeRate = (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
+    ///    proportion / (1 - proportion) = e^((exchangeRate - rateAnchor) * rateScalar)
+    ///    exp = e^((exchangeRate - rateAnchor) * rateScalar)
+    ///    proportion / (1 - proportion) = exp
+    ///    exp * (1 - proportion) = proportion
+    ///    exp - exp * proportion = proportion
+    ///    exp = proportion + exp * proportion
+    ///    exp = proportion * (1 + exp)
+    ///    proportion = exp / (1 + exp)
     function getProportionFromOracleRate(
         uint256 oracleRate,
         uint256 timeToMaturity,
@@ -278,11 +272,9 @@ library InitializeMarketsAction {
         return ABDKMath64x64.toInt(proportion);
     }
 
-    /**
-     * @notice Returns the linear interpolation between two market rates. The formula is
-     * slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
-     * interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
-     */
+    /// @notice Returns the linear interpolation between two market rates. The formula is
+    /// slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
+    /// interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
     function interpolateFutureRate(
         uint256 shortMaturity,
         uint256 shortRate,
@@ -344,10 +336,9 @@ library InitializeMarketsAction {
         return perpToken.cashGroup.assetRate.convertInternalToUnderlying(assetCashToMarket);
     }
 
-    /**
-     * @notice Initialize the market for a given currency id. An amount to deposit can be specified which
-     * ensures that new markets will have some cash in them when we initialize.
-     */
+    /// @notice Initialize the market for a given currency id. An amount to deposit can be specified which
+    /// ensures that new markets will have some cash in them when we initialize.
+
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external {
         uint256 blockTime = block.timestamp;
         PerpetualTokenPortfolio memory perpToken =

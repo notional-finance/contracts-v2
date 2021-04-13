@@ -47,9 +47,8 @@ library FreeCollateral {
             AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG;
     }
 
-    /**
-     * @notice Checks if currency balances are active in the account returns them if true
-     */
+    /// @notice Checks if currency balances are active in the account returns them if true
+
     function getCurrencyBalances(address account, bytes2 currencyBytes)
         private
         view
@@ -71,9 +70,8 @@ library FreeCollateral {
         return (0, 0);
     }
 
-    /**
-     * @notice Calculates the perpetual token asset value with a haircut set by governance
-     */
+    /// @notice Calculates the perpetual token asset value with a haircut set by governance
+
     function getPerpetualTokenAssetValue(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
@@ -101,11 +99,10 @@ library FreeCollateral {
         return (perpTokenHaircutPV, perpToken.parameters);
     }
 
-    /**
-     * @notice Calculates portfolio and/or perpetual token values while using the supplied cash groups and
-     * markets. The reason these are grouped together is because they both require storage reads of the same
-     * values.
-     */
+    /// @notice Calculates portfolio and/or perpetual token values while using the supplied cash groups and
+    /// markets. The reason these are grouped together is because they both require storage reads of the same
+    /// values.
+
     function getPortfolioAndPerpTokenValue(
         FreeCollateralFactors memory factors,
         int256 perpetualTokenBalance,
@@ -149,9 +146,8 @@ library FreeCollateral {
         return (netPortfolioValue, perpetualTokenValue, perpTokenParameters);
     }
 
-    /**
-     * @notice Returns balance values for the bitmapped currency
-     */
+    /// @notice Returns balance values for the bitmapped currency
+
     function getBitmapBalanceValue(
         address account,
         uint256 blockTime,
@@ -185,9 +181,8 @@ library FreeCollateral {
         return (cashBalance, perpetualTokenValue, perpetualTokenParameters);
     }
 
-    /**
-     * @notice Returns portfolio value for the bitmapped currency
-     */
+    /// @notice Returns portfolio value for the bitmapped currency
+
     function getBitmapPortfolioValue(
         address account,
         uint256 blockTime,
@@ -223,10 +218,9 @@ library FreeCollateral {
         return netPortfolioValue;
     }
 
-    /**
-     * @notice Stateful version of get free collateral, returns the total net ETH value and true or false if the account
-     * context needs to be updated.
-     */
+    /// @notice Stateful version of get free collateral, returns the total net ETH value and true or false if the account
+    /// context needs to be updated.
+
     function getFreeCollateralStateful(
         address account,
         AccountStorage memory accountContext,
@@ -308,10 +302,9 @@ library FreeCollateral {
         return (factors.netETHValue, factors.updateContext);
     }
 
-    /**
-     * @notice View version of getFreeCollateral, does not use the stateful version of build cash group and skips
-     * all the update context logic.
-     */
+    /// @notice View version of getFreeCollateral, does not use the stateful version of build cash group and skips
+    /// all the update context logic.
+
     function getFreeCollateralView(
         address account,
         AccountStorage memory accountContext,
@@ -411,9 +404,8 @@ library FreeCollateral {
         return netLocalAssetValue;
     }
 
-    /**
-     * @notice A version of getFreeCollateral used during liquidation to save off necessary additional information.
-     */
+    /// @notice A version of getFreeCollateral used during liquidation to save off necessary additional information.
+
     function getLiquidationFactors(
         address account,
         AccountStorage memory accountContext,

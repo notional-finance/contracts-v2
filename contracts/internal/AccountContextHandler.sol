@@ -76,10 +76,9 @@ library AccountContextHandler {
             accountContext.nextSettleTime <= block.timestamp);
     }
 
-    /**
-     * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
-     * context active currencies list.
-     */
+    /// @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
+    /// context active currencies list.
+
     function isActiveInBalances(AccountStorage memory accountContext, uint256 currencyId)
         internal
         pure
@@ -101,14 +100,12 @@ library AccountContextHandler {
         return false;
     }
 
-    /**
-     * @notice Iterates through the active currency list and removes, inserts or does nothing
-     * to ensure that the active currency list is an ordered byte array of uint16 currency ids
-     * that refer to the currencies that an account is active in.
-     *
-     * This is called to ensure that currencies are active when the account has a non zero cash balance,
-     * a non zero perpetual token balance or a portfolio asset.
-     */
+    /// @notice Iterates through the active currency list and removes, inserts or does nothing
+    /// to ensure that the active currency list is an ordered byte array of uint16 currency ids
+    /// that refer to the currencies that an account is active in.
+    /// This is called to ensure that currencies are active when the account has a non zero cash balance,
+    /// a non zero perpetual token balance or a portfolio asset.
+
     function setActiveCurrency(
         AccountStorage memory accountContext,
         uint256 currencyId,
@@ -125,20 +122,19 @@ library AccountContextHandler {
         bytes18 suffix = accountContext.activeCurrencies;
         uint256 shifts;
 
-        /**
-         * There are six possible outcomes from this search:
-         * 1. The currency id is in the list
-         *      - it must be set to active, do nothing
-         *      - it must be set to inactive, shift suffix and concatenate
-         * 2. The current id is greater than the one in the search:
-         *      - it must be set to active, append to prefix and then concatenate the suffix,
-         *        ensure that we do not lose the last 2 bytes if set.
-         *      - it must be set to inactive, it is not in the list, do nothing
-         * 3. Reached the end of the list:
-         *      - it must be set to active, check that the last two bytes are not set and then
-         *        append to the prefix
-         *      - it must be set to inactive, do nothing
-         */
+        /// There are six possible outcomes from this search:
+        /// 1. The currency id is in the list
+        ///      - it must be set to active, do nothing
+        ///      - it must be set to inactive, shift suffix and concatenate
+        /// 2. The current id is greater than the one in the search:
+        ///      - it must be set to active, append to prefix and then concatenate the suffix,
+        ///        ensure that we do not lose the last 2 bytes if set.
+        ///      - it must be set to inactive, it is not in the list, do nothing
+        /// 3. Reached the end of the list:
+        ///      - it must be set to active, check that the last two bytes are not set and then
+        ///        append to the prefix
+        ///      - it must be set to inactive, do nothing
+
         while (suffix != ZERO) {
             uint256 cid = uint256(uint16(bytes2(suffix) & UNMASK_FLAGS));
             // if matches and isActive then return, already in list
