@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../../internal/PerpetualToken.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/balances/Incentives.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
 import "interfaces/notional/nTokenERC20.sol";
@@ -196,7 +197,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             BalanceHandler.buildBalanceState(account, currencyId, accountContext);
 
         uint256 incentives =
-            BalanceHandler.calculateIncentivesToClaim(
+            Incentives.calculateIncentivesToClaim(
                 PerpetualToken.nTokenAddress(currencyId),
                 uint256(balanceState.storedPerpetualTokenBalance),
                 balanceState.lastIncentiveClaim,
