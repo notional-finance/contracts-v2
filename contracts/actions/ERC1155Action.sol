@@ -101,6 +101,8 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
             ) = decodeId(ids[i]);
 
             require(amounts[i] <= uint(type(int).max)); // dev: int overflow
+            // TODO: FIX ME
+            // require(CashGroup.isValidIdiosyncraticMaturity(assets[i].maturity), "Invalid maturity"); // dev: int overflow
             assets[i].notional = int(amounts[i]);
         }
 

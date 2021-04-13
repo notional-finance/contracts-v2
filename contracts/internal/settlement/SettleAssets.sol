@@ -269,7 +269,7 @@ library SettleAssets {
         int256 assetCash;
 
         if ((bits & Constants.MSB) == Constants.MSB) {
-            uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+            uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
             // Storage Read
             bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
             int256 ifCash;
@@ -305,13 +305,13 @@ library SettleAssets {
 
         int256 totalAssetCash;
         SplitBitmap memory splitBitmap = bitmap.splitAssetBitmap();
-        uint256 blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
+        uint256 blockTimeUTC0 = DateTime.getTimeUTC0(blockTime);
         // This blockTimeUTC0 will be set to the new "nextSettleTime", this will refer to the
         // new next bit
         (
             uint256 lastSettleBit, /* isValid */
 
-        ) = CashGroup.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
+        ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
         if (lastSettleBit == 0) return (bitmap, totalAssetCash);
 
         // NOTE: bitNum is 1-indexed
@@ -465,8 +465,8 @@ library SettleAssets {
         bytes32 bits
     ) internal pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset
-        uint256 firstBitRef = CashGroup.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
-        uint256 newFirstBitRef = CashGroup.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
+        uint256 firstBitRef = DateTime.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
+        uint256 newFirstBitRef = DateTime.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
         // NOTE: this will truncate the decimals
         uint256 bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;
 
@@ -477,7 +477,7 @@ library SettleAssets {
                 // Map this into the lower section of the bitmap
                 uint256 maturity = firstBitRef + i * bitTimeLength;
                 (uint256 newBitNum, bool isValid) =
-                    CashGroup.getBitNumFromMaturity(blockTimeUTC0, maturity);
+                    DateTime.getBitNumFromMaturity(blockTimeUTC0, maturity);
                 require(isValid); // dev: remap bit section invalid maturity
 
                 if (newBitNum <= Constants.WEEK_BIT_OFFSET) {

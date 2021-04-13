@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./Market.sol";
 import "./AssetRate.sol";
+import "./DateTime.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
@@ -28,187 +29,9 @@ library CashGroup {
     // 9 bytes allocated per market on the rate scalar
     uint256 private constant RATE_SCALAR = 136;
 
-    /// @notice These are the predetermined market offsets for trading, they are 1-indexed because
-    /// the 0 index means that no markets are listed for the cash group.
-    /// @dev This is a function because array types are not allowed to be constants yet.
-
-    function getTradedMarket(uint256 index) internal pure returns (uint256) {
-        require(index != 0); // dev: get traded market index is zero
-
-        if (index == 1) return Constants.QUARTER;
-        if (index == 2) return 2 * Constants.QUARTER;
-        if (index == 3) return Constants.YEAR;
-        if (index == 4) return 2 * Constants.YEAR;
-        if (index == 5) return 5 * Constants.YEAR;
-        if (index == 6) return 7 * Constants.YEAR;
-        if (index == 7) return 10 * Constants.YEAR;
-        if (index == 8) return 15 * Constants.YEAR;
-        if (index == 9) return 20 * Constants.YEAR;
-
-        revert("CG: invalid index");
-    }
-
-    /// @notice Returns the current reference time which is how all the AMM dates are
-    /// calculated.
-
-    function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {
-        return blockTime.sub(blockTime % Constants.QUARTER);
-    }
-
-    /// @notice Truncates a date to midnight UTC time
-
-    function getTimeUTC0(uint256 time) internal pure returns (uint256) {
-        return time.sub(time % Constants.DAY);
-    }
-
-    /// @notice Determines if the maturity falls on one of the valid on chain market dates.
-
-    function isValidMaturity(
-        CashGroupParameters memory cashGroup,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal pure returns (bool) {
-        uint256 maxMarketIndex = cashGroup.maxMarketIndex;
-        require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex < 10, "CG: market index bound");
-
-        if (maturity % Constants.QUARTER != 0) return false;
-        uint256 tRef = getReferenceTime(blockTime);
-
-        for (uint256 i = 1; i <= maxMarketIndex; i++) {
-            if (maturity == tRef.add(getTradedMarket(i))) return true;
-        }
-
-        return false;
-    }
-
-    /// @notice Determines if an idiosyncratic maturity is valid and returns the bit reference
-    /// that is the case.
-
-    /// @return True or false if the maturity is valid
-
-    function isValidIdiosyncraticMaturity(
-        CashGroupParameters memory cashGroup,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal pure returns (bool) {
-        uint256 tRef = getReferenceTime(blockTime);
-        uint256 maxMaturity = tRef.add(getTradedMarket(cashGroup.maxMarketIndex));
-        if (maturity > maxMaturity) return false;
-
-        (
-            ,
-            /* */
-            bool isValid
-        ) = getBitNumFromMaturity(blockTime, maturity);
-        return isValid;
-    }
-
-    /// @notice Given a bit number and the reference time of the first bit, returns the bit number
-    /// of a given maturity.
-
-    /// @return bitNum and a true or false if the maturity falls on the exact bit
-
-    function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
-        internal
-        pure
-        returns (uint256, bool)
-    {
-        uint256 blockTimeUTC0 = getTimeUTC0(blockTime);
-
-        if (maturity % Constants.DAY != 0) return (0, false);
-        if (blockTimeUTC0 >= maturity) return (0, false);
-
-        // Overflow check done above
-        uint256 daysOffset = (maturity - blockTimeUTC0) / Constants.DAY;
-
-        // These if statements need to fall through to the next one
-        if (daysOffset <= Constants.MAX_DAY_OFFSET) {
-            return (daysOffset, true);
-        }
-
-        if (daysOffset <= Constants.MAX_WEEK_OFFSET) {
-            uint256 offset =
-                daysOffset -
-                    Constants.MAX_DAY_OFFSET +
-                    (blockTimeUTC0 % Constants.WEEK) /
-                    Constants.DAY;
-            // Ensures that the maturity specified falls on the actual day, otherwise division
-            // will truncate it
-            return (Constants.WEEK_BIT_OFFSET + offset / 6, (offset % 6) == 0);
-        }
-
-        if (daysOffset <= Constants.MAX_MONTH_OFFSET) {
-            uint256 offset =
-                daysOffset -
-                    Constants.MAX_WEEK_OFFSET +
-                    (blockTimeUTC0 % Constants.MONTH) /
-                    Constants.DAY;
-
-            return (Constants.MONTH_BIT_OFFSET + offset / 30, (offset % 30) == 0);
-        }
-
-        if (daysOffset <= Constants.MAX_QUARTER_OFFSET) {
-            uint256 offset =
-                daysOffset -
-                    Constants.MAX_MONTH_OFFSET +
-                    (blockTimeUTC0 % Constants.QUARTER) /
-                    Constants.DAY;
-
-            return (Constants.QUARTER_BIT_OFFSET + offset / 90, (offset % 90) == 0);
-        }
-
-        // This is the maximum 1-indexed bit num
-        return (256, false);
-    }
-
-    /// @notice Given a bit number and a block time returns the maturity that the bit number
-    /// should reference. Bit numbers are one indexed.
-
-    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
-        internal
-        pure
-        returns (uint256)
-    {
-        require(bitNum != 0); // dev: cash group get maturity from bit num is zero
-        require(bitNum <= 256); // dev: cash group get maturity from bit num overflow
-        uint256 blockTimeUTC0 = getTimeUTC0(blockTime);
-        uint256 firstBit;
-
-        if (bitNum <= Constants.WEEK_BIT_OFFSET) {
-            return blockTimeUTC0 + bitNum * Constants.DAY;
-        }
-
-        if (bitNum <= Constants.MONTH_BIT_OFFSET) {
-            firstBit =
-                blockTimeUTC0 +
-                Constants.MAX_DAY_OFFSET *
-                Constants.DAY -
-                (blockTimeUTC0 % Constants.WEEK);
-            return firstBit + (bitNum - Constants.WEEK_BIT_OFFSET) * Constants.WEEK;
-        }
-
-        if (bitNum <= Constants.QUARTER_BIT_OFFSET) {
-            firstBit =
-                blockTimeUTC0 +
-                Constants.MAX_WEEK_OFFSET *
-                Constants.DAY -
-                (blockTimeUTC0 % Constants.MONTH);
-            return firstBit + (bitNum - Constants.MONTH_BIT_OFFSET) * Constants.MONTH;
-        }
-
-        firstBit =
-            blockTimeUTC0 +
-            Constants.MAX_MONTH_OFFSET *
-            Constants.DAY -
-            (blockTimeUTC0 % Constants.QUARTER);
-        return firstBit + (bitNum - Constants.QUARTER_BIT_OFFSET) * Constants.QUARTER;
-    }
-
     /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
     /// the ln() portion of the liquidity curve as an inverse so it increases with time to
     /// maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
-
     function getRateScalar(
         CashGroupParameters memory cashGroup,
         uint256 marketIndex,
@@ -226,22 +49,24 @@ library CashGroup {
 
     /// @notice Haircut on liquidity tokens to account for the risk associated with changes in the
     /// proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
-
     function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 assetType)
         internal
         pure
         returns (uint256)
     {
         require(assetType > 1); // dev: liquidity haircut invalid asset type
-        uint256 offset = LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - 2);
+        uint256 offset =
+            LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - Constants.MIN_LIQUIDITY_TOKEN_INDEX);
         uint256 liquidityTokenHaircut = uint256(uint8(uint256(cashGroup.data >> offset)));
         return liquidityTokenHaircut;
     }
 
+    /// @notice Total trading fee denominated in basis points
     function getTotalFee(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
         return uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Constants.BASIS_POINT;
     }
 
+    /// @notice Percentage of the total trading fee that goes to the reserve
     function getReserveFeeShare(CashGroupParameters memory cashGroup)
         internal
         pure
@@ -250,15 +75,18 @@ library CashGroup {
         return int256(uint8(uint256(cashGroup.data >> RESERVE_FEE_SHARE)));
     }
 
+    /// @notice fCash haircut for valuation denominated in basis points
     function getfCashHaircut(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
         return
             uint256(uint8(uint256(cashGroup.data >> FCASH_HAIRCUT))) * (5 * Constants.BASIS_POINT);
     }
 
+    /// @notice fCash debt buffer for valuation denominated in basis points
     function getDebtBuffer(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
         return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * (5 * Constants.BASIS_POINT);
     }
 
+    /// @notice Time window factor for the rate oracle denomianted in seconds
     function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
         internal
         pure
@@ -268,6 +96,7 @@ library CashGroup {
         return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
     }
 
+    /// @notice Penalty rate for settling cash debts denominated in basis points
     function getSettlementPenalty(CashGroupParameters memory cashGroup)
         internal
         pure
@@ -278,6 +107,7 @@ library CashGroup {
             (5 * Constants.BASIS_POINT);
     }
 
+    /// @notice Haircut for fCash during liquidation denominated in basis points
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)
         internal
         pure
@@ -288,6 +118,42 @@ library CashGroup {
             (5 * Constants.BASIS_POINT);
     }
 
+    /// @notice Determines if the maturity falls on one of the valid on chain market dates.
+    function isValidMaturity(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (bool) {
+        uint256 maxMarketIndex = cashGroup.maxMarketIndex;
+        require(maxMarketIndex > 0, "CG: no markets listed");
+        require(maxMarketIndex < 10, "CG: market index bound");
+
+        if (maturity % Constants.QUARTER != 0) return false;
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+
+        for (uint256 i = 1; i <= maxMarketIndex; i++) {
+            if (maturity == tRef.add(DateTime.getTradedMarket(i))) return true;
+        }
+
+        return false;
+    }
+
+    /// @notice Determines if an idiosyncratic maturity is valid and returns the bit reference that is the case.
+    function isValidIdiosyncraticMaturity(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (bool) {
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+        uint256 maxMaturity = tRef.add(DateTime.getTradedMarket(cashGroup.maxMarketIndex));
+        if (maturity > maxMaturity) return false;
+
+        // prettier-ignore
+        ( /* */, bool isValid) = DateTime.getBitNumFromMaturity(blockTime, maturity);
+        return isValid;
+    }
+
+    /// @notice Returns the market index for a given maturity
     function getMarketIndex(
         CashGroupParameters memory cashGroup,
         uint256 maturity,
@@ -296,10 +162,10 @@ library CashGroup {
         uint256 maxMarketIndex = cashGroup.maxMarketIndex;
         require(maxMarketIndex > 0, "CG: no markets listed");
         require(maxMarketIndex < 10, "CG: market index bound");
-        uint256 tRef = getReferenceTime(blockTime);
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
 
         for (uint256 i = 1; i <= maxMarketIndex; i++) {
-            uint256 marketMaturity = tRef.add(getTradedMarket(i));
+            uint256 marketMaturity = tRef.add(DateTime.getTradedMarket(i));
             if (marketMaturity == maturity) return (i, false);
             if (marketMaturity > maturity) return (i, true);
         }
@@ -319,7 +185,8 @@ library CashGroup {
         MarketParameters memory market = markets[marketIndex - 1];
 
         if (market.storageSlot == 0) {
-            uint256 maturity = getReferenceTime(blockTime).add(getTradedMarket(marketIndex));
+            uint256 maturity =
+                DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
             market.loadMarket(
                 cashGroup.currencyId,
                 maturity,
@@ -339,7 +206,6 @@ library CashGroup {
     /// @notice Returns the linear interpolation between two market rates. The formula is
     /// slope = (longMarket.oracleRate - shortMarket.oracleRate) / (longMarket.maturity - shortMarket.maturity)
     /// interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
-
     function interpolateOracleRate(
         uint256 shortMaturity,
         uint256 longMaturity,
@@ -392,7 +258,8 @@ library CashGroup {
             // If oracleRate is zero then the market has not been initialized
             // and we want to reference the previous market for interpolating rates.
             uint256 prevBlockTime = blockTime.sub(Constants.QUARTER);
-            uint256 maturity = getReferenceTime(prevBlockTime).add(getTradedMarket(marketIndex));
+            uint256 maturity =
+                DateTime.getReferenceTime(prevBlockTime).add(DateTime.getTradedMarket(marketIndex));
             market.loadMarket(
                 cashGroup.currencyId,
                 maturity,
@@ -429,7 +296,7 @@ library CashGroup {
             );
     }
 
-    function getCashGroupStorageBytes(uint256 currencyId) internal view returns (bytes32) {
+    function _getCashGroupStorageBytes(uint256 currencyId) private view returns (bytes32) {
         bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
         bytes32 data;
 
@@ -440,6 +307,7 @@ library CashGroup {
         return data;
     }
 
+    /// @notice Checks all cash group settings for invalid values and sets them into storage
     function setCashGroupStorage(uint256 currencyId, CashGroupParameterStorage calldata cashGroup)
         internal
     {
@@ -463,7 +331,7 @@ library CashGroup {
         require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
 
         // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
-        uint8 previousMaxMarketIndex = uint8(uint256(getCashGroupStorageBytes(currencyId)));
+        uint8 previousMaxMarketIndex = uint8(uint256(_getCashGroupStorageBytes(currencyId)));
         require(
             previousMaxMarketIndex <= cashGroup.maxMarketIndex,
             "CG: market index cannot decrease"
@@ -505,12 +373,13 @@ library CashGroup {
         }
     }
 
+    /// @notice Deserializes the cash group storage bytes into a user friendly object
     function deserializeCashGroupStorage(uint256 currencyId)
         internal
         view
         returns (CashGroupParameterStorage memory)
     {
-        bytes32 data = getCashGroupStorageBytes(currencyId);
+        bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint8 maxMarketIndex = uint8(data[31]);
         uint8[] memory tokenHaircuts = new uint8[](uint256(maxMarketIndex));
         uint8[] memory rateScalars = new uint8[](uint256(maxMarketIndex));
@@ -535,12 +404,12 @@ library CashGroup {
             });
     }
 
-    function buildCashGroupInternal(uint256 currencyId, AssetRateParameters memory assetRate)
+    function _buildCashGroup(uint256 currencyId, AssetRateParameters memory assetRate)
         private
         view
         returns (CashGroupParameters memory, MarketParameters[] memory)
     {
-        bytes32 data = getCashGroupStorageBytes(currencyId);
+        bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint256 maxMarketIndex = uint256(uint8(uint256(data)));
 
         return (
@@ -556,22 +425,22 @@ library CashGroup {
         );
     }
 
-    /// @notice Converts cash group storage object into memory object
-
+    /// @notice Builds a cash group using a view version of the asset rate
     function buildCashGroupView(uint256 currencyId)
         internal
         view
         returns (CashGroupParameters memory, MarketParameters[] memory)
     {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
-        return buildCashGroupInternal(currencyId, assetRate);
+        return _buildCashGroup(currencyId, assetRate);
     }
 
+    /// @notice Builds a cash group using a stateful version of the asset rate
     function buildCashGroupStateful(uint256 currencyId)
         internal
         returns (CashGroupParameters memory, MarketParameters[] memory)
     {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
-        return buildCashGroupInternal(currencyId, assetRate);
+        return _buildCashGroup(currencyId, assetRate);
     }
 }

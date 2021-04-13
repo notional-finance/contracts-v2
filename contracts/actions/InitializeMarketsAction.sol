@@ -73,7 +73,7 @@ library InitializeMarketsAction {
         // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
         // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
         // esoteric but will ensure that ifCash is never improperly settled.
-        uint256 referenceTime = CashGroup.getReferenceTime(blockTime);
+        uint256 referenceTime = DateTime.getReferenceTime(blockTime);
         require(perpToken.lastInitializedTime < referenceTime, "IM: invalid time");
 
         {
@@ -93,7 +93,7 @@ library InitializeMarketsAction {
         perpToken.cashBalance = perpToken.cashBalance.add(settledAssetCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
-        perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
+        perpToken.lastInitializedTime = uint40(DateTime.getTimeUTC0(blockTime));
 
         return ifCashBitmap;
     }
@@ -108,7 +108,7 @@ library InitializeMarketsAction {
     ) private view {
         uint256 rateOracleTimeWindow = perpToken.cashGroup.getRateOracleTimeWindow();
         // This will reference the previous settlement date to get the previous markets
-        uint256 settlementDate = CashGroup.getReferenceTime(blockTime);
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime);
 
         // Assume that assets are stored in order and include all assets of the previous market
         // set. This will account for the potential that markets.length is greater than the previous
@@ -182,7 +182,7 @@ library InitializeMarketsAction {
         int256 assetCashWithholding;
 
         if (isFirstInit) {
-            perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
+            perpToken.lastInitializedTime = uint40(DateTime.getTimeUTC0(blockTime));
         } else {
             ifCashBitmap = settlePerpetualTokenPortfolio(perpToken, blockTime);
             getPreviousMarkets(currencyId, blockTime, perpToken);
@@ -362,8 +362,8 @@ library InitializeMarketsAction {
         uint256 oracleRate;
         for (uint256 i; i < perpToken.cashGroup.maxMarketIndex; i++) {
             // Traded markets are 1-indexed
-            newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(
-                CashGroup.getTradedMarket(i + 1)
+            newMarket.maturity = DateTime.getReferenceTime(blockTime).add(
+                DateTime.getTradedMarket(i + 1)
             );
 
             int256 underlyingCashToMarket =
@@ -429,7 +429,7 @@ library InitializeMarketsAction {
                     // will capture the case when the 1 year rate has not been set.
                     oracleRate = getSixMonthImpliedRate(
                         perpToken.markets,
-                        CashGroup.getReferenceTime(blockTime)
+                        DateTime.getReferenceTime(blockTime)
                     );
                 } else {
                     // Any other market has the interpolation between the new implied rate from the newly initialized market previous
@@ -440,7 +440,7 @@ library InitializeMarketsAction {
 
                     // This is the previous market maturity, traded markets are 1-indexed
                     uint256 shortMarketMaturity =
-                        CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i));
+                        DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(i));
                     oracleRate = interpolateFutureRate(
                         shortMarketMaturity,
                         oracleRate,
@@ -536,7 +536,7 @@ library InitializeMarketsAction {
     ) internal returns (bytes32) {
         uint256 blockTime = block.timestamp;
         // Always reference the current settlement date
-        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();
@@ -549,7 +549,7 @@ library InitializeMarketsAction {
                 tokenAddress,
                 currencyId,
                 market.maturity,
-                CashGroup.getTimeUTC0(blockTime),
+                DateTime.getTimeUTC0(blockTime),
                 market.totalfCash.neg(),
                 ifCashBitmap
             );

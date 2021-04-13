@@ -116,7 +116,7 @@ library BitmapAssetsHandler {
         bytes32 assetsBitmap
     ) internal returns (bytes32, int256) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        (uint256 bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextSettleTime, maturity);
+        (uint256 bitNum, bool isExact) = DateTime.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
 
         if (assetsBitmap.isBitSet(bitNum)) {
@@ -198,7 +198,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
                 int256 pv =
                     getPresentValue(
                         account,
@@ -234,7 +234,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
                 int256 notional;
                 {
                     bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
@@ -275,7 +275,7 @@ library BitmapAssetsHandler {
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
                 bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
                 int256 notional;
                 assembly {
@@ -330,7 +330,7 @@ library BitmapAssetsHandler {
         while (assetsBitmap != 0) {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
                 uint256 maturity =
-                    CashGroup.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
+                    DateTime.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
                 int256 notional =
                     getifCashNotional(
                         perpToken.tokenAddress,

@@ -170,7 +170,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         pure
         returns (uint256)
     {
-        uint256 maturity = CashGroup.getMaturityFromBitNum(blockTime, bitNum);
+        uint256 maturity = DateTime.getMaturityFromBitNum(blockTime, bitNum);
         assert(maturity > blockTime);
 
         return maturity;
@@ -181,7 +181,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         pure
         returns (uint256, bool)
     {
-        return CashGroup.getBitNumFromMaturity(blockTime, maturity);
+        return DateTime.getBitNumFromMaturity(blockTime, maturity);
     }
 
     bytes32 public newBitmapStorage;

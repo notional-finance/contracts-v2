@@ -433,7 +433,7 @@ library PerpetualToken {
         pure
         returns (uint256)
     {
-        return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + Constants.QUARTER;
+        return DateTime.getReferenceTime(perpToken.lastInitializedTime) + Constants.QUARTER;
     }
 
     /// @notice Returns the perpetual token present value denominated in asset terms.

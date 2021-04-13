@@ -198,7 +198,7 @@ library TradingAction {
         require(marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
         uint256 blockTime = block.timestamp;
         uint256 maturity =
-            CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(marketIndex));
+            DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
         market.loadMarket(
             cashGroup.currencyId,
             maturity,
@@ -351,7 +351,7 @@ library TradingAction {
         // Settled account must borrow from the 3 month market at a penalty rate. Even if the market is
         // not initialized we can still settle cash debts because we reference the previous 3 month market's oracle
         // rate which is where the new 3 month market's oracle rate will be initialized to.
-        uint256 threeMonthMaturity = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
+        uint256 threeMonthMaturity = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         int256 fCashAmount =
             _getfCashSettleAmount(
                 cashGroup,

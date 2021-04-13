@@ -95,7 +95,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         pure
         returns (uint256)
     {
-        return CashGroup.getMaturityFromBitNum(blockTime, bitNum);
+        return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
 
     function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
@@ -103,7 +103,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         pure
         returns (uint256, bool)
     {
-        return CashGroup.getBitNumFromMaturity(blockTime, maturity);
+        return DateTime.getBitNumFromMaturity(blockTime, maturity);
     }
 
     function getPresentValue(

@@ -31,7 +31,7 @@ library AssetHandler {
         // 3 month tokens and fCash tokens settle at maturity
         if (asset.assetType <= Constants.MIN_LIQUIDITY_TOKEN_INDEX) return asset.maturity;
 
-        uint256 marketLength = CashGroup.getTradedMarket(asset.assetType - 1);
+        uint256 marketLength = DateTime.getTradedMarket(asset.assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
         // Here we calculate:

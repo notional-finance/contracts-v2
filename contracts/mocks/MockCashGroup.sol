@@ -41,7 +41,7 @@ contract MockCashGroup is StorageLayoutV1 {
     }
 
     function getTradedMarket(uint256 index) public pure returns (uint256) {
-        return CashGroup.getTradedMarket(index);
+        return DateTime.getTradedMarket(index);
     }
 
     function isValidMaturity(
@@ -70,7 +70,7 @@ contract MockCashGroup is StorageLayoutV1 {
         pure
         returns (uint256, bool)
     {
-        (uint256 bitNum, bool isValid) = CashGroup.getBitNumFromMaturity(blockTime, maturity);
+        (uint256 bitNum, bool isValid) = DateTime.getBitNumFromMaturity(blockTime, maturity);
         assert(bitNum <= 256);
         if (isValid) assert(bitNum > 0);
 
@@ -82,7 +82,7 @@ contract MockCashGroup is StorageLayoutV1 {
         pure
         returns (uint256)
     {
-        uint256 maturity = CashGroup.getMaturityFromBitNum(blockTime, bitNum);
+        uint256 maturity = DateTime.getMaturityFromBitNum(blockTime, bitNum);
         assert(maturity > blockTime);
 
         return maturity;

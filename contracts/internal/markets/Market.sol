@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./AssetRate.sol";
 import "./CashGroup.sol";
+import "./DateTime.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
@@ -660,7 +661,7 @@ library Market {
         uint256 rateOracleTimeWindow
     ) internal view {
         // Always reference the current settlement date
-        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         loadMarketWithSettlementDate(
             market,
             currencyId,

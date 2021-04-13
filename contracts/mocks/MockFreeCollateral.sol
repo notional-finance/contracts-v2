@@ -32,11 +32,11 @@ contract MockFreeCollateral is MockAssetHandler {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         if (
             accountContext.nextSettleTime != 0 &&
-            accountContext.nextSettleTime != CashGroup.getTimeUTC0(blockTime)
+            accountContext.nextSettleTime != DateTime.getTimeUTC0(blockTime)
         ) {
             revert(); // dev: invalid block time for test
         }
-        accountContext.nextSettleTime = uint40(CashGroup.getTimeUTC0(blockTime));
+        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
 
         (
             bitmap, /* notional */
