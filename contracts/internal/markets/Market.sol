@@ -25,38 +25,33 @@ library Market {
     // Max positive value for a ABDK64x64 integer
     int256 private constant MAX64 = 0x7FFFFFFFFFFFFFFF;
 
-    /// @notice Used to add liquidity to a market, assuming that it is initialized. If not then
-    /// this method will revert and the market must be initialized via the perpetual token.
-
-    /// @return (new market state, liquidityTokens, negative fCash position generated)
-
-    function addLiquidity(MarketParameters memory marketState, int256 assetCash)
+    /// @notice Add liquidity to a market, assuming that it is initialized. If not then
+    /// this method will revert and the market must be initialized first.
+    /// @return liquidityTokenAmount and net negative fCash
+    function addLiquidity(MarketParameters memory market, int256 assetCash)
         internal
         pure
         returns (int256, int256)
     {
-        require(marketState.totalLiquidity > 0, "M: zero liquidity");
+        require(market.totalLiquidity > 0, "M: zero liquidity");
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
-        int256 liquidityTokens =
-            marketState.totalLiquidity.mul(assetCash).div(marketState.totalCurrentCash);
+        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalCurrentCash);
         // No need to convert this to underlying, assetCash / totalCurrentCash is a unitless proportion.
-        int256 fCash = marketState.totalfCash.mul(assetCash).div(marketState.totalCurrentCash);
+        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalCurrentCash);
 
-        marketState.totalLiquidity = marketState.totalLiquidity.add(liquidityTokens);
-        marketState.totalfCash = marketState.totalfCash.add(fCash);
-        marketState.totalCurrentCash = marketState.totalCurrentCash.add(assetCash);
-        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
+        market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
+        market.totalfCash = market.totalfCash.add(fCash);
+        market.totalCurrentCash = market.totalCurrentCash.add(assetCash);
+        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (liquidityTokens, fCash.neg());
     }
 
-    /// @notice Used to remove liquidity from a market, assuming that it is initialized.
-
-    /// @return (new market state, liquidityTokens, negative fCash position generated)
-
-    function removeLiquidity(MarketParameters memory marketState, int256 tokensToRemove)
+    /// @notice Remove liquidity from a market, assuming that it is initialized.
+    /// @return asset cash and positive fCash claim to return
+    function removeLiquidity(MarketParameters memory market, int256 tokensToRemove)
         internal
         pure
         returns (int256, int256)
@@ -64,20 +59,85 @@ library Market {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
-        int256 assetCash =
-            marketState.totalCurrentCash.mul(tokensToRemove).div(marketState.totalLiquidity);
-        int256 fCash = marketState.totalfCash.mul(tokensToRemove).div(marketState.totalLiquidity);
+        int256 assetCash = market.totalCurrentCash.mul(tokensToRemove).div(market.totalLiquidity);
+        int256 fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
-        marketState.totalLiquidity = marketState.totalLiquidity.subNoNeg(tokensToRemove);
-        marketState.totalfCash = marketState.totalfCash.subNoNeg(fCash);
-        marketState.totalCurrentCash = marketState.totalCurrentCash.subNoNeg(assetCash);
-        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
+        market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
+        market.totalfCash = market.totalfCash.subNoNeg(fCash);
+        market.totalCurrentCash = market.totalCurrentCash.subNoNeg(assetCash);
+        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (assetCash, fCash);
     }
 
+    /// @notice Calculates the asset cash amount the results from trading fCashToAccount with the market. A positive
+    /// fCashToAccount is equivalent of lending, a negative is borrowing. Updates the market state in memory.
+    /// @param market the current market state
+    /// @param cashGroup cash group configuration parameters
+    /// @param fCashToAccount the fCash amount that will be deposited into the user's portfolio. The net change
+    /// to the market is in the opposite direction.
+    /// @param timeToMaturity number of seconds until maturity
+    /// @return netAssetCash, netAssetCashToReserve
+    function calculateTrade(
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup,
+        int256 fCashToAccount,
+        uint256 timeToMaturity,
+        uint256 marketIndex
+    ) internal view returns (int256, int256) {
+        // We return false if there is not enough fCash to support this trade.
+        if (market.totalfCash.sub(fCashToAccount) <= 0) return (0, 0);
+
+        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
+            getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
+        // This will result in negative interest rates
+        if (fCashToAccount >= totalCashUnderlying) return (0, 0);
+
+        int256 preFeeExchangeRate;
+        {
+            bool success;
+            (preFeeExchangeRate, success) = _getExchangeRate(
+                market.totalfCash,
+                totalCashUnderlying,
+                rateScalar,
+                rateAnchor,
+                fCashToAccount
+            );
+            if (!success) return (0, 0);
+        }
+
+        (int256 netCashToAccount, int256 netCashToMarket, int256 netCashToReserve) =
+            _getNetCashAmounts(cashGroup, preFeeExchangeRate, fCashToAccount, timeToMaturity);
+        if (netCashToAccount == 0) return (0, 0);
+
+        {
+            market.totalfCash = market.totalfCash.subNoNeg(fCashToAccount);
+            market.lastImpliedRate = getImpliedRate(
+                market.totalfCash,
+                totalCashUnderlying.add(netCashToMarket),
+                rateScalar,
+                rateAnchor,
+                timeToMaturity
+            );
+            // It's technically possible that the implied rate is actually exactly zero (or
+            // more accurately the natural log rounds down to zero) but we will still fail
+            // in this case.
+            if (market.lastImpliedRate == 0) return (0, 0);
+        }
+
+        return
+            _setNewMarketState(
+                market,
+                cashGroup.assetRate,
+                netCashToAccount,
+                netCashToMarket,
+                netCashToReserve
+            );
+    }
+
+    /// @notice Returns factors for calculating exchange rates
     function getExchangeRateFactors(
-        MarketParameters memory marketState,
+        MarketParameters memory market,
         CashGroupParameters memory cashGroup,
         uint256 timeToMaturity,
         uint256 marketIndex
@@ -92,19 +152,19 @@ library Market {
     {
         int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
         int256 totalCashUnderlying =
-            cashGroup.assetRate.convertToUnderlying(marketState.totalCurrentCash);
+            cashGroup.assetRate.convertToUnderlying(market.totalCurrentCash);
 
         // This will result in a divide by zero
-        if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
+        if (market.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
 
         // Get the rate anchor given the market state, this will establish the baseline for where
         // the exchange rate is set.
         int256 rateAnchor;
         {
             bool success;
-            (rateAnchor, success) = getRateAnchor(
-                marketState.totalfCash,
-                marketState.lastImpliedRate,
+            (rateAnchor, success) = _getRateAnchor(
+                market.totalfCash,
+                market.lastImpliedRate,
                 totalCashUnderlying,
                 rateScalar,
                 timeToMaturity
@@ -115,116 +175,14 @@ library Market {
         return (rateScalar, totalCashUnderlying, rateAnchor);
     }
 
-    /// Uses Newton's method to converge on an fCash amount given the amount of
-    /// cash. The relation between cash and fcash is:
-    /// cashAmount * exchangeRate + fCash = 0
-    /// where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
-    ///       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
-
-    /// Newton's method is:
-    /// fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
-
-    /// f(fCash) = cashAmount * exchangeRate * fee + fCash
-    /// f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
-    /// https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
-
-    /// NOTE: each iteration costs about 11.3k so this is only done via a view function.
-
-    function getfCashGivenCashAmount(
-        int256 totalfCash,
-        int256 netCashToAccount,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        int256 rateAnchor,
-        int256 fee,
-        uint256 maxDelta
-    ) internal pure returns (int256) {
-        // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
-        int256 fCashChangeToAccountGuess =
-            netCashToAccount.mul(rateAnchor).div(Constants.RATE_PRECISION).neg();
-        for (uint8 i; i < 250; i++) {
-            (int256 exchangeRate, bool success) =
-                getExchangeRate(
-                    totalfCash,
-                    totalCashUnderlying,
-                    rateScalar,
-                    rateAnchor,
-                    fCashChangeToAccountGuess
-                );
-
-            require(success); // dev: invalid exchange rate
-            int256 delta =
-                calculateDelta(
-                    netCashToAccount,
-                    totalfCash,
-                    totalCashUnderlying,
-                    rateScalar,
-                    fCashChangeToAccountGuess,
-                    exchangeRate,
-                    fee
-                );
-
-            if (delta.abs() <= int256(maxDelta)) return fCashChangeToAccountGuess;
-            fCashChangeToAccountGuess = fCashChangeToAccountGuess.sub(delta);
-        }
-
-        revert("No convergence");
-    }
-
-    function calculateDelta(
-        int256 cashAmount,
-        int256 totalfCash,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        int256 fCashGuess,
-        int256 exchangeRate,
-        int256 fee
-    ) private pure returns (int256) {
-        int256 derivative;
-        int256 denominator;
-
-        if (fCashGuess > 0) {
-            // Lending
-            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(fee);
-            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
-
-            // Fees will never be big enough to make a difference in the derivative
-            derivative = cashAmount
-                .mul(Constants.RATE_PRECISION)
-                .mul(totalfCash.add(totalCashUnderlying))
-                .div(fee);
-
-            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
-                totalCashUnderlying.add(fCashGuess)
-            );
-        } else {
-            // Borrowing
-            exchangeRate = exchangeRate.mul(fee).div(Constants.RATE_PRECISION);
-            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
-
-            derivative = cashAmount.mul(fee).mul(totalfCash.add(totalCashUnderlying)).div(
-                Constants.RATE_PRECISION
-            );
-
-            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
-                totalCashUnderlying.add(fCashGuess)
-            );
-        }
-        derivative = Constants.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
-
-        int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
-        numerator = numerator.add(fCashGuess);
-
-        return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
-    }
-
-    function getNetCashAmounts(
+    /// @dev Returns net asset cash amounts to the account, the market and the reserve
+    function _getNetCashAmounts(
         CashGroupParameters memory cashGroup,
         int256 preFeeExchangeRate,
         int256 fCashToAccount,
         uint256 timeToMaturity
     )
-        internal
+        private
         pure
         returns (
             int256,
@@ -265,86 +223,19 @@ library Market {
         );
     }
 
-    /// @notice Does the trade calculation and returns the new market state and cash amount, fCash and
-    /// cash amounts are all specified at Constants.RATE_PRECISION.
-
-    /// @param marketState the current market state
-    /// @param cashGroup cash group configuration parameters
-    /// @param fCashToAccount the fCash amount that will be deposited into the user's portfolio. The net change
-    /// to the market is in the opposite direction.
-    /// @param timeToMaturity number of seconds until maturity
-    /// @return netAssetCash
-
-    function calculateTrade(
-        MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup,
-        int256 fCashToAccount,
-        uint256 timeToMaturity,
-        uint256 marketIndex
-    ) internal view returns (int256, int256) {
-        // We return false if there is not enough fCash to support this trade.
-        if (marketState.totalfCash - fCashToAccount <= 0) return (0, 0);
-
-        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
-            getExchangeRateFactors(marketState, cashGroup, timeToMaturity, marketIndex);
-        // This will result in negative interest rates
-        if (fCashToAccount >= totalCashUnderlying) return (0, 0);
-
-        int256 preFeeExchangeRate;
-        {
-            bool success;
-            (preFeeExchangeRate, success) = getExchangeRate(
-                marketState.totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fCashToAccount
-            );
-            if (!success) return (0, 0);
-        }
-
-        (int256 netCashToAccount, int256 netCashToMarket, int256 netCashToReserve) =
-            getNetCashAmounts(cashGroup, preFeeExchangeRate, fCashToAccount, timeToMaturity);
-        if (netCashToAccount == 0) return (0, 0);
-
-        {
-            marketState.totalfCash = marketState.totalfCash.subNoNeg(fCashToAccount);
-            marketState.lastImpliedRate = getImpliedRate(
-                marketState.totalfCash,
-                totalCashUnderlying.add(netCashToMarket),
-                rateScalar,
-                rateAnchor,
-                timeToMaturity
-            );
-            // It's technically possible that the implied rate is actually exactly zero (or
-            // more accurately the natural log rounds down to zero) but we will still fail
-            // in this case.
-            if (marketState.lastImpliedRate == 0) return (0, 0);
-        }
-
-        return
-            setNewMarketState(
-                marketState,
-                cashGroup.assetRate,
-                netCashToAccount,
-                netCashToMarket,
-                netCashToReserve
-            );
-    }
-
-    function setNewMarketState(
-        MarketParameters memory marketState,
+    function _setNewMarketState(
+        MarketParameters memory market,
         AssetRateParameters memory assetRate,
         int256 netCashToAccount,
         int256 netCashToMarket,
         int256 netCashToReserve
     ) private view returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
-        marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCashToMarket);
+        market.totalCurrentCash = market.totalCurrentCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
-        marketState.previousTradeTime = block.timestamp;
-        marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_TRADE;
+        market.previousTradeTime = block.timestamp;
+        market.storageState = market.storageState | STORAGE_STATE_UPDATE_TRADE;
 
         int256 assetCashToReserve = assetRate.convertFromUnderlying(netCashToReserve);
         int256 netAssetCashToAccount = assetRate.convertFromUnderlying(netCashToAccount);
@@ -356,17 +247,15 @@ library Market {
     /// before and after the rate anchor update is the same. Therefore, the market will trade at the same implied
     /// rate that it last traded at. If these anchors do not update then it opens up the opportunity for arbitrage
     /// which will hurt the liquidity providers.
-
     /// The rate anchor will update as the market rolls down to maturity. The calculation is:
     /// newExchangeRate = e^(lastImpliedRate * timeToMaturity / Constants.IMPLIED_RATE_TIME)
     /// newAnchor = newExchangeRate - ln((proportion / (1 - proportion)) / rateScalar
     /// where:
     /// lastImpliedRate = ln(exchangeRate') * (Constants.IMPLIED_RATE_TIME / timeToMaturity')
     ///      (calculated when the last trade in the market was made)
-
+    /// @dev has an underscore to denote as private but is marked internal for the mock
     /// @return the new rate anchor and a boolean that signifies success
-
-    function getRateAnchor(
+    function _getRateAnchor(
         int256 totalfCash,
         uint256 lastImpliedRate,
         int256 totalCashUnderlying,
@@ -382,7 +271,7 @@ library Market {
             int256 proportion =
                 totalfCash.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
-            (int256 lnProportion, bool success) = logProportion(proportion);
+            (int256 lnProportion, bool success) = _logProportion(proportion);
             if (!success) return (0, false);
 
             rateAnchor = exchangeRate.sub(lnProportion.div(rateScalar));
@@ -392,9 +281,7 @@ library Market {
     }
 
     /// @notice Calculates the current market implied rate.
-
     /// @return the implied rate and a bool that is true on success
-
     function getImpliedRate(
         int256 totalfCash,
         int256 totalCashUnderlying,
@@ -404,7 +291,7 @@ library Market {
     ) internal pure returns (uint256) {
         // This will check for exchange rates < Constants.RATE_PRECISION
         (int256 exchangeRate, bool success) =
-            getExchangeRate(totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0);
+            _getExchangeRate(totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0);
         if (!success) return 0;
 
         // Uses continuous compounding to calculate the implied rate:
@@ -427,7 +314,6 @@ library Market {
 
     /// @notice Converts an implied rate to an exchange rate given a time to maturity. The
     /// formula is E = e^rt
-
     function getExchangeRateFromImpliedRate(uint256 impliedRate, uint256 timeToMaturity)
         internal
         pure
@@ -444,14 +330,13 @@ library Market {
         return ABDKMath64x64.toInt(expResultScaled);
     }
 
-    /// @dev Returns the exchange rate between fCash and cash for the given market
-
-    /// Takes a market in memory and calculates the following exchange rate:
-    /// (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
+    /// @notice Returns the exchange rate between fCash and cash for the given market
+    /// Calculates the following exchange rate:
+    ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    /// proportion = totalfCash / (totalfCash + totalCurrentCash)
-
-    function getExchangeRate(
+    ///     proportion = totalfCash / (totalfCash + totalCurrentCash)
+    /// @dev has an underscore to denote as private but is marked internal for the mock
+    function _getExchangeRate(
         int256 totalfCash,
         int256 totalCashUnderlying,
         int256 rateScalar,
@@ -465,7 +350,7 @@ library Market {
         int256 proportion =
             numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
-        (int256 lnProportion, bool success) = logProportion(proportion);
+        (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
 
         // Division will not overflow here because we know rateScalar > 0
@@ -479,8 +364,7 @@ library Market {
     }
 
     /// @dev This method does ln((proportion / (1 - proportion)) * 1e9)
-
-    function logProportion(int256 proportion) internal pure returns (int256, bool) {
+    function _logProportion(int256 proportion) internal pure returns (int256, bool) {
         proportion = proportion.mul(Constants.RATE_PRECISION).div(
             Constants.RATE_PRECISION.sub(proportion)
         );
@@ -508,16 +392,15 @@ library Market {
     /// a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
     /// Since we value fCash in portfolios based on these rates, portfolio values will decrease and they may then
     /// be liquidated.
-
+    ///
     /// Oracle rates are calculated when the market is loaded from storage.
-
+    ///
     /// The oracle rate is a lagged weighted average over a short term price window. If we are past
     /// the short term window then we just set the rate to the lastImpliedRate, otherwise we take the
     /// weighted average:
-    /// lastImpliedRatePreTrade * (currentTs - previousTs) / timeWindow +
-    ///      oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
-
-    function updateRateOracle(
+    ///     lastImpliedRatePreTrade * (currentTs - previousTs) / timeWindow +
+    ///         oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
+    function _updateRateOracle(
         uint256 previousTradeTime,
         uint256 lastImpliedRate,
         uint256 oracleRate,
@@ -560,7 +443,6 @@ library Market {
 
     /// @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
     /// do need to load the liquidity amount.
-
     function getTotalLiquidity(MarketParameters memory market) internal view {
         int256 totalLiquidity;
         bytes32 slot = bytes32(uint256(market.storageSlot) + 1);
@@ -573,8 +455,7 @@ library Market {
 
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
     /// which ensures that the rate oracle is set properly.
-
-    function loadMarketStorage(
+    function _loadMarketStorage(
         MarketParameters memory market,
         uint256 currencyId,
         uint256 maturity,
@@ -606,7 +487,6 @@ library Market {
     }
 
     /// @notice Writes market parameters to storage if the market is marked as updated.
-
     function setMarketStorage(MarketParameters memory market) internal {
         if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
         bytes32 slot = market.storageSlot;
@@ -651,7 +531,6 @@ library Market {
     }
 
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
-
     function loadMarket(
         MarketParameters memory market,
         uint256 currencyId,
@@ -675,7 +554,6 @@ library Market {
 
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
     /// is mainly used in the InitializeMarketAction contract.
-
     function loadMarketWithSettlementDate(
         MarketParameters memory market,
         uint256 currencyId,
@@ -685,9 +563,9 @@ library Market {
         uint256 rateOracleTimeWindow,
         uint256 settlementDate
     ) internal view {
-        loadMarketStorage(market, currencyId, maturity, needsLiquidity, settlementDate);
+        _loadMarketStorage(market, currencyId, maturity, needsLiquidity, settlementDate);
 
-        market.oracleRate = updateRateOracle(
+        market.oracleRate = _updateRateOracle(
             market.previousTradeTime,
             market.lastImpliedRate,
             market.oracleRate,
@@ -698,7 +576,6 @@ library Market {
 
     /// @notice When settling liquidity tokens we only need to get half of the market paramteers and the settlement
     /// date must be specified.
-
     function getSettlementMarket(
         uint256 currencyId,
         uint256 maturity,
@@ -756,5 +633,107 @@ library Market {
         assembly {
             sstore(slot, totalLiquidity)
         }
+    }
+
+    /// Uses Newton's method to converge on an fCash amount given the amount of
+    /// cash. The relation between cash and fcash is:
+    /// cashAmount * exchangeRate + fCash = 0
+    /// where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
+    ///       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
+    ///
+    /// Newton's method is:
+    /// fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
+    ///
+    /// f(fCash) = cashAmount * exchangeRate * fee + fCash
+    /// f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
+    /// https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
+    ///
+    /// NOTE: each iteration costs about 11.3k so this is only done via a view function.
+    function getfCashGivenCashAmount(
+        int256 totalfCash,
+        int256 netCashToAccount,
+        int256 totalCashUnderlying,
+        int256 rateScalar,
+        int256 rateAnchor,
+        int256 fee,
+        uint256 maxDelta
+    ) internal pure returns (int256) {
+        // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
+        int256 fCashChangeToAccountGuess =
+            netCashToAccount.mul(rateAnchor).div(Constants.RATE_PRECISION).neg();
+        for (uint8 i; i < 250; i++) {
+            (int256 exchangeRate, bool success) =
+                _getExchangeRate(
+                    totalfCash,
+                    totalCashUnderlying,
+                    rateScalar,
+                    rateAnchor,
+                    fCashChangeToAccountGuess
+                );
+
+            require(success); // dev: invalid exchange rate
+            int256 delta =
+                _calculateDelta(
+                    netCashToAccount,
+                    totalfCash,
+                    totalCashUnderlying,
+                    rateScalar,
+                    fCashChangeToAccountGuess,
+                    exchangeRate,
+                    fee
+                );
+
+            if (delta.abs() <= int256(maxDelta)) return fCashChangeToAccountGuess;
+            fCashChangeToAccountGuess = fCashChangeToAccountGuess.sub(delta);
+        }
+
+        revert("No convergence");
+    }
+
+    function _calculateDelta(
+        int256 cashAmount,
+        int256 totalfCash,
+        int256 totalCashUnderlying,
+        int256 rateScalar,
+        int256 fCashGuess,
+        int256 exchangeRate,
+        int256 fee
+    ) private pure returns (int256) {
+        int256 derivative;
+        int256 denominator;
+
+        if (fCashGuess > 0) {
+            // Lending
+            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(fee);
+            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
+
+            // Fees will never be big enough to make a difference in the derivative
+            derivative = cashAmount
+                .mul(Constants.RATE_PRECISION)
+                .mul(totalfCash.add(totalCashUnderlying))
+                .div(fee);
+
+            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
+                totalCashUnderlying.add(fCashGuess)
+            );
+        } else {
+            // Borrowing
+            exchangeRate = exchangeRate.mul(fee).div(Constants.RATE_PRECISION);
+            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
+
+            derivative = cashAmount.mul(fee).mul(totalfCash.add(totalCashUnderlying)).div(
+                Constants.RATE_PRECISION
+            );
+
+            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
+                totalCashUnderlying.add(fCashGuess)
+            );
+        }
+        derivative = Constants.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
+
+        int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
+        numerator = numerator.add(fCashGuess);
+
+        return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
     }
 }

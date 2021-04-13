@@ -541,11 +541,11 @@ library InitializeMarketsAction {
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();
 
+        // prettier-ignore
         (
-            bytes32 bitmap, /* notional */
-
-        ) =
-            BitmapAssetsHandler.addifCashAsset(
+            bytes32 bitmap,
+            /* notional */
+        ) = BitmapAssetsHandler.addifCashAsset(
                 tokenAddress,
                 currencyId,
                 market.maturity,

@@ -41,7 +41,7 @@ contract MockMarket is StorageLayoutV1 {
         int256 fCashAmount
     ) external pure returns (int256, bool) {
         return
-            Market.getExchangeRate(
+            Market._getExchangeRate(
                 totalfCash,
                 totalCashUnderlying,
                 rateScalar,
@@ -51,7 +51,7 @@ contract MockMarket is StorageLayoutV1 {
     }
 
     function logProportion(int256 proportion) external pure returns (int256, bool) {
-        return Market.logProportion(proportion);
+        return Market._logProportion(proportion);
     }
 
     function getImpliedRate(
@@ -79,7 +79,7 @@ contract MockMarket is StorageLayoutV1 {
         uint256 timeToMaturity
     ) external pure returns (int256, bool) {
         return
-            Market.getRateAnchor(
+            Market._getRateAnchor(
                 totalfCash,
                 lastImpliedRate,
                 totalCashUnderlying,
