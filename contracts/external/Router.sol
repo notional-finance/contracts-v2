@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "./actions/nTokenRedeemAction.sol";
-import "../actions/GovernanceAction.sol";
+import "./actions/GovernanceAction.sol";
 import "../actions/DepositWithdrawAction.sol";
 import "../actions/InitializeMarketsAction.sol";
 import "../storage/StorageLayoutV1.sol";
@@ -77,9 +77,9 @@ contract Router is StorageLayoutV1 {
         owner = owner_;
     }
 
-    /**
-     * @notice Returns the implementation contract for the method signature
-     */
+    /// @notice Returns the implementation contract for the method signature
+    /// @param sig method signature to call
+    /// @return implementation address
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         if (
             // TODO: move these to their own contract?
@@ -129,9 +129,9 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateETHRate.selector ||
             sig == GovernanceAction.transferOwnership.selector ||
             sig == GovernanceAction.updateIncentiveEmissionRate.selector ||
-            sig == GovernanceAction.updatePerpetualDepositParameters.selector ||
+            sig == GovernanceAction.updateDepositParameters.selector ||
             sig == GovernanceAction.updateInitializationParameters.selector ||
-            sig == GovernanceAction.updatePerpetualTokenCollateralParameters.selector
+            sig == GovernanceAction.updateTokenCollateralParameters.selector
         ) {
             return GOVERNANCE;
         }
@@ -141,11 +141,8 @@ contract Router is StorageLayoutV1 {
         return VIEWS;
     }
 
-    /**
-     * @dev Delegates the current call to `implementation`.
-     *
-     * This function does not return to its internal call site, it will return directly to the external caller.
-     */
+    /// @dev Delegates the current call to `implementation`.
+    /// This function does not return to its internal call site, it will return directly to the external caller.
     function _delegate(address implementation) private {
         // solhint-disable-next-line no-inline-assembly
         assembly {

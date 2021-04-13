@@ -16,10 +16,10 @@ interface NotionalProxy is nTokenERC20 {
     event UpdateETHRate(uint16 currencyId);
     event UpdateAssetRate(uint16 currencyId);
     event UpdateCashGroup(uint16 currencyId);
-    event UpdatePerpetualDepositParameters(uint16 currencyId);
+    event UpdateDepositParameters(uint16 currencyId);
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
-    event UpdatePerpetualTokenCollateralParameters(uint16 currencyId);
+    event UpdateTokenCollateralParameters(uint16 currencyId);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /** User trading events */
@@ -52,7 +52,7 @@ interface NotionalProxy is nTokenERC20 {
         CashGroupParameterStorage calldata cashGroup
     ) external;
 
-    function updatePerpetualDepositParameters(
+    function updateDepositParameters(
         uint16 currencyId,
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
@@ -66,7 +66,7 @@ interface NotionalProxy is nTokenERC20 {
 
     function updateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate) external;
 
-    function updatePerpetualTokenCollateralParameters(
+    function updateTokenCollateralParameters(
         uint16 currencyId,
         uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
