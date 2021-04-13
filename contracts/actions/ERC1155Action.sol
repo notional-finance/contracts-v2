@@ -4,10 +4,10 @@ pragma experimental ABIEncoderV2;
 
 import "./DepositWithdrawAction.sol";
 import "../external/actions/nTokenRedeemAction.sol";
-import "./FreeCollateralExternal.sol";
-import "../storage/StorageLayoutV1.sol";
-import "../storage/AccountContextHandler.sol";
-import "../common/TransferAssets.sol";
+import "../external/FreeCollateralExternal.sol";
+import "../global/StorageLayoutV1.sol";
+import "../internal/AccountContextHandler.sol";
+import "../internal/portfolio/TransferAssets.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 

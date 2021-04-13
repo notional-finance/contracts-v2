@@ -2,14 +2,11 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/PerpetualToken.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../internal/PerpetualToken.sol";
+import "../global/StorageLayoutV1.sol";
 
 contract MockPerpetualToken is StorageLayoutV1 {
-    function setIncentiveEmissionRate(
-        address tokenAddress,
-        uint32 newEmissionsRate
-    ) external {
+    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) external {
         PerpetualToken.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
 
@@ -33,13 +30,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
         assert(PerpetualToken.nTokenAddress(currencyId) == tokenAddress);
 
-        return (
-            currencyId,
-            totalSupply,
-            incentiveRate,
-            lastInitializedTime,
-            parameters
-        );
+        return (currencyId, totalSupply, incentiveRate, lastInitializedTime, parameters);
     }
 
     function nTokenAddress(uint256 currencyId) external view returns (address) {
@@ -67,15 +58,11 @@ contract MockPerpetualToken is StorageLayoutV1 {
         );
     }
 
-    function changePerpetualTokenSupply(address tokenAddress, int256 netChange)
-        external
-    {
+    function changePerpetualTokenSupply(address tokenAddress, int256 netChange) external {
         PerpetualToken.changePerpetualTokenSupply(tokenAddress, netChange);
     }
 
-    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress)
-        external
-    {
+    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress) external {
         PerpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress);
 
         // Test the assertions
@@ -96,22 +83,15 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external {
-        PerpetualToken.setDepositParameters(
-            currencyId,
-            depositShares,
-            leverageThresholds
-        );
+        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
     }
 
-    function getInitializationParameters(
-        uint256 currencyId,
-        uint256 maxMarketIndex
-    ) external view returns (int256[] memory, int256[] memory) {
-        return
-            PerpetualToken.getInitializationParameters(
-                currencyId,
-                maxMarketIndex
-            );
+    function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
+        external
+        view
+        returns (int256[] memory, int256[] memory)
+    {
+        return PerpetualToken.getInitializationParameters(currencyId, maxMarketIndex);
     }
 
     function setInitializationParameters(
@@ -119,11 +99,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external {
-        PerpetualToken.setInitializationParameters(
-            currencyId,
-            rateAnchors,
-            proportions
-        );
+        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
     }
 
     function getPerpetualTokenPV(uint256 currencyId, uint256 blockTime)

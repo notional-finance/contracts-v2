@@ -2,34 +2,32 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/Liquidation.sol";
-import "../common/TransferAssets.sol";
+import "../internal/AccountContextHandler.sol";
+import "../internal/Liquidation.sol";
+import "../internal/portfolio/TransferAssets.sol";
+import "../internal/portfolio/PortfolioHandler.sol";
+import "../internal/balances/BalanceHandler.sol";
 import "../math/SafeInt256.sol";
-import "../storage/PortfolioHandler.sol";
-import "../storage/BalanceHandler.sol";
-import "../storage/AccountContextHandler.sol";
 
 library LiquidationHelpers {
     using AccountContextHandler for AccountStorage;
     using PortfolioHandler for PortfolioState;
     using BalanceHandler for BalanceState;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
     function finalizeLiquidatorLocal(
         address liquidator,
-        uint localCurrencyId,
-        int netLocalFromLiquidator,
-        int netLocalPerpetualTokens
+        uint256 localCurrencyId,
+        int256 netLocalFromLiquidator,
+        int256 netLocalPerpetualTokens
     ) internal returns (AccountStorage memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
         Token memory token = TokenHandler.getToken(localCurrencyId, false);
-        AccountStorage memory liquidatorContext = AccountContextHandler.getAccountContext(liquidator);
-        BalanceState memory liquidatorLocalBalance = BalanceHandler.buildBalanceState(
-            liquidator,
-            localCurrencyId,
-            liquidatorContext
-        );
+        AccountStorage memory liquidatorContext =
+            AccountContextHandler.getAccountContext(liquidator);
+        BalanceState memory liquidatorLocalBalance =
+            BalanceHandler.buildBalanceState(liquidator, localCurrencyId, liquidatorContext);
 
         if (token.hasTransferFee && netLocalFromLiquidator > 0) {
             // If a token has a transfer fee then it must have been deposited prior to the liquidation
@@ -37,7 +35,7 @@ library LiquidationHelpers {
             // does not have debt so that we do not have to run a free collateral check here
             require(
                 liquidatorLocalBalance.storedCashBalance >= netLocalFromLiquidator &&
-                liquidatorContext.hasDebt == 0x00,
+                    liquidatorContext.hasDebt == 0x00,
                 "Token transfer unavailable"
             );
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
@@ -53,20 +51,18 @@ library LiquidationHelpers {
     function finalizeLiquidatorCollateral(
         address liquidator,
         AccountStorage memory liquidatorContext,
-        uint collateralCurrencyId,
-        int netCollateralToLiquidator,
-        int netCollateralPerpetualTokens,
+        uint256 collateralCurrencyId,
+        int256 netCollateralToLiquidator,
+        int256 netCollateralPerpetualTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountStorage memory) {
-        BalanceState memory liquidatorLocalBalance = BalanceHandler.buildBalanceState(
-            liquidator,
-            collateralCurrencyId,
-            liquidatorContext
-        );
+        BalanceState memory liquidatorLocalBalance =
+            BalanceHandler.buildBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
 
         if (withdrawCollateral) {
-            liquidatorLocalBalance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
+            liquidatorLocalBalance.netAssetTransferInternalPrecision = netCollateralToLiquidator
+                .neg();
         } else {
             liquidatorLocalBalance.netCashChange = netCollateralToLiquidator;
         }
@@ -78,15 +74,12 @@ library LiquidationHelpers {
 
     function finalizeLiquidatedLocalBalance(
         address liquidateAccount,
-        uint localCurrency,
+        uint256 localCurrency,
         AccountStorage memory accountContext,
-        int netLocalFromLiquidator
+        int256 netLocalFromLiquidator
     ) internal {
-        BalanceState memory localBalanceState = BalanceHandler.buildBalanceState(
-            liquidateAccount,
-            localCurrency,
-            accountContext
-        );
+        BalanceState memory localBalanceState =
+            BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
         localBalanceState.netCashChange = netLocalFromLiquidator;
         localBalanceState.finalize(liquidateAccount, accountContext, false);
     }
@@ -95,34 +88,35 @@ library LiquidationHelpers {
         address liquidateAccount,
         address liquidator,
         AccountStorage memory liquidatorContext,
-        uint fCashCurrency,
-        uint[] calldata fCashMaturities,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
         Liquidation.fCashContext memory c
     ) internal {
-        PortfolioAsset[] memory assets = makeAssetArray(
-            fCashCurrency,
-            fCashMaturities,
-            c.fCashNotionalTransfers
-        );
+        PortfolioAsset[] memory assets =
+            makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
         TransferAssets.placeAssetsInAccount(liquidator, liquidatorContext, assets);
         TransferAssets.invertNotionalAmountsInPlace(assets);
 
         if (c.accountContext.bitmapCurrencyId == 0) {
             c.portfolio.addMultipleAssets(assets);
-            AccountContextHandler.storeAssetsAndUpdateContext(c.accountContext, liquidateAccount, c.portfolio);
+            AccountContextHandler.storeAssetsAndUpdateContext(
+                c.accountContext,
+                liquidateAccount,
+                c.portfolio
+            );
         } else {
             BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
         }
     }
 
     function makeAssetArray(
-        uint fCashCurrency,
-        uint[] calldata fCashMaturities,
-        int[] memory fCashNotionalTransfers
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        int256[] memory fCashNotionalTransfers
     ) internal pure returns (PortfolioAsset[] memory) {
         PortfolioAsset[] memory assets = new PortfolioAsset[](fCashMaturities.length);
-        for (uint i; i < assets.length; i++) {
+        for (uint256 i; i < assets.length; i++) {
             assets[i].currencyId = fCashCurrency;
             assets[i].assetType = AssetHandler.FCASH_ASSET_TYPE;
             assets[i].notional = fCashNotionalTransfers[i];
@@ -134,36 +128,39 @@ library LiquidationHelpers {
 contract LiquidateLocalCurrency {
     using AccountContextHandler for AccountStorage;
     using BalanceHandler for BalanceState;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
     function liquidateLocalCurrency(
         address liquidateAccount,
-        uint localCurrency,
+        uint256 localCurrency,
         uint96 maxPerpetualTokenLiquidation
-    ) external returns (int) {
-        uint blockTime = block.timestamp;
+    ) external returns (int256) {
+        uint256 blockTime = block.timestamp;
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        BalanceState memory localBalanceState = BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+        BalanceState memory localBalanceState =
+            BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
 
-        int netLocalFromLiquidator = Liquidation.liquidateLocalCurrency(
-            localCurrency,
-            maxPerpetualTokenLiquidation,
-            blockTime,
-            localBalanceState,
-            factors,
-            portfolio
-        );
+        int256 netLocalFromLiquidator =
+            Liquidation.liquidateLocalCurrency(
+                localCurrency,
+                maxPerpetualTokenLiquidation,
+                blockTime,
+                localBalanceState,
+                factors,
+                portfolio
+            );
 
-        AccountStorage memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
-            msg.sender,
-            localCurrency,
-            netLocalFromLiquidator,
-            localBalanceState.netPerpetualTokenTransfer.neg()
-        );
+        AccountStorage memory liquidatorContext =
+            LiquidationHelpers.finalizeLiquidatorLocal(
+                msg.sender,
+                localCurrency,
+                netLocalFromLiquidator,
+                localBalanceState.netPerpetualTokenTransfer.neg()
+            );
         liquidatorContext.setAccountContext(msg.sender);
 
         // Finalize liquidated account balance
@@ -172,7 +169,11 @@ contract LiquidateLocalCurrency {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
             // todo: set allow liquidation flag
-            AccountContextHandler.storeAssetsAndUpdateContext(accountContext, liquidateAccount, portfolio);
+            AccountContextHandler.storeAssetsAndUpdateContext(
+                accountContext,
+                liquidateAccount,
+                portfolio
+            );
         }
         accountContext.setAccountContext(liquidateAccount);
 
@@ -183,45 +184,50 @@ contract LiquidateLocalCurrency {
 contract LiquidateCollateralCurrency {
     using AccountContextHandler for AccountStorage;
     using BalanceHandler for BalanceState;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
     function liquidateCollateralCurrency(
         address liquidateAccount,
-        uint localCurrency,
-        uint collateralCurrency,
+        uint256 localCurrency,
+        uint256 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxPerpetualTokenLiquidation,
         bool withdrawCollateral,
         bool redeemToUnderlying
-    ) external returns (int) {
-        uint blockTime = block.timestamp;
+    ) external returns (int256) {
+        uint256 blockTime = block.timestamp;
         (
             AccountStorage memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency, blockTime);
-        BalanceState memory collateralBalanceState = BalanceHandler.buildBalanceState(
-            liquidateAccount,
-            collateralCurrency,
-            accountContext
-        );
+        ) =
+            Liquidation.preLiquidationActions(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency,
+                blockTime
+            );
+        BalanceState memory collateralBalanceState =
+            BalanceHandler.buildBalanceState(liquidateAccount, collateralCurrency, accountContext);
 
-        int netLocalFromLiquidator = Liquidation.liquidateCollateralCurrency(
-            maxCollateralLiquidation,
-            maxPerpetualTokenLiquidation,
-            blockTime,
-            collateralBalanceState,
-            factors,
-            portfolio
-        );
+        int256 netLocalFromLiquidator =
+            Liquidation.liquidateCollateralCurrency(
+                maxCollateralLiquidation,
+                maxPerpetualTokenLiquidation,
+                blockTime,
+                collateralBalanceState,
+                factors,
+                portfolio
+            );
 
         {
-            AccountStorage memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
-                msg.sender,
-                localCurrency,
-                netLocalFromLiquidator,
-                0
-            );
+            AccountStorage memory liquidatorContext =
+                LiquidationHelpers.finalizeLiquidatorLocal(
+                    msg.sender,
+                    localCurrency,
+                    netLocalFromLiquidator,
+                    0
+                );
 
             LiquidationHelpers.finalizeLiquidatorCollateral(
                 msg.sender,
@@ -247,7 +253,11 @@ contract LiquidateCollateralCurrency {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
             // todo: set allow liquidation flag
-            AccountContextHandler.storeAssetsAndUpdateContext(accountContext, liquidateAccount, portfolio);
+            AccountContextHandler.storeAssetsAndUpdateContext(
+                accountContext,
+                liquidateAccount,
+                portfolio
+            );
         }
         accountContext.setAccountContext(liquidateAccount);
 
@@ -257,22 +267,23 @@ contract LiquidateCollateralCurrency {
 
 contract LiquidatefCashLocal {
     using AccountContextHandler for AccountStorage;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
     function liquidatefCashLocal(
         address liquidateAccount,
-        uint localCurrency,
-        uint[] calldata fCashMaturities,
-        uint[] calldata maxfCashLiquidateAmounts,
-        uint blockTime
-    ) external returns (int[] memory, int) {
+        uint256 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
+    ) external returns (int256[] memory, int256) {
         Liquidation.fCashContext memory c;
-        (
-            c.accountContext,
-            c.factors,
-            c.portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        c.fCashNotionalTransfers = new int[](fCashMaturities.length);
+        (c.accountContext, c.factors, c.portfolio) = Liquidation.preLiquidationActions(
+            liquidateAccount,
+            localCurrency,
+            0,
+            blockTime
+        );
+        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
         Liquidation.liquidatefCashLocal(
             liquidateAccount,
@@ -283,12 +294,13 @@ contract LiquidatefCashLocal {
             blockTime
         );
 
-        AccountStorage memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
-            msg.sender,
-            localCurrency,
-            c.localToPurchase.neg(),
-            0
-        );
+        AccountStorage memory liquidatorContext =
+            LiquidationHelpers.finalizeLiquidatorLocal(
+                msg.sender,
+                localCurrency,
+                c.localToPurchase.neg(),
+                0
+            );
 
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,
@@ -315,19 +327,20 @@ contract LiquidatefCashLocal {
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint localCurrency,
-        uint collateralCurrency,
-        uint[] calldata fCashMaturities,
-        uint[] calldata maxfCashLiquidateAmounts,
-        uint blockTime
-    ) external returns (int[] memory, int) {
+        uint256 localCurrency,
+        uint256 collateralCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
+    ) external returns (int256[] memory, int256) {
         Liquidation.fCashContext memory c;
-        (
-            c.accountContext,
-            c.factors,
-            c.portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        c.fCashNotionalTransfers = new int[](fCashMaturities.length);
+        (c.accountContext, c.factors, c.portfolio) = Liquidation.preLiquidationActions(
+            liquidateAccount,
+            localCurrency,
+            0,
+            blockTime
+        );
+        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
         Liquidation.liquidatefCashCrossCurrency(
             liquidateAccount,
@@ -337,13 +350,14 @@ contract LiquidatefCashLocal {
             c,
             blockTime
         );
-        
-        AccountStorage memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
-            msg.sender,
-            localCurrency,
-            c.localToPurchase.neg(),
-            0
-        );
+
+        AccountStorage memory liquidatorContext =
+            LiquidationHelpers.finalizeLiquidatorLocal(
+                msg.sender,
+                localCurrency,
+                c.localToPurchase.neg(),
+                0
+            );
 
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,

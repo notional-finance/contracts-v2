@@ -2,15 +2,15 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../actions/FreeCollateralExternal.sol";
-import "../common/ExchangeRate.sol";
-import "../common/CashGroup.sol";
-import "../common/AssetRate.sol";
-import "../common/PerpetualToken.sol";
-import "../actions/MintPerpetualTokenAction.sol";
+import "../external/FreeCollateralExternal.sol";
+import "./actions/nTokenMintAction.sol";
+import "../internal/valuation/ExchangeRate.sol";
+import "../internal/markets/CashGroup.sol";
+import "../internal/markets/AssetRate.sol";
+import "../internal/PerpetualToken.sol";
+import "../internal/balances/TokenHandler.sol";
+import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
-import "../storage/TokenHandler.sol";
-import "../storage/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 contract Views is StorageLayoutV1 {
@@ -24,35 +24,19 @@ contract Views is StorageLayoutV1 {
         return maxCurrencyId;
     }
 
-    function getCurrency(uint16 currencyId)
-        external
-        view
-        returns (Token memory)
-    {
+    function getCurrency(uint16 currencyId) external view returns (Token memory) {
         return TokenHandler.getToken(currencyId, false);
     }
 
-    function getUnderlying(uint16 currencyId)
-        external
-        view
-        returns (Token memory)
-    {
+    function getUnderlying(uint16 currencyId) external view returns (Token memory) {
         return TokenHandler.getToken(currencyId, true);
     }
 
-    function getETHRateStorage(uint16 currencyId)
-        external
-        view
-        returns (ETHRateStorage memory)
-    {
+    function getETHRateStorage(uint16 currencyId) external view returns (ETHRateStorage memory) {
         return underlyingToETHRateMapping[currencyId];
     }
 
-    function getETHRate(uint16 currencyId)
-        external
-        view
-        returns (ETHRate memory)
-    {
+    function getETHRate(uint16 currencyId) external view returns (ETHRate memory) {
         return ExchangeRate.buildExchangeRate(currencyId);
     }
 
@@ -83,11 +67,7 @@ contract Views is StorageLayoutV1 {
         return assetToUnderlyingRateMapping[currencyId];
     }
 
-    function getAssetRate(uint16 currencyId)
-        external
-        view
-        returns (AssetRateParameters memory)
-    {
+    function getAssetRate(uint16 currencyId) external view returns (AssetRateParameters memory) {
         return AssetRate.buildAssetRateView(currencyId);
     }
 
@@ -104,8 +84,7 @@ contract Views is StorageLayoutV1 {
         view
         returns (CashGroupParameterStorage memory, AssetRateParameters memory)
     {
-        CashGroupParameterStorage memory cg =
-            CashGroup.deserializeCashGroupStorage(currencyId);
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         if (cg.maxMarketIndex == 0) {
             // No markets listed for the currency id
             return (cg, AssetRateParameters(address(0), 0, 0));
@@ -114,11 +93,7 @@ contract Views is StorageLayoutV1 {
         return (cg, AssetRate.buildAssetRateView(currencyId));
     }
 
-    function getActiveMarkets(uint16 currencyId)
-        external
-        view
-        returns (MarketParameters[] memory)
-    {
+    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
         uint256 blockTime = block.timestamp;
         return _getActiveMarketsAtBlockTime(currencyId, blockTime);
     }
@@ -136,10 +111,8 @@ contract Views is StorageLayoutV1 {
         view
         returns (MarketParameters[] memory)
     {
-        (
-            CashGroupParameters memory cashGroup,
-            MarketParameters[] memory markets
-        ) = CashGroup.buildCashGroupView(currencyId);
+        (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
+            CashGroup.buildCashGroupView(currencyId);
 
         for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
             cashGroup.getMarket(markets, i, blockTime, true);
@@ -153,13 +126,8 @@ contract Views is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        CashGroupParameterStorage memory cg =
-            CashGroup.deserializeCashGroupStorage(currencyId);
-        return
-            PerpetualToken.getInitializationParameters(
-                currencyId,
-                cg.maxMarketIndex
-            );
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
+        return PerpetualToken.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
     function getPerpetualDepositParameters(uint16 currencyId)
@@ -167,10 +135,8 @@ contract Views is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        CashGroupParameterStorage memory cg =
-            CashGroup.deserializeCashGroupStorage(currencyId);
-        return
-            PerpetualToken.getDepositParameters(currencyId, cg.maxMarketIndex);
+        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
+        return PerpetualToken.getDepositParameters(currencyId, cg.maxMarketIndex);
     }
 
     function nTokenAddress(uint16 currencyId) external view returns (address) {
@@ -181,11 +147,7 @@ contract Views is StorageLayoutV1 {
         return owner;
     }
 
-    function getAccountContext(address account)
-        external
-        view
-        returns (AccountStorage memory)
-    {
+    function getAccountContext(address account) external view returns (AccountStorage memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
@@ -201,35 +163,18 @@ contract Views is StorageLayoutV1 {
         return BalanceHandler.getBalanceStorage(account, currencyId);
     }
 
-    function getReserveBalance(uint16 currencyId)
-        external
-        view
-        returns (int256)
-    {
+    function getReserveBalance(uint16 currencyId) external view returns (int256) {
         (
             int256 cashBalance, /* */ /* */
             ,
 
-        ) =
-            BalanceHandler.getBalanceStorage(
-                BalanceHandler.RESERVE,
-                currencyId
-            );
+        ) = BalanceHandler.getBalanceStorage(BalanceHandler.RESERVE, currencyId);
         return cashBalance;
     }
 
-    function getAccountPortfolio(address account)
-        external
-        view
-        returns (PortfolioAsset[] memory)
-    {
-        AccountStorage memory accountContext =
-            AccountContextHandler.getAccountContext(account);
-        return
-            PortfolioHandler.getSortedPortfolio(
-                account,
-                accountContext.assetArrayLength
-            );
+    function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
     function getPerpetualTokenPortfolio(address tokenAddress)
@@ -252,21 +197,12 @@ contract Views is StorageLayoutV1 {
                 tokenAddress,
                 uint8(parameters[PerpetualToken.ASSET_ARRAY_LENGTH])
             ),
-            BitmapAssetsHandler.getifCashArray(
-                tokenAddress,
-                currencyId,
-                lastInitializedTime
-            )
+            BitmapAssetsHandler.getifCashArray(tokenAddress, currencyId, lastInitializedTime)
         );
     }
 
-    function getifCashAssets(address account)
-        external
-        view
-        returns (PortfolioAsset[] memory)
-    {
-        AccountStorage memory accountContext =
-            AccountContextHandler.getAccountContext(account);
+    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory) {
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.bitmapCurrencyId == 0) {
             return new PortfolioAsset[](0);
@@ -294,7 +230,7 @@ contract Views is StorageLayoutV1 {
             int256 tokensToMint, /* */
 
         ) =
-            MintPerpetualTokenAction.calculateTokensToMint(
+            nTokenMintAction.calculateTokensToMint(
                 perpToken,
                 amountToDepositInternal,
                 block.timestamp
@@ -308,8 +244,7 @@ contract Views is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity
     ) external view returns (int256) {
-        bytes32 fCashSlot =
-            BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
+        bytes32 fCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
         int256 notional;
         assembly {
             notional := sload(fCashSlot)
@@ -317,19 +252,11 @@ contract Views is StorageLayoutV1 {
         return notional;
     }
 
-    function getifCashBitmap(address account, uint256 currencyId)
-        external
-        view
-        returns (bytes32)
-    {
+    function getifCashBitmap(address account, uint256 currencyId) external view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function getFreeCollateralView(address account)
-        external
-        view
-        returns (int256)
-    {
+    function getFreeCollateralView(address account) external view returns (int256) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
 
@@ -350,18 +277,9 @@ contract Views is StorageLayoutV1 {
         require(market.maturity > blockTime, "Error");
         uint256 timeToMaturity = market.maturity - blockTime;
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
-            Market.getExchangeRateFactors(
-                market,
-                cashGroup,
-                timeToMaturity,
-                marketIndex
-            );
+            Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         require(rateScalar > 0, "Error");
-        int256 fee =
-            Market.getExchangeRateFromImpliedRate(
-                cashGroup.getTotalFee(),
-                timeToMaturity
-            );
+        int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return
             Market.getfCashGivenCashAmount(
@@ -394,17 +312,9 @@ contract Views is StorageLayoutV1 {
 
         (int256 assetCash, ) =
             /* int fee */
-            market.calculateTrade(
-                cashGroup,
-                fCashAmount,
-                timeToMaturity,
-                marketIndex
-            );
+            market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
-        return (
-            assetCash,
-            cashGroup.assetRate.convertInternalToUnderlying(assetCash)
-        );
+        return (assetCash, cashGroup.assetRate.convertInternalToUnderlying(assetCash));
     }
 
     fallback() external {

@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../storage/TokenHandler.sol";
+import "../internal/balances/TokenHandler.sol";
 
 contract MockTokenHandler is StorageLayoutV1 {
     using TokenHandler for Token;
@@ -12,7 +12,7 @@ contract MockTokenHandler is StorageLayoutV1 {
     }
 
     function setCurrencyMapping(
-        uint id,
+        uint256 id,
         bool underlying,
         TokenStorage calldata ts
     ) external {
@@ -23,37 +23,27 @@ contract MockTokenHandler is StorageLayoutV1 {
      * @dev This method does not update internal balances...must use currency handler.
      */
     function transfer(
-        uint currencyId,
+        uint256 currencyId,
         address account,
         bool underlying,
-        int netTransfer
-    ) external returns (int) {
+        int256 netTransfer
+    ) external returns (int256) {
         Token memory token = TokenHandler.getToken(currencyId, underlying);
         return token.transfer(account, netTransfer);
     }
 
-    function mint(
-        uint currencyId,
-        uint underlyingAmount
-    ) external returns (int) {
+    function mint(uint256 currencyId, uint256 underlyingAmount) external returns (int256) {
         Token memory token = TokenHandler.getToken(currencyId, false);
         return token.mint(underlyingAmount);
     }
 
-    function redeem(
-        uint currencyId,
-        uint tokensInternalPrecision
-    ) external returns (int) {
+    function redeem(uint256 currencyId, uint256 tokensInternalPrecision) external returns (int256) {
         Token memory token = TokenHandler.getToken(currencyId, false);
         Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
         return token.redeem(underlyingToken, tokensInternalPrecision);
     }
 
-    function getToken(
-        uint currencyId,
-        bool underlying
-    ) external view returns (Token memory) {
+    function getToken(uint256 currencyId, bool underlying) external view returns (Token memory) {
         return TokenHandler.getToken(currencyId, underlying);
     }
-
 }

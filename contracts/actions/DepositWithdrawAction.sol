@@ -2,16 +2,16 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./FreeCollateralExternal.sol";
 import "./SettleAssetsExternal.sol";
+import "../external/FreeCollateralExternal.sol";
 import "../external/actions/nTokenMintAction.sol";
 import "../external/actions/nTokenRedeemAction.sol";
 import "./TradingAction.sol";
 import "../math/SafeInt256.sol";
-import "../storage/SettleAssets.sol";
-import "../storage/BalanceHandler.sol";
-import "../storage/PortfolioHandler.sol";
-import "../storage/AccountContextHandler.sol";
+import "../internal/settlement/SettleAssets.sol";
+import "../internal/balances/BalanceHandler.sol";
+import "../internal/portfolio/PortfolioHandler.sol";
+import "../internal/AccountContextHandler.sol";
 
 enum DepositActionType {
     None,

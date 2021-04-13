@@ -3,9 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./Market.sol";
-import "../math/SafeInt256.sol";
-import "../storage/StorageLayoutV1.sol";
-import "../storage/TokenHandler.sol";
+import "../../math/SafeInt256.sol";
+import "../balances/TokenHandler.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
@@ -42,10 +41,11 @@ library AssetRate {
      * @param ar exchange rate object between asset and underlying
      * @param assetBalance amount (denominated in asset value) to convert to underlying
      */
-    function convertInternalToUnderlying(
-        AssetRateParameters memory ar,
-        int256 assetBalance
-    ) internal pure returns (int256) {
+    function convertInternalToUnderlying(AssetRateParameters memory ar, int256 assetBalance)
+        internal
+        pure
+        returns (int256)
+    {
         if (assetBalance == 0) return 0;
 
         // Calculation here represents:
@@ -72,31 +72,25 @@ library AssetRate {
      * @param ar exchange rate object between asset and underlying
      * @param underlyingBalance amount (denominated in internal precision) to convert to asset value
      */
-    function convertInternalFromUnderlying(
-        AssetRateParameters memory ar,
-        int256 underlyingBalance
-    ) internal pure returns (int256) {
+    function convertInternalFromUnderlying(AssetRateParameters memory ar, int256 underlyingBalance)
+        internal
+        pure
+        returns (int256)
+    {
         if (underlyingBalance == 0) return 0;
 
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rateDecimals * internalPrecision
         int256 assetBalance =
-            underlyingBalance
-                .mul(ASSET_RATE_DECIMALS)
-                .mul(ar.underlyingDecimals)
-                .div(ar.rate)
-                .div(TokenHandler.INTERNAL_TOKEN_PRECISION);
+            underlyingBalance.mul(ASSET_RATE_DECIMALS).mul(ar.underlyingDecimals).div(ar.rate).div(
+                TokenHandler.INTERNAL_TOKEN_PRECISION
+            );
 
         return assetBalance;
     }
 
-    function getSupplyRate(AssetRateParameters memory ar)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 rate =
-            AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
+    function getSupplyRate(AssetRateParameters memory ar) internal view returns (uint256) {
+        uint256 rate = AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
         // TODO: is it possible for the supply rate to be zero?
         require(rate > 0, "AR: invalid supply rate");
 
@@ -112,8 +106,7 @@ library AssetRate {
             uint8
         )
     {
-        bytes32 slot =
-            keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
+        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
         bytes32 data;
 
         assembly {
@@ -140,8 +133,7 @@ library AssetRate {
             uint8
         )
     {
-        bytes32 slot =
-            keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
+        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
         bytes32 data;
 
         assembly {
@@ -196,8 +188,7 @@ library AssetRate {
         view
         returns (AssetRateParameters memory)
     {
-        bytes32 slot =
-            keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
         bytes32 data;
 
         assembly {
@@ -221,8 +212,7 @@ library AssetRate {
         int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
 
         // Rate oracle not required for settlement
-        return
-            AssetRateParameters(address(0), settlementRate, underlyingDecimals);
+        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
     }
 
     function buildSettlementRateStateful(
@@ -230,8 +220,7 @@ library AssetRate {
         uint256 maturity,
         uint256 blockTime
     ) internal returns (AssetRateParameters memory) {
-        bytes32 slot =
-            keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
         bytes32 data;
 
         assembly {
@@ -267,7 +256,6 @@ library AssetRate {
 
         int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
 
-        return
-            AssetRateParameters(address(0), settlementRate, underlyingDecimals);
+        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
     }
 }

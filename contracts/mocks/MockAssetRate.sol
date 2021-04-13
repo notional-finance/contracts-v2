@@ -2,87 +2,80 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/AssetRate.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../internal/markets/AssetRate.sol";
+import "../global/StorageLayoutV1.sol";
 
 contract MockAssetRate is StorageLayoutV1 {
-    event SetSettlementRate(uint currencyId, uint maturity, uint128 rate);
+    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
 
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
-    function setAssetRateMapping(
-        uint id,
-        AssetRateStorage calldata rs
-    ) external {
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function assertBalanceSign(int balance, int result) private pure {
+    function assertBalanceSign(int256 balance, int256 result) private pure {
         if (balance == 0) assert(result == 0);
         else if (balance < 0) assert(result < 0);
         else if (balance > 0) assert(result > 0);
     }
 
-    function convertInternalToUnderlying(
-        AssetRateParameters memory er,
-        int balance
-    ) external pure returns (int) {
+    function convertInternalToUnderlying(AssetRateParameters memory er, int256 balance)
+        external
+        pure
+        returns (int256)
+    {
         require(er.rate > 0);
-        int result = er.convertInternalToUnderlying(balance);
+        int256 result = er.convertInternalToUnderlying(balance);
         assertBalanceSign(balance, result);
 
         return result;
     }
 
-    function convertInternalFromUnderlying(
-        AssetRateParameters memory er,
-        int balance
-    ) external pure returns (int) {
+    function convertInternalFromUnderlying(AssetRateParameters memory er, int256 balance)
+        external
+        pure
+        returns (int256)
+    {
         require(er.rate > 0);
-        int result = er.convertInternalFromUnderlying(balance);
+        int256 result = er.convertInternalFromUnderlying(balance);
         assertBalanceSign(balance, result);
 
         return result;
     }
 
-    function buildAssetRate(
-        uint currencyId
-    ) external returns (AssetRateParameters memory) {
+    function buildAssetRate(uint256 currencyId) external returns (AssetRateParameters memory) {
         AssetRateParameters memory assetRateStateful = AssetRate.buildAssetRateStateful(currencyId);
         AssetRateParameters memory assetRateView = AssetRate.buildAssetRateView(currencyId);
 
-        assert (assetRateStateful.rate == assetRateView.rate);
-        assert (assetRateStateful.underlyingDecimals == assetRateView.underlyingDecimals);
-        assert (assetRateStateful.rateOracle == assetRateView.rateOracle);
+        assert(assetRateStateful.rate == assetRateView.rate);
+        assert(assetRateStateful.underlyingDecimals == assetRateView.underlyingDecimals);
+        assert(assetRateStateful.rateOracle == assetRateView.rateOracle);
 
         return assetRateStateful;
     }
 
-    function buildAssetRateStateful(
-        uint currencyId
-    ) external returns (AssetRateParameters memory) {
+    function buildAssetRateStateful(uint256 currencyId)
+        external
+        returns (AssetRateParameters memory)
+    {
         return AssetRate.buildAssetRateStateful(currencyId);
     }
 
     function buildSettlementRate(
-        uint currencyId,
-        uint maturity,
-        uint blockTime
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime
     ) external returns (AssetRateParameters memory) {
-        AssetRateParameters memory initialViewRate = AssetRate.buildSettlementRateView(
-            currencyId,
-            maturity
-        );
+        AssetRateParameters memory initialViewRate =
+            AssetRate.buildSettlementRateView(currencyId, maturity);
 
-        AssetRateParameters memory statefulRate = AssetRate.buildSettlementRateStateful(
-            currencyId,
-            maturity,
-            blockTime
-        );
+        AssetRateParameters memory statefulRate =
+            AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
 
-        assert (initialViewRate.rate == statefulRate.rate);
-        assert (initialViewRate.underlyingDecimals == statefulRate.underlyingDecimals);
+        assert(initialViewRate.rate == statefulRate.rate);
+        assert(initialViewRate.underlyingDecimals == statefulRate.underlyingDecimals);
 
         return statefulRate;
     }

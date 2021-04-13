@@ -2,20 +2,18 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../actions/SettleAssetsExternal.sol";
-import "../storage/PortfolioHandler.sol";
-import "../storage/AccountContextHandler.sol";
-import "../storage/BitmapAssetsHandler.sol";
+import "../../actions/SettleAssetsExternal.sol";
+import "./PortfolioHandler.sol";
+import "./BitmapAssetsHandler.sol";
+import "../AccountContextHandler.sol";
 
 library TransferAssets {
     using AccountContextHandler for AccountStorage;
     using PortfolioHandler for PortfolioState;
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
 
-    function invertNotionalAmountsInPlace(
-        PortfolioAsset[] memory assets
-    ) internal pure {
-        for (uint i; i < assets.length; i++) {
+    function invertNotionalAmountsInPlace(PortfolioAsset[] memory assets) internal pure {
+        for (uint256 i; i < assets.length; i++) {
             assets[i].notional = assets[i].notional.neg();
         }
     }
@@ -39,10 +37,9 @@ library TransferAssets {
     ) internal {
         PortfolioState memory portfolioState;
         if (accountContext.mustSettleAssets()) {
-            (
-                accountContext,
-                portfolioState
-            ) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(account);
+            (accountContext, portfolioState) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(
+                account
+            );
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(
                 account,

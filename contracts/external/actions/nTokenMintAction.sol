@@ -3,20 +3,18 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../global/Constants.sol";
-import "../../common/PerpetualToken.sol";
-import "../../common/Market.sol";
-import "../../common/CashGroup.sol";
-import "../../common/AssetRate.sol";
+import "../../internal/PerpetualToken.sol";
+import "../../internal/markets/Market.sol";
+import "../../internal/markets/CashGroup.sol";
+import "../../internal/markets/AssetRate.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../math/SafeInt256.sol";
-import "../../storage/BalanceHandler.sol";
-import "../../storage/AccountContextHandler.sol";
-import "../../storage/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenMintAction {
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
-    using AccountContextHandler for AccountStorage;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
     using PerpetualToken for PerpetualTokenPortfolio;

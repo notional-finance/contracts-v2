@@ -8,8 +8,8 @@ import "./actions/nTokenRedeemAction.sol";
 import "./actions/GovernanceAction.sol";
 import "../actions/DepositWithdrawAction.sol";
 import "../actions/InitializeMarketsAction.sol";
-import "../storage/StorageLayoutV1.sol";
-import "../storage/TokenHandler.sol";
+import "../global/StorageLayoutV1.sol";
+import "../global/Types.sol";
 import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
 
 /**

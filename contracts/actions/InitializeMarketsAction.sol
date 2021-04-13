@@ -2,13 +2,13 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/Market.sol";
-import "../common/CashGroup.sol";
-import "../common/AssetRate.sol";
-import "../common/PerpetualToken.sol";
-import "../storage/BalanceHandler.sol";
-import "../storage/PortfolioHandler.sol";
-import "../storage/SettleAssets.sol";
+import "../internal/markets/Market.sol";
+import "../internal/markets/CashGroup.sol";
+import "../internal/markets/AssetRate.sol";
+import "../internal/balances/BalanceHandler.sol";
+import "../internal/portfolio/PortfolioHandler.sol";
+import "../internal/settlement/SettleAssets.sol";
+import "../internal/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -28,8 +28,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  *  - Set new markets and add liquidity tokens to portfolio
  */
 library InitializeMarketsAction {
-    using SafeMath for uint;
-    using SafeInt256 for int;
+    using SafeMath for uint256;
+    using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
     using BalanceHandler for BalanceState;
@@ -40,56 +40,56 @@ library InitializeMarketsAction {
     event MarketsInitialized(uint16 currencyId);
 
     struct GovernanceParameters {
-        int[] depositShares;
-        int[] leverageThresholds;
-        int[] rateAnchors;
-        int[] proportions;
+        int256[] depositShares;
+        int256[] leverageThresholds;
+        int256[] rateAnchors;
+        int256[] proportions;
     }
 
-    function getGovernanceParameters(
-        uint currencyId,
-        uint maxMarketIndex
-    ) private view returns (GovernanceParameters memory) {
+    function getGovernanceParameters(uint256 currencyId, uint256 maxMarketIndex)
+        private
+        view
+        returns (GovernanceParameters memory)
+    {
         GovernanceParameters memory params;
-        (
-            params.depositShares,
-            params.leverageThresholds
-        ) = PerpetualToken.getDepositParameters(currencyId, maxMarketIndex);
+        (params.depositShares, params.leverageThresholds) = PerpetualToken.getDepositParameters(
+            currencyId,
+            maxMarketIndex
+        );
 
-        (
-            params.rateAnchors,
-            params.proportions
-        ) = PerpetualToken.getInitializationParameters(currencyId, maxMarketIndex);
+        (params.rateAnchors, params.proportions) = PerpetualToken.getInitializationParameters(
+            currencyId,
+            maxMarketIndex
+        );
 
         return params;
     }
 
     function settlePerpetualTokenPortfolio(
         PerpetualTokenPortfolio memory perpToken,
-        uint blockTime
+        uint256 blockTime
     ) private returns (bytes32) {
         // Perpetual token never has idiosyncratic cash between 90 day intervals but since it also has a
         // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
         // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
         // esoteric but will ensure that ifCash is never improperly settled.
-        uint referenceTime = CashGroup.getReferenceTime(blockTime);
+        uint256 referenceTime = CashGroup.getReferenceTime(blockTime);
         require(perpToken.lastInitializedTime < referenceTime, "IM: invalid time");
 
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
-            SettleAmount[] memory settleAmount = SettleAssets.getSettleAssetContextStateful(
-                perpToken.portfolioState,
-                blockTime
-            );
+            SettleAmount[] memory settleAmount =
+                SettleAssets.getSettleAssetContextStateful(perpToken.portfolioState, blockTime);
             perpToken.cashBalance = perpToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
-        (bytes32 ifCashBitmap, int settledAssetCash) = SettleAssets.settleBitmappedCashGroup(
-            perpToken.tokenAddress,
-            perpToken.cashGroup.currencyId,
-            perpToken.lastInitializedTime,
-            blockTime
-        );
+        (bytes32 ifCashBitmap, int256 settledAssetCash) =
+            SettleAssets.settleBitmappedCashGroup(
+                perpToken.tokenAddress,
+                perpToken.cashGroup.currencyId,
+                perpToken.lastInitializedTime,
+                blockTime
+            );
         perpToken.cashBalance = perpToken.cashBalance.add(settledAssetCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
@@ -103,20 +103,20 @@ library InitializeMarketsAction {
      * in this way
      */
     function getPreviousMarkets(
-        uint currencyId,
-        uint blockTime,
+        uint256 currencyId,
+        uint256 blockTime,
         PerpetualTokenPortfolio memory perpToken
     ) private view {
-        uint rateOracleTimeWindow = perpToken.cashGroup.getRateOracleTimeWindow();
+        uint256 rateOracleTimeWindow = perpToken.cashGroup.getRateOracleTimeWindow();
         // This will reference the previous settlement date to get the previous markets
-        uint settlementDate = CashGroup.getReferenceTime(blockTime);
+        uint256 settlementDate = CashGroup.getReferenceTime(blockTime);
 
         // Assume that assets are stored in order and include all assets of the previous market
         // set. This will account for the potential that markets.length is greater than the previous
         // markets when the maxMarketIndex is increased (increasing the overall number of markets).
         // We don't fetch the 3 month market (i = 0) because it has settled and will not be used for
         // the subsequent calculations.
-        for (uint i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
+        for (uint256 i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
             perpToken.markets[i].loadMarketWithSettlementDate(
                 currencyId,
                 // These assets will reference the previous liquidity tokens
@@ -136,17 +136,20 @@ library InitializeMarketsAction {
      */
     function withholdAndSetfCashAssets(
         PerpetualTokenPortfolio memory perpToken,
-        uint currencyId,
+        uint256 currencyId,
         bytes32 ifCashBitmap,
-        uint blockTime
-    ) private returns (int, bytes32) {
+        uint256 blockTime
+    ) private returns (int256, bytes32) {
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
-        for (uint i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
+        for (uint256 i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
             if (asset.assetType != AssetHandler.FCASH_ASSET_TYPE) continue;
 
-            (ifCashBitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
+            (
+                ifCashBitmap, /* notional */
+
+            ) = BitmapAssetsHandler.addifCashAsset(
                 perpToken.tokenAddress,
                 currencyId,
                 asset.maturity,
@@ -160,24 +163,25 @@ library InitializeMarketsAction {
         }
 
         // Recalculate what the withholdings are if there are any ifCash assets remaining
-        int assetCashWithholding = BitmapAssetsHandler.getPerpetualTokenNegativefCashWithholding(
-            perpToken,
-            blockTime,
-            ifCashBitmap
-        );
+        int256 assetCashWithholding =
+            BitmapAssetsHandler.getPerpetualTokenNegativefCashWithholding(
+                perpToken,
+                blockTime,
+                ifCashBitmap
+            );
 
         return (assetCashWithholding, ifCashBitmap);
     }
 
     function calculateNetAssetCashAvailable(
         PerpetualTokenPortfolio memory perpToken,
-        uint blockTime,
-        uint currencyId,
+        uint256 blockTime,
+        uint256 currencyId,
         bool isFirstInit
-    ) private returns (int, bytes32) {
-        int netAssetCashAvailable;
+    ) private returns (int256, bytes32) {
+        int256 netAssetCashAvailable;
         bytes32 ifCashBitmap;
-        int assetCashWithholding;
+        int256 assetCashWithholding;
 
         if (isFirstInit) {
             perpToken.lastInitializedTime = uint40(CashGroup.getTimeUTC0(blockTime));
@@ -203,7 +207,7 @@ library InitializeMarketsAction {
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
         require(
-            netAssetCashAvailable > int(PerpetualToken.DEPOSIT_PERCENT_BASIS),
+            netAssetCashAvailable > int256(PerpetualToken.DEPOSIT_PERCENT_BASIS),
             "IM: insufficient cash"
         );
 
@@ -217,18 +221,19 @@ library InitializeMarketsAction {
      */
     function getSixMonthImpliedRate(
         MarketParameters[] memory previousMarkets,
-        uint referenceTime
-    ) private pure returns (uint) {
+        uint256 referenceTime
+    ) private pure returns (uint256) {
         // Cannot interpolate six month rate without a 1 year market
-        require (previousMarkets.length >= 3, "IM: six month error");
+        require(previousMarkets.length >= 3, "IM: six month error");
 
-        return CashGroup.interpolateOracleRate(
-            previousMarkets[1].maturity,
-            previousMarkets[2].maturity,
-            previousMarkets[1].oracleRate,
-            previousMarkets[2].oracleRate,
-            referenceTime + 2 * CashGroup.QUARTER
-        );
+        return
+            CashGroup.interpolateOracleRate(
+                previousMarkets[1].maturity,
+                previousMarkets[2].maturity,
+                previousMarkets[1].oracleRate,
+                previousMarkets[2].oracleRate,
+                referenceTime + 2 * CashGroup.QUARTER
+            );
     }
 
     /**
@@ -246,12 +251,12 @@ library InitializeMarketsAction {
      * proportion = exp / (1 + exp)
      */
     function getProportionFromOracleRate(
-        uint oracleRate,
-        uint timeToMaturity,
-        int rateScalar,
-        int rateAnchor
-    ) private pure returns (int) {
-        int exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
+        uint256 oracleRate,
+        uint256 timeToMaturity,
+        int256 rateScalar,
+        int256 rateAnchor
+    ) private pure returns (int256) {
+        int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
         // If exchange rate is less than 1 then we set it to 1 so that this can continue
         if (exchangeRate < Market.RATE_PRECISION) {
             // TODO: Is this the correct thing to do?
@@ -279,48 +284,49 @@ library InitializeMarketsAction {
      * interpolatedRate = slope * (assetMaturity - shortMarket.maturity) + shortMarket.oracleRate
      */
     function interpolateFutureRate(
-        uint shortMaturity,
-        uint shortRate,
+        uint256 shortMaturity,
+        uint256 shortRate,
         MarketParameters memory longMarket
-    ) private pure returns (uint) {
-        uint longMaturity = longMarket.maturity;
-        uint longRate = longMarket.oracleRate;
+    ) private pure returns (uint256) {
+        uint256 longMaturity = longMarket.maturity;
+        uint256 longRate = longMarket.oracleRate;
         // the next market maturity is always a quarter away
-        uint newMaturity = longMarket.maturity + CashGroup.QUARTER;
+        uint256 newMaturity = longMarket.maturity + CashGroup.QUARTER;
         require(shortMaturity < longMaturity, "IM: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get underflows here so we check for that
         if (longRate >= shortRate) {
-            return (longRate - shortRate)
-                .mul(newMaturity - shortMaturity)
+            return
+                (longRate - shortRate)
+                    .mul(newMaturity - shortMaturity)
                 // No underflow here, checked above
-                .div(longMaturity - shortMaturity)
-                .add(shortRate);
+                    .div(longMaturity - shortMaturity)
+                    .add(shortRate);
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
-            uint diff = (shortRate - longRate)
-                .mul(newMaturity - shortMaturity)
+            uint256 diff =
+                (shortRate - longRate)
+                    .mul(newMaturity - shortMaturity)
                 // No underflow here, checked above
-                .div(longMaturity - shortMaturity);
-            
+                    .div(longMaturity - shortMaturity);
+
             // This interpolation may go below zero so we bottom out interpolated rates at zero
             return shortRate > diff ? shortRate - diff : 0;
         }
     }
 
     function setLiquidityAmount(
-        int netAssetCashAvailable,
-        int depositShare,
-        uint assetType,
+        int256 netAssetCashAvailable,
+        int256 depositShare,
+        uint256 assetType,
         MarketParameters memory newMarket,
         PerpetualTokenPortfolio memory perpToken
-    ) private pure returns (int) {
+    ) private pure returns (int256) {
         // The portion of the cash available that will be deposited into the market
-        int assetCashToMarket = netAssetCashAvailable
-            .mul(depositShare)
-            .div(PerpetualToken.DEPOSIT_PERCENT_BASIS);
+        int256 assetCashToMarket =
+            netAssetCashAvailable.mul(depositShare).div(PerpetualToken.DEPOSIT_PERCENT_BASIS);
         newMarket.totalCurrentCash = assetCashToMarket;
         newMarket.totalLiquidity = assetCashToMarket;
 
@@ -342,9 +348,10 @@ library InitializeMarketsAction {
      * @notice Initialize the market for a given currency id. An amount to deposit can be specified which
      * ensures that new markets will have some cash in them when we initialize.
      */
-    function initializeMarkets(uint currencyId, bool isFirstInit) external {
-        uint blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken = PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
+    function initializeMarkets(uint256 currencyId, bool isFirstInit) external {
+        uint256 blockTime = block.timestamp;
+        PerpetualTokenPortfolio memory perpToken =
+            PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
 
         // This should be sufficient to validate that the currency id is valid
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
@@ -353,41 +360,39 @@ library InitializeMarketsAction {
             require(perpToken.portfolioState.storedAssets.length == 0, "IM: not first init");
         }
 
-        (int netAssetCashAvailable, bytes32 ifCashBitmap) = calculateNetAssetCashAvailable(
-            perpToken,
-            blockTime,
-            currencyId,
-            isFirstInit
-        );
+        (int256 netAssetCashAvailable, bytes32 ifCashBitmap) =
+            calculateNetAssetCashAvailable(perpToken, blockTime, currencyId, isFirstInit);
 
-        GovernanceParameters memory parameters = getGovernanceParameters(
-            currencyId,
-            perpToken.cashGroup.maxMarketIndex
-        );
+        GovernanceParameters memory parameters =
+            getGovernanceParameters(currencyId, perpToken.cashGroup.maxMarketIndex);
 
         MarketParameters memory newMarket;
         // Oracle rate is carried over between loops
-        uint oracleRate;
-        for (uint i; i < perpToken.cashGroup.maxMarketIndex; i++) {
+        uint256 oracleRate;
+        for (uint256 i; i < perpToken.cashGroup.maxMarketIndex; i++) {
             // Traded markets are 1-indexed
-            newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i + 1));
-
-            int underlyingCashToMarket = setLiquidityAmount(
-                netAssetCashAvailable,
-                parameters.depositShares[i],
-                2 + i, // liquidity token asset type
-                newMarket,
-                perpToken
+            newMarket.maturity = CashGroup.getReferenceTime(blockTime).add(
+                CashGroup.getTradedMarket(i + 1)
             );
 
-            uint timeToMaturity = newMarket.maturity.sub(blockTime);
-            int rateScalar = perpToken.cashGroup.getRateScalar(i + 1, timeToMaturity);
+            int256 underlyingCashToMarket =
+                setLiquidityAmount(
+                    netAssetCashAvailable,
+                    parameters.depositShares[i],
+                    2 + i, // liquidity token asset type
+                    newMarket,
+                    perpToken
+                );
+
+            uint256 timeToMaturity = newMarket.maturity.sub(blockTime);
+            int256 rateScalar = perpToken.cashGroup.getRateScalar(i + 1, timeToMaturity);
             // Governance will prevent perpToken.markets.length from being equal to 1, meaning that we will
             // either have 0 markets (on first init), exactly 2 markets, or 2+ markets. In the case that there
             // are exactly two markets then the 6 month market must be initialized via this method (there is no
             // 9 month market to interpolate a rate against). In the case of 2+ markets then we will only enter this
             // first branch when the number of markets is increased
-            if (isFirstInit ||
+            if (
+                isFirstInit ||
                 // TODO: clean up this if statement
                 (i == 1 && perpToken.markets.length == 2) ||
                 // At this point, these are new markets and new markets must be created
@@ -402,16 +407,17 @@ library InitializeMarketsAction {
                 // proportion * totalCashUnderlying + proportion * totalfCash = totalfCash
                 // proportion * totalCashUnderlying = totalfCash * (1 - proportion)
                 // totalfCash = proportion * totalCashUnderlying / (1 - proportion)
-                int fCashAmount = underlyingCashToMarket
-                    .mul(parameters.proportions[i])
-                    .div(Market.RATE_PRECISION.sub(parameters.proportions[i]));
+                int256 fCashAmount =
+                    underlyingCashToMarket.mul(parameters.proportions[i]).div(
+                        Market.RATE_PRECISION.sub(parameters.proportions[i])
+                    );
 
                 newMarket.totalfCash = fCashAmount;
                 newMarket.oracleRate = Market.getImpliedRate(
                     fCashAmount,
                     underlyingCashToMarket,
                     rateScalar,
-                    int(parameters.rateAnchors[i]), // Will revert on out of bounds error here
+                    int256(parameters.rateAnchors[i]), // Will revert on out of bounds error here
                     timeToMaturity
                 );
 
@@ -440,9 +446,10 @@ library InitializeMarketsAction {
                     // market will have its implied rate set to the interpolation between the newly initialized 6 month market (done in
                     // previous iteration of this loop) and the previous 1 year market (which has now rolled down to 9 months). Similarly,
                     // a 2 year market will be interpolated from the newly initialized 1 year and the previous 2 year market.
-                    
+
                     // This is the previous market maturity, traded markets are 1-indexed
-                    uint shortMarketMaturity = CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i));
+                    uint256 shortMarketMaturity =
+                        CashGroup.getReferenceTime(blockTime).add(CashGroup.getTradedMarket(i));
                     oracleRate = interpolateFutureRate(
                         shortMarketMaturity,
                         oracleRate,
@@ -453,12 +460,13 @@ library InitializeMarketsAction {
                 // When initializing new markets we need to ensure that the new implied oracle rates align
                 // with the current yield curve or valuations for ifCash will spike. This should reference the
                 // previously calculated implied rate and the current market.
-                int proportion = getProportionFromOracleRate(
-                    oracleRate,
-                    timeToMaturity,
-                    rateScalar,
-                    parameters.rateAnchors[i]
-                );
+                int256 proportion =
+                    getProportionFromOracleRate(
+                        oracleRate,
+                        timeToMaturity,
+                        rateScalar,
+                        parameters.rateAnchors[i]
+                    );
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
                 // provide liquidity without risk of liquidation. In this case, set the leverage threshold
@@ -467,9 +475,9 @@ library InitializeMarketsAction {
                 // result as well.
                 if (proportion > parameters.leverageThresholds[i]) {
                     proportion = parameters.leverageThresholds[i];
-                    newMarket.totalfCash = underlyingCashToMarket
-                        .mul(proportion)
-                        .div(Market.RATE_PRECISION.sub(proportion));
+                    newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
+                        Market.RATE_PRECISION.sub(proportion)
+                    );
 
                     oracleRate = Market.getImpliedRate(
                         newMarket.totalfCash,
@@ -481,9 +489,9 @@ library InitializeMarketsAction {
 
                     require(oracleRate != 0, "Oracle rate overflow");
                 } else {
-                    newMarket.totalfCash = underlyingCashToMarket
-                        .mul(proportion)
-                        .div(Market.RATE_PRECISION.sub(proportion));
+                    newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
+                        Market.RATE_PRECISION.sub(proportion)
+                    );
                 }
 
                 // It's possible for proportion to be equal to zero, in this case we set the totalfCash to a minimum
@@ -496,16 +504,29 @@ library InitializeMarketsAction {
             }
 
             newMarket.lastImpliedRate = newMarket.oracleRate;
-            ifCashBitmap = finalizeMarket(newMarket, currencyId, perpToken.tokenAddress, ifCashBitmap);
+            ifCashBitmap = finalizeMarket(
+                newMarket,
+                currencyId,
+                perpToken.tokenAddress,
+                ifCashBitmap
+            );
         }
 
         (
-            /* hasDebt */,
-            /* activeCurrencies */,
+            ,
+            ,
+            /* hasDebt */
+            /* activeCurrencies */
             uint8 assetArrayLength,
+
+        ) =
             /* nextSettleTime */
-        ) = perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
-        BalanceHandler.setBalanceStorageForPerpToken(perpToken.tokenAddress, currencyId, perpToken.cashBalance);
+            perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
+        BalanceHandler.setBalanceStorageForPerpToken(
+            perpToken.tokenAddress,
+            currencyId,
+            perpToken.cashBalance
+        );
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);
         PerpetualToken.setArrayLengthAndInitializedTime(
             perpToken.tokenAddress,
@@ -518,25 +539,29 @@ library InitializeMarketsAction {
 
     function finalizeMarket(
         MarketParameters memory market,
-        uint currencyId,
+        uint256 currencyId,
         address tokenAddress,
         bytes32 ifCashBitmap
     ) internal returns (bytes32) {
-        uint blockTime = block.timestamp;
+        uint256 blockTime = block.timestamp;
         // Always reference the current settlement date
-        uint settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
         market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();
 
-        (bytes32 bitmap, /* notional */) = BitmapAssetsHandler.addifCashAsset(
-            tokenAddress,
-            currencyId,
-            market.maturity,
-            CashGroup.getTimeUTC0(blockTime),
-            market.totalfCash.neg(),
-            ifCashBitmap
-        );
+        (
+            bytes32 bitmap, /* notional */
+
+        ) =
+            BitmapAssetsHandler.addifCashAsset(
+                tokenAddress,
+                currencyId,
+                market.maturity,
+                CashGroup.getTimeUTC0(blockTime),
+                market.totalfCash.neg(),
+                ifCashBitmap
+            );
 
         return bitmap;
     }

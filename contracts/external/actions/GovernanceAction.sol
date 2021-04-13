@@ -2,11 +2,11 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../common/ExchangeRate.sol";
-import "../../common/CashGroup.sol";
-import "../../common/PerpetualToken.sol";
-import "../../storage/TokenHandler.sol";
-import "../../storage/StorageLayoutV1.sol";
+import "../../internal/valuation/ExchangeRate.sol";
+import "../../internal/markets/CashGroup.sol";
+import "../../internal/PerpetualToken.sol";
+import "../../internal/balances/TokenHandler.sol";
+import "../../global/StorageLayoutV1.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";

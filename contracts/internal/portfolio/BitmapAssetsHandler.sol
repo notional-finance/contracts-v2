@@ -2,14 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./AccountContextHandler.sol";
-import "../common/AssetRate.sol";
-import "../common/CashGroup.sol";
-import "../common/AssetHandler.sol";
-import "../common/PerpetualToken.sol";
-import "../math/Bitmap.sol";
-import "../math/SafeInt256.sol";
-import "../global/Constants.sol";
+import "../AccountContextHandler.sol";
+import "../markets/AssetRate.sol";
+import "../markets/CashGroup.sol";
+import "../valuation/AssetHandler.sol";
+import "../PerpetualToken.sol";
+import "../../math/Bitmap.sol";
+import "../../math/SafeInt256.sol";
+import "../../global/Constants.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library BitmapAssetsHandler {

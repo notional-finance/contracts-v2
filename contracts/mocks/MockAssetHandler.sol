@@ -2,9 +2,9 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../common/AssetHandler.sol";
-import "../common/Market.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../internal/valuation/AssetHandler.sol";
+import "../internal/markets/Market.sol";
+import "../global/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 
 contract MockAssetHandler is StorageLayoutV1 {
@@ -12,44 +12,37 @@ contract MockAssetHandler is StorageLayoutV1 {
     using AssetHandler for PortfolioAsset;
     using Market for MarketParameters;
 
-    function setAssetRateMapping(
-        uint id,
-        AssetRateStorage calldata rs
-    ) external {
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function setCashGroup(
-        uint id,
-        CashGroupParameterStorage calldata cg
-    ) external {
+    function setCashGroup(uint256 id, CashGroupParameterStorage calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(
-        uint currencyId
-    ) public view returns (
-        CashGroupParameters memory,
-        MarketParameters[] memory
-    ) {
+    function buildCashGroupView(uint256 currencyId)
+        public
+        view
+        returns (CashGroupParameters memory, MarketParameters[] memory)
+    {
         return CashGroup.buildCashGroupView(currencyId);
     }
 
     function setMarketStorage(
-        uint currencyId,
-        uint settlementDate,
+        uint256 currencyId,
+        uint256 settlementDate,
         MarketParameters memory market
     ) public {
         market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
         // ensure that state gets set
         market.storageState = 0xFF;
         market.setMarketStorage();
-   }
+    }
 
     function getMarketStorage(
-        uint currencyId,
-        uint maturity,
-        uint blockTime
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime
     ) public view returns (MarketParameters memory) {
         MarketParameters memory market;
         Market.loadMarket(market, currencyId, maturity, blockTime, true, 1);
@@ -57,19 +50,17 @@ contract MockAssetHandler is StorageLayoutV1 {
         return market;
     }
 
-    function getSettlementDate(
-        PortfolioAsset memory asset
-    ) public pure returns (uint) {
+    function getSettlementDate(PortfolioAsset memory asset) public pure returns (uint256) {
         return asset.getSettlementDate();
     }
 
     function getPresentValue(
-        int notional,
-        uint maturity,
-        uint blockTime,
-        uint oracleRate
-    ) public pure returns (int) {
-        int pv = AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime,
+        uint256 oracleRate
+    ) public pure returns (int256) {
+        int256 pv = AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
         if (notional > 0) assert(pv > 0);
         if (notional < 0) assert(pv < 0);
 
@@ -79,13 +70,20 @@ contract MockAssetHandler is StorageLayoutV1 {
 
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
-        int notional,
-        uint maturity,
-        uint blockTime,
-        uint oracleRate
-    ) public pure returns (int) {
-        int riskPv = AssetHandler.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
-        int pv = getPresentValue(notional, maturity, blockTime, oracleRate);
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime,
+        uint256 oracleRate
+    ) public pure returns (int256) {
+        int256 riskPv =
+            AssetHandler.getRiskAdjustedPresentValue(
+                cashGroup,
+                notional,
+                maturity,
+                blockTime,
+                oracleRate
+            );
+        int256 pv = getPresentValue(notional, maturity, blockTime, oracleRate);
 
         assert(riskPv <= pv);
         assert(riskPv.abs() <= notional.abs());
@@ -95,8 +93,8 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
-    ) public pure returns (int, int) {
-        (int cash, int fCash) = liquidityToken.getCashClaims(marketState);
+    ) public pure returns (int256, int256) {
+        (int256 cash, int256 fCash) = liquidityToken.getCashClaims(marketState);
         assert(cash > 0);
         assert(fCash > 0);
         assert(cash <= marketState.totalCurrentCash);
@@ -109,11 +107,10 @@ contract MockAssetHandler is StorageLayoutV1 {
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup
-    ) public pure returns (int, int) {
-        (int haircutCash, int haircutfCash) = liquidityToken.getHaircutCashClaims(
-            marketState, cashGroup
-        );
-        (int cash, int fCash) = liquidityToken.getCashClaims(marketState);
+    ) public pure returns (int256, int256) {
+        (int256 haircutCash, int256 haircutfCash) =
+            liquidityToken.getHaircutCashClaims(marketState, cashGroup);
+        (int256 cash, int256 fCash) = liquidityToken.getCashClaims(marketState);
 
         assert(haircutCash < cash);
         assert(haircutfCash < fCash);
@@ -126,15 +123,18 @@ contract MockAssetHandler is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
-        uint blockTime
-    ) public view returns (int, int, PortfolioAsset[] memory) {
-        (int assetValue, int pv) = liquidityToken.getLiquidityTokenValue(
-            cashGroup,
-            markets,
-            fCashAssets,
-            blockTime,
-            true
-        );
+        uint256 blockTime
+    )
+        public
+        view
+        returns (
+            int256,
+            int256,
+            PortfolioAsset[] memory
+        )
+    {
+        (int256 assetValue, int256 pv) =
+            liquidityToken.getLiquidityTokenValue(cashGroup, markets, fCashAssets, blockTime, true);
 
         return (assetValue, pv, fCashAssets);
     }
@@ -144,15 +144,24 @@ contract MockAssetHandler is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         PortfolioAsset[] memory fCashAssets,
-        uint blockTime
-    ) public view returns (int, int, PortfolioAsset[] memory) {
-        (int assetValue, int pv) = liquidityToken.getLiquidityTokenValue(
-            cashGroup,
-            markets,
-            fCashAssets,
-            blockTime,
-            false
-        );
+        uint256 blockTime
+    )
+        public
+        view
+        returns (
+            int256,
+            int256,
+            PortfolioAsset[] memory
+        )
+    {
+        (int256 assetValue, int256 pv) =
+            liquidityToken.getLiquidityTokenValue(
+                cashGroup,
+                markets,
+                fCashAssets,
+                blockTime,
+                false
+            );
 
         return (assetValue, pv, fCashAssets);
     }
@@ -161,15 +170,16 @@ contract MockAssetHandler is StorageLayoutV1 {
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
-        uint blockTime,
-        uint portfolioIndex
-    ) public view returns(int, uint) {
-        return AssetHandler.getNetCashGroupValue(
-            assets,
-            cashGroup,
-            markets,
-            blockTime,
-            portfolioIndex
-        );
+        uint256 blockTime,
+        uint256 portfolioIndex
+    ) public view returns (int256, uint256) {
+        return
+            AssetHandler.getNetCashGroupValue(
+                assets,
+                cashGroup,
+                markets,
+                blockTime,
+                portfolioIndex
+            );
     }
 }

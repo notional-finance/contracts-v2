@@ -2,10 +2,9 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./StorageLayoutV1.sol";
-import "./BalanceHandler.sol";
-import "./BitmapAssetsHandler.sol";
-import "./PortfolioHandler.sol";
+import "./balances/BalanceHandler.sol";
+import "./portfolio/BitmapAssetsHandler.sol";
+import "./portfolio/PortfolioHandler.sol";
 
 library AccountContextHandler {
     using PortfolioHandler for PortfolioState;
@@ -19,44 +18,43 @@ library AccountContextHandler {
     uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
     bytes18 internal constant UNMASK_ALL_ACTIVE_CURRENCIES = 0x3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF;
     bytes18 internal constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
-    
-    function getAccountContext(
-        address account
-    ) internal view returns (AccountStorage memory) {
+
+    function getAccountContext(address account) internal view returns (AccountStorage memory) {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data;
 
-        assembly { data := sload(slot) }
+        assembly {
+            data := sload(slot)
+        }
 
-        return AccountStorage({
-            nextSettleTime: uint40(uint(data)),
-            hasDebt: bytes1(data << 208),
-            assetArrayLength: uint8(uint(data >> 48)),
-            bitmapCurrencyId: uint16(uint(data >> 56)),
-            activeCurrencies: bytes18(data << 40)
-        });
+        return
+            AccountStorage({
+                nextSettleTime: uint40(uint256(data)),
+                hasDebt: bytes1(data << 208),
+                assetArrayLength: uint8(uint256(data >> 48)),
+                bitmapCurrencyId: uint16(uint256(data >> 56)),
+                activeCurrencies: bytes18(data << 40)
+            });
     }
 
-    function setAccountContext(
-        AccountStorage memory accountContext,
-        address account
-    ) internal {
+    function setAccountContext(AccountStorage memory accountContext, address account) internal {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
-        bytes32 data = (
-            bytes32(uint(accountContext.nextSettleTime)) |
-            bytes32(accountContext.hasDebt) >> 208 |
-            bytes32(uint(accountContext.assetArrayLength)) << 48 |
-            bytes32(uint(accountContext.bitmapCurrencyId)) << 56 |
-            bytes32(accountContext.activeCurrencies) >> 40
-        );
+        bytes32 data =
+            (bytes32(uint256(accountContext.nextSettleTime)) |
+                (bytes32(accountContext.hasDebt) >> 208) |
+                (bytes32(uint256(accountContext.assetArrayLength)) << 48) |
+                (bytes32(uint256(accountContext.bitmapCurrencyId)) << 56) |
+                (bytes32(accountContext.activeCurrencies) >> 40));
 
-        assembly { sstore (slot, data) }
+        assembly {
+            sstore(slot, data)
+        }
     }
 
     function enableBitmapForAccount(
         AccountStorage memory accountContext,
         address account,
-        uint currencyId
+        uint256 currencyId
     ) internal view {
         // Allow setting the currency id to zero to turn off bitmap
         require(currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
@@ -65,34 +63,35 @@ library AccountContextHandler {
             // Account context also cannot have negative cash debts
             require(accountContext.hasDebt == 0x00, "AC: cannot have debt");
         } else {
-            bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            bytes32 ifCashBitmap =
+                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
             require(ifCashBitmap == 0, "AC: cannot have assets");
         }
 
         accountContext.bitmapCurrencyId = uint16(currencyId);
     }
 
-    function mustSettleAssets(
-        AccountStorage memory accountContext
-    ) internal view returns (bool) {
-        return (accountContext.nextSettleTime != 0 && accountContext.nextSettleTime <= block.timestamp);
+    function mustSettleAssets(AccountStorage memory accountContext) internal view returns (bool) {
+        return (accountContext.nextSettleTime != 0 &&
+            accountContext.nextSettleTime <= block.timestamp);
     }
 
     /**
      * @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
      * context active currencies list.
      */
-    function isActiveInBalances(
-        AccountStorage memory accountContext,
-        uint currencyId
-    ) internal pure returns (bool) {
+    function isActiveInBalances(AccountStorage memory accountContext, uint256 currencyId)
+        internal
+        pure
+        returns (bool)
+    {
         bytes18 currencies = accountContext.activeCurrencies;
         require(currencyId != 0 && currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
-        
+
         if (accountContext.bitmapCurrencyId == currencyId) return true;
 
         while (currencies != ZERO) {
-            uint cid = uint(uint16(bytes2(currencies) & UNMASK_FLAGS));
+            uint256 cid = uint256(uint16(bytes2(currencies) & UNMASK_FLAGS));
             bool isActive = bytes2(currencies) & ACTIVE_IN_BALANCES_FLAG == ACTIVE_IN_BALANCES_FLAG;
 
             if (cid == currencyId && isActive) return true;
@@ -112,19 +111,19 @@ library AccountContextHandler {
      */
     function setActiveCurrency(
         AccountStorage memory accountContext,
-        uint currencyId,
+        uint256 currencyId,
         bool isActive,
         bytes2 flags
     ) internal pure {
         require(currencyId != 0 && currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
-        
+
         // If the bitmapped currency is already set then return here. Turning off the bitmap currency
         // id requires other logical handling so we will do it elsewhere.
         if (isActive && accountContext.bitmapCurrencyId == currencyId) return;
 
         bytes18 prefix;
         bytes18 suffix = accountContext.activeCurrencies;
-        uint shifts;
+        uint256 shifts;
 
         /**
          * There are six possible outcomes from this search:
@@ -141,11 +140,13 @@ library AccountContextHandler {
          *      - it must be set to inactive, do nothing
          */
         while (suffix != ZERO) {
-            uint cid = uint(uint16(bytes2(suffix) & UNMASK_FLAGS));
+            uint256 cid = uint256(uint16(bytes2(suffix) & UNMASK_FLAGS));
             // if matches and isActive then return, already in list
             if (cid == currencyId && isActive) {
                 // set flag and return
-                accountContext.activeCurrencies = accountContext.activeCurrencies | (bytes18(flags) >> (shifts * 16));
+                accountContext.activeCurrencies =
+                    accountContext.activeCurrencies |
+                    (bytes18(flags) >> (shifts * 16));
                 return;
             }
 
@@ -154,21 +155,22 @@ library AccountContextHandler {
                 // turn off flag, if both flags are off then remove
                 suffix = suffix & ~bytes18(flags);
                 if (bytes2(suffix) & ~UNMASK_FLAGS == 0x0000) suffix = suffix << 16;
-                accountContext.activeCurrencies = prefix | suffix >> (shifts * 16);
+                accountContext.activeCurrencies = prefix | (suffix >> (shifts * 16));
                 return;
             }
 
             // if greater than and isActive then insert into prefix
             if (cid > currencyId && isActive) {
-                prefix = prefix | bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16);
+                prefix = prefix | (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
                 // check that the total length is not greater than 9
                 require(
-                    accountContext.activeCurrencies[16] == 0x00 && accountContext.activeCurrencies[17] == 0x00,
+                    accountContext.activeCurrencies[16] == 0x00 &&
+                        accountContext.activeCurrencies[17] == 0x00,
                     "AC: too many currencies"
                 );
 
                 // append the suffix
-                accountContext.activeCurrencies = prefix | suffix >> ((shifts + 1) * 16);
+                accountContext.activeCurrencies = prefix | (suffix >> ((shifts + 1) * 16));
                 return;
             }
 
@@ -185,18 +187,19 @@ library AccountContextHandler {
 
         // if end and isActive then insert into suffix, check max length
         require(
-            accountContext.activeCurrencies[16] == 0x00 && accountContext.activeCurrencies[17] == 0x00,
+            accountContext.activeCurrencies[16] == 0x00 &&
+                accountContext.activeCurrencies[17] == 0x00,
             "AC: too many currencies"
         );
-        accountContext.activeCurrencies = prefix | (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
+        accountContext.activeCurrencies =
+            prefix |
+            (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
     }
 
-    function clearPortfolioActiveFlags(
-        bytes18 activeCurrencies
-    ) internal pure returns (bytes18) {
+    function clearPortfolioActiveFlags(bytes18 activeCurrencies) internal pure returns (bytes18) {
         bytes18 result;
         bytes18 suffix = activeCurrencies & TURN_OFF_PORTFOLIO_FLAGS;
-        uint shifts;
+        uint256 shifts;
 
         while (suffix != ZERO) {
             if (bytes2(suffix) & ACTIVE_IN_BALANCES_FLAG == ACTIVE_IN_BALANCES_FLAG) {
@@ -215,12 +218,8 @@ library AccountContextHandler {
         address account,
         PortfolioState memory portfolioState
     ) internal {
-        (
-            bool hasDebt,
-            bytes32 portfolioCurrencies,
-            uint8 assetArrayLength,
-            uint40 nextSettleTime
-        ) = portfolioState.storeAssets(account);
+        (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =
+            portfolioState.storeAssets(account);
 
         if (hasDebt) {
             accountContext.hasDebt = accountContext.hasDebt | HAS_ASSET_DEBT;
@@ -231,10 +230,12 @@ library AccountContextHandler {
         accountContext.assetArrayLength = assetArrayLength;
         accountContext.nextSettleTime = nextSettleTime;
 
-        uint lastCurrency;
-        accountContext.activeCurrencies = clearPortfolioActiveFlags(accountContext.activeCurrencies);
+        uint256 lastCurrency;
+        accountContext.activeCurrencies = clearPortfolioActiveFlags(
+            accountContext.activeCurrencies
+        );
         while (portfolioCurrencies != 0) {
-            uint currencyId = uint(uint16(bytes2(portfolioCurrencies)));
+            uint256 currencyId = uint256(uint16(bytes2(portfolioCurrencies)));
             if (currencyId != lastCurrency) {
                 setActiveCurrency(accountContext, currencyId, true, ACTIVE_IN_PORTFOLIO_FLAG);
             }
@@ -243,5 +244,4 @@ library AccountContextHandler {
             portfolioCurrencies = portfolioCurrencies << 16;
         }
     }
-
 }

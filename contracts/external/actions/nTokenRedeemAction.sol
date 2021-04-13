@@ -2,13 +2,13 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../common/Market.sol";
-import "../../common/PerpetualToken.sol";
-import "../../common/TransferAssets.sol";
+import "../../internal/markets/Market.sol";
+import "../../internal/PerpetualToken.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/portfolio/TransferAssets.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../external/FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
-import "../../storage/PortfolioHandler.sol";
-import "../../storage/BalanceHandler.sol";
-import "../../actions/FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract nTokenRedeemAction {

@@ -2,56 +2,47 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../storage/BitmapAssetsHandler.sol";
-import "../common/AssetRate.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../internal/portfolio/BitmapAssetsHandler.sol";
+import "../internal/markets/AssetRate.sol";
+import "../global/StorageLayoutV1.sol";
 
 contract MockBitmapAssetsHandler is StorageLayoutV1 {
-
-    function setAssetRateMapping(
-        uint id,
-        AssetRateStorage calldata rs
-    ) external {
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function setCashGroup(
-        uint id,
-        CashGroupParameterStorage calldata cg
-    ) external {
+    function setCashGroup(uint256 id, CashGroupParameterStorage calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(
-        uint currencyId
-    ) public view returns (
-        CashGroupParameters memory,
-        MarketParameters[] memory
-    ) {
+    function buildCashGroupView(uint256 currencyId)
+        public
+        view
+        returns (CashGroupParameters memory, MarketParameters[] memory)
+    {
         return CashGroup.buildCashGroupView(currencyId);
     }
 
     function getifCashAsset(
         address account,
-        uint currencyId,
-        uint maturity
-    ) public view returns (int) {
+        uint256 currencyId,
+        uint256 maturity
+    ) public view returns (int256) {
         bytes32 slot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
-        int notional;
-        assembly { notional := sload(slot) }
+        int256 notional;
+        assembly {
+            notional := sload(slot)
+        }
         return notional;
     }
 
-    function getAssetsBitmap(
-        address account,
-        uint currencyId
-    ) public view returns (bytes32) {
+    function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
     function setAssetsBitmap(
         address account,
-        uint currencyId,
+        uint256 currencyId,
         bytes32 assetsBitmap
     ) public {
         return BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
@@ -59,71 +50,70 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
     function addifCashAsset(
         address account,
-        uint currencyId,
-        uint maturity,
-        uint nextSettleTime,
-        int notional,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 nextSettleTime,
+        int256 notional,
         bytes32 assetsBitmap
-    ) public returns (bytes32, int) {
-        return BitmapAssetsHandler.addifCashAsset(
-            account,
-            currencyId,
-            maturity,
-            nextSettleTime,
-            notional,
-            assetsBitmap
-        );
+    ) public returns (bytes32, int256) {
+        return
+            BitmapAssetsHandler.addifCashAsset(
+                account,
+                currencyId,
+                maturity,
+                nextSettleTime,
+                notional,
+                assetsBitmap
+            );
     }
 
     function getifCashNetPresentValue(
         address account,
-        uint currencyId,
-        uint nextSettleTime,
-        uint blockTime,
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
-    ) public view returns (int, bool) {
-        return BitmapAssetsHandler.getifCashNetPresentValue(
-            account,
-            currencyId,
-            nextSettleTime,
-            blockTime,
-            assetsBitmap,
-            cashGroup,
-            markets,
-            riskAdjusted
-        );
+    ) public view returns (int256, bool) {
+        return
+            BitmapAssetsHandler.getifCashNetPresentValue(
+                account,
+                currencyId,
+                nextSettleTime,
+                blockTime,
+                assetsBitmap,
+                cashGroup,
+                markets,
+                riskAdjusted
+            );
     }
 
-    function getMaturityFromBitNum(
-        uint blockTime,
-        uint bitNum
-    ) public pure returns (uint) {
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
+        public
+        pure
+        returns (uint256)
+    {
         return CashGroup.getMaturityFromBitNum(blockTime, bitNum);
     }
 
-    function getBitNumFromMaturity(
-        uint blockTime,
-        uint maturity
-    ) public pure returns (uint, bool) {
+    function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
+        public
+        pure
+        returns (uint256, bool)
+    {
         return CashGroup.getBitNumFromMaturity(blockTime, maturity);
     }
 
     function getPresentValue(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
-        int notional,
-        uint maturity,
-        uint blockTime
-    ) public view returns (int) {
-        uint oracleRate = CashGroup.getOracleRate(
-            cashGroup,
-            markets,
-            maturity,
-            blockTime
-        );
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime
+    ) public view returns (int256) {
+        uint256 oracleRate = CashGroup.getOracleRate(cashGroup, markets, maturity, blockTime);
 
         return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
     }
@@ -131,24 +121,26 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
-        int notional,
-        uint maturity,
-        uint blockTime
-    ) public view returns (int) {
-        uint oracleRate = CashGroup.getOracleRate(
-            cashGroup,
-            markets,
-            maturity,
-            blockTime
-        );
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime
+    ) public view returns (int256) {
+        uint256 oracleRate = CashGroup.getOracleRate(cashGroup, markets, maturity, blockTime);
 
-        return AssetHandler.getRiskAdjustedPresentValue(cashGroup, notional, maturity, blockTime, oracleRate);
+        return
+            AssetHandler.getRiskAdjustedPresentValue(
+                cashGroup,
+                notional,
+                maturity,
+                blockTime,
+                oracleRate
+            );
     }
 
     function getifCashArray(
         address account,
-        uint currencyId,
-        uint nextSettleTime
+        uint256 currencyId,
+        uint256 nextSettleTime
     ) external view returns (PortfolioAsset[] memory) {
         return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
     }

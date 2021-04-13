@@ -2,10 +2,10 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../storage/AccountContextHandler.sol";
-import "../storage/BitmapAssetsHandler.sol";
-import "../storage/StorageLayoutV1.sol";
-import "../storage/SettleAssets.sol";
+import "../internal/AccountContextHandler.sol";
+import "../internal/portfolio/BitmapAssetsHandler.sol";
+import "../global/StorageLayoutV1.sol";
+import "../internal/settlement/SettleAssets.sol";
 
 contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;

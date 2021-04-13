@@ -2,14 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./Market.sol";
-import "./CashGroup.sol";
-import "./AssetRate.sol";
-import "../storage/TokenHandler.sol";
-import "../storage/BitmapAssetsHandler.sol";
-import "../storage/AccountContextHandler.sol";
-import "../storage/PortfolioHandler.sol";
-import "../storage/BalanceHandler.sol";
+import "./markets/Market.sol";
+import "./markets/CashGroup.sol";
+import "./markets/AssetRate.sol";
+import "./AccountContextHandler.sol";
+import "./portfolio/BitmapAssetsHandler.sol";
+import "./portfolio/PortfolioHandler.sol";
+import "./balances/BalanceHandler.sol";
+import "./balances/TokenHandler.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -65,8 +65,7 @@ library PerpetualToken {
 
         uint256 currencyId = uint256(uint16(uint256(data)));
         uint256 totalSupply = uint256(uint96(uint256(data >> 16)));
-        uint256 incentiveAnnualEmissionRate =
-            uint256(uint32(uint256(data >> 112)));
+        uint256 incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 112)));
         uint256 lastInitializedTime = uint256(uint32(uint256(data >> 144)));
         bytes6 parameters = bytes6(data << 32);
 
@@ -95,13 +94,9 @@ library PerpetualToken {
      * @notice Called by governance to set the perpetual token address and its reverse lookup. Cannot be
      * reset once this is set.
      */
-    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress)
-        internal
-    {
-        bytes32 addressSlot =
-            keccak256(abi.encode(currencyId, "perpetual.address"));
-        bytes32 currencySlot =
-            keccak256(abi.encode(tokenAddress, "perpetual.context"));
+    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress) internal {
+        bytes32 addressSlot = keccak256(abi.encode(currencyId, "perpetual.address"));
+        bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
 
         uint256 data;
         assembly {
@@ -139,27 +134,16 @@ library PerpetualToken {
             data := sload(slot)
         }
 
-        require(
-            liquidationHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS,
-            "Invalid haircut"
-        );
+        require(liquidationHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS, "Invalid haircut");
         // The pv haircut percentage must be less than the liquidation percentage or else liquidators will not
         // get profit for liquidating perpetual tokens.
-        require(
-            pvHaircutPercentage < liquidationHaircutPercentage,
-            "Invalid pv haircut"
-        );
+        require(pvHaircutPercentage < liquidationHaircutPercentage, "Invalid pv haircut");
         // Ensure that the cash withholding buffer is greater than the residual purchase incentive or
         // the perpetual token may not have enough cash to pay accounts to buy its negative ifCash
-        require(
-            residualPurchaseIncentive10BPS <= cashWithholdingBuffer10BPS,
-            "Invalid discounts"
-        );
+        require(residualPurchaseIncentive10BPS <= cashWithholdingBuffer10BPS, "Invalid discounts");
 
         // Clear the bytes where collateral parameters will go and OR the data in
-        data =
-            data &
-            0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         bytes32 parameters =
             (bytes32(uint256(residualPurchaseIncentive10BPS)) |
                 (bytes32(uint256(pvHaircutPercentage)) << 8) |
@@ -175,9 +159,7 @@ library PerpetualToken {
     /**
      * @notice Updates the perpetual token supply amount when minting or redeeming.
      */
-    function changePerpetualTokenSupply(address tokenAddress, int256 netChange)
-        internal
-    {
+    function changePerpetualTokenSupply(address tokenAddress, int256 netChange) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
         bytes32 data;
         assembly {
@@ -192,19 +174,14 @@ library PerpetualToken {
         );
 
         // Clear the 12 bytes where stored supply will go and OR it in
-        data =
-            data &
-            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
         data = data | (bytes32(uint256(newSupply)) << 16);
         assembly {
             sstore(slot, data)
         }
     }
 
-    function setIncentiveEmissionRate(
-        address tokenAddress,
-        uint32 newEmissionsRate
-    ) internal {
+    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
 
         bytes32 data;
@@ -212,9 +189,7 @@ library PerpetualToken {
             data := sload(slot)
         }
         // Clear the 4 bytes where emissions rate will go and OR it in
-        data =
-            data &
-            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         data = data | (bytes32(uint256(newEmissionsRate)) << 112);
         assembly {
             sstore(slot, data)
@@ -227,19 +202,14 @@ library PerpetualToken {
         uint256 lastInitializedTime
     ) internal {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "perpetual.context"));
-        require(
-            lastInitializedTime >= 0 &&
-                uint256(lastInitializedTime) < type(uint32).max
-        ); // dev: next settle time overflow
+        require(lastInitializedTime >= 0 && uint256(lastInitializedTime) < type(uint32).max); // dev: next settle time overflow
 
         bytes32 data;
         assembly {
             data := sload(slot)
         }
         // Clear the 6 bytes where array length and settle time will go
-        data =
-            data &
-            0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         data = data | (bytes32(uint256(lastInitializedTime)) << 144);
         data = data | (bytes32(uint256(arrayLength)) << 176);
         assembly {
@@ -256,12 +226,7 @@ library PerpetualToken {
         view
         returns (int256[] memory, int256[] memory)
     {
-        uint256 slot =
-            uint256(
-                keccak256(
-                    abi.encode(currencyId, "perpetual.deposit.parameters")
-                )
-            );
+        uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
         return _getParameters(slot, maxMarketIndex, false);
     }
 
@@ -275,38 +240,26 @@ library PerpetualToken {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) internal {
-        uint256 slot =
-            uint256(
-                keccak256(
-                    abi.encode(currencyId, "perpetual.deposit.parameters")
-                )
-            );
+        uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
         require(
             depositShares.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
             "PT: deposit share length"
         );
 
-        require(
-            depositShares.length == leverageThresholds.length,
-            "PT: leverage share length"
-        );
+        require(depositShares.length == leverageThresholds.length, "PT: leverage share length");
 
         uint256 shareSum;
         for (uint256 i; i < depositShares.length; i++) {
             // This cannot overflow in uint 256 with 9 max slots
             shareSum = shareSum + depositShares[i];
             require(
-                leverageThresholds[i] > 0 &&
-                    leverageThresholds[i] < Market.RATE_PRECISION,
+                leverageThresholds[i] > 0 && leverageThresholds[i] < Market.RATE_PRECISION,
                 "PT: leverage threshold"
             );
         }
 
         // Total deposit share must add up to 100%
-        require(
-            shareSum == uint256(DEPOSIT_PERCENT_BASIS),
-            "PT: deposit shares sum"
-        );
+        require(shareSum == uint256(DEPOSIT_PERCENT_BASIS), "PT: deposit shares sum");
         _setParameters(slot, depositShares, leverageThresholds);
     }
 
@@ -319,27 +272,15 @@ library PerpetualToken {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) internal {
-        uint256 slot =
-            uint256(
-                keccak256(abi.encode(currencyId, "perpetual.init.parameters"))
-            );
-        require(
-            rateAnchors.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
-            "PT: rate anchors length"
-        );
+        uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
+        require(rateAnchors.length <= CashGroup.MAX_TRADED_MARKET_INDEX, "PT: rate anchors length");
 
-        require(
-            proportions.length == rateAnchors.length,
-            "PT: proportions length"
-        );
+        require(proportions.length == rateAnchors.length, "PT: proportions length");
 
         for (uint256 i; i < rateAnchors.length; i++) {
             // Rate anchors are exchange rates and therefore must be greater than RATE_PRECISION
             // or we will end up with negative interest rates
-            require(
-                rateAnchors[i] > Market.RATE_PRECISION,
-                "PT: invalid rate anchor"
-            );
+            require(rateAnchors[i] > Market.RATE_PRECISION, "PT: invalid rate anchor");
             // Proportions must be between zero and the rate precision
             require(
                 proportions[i] > 0 && proportions[i] < Market.RATE_PRECISION,
@@ -353,14 +294,12 @@ library PerpetualToken {
     /**
      * @notice Returns the array of initialization parameters for a given currency.
      */
-    function getInitializationParameters(
-        uint256 currencyId,
-        uint256 maxMarketIndex
-    ) internal view returns (int256[] memory, int256[] memory) {
-        uint256 slot =
-            uint256(
-                keccak256(abi.encode(currencyId, "perpetual.init.parameters"))
-            );
+    function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
+        internal
+        view
+        returns (int256[] memory, int256[] memory)
+    {
+        uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
         return _getParameters(slot, maxMarketIndex, true);
     }
 
@@ -464,13 +403,10 @@ library PerpetualToken {
         (
             perpToken.cashBalance,
             /* perpToken.balanceState.storedPerpetualTokenBalance */
-            /* lastIncentiveMint */
+            /* lastIncentiveClaim */
             ,
 
-        ) = BalanceHandler.getBalanceStorage(
-            perpToken.tokenAddress,
-            currencyId
-        );
+        ) = BalanceHandler.getBalanceStorage(perpToken.tokenAddress, currencyId);
 
         return perpToken;
     }
@@ -485,8 +421,7 @@ library PerpetualToken {
     {
         PerpetualTokenPortfolio memory perpToken =
             buildPerpetualTokenPortfolioNoCashGroup(currencyId);
-        (perpToken.cashGroup, perpToken.markets) = CashGroup
-            .buildCashGroupStateful(currencyId);
+        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
 
         return perpToken;
     }
@@ -498,9 +433,7 @@ library PerpetualToken {
     {
         PerpetualTokenPortfolio memory perpToken =
             buildPerpetualTokenPortfolioNoCashGroup(currencyId);
-        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupView(
-            currencyId
-        );
+        (perpToken.cashGroup, perpToken.markets) = CashGroup.buildCashGroupView(currencyId);
 
         return perpToken;
     }
@@ -510,9 +443,7 @@ library PerpetualToken {
         pure
         returns (uint256)
     {
-        return
-            CashGroup.getReferenceTime(perpToken.lastInitializedTime) +
-            CashGroup.QUARTER;
+        return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + CashGroup.QUARTER;
     }
 
     /**
@@ -520,10 +451,11 @@ library PerpetualToken {
      * @dev We assume that the perpetual token portfolio array is only liquidity tokens and
      * sorted ascending by maturity.
      */
-    function getPerpetualTokenPV(
-        PerpetualTokenPortfolio memory perpToken,
-        uint256 blockTime
-    ) internal view returns (int256, bytes32) {
+    function getPerpetualTokenPV(PerpetualTokenPortfolio memory perpToken, uint256 blockTime)
+        internal
+        view
+        returns (int256, bytes32)
+    {
         int256 totalAssetPV;
         int256 totalUnderlyingPV;
         bytes32 ifCashBitmap =
@@ -546,9 +478,7 @@ library PerpetualToken {
                 // the entire protocol will have serious problems as markets will not be tradable.
                 blockTime = nextSettleTime - 1;
                 // Clear the market parameters just in case there is dirty data.
-                perpToken.markets = new MarketParameters[](
-                    perpToken.markets.length
-                );
+                perpToken.markets = new MarketParameters[](perpToken.markets.length);
             }
         }
 
@@ -558,11 +488,7 @@ library PerpetualToken {
         // underlying terms.
         {
             PortfolioAsset[] memory emptyPortfolio = new PortfolioAsset[](0);
-            for (
-                uint256 i;
-                i < perpToken.portfolioState.storedAssets.length;
-                i++
-            ) {
+            for (uint256 i; i < perpToken.portfolioState.storedAssets.length; i++) {
                 (int256 assetCashClaim, int256 pv) =
                     AssetHandler.getLiquidityTokenValue(
                         perpToken.portfolioState.storedAssets[i],
@@ -597,11 +523,7 @@ library PerpetualToken {
 
         // Return the total present value denominated in asset terms
         totalAssetPV = totalAssetPV
-            .add(
-            perpToken.cashGroup.assetRate.convertInternalFromUnderlying(
-                totalUnderlyingPV
-            )
-        )
+            .add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV))
             .add(perpToken.cashBalance);
 
         return (totalAssetPV, ifCashBitmap);

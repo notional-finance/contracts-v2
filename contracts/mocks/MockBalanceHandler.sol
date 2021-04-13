@@ -2,9 +2,9 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../storage/AccountContextHandler.sol";
-import "../storage/BalanceHandler.sol";
-import "../storage/StorageLayoutV1.sol";
+import "../internal/AccountContextHandler.sol";
+import "../internal/balances/BalanceHandler.sol";
+import "../global/StorageLayoutV1.sol";
 
 contract MockBalanceHandler is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
@@ -14,64 +14,55 @@ contract MockBalanceHandler is StorageLayoutV1 {
         maxCurrencyId = num;
     }
 
-    function getCurrencyMapping(
-        uint id,
-        bool underlying
-    ) external view returns (Token memory) {
+    function getCurrencyMapping(uint256 id, bool underlying) external view returns (Token memory) {
         return TokenHandler.getToken(id, underlying);
     }
 
     function setCurrencyMapping(
-        uint id,
+        uint256 id,
         bool underlying,
         TokenStorage calldata ts
     ) external {
         TokenHandler.setToken(id, underlying, ts);
     }
 
-    function setAccountContext(
-        address account,
-        AccountStorage memory a
-    ) external {
+    function setAccountContext(address account, AccountStorage memory a) external {
         a.setAccountContext(account);
     }
 
     function setBalance(
         address account,
-        uint currencyId,
-        int storedCashBalance,
-        int storedPerpetualTokenBalance
+        uint256 currencyId,
+        int256 storedCashBalance,
+        int256 storedPerpetualTokenBalance
     ) external {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
 
         require(
-            storedCashBalance >= type(int128).min
-            && storedCashBalance <= type(int128).max,
+            storedCashBalance >= type(int128).min && storedCashBalance <= type(int128).max,
             "CH: cash balance overflow"
         );
 
         require(
-            storedPerpetualTokenBalance >= 0
-            && storedPerpetualTokenBalance <= type(uint128).max,
+            storedPerpetualTokenBalance >= 0 && storedPerpetualTokenBalance <= type(uint128).max,
             "CH: token balance overflow"
         );
 
-        bytes32 data = (
-            // Truncate the higher bits of the signed integer when it is negative
-            (bytes32(uint(storedPerpetualTokenBalance))) |
-            (bytes32(storedCashBalance) << 128)
-        );
+        bytes32 data =
+            (// Truncate the higher bits of the signed integer when it is negative
+            (bytes32(uint256(storedPerpetualTokenBalance))) | (bytes32(storedCashBalance) << 128));
 
-        assembly { sstore(slot, data) }
+        assembly {
+            sstore(slot, data)
+        }
     }
 
-    function getData(
-        address account,
-        uint currencyId
-    ) external view returns (bytes32) {
+    function getData(address account, uint256 currencyId) external view returns (bytes32) {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
         bytes32 data;
-        assembly { data := sload(slot) }
+        assembly {
+            data := sload(slot)
+        }
 
         return data;
     }
@@ -89,14 +80,11 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
     function buildBalanceState(
         address account,
-        uint currencyId,
+        uint256 currencyId,
         AccountStorage memory accountContext
     ) public view returns (BalanceState memory, AccountStorage memory) {
-        BalanceState memory bs = BalanceHandler.buildBalanceState(
-            account,
-            currencyId,
-            accountContext
-        );
+        BalanceState memory bs =
+            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
 
         return (bs, accountContext);
     }
@@ -104,14 +92,18 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function depositAssetToken(
         BalanceState memory balanceState,
         address account,
-        int assetAmountExternalPrecision,
+        int256 assetAmountExternalPrecision,
         bool useCashBalance
-    ) external returns (BalanceState memory, int, int) {
-        (int assetAmountInternal, int assetAmountTransferred) = balanceState.depositAssetToken(
-            account,
-            assetAmountExternalPrecision,
-            useCashBalance
-        );
+    )
+        external
+        returns (
+            BalanceState memory,
+            int256,
+            int256
+        )
+    {
+        (int256 assetAmountInternal, int256 assetAmountTransferred) =
+            balanceState.depositAssetToken(account, assetAmountExternalPrecision, useCashBalance);
 
         return (balanceState, assetAmountInternal, assetAmountTransferred);
     }
@@ -119,12 +111,10 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function depositUnderlyingToken(
         BalanceState memory balanceState,
         address account,
-        int underlyingAmountExternalPrecision
-    ) external returns (BalanceState memory, int) {
-        int assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
-            account,
-            underlyingAmountExternalPrecision
-        );
+        int256 underlyingAmountExternalPrecision
+    ) external returns (BalanceState memory, int256) {
+        int256 assetTokensReceivedInternal =
+            balanceState.depositUnderlyingToken(account, underlyingAmountExternalPrecision);
 
         return (balanceState, assetTokensReceivedInternal);
     }

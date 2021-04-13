@@ -2,13 +2,12 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./PortfolioHandler.sol";
-import "./BalanceHandler.sol";
-import "./BitmapAssetsHandler.sol";
-import "../common/AssetHandler.sol";
-import "../common/AssetRate.sol";
-import "../math/SafeInt256.sol";
-import "../math/Bitmap.sol";
+import "../valuation/AssetHandler.sol";
+import "../markets/AssetRate.sol";
+import "../portfolio/PortfolioHandler.sol";
+import "../portfolio/BitmapAssetsHandler.sol";
+import "../../math/SafeInt256.sol";
+import "../../math/Bitmap.sol";
 
 struct SettleAmount {
     uint256 currencyId;
