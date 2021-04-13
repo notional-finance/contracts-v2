@@ -62,6 +62,7 @@ library Incentives {
                 blockTime
             );
         balanceState.lastIncentiveClaim = blockTime;
+
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
 
         // Change the supply amount after incentives have been claimed

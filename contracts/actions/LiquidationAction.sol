@@ -26,8 +26,9 @@ library LiquidationHelpers {
         Token memory token = TokenHandler.getToken(localCurrencyId, false);
         AccountStorage memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
-        BalanceState memory liquidatorLocalBalance =
-            BalanceHandler.buildBalanceState(liquidator, localCurrencyId, liquidatorContext);
+        // TODO: maybe reuse these...
+        BalanceState memory liquidatorLocalBalance;
+        liquidatorLocalBalance.loadBalanceState(liquidator, localCurrencyId, liquidatorContext);
 
         if (token.hasTransferFee && netLocalFromLiquidator > 0) {
             // If a token has a transfer fee then it must have been deposited prior to the liquidation
@@ -57,17 +58,17 @@ library LiquidationHelpers {
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountStorage memory) {
-        BalanceState memory liquidatorLocalBalance =
-            BalanceHandler.buildBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
+        // TODO: maybe reuse these...
+        BalanceState memory balance;
+        balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
 
         if (withdrawCollateral) {
-            liquidatorLocalBalance.netAssetTransferInternalPrecision = netCollateralToLiquidator
-                .neg();
+            balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
         } else {
-            liquidatorLocalBalance.netCashChange = netCollateralToLiquidator;
+            balance.netCashChange = netCollateralToLiquidator;
         }
-        liquidatorLocalBalance.netPerpetualTokenTransfer = netCollateralPerpetualTokens;
-        liquidatorLocalBalance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
+        balance.netPerpetualTokenTransfer = netCollateralPerpetualTokens;
+        balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;
     }
@@ -78,10 +79,10 @@ library LiquidationHelpers {
         AccountStorage memory accountContext,
         int256 netLocalFromLiquidator
     ) internal {
-        BalanceState memory localBalanceState =
-            BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
-        localBalanceState.netCashChange = netLocalFromLiquidator;
-        localBalanceState.finalize(liquidateAccount, accountContext, false);
+        BalanceState memory balance;
+        balance.loadBalanceState(liquidateAccount, localCurrency, accountContext);
+        balance.netCashChange = netLocalFromLiquidator;
+        balance.finalize(liquidateAccount, accountContext, false);
     }
 
     function transferAssets(
@@ -141,8 +142,8 @@ contract LiquidateLocalCurrency {
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        BalanceState memory localBalanceState =
-            BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+        BalanceState memory localBalanceState;
+        localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
             Liquidation.liquidateLocalCurrency(
@@ -207,8 +208,12 @@ contract LiquidateCollateralCurrency {
                 collateralCurrency,
                 blockTime
             );
-        BalanceState memory collateralBalanceState =
-            BalanceHandler.buildBalanceState(liquidateAccount, collateralCurrency, accountContext);
+        BalanceState memory collateralBalanceState;
+        collateralBalanceState.loadBalanceState(
+            liquidateAccount,
+            collateralCurrency,
+            accountContext
+        );
 
         int256 netLocalFromLiquidator =
             Liquidation.liquidateCollateralCurrency(

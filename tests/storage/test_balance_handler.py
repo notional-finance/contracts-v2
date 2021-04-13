@@ -114,7 +114,7 @@ def test_build_and_finalize_balances(
     balanceHandler.setBalance(accounts[0], currencyId, assetBalance, perpetualTokenBalance)
     context = (0, "0x00", 0, 0, active_currencies)
 
-    (bs, context) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
+    (bs, context) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
     assert bs[0] == currencyId
     assert bs[1] == assetBalance
     assert bs[2] == perpetualTokenBalance
@@ -140,7 +140,7 @@ def test_build_and_finalize_balances(
         balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
 
         context = txn.return_value
-        (bsFinal, _) = balanceHandler.buildBalanceState(accounts[0], currencyId, context)
+        (bsFinal, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
         assert bsFinal[0] == currencyId
 
         # Assert hasDebt is set properly (storedCashBalance + netCashChange + netTransfer)

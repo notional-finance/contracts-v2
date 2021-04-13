@@ -55,4 +55,7 @@ library Constants {
     uint256 internal constant FCASH_ASSET_TYPE = 1;
     uint256 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
     uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 10;
+
+    bytes1 internal constant BOOL_FALSE = 0x00;
+    bytes1 internal constant BOOL_TRUE = 0x01;
 }

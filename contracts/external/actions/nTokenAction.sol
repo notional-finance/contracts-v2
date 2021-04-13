@@ -175,8 +175,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     /// @return Total amount of incentives claimed
     function nTokenClaimIncentives(uint16 currencyId) external returns (uint256) {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
-        BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(msg.sender, currencyId, accountContext);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
 
         // NOTE: no need to set account context after claiming incentives
         return BalanceHandler.claimIncentivesManual(balanceState, msg.sender);
@@ -193,8 +193,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         returns (uint256)
     {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
 
         uint256 incentives =
             Incentives.calculateIncentivesToClaim(
@@ -262,12 +262,12 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 amount
     ) internal returns (bool) {
         AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
-        BalanceState memory senderBalance =
-            BalanceHandler.buildBalanceState(sender, currencyId, senderContext);
+        BalanceState memory senderBalance;
+        senderBalance.loadBalanceState(sender, currencyId, senderContext);
 
         AccountStorage memory recipientContext = AccountContextHandler.getAccountContext(recipient);
-        BalanceState memory recipientBalance =
-            BalanceHandler.buildBalanceState(recipient, currencyId, recipientContext);
+        BalanceState memory recipientBalance;
+        recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
 
         int256 amountInt = SafeCast.toInt256(amount);
         senderBalance.netPerpetualTokenTransfer = amountInt.neg();

@@ -43,8 +43,9 @@ contract DepositWithdrawAction {
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(account, currencyId, accountContext);
+
         // Int conversion overflow check done inside this method call
         // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
         // be useful for on-demand collateral top ups from a third party
@@ -67,12 +68,13 @@ contract DepositWithdrawAction {
         uint16 currencyId,
         uint256 amountExternalPrecision
     ) external returns (uint256) {
-        // TODO: the way finalized is structured does not allow msg.sender to deposit
+        // TODO: the way finalized is structured does not allow non msg.sender to deposit
         require(msg.sender == account, "Unauthorized"); // dev: no internal call to deposit asset
 
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(account, currencyId, accountContext);
+
         // Int conversion overflow check done inside this method call, useCashBalance is set to false. It does
         // not make sense in this context.
         (int256 assetTokensReceivedInternal, ) =
@@ -104,8 +106,8 @@ contract DepositWithdrawAction {
         // This happens before reading the balance state to get the most up to date cash balance
         _settleAccountIfRequiredAndFinalize(account, accountContext);
 
-        BalanceState memory balanceState =
-            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(account, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
         balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 

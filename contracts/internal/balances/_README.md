@@ -18,6 +18,7 @@ module, the only method that can update balance storage is marked `private` on t
 - nTokens are always one to one with a token that is tradable on Notional. Therefore, nToken balances are stored alongside
   token balances to save a storage slot.
 - nTokens are incentivized and their incentives are automatically claimed every time an account balance changes.
+- Token balances (whenever possible) are finalized at the very last stage of a transaction to allow for transactions to net off potential transfers with lending and borrowing activity.
 
 ## Invariants
 

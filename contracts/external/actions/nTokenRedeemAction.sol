@@ -63,8 +63,8 @@ contract nTokenRedeemAction {
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
         AccountStorage memory context = AccountContextHandler.getAccountContext(redeemer);
-        BalanceState memory balance =
-            BalanceHandler.buildBalanceState(redeemer, currencyId, context);
+        BalanceState memory balance;
+        balance.loadBalanceState(redeemer, currencyId, context);
 
         require(balance.storedPerpetualTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netPerpetualTokenSupplyChange = tokensToRedeem.neg();
@@ -153,7 +153,7 @@ contract nTokenRedeemAction {
         int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
         if (assetCashShare > 0) {
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
-            BalanceHandler.setBalanceStorageForPerpToken(
+            BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.cashBalance

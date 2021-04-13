@@ -513,7 +513,7 @@ library InitializeMarketsAction {
         ) =
             /* nextSettleTime */
             perpToken.portfolioState.storeAssets(perpToken.tokenAddress);
-        BalanceHandler.setBalanceStorageForPerpToken(
+        BalanceHandler.setBalanceStorageForNToken(
             perpToken.tokenAddress,
             currencyId,
             perpToken.cashBalance

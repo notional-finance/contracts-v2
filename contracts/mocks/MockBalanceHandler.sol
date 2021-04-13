@@ -78,13 +78,13 @@ contract MockBalanceHandler is StorageLayoutV1 {
         return accountContext;
     }
 
-    function buildBalanceState(
+    function loadBalanceState(
         address account,
         uint256 currencyId,
         AccountStorage memory accountContext
     ) public view returns (BalanceState memory, AccountStorage memory) {
-        BalanceState memory bs =
-            BalanceHandler.buildBalanceState(account, currencyId, accountContext);
+        BalanceState memory bs;
+        bs.loadBalanceState(account, currencyId, accountContext);
 
         return (bs, accountContext);
     }
@@ -92,7 +92,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function depositAssetToken(
         BalanceState memory balanceState,
         address account,
-        int256 assetAmountExternalPrecision,
+        int256 assetAmountExternal,
         bool useCashBalance
     )
         external
@@ -103,7 +103,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         )
     {
         (int256 assetAmountInternal, int256 assetAmountTransferred) =
-            balanceState.depositAssetToken(account, assetAmountExternalPrecision, useCashBalance);
+            balanceState.depositAssetToken(account, assetAmountExternal, useCashBalance);
 
         return (balanceState, assetAmountInternal, assetAmountTransferred);
     }
@@ -111,10 +111,10 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function depositUnderlyingToken(
         BalanceState memory balanceState,
         address account,
-        int256 underlyingAmountExternalPrecision
+        int256 underlyingAmountExternal
     ) external returns (BalanceState memory, int256) {
         int256 assetTokensReceivedInternal =
-            balanceState.depositUnderlyingToken(account, underlyingAmountExternalPrecision);
+            balanceState.depositUnderlyingToken(account, underlyingAmountExternal);
 
         return (balanceState, assetTokensReceivedInternal);
     }

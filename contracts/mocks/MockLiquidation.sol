@@ -33,6 +33,8 @@ contract MockLiquidationSetup is BaseMockLiquidation {
 }
 
 contract MockLocalLiquidation is BaseMockLiquidation {
+    using BalanceHandler for BalanceState;
+
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
@@ -52,8 +54,8 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
-        BalanceState memory liquidatedBalanceState =
-            BalanceHandler.buildBalanceState(liquidateAccount, localCurrency, accountContext);
+        BalanceState memory liquidatedBalanceState;
+        liquidatedBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
             Liquidation.liquidateLocalCurrency(

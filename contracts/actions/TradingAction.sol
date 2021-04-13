@@ -527,7 +527,7 @@ library TradingAction {
             BalanceHandler.getBalanceStorage(perpTokenAddress, cashGroup.currencyId);
         perpTokenCashBalance = perpTokenCashBalance.add(netAssetCashPerpToken);
         // This will ensure that the cash balance is not negative
-        BalanceHandler.setBalanceStorageForPerpToken(
+        BalanceHandler.setBalanceStorageForNToken(
             perpTokenAddress,
             cashGroup.currencyId,
             perpTokenCashBalance

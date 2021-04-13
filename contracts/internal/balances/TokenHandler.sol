@@ -10,16 +10,13 @@ import "interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-/**
- * @notice Handles deposits and withdraws for ERC20 tokens
- */
+/// @notice Handles all external token transfers and events
 library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
     /// the underlying token. (These may not always exist)
-
     function getToken(uint256 currencyId, bool underlying) internal view returns (Token memory) {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
         bytes32 data;
@@ -28,7 +25,7 @@ library TokenHandler {
             data := sload(slot)
         }
         address tokenAddress = address(bytes20(data << 96));
-        bool tokenHasTransferFee = bytes1(data << 88) != 0x00;
+        bool tokenHasTransferFee = bytes1(data << 88) != Constants.BOOL_FALSE;
         uint8 tokenDecimalPlaces = uint8(bytes1(data << 80));
         TokenType tokenType = TokenType(uint8(bytes1(data << 72)));
 
@@ -42,20 +39,21 @@ library TokenHandler {
     }
 
     /// @notice Sets a token for a currency id.
-
     function setToken(
         uint256 currencyId,
         bool underlying,
         TokenStorage memory tokenStorage
     ) internal {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
+
         if (tokenStorage.tokenType == TokenType.Ether && currencyId == Constants.ETH_CURRENCY_ID) {
             // Specific storage for Ether token type
             bytes32 etherData =
                 ((bytes32(bytes20(address(0))) >> 96) |
-                    (bytes32(bytes1(0x00)) >> 88) |
+                    (bytes32(bytes1(Constants.BOOL_FALSE)) >> 88) |
                     bytes32(uint256(18) << 168) |
                     bytes32(uint256(TokenType.Ether) << 176));
+
             assembly {
                 sstore(slot, etherData)
             }
@@ -63,13 +61,13 @@ library TokenHandler {
             return;
         }
         require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
-
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
+
         uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
         require(decimalPlaces != 0, "TH: decimals is zero");
 
-        // Once a token is set we cannot override it. In the case that we do need to do this then we should
-        // explicitly upgrade this method to allow for a token to be changed.
+        // Once a token is set we cannot override it. In the case that we do need to do change a token address
+        // then we should explicitly upgrade this method to allow for a token to be changed.
         Token memory token = getToken(currencyId, underlying);
         require(
             token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
@@ -85,7 +83,8 @@ library TokenHandler {
             );
         }
 
-        bytes1 transferFee = tokenStorage.hasTransferFee ? bytes1(0x01) : bytes1(0x00);
+        bytes1 transferFee =
+            tokenStorage.hasTransferFee ? Constants.BOOL_TRUE : Constants.BOOL_FALSE;
 
         bytes32 data =
             ((bytes32(bytes20(tokenStorage.tokenAddress)) >> 96) |
@@ -101,7 +100,6 @@ library TokenHandler {
     /// @notice Handles token deposits into Notional. If there is a transfer fee then we must
     /// calculate the net balance after transfer. Amounts are denominated in the destination token's
     /// precision.
-
     function deposit(
         Token memory token,
         address account,
@@ -121,16 +119,12 @@ library TokenHandler {
     }
 
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic
-
-    function mint(Token memory token, uint256 underlyingAmountExternalPrecision)
-        internal
-        returns (int256)
-    {
+    function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
         uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         uint256 success;
         if (token.tokenType == TokenType.cToken) {
-            success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternalPrecision);
+            success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternal);
         } else if (token.tokenType == TokenType.cETH) {
             // Reverts on error
             CEtherInterface(token.tokenAddress).mint{value: msg.value}();
@@ -148,7 +142,7 @@ library TokenHandler {
     function redeem(
         Token memory assetToken,
         Token memory underlyingToken,
-        uint256 assetAmountExternalPrecision
+        uint256 assetAmountExternal
     ) internal returns (int256) {
         uint256 startingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
@@ -159,8 +153,7 @@ library TokenHandler {
             revert("Non redeemable token");
         }
 
-        uint256 success =
-            CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternalPrecision);
+        uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
         require(success == 0, "Redeem failure");
 
         uint256 endingBalance;
@@ -176,32 +169,27 @@ library TokenHandler {
 
     /// @notice Handles transfers into and out of the system denominated in the external token decimal
     /// precision.
-
     function transfer(
         Token memory token,
         address account,
-        int256 netTransferExternalPrecision
+        int256 netTransferExternal
     ) internal returns (int256) {
-        if (netTransferExternalPrecision > 0) {
+        if (netTransferExternal > 0) {
             // Deposits must account for transfer fees.
-            netTransferExternalPrecision = deposit(
-                token,
-                account,
-                uint256(netTransferExternalPrecision)
-            );
+            netTransferExternal = deposit(token, account, uint256(netTransferExternal));
         } else if (token.tokenType == TokenType.Ether) {
-            require(netTransferExternalPrecision < 0); // dev: cannot transfer ether
+            require(netTransferExternal < 0); // dev: cannot transfer ether
             address payable accountPayable = payable(account);
-            accountPayable.transfer(uint256(netTransferExternalPrecision.neg()));
+            accountPayable.transfer(uint256(netTransferExternal.neg()));
         } else {
             safeTransferOut(
                 IERC20(token.tokenAddress),
                 account,
-                uint256(netTransferExternalPrecision.neg())
+                uint256(netTransferExternal.neg())
             );
         }
 
-        return netTransferExternalPrecision;
+        return netTransferExternal;
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {

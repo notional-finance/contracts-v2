@@ -40,7 +40,7 @@ library nTokenMintAction {
         if (nToken.portfolioState.storedAssets.length == 0) {
             // If the token does not have any assets, then the markets must be initialized first.
             nToken.cashBalance = nToken.cashBalance.add(amountToDepositInternal);
-            BalanceHandler.setBalanceStorageForPerpToken(
+            BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
                 currencyId,
                 nToken.cashBalance
@@ -164,7 +164,7 @@ library nTokenMintAction {
             // Any remaining residual cash will be put into the nToken balance and added as liquidity on the
             // next market initialization
             nToken.cashBalance = nToken.cashBalance.add(residualCash);
-            BalanceHandler.setBalanceStorageForPerpToken(
+            BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.cashBalance
