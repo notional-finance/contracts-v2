@@ -233,7 +233,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (int256 totalAssetPV, PerpetualTokenPortfolio memory nToken) =
             _getPerpetualTokenPV(currencyId);
 
-        return nToken.cashGroup.assetRate.convertInternalToUnderlying(totalAssetPV);
+        return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
     function _getPerpetualTokenPV(uint256 currencyId)

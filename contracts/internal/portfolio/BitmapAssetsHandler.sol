@@ -365,6 +365,6 @@ library BitmapAssetsHandler {
             bitNum += 1;
         }
 
-        return perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalCashWithholding);
+        return perpToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
     }
 }

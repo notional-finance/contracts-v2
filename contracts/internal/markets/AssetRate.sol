@@ -12,20 +12,14 @@ library AssetRate {
     event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
 
     uint256 private constant ASSET_RATE_STORAGE_SLOT = 2;
-    int256 private constant ASSET_RATE_DECIMALS = 1e18;
+    // Asset rates are in 1e18 decimals (cToken exchange rates), internal balances
+    // are in 1e8 decimals. Therefore we leave this as 1e18 / 1e8 = 1e10
+    int256 private constant ASSET_RATE_DECIMAL_DIFFERENCE = 1e10;
 
-    /// @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-    /// at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-    /// externally from the system.
-
-    /// Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
-    /// Underlying is referred to as the quote currency in these exchange rates. Asset is referred to as the base currency
-    /// in these exchange rates.
-
+    /// @notice Converts an internal asset cash value to its underlying token value.
     /// @param ar exchange rate object between asset and underlying
-    /// @param assetBalance amount (denominated in asset value) to convert to underlying
-
-    function convertInternalToUnderlying(AssetRateParameters memory ar, int256 assetBalance)
+    /// @param assetBalance amount to convert to underlying
+    function convertToUnderlying(AssetRateParameters memory ar, int256 assetBalance)
         internal
         pure
         returns (int256)
@@ -35,27 +29,15 @@ library AssetRate {
         // Calculation here represents:
         // rateDecimals * balance * internalPrecision / rateDecimals * underlyingPrecision
         int256 underlyingBalance =
-            ar
-                .rate
-                .mul(assetBalance)
-                .mul(Constants.INTERNAL_TOKEN_PRECISION)
-                .div(ASSET_RATE_DECIMALS)
-                .div(ar.underlyingDecimals);
+            ar.rate.mul(assetBalance).div(ASSET_RATE_DECIMAL_DIFFERENCE).div(ar.underlyingDecimals);
 
         return underlyingBalance;
     }
 
-    /// @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-    /// at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
-    /// externally from the system.
-
-    /// Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
-    /// underlyingBalance. Underlying is referred to as the quote currency in these exchange rates.
-
+    /// @notice Converts an internal underlying cash value to its asset cash value
     /// @param ar exchange rate object between asset and underlying
-    /// @param underlyingBalance amount (denominated in internal precision) to convert to asset value
-
-    function convertInternalFromUnderlying(AssetRateParameters memory ar, int256 underlyingBalance)
+    /// @param underlyingBalance amount to convert to asset cash, denominated in internal token precision
+    function convertFromUnderlying(AssetRateParameters memory ar, int256 underlyingBalance)
         internal
         pure
         returns (int256)
@@ -65,22 +47,41 @@ library AssetRate {
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rateDecimals * internalPrecision
         int256 assetBalance =
-            underlyingBalance.mul(ASSET_RATE_DECIMALS).mul(ar.underlyingDecimals).div(ar.rate).div(
-                Constants.INTERNAL_TOKEN_PRECISION
+            underlyingBalance.mul(ASSET_RATE_DECIMAL_DIFFERENCE).mul(ar.underlyingDecimals).div(
+                ar.rate
             );
 
         return assetBalance;
     }
 
+    /// @notice Returns the current per block supply rate, is used when calculating oracle rates
+    /// for idiosyncratic fCash with a shorter duration than the 3 month maturity.
     function getSupplyRate(AssetRateParameters memory ar) internal view returns (uint256) {
         uint256 rate = AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
-        // TODO: is it possible for the supply rate to be zero?
         require(rate > 0, "AR: invalid supply rate");
 
         return rate;
     }
 
-    function getAssetRateView(uint256 currencyId)
+    function _getAssetRateStorage(uint256 currencyId)
+        private
+        view
+        returns (address rateOracle, uint8 underlyingDecimalPlaces)
+    {
+        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        rateOracle = address(bytes20(data << 96));
+        underlyingDecimalPlaces = uint8(uint256(data >> 160));
+    }
+
+    /// @notice Gets an asset rate using a view function, does not accrue interest so the
+    /// exchange rate will not be up to date. Should only be used for non-stateful methods
+    function _getAssetRateView(uint256 currencyId)
         private
         view
         returns (
@@ -89,26 +90,24 @@ library AssetRate {
             uint8
         )
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
-        bytes32 data;
+        (address rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
 
-        assembly {
-            data := sload(slot)
+        int256 rate;
+        if (rateOracle == address(0)) {
+            // If no rate oracle is set, then set this to the identity
+            rate = ASSET_RATE_DECIMAL_DIFFERENCE;
+            underlyingDecimalPlaces = 1;
+        } else {
+            rate = AssetRateAdapter(rateOracle).getExchangeRateView();
+            require(rate > 0, "AR: invalid rate");
         }
-
-        address rateOracle = address(bytes20(data << 96));
-        uint8 underlyingDecimalPlaces = uint8(uint256(data >> 160));
-        // TODO: potentially change this such that it takes a currency id and we
-        // hardcode a single adapter interface
-        // TODO: account for the fact that rateOracle can be set to zero for non
-        // convertable assets
-        int256 rate = AssetRateAdapter(rateOracle).getExchangeRateView();
-        require(rate > 0, "AR: invalid rate");
 
         return (rate, rateOracle, underlyingDecimalPlaces);
     }
 
-    function getAssetRateStateful(uint256 currencyId)
+    /// @notice Gets an asset rate using a stateful function, accrues interest so the
+    /// exchange rate will be up to date for the current block.
+    function _getAssetRateStateful(uint256 currencyId)
         private
         returns (
             int256,
@@ -116,129 +115,135 @@ library AssetRate {
             uint8
         )
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
-        bytes32 data;
+        (address rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
 
-        assembly {
-            data := sload(slot)
+        int256 rate;
+        if (rateOracle == address(0)) {
+            // If no rate oracle is set, then set this to the identity
+            rate = ASSET_RATE_DECIMAL_DIFFERENCE;
+            underlyingDecimalPlaces = 1;
+        } else {
+            rate = AssetRateAdapter(rateOracle).getExchangeRateStateful();
+            require(rate > 0, "AR: invalid rate");
         }
-
-        address rateOracle = address(bytes20(data << 96));
-        uint8 underlyingDecimalPlaces = uint8(uint256(data >> 160));
-        // TODO: potentially change this such that it takes a currency id and we
-        // hardcode a single adapter interface
-        int256 rate = AssetRateAdapter(rateOracle).getExchangeRateStateful();
-        require(rate > 0, "AR: invalid rate");
 
         return (rate, rateOracle, underlyingDecimalPlaces);
     }
 
+    /// @notice Returns an asset rate object using the view method
     function buildAssetRateView(uint256 currencyId)
         internal
         view
         returns (AssetRateParameters memory)
     {
         (int256 rate, address rateOracle, uint8 underlyingDecimalPlaces) =
-            getAssetRateView(currencyId);
-        int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
+            _getAssetRateView(currencyId);
 
         return
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
-                underlyingDecimals: underlyingDecimals
+                underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
 
+    /// @notice Returns an asset rate object using the stateful method
     function buildAssetRateStateful(uint256 currencyId)
         internal
         returns (AssetRateParameters memory)
     {
         (int256 rate, address rateOracle, uint8 underlyingDecimalPlaces) =
-            getAssetRateStateful(currencyId);
-        int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
+            _getAssetRateStateful(currencyId);
 
         return
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
-                underlyingDecimals: underlyingDecimals
+                underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
 
+    /// @dev Gets a settlement rate object
+    function _getSettlementRateStorage(uint256 currencyId, uint256 maturity)
+        private
+        view
+        returns (
+            int256 settlementRate,
+            uint8 underlyingDecimalPlaces,
+            bytes32 slot
+        )
+    {
+        bytes32 data;
+        slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+
+        assembly {
+            data := sload(slot)
+        }
+
+        settlementRate = int256(uint128(uint256(data >> 40)));
+        underlyingDecimalPlaces = uint8(uint256(data >> 168));
+    }
+
+    /// @notice Returns a settlement rate object using the view method
     function buildSettlementRateView(uint256 currencyId, uint256 maturity)
         internal
         view
         returns (AssetRateParameters memory)
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
-        bytes32 data;
+        // prettier-ignore
+        (
+            int256 settlementRate,
+            uint8 underlyingDecimalPlaces,
+            /* bytes32 slot */
+        ) = _getSettlementRateStorage(currencyId, maturity);
 
-        assembly {
-            data := sload(slot)
-        }
-
-        int256 settlementRate;
-        uint8 underlyingDecimalPlaces;
-        if (data == bytes32(0)) {
+        if (settlementRate == 0) {
+            // If settlement rate has not been set then we need to fetch it
+            // prettier-ignore
             (
-                settlementRate, /* address */
-                ,
+                settlementRate,
+                /* address */,
                 underlyingDecimalPlaces
-            ) = getAssetRateView(currencyId);
-        } else {
-            settlementRate = int256(uint128(uint256(data >> 40)));
-            underlyingDecimalPlaces = uint8(uint256(data >> 168));
-            // Set the slot to zero if we don't need to settle
-            slot = bytes32(0);
+            ) = _getAssetRateView(currencyId);
         }
-        int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
 
-        // Rate oracle not required for settlement
-        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
+        return AssetRateParameters(address(0), settlementRate, int256(10**underlyingDecimalPlaces));
     }
 
+    /// @notice Returns a settlement rate object and sets the rate if it has not been set yet
     function buildSettlementRateStateful(
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime
     ) internal returns (AssetRateParameters memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
-        bytes32 data;
+        (int256 settlementRate, uint8 underlyingDecimalPlaces, bytes32 slot) =
+            _getSettlementRateStorage(currencyId, maturity);
 
-        assembly {
-            data := sload(slot)
-        }
-
-        int256 settlementRate;
-        uint8 underlyingDecimalPlaces;
-        if (data == bytes32(0)) {
+        if (settlementRate == 0) {
+            // Settlement rate has not yet been set, set it in this branch
+            // prettier-ignore
             (
-                settlementRate, /* address */
-                ,
+                settlementRate,
+                /* address */,
                 underlyingDecimalPlaces
-            ) = getAssetRateStateful(currencyId);
+            ) = _getAssetRateStateful(currencyId);
 
             require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
             require(settlementRate > 0 && settlementRate <= type(uint128).max); // dev: settlement rate overflow
             uint128 storedRate = uint128(uint256(settlementRate));
 
-            data = (bytes32(blockTime) |
-                (bytes32(uint256(storedRate)) << 40) |
-                (bytes32(uint256(underlyingDecimalPlaces)) << 168));
+            bytes32 data =
+                (bytes32(blockTime) |
+                    (bytes32(uint256(storedRate)) << 40) |
+                    (bytes32(uint256(underlyingDecimalPlaces)) << 168));
 
             assembly {
                 sstore(slot, data)
             }
 
             emit SetSettlementRate(currencyId, maturity, storedRate);
-        } else {
-            settlementRate = int256(uint128(uint256(data >> 40)));
-            underlyingDecimalPlaces = uint8(uint256(data >> 168));
         }
 
-        int256 underlyingDecimals = int256(10**underlyingDecimalPlaces);
-
-        return AssetRateParameters(address(0), settlementRate, underlyingDecimals);
+        return AssetRateParameters(address(0), settlementRate, int256(10**underlyingDecimalPlaces));
     }
 }

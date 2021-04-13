@@ -394,11 +394,9 @@ library TradingAction {
         // Amount to settle is positive, this returns the fCashAmount that the settler will
         // receive as a positive number
         return
-            cashGroup
-                .assetRate
-                .convertInternalToUnderlying(amountToSettleAsset)
-                .mul(exchangeRate)
-                .div(Constants.RATE_PRECISION);
+            cashGroup.assetRate.convertToUnderlying(amountToSettleAsset).mul(exchangeRate).div(
+                Constants.RATE_PRECISION
+            );
     }
 
     function _purchasePerpetualTokenResidual(
@@ -499,7 +497,7 @@ library TradingAction {
         int256 exchangeRate =
             Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
         return
-            cashGroup.assetRate.convertInternalFromUnderlying(
+            cashGroup.assetRate.convertFromUnderlying(
                 fCashAmount.mul(Constants.RATE_PRECISION).div(exchangeRate)
             );
     }

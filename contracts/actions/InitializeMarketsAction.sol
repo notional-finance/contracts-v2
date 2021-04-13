@@ -333,7 +333,7 @@ library InitializeMarketsAction {
         );
 
         // fCashAmount is calculated using the underlying amount
-        return perpToken.cashGroup.assetRate.convertInternalToUnderlying(assetCashToMarket);
+        return perpToken.cashGroup.assetRate.convertToUnderlying(assetCashToMarket);
     }
 
     /// @notice Initialize the market for a given currency id. An amount to deposit can be specified which

@@ -314,7 +314,7 @@ contract Views is StorageLayoutV1 {
             /* int fee */
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
-        return (assetCash, cashGroup.assetRate.convertInternalToUnderlying(assetCash));
+        return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));
     }
 
     fallback() external {

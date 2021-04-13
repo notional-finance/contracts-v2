@@ -52,30 +52,30 @@ def test_convert_internal_to_underlying(assetRate, aggregator, underlyingDecimal
     ar = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
     rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    asset = assetRate.convertInternalToUnderlying(
+    asset = assetRate.convertToUnderlying(
         (aggregator.address, ar * 100, 10 ** underlyingDecimals), 1e8
     )
     assert asset == 1e8
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 0)
+    underlying = assetRate.convertToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = assetRate.convertInternalToUnderlying(rate, -100e8)
+    underlying = assetRate.convertToUnderlying(rate, -100e8)
     assert underlying == -1e8
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 100e8)
+    underlying = assetRate.convertToUnderlying(rate, 100e8)
     assert underlying == 1e8
 
     ar = 10 * (10 ** (18 + (underlyingDecimals - 8)))
     rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 0)
+    underlying = assetRate.convertToUnderlying(rate, 0)
     assert underlying == 0
 
-    underlying = assetRate.convertInternalToUnderlying(rate, -100e8)
+    underlying = assetRate.convertToUnderlying(rate, -100e8)
     assert underlying == -1000e8
 
-    underlying = assetRate.convertInternalToUnderlying(rate, 100e8)
+    underlying = assetRate.convertToUnderlying(rate, 100e8)
     assert underlying == 1000e8
 
 
@@ -84,30 +84,30 @@ def test_convert_from_underlying(assetRate, aggregator, underlyingDecimals):
     ar = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
     rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    asset = assetRate.convertInternalFromUnderlying(
+    asset = assetRate.convertFromUnderlying(
         (aggregator.address, ar * 100, 10 ** underlyingDecimals), 1e8
     )
     assert asset == 1e8
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 0)
+    asset = assetRate.convertFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = assetRate.convertInternalFromUnderlying(rate, -1e8)
+    asset = assetRate.convertFromUnderlying(rate, -1e8)
     assert asset == -100e8
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 1e8)
+    asset = assetRate.convertFromUnderlying(rate, 1e8)
     assert asset == 100e8
 
     ar = 10 * (10 ** (18 + (underlyingDecimals - 8)))
     rate = (aggregator.address, ar, 10 ** underlyingDecimals)
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 0)
+    asset = assetRate.convertFromUnderlying(rate, 0)
     assert asset == 0
 
-    asset = assetRate.convertInternalFromUnderlying(rate, -1e8)
+    asset = assetRate.convertFromUnderlying(rate, -1e8)
     assert asset == -0.1e8
 
-    asset = assetRate.convertInternalFromUnderlying(rate, 1e8)
+    asset = assetRate.convertFromUnderlying(rate, 1e8)
     assert asset == 0.1e8
 
 

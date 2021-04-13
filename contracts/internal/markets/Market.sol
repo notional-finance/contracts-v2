@@ -91,7 +91,7 @@ library Market {
     {
         int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
         int256 totalCashUnderlying =
-            cashGroup.assetRate.convertInternalToUnderlying(marketState.totalCurrentCash);
+            cashGroup.assetRate.convertToUnderlying(marketState.totalCurrentCash);
 
         // This will result in a divide by zero
         if (marketState.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
@@ -338,15 +338,15 @@ library Market {
         int256 netCashToMarket,
         int256 netCashToReserve
     ) private view returns (int256, int256) {
-        int256 netAssetCashToMarket = assetRate.convertInternalFromUnderlying(netCashToMarket);
+        int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
         marketState.totalCurrentCash = marketState.totalCurrentCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
         marketState.previousTradeTime = block.timestamp;
         marketState.storageState = marketState.storageState | STORAGE_STATE_UPDATE_TRADE;
 
-        int256 assetCashToReserve = assetRate.convertInternalFromUnderlying(netCashToReserve);
-        int256 netAssetCashToAccount = assetRate.convertInternalFromUnderlying(netCashToAccount);
+        int256 assetCashToReserve = assetRate.convertFromUnderlying(netCashToReserve);
+        int256 netAssetCashToAccount = assetRate.convertFromUnderlying(netCashToAccount);
         return (netAssetCashToAccount, assetCashToReserve);
     }
 

@@ -21,25 +21,25 @@ contract MockAssetRate is StorageLayoutV1 {
         else if (balance > 0) assert(result > 0);
     }
 
-    function convertInternalToUnderlying(AssetRateParameters memory er, int256 balance)
+    function convertToUnderlying(AssetRateParameters memory er, int256 balance)
         external
         pure
         returns (int256)
     {
         require(er.rate > 0);
-        int256 result = er.convertInternalToUnderlying(balance);
+        int256 result = er.convertToUnderlying(balance);
         assertBalanceSign(balance, result);
 
         return result;
     }
 
-    function convertInternalFromUnderlying(AssetRateParameters memory er, int256 balance)
+    function convertFromUnderlying(AssetRateParameters memory er, int256 balance)
         external
         pure
         returns (int256)
     {
         require(er.rate > 0);
-        int256 result = er.convertInternalFromUnderlying(balance);
+        int256 result = er.convertFromUnderlying(balance);
         assertBalanceSign(balance, result);
 
         return result;

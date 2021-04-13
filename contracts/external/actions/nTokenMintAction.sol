@@ -224,7 +224,7 @@ library nTokenMintAction {
         int256 leverageThreshold
     ) private pure returns (bool) {
         int256 totalCashUnderlying =
-            cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
+            cashGroup.assetRate.convertToUnderlying(market.totalCurrentCash);
         int256 proportion =
             market.totalfCash.mul(Constants.RATE_PRECISION).div(
                 market.totalfCash.add(totalCashUnderlying)
@@ -285,7 +285,7 @@ library nTokenMintAction {
         int256 fCashAmount;
         {
             int256 perMarketDepositUnderlying =
-                cashGroup.assetRate.convertInternalToUnderlying(perMarketDeposit);
+                cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
             fCashAmount = perMarketDepositUnderlying.mul(assumedExchangeRate).div(
                 Constants.RATE_PRECISION
             );

@@ -244,7 +244,7 @@ library FreeCollateral {
             ETHRate memory ethRate =
                 ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
             factors.netETHValue = ethRate.convertToETH(
-                factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue)
+                factors.cashGroup.assetRate.convertToUnderlying(netLocalAssetValue)
             );
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
@@ -278,9 +278,7 @@ library FreeCollateral {
 
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int256 ethValue =
-                ethRate.convertToETH(
-                    factors.assetRate.convertInternalToUnderlying(netLocalAssetValue)
-                );
+                ethRate.convertToETH(factors.assetRate.convertToUnderlying(netLocalAssetValue));
             factors.netETHValue = factors.netETHValue.add(ethValue);
 
             currencies = currencies << 16;
@@ -327,7 +325,7 @@ library FreeCollateral {
             ETHRate memory ethRate =
                 ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
             factors.netETHValue = ethRate.convertToETH(
-                factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue)
+                factors.cashGroup.assetRate.convertToUnderlying(netLocalAssetValue)
             );
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
@@ -360,9 +358,7 @@ library FreeCollateral {
 
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int256 ethValue =
-                ethRate.convertToETH(
-                    factors.assetRate.convertInternalToUnderlying(netLocalAssetValue)
-                );
+                ethRate.convertToETH(factors.assetRate.convertToUnderlying(netLocalAssetValue));
             factors.netETHValue = factors.netETHValue.add(ethValue);
 
             currencies = currencies << 16;
@@ -432,7 +428,7 @@ library FreeCollateral {
             ETHRate memory ethRate =
                 ExchangeRate.buildExchangeRate(accountContext.bitmapCurrencyId);
             factors.netETHValue = ethRate.convertToETH(
-                factors.cashGroup.assetRate.convertInternalToUnderlying(netLocalAssetValue)
+                factors.cashGroup.assetRate.convertToUnderlying(netLocalAssetValue)
             );
 
             // If the bitmap currency id can only ever be the local currency where debt is held. During enable bitmap we check that
@@ -482,9 +478,7 @@ library FreeCollateral {
                 uint256(uint16(currencyBytes & AccountContextHandler.UNMASK_FLAGS));
             ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
             int256 ethValue =
-                ethRate.convertToETH(
-                    factors.assetRate.convertInternalToUnderlying(netLocalAssetValue)
-                );
+                ethRate.convertToETH(factors.assetRate.convertToUnderlying(netLocalAssetValue));
             factors.netETHValue = factors.netETHValue.add(ethValue);
 
             if (currencyId == collateralCurrencyId) {

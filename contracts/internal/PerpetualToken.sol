@@ -512,7 +512,7 @@ library PerpetualToken {
 
         // Return the total present value denominated in asset terms
         totalAssetPV = totalAssetPV
-            .add(perpToken.cashGroup.assetRate.convertInternalFromUnderlying(totalUnderlyingPV))
+            .add(perpToken.cashGroup.assetRate.convertFromUnderlying(totalUnderlyingPV))
             .add(perpToken.cashBalance);
 
         return (totalAssetPV, ifCashBitmap);

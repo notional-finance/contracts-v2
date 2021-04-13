@@ -91,7 +91,7 @@ library SettleAssets {
         (int256 cashClaim, int256 fCash, SettlementMarket memory market) =
             calculateMarketStorage(asset);
 
-        int256 assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
+        int256 assetCash = cashClaim.add(settlementRate.convertFromUnderlying(fCash));
 
         return (assetCash, market);
     }
@@ -173,7 +173,7 @@ library SettleAssets {
 
             int256 assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
-                assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
+                assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 if (asset.maturity > blockTime) {
@@ -232,7 +232,7 @@ library SettleAssets {
 
             int256 assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
-                assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
+                assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 SettlementMarket memory market;
@@ -280,7 +280,7 @@ library SettleAssets {
             // Storage Read / Write
             AssetRateParameters memory rate =
                 AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
-            assetCash = rate.convertInternalFromUnderlying(ifCash);
+            assetCash = rate.convertFromUnderlying(ifCash);
             // Storage Delete
             assembly {
                 sstore(ifCashSlot, 0)

@@ -283,7 +283,7 @@ library AssetHandler {
         }
 
         presentValueAsset = presentValueAsset.add(
-            cashGroup.assetRate.convertInternalFromUnderlying(presentValueUnderlying)
+            cashGroup.assetRate.convertFromUnderlying(presentValueUnderlying)
         );
 
         return (presentValueAsset, j);
