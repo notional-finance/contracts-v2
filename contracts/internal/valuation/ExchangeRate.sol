@@ -7,30 +7,12 @@ import "../../math/SafeInt256.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 /**
- * @dev Exchange rate object as stored in memory, these are cached optimistically
- * when the transaction begins. This is not the same as the object in storage.
- */
-
-struct ETHRate {
-    // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
-    int256 rateDecimals;
-    // The exchange rate from base to quote (if invert is required it is already done)
-    int256 rate;
-    // Amount of buffer to apply to the exchange rate for negative balances.
-    int256 buffer;
-    // Amount of haircut to apply to the exchange rate for positive balances
-    int256 haircut;
-    // Liquidation discount for this currency
-    int256 liquidationDiscount;
-}
-
-/**
  * @title ExchangeRate
  * @notice Internal library for calculating exchange rates between different currencies
  * and assets. Must be supplied a Rate struct with relevant parameters. Expects rate oracles
  * to conform to the Chainlink AggregatorV2V3Interface.
  *
- * This is used on internal balances which are all denominated in TokenHandler.INTERNAL_TOKEN_PRECISION.
+ * This is used on internal balances which are all denominated in Constants.INTERNAL_TOKEN_PRECISION.
  */
 library ExchangeRate {
     using SafeInt256 for int256;
@@ -46,7 +28,7 @@ library ExchangeRate {
      * always applied in this method.
      *
      * @param er exchange rate object from base to ETH
-     * @return the converted balance denominated in ETH with TokenHandler.INTERNAL_TOKEN_PRECISION
+     * @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
      */
     function convertToETH(ETHRate memory er, int256 balance) internal pure returns (int256) {
         if (balance == 0) return 0;

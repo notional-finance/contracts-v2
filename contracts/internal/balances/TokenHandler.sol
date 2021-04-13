@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../../math/SafeInt256.sol";
 import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -15,10 +16,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
-
-    int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;
-    // NOTE: this address is hardcoded in the library, must update this on deployment
-    address constant NOTE_TOKEN_ADDRESS = 0xe25EDE8b52d4DE741Bd61c30060a003f0F1151A5;
 
     /**
      * @notice Gets token data for a particular currency id, if underlying is set to true then returns
@@ -54,7 +51,7 @@ library TokenHandler {
         TokenStorage memory tokenStorage
     ) internal {
         bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
-        if (tokenStorage.tokenType == TokenType.Ether && currencyId == 1) {
+        if (tokenStorage.tokenType == TokenType.Ether && currencyId == Constants.ETH_CURRENCY_ID) {
             // Specific storage for Ether token type
             bytes32 etherData =
                 ((bytes32(bytes20(address(0))) >> 96) |
@@ -213,16 +210,17 @@ library TokenHandler {
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {
-        // todo: short circuit if equal
-        return amount.mul(INTERNAL_TOKEN_PRECISION).div(token.decimals);
+        if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
+        return amount.mul(Constants.INTERNAL_TOKEN_PRECISION).div(token.decimals);
     }
 
     function convertToExternal(Token memory token, int256 amount) internal pure returns (int256) {
-        return amount.mul(token.decimals).div(INTERNAL_TOKEN_PRECISION);
+        if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
+        return amount.mul(token.decimals).div(Constants.INTERNAL_TOKEN_PRECISION);
     }
 
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
-        safeTransferOut(IERC20(NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
+        safeTransferOut(IERC20(Constants.NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
     }
 
     function safeTransferOut(

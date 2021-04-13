@@ -134,7 +134,7 @@ library PerpetualToken {
             data := sload(slot)
         }
 
-        require(liquidationHaircutPercentage <= CashGroup.PERCENTAGE_DECIMALS, "Invalid haircut");
+        require(liquidationHaircutPercentage <= Constants.PERCENTAGE_DECIMALS, "Invalid haircut");
         // The pv haircut percentage must be less than the liquidation percentage or else liquidators will not
         // get profit for liquidating perpetual tokens.
         require(pvHaircutPercentage < liquidationHaircutPercentage, "Invalid pv haircut");
@@ -242,7 +242,7 @@ library PerpetualToken {
     ) internal {
         uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.deposit.parameters")));
         require(
-            depositShares.length <= CashGroup.MAX_TRADED_MARKET_INDEX,
+            depositShares.length <= Constants.MAX_TRADED_MARKET_INDEX,
             "PT: deposit share length"
         );
 
@@ -253,7 +253,7 @@ library PerpetualToken {
             // This cannot overflow in uint 256 with 9 max slots
             shareSum = shareSum + depositShares[i];
             require(
-                leverageThresholds[i] > 0 && leverageThresholds[i] < Market.RATE_PRECISION,
+                leverageThresholds[i] > 0 && leverageThresholds[i] < Constants.RATE_PRECISION,
                 "PT: leverage threshold"
             );
         }
@@ -273,17 +273,17 @@ library PerpetualToken {
         uint32[] calldata proportions
     ) internal {
         uint256 slot = uint256(keccak256(abi.encode(currencyId, "perpetual.init.parameters")));
-        require(rateAnchors.length <= CashGroup.MAX_TRADED_MARKET_INDEX, "PT: rate anchors length");
+        require(rateAnchors.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: rate anchors length");
 
         require(proportions.length == rateAnchors.length, "PT: proportions length");
 
         for (uint256 i; i < rateAnchors.length; i++) {
             // Rate anchors are exchange rates and therefore must be greater than RATE_PRECISION
             // or we will end up with negative interest rates
-            require(rateAnchors[i] > Market.RATE_PRECISION, "PT: invalid rate anchor");
+            require(rateAnchors[i] > Constants.RATE_PRECISION, "PT: invalid rate anchor");
             // Proportions must be between zero and the rate precision
             require(
-                proportions[i] > 0 && proportions[i] < Market.RATE_PRECISION,
+                proportions[i] > 0 && proportions[i] < Constants.RATE_PRECISION,
                 "PT: invalid proportion"
             );
         }
@@ -443,7 +443,7 @@ library PerpetualToken {
         pure
         returns (uint256)
     {
-        return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + CashGroup.QUARTER;
+        return CashGroup.getReferenceTime(perpToken.lastInitializedTime) + Constants.QUARTER;
     }
 
     /**

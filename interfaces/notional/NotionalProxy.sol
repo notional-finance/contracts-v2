@@ -2,12 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../contracts/actions/DepositWithdrawAction.sol";
-import "../../contracts/common/ExchangeRate.sol";
-import "../../contracts/common/CashGroup.sol";
-import "../../contracts/common/AssetRate.sol";
-import "../../contracts/common/PerpetualToken.sol";
-import "../../contracts/storage/TokenHandler.sol";
+import "../../contracts/global/Types.sol";
 import "./nTokenERC20.sol";
 
 // TODO: split this proxy into smaller parts

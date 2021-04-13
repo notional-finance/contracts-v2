@@ -144,7 +144,7 @@ library InitializeMarketsAction {
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
         for (uint256 i = 1; i < perpToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = perpToken.portfolioState.storedAssets[i];
-            if (asset.assetType != AssetHandler.FCASH_ASSET_TYPE) continue;
+            if (asset.assetType != Constants.FCASH_ASSET_TYPE) continue;
 
             (
                 ifCashBitmap, /* notional */
@@ -232,7 +232,7 @@ library InitializeMarketsAction {
                 previousMarkets[2].maturity,
                 previousMarkets[1].oracleRate,
                 previousMarkets[2].oracleRate,
-                referenceTime + 2 * CashGroup.QUARTER
+                referenceTime + 2 * Constants.QUARTER
             );
     }
 
@@ -258,14 +258,14 @@ library InitializeMarketsAction {
     ) private pure returns (int256) {
         int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
         // If exchange rate is less than 1 then we set it to 1 so that this can continue
-        if (exchangeRate < Market.RATE_PRECISION) {
+        if (exchangeRate < Constants.RATE_PRECISION) {
             // TODO: Is this the correct thing to do?
-            exchangeRate = Market.RATE_PRECISION;
+            exchangeRate = Constants.RATE_PRECISION;
         }
 
         int128 expValue = ABDKMath64x64.fromInt(exchangeRate.sub(rateAnchor).mul(rateScalar));
         // Scale this back to a decimal in abdk
-        expValue = ABDKMath64x64.div(expValue, Market.RATE_PRECISION_64x64);
+        expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         // Take the exponent
         expValue = ABDKMath64x64.exp(expValue);
         // proportion = exp / (1 + exp)
@@ -273,7 +273,7 @@ library InitializeMarketsAction {
         int128 proportion = ABDKMath64x64.div(expValue, ABDKMath64x64.add(expValue, 2**64));
 
         // Scale this back to 1e9 precision
-        proportion = ABDKMath64x64.mul(proportion, Market.RATE_PRECISION_64x64);
+        proportion = ABDKMath64x64.mul(proportion, Constants.RATE_PRECISION_64x64);
 
         return ABDKMath64x64.toInt(proportion);
     }
@@ -291,7 +291,7 @@ library InitializeMarketsAction {
         uint256 longMaturity = longMarket.maturity;
         uint256 longRate = longMarket.oracleRate;
         // the next market maturity is always a quarter away
-        uint256 newMaturity = longMarket.maturity + CashGroup.QUARTER;
+        uint256 newMaturity = longMarket.maturity + Constants.QUARTER;
         require(shortMaturity < longMaturity, "IM: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
@@ -379,7 +379,7 @@ library InitializeMarketsAction {
                 setLiquidityAmount(
                     netAssetCashAvailable,
                     parameters.depositShares[i],
-                    2 + i, // liquidity token asset type
+                    Constants.MIN_LIQUIDITY_TOKEN_INDEX + i, // liquidity token asset type
                     newMarket,
                     perpToken
                 );
@@ -409,7 +409,7 @@ library InitializeMarketsAction {
                 // totalfCash = proportion * totalCashUnderlying / (1 - proportion)
                 int256 fCashAmount =
                     underlyingCashToMarket.mul(parameters.proportions[i]).div(
-                        Market.RATE_PRECISION.sub(parameters.proportions[i])
+                        Constants.RATE_PRECISION.sub(parameters.proportions[i])
                     );
 
                 newMarket.totalfCash = fCashAmount;
@@ -476,7 +476,7 @@ library InitializeMarketsAction {
                 if (proportion > parameters.leverageThresholds[i]) {
                     proportion = parameters.leverageThresholds[i];
                     newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
-                        Market.RATE_PRECISION.sub(proportion)
+                        Constants.RATE_PRECISION.sub(proportion)
                     );
 
                     oracleRate = Market.getImpliedRate(
@@ -490,7 +490,7 @@ library InitializeMarketsAction {
                     require(oracleRate != 0, "Oracle rate overflow");
                 } else {
                     newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
-                        Market.RATE_PRECISION.sub(proportion)
+                        Constants.RATE_PRECISION.sub(proportion)
                     );
                 }
 
@@ -545,7 +545,7 @@ library InitializeMarketsAction {
     ) internal returns (bytes32) {
         uint256 blockTime = block.timestamp;
         // Always reference the current settlement date
-        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
         market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();

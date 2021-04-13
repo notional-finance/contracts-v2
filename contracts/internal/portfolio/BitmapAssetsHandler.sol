@@ -10,6 +10,7 @@ import "../PerpetualToken.sol";
 import "../../math/Bitmap.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/Constants.sol";
+import "../../global/Types.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library BitmapAssetsHandler {
@@ -82,7 +83,7 @@ library BitmapAssetsHandler {
         for (uint256 i; i < assets.length; i++) {
             if (assets[i].notional == 0) continue;
             require(assets[i].currencyId == currencyId); // dev: invalid asset in set ifcash assets
-            require(assets[i].assetType == AssetHandler.FCASH_ASSET_TYPE); // dev: invalid asset in set ifcash assets
+            require(assets[i].assetType == Constants.FCASH_ASSET_TYPE); // dev: invalid asset in set ifcash assets
             int256 finalNotional;
 
             (ifCashBitmap, finalNotional) = addifCashAsset(
@@ -246,7 +247,7 @@ library BitmapAssetsHandler {
 
                 assets[index].currencyId = currencyId;
                 assets[index].maturity = maturity;
-                assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
+                assets[index].assetType = Constants.FCASH_ASSET_TYPE;
                 assets[index].notional = notional;
                 index += 1;
             }
@@ -292,7 +293,7 @@ library BitmapAssetsHandler {
 
                 assets[index].currencyId = currencyId;
                 assets[index].maturity = maturity;
-                assets[index].assetType = AssetHandler.FCASH_ASSET_TYPE;
+                assets[index].assetType = Constants.FCASH_ASSET_TYPE;
                 assets[index].notional = notionalToTransfer;
                 index += 1;
             }
@@ -328,7 +329,7 @@ library BitmapAssetsHandler {
         uint256 oracleRateBuffer =
             uint256(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) *
                 10 *
-                Market.BASIS_POINT;
+                Constants.BASIS_POINT;
 
         while (assetsBitmap != 0) {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
@@ -347,7 +348,7 @@ library BitmapAssetsHandler {
                     // index referenced in the previous quarter because the markets array refers to previous
                     // markets in this case.
                     (uint256 marketIndex, bool idiosyncratic) =
-                        perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
+                        perpToken.cashGroup.getMarketIndex(maturity, blockTime - Constants.QUARTER);
                     // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
                     require(!idiosyncratic); // dev: fail on market index
 

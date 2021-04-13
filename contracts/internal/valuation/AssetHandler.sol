@@ -2,6 +2,8 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "../markets/CashGroup.sol";
 import "../markets/AssetRate.sol";
 import "../portfolio/PortfolioHandler.sol";
@@ -9,40 +11,16 @@ import "../../math/SafeInt256.sol";
 import "../../math/ABDKMath64x64.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-enum AssetStorageState {NoChange, Update, Delete}
-
-struct PortfolioAsset {
-    // Asset currency id
-    uint256 currencyId;
-    uint256 maturity;
-    // Asset type, fCash or liquidity token.
-    uint256 assetType;
-    // fCash amount or liquidity token amount
-    int256 notional;
-    uint256 storageSlot;
-    // The state of the asset for when it is written to storage
-    AssetStorageState storageState;
-}
-
 library AssetHandler {
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
-    uint256 internal constant FCASH_ASSET_TYPE = 1;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX1 = 2;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX2 = 3;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX3 = 4;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX4 = 5;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX5 = 6;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX6 = 7;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX7 = 8;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX8 = 9;
-    uint256 internal constant LIQUIDITY_TOKEN_INDEX9 = 10;
-
     function isLiquidityToken(uint256 assetType) internal pure returns (bool) {
-        return assetType >= LIQUIDITY_TOKEN_INDEX1 && assetType <= LIQUIDITY_TOKEN_INDEX9;
+        return
+            assetType >= Constants.MIN_LIQUIDITY_TOKEN_INDEX &&
+            assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX;
     }
 
     /**
@@ -50,16 +28,16 @@ library AssetHandler {
      * calculates the settlement date for any PortfolioAsset.
      */
     function getSettlementDate(PortfolioAsset memory asset) internal pure returns (uint256) {
-        require(asset.assetType > 0 && asset.assetType <= LIQUIDITY_TOKEN_INDEX9); // dev: settlement date invalid asset type
+        require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: settlement date invalid asset type
         // 3 month tokens and fCash tokens settle at maturity
-        if (asset.assetType <= LIQUIDITY_TOKEN_INDEX1) return asset.maturity;
+        if (asset.assetType <= Constants.MIN_LIQUIDITY_TOKEN_INDEX) return asset.maturity;
 
         uint256 marketLength = CashGroup.getTradedMarket(asset.assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
         // Here we calculate:
         // tRef = maturity - marketLength + 90 days
-        return asset.maturity.sub(marketLength).add(CashGroup.QUARTER);
+        return asset.maturity.sub(marketLength).add(Constants.QUARTER);
     }
 
     /**
@@ -72,10 +50,10 @@ library AssetHandler {
         returns (int256)
     {
         int128 expValue =
-            ABDKMath64x64.fromUInt(oracleRate.mul(timeToMaturity).div(Market.IMPLIED_RATE_TIME));
-        expValue = ABDKMath64x64.div(expValue, Market.RATE_PRECISION_64x64);
+            ABDKMath64x64.fromUInt(oracleRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME));
+        expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         expValue = ABDKMath64x64.exp(expValue * -1);
-        expValue = ABDKMath64x64.mul(expValue, Market.RATE_PRECISION_64x64);
+        expValue = ABDKMath64x64.mul(expValue, Constants.RATE_PRECISION_64x64);
         int256 discountFactor = ABDKMath64x64.toInt(expValue);
 
         return discountFactor;
@@ -95,8 +73,8 @@ library AssetHandler {
         uint256 timeToMaturity = maturity.sub(blockTime);
         int256 discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
-        require(discountFactor <= Market.RATE_PRECISION); // dev: get present value invalid discount factor
-        return notional.mul(discountFactor).div(Market.RATE_PRECISION);
+        require(discountFactor <= Constants.RATE_PRECISION); // dev: get present value invalid discount factor
+        return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
     /**
@@ -129,8 +107,8 @@ library AssetHandler {
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
         }
 
-        require(discountFactor <= Market.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
-        return notional.mul(discountFactor).div(Market.RATE_PRECISION);
+        require(discountFactor <= Constants.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
+        return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
     /**
@@ -161,7 +139,7 @@ library AssetHandler {
         int256 haircut,
         int256 liquidity
     ) private pure returns (int256) {
-        return numerator.mul(tokens).mul(haircut).div(CashGroup.PERCENTAGE_DECIMALS).div(liquidity);
+        return numerator.mul(tokens).mul(haircut).div(Constants.PERCENTAGE_DECIMALS).div(liquidity);
     }
 
     /**
@@ -232,7 +210,7 @@ library AssetHandler {
         // TODO: we can use the same logic in settlement here, look back one slot, need to pass in the index
         for (uint256 j; j < fCashAssets.length; j++) {
             if (
-                fCashAssets[j].assetType == FCASH_ASSET_TYPE &&
+                fCashAssets[j].assetType == Constants.FCASH_ASSET_TYPE &&
                 fCashAssets[j].currencyId == liquidityToken.currencyId &&
                 fCashAssets[j].maturity == liquidityToken.maturity
             ) {
@@ -293,7 +271,7 @@ library AssetHandler {
 
         uint256 j = portfolioIndex;
         for (; j < assets.length; j++) {
-            if (assets[j].assetType != FCASH_ASSET_TYPE) continue;
+            if (assets[j].assetType != Constants.FCASH_ASSET_TYPE) continue;
             if (assets[j].currencyId != cashGroup.currencyId) break;
 
             uint256 maturity = assets[j].maturity;

@@ -226,7 +226,7 @@ library nTokenMintAction {
         int256 totalCashUnderlying =
             cashGroup.assetRate.convertInternalToUnderlying(market.totalCurrentCash);
         int256 proportion =
-            market.totalfCash.mul(Market.RATE_PRECISION).div(
+            market.totalfCash.mul(Constants.RATE_PRECISION).div(
                 market.totalfCash.add(totalCashUnderlying)
             );
 
@@ -246,7 +246,7 @@ library nTokenMintAction {
         require(
             asset.maturity == market.maturity &&
                 // Ensures that the asset type references the proper liquidity token
-                asset.assetType == index + 2,
+                asset.assetType == index + Constants.MIN_LIQUIDITY_TOKEN_INDEX,
             "PT: invalid liquidity token"
         );
 
@@ -274,7 +274,7 @@ library nTokenMintAction {
         // because it is very gas inefficient.
         int256 assumedExchangeRate;
         if (market.lastImpliedRate < Constants.DELEVERAGE_BUFFER) {
-            assumedExchangeRate = Market.RATE_PRECISION;
+            assumedExchangeRate = Constants.RATE_PRECISION;
         } else {
             assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
                 market.lastImpliedRate.sub(Constants.DELEVERAGE_BUFFER),
@@ -287,7 +287,7 @@ library nTokenMintAction {
             int256 perMarketDepositUnderlying =
                 cashGroup.assetRate.convertInternalToUnderlying(perMarketDeposit);
             fCashAmount = perMarketDepositUnderlying.mul(assumedExchangeRate).div(
-                Market.RATE_PRECISION
+                Constants.RATE_PRECISION
             );
         }
         (int256 netAssetCash, int256 fee) =

@@ -2,36 +2,21 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./Market.sol";
+import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
-import "../balances/TokenHandler.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-
-/**
- * @dev Asset rate object as stored in memory, these are cached optimistically
- * when the transaction begins. This is not the same as the object in storage.
- */
-
-struct AssetRateParameters {
-    // Address of the asset rate oracle
-    address rateOracle;
-    // The exchange rate from base to quote (if invert is required it is already done)
-    int256 rate;
-    // The decimals of the underlying, the rate converts to the underlying decimals
-    int256 underlyingDecimals;
-}
 
 library AssetRate {
     using SafeInt256 for int256;
     event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
 
-    uint256 internal constant ASSET_RATE_STORAGE_SLOT = 2;
-    int256 internal constant ASSET_RATE_DECIMALS = 1e18;
+    uint256 private constant ASSET_RATE_STORAGE_SLOT = 2;
+    int256 private constant ASSET_RATE_DECIMALS = 1e18;
 
     /**
      * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+     * at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
      * externally from the system.
      *
      * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance = underlyingBalance.
@@ -54,7 +39,7 @@ library AssetRate {
             ar
                 .rate
                 .mul(assetBalance)
-                .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
+                .mul(Constants.INTERNAL_TOKEN_PRECISION)
                 .div(ASSET_RATE_DECIMALS)
                 .div(ar.underlyingDecimals);
 
@@ -63,7 +48,7 @@ library AssetRate {
 
     /**
      * @notice Converts an internal asset value to its underlying token value. Internally, cash and fCash are all specified
-     * at Market.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
+     * at Constants.RATE_PRECISION so no decimal conversion is necessary here. Conversion is only required when transferring
      * externally from the system.
      *
      * Buffers and haircuts ARE NOT applied here. Asset rates are defined as assetRate * assetBalance =
@@ -83,7 +68,7 @@ library AssetRate {
         // rateDecimals * balance * underlyingPrecision / rateDecimals * internalPrecision
         int256 assetBalance =
             underlyingBalance.mul(ASSET_RATE_DECIMALS).mul(ar.underlyingDecimals).div(ar.rate).div(
-                TokenHandler.INTERNAL_TOKEN_PRECISION
+                Constants.INTERNAL_TOKEN_PRECISION
             );
 
         return assetBalance;

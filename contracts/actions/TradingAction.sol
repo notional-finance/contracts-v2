@@ -13,21 +13,6 @@ import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-enum TradeActionType {
-    // (uint8, uint8, uint88, uint32)
-    Lend,
-    // (uint8, uint8, uint88, uint32)
-    Borrow,
-    // (uint8, uint8, uint88, uint32, uint32)
-    AddLiquidity,
-    // (uint8, uint8, uint88, uint32, uint32)
-    RemoveLiquidity,
-    // (uint8, uint32, int88)
-    PurchasePerpetualTokenResidual,
-    // (uint8, address, int88)
-    SettleCashDebt
-}
-
 library TradingAction {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
@@ -150,13 +135,7 @@ library TradingAction {
         uint256 maturity,
         int256 notional
     ) internal pure {
-        portfolioState.addAsset(
-            currencyId,
-            maturity,
-            AssetHandler.FCASH_ASSET_TYPE,
-            notional,
-            false
-        );
+        portfolioState.addAsset(currencyId, maturity, Constants.FCASH_ASSET_TYPE, notional, false);
     }
 
     function _executeTrade(
@@ -276,7 +255,7 @@ library TradingAction {
         portfolioState.addAsset(
             cashGroup.currencyId,
             market.maturity,
-            AssetHandler.FCASH_ASSET_TYPE,
+            Constants.FCASH_ASSET_TYPE,
             fCashAmount,
             false
         );
@@ -372,7 +351,7 @@ library TradingAction {
         // Settled account must borrow from the 3 month market at a penalty rate. Even if the market is
         // not initialized we can still settle cash debts because we reference the previous 3 month market's oracle
         // rate which is where the new 3 month market's oracle rate will be initialized to.
-        uint256 threeMonthMaturity = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        uint256 threeMonthMaturity = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
         int256 fCashAmount =
             _getfCashSettleAmount(
                 cashGroup,
@@ -413,7 +392,7 @@ library TradingAction {
             );
         // Amount to settle is positive, this returns the fCashAmount that the settler will
         // receive as a positive number
-        return amountToSettle.mul(exchangeRate).div(Market.RATE_PRECISION);
+        return amountToSettle.mul(exchangeRate).div(Constants.RATE_PRECISION);
     }
 
     function _purchasePerpetualTokenResidual(
@@ -500,7 +479,7 @@ library TradingAction {
         uint256 purchaseIncentive =
             uint256(uint8(parameters[PerpetualToken.RESIDUAL_PURCHASE_INCENTIVE])) *
                 10 *
-                Market.BASIS_POINT;
+                Constants.BASIS_POINT;
 
         if (fCashAmount > 0) {
             oracleRate = oracleRate.add(purchaseIncentive);
@@ -515,7 +494,7 @@ library TradingAction {
             Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
         return
             cashGroup.assetRate.convertInternalFromUnderlying(
-                fCashAmount.mul(Market.RATE_PRECISION).div(exchangeRate)
+                fCashAmount.mul(Constants.RATE_PRECISION).div(exchangeRate)
             );
     }
 
@@ -589,7 +568,7 @@ library TradingAction {
             portfolioState.addAsset(
                 currencyId,
                 maturity,
-                AssetHandler.FCASH_ASSET_TYPE,
+                Constants.FCASH_ASSET_TYPE,
                 fCashAmount,
                 false
             );

@@ -168,7 +168,7 @@ contract Views is StorageLayoutV1 {
             int256 cashBalance, /* */ /* */
             ,
 
-        ) = BalanceHandler.getBalanceStorage(BalanceHandler.RESERVE, currencyId);
+        ) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
         return cashBalance;
     }
 

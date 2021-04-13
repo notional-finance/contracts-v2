@@ -4,43 +4,11 @@ pragma experimental ABIEncoderV2;
 
 import "./AssetRate.sol";
 import "./CashGroup.sol";
+import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/ABDKMath64x64.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-
-/**
- * Market object as represented in memory
- */
-struct MarketParameters {
-    bytes32 storageSlot;
-    uint256 maturity;
-    // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
-    // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
-    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
-    // This is the implied rate that we use to smooth the anchor rate between trades.
-    uint256 lastImpliedRate;
-    // This is the oracle rate used to value fCash and prevent flash loan attacks
-    uint256 oracleRate;
-    // This is the timestamp of the previous trade
-    uint256 previousTradeTime;
-    // Used to determine if the market has been updated
-    bytes1 storageState;
-}
-
-struct SettlementMarket {
-    bytes32 storageSlot;
-    // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
-    // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
-    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
-    // Un parsed market data used for storage
-    bytes32 data;
-}
 
 library Market {
     using SafeMath for uint256;
@@ -53,20 +21,8 @@ library Market {
     bytes1 private constant STORAGE_STATE_UPDATE_TRADE = 0x02;
     bytes1 internal constant STORAGE_STATE_INITIALIZE_MARKET = 0x03; // Both settings are set
 
-    // This is a constant that represents the time period that all rates are normalized by, 360 days
-    uint256 internal constant IMPLIED_RATE_TIME = 31104000;
-
     // Max positive value for a ABDK64x64 integer
-    int256 internal constant MAX64 = 0x7FFFFFFFFFFFFFFF;
-    // Number of decimal places that rates are stored in, equals 100%
-    int256 internal constant RATE_PRECISION = 1e9;
-    uint256 internal constant BASIS_POINT = uint256(RATE_PRECISION / 10000);
-
-    // This is the ABDK64x64 representation of RATE_PRECISION
-    // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
-    int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
-    // IMPLIED_RATE_TIME_64x64 = ABDKMath64x64.fromUint(IMPLIED_RATE_TIME)
-    int128 internal constant IMPLIED_RATE_TIME_64x64 = 0x1da9c000000000000000000;
+    int256 private constant MAX64 = 0x7FFFFFFFFFFFFFFF;
 
     /**
      * @notice Used to add liquidity to a market, assuming that it is initialized. If not then
@@ -187,7 +143,7 @@ library Market {
     ) internal pure returns (int256) {
         // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
         int256 fCashChangeToAccountGuess =
-            netCashToAccount.mul(rateAnchor).div(Market.RATE_PRECISION).neg();
+            netCashToAccount.mul(rateAnchor).div(Constants.RATE_PRECISION).neg();
         for (uint8 i; i < 250; i++) {
             (int256 exchangeRate, bool success) =
                 getExchangeRate(
@@ -231,12 +187,12 @@ library Market {
 
         if (fCashGuess > 0) {
             // Lending
-            exchangeRate = exchangeRate.mul(RATE_PRECISION).div(fee);
-            require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
+            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(fee);
+            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
             // Fees will never be big enough to make a difference in the derivative
             derivative = cashAmount
-                .mul(RATE_PRECISION)
+                .mul(Constants.RATE_PRECISION)
                 .mul(totalfCash.add(totalCashUnderlying))
                 .div(fee);
 
@@ -245,23 +201,23 @@ library Market {
             );
         } else {
             // Borrowing
-            exchangeRate = exchangeRate.mul(fee).div(RATE_PRECISION);
-            require(exchangeRate >= RATE_PRECISION); // dev: rate underflow
+            exchangeRate = exchangeRate.mul(fee).div(Constants.RATE_PRECISION);
+            require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
             derivative = cashAmount.mul(fee).mul(totalfCash.add(totalCashUnderlying)).div(
-                RATE_PRECISION
+                Constants.RATE_PRECISION
             );
 
             denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
                 totalCashUnderlying.add(fCashGuess)
             );
         }
-        derivative = TokenHandler.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
+        derivative = Constants.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
 
-        int256 numerator = cashAmount.mul(exchangeRate).div(RATE_PRECISION);
+        int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
         numerator = numerator.add(fCashGuess);
 
-        return numerator.mul(TokenHandler.INTERNAL_TOKEN_PRECISION).div(derivative);
+        return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
     }
 
     function getNetCashAmounts(
@@ -284,21 +240,23 @@ library Market {
         // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
         // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
         int256 preFeeCashToAccount =
-            fCashToAccount.mul(RATE_PRECISION).div(preFeeExchangeRate).neg();
+            fCashToAccount.mul(Constants.RATE_PRECISION).div(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
         if (fCashToAccount > 0) {
-            int256 postFeeExchangeRate = preFeeExchangeRate.mul(RATE_PRECISION).div(fee);
+            int256 postFeeExchangeRate = preFeeExchangeRate.mul(Constants.RATE_PRECISION).div(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
             // when borrowing.
-            if (postFeeExchangeRate < RATE_PRECISION) return (0, 0, 0);
+            if (postFeeExchangeRate < Constants.RATE_PRECISION) return (0, 0, 0);
             // fee = (1 - fee) * preFeeCash
-            fee = RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(RATE_PRECISION);
+            fee = Constants.RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(
+                Constants.RATE_PRECISION
+            );
         } else {
             // fee = (fee - 1) * preFeeCash / fee
-            fee = fee.sub(RATE_PRECISION).mul(preFeeCashToAccount).div(fee);
+            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(fee);
         }
         int256 cashToReserve =
-            fee.mul(cashGroup.getReserveFeeShare()).div(CashGroup.PERCENTAGE_DECIMALS);
+            fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS);
 
         return (
             // Net cash to account
@@ -311,7 +269,7 @@ library Market {
 
     /**
      * @notice Does the trade calculation and returns the new market state and cash amount, fCash and
-     * cash amounts are all specified at RATE_PRECISION.
+     * cash amounts are all specified at Constants.RATE_PRECISION.
      *
      * @param marketState the current market state
      * @param cashGroup cash group configuration parameters
@@ -404,10 +362,10 @@ library Market {
      * which will hurt the liquidity providers.
      *
      * The rate anchor will update as the market rolls down to maturity. The calculation is:
-     * newExchangeRate = e^(lastImpliedRate * timeToMaturity / IMPLIED_RATE_TIME)
+     * newExchangeRate = e^(lastImpliedRate * timeToMaturity / Constants.IMPLIED_RATE_TIME)
      * newAnchor = newExchangeRate - ln((proportion / (1 - proportion)) / rateScalar
      * where:
-     * lastImpliedRate = ln(exchangeRate') * (IMPLIED_RATE_TIME / timeToMaturity')
+     * lastImpliedRate = ln(exchangeRate') * (Constants.IMPLIED_RATE_TIME / timeToMaturity')
      *      (calculated when the last trade in the market was made)
      *
      * @return the new rate anchor and a boolean that signifies success
@@ -421,12 +379,12 @@ library Market {
     ) internal pure returns (int256, bool) {
         // This is the exchange rate at the new time to maturity
         int256 exchangeRate = getExchangeRateFromImpliedRate(lastImpliedRate, timeToMaturity);
-        if (exchangeRate < RATE_PRECISION) return (0, false);
+        if (exchangeRate < Constants.RATE_PRECISION) return (0, false);
 
         int256 rateAnchor;
         {
             int256 proportion =
-                totalfCash.mul(RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+                totalfCash.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
             (int256 lnProportion, bool success) = logProportion(proportion);
             if (!success) return (0, false);
@@ -449,22 +407,22 @@ library Market {
         int256 rateAnchor,
         uint256 timeToMaturity
     ) internal pure returns (uint256) {
-        // This will check for exchange rates < RATE_PRECISION
+        // This will check for exchange rates < Constants.RATE_PRECISION
         (int256 exchangeRate, bool success) =
             getExchangeRate(totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0);
         if (!success) return 0;
 
         // Uses continuous compounding to calculate the implied rate:
-        // ln(exchangeRate) * IMPLIED_RATE_TIME / timeToMaturity
+        // ln(exchangeRate) * Constants.IMPLIED_RATE_TIME / timeToMaturity
         int128 rate = ABDKMath64x64.fromInt(exchangeRate);
-        int128 rateScaled = ABDKMath64x64.div(rate, RATE_PRECISION_64x64);
-        // We will not have a negative log here because we check that exchangeRate > RATE_PRECISION
+        int128 rateScaled = ABDKMath64x64.div(rate, Constants.RATE_PRECISION_64x64);
+        // We will not have a negative log here because we check that exchangeRate > Constants.RATE_PRECISION
         // inside getExchangeRate
         int128 lnRateScaled = ABDKMath64x64.ln(rateScaled);
         uint256 lnRate =
-            ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, RATE_PRECISION_64x64));
+            ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, Constants.RATE_PRECISION_64x64));
 
-        uint256 impliedRate = lnRate.mul(IMPLIED_RATE_TIME).div(timeToMaturity);
+        uint256 impliedRate = lnRate.mul(Constants.IMPLIED_RATE_TIME).div(timeToMaturity);
 
         // Implied rates over 429% will overflow, this seems like a safe assumption
         if (impliedRate > type(uint32).max) return 0;
@@ -482,10 +440,12 @@ library Market {
         returns (int256)
     {
         int128 expValue =
-            ABDKMath64x64.fromUInt(impliedRate.mul(timeToMaturity).div(IMPLIED_RATE_TIME));
-        int128 expValueScaled = ABDKMath64x64.div(expValue, RATE_PRECISION_64x64);
+            ABDKMath64x64.fromUInt(
+                impliedRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME)
+            );
+        int128 expValueScaled = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         int128 expResult = ABDKMath64x64.exp(expValueScaled);
-        int128 expResultScaled = ABDKMath64x64.mul(expResult, RATE_PRECISION_64x64);
+        int128 expResultScaled = ABDKMath64x64.mul(expResult, Constants.RATE_PRECISION_64x64);
 
         return ABDKMath64x64.toInt(expResultScaled);
     }
@@ -508,8 +468,9 @@ library Market {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
         if (numerator <= 0) return (0, false);
 
-        // This is the proportion scaled by RATE_PRECISION
-        int256 proportion = numerator.mul(RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+        // This is the proportion scaled by Constants.RATE_PRECISION
+        int256 proportion =
+            numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
         (int256 lnProportion, bool success) = logProportion(proportion);
         if (!success) return (0, false);
@@ -517,7 +478,7 @@ library Market {
         // Division will not overflow here because we know rateScalar > 0
         int256 rate = (lnProportion / rateScalar).add(rateAnchor);
         // Do not succeed if interest rates fall below 1
-        if (rate < RATE_PRECISION) {
+        if (rate < Constants.RATE_PRECISION) {
             return (0, false);
         } else {
             return (rate, true);
@@ -528,7 +489,9 @@ library Market {
      * @dev This method does ln((proportion / (1 - proportion)) * 1e9)
      */
     function logProportion(int256 proportion) internal pure returns (int256, bool) {
-        proportion = proportion.mul(RATE_PRECISION).div(RATE_PRECISION.sub(proportion));
+        proportion = proportion.mul(Constants.RATE_PRECISION).div(
+            Constants.RATE_PRECISION.sub(proportion)
+        );
 
         // This is the max 64 bit integer for ABDKMath. This is unlikely to trip because the
         // value is 9.2e18 and the proportion is scaled by 1e9. We can hit very high levels of
@@ -542,7 +505,7 @@ library Market {
 
         int256 result =
             ABDKMath64x64.toUInt(
-                ABDKMath64x64.mul(ABDKMath64x64.ln(abdkProportion), RATE_PRECISION_64x64)
+                ABDKMath64x64.mul(ABDKMath64x64.ln(abdkProportion), Constants.RATE_PRECISION_64x64)
             );
 
         return (result, true);
@@ -582,14 +545,15 @@ library Market {
         }
 
         // (currentTs - previousTs) / timeWindow
-        uint256 lastTradeWeight = timeDiff.mul(uint256(RATE_PRECISION)).div(rateOracleTimeWindow);
+        uint256 lastTradeWeight =
+            timeDiff.mul(uint256(Constants.RATE_PRECISION)).div(rateOracleTimeWindow);
 
         // 1 - (currentTs - previousTs) / timeWindow
-        uint256 oracleWeight = uint256(RATE_PRECISION).sub(lastTradeWeight);
+        uint256 oracleWeight = uint256(Constants.RATE_PRECISION).sub(lastTradeWeight);
 
         uint256 newOracleRate =
             (lastImpliedRate.mul(lastTradeWeight).add(oracleRate.mul(oracleWeight))).div(
-                uint256(RATE_PRECISION)
+                uint256(Constants.RATE_PRECISION)
             );
 
         return newOracleRate;
@@ -710,7 +674,7 @@ library Market {
         uint256 rateOracleTimeWindow
     ) internal view {
         // Always reference the current settlement date
-        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + CashGroup.QUARTER;
+        uint256 settlementDate = CashGroup.getReferenceTime(blockTime) + Constants.QUARTER;
         loadMarketWithSettlementDate(
             market,
             currencyId,

@@ -192,7 +192,7 @@ library PortfolioHandler {
         }
 
         // TODO: allow liquidation to skip this check
-        require(assetStorageLength <= CashGroup.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
+        require(assetStorageLength <= Constants.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
 
         return (
             hasDebt,
@@ -259,7 +259,7 @@ library PortfolioHandler {
     function encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
         require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
         require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
-        require(asset.assetType > 0 && asset.assetType <= AssetHandler.LIQUIDITY_TOKEN_INDEX9); // dev: encode asset type invalid
+        require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
         require(asset.notional >= type(int88).min && asset.notional <= type(int88).max); // dev: encode asset notional overflow
 
         return (bytes32(asset.currencyId) |

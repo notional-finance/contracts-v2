@@ -95,7 +95,7 @@ library FreeCollateral {
                 .mul(perpTokenPV)
             // Haircut for perpetual token value
                 .mul(int256(uint8(perpToken.parameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
-                .div(CashGroup.PERCENTAGE_DECIMALS)
+                .div(Constants.PERCENTAGE_DECIMALS)
                 .div(perpToken.totalSupply);
 
         return (perpTokenHaircutPV, perpToken.parameters);

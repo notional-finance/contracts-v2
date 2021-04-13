@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../internal/balances/TokenHandler.sol";
+import "../global/StorageLayoutV1.sol";
 
 contract MockTokenHandler is StorageLayoutV1 {
     using TokenHandler for Token;

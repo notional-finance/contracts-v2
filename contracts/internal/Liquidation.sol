@@ -87,7 +87,7 @@ library Liquidation {
         int256 userSpecifiedMaximum
     ) private pure returns (int256) {
         int256 maxAllowedAmount =
-            maxTotalBalance.mul(MAX_LIQUIDATION_PORTION).div(CashGroup.PERCENTAGE_DECIMALS);
+            maxTotalBalance.mul(MAX_LIQUIDATION_PORTION).div(Constants.PERCENTAGE_DECIMALS);
 
         int256 result = initialAmountToLiquidate;
 
@@ -230,7 +230,7 @@ library Liquidation {
         for (uint256 i; i < portfolio.length; i++) {
             if (
                 portfolio[i].currencyId == currencyId &&
-                portfolio[i].assetType == AssetHandler.FCASH_ASSET_TYPE &&
+                portfolio[i].assetType == Constants.FCASH_ASSET_TYPE &&
                 portfolio[i].maturity == maturity
             ) {
                 require(portfolio[i].notional > 0, "Invalid fCash asset");
@@ -296,15 +296,15 @@ library Liquidation {
                                     PerpetualToken.PV_HAIRCUT_PERCENTAGE
                                 ]
                             )
-                        )) * CashGroup.PERCENTAGE_DECIMALS;
+                        )) * Constants.PERCENTAGE_DECIMALS;
 
                 // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
                 // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
                 // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
                 perpetualTokensToLiquidate = benefitRequired
-                    .mul(TokenHandler.INTERNAL_TOKEN_PRECISION)
+                    .mul(Constants.INTERNAL_TOKEN_PRECISION)
                     .div(
-                    factors.perpetualTokenValue.mul(haircutDiff).div(CashGroup.PERCENTAGE_DECIMALS)
+                    factors.perpetualTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
                 );
             }
 
@@ -585,7 +585,7 @@ library Liquidation {
             // and the risk adjusted discount factor:
             // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
             // fCash = localCurrencyBeneift / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            c.fCashNotionalTransfers[i] = c.benefitRequired.mul(Market.RATE_PRECISION).div(
+            c.fCashNotionalTransfers[i] = c.benefitRequired.mul(Constants.RATE_PRECISION).div(
                 liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)
             );
 
@@ -598,7 +598,7 @@ library Liquidation {
             // Calculate the amount of local currency required from the liquidator
             c.localToPurchase = c.localToPurchase.add(
                 c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
-                    Market.RATE_PRECISION
+                    Constants.RATE_PRECISION
                 )
             );
 
@@ -606,7 +606,7 @@ library Liquidation {
             c.benefitRequired = c.benefitRequired.sub(
                 c.fCashNotionalTransfers[i]
                     .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
-                    .div(Market.RATE_PRECISION)
+                    .div(Constants.RATE_PRECISION)
             );
 
             if (c.benefitRequired <= 0) break;
@@ -641,18 +641,18 @@ library Liquidation {
         {
             int256 termTwo =
                 (
-                    c.factors.localETHRate.buffer.mul(CashGroup.PERCENTAGE_DECIMALS).div(
+                    c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
                         c.liquidationDiscount
                     )
                 )
                     .sub(c.factors.collateralETHRate.haircut);
-            termTwo = liquidationDiscountFactor.mul(termTwo).div(CashGroup.PERCENTAGE_DECIMALS);
+            termTwo = liquidationDiscountFactor.mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
             int256 termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
             benefitMultiplier = termOne.add(termTwo);
         }
 
         int256 fCashToLiquidate =
-            c.benefitRequired.mul(Market.RATE_PRECISION).div(benefitMultiplier);
+            c.benefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
         fCashToLiquidate = calculateMaxLiquidationAmount(
             fCashToLiquidate,
             notional,
@@ -673,7 +673,8 @@ library Liquidation {
         //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
         //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
         // ]
-        int256 benefitGained = fCashToLiquidate.mul(benefitMultiplier).div(Market.RATE_PRECISION);
+        int256 benefitGained =
+            fCashToLiquidate.mul(benefitMultiplier).div(Constants.RATE_PRECISION);
 
         c.benefitRequired = c.benefitRequired.sub(benefitGained);
         c.localToPurchase = c.localToPurchase.add(localToPurchase);
@@ -690,15 +691,15 @@ library Liquidation {
         // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
         // this is the discounted value that the liquidator will purchase it at.
         int256 fCashLiquidationPV =
-            fCashToLiquidate.mul(liquidationDiscountFactor).div(Market.RATE_PRECISION);
+            fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
         int256 fCashBenefit =
             fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)).div(
-                Market.RATE_PRECISION
+                Constants.RATE_PRECISION
             );
 
         // Ensures that collateralAvailable does not go below zero
         if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
-            fCashToLiquidate = c.factors.collateralAvailable.mul(Market.RATE_PRECISION).div(
+            fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
                 liquidationDiscountFactor
             );
         }
@@ -714,7 +715,7 @@ library Liquidation {
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
         c.factors.collateralAvailable = c.factors.collateralAvailable.sub(
-            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Market.RATE_PRECISION)
+            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION)
         );
         // Local available does not have any buffers applied to it
         c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
@@ -805,12 +806,12 @@ library Liquidation {
                 // netCashIncrease = netCashToAccount + incentivePaid
                 // incentivePaid = netCashIncrease * incentive
                 int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(asset.assetType));
-                w.netCashIncrease = w.assetCash.mul(CashGroup.PERCENTAGE_DECIMALS.sub(haircut)).div(
-                    CashGroup.PERCENTAGE_DECIMALS
+                w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
+                    Constants.PERCENTAGE_DECIMALS
                 );
             }
             w.incentivePaid = w.netCashIncrease.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(
-                CashGroup.PERCENTAGE_DECIMALS
+                Constants.PERCENTAGE_DECIMALS
             );
 
             // (netCashToAccount <= assetAmountRemaining)
@@ -828,7 +829,7 @@ library Liquidation {
             } else {
                 // incentivePaid
                 w.incentivePaid = assetAmountRemaining.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(
-                    CashGroup.PERCENTAGE_DECIMALS
+                    Constants.PERCENTAGE_DECIMALS
                 );
 
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
@@ -850,7 +851,7 @@ library Liquidation {
             portfolioState.addAsset(
                 factors.cashGroup.currencyId,
                 asset.maturity,
-                AssetHandler.FCASH_ASSET_TYPE,
+                Constants.FCASH_ASSET_TYPE,
                 w.fCash,
                 false
             );
@@ -908,7 +909,7 @@ library Liquidation {
             portfolioState.addAsset(
                 factors.cashGroup.currencyId,
                 asset.maturity,
-                AssetHandler.FCASH_ASSET_TYPE,
+                Constants.FCASH_ASSET_TYPE,
                 fCashClaim,
                 false
             );

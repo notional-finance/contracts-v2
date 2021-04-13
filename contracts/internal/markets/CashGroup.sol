@@ -4,18 +4,10 @@ pragma experimental ABIEncoderV2;
 
 import "./Market.sol";
 import "./AssetRate.sol";
+import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-
-/**
- * @dev Cash group when loaded into memory
- */
-struct CashGroupParameters {
-    uint256 currencyId;
-    uint256 maxMarketIndex;
-    AssetRateParameters assetRate;
-    bytes32 data;
-}
 
 library CashGroup {
     using SafeMath for uint256;
@@ -24,35 +16,17 @@ library CashGroup {
     using Market for MarketParameters;
 
     // Offsets for the bytes of the different parameters
-    uint256 internal constant RATE_ORACLE_TIME_WINDOW = 8;
-    uint256 internal constant TOTAL_FEE = 16;
-    uint256 internal constant RESERVE_FEE_SHARE = 24;
-    uint256 internal constant DEBT_BUFFER = 32;
-    uint256 internal constant FCASH_HAIRCUT = 40;
-    uint256 internal constant SETTLEMENT_PENALTY = 48;
-    uint256 internal constant LIQUIDATION_FCASH_HAIRCUT = 56;
+    uint256 private constant RATE_ORACLE_TIME_WINDOW = 8;
+    uint256 private constant TOTAL_FEE = 16;
+    uint256 private constant RESERVE_FEE_SHARE = 24;
+    uint256 private constant DEBT_BUFFER = 32;
+    uint256 private constant FCASH_HAIRCUT = 40;
+    uint256 private constant SETTLEMENT_PENALTY = 48;
+    uint256 private constant LIQUIDATION_FCASH_HAIRCUT = 56;
     // 9 bytes allocated per market on the liquidity token haircut
-    uint256 internal constant LIQUIDITY_TOKEN_HAIRCUT = 64;
+    uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = 64;
     // 9 bytes allocated per market on the rate scalar
-    uint256 internal constant RATE_SCALAR = 136;
-
-    uint256 internal constant DAY = 86400;
-    // We use six day weeks to ensure that all time references divide evenly
-    uint256 internal constant WEEK = DAY * 6;
-    uint256 internal constant MONTH = DAY * 30;
-    uint256 internal constant QUARTER = DAY * 90;
-    uint256 internal constant YEAR = QUARTER * 4;
-
-    // Max offsets used for bitmap
-    uint256 internal constant MAX_DAY_OFFSET = 90;
-    uint256 internal constant MAX_WEEK_OFFSET = 360;
-    uint256 internal constant MAX_MONTH_OFFSET = 2160;
-    uint256 internal constant MAX_QUARTER_OFFSET = 7650;
-    uint256 internal constant WEEK_BIT_OFFSET = 90;
-    uint256 internal constant MONTH_BIT_OFFSET = 135;
-    uint256 internal constant QUARTER_BIT_OFFSET = 195;
-    int256 internal constant PERCENTAGE_DECIMALS = 100;
-    uint256 internal constant MAX_TRADED_MARKET_INDEX = 9;
+    uint256 private constant RATE_SCALAR = 136;
 
     /**
      * @notice These are the predetermined market offsets for trading, they are 1-indexed because
@@ -62,15 +36,15 @@ library CashGroup {
     function getTradedMarket(uint256 index) internal pure returns (uint256) {
         require(index != 0); // dev: get traded market index is zero
 
-        if (index == 1) return QUARTER;
-        if (index == 2) return 2 * QUARTER;
-        if (index == 3) return YEAR;
-        if (index == 4) return 2 * YEAR;
-        if (index == 5) return 5 * YEAR;
-        if (index == 6) return 7 * YEAR;
-        if (index == 7) return 10 * YEAR;
-        if (index == 8) return 15 * YEAR;
-        if (index == 9) return 20 * YEAR;
+        if (index == 1) return Constants.QUARTER;
+        if (index == 2) return 2 * Constants.QUARTER;
+        if (index == 3) return Constants.YEAR;
+        if (index == 4) return 2 * Constants.YEAR;
+        if (index == 5) return 5 * Constants.YEAR;
+        if (index == 6) return 7 * Constants.YEAR;
+        if (index == 7) return 10 * Constants.YEAR;
+        if (index == 8) return 15 * Constants.YEAR;
+        if (index == 9) return 20 * Constants.YEAR;
 
         revert("CG: invalid index");
     }
@@ -80,14 +54,14 @@ library CashGroup {
      * calculated.
      */
     function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {
-        return blockTime.sub(blockTime % QUARTER);
+        return blockTime.sub(blockTime % Constants.QUARTER);
     }
 
     /**
      * @notice Truncates a date to midnight UTC time
      */
     function getTimeUTC0(uint256 time) internal pure returns (uint256) {
-        return time.sub(time % DAY);
+        return time.sub(time % Constants.DAY);
     }
 
     /**
@@ -102,7 +76,7 @@ library CashGroup {
         require(maxMarketIndex > 0, "CG: no markets listed");
         require(maxMarketIndex < 10, "CG: market index bound");
 
-        if (maturity % QUARTER != 0) return false;
+        if (maturity % Constants.QUARTER != 0) return false;
         uint256 tRef = getReferenceTime(blockTime);
 
         for (uint256 i = 1; i <= maxMarketIndex; i++) {
@@ -148,34 +122,46 @@ library CashGroup {
     {
         uint256 blockTimeUTC0 = getTimeUTC0(blockTime);
 
-        if (maturity % DAY != 0) return (0, false);
+        if (maturity % Constants.DAY != 0) return (0, false);
         if (blockTimeUTC0 >= maturity) return (0, false);
 
         // Overflow check done above
-        uint256 daysOffset = (maturity - blockTimeUTC0) / DAY;
+        uint256 daysOffset = (maturity - blockTimeUTC0) / Constants.DAY;
 
         // These if statements need to fall through to the next one
-        if (daysOffset <= MAX_DAY_OFFSET) {
+        if (daysOffset <= Constants.MAX_DAY_OFFSET) {
             return (daysOffset, true);
         }
 
-        if (daysOffset <= MAX_WEEK_OFFSET) {
-            uint256 offset = daysOffset - MAX_DAY_OFFSET + (blockTimeUTC0 % WEEK) / DAY;
+        if (daysOffset <= Constants.MAX_WEEK_OFFSET) {
+            uint256 offset =
+                daysOffset -
+                    Constants.MAX_DAY_OFFSET +
+                    (blockTimeUTC0 % Constants.WEEK) /
+                    Constants.DAY;
             // Ensures that the maturity specified falls on the actual day, otherwise division
             // will truncate it
-            return (WEEK_BIT_OFFSET + offset / 6, (offset % 6) == 0);
+            return (Constants.WEEK_BIT_OFFSET + offset / 6, (offset % 6) == 0);
         }
 
-        if (daysOffset <= MAX_MONTH_OFFSET) {
-            uint256 offset = daysOffset - MAX_WEEK_OFFSET + (blockTimeUTC0 % MONTH) / DAY;
+        if (daysOffset <= Constants.MAX_MONTH_OFFSET) {
+            uint256 offset =
+                daysOffset -
+                    Constants.MAX_WEEK_OFFSET +
+                    (blockTimeUTC0 % Constants.MONTH) /
+                    Constants.DAY;
 
-            return (MONTH_BIT_OFFSET + offset / 30, (offset % 30) == 0);
+            return (Constants.MONTH_BIT_OFFSET + offset / 30, (offset % 30) == 0);
         }
 
-        if (daysOffset <= MAX_QUARTER_OFFSET) {
-            uint256 offset = daysOffset - MAX_MONTH_OFFSET + (blockTimeUTC0 % QUARTER) / DAY;
+        if (daysOffset <= Constants.MAX_QUARTER_OFFSET) {
+            uint256 offset =
+                daysOffset -
+                    Constants.MAX_MONTH_OFFSET +
+                    (blockTimeUTC0 % Constants.QUARTER) /
+                    Constants.DAY;
 
-            return (QUARTER_BIT_OFFSET + offset / 90, (offset % 90) == 0);
+            return (Constants.QUARTER_BIT_OFFSET + offset / 90, (offset % 90) == 0);
         }
 
         // This is the maximum 1-indexed bit num
@@ -196,22 +182,34 @@ library CashGroup {
         uint256 blockTimeUTC0 = getTimeUTC0(blockTime);
         uint256 firstBit;
 
-        if (bitNum <= WEEK_BIT_OFFSET) {
-            return blockTimeUTC0 + bitNum * DAY;
+        if (bitNum <= Constants.WEEK_BIT_OFFSET) {
+            return blockTimeUTC0 + bitNum * Constants.DAY;
         }
 
-        if (bitNum <= MONTH_BIT_OFFSET) {
-            firstBit = blockTimeUTC0 + MAX_DAY_OFFSET * DAY - (blockTimeUTC0 % WEEK);
-            return firstBit + (bitNum - WEEK_BIT_OFFSET) * WEEK;
+        if (bitNum <= Constants.MONTH_BIT_OFFSET) {
+            firstBit =
+                blockTimeUTC0 +
+                Constants.MAX_DAY_OFFSET *
+                Constants.DAY -
+                (blockTimeUTC0 % Constants.WEEK);
+            return firstBit + (bitNum - Constants.WEEK_BIT_OFFSET) * Constants.WEEK;
         }
 
-        if (bitNum <= QUARTER_BIT_OFFSET) {
-            firstBit = blockTimeUTC0 + MAX_WEEK_OFFSET * DAY - (blockTimeUTC0 % MONTH);
-            return firstBit + (bitNum - MONTH_BIT_OFFSET) * MONTH;
+        if (bitNum <= Constants.QUARTER_BIT_OFFSET) {
+            firstBit =
+                blockTimeUTC0 +
+                Constants.MAX_WEEK_OFFSET *
+                Constants.DAY -
+                (blockTimeUTC0 % Constants.MONTH);
+            return firstBit + (bitNum - Constants.MONTH_BIT_OFFSET) * Constants.MONTH;
         }
 
-        firstBit = blockTimeUTC0 + MAX_MONTH_OFFSET * DAY - (blockTimeUTC0 % QUARTER);
-        return firstBit + (bitNum - QUARTER_BIT_OFFSET) * QUARTER;
+        firstBit =
+            blockTimeUTC0 +
+            Constants.MAX_MONTH_OFFSET *
+            Constants.DAY -
+            (blockTimeUTC0 % Constants.QUARTER);
+        return firstBit + (bitNum - Constants.QUARTER_BIT_OFFSET) * Constants.QUARTER;
     }
 
     /**
@@ -228,7 +226,7 @@ library CashGroup {
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
         int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
         int256 rateScalar =
-            scalar.mul(int256(Market.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
+            scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
         require(rateScalar > 0, "CG: rate scalar underflow");
         return rateScalar;
@@ -250,7 +248,7 @@ library CashGroup {
     }
 
     function getTotalFee(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Market.BASIS_POINT;
+        return uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Constants.BASIS_POINT;
     }
 
     function getReserveFeeShare(CashGroupParameters memory cashGroup)
@@ -262,11 +260,12 @@ library CashGroup {
     }
 
     function getfCashHaircut(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> FCASH_HAIRCUT))) * (5 * Market.BASIS_POINT);
+        return
+            uint256(uint8(uint256(cashGroup.data >> FCASH_HAIRCUT))) * (5 * Constants.BASIS_POINT);
     }
 
     function getDebtBuffer(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * (5 * Market.BASIS_POINT);
+        return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * (5 * Constants.BASIS_POINT);
     }
 
     function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
@@ -285,7 +284,7 @@ library CashGroup {
     {
         return
             uint256(uint8(uint256(cashGroup.data >> SETTLEMENT_PENALTY))) *
-            (5 * Market.BASIS_POINT);
+            (5 * Constants.BASIS_POINT);
     }
 
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)
@@ -295,7 +294,7 @@ library CashGroup {
     {
         return
             uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_FCASH_HAIRCUT))) *
-            (5 * Market.BASIS_POINT);
+            (5 * Constants.BASIS_POINT);
     }
 
     function getMarketIndex(
@@ -402,7 +401,7 @@ library CashGroup {
         if (market.oracleRate == 0) {
             // If oracleRate is zero then the market has not been initialized
             // and we want to reference the previous market for interpolating rates.
-            uint256 prevBlockTime = blockTime.sub(CashGroup.QUARTER);
+            uint256 prevBlockTime = blockTime.sub(Constants.QUARTER);
             uint256 maturity = getReferenceTime(prevBlockTime).add(getTradedMarket(marketIndex));
             market.loadMarket(
                 cashGroup.currencyId,
@@ -457,7 +456,7 @@ library CashGroup {
         bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
         require(
             cashGroup.maxMarketIndex >= 0 &&
-                cashGroup.maxMarketIndex <= CashGroup.MAX_TRADED_MARKET_INDEX,
+                cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX,
             "CG: invalid market index"
         );
         // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.
@@ -465,7 +464,7 @@ library CashGroup {
         // fixed. It also complicates the logic in the perpetual token initialization method
         require(cashGroup.maxMarketIndex != 1, "CG: invalid market index");
         require(
-            cashGroup.reserveFeeShare <= CashGroup.PERCENTAGE_DECIMALS,
+            cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS,
             "CG: invalid reserve share"
         );
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
@@ -495,7 +494,7 @@ library CashGroup {
         // Per market group settings
         for (uint256 i; i < cashGroup.liquidityTokenHaircuts.length; i++) {
             require(
-                cashGroup.liquidityTokenHaircuts[i] <= CashGroup.PERCENTAGE_DECIMALS,
+                cashGroup.liquidityTokenHaircuts[i] <= Constants.PERCENTAGE_DECIMALS,
                 "CG: invalid token haircut"
             );
 

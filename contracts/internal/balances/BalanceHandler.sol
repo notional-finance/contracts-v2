@@ -6,26 +6,10 @@ import "./TokenHandler.sol";
 import "../AccountContextHandler.sol";
 import "../PerpetualToken.sol";
 import "../markets/AssetRate.sol";
+import "../../global/Types.sol";
+import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-
-struct BalanceState {
-    uint256 currencyId;
-    // Cash balance stored in balance state at the beginning of the transaction
-    int256 storedCashBalance;
-    // Perpetual token balance stored at the beginning of the transaction
-    int256 storedPerpetualTokenBalance;
-    // The net cash change as a result of asset settlement or trading
-    int256 netCashChange;
-    // Net asset transfers into or out of the account
-    int256 netAssetTransferInternalPrecision;
-    // Net perpetual token transfers into or out of the account
-    int256 netPerpetualTokenTransfer;
-    // Net perpetual token supply change from minting or redeeming
-    int256 netPerpetualTokenSupplyChange;
-    // The last time incentives were claimed for this currency
-    uint256 lastIncentiveClaim;
-}
 
 library BalanceHandler {
     using SafeInt256 for int256;
@@ -33,8 +17,6 @@ library BalanceHandler {
     using TokenHandler for Token;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountStorage;
-
-    address internal constant RESERVE = address(0);
 
     /**
      * @notice Handles two special cases when depositing tokens into an account.
@@ -360,9 +342,9 @@ library BalanceHandler {
             int256 totalReserve, /* */ /* */
             ,
 
-        ) = getBalanceStorage(RESERVE, currencyId);
+        ) = getBalanceStorage(Constants.RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
-        setBalanceStorage(RESERVE, currencyId, totalReserve, 0, 0);
+        setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0);
     }
 
     /**
@@ -491,17 +473,17 @@ library BalanceHandler {
 
         uint256 timeSinceLastClaim = blockTime.sub(lastClaimTime);
         // nTokenBalance, totalSupply incentives are all in INTERNAL_TOKEN_PRECISION
-        // timeSinceLastClaim and CashGroup.YEAR are both in seconds
+        // timeSinceLastClaim and Constants.YEAR are both in seconds
         // TODO: emission rate is stored as uint32 so need a different basis here
         // incentiveAnnualEmissionRate is a per currency annualized rate in INTERNAL_TOKEN_PRECISION
         // tokenPrecision * seconds * tokenPrecision / (seconds * tokenPrecision)
         uint256 incentivesToClaim =
             nTokenBalance
                 .mul(timeSinceLastClaim)
-                .mul(uint256(TokenHandler.INTERNAL_TOKEN_PRECISION))
+                .mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
                 .mul(incentiveAnnualEmissionRate);
 
-        incentivesToClaim = incentivesToClaim.div(CashGroup.YEAR).div(totalSupply);
+        incentivesToClaim = incentivesToClaim.div(Constants.YEAR).div(totalSupply);
 
         return incentivesToClaim;
     }

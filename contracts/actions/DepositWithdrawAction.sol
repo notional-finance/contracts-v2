@@ -13,34 +13,6 @@ import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";
 
-enum DepositActionType {
-    None,
-    DepositAsset,
-    DepositUnderlying,
-    DepositAssetAndMintPerpetual,
-    DepositUnderlyingAndMintPerpetual,
-    RedeemPerpetual
-}
-
-struct BalanceAction {
-    DepositActionType actionType;
-    uint16 currencyId;
-    uint256 depositActionAmount;
-    uint256 withdrawAmountInternalPrecision;
-    bool withdrawEntireCashBalance;
-    bool redeemToUnderlying;
-}
-
-struct BalanceActionWithTrades {
-    DepositActionType actionType;
-    uint16 currencyId;
-    uint256 depositActionAmount;
-    uint256 withdrawAmountInternalPrecision;
-    bool withdrawEntireCashBalance;
-    bool redeemToUnderlying;
-    bytes32[] trades;
-}
-
 contract DepositWithdrawAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;

@@ -2,6 +2,158 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+/**
+ * @dev Exchange rate object as stored in memory, these are cached optimistically
+ * when the transaction begins. This is not the same as the object in storage.
+ */
+
+struct ETHRate {
+    // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
+    int256 rateDecimals;
+    // The exchange rate from base to quote (if invert is required it is already done)
+    int256 rate;
+    // Amount of buffer to apply to the exchange rate for negative balances.
+    int256 buffer;
+    // Amount of haircut to apply to the exchange rate for positive balances
+    int256 haircut;
+    // Liquidation discount for this currency
+    int256 liquidationDiscount;
+}
+
+enum TradeActionType {
+    // (uint8, uint8, uint88, uint32)
+    Lend,
+    // (uint8, uint8, uint88, uint32)
+    Borrow,
+    // (uint8, uint8, uint88, uint32, uint32)
+    AddLiquidity,
+    // (uint8, uint8, uint88, uint32, uint32)
+    RemoveLiquidity,
+    // (uint8, uint32, int88)
+    PurchasePerpetualTokenResidual,
+    // (uint8, address, int88)
+    SettleCashDebt
+}
+
+enum DepositActionType {
+    None,
+    DepositAsset,
+    DepositUnderlying,
+    DepositAssetAndMintPerpetual,
+    DepositUnderlyingAndMintPerpetual,
+    RedeemPerpetual
+}
+
+struct BalanceAction {
+    DepositActionType actionType;
+    uint16 currencyId;
+    uint256 depositActionAmount;
+    uint256 withdrawAmountInternalPrecision;
+    bool withdrawEntireCashBalance;
+    bool redeemToUnderlying;
+}
+
+struct BalanceActionWithTrades {
+    DepositActionType actionType;
+    uint16 currencyId;
+    uint256 depositActionAmount;
+    uint256 withdrawAmountInternalPrecision;
+    bool withdrawEntireCashBalance;
+    bool redeemToUnderlying;
+    bytes32[] trades;
+}
+
+struct SettleAmount {
+    uint256 currencyId;
+    int256 netCashChange;
+}
+
+struct BalanceState {
+    uint256 currencyId;
+    // Cash balance stored in balance state at the beginning of the transaction
+    int256 storedCashBalance;
+    // Perpetual token balance stored at the beginning of the transaction
+    int256 storedPerpetualTokenBalance;
+    // The net cash change as a result of asset settlement or trading
+    int256 netCashChange;
+    // Net asset transfers into or out of the account
+    int256 netAssetTransferInternalPrecision;
+    // Net perpetual token transfers into or out of the account
+    int256 netPerpetualTokenTransfer;
+    // Net perpetual token supply change from minting or redeeming
+    int256 netPerpetualTokenSupplyChange;
+    // The last time incentives were claimed for this currency
+    uint256 lastIncentiveClaim;
+}
+
+/// @dev Asset rate object as stored in memory, these are cached optimistically
+/// when the transaction begins. This is not the same as the object in storage.
+struct AssetRateParameters {
+    // Address of the asset rate oracle
+    address rateOracle;
+    // The exchange rate from base to quote (if invert is required it is already done)
+    int256 rate;
+    // The decimals of the underlying, the rate converts to the underlying decimals
+    int256 underlyingDecimals;
+}
+
+/// @dev Cash group when loaded into memory
+struct CashGroupParameters {
+    uint256 currencyId;
+    uint256 maxMarketIndex;
+    AssetRateParameters assetRate;
+    bytes32 data;
+}
+
+enum AssetStorageState {NoChange, Update, Delete}
+
+struct PortfolioAsset {
+    // Asset currency id
+    uint256 currencyId;
+    uint256 maturity;
+    // Asset type, fCash or liquidity token.
+    uint256 assetType;
+    // fCash amount or liquidity token amount
+    int256 notional;
+    uint256 storageSlot;
+    // The state of the asset for when it is written to storage
+    AssetStorageState storageState;
+}
+
+/**
+ * Market object as represented in memory
+ */
+struct MarketParameters {
+    bytes32 storageSlot;
+    uint256 maturity;
+    // Total amount of fCash available for purchase in the market.
+    int256 totalfCash;
+    // Total amount of cash available for purchase in the market.
+    int256 totalCurrentCash;
+    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
+    int256 totalLiquidity;
+    // This is the implied rate that we use to smooth the anchor rate between trades.
+    uint256 lastImpliedRate;
+    // This is the oracle rate used to value fCash and prevent flash loan attacks
+    uint256 oracleRate;
+    // This is the timestamp of the previous trade
+    uint256 previousTradeTime;
+    // Used to determine if the market has been updated
+    bytes1 storageState;
+}
+
+struct SettlementMarket {
+    bytes32 storageSlot;
+    // Total amount of fCash available for purchase in the market.
+    int256 totalfCash;
+    // Total amount of cash available for purchase in the market.
+    int256 totalCurrentCash;
+    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
+    int256 totalLiquidity;
+    // Un parsed market data used for storage
+    bytes32 data;
+}
+
 /// @notice Used in SettleAssets for calculating bitmap shifts
 struct SplitBitmap {
     bytes32 dayBits;

@@ -118,7 +118,7 @@ library LiquidationHelpers {
         PortfolioAsset[] memory assets = new PortfolioAsset[](fCashMaturities.length);
         for (uint256 i; i < assets.length; i++) {
             assets[i].currencyId = fCashCurrency;
-            assets[i].assetType = AssetHandler.FCASH_ASSET_TYPE;
+            assets[i].assetType = Constants.FCASH_ASSET_TYPE;
             assets[i].notional = fCashNotionalTransfers[i];
             assets[i].maturity = fCashMaturities[i];
         }
