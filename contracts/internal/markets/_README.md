@@ -1,7 +1,6 @@
 # Markets
 
-Notional enables fixed rate lending and borrowing via on chain liquidity pools we call **markets**. Each currency may have a **Cash Group** which holds all the configuration related to the set of markets that
-host lending and borrowing for that currency. In order to enable high capital efficiency for liquidity providers, liquidity is denominated in money market tokens (i.e. cTokens) that bear some underlying variable rate of interest. This is referred to as **asset cash** in the codebase and it has an exchange rate back to the underlying asset we call the **asset rate**
+Notional enables fixed rate lending and borrowing via on chain liquidity pools we call **markets**. Each currency may have a **Cash Group** which holds all the configuration related to the set of markets that host lending and borrowing for that currency. In order to enable high capital efficiency for liquidity providers, liquidity is denominated in money market tokens (i.e. cTokens) that bear some underlying variable rate of interest. This is referred to as **asset cash** in the codebase and it has an exchange rate back to the underlying asset we call the **asset rate**
 
 ## Asset Rate
 
@@ -13,8 +12,42 @@ When fCash settles at it's maturity, it settles to asset cash (not the underlyin
 
 ## Cash Group
 
-All
+A cash group has a number of parameters that dictate how markets and fCash assets in it behave. Each parameter is stored as a uint8 for gas efficiency. They are scaled up to the necessary denomination when they are used.
 
-## Invariants
+Used during trade calculations:
+
+- TOTAL_FEE: stored as basis points, scaled up to RATE_PRECISION
+- RESERVE_FEE_SHARE: stored as an integer percentage
+- RATE_SCALAR: stored as an integer in increments of 10, multiplied by 10
+
+Used during valuation of fCash assets (see the **valuation** module):
+
+- RATE_ORACLE_TIME_WINDOW: stored as minutes, scaled up to seconds
+- DEBT_BUFFER: stored as a number in 5 basis point increments, scaled up to RATE_PRECISION
+- FCASH_HAIRCUT: stored as a number in 5 basis point increments, scaled up to RATE_PRECISION
+- LIQUIDITY_TOKEN_HAIRCUT: stored as an integer percentage
+
+Used during settlement and liquidation:
+
+- SETTLEMENT_PENALTY: stored as a number in 5 basis point increments, scaled up to RATE_PRECISION
+- LIQUIDATION_FCASH_HAIRCUT: stored as a number in 5 basis point increments, scaled up to RATE_PRECISION
+
+## Market
+
+A market is a liquidity curve between asset cash and fCash for a particular maturity. Accounts can add and remove liquidity or trade fCash for asset cash. There are three key factors that govern trading dynamics:
+
+- Exchange Rate: the rate at which fCash is exchanged for underlying cash (this is calculated from the current asset cash balance)
+  `exchangeRate = rateScalar^-1 * ln(proportion / (1 - proportion)) + rateAnchor`
+  `exchangeRate = fCash / cash`
+- Implied Rate: the annualized, continuously compounded interest rate implied by the exchange rate and the time until maturity
+  `exchangeRate = e^(impliedRate * timeToMaturity)`
+  `impliedRate = ln(exchangeRate) / timeToMaturity`
+- Proportion: the ratio of fCash to cash in the market
+  `proportion = fCash / (fCash + cash)`
+
+NOTE: in all of these calculations, we use **underlying cash** not **asset cash** for the calculations.
+
+## Invariants and Test Cases
 
 - System wide fCash of a currency and maturity will net to zero
+- Market liquidity curve must work out to 20 years without overflows

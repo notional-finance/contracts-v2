@@ -247,9 +247,11 @@ library Market {
     /// before and after the rate anchor update is the same. Therefore, the market will trade at the same implied
     /// rate that it last traded at. If these anchors do not update then it opens up the opportunity for arbitrage
     /// which will hurt the liquidity providers.
+    ///
     /// The rate anchor will update as the market rolls down to maturity. The calculation is:
     /// newExchangeRate = e^(lastImpliedRate * timeToMaturity / Constants.IMPLIED_RATE_TIME)
     /// newAnchor = newExchangeRate - ln((proportion / (1 - proportion)) / rateScalar
+    ///
     /// where:
     /// lastImpliedRate = ln(exchangeRate') * (Constants.IMPLIED_RATE_TIME / timeToMaturity')
     ///      (calculated when the last trade in the market was made)
