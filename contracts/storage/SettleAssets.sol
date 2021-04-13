@@ -8,32 +8,35 @@ import "./BitmapAssetsHandler.sol";
 import "../common/AssetHandler.sol";
 import "../common/AssetRate.sol";
 import "../math/SafeInt256.sol";
+import "../math/Bitmap.sol";
 
 struct SettleAmount {
-    uint currencyId;
-    int netCashChange;
+    uint256 currencyId;
+    int256 netCashChange;
 }
 
 library SettleAssets {
-    using SafeInt256 for int;
+    using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
     using Bitmap for bytes32;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
 
     bytes32 internal constant ZERO = 0x0;
-    bytes32 internal constant MSB_BIG_ENDIAN = 0x8000000000000000000000000000000000000000000000000000000000000000;
+    bytes32 internal constant MSB_BIG_ENDIAN =
+        0x8000000000000000000000000000000000000000000000000000000000000000;
 
-    function getSettleAmountArray(
-        PortfolioState memory portfolioState,
-        uint blockTime
-    ) internal pure returns (SettleAmount[] memory) {
-        uint currenciesSettled;
-        uint lastCurrencyId;
+    function getSettleAmountArray(PortfolioState memory portfolioState, uint256 blockTime)
+        internal
+        pure
+        returns (SettleAmount[] memory)
+    {
+        uint256 currenciesSettled;
+        uint256 lastCurrencyId;
         if (portfolioState.storedAssets.length == 0) return new SettleAmount[](0);
 
         // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
-        for (uint i = portfolioState.storedAssets.length - 1; i >= 0; i--) {
+        for (uint256 i = portfolioState.storedAssets.length - 1; i >= 0; i--) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) {
                 if (i == 0) break;
@@ -60,18 +63,22 @@ library SettleAssets {
     /**
      * @notice Shared calculation for liquidity token settlement
      */
-    function calculateMarketStorage(
-        PortfolioAsset memory asset
-    ) internal view returns (int, int, SettlementMarket memory) {
+    function calculateMarketStorage(PortfolioAsset memory asset)
+        internal
+        view
+        returns (
+            int256,
+            int256,
+            SettlementMarket memory
+        )
+    {
         // 2x Storage Read
-        SettlementMarket memory market = Market.getSettlementMarket(
-            asset.currencyId,
-            asset.maturity,
-            asset.getSettlementDate()
-        );
+        SettlementMarket memory market =
+            Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
 
-        int fCash = int(market.totalfCash).mul(asset.notional).div(market.totalLiquidity);
-        int cashClaim = int(market.totalCurrentCash).mul(asset.notional).div(market.totalLiquidity);
+        int256 fCash = int256(market.totalfCash).mul(asset.notional).div(market.totalLiquidity);
+        int256 cashClaim =
+            int256(market.totalCurrentCash).mul(asset.notional).div(market.totalLiquidity);
 
         require(fCash <= market.totalfCash); // dev: settle liquidity token totalfCash overflow
         require(cashClaim <= market.totalCurrentCash); // dev: settle liquidity token totalCurrentCash overflow
@@ -90,11 +97,11 @@ library SettleAssets {
     function settleLiquidityToken(
         PortfolioAsset memory asset,
         AssetRateParameters memory settlementRate
-    ) internal view returns (int, SettlementMarket memory) {
-        (int cashClaim, int fCash, SettlementMarket memory market) =
+    ) internal view returns (int256, SettlementMarket memory) {
+        (int256 cashClaim, int256 fCash, SettlementMarket memory market) =
             calculateMarketStorage(asset);
 
-        int assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
+        int256 assetCash = cashClaim.add(settlementRate.convertInternalFromUnderlying(fCash));
 
         return (assetCash, market);
     }
@@ -102,12 +109,14 @@ library SettleAssets {
     /**
      * @notice Settles a liquidity token to idiosyncratic fCash
      */
-    function settleLiquidityTokenTofCash(
-        PortfolioState memory portfolioState,
-        uint index
-    ) internal view returns (int, SettlementMarket memory) {
+    function settleLiquidityTokenTofCash(PortfolioState memory portfolioState, uint256 index)
+        internal
+        view
+        returns (int256, SettlementMarket memory)
+    {
         PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
-        (int cashClaim, int fCash, SettlementMarket memory market) = calculateMarketStorage(liquidityToken);
+        (int256 cashClaim, int256 fCash, SettlementMarket memory market) =
+            calculateMarketStorage(liquidityToken);
 
         // If the liquidity token's maturity is still in the future then we change the entry to be
         // an idiosyncratic fCash entry with the net fCash amount.
@@ -116,8 +125,10 @@ library SettleAssets {
             // portfolio is sorted
             PortfolioAsset memory fCashAsset = portfolioState.storedAssets[index - 1];
 
-            if (fCashAsset.maturity == liquidityToken.maturity 
-                && fCashAsset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
+            if (
+                fCashAsset.maturity == liquidityToken.maturity &&
+                fCashAsset.assetType == AssetHandler.FCASH_ASSET_TYPE
+            ) {
                 // This fCash asset will not have matured if were are settling to fCash
                 fCashAsset.notional = fCashAsset.notional.add(fCash);
                 fCashAsset.storageState = AssetStorageState.Update;
@@ -138,17 +149,18 @@ library SettleAssets {
      * @notice View version of settle asset with a call to getSettlementRateView, the reason here is that
      * in the stateful version we will set the settlement rate if it is not set.
      */
-    function getSettleAssetContextView(
-        PortfolioState memory portfolioState,
-        uint blockTime
-    ) internal view returns (SettleAmount[] memory) {
+    function getSettleAssetContextView(PortfolioState memory portfolioState, uint256 blockTime)
+        internal
+        view
+        returns (SettleAmount[] memory)
+    {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
         if (settleAmounts.length == 0) return settleAmounts;
-        uint settleAmountIndex;
-        uint lastMaturity;
+        uint256 settleAmountIndex;
+        uint256 lastMaturity;
 
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
+        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) continue;
 
@@ -171,20 +183,27 @@ library SettleAssets {
                 lastMaturity = asset.maturity;
             }
 
-            int assetCash;
+            int256 assetCash;
             if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 if (asset.maturity > blockTime) {
-                    (assetCash, /* */) = settleLiquidityTokenTofCash(portfolioState, i);
+                    (
+                        assetCash, /* */
+
+                    ) = settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
-                    (assetCash, /* */) = settleLiquidityToken(asset, settlementRate);
+                    (
+                        assetCash, /* */
+
+                    ) = settleLiquidityToken(asset, settlementRate);
                     portfolioState.deleteAsset(i);
                 }
             }
 
-            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex].netCashChange
+            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
+                .netCashChange
                 .add(assetCash);
         }
 
@@ -194,17 +213,17 @@ library SettleAssets {
     /**
      * @notice Stateful version of settle asset, the only difference is the call to getSettlementRateStateful
      */
-    function getSettleAssetContextStateful(
-        PortfolioState memory portfolioState,
-        uint blockTime
-    ) internal returns (SettleAmount[] memory) {
+    function getSettleAssetContextStateful(PortfolioState memory portfolioState, uint256 blockTime)
+        internal
+        returns (SettleAmount[] memory)
+    {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = getSettleAmountArray(portfolioState, blockTime);
         if (settleAmounts.length == 0) return settleAmounts;
-        uint settleAmountIndex;
-        uint lastMaturity;
+        uint256 settleAmountIndex;
+        uint256 lastMaturity;
 
-        for (uint i; i < portfolioState.storedAssets.length; i++) {
+        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) continue;
 
@@ -224,7 +243,7 @@ library SettleAssets {
                 lastMaturity = asset.maturity;
             }
 
-            int assetCash;
+            int256 assetCash;
             if (asset.assetType == AssetHandler.FCASH_ASSET_TYPE) {
                 assetCash = settlementRate.convertInternalFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
@@ -241,7 +260,8 @@ library SettleAssets {
                 Market.setSettlementMarket(market);
             }
 
-            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex].netCashChange
+            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
+                .netCashChange
                 .add(assetCash);
         }
 
@@ -254,30 +274,31 @@ library SettleAssets {
      */
     function settleBitmappedAsset(
         address account,
-        uint currencyId,
-        uint nextSettleTime,
-        uint blockTime,
-        uint bitNum,
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime,
+        uint256 bitNum,
         bytes32 bits
-    ) internal returns (bytes32, int) {
-        int assetCash;
+    ) internal returns (bytes32, int256) {
+        int256 assetCash;
 
         if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
-            uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+            uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
             // Storage Read
             bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
-            int ifCash;
-            assembly { ifCash := sload(ifCashSlot) }
+            int256 ifCash;
+            assembly {
+                ifCash := sload(ifCashSlot)
+            }
 
             // Storage Read / Write
-            AssetRateParameters memory rate = AssetRate.buildSettlementRateStateful(
-                currencyId,
-                maturity,
-                blockTime
-            );
+            AssetRateParameters memory rate =
+                AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
             assetCash = rate.convertInternalFromUnderlying(ifCash);
             // Storage Delete
-            assembly { sstore(ifCashSlot, 0) }
+            assembly {
+                sstore(ifCashSlot, 0)
+            }
         }
 
         bits = bits << 1;
@@ -291,22 +312,25 @@ library SettleAssets {
      */
     function settleBitmappedCashGroup(
         address account,
-        uint currencyId,
-        uint nextSettleTime,
-        uint blockTime
-    ) internal returns (bytes32, int) {
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime
+    ) internal returns (bytes32, int256) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
-        int totalAssetCash;
-        SplitBitmap memory splitBitmap = bitmap.splitfCashBitmap();
-        uint blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
+        int256 totalAssetCash;
+        SplitBitmap memory splitBitmap = bitmap.splitAssetBitmap();
+        uint256 blockTimeUTC0 = CashGroup.getTimeUTC0(blockTime);
         // This blockTimeUTC0 will be set to the new "nextSettleTime", this will refer to the
         // new next bit
-        (uint lastSettleBit, /* isValid */) = CashGroup.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
+        (
+            uint256 lastSettleBit, /* isValid */
+
+        ) = CashGroup.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
         if (lastSettleBit == 0) return (bitmap, totalAssetCash);
 
         // NOTE: bitNum is 1-indexed
-        for (uint bitNum = 1; bitNum <= lastSettleBit; bitNum++) {
+        for (uint256 bitNum = 1; bitNum <= lastSettleBit; bitNum++) {
             if (bitNum <= CashGroup.WEEK_BIT_OFFSET) {
                 if (splitBitmap.dayBits == ZERO) {
                     // No more bits set in day bits, continue to the next set of bits
@@ -314,7 +338,7 @@ library SettleAssets {
                     continue;
                 }
 
-                int assetCash;
+                int256 assetCash;
                 (splitBitmap.dayBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
@@ -333,7 +357,7 @@ library SettleAssets {
                     continue;
                 }
 
-                int assetCash;
+                int256 assetCash;
                 (splitBitmap.weekBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
@@ -352,7 +376,7 @@ library SettleAssets {
                     continue;
                 }
 
-                int assetCash;
+                int256 assetCash;
                 (splitBitmap.monthBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
@@ -371,7 +395,7 @@ library SettleAssets {
                     break;
                 }
 
-                int assetCash;
+                int256 assetCash;
                 (splitBitmap.quarterBits, assetCash) = settleBitmappedAsset(
                     account,
                     currencyId,
@@ -385,27 +409,25 @@ library SettleAssets {
             }
         }
 
-        remapBitmap(
-            splitBitmap,
-            nextSettleTime,
-            blockTimeUTC0,
-            lastSettleBit
-        );
-        bitmap = Bitmap.combinefCashBitmap(splitBitmap);
+        remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
+        bitmap = Bitmap.combineAssetBitmap(splitBitmap);
 
         return (bitmap, totalAssetCash);
     }
 
     function remapBitmap(
         SplitBitmap memory splitBitmap,
-        uint nextSettleTime,
-        uint blockTimeUTC0,
-        uint lastSettleBit
+        uint256 nextSettleTime,
+        uint256 blockTimeUTC0,
+        uint256 lastSettleBit
     ) internal pure {
         if (splitBitmap.weekBits != ZERO && lastSettleBit < CashGroup.MONTH_BIT_OFFSET) {
             // Ensures that if part of the week portion is settled we still remap the remaining part
             // starting from the lastSettleBit. Skips if the lastSettleBit is past the offset
-            uint bitOffset = lastSettleBit > CashGroup.WEEK_BIT_OFFSET ? lastSettleBit : CashGroup.WEEK_BIT_OFFSET;
+            uint256 bitOffset =
+                lastSettleBit > CashGroup.WEEK_BIT_OFFSET
+                    ? lastSettleBit
+                    : CashGroup.WEEK_BIT_OFFSET;
             splitBitmap.weekBits = remapBitSection(
                 nextSettleTime,
                 blockTimeUTC0,
@@ -416,11 +438,15 @@ library SettleAssets {
             );
         }
 
-        if (splitBitmap.monthBits != ZERO  && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
-            uint bitOffset = lastSettleBit > CashGroup.MONTH_BIT_OFFSET ? lastSettleBit : CashGroup.MONTH_BIT_OFFSET;
+        if (splitBitmap.monthBits != ZERO && lastSettleBit < CashGroup.QUARTER_BIT_OFFSET) {
+            uint256 bitOffset =
+                lastSettleBit > CashGroup.MONTH_BIT_OFFSET
+                    ? lastSettleBit
+                    : CashGroup.MONTH_BIT_OFFSET;
             splitBitmap.monthBits = remapBitSection(
                 nextSettleTime,
-                blockTimeUTC0, bitOffset,
+                blockTimeUTC0,
+                bitOffset,
                 CashGroup.MONTH,
                 splitBitmap,
                 splitBitmap.monthBits
@@ -428,7 +454,10 @@ library SettleAssets {
         }
 
         if (splitBitmap.quarterBits != ZERO && lastSettleBit < 256) {
-            uint bitOffset = lastSettleBit > CashGroup.QUARTER_BIT_OFFSET ? lastSettleBit : CashGroup.QUARTER_BIT_OFFSET;
+            uint256 bitOffset =
+                lastSettleBit > CashGroup.QUARTER_BIT_OFFSET
+                    ? lastSettleBit
+                    : CashGroup.QUARTER_BIT_OFFSET;
             splitBitmap.quarterBits = remapBitSection(
                 nextSettleTime,
                 blockTimeUTC0,
@@ -444,26 +473,27 @@ library SettleAssets {
      * @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
      */
     function remapBitSection(
-        uint nextSettleTime,
-        uint blockTimeUTC0,
-        uint bitOffset,
-        uint bitTimeLength,
+        uint256 nextSettleTime,
+        uint256 blockTimeUTC0,
+        uint256 bitOffset,
+        uint256 bitTimeLength,
         SplitBitmap memory splitBitmap,
         bytes32 bits
     ) internal pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset
-        uint firstBitRef = CashGroup.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
-        uint newFirstBitRef = CashGroup.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
+        uint256 firstBitRef = CashGroup.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
+        uint256 newFirstBitRef = CashGroup.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
         // NOTE: this will truncate the decimals
-        uint bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;
+        uint256 bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;
 
-        for (uint i; i < bitsToShift; i++) {
+        for (uint256 i; i < bitsToShift; i++) {
             if (bits == ZERO) break;
 
             if ((bits & MSB_BIG_ENDIAN) == MSB_BIG_ENDIAN) {
                 // Map this into the lower section of the bitmap
-                uint maturity = firstBitRef + i * bitTimeLength;
-                (uint newBitNum, bool isValid) = CashGroup.getBitNumFromMaturity(blockTimeUTC0, maturity);
+                uint256 maturity = firstBitRef + i * bitTimeLength;
+                (uint256 newBitNum, bool isValid) =
+                    CashGroup.getBitNumFromMaturity(blockTimeUTC0, maturity);
                 require(isValid); // dev: remap bit section invalid maturity
 
                 if (newBitNum <= CashGroup.WEEK_BIT_OFFSET) {
@@ -476,7 +506,8 @@ library SettleAssets {
                     splitBitmap.weekBits = splitBitmap.weekBits | bitMask;
                 } else if (newBitNum <= CashGroup.QUARTER_BIT_OFFSET) {
                     // Shifting down into the month bits
-                    bytes32 bitMask = MSB_BIG_ENDIAN >> (newBitNum - CashGroup.MONTH_BIT_OFFSET - 1);
+                    bytes32 bitMask =
+                        MSB_BIG_ENDIAN >> (newBitNum - CashGroup.MONTH_BIT_OFFSET - 1);
                     splitBitmap.monthBits = splitBitmap.monthBits | bitMask;
                 } else {
                     revert(); // dev: remap bit section error in bit shift
@@ -488,5 +519,4 @@ library SettleAssets {
 
         return bits;
     }
-
 }

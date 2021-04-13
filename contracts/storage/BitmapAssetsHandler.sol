@@ -2,62 +2,71 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./AccountContextHandler.sol";
 import "../common/AssetRate.sol";
 import "../common/CashGroup.sol";
 import "../common/AssetHandler.sol";
 import "../common/PerpetualToken.sol";
 import "../math/Bitmap.sol";
 import "../math/SafeInt256.sol";
+import "../global/Constants.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library BitmapAssetsHandler {
-    using SafeMath for uint;
-    using SafeInt256 for int;
+    using SafeMath for uint256;
+    using SafeInt256 for int256;
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
-    uint internal constant IFCASH_STORAGE_SLOT = 3;
+    uint256 internal constant IFCASH_STORAGE_SLOT = 3;
 
-    function getAssetsBitmap(
-        address account,
-        uint currencyId
-    ) internal view returns (bytes32) {
+    function getAssetsBitmap(address account, uint256 currencyId) internal view returns (bytes32) {
         bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
         bytes32 data;
-        assembly { data := sload(slot) }
+        assembly {
+            data := sload(slot)
+        }
         return data;
     }
 
     function setAssetsBitmap(
         address account,
-        uint currencyId,
+        uint256 currencyId,
         bytes32 assetsBitmap
     ) internal {
         bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
-        assembly { sstore(slot, assetsBitmap) }
+        assembly {
+            sstore(slot, assetsBitmap)
+        }
     }
 
     function getifCashSlot(
         address account,
-        uint currencyId,
-        uint maturity
+        uint256 currencyId,
+        uint256 maturity
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(maturity,
-            keccak256(abi.encode(currencyId,
-                keccak256(abi.encode(account, IFCASH_STORAGE_SLOT))
-            ))
-        ));
+        return
+            keccak256(
+                abi.encode(
+                    maturity,
+                    keccak256(
+                        abi.encode(currencyId, keccak256(abi.encode(account, IFCASH_STORAGE_SLOT)))
+                    )
+                )
+            );
     }
 
     function getifCashNotional(
         address account,
-        uint currencyId,
-        uint maturity
-    ) internal view returns (int) {
+        uint256 currencyId,
+        uint256 maturity
+    ) internal view returns (int256) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        int notional;
-        assembly { notional := sload(fCashSlot) }
+        int256 notional;
+        assembly {
+            notional := sload(fCashSlot)
+        }
         return notional;
     }
 
@@ -66,15 +75,15 @@ library BitmapAssetsHandler {
         AccountStorage memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
-        uint currencyId = accountContext.bitmapCurrencyId;
+        uint256 currencyId = accountContext.bitmapCurrencyId;
         require(currencyId != 0); // dev: invalid account in set ifcash assets
         bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
-        for (uint i; i < assets.length; i++) {
+        for (uint256 i; i < assets.length; i++) {
             if (assets[i].notional == 0) continue;
             require(assets[i].currencyId == currencyId); // dev: invalid asset in set ifcash assets
             require(assets[i].assetType == AssetHandler.FCASH_ASSET_TYPE); // dev: invalid asset in set ifcash assets
-            int finalNotional;
+            int256 finalNotional;
 
             (ifCashBitmap, finalNotional) = addifCashAsset(
                 account,
@@ -85,7 +94,10 @@ library BitmapAssetsHandler {
                 ifCashBitmap
             );
 
-            if (finalNotional < 0) accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_ASSET_DEBT;
+            if (finalNotional < 0)
+                accountContext.hasDebt =
+                    accountContext.hasDebt |
+                    AccountContextHandler.HAS_ASSET_DEBT;
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
@@ -97,22 +109,26 @@ library BitmapAssetsHandler {
      */
     function addifCashAsset(
         address account,
-        uint currencyId,
-        uint maturity,
-        uint nextSettleTime,
-        int notional,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 nextSettleTime,
+        int256 notional,
         bytes32 assetsBitmap
-    ) internal returns (bytes32, int) {
+    ) internal returns (bytes32, int256) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        (uint bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextSettleTime, maturity);
+        (uint256 bitNum, bool isExact) = CashGroup.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
 
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
-            int existingNotional;
-            assembly { existingNotional := sload(fCashSlot) }
+            int256 existingNotional;
+            assembly {
+                existingNotional := sload(fCashSlot)
+            }
             existingNotional = existingNotional.add(notional);
-            assembly { sstore(fCashSlot, existingNotional) }
+            assembly {
+                sstore(fCashSlot, existingNotional)
+            }
 
             // If the new notional is zero then turn off the bit
             if (existingNotional == 0) {
@@ -123,7 +139,9 @@ library BitmapAssetsHandler {
         }
 
         // Bit is not set so we turn it on and update the mapping directly, no read required.
-        assembly { sstore(fCashSlot, notional) }
+        assembly {
+            sstore(fCashSlot, notional)
+        }
         assetsBitmap = assetsBitmap.setBit(bitNum, true);
 
         return (assetsBitmap, notional);
@@ -131,37 +149,35 @@ library BitmapAssetsHandler {
 
     function getPresentValue(
         address account,
-        uint currencyId,
-        uint maturity,
-        uint blockTime,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
-    ) internal view returns (int) {
+    ) internal view returns (int256) {
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        int notional;
-        assembly { notional := sload(fCashSlot) }
+        int256 notional;
+        assembly {
+            notional := sload(fCashSlot)
+        }
 
         // In this case the asset has matured and the total value is set
         if (maturity <= blockTime) return notional;
 
-        uint oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+        uint256 oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
         if (riskAdjusted) {
-            return AssetHandler.getRiskAdjustedPresentValue(
-                cashGroup,
-                notional,
-                maturity,
-                blockTime,
-                oracleRate
-            );
+            return
+                AssetHandler.getRiskAdjustedPresentValue(
+                    cashGroup,
+                    notional,
+                    maturity,
+                    blockTime,
+                    oracleRate
+                );
         }
 
-        return AssetHandler.getPresentValue(
-            notional,
-            maturity,
-            blockTime,
-            oracleRate
-        );
+        return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
     }
 
     /**
@@ -169,30 +185,31 @@ library BitmapAssetsHandler {
      */
     function getifCashNetPresentValue(
         address account,
-        uint currencyId,
-        uint nextSettleTime,
-        uint blockTime,
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
         bool riskAdjusted
-    ) internal view returns (int, bool) {
-        int totalValueUnderlying;
-        uint bitNum = 1;
+    ) internal view returns (int256, bool) {
+        int256 totalValueUnderlying;
+        uint256 bitNum = 1;
         bool hasDebt;
 
         while (assetsBitmap != 0) {
-            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
-                int pv = getPresentValue(
-                    account,
-                    currencyId,
-                    maturity,
-                    blockTime,
-                    cashGroup,
-                    markets,
-                    riskAdjusted
-                );
+            if (assetsBitmap & Constants.MSB == Constants.MSB) {
+                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                int256 pv =
+                    getPresentValue(
+                        account,
+                        currencyId,
+                        maturity,
+                        blockTime,
+                        cashGroup,
+                        markets,
+                        riskAdjusted
+                    );
                 totalValueUnderlying = totalValueUnderlying.add(pv);
 
                 if (pv < 0) hasDebt = true;
@@ -207,22 +224,24 @@ library BitmapAssetsHandler {
 
     function getifCashArray(
         address account,
-        uint currencyId,
-        uint nextSettleTime
+        uint256 currencyId,
+        uint256 nextSettleTime
     ) internal view returns (PortfolioAsset[] memory) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
-        uint index = assetsBitmap.totalBitsSet();
+        uint256 index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
-        uint bitNum = 1;
+        uint256 bitNum = 1;
         index = 0;
 
         while (assetsBitmap != 0) {
-            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
-                int notional;
+            if (assetsBitmap & Constants.MSB == Constants.MSB) {
+                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+                int256 notional;
                 {
                     bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-                    assembly { notional := sload(fCashSlot) }
+                    assembly {
+                        notional := sload(fCashSlot)
+                    }
                 }
 
                 assets[index].currencyId = currencyId;
@@ -245,27 +264,31 @@ library BitmapAssetsHandler {
      */
     function reduceifCashAssetsProportional(
         address account,
-        uint currencyId,
-        uint nextSettleTime,
-        int tokensToRedeem,
-        int totalSupply
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        int256 tokensToRedeem,
+        int256 totalSupply
     ) internal returns (PortfolioAsset[] memory) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
-        uint index = assetsBitmap.totalBitsSet();
+        uint256 index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
-        uint bitNum = 1;
+        uint256 bitNum = 1;
         index = 0;
 
         while (assetsBitmap != 0) {
-            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
+            if (assetsBitmap & Constants.MSB == Constants.MSB) {
+                uint256 maturity = CashGroup.getMaturityFromBitNum(nextSettleTime, bitNum);
                 bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-                int notional;
-                assembly { notional := sload(fCashSlot) }
+                int256 notional;
+                assembly {
+                    notional := sload(fCashSlot)
+                }
 
-                int notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+                int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
                 notional = notional.sub(notionalToTransfer);
-                assembly { sstore(fCashSlot, notional) }
+                assembly {
+                    sstore(fCashSlot, notional)
+                }
 
                 assets[index].currencyId = currencyId;
                 assets[index].maturity = maturity;
@@ -295,41 +318,49 @@ library BitmapAssetsHandler {
      */
     function getPerpetualTokenNegativefCashWithholding(
         PerpetualTokenPortfolio memory perpToken,
-        uint blockTime,
+        uint256 blockTime,
         bytes32 assetsBitmap
-    ) internal view returns (int) {
-        int totalCashWithholding;
-        uint bitNum = 1;
+    ) internal view returns (int256) {
+        int256 totalCashWithholding;
+        uint256 bitNum = 1;
         // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
         // that sufficient cash is withheld for negative fCash balances.
-        uint oracleRateBuffer = uint(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) * 10 * Market.BASIS_POINT;
+        uint256 oracleRateBuffer =
+            uint256(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) *
+                10 *
+                Market.BASIS_POINT;
 
         while (assetsBitmap != 0) {
-            if (assetsBitmap & Bitmap.MSB == Bitmap.MSB) {
-                uint maturity = CashGroup.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
-                int notional = getifCashNotional(perpToken.tokenAddress, perpToken.cashGroup.currencyId, maturity);
+            if (assetsBitmap & Constants.MSB == Constants.MSB) {
+                uint256 maturity =
+                    CashGroup.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
+                int256 notional =
+                    getifCashNotional(
+                        perpToken.tokenAddress,
+                        perpToken.cashGroup.currencyId,
+                        maturity
+                    );
 
                 // Withholding only applies for negative cash balances
                 if (notional < 0) {
-                    (
-                        uint marketIndex,
-                        bool idiosyncratic
-                    ) = perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
+                    // This is only calculated during initialize markets action, therefore we get the market
+                    // index referenced in the previous quarter because the markets array refers to previous
+                    // markets in this case.
+                    (uint256 marketIndex, bool idiosyncratic) =
+                        perpToken.cashGroup.getMarketIndex(maturity, blockTime - CashGroup.QUARTER);
+                    // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
                     require(!idiosyncratic); // dev: fail on market index
 
-                    uint oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
+                    uint256 oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
                     if (oracleRateBuffer > oracleRate) {
                         oracleRate = 0;
                     } else {
                         oracleRate = oracleRate.sub(oracleRateBuffer);
                     }
 
-                    totalCashWithholding = totalCashWithholding.sub(AssetHandler.getPresentValue(
-                        notional,
-                        maturity,
-                        blockTime,
-                        oracleRate
-                    ));
+                    totalCashWithholding = totalCashWithholding.sub(
+                        AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
+                    );
                 }
             }
 

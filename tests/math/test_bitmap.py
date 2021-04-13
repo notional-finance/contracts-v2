@@ -51,8 +51,8 @@ def test_fcash_bitmap_max_range(mockBitmap):
     monthBits = zeroBits
     quarterBits = zeroBits
 
-    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
-    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
+    bitmap = mockBitmap.combineAssetBitmap((dayBits, weekBits, monthBits, quarterBits))
+    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitAssetBitmap(bitmap)
 
     assert daysOut == dayBits
     assert weeksOut == weekBits
@@ -62,8 +62,8 @@ def test_fcash_bitmap_max_range(mockBitmap):
     dayBits = zeroBits
     weekBits = hex(int("".join(["1" for i in range(0, 45)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
-    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
+    bitmap = mockBitmap.combineAssetBitmap((dayBits, weekBits, monthBits, quarterBits))
+    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitAssetBitmap(bitmap)
 
     assert daysOut == dayBits
     assert weeksOut == weekBits
@@ -73,8 +73,8 @@ def test_fcash_bitmap_max_range(mockBitmap):
     weekBits = zeroBits
     monthBits = hex(int("".join(["1" for i in range(0, 60)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
-    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
+    bitmap = mockBitmap.combineAssetBitmap((dayBits, weekBits, monthBits, quarterBits))
+    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitAssetBitmap(bitmap)
 
     assert daysOut == dayBits
     assert weeksOut == weekBits
@@ -84,8 +84,8 @@ def test_fcash_bitmap_max_range(mockBitmap):
     monthBits = zeroBits
     quarterBits = hex(int("".join(["1" for i in range(0, 61)]).ljust(256, "0"), 2))
 
-    bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
-    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
+    bitmap = mockBitmap.combineAssetBitmap((dayBits, weekBits, monthBits, quarterBits))
+    (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitAssetBitmap(bitmap)
 
     assert daysOut == dayBits
     assert weeksOut == weekBits
@@ -108,8 +108,8 @@ def test_fcash_bitmap_random_range(mockBitmap):
             int("".join([str(random.randint(0, 1)) for i in range(0, 61)]).ljust(256, "0"), 2)
         )
 
-        bitmap = mockBitmap.combinefCashBitmap((dayBits, weekBits, monthBits, quarterBits))
-        (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitfCashBitmap(bitmap)
+        bitmap = mockBitmap.combineAssetBitmap((dayBits, weekBits, monthBits, quarterBits))
+        (daysOut, weeksOut, monthsOut, quartersOut) = mockBitmap.splitAssetBitmap(bitmap)
 
         assert daysOut == dayBits
         assert weeksOut == weekBits

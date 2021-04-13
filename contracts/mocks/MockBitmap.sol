@@ -7,36 +7,27 @@ import "../math/Bitmap.sol";
 contract MockBitmap {
     using Bitmap for bytes32;
 
-    function isBitSet(
-        bytes32 bitmap,
-        uint index
-    ) public pure returns (bool) {
+    function isBitSet(bytes32 bitmap, uint256 index) public pure returns (bool) {
         return bitmap.isBitSet(index);
     }
 
     function setBit(
         bytes32 bitmap,
-        uint index,
+        uint256 index,
         bool setOn
     ) public pure returns (bytes32) {
         return bitmap.setBit(index, setOn);
     }
 
-    function totalBitsSet(
-        bytes32 bitmap
-    ) public pure returns (uint) {
+    function totalBitsSet(bytes32 bitmap) public pure returns (uint256) {
         return bitmap.totalBitsSet();
     }
 
-    function splitfCashBitmap(
-        bytes32 bitmap
-    ) public pure returns (SplitBitmap memory) {
-        return bitmap.splitfCashBitmap();
+    function splitAssetBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
+        return bitmap.splitAssetBitmap();
     }
 
-    function combinefCashBitmap(
-        SplitBitmap memory splitBitmap
-    ) public pure returns (bytes32) {
-        return Bitmap.combinefCashBitmap(splitBitmap);
+    function combineAssetBitmap(SplitBitmap memory splitBitmap) public pure returns (bytes32) {
+        return Bitmap.combineAssetBitmap(splitBitmap);
     }
 }

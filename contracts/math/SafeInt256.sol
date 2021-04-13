@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 
 library SafeInt256 {
-    int256 constant private _INT256_MIN = -2**255;
+    int256 private constant _INT256_MIN = -2**255;
 
     /**
      * @dev Returns the multiplication of two signed integers, reverting on
@@ -74,5 +74,4 @@ library SafeInt256 {
 
         return z;
     }
-
 }
