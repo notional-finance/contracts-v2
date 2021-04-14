@@ -212,10 +212,15 @@ library AccountContextHandler {
     function storeAssetsAndUpdateContext(
         AccountStorage memory accountContext,
         address account,
-        PortfolioState memory portfolioState
+        PortfolioState memory portfolioState,
+        bool isLiquidation
     ) internal {
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =
             portfolioState.storeAssets(account);
+
+        if (!isLiquidation) {
+            require(assetArrayLength <= uint8(Constants.MAX_TRADED_MARKET_INDEX)); // dev: max assets allowed
+        }
 
         if (hasDebt) {
             accountContext.hasDebt = accountContext.hasDebt | HAS_ASSET_DEBT;

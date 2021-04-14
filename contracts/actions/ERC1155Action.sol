@@ -42,7 +42,7 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
             assets[0].currencyId,
             assets[0].maturity,
             assets[0].assetType
-        ) = decodeId(id);
+        ) = TransferAssets.decodeAssetId(id);
         assets[0].notional = int(amount);
 
         AccountStorage memory fromContext = _transfer(from, to, assets);
@@ -98,7 +98,7 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
                 assets[i].currencyId,
                 assets[i].maturity,
                 assets[i].assetType
-            ) = decodeId(ids[i]);
+            ) = TransferAssets.decodeAssetId(ids[i]);
 
             require(amounts[i] <= uint(type(int).max)); // dev: int overflow
             // TODO: FIX ME
@@ -107,22 +107,6 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
         }
 
         return assets;
-    }
-
-    function decodeId(uint id) public pure returns (uint16, uint40, uint8) {
-        return (
-            uint16(uint(bytes32(id) >> 48)),
-            uint40(uint(bytes32(id) >> 8)),
-            uint8(uint(bytes32(id)))
-        );
-    }
-
-    function encodeAsset(uint16 currencyId, uint40 maturity, uint8 assetType) public pure returns (uint) {
-        return uint(
-            bytes32(uint(currencyId)) << 48 |
-            bytes32(uint(maturity)) << 8 |
-            bytes32(uint(assetType))
-        );
     }
 
     function _transfer(address from, address to, PortfolioAsset[] memory assets) internal returns (AccountStorage memory) {

@@ -21,7 +21,7 @@ library Constants {
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
     int256 internal constant PERCENTAGE_DECIMALS = 100;
-    uint256 internal constant MAX_TRADED_MARKET_INDEX = 9;
+    uint256 internal constant MAX_TRADED_MARKET_INDEX = 7;
 
     // Internal date representations, note we use a 6/30/360 week/month/year convention here
     uint256 internal constant DAY = 86400;
@@ -54,7 +54,7 @@ library Constants {
 
     uint256 internal constant FCASH_ASSET_TYPE = 1;
     uint256 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
-    uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 10;
+    uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
 
     bytes1 internal constant BOOL_FALSE = 0x00;
     bytes1 internal constant BOOL_TRUE = 0x01;

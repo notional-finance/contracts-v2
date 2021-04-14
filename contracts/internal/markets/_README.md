@@ -47,6 +47,12 @@ A market is a liquidity curve between asset cash and fCash for a particular matu
 
 NOTE: in all of these calculations, we use **underlying cash** not **asset cash** for the calculations.
 
+## Settlement Date and Settlement Markets
+
+In Notional, markets will settle every quarter rather than at maturity. fCash will continue to settle at maturity, however, liquidity tokens will settle every quarter to cash and residual fCash. This ensures that a 2 year market will always be between 2 years and 1.75 years away at worst. However, it does require some additional logic when storing and loading markets as there may be two or more markets with the same maturity and different settlement dates.
+
+For example, an fCash asset with a maturity of Jan 2022 will be traded in four markets starting Jan 2020 to Mar 2020 (2 year), Jan 2021 to Mar 2021 (1 year), Jun 2021 to Aug 2021 (6 month), Sep 2021 to Dec 2021 (3 month).
+
 ## Invariants and Test Cases
 
 - System wide fCash of a currency and maturity will net to zero

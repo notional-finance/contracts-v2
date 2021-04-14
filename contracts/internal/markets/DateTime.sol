@@ -27,10 +27,8 @@ library DateTime {
         if (index == 3) return Constants.YEAR;
         if (index == 4) return 2 * Constants.YEAR;
         if (index == 5) return 5 * Constants.YEAR;
-        if (index == 6) return 7 * Constants.YEAR;
-        if (index == 7) return 10 * Constants.YEAR;
-        if (index == 8) return 15 * Constants.YEAR;
-        if (index == 9) return 20 * Constants.YEAR;
+        if (index == 6) return 10 * Constants.YEAR;
+        if (index == 7) return 20 * Constants.YEAR;
 
         revert("CG: invalid index");
     }

@@ -2,26 +2,17 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../markets/CashGroup.sol";
+import "./TransferAssets.sol";
 import "../valuation/AssetHandler.sol";
 import "../../math/SafeInt256.sol";
 
-struct PortfolioState {
-    PortfolioAsset[] storedAssets;
-    PortfolioAsset[] newAssets;
-    uint256 lastNewAssetIndex;
-    // Holds the length of stored assets after accounting for deleted assets
-    uint256 storedAssetLength;
-}
-
-/**
- * @notice Handles the management of an array of assets including reading from storage, inserting
- * updating, deleting and writing back to storage.
- */
+/// @notice Handles the management of an array of assets including reading from storage, inserting
+/// updating, deleting and writing back to storage.
 library PortfolioHandler {
     using SafeInt256 for int256;
     using AssetHandler for PortfolioAsset;
 
+    /// @notice Primarily used by the TransferAssets library
     function addMultipleAssets(PortfolioState memory portfolioState, PortfolioAsset[] memory assets)
         internal
         pure
@@ -40,21 +31,9 @@ library PortfolioHandler {
         }
     }
 
-    function extendNewAssetArray(PortfolioAsset[] memory newAssets)
-        internal
-        pure
-        returns (PortfolioAsset[] memory)
-    {
-        PortfolioAsset[] memory extendedArray = new PortfolioAsset[](newAssets.length + 1);
-        for (uint256 i; i < newAssets.length; i++) {
-            extendedArray[i] = newAssets[i];
-        }
-
-        return extendedArray;
-    }
-
-    /// @notice Adds or updates a new asset in memory
-
+    /// @notice Adds an asset to a portfolio state in memory (does not write to storage)
+    /// @dev Ensures that only one version of an asset exists in a portfolio (i.e. does not allow two fCash assets of the same maturity
+    /// to exist in a single portfolio). Also ensures that liquidity tokens do not have a negative notional.
     function addAsset(
         PortfolioState memory portfolioState,
         uint256 currencyId,
@@ -97,7 +76,7 @@ library PortfolioHandler {
 
         // Need to provision a new array at this point
         if (portfolioState.lastNewAssetIndex == portfolioState.newAssets.length) {
-            portfolioState.newAssets = extendNewAssetArray(portfolioState.newAssets);
+            portfolioState.newAssets = _extendNewAssetArray(portfolioState.newAssets);
         }
 
         // Otherwise add to the new assets array. It should not be possible to add matching assets in a single transaction, we will
@@ -111,8 +90,24 @@ library PortfolioHandler {
         portfolioState.lastNewAssetIndex += 1;
     }
 
-    /// @notice Takes a portfolio state and writes it to storage
+    /// @dev Extends the new asset array if it is not large enough, this is likely to get a bit expensive if we do
+    /// it too much
+    function _extendNewAssetArray(PortfolioAsset[] memory newAssets)
+        private
+        pure
+        returns (PortfolioAsset[] memory)
+    {
+        PortfolioAsset[] memory extendedArray = new PortfolioAsset[](newAssets.length + 1);
+        for (uint256 i; i < newAssets.length; i++) {
+            extendedArray[i] = newAssets[i];
+        }
 
+        return extendedArray;
+    }
+
+    /// @notice Takes a portfolio state and writes it to storage.
+    /// @dev This method should only be called directly by the nToken. Account updates to portfolios should happen via
+    /// the storeAssetsAndUpdateContext call in the AccountContextHandler.sol library.
     function storeAssets(PortfolioState memory portfolioState, address account)
         internal
         returns (
@@ -124,6 +119,11 @@ library PortfolioHandler {
     {
         uint256 initialSlot = uint256(keccak256(abi.encode(account, "account.array")));
         bool hasDebt;
+        // NOTE: cannot have more than 16 assets or this byte object will overflow. Max assets is
+        // set to 7 and the worst case during liquidation would be 7 liquidity tokens that generate
+        // 7 additional fCash assets for a total of 14 assets. Although even in this case all assets
+        // would be of the same currency so it would not change the end result of the active currency
+        // calculation.
         bytes32 portfolioActiveCurrencies;
         uint256 nextSettleTime;
 
@@ -140,8 +140,9 @@ library PortfolioHandler {
         // First delete assets from asset storage to maintain asset storage indexes
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
+
             if (asset.storageState == AssetStorageState.Delete) {
-                // Storage Read / write
+                // Delete asset from storage
                 uint256 currentSlot = asset.storageSlot;
                 assembly {
                     sstore(currentSlot, 0x00)
@@ -150,21 +151,20 @@ library PortfolioHandler {
             }
 
             if (portfolioState.storedAssets[i].storageState == AssetStorageState.Update) {
+                // Apply updates
                 uint256 currentSlot = asset.storageSlot;
-                bytes32 encodedAsset = encodeAssetToBytes(portfolioState.storedAssets[i]);
+                bytes32 encodedAsset = _encodeAssetToBytes(portfolioState.storedAssets[i]);
                 assembly {
                     sstore(currentSlot, encodedAsset)
                 }
             }
 
-            // Update account context parameters for active assets
-            if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
-                nextSettleTime = asset.getSettlementDate();
-            }
-            hasDebt = asset.notional < 0 || hasDebt;
-            portfolioActiveCurrencies =
-                (portfolioActiveCurrencies >> 16) |
-                (bytes32(asset.currencyId) << 240);
+            (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
+                asset,
+                hasDebt,
+                portfolioActiveCurrencies,
+                nextSettleTime
+            );
         }
 
         // Add new assets
@@ -172,25 +172,22 @@ library PortfolioHandler {
         for (uint256 i; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
             if (asset.notional == 0) continue;
-            bytes32 encodedAsset = encodeAssetToBytes(portfolioState.newAssets[i]);
+
+            bytes32 encodedAsset = _encodeAssetToBytes(portfolioState.newAssets[i]);
             uint256 newAssetSlot = initialSlot + assetStorageLength;
 
-            if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
-                nextSettleTime = asset.getSettlementDate();
-            }
-            hasDebt = asset.notional < 0 || hasDebt;
-            portfolioActiveCurrencies =
-                (portfolioActiveCurrencies >> 16) |
-                (bytes32(asset.currencyId) << 240);
+            (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
+                asset,
+                hasDebt,
+                portfolioActiveCurrencies,
+                nextSettleTime
+            );
 
             assembly {
                 sstore(newAssetSlot, encodedAsset)
             }
             assetStorageLength += 1;
         }
-
-        // TODO: allow liquidation to skip this check
-        require(assetStorageLength <= Constants.MAX_TRADED_MARKET_INDEX); // dev: max assets allowed
 
         return (
             hasDebt,
@@ -200,8 +197,48 @@ library PortfolioHandler {
         );
     }
 
-    /// @notice Deletes an asset, should only be used during settlement
+    /// @notice Updates context information during the store assets method
+    function _updatePortfolioContext(
+        PortfolioAsset memory asset,
+        bool hasDebt,
+        bytes32 portfolioActiveCurrencies,
+        uint256 nextSettleTime
+    )
+        private
+        pure
+        returns (
+            bool,
+            bytes32,
+            uint256
+        )
+    {
+        if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
+            nextSettleTime = asset.getSettlementDate();
+        }
+        hasDebt = hasDebt || asset.notional < 0;
+        portfolioActiveCurrencies =
+            (portfolioActiveCurrencies >> 16) |
+            (bytes32(asset.currencyId) << 240);
 
+        return (hasDebt, portfolioActiveCurrencies, nextSettleTime);
+    }
+
+    /// @dev Encodes assets for storage
+    function _encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
+        require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
+        require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
+        require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
+        require(asset.notional >= type(int88).min && asset.notional <= type(int88).max); // dev: encode asset notional overflow
+
+        return (bytes32(asset.currencyId) |
+            (bytes32(asset.maturity) << 16) |
+            (bytes32(asset.assetType) << 56) |
+            (bytes32(asset.notional) << 64));
+    }
+
+    /// @notice Deletes an asset from a portfolio
+    /// @dev This method should only be called during settlement, assets can only be removed from a portfolio before settlement
+    /// by adding the offsetting negative position
     function deleteAsset(PortfolioState memory portfolioState, uint256 index) internal pure {
         require(index < portfolioState.storedAssets.length); // dev: stored assets bounds
         require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
@@ -210,6 +247,8 @@ library PortfolioHandler {
 
         uint256 maxActiveSlotIndex;
         uint256 maxActiveSlot;
+        // The max active slot is the last storage slot where an asset exists, it's not clear where this will be in the
+        // array so we search for it here.
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             if (
                 portfolioState.storedAssets[i].storageSlot > maxActiveSlot &&
@@ -221,6 +260,7 @@ library PortfolioHandler {
         }
 
         if (index == maxActiveSlotIndex) {
+            // In this case we are deleting the asset with the max storage slot so no swap is necessary.
             portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
             return;
         }
@@ -238,44 +278,56 @@ library PortfolioHandler {
         portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
     }
 
-    /// @dev These ids determine the sort order of assets
+    /// @notice Returns a portfolio array, will be sorted
+    function getSortedPortfolio(address account, uint8 assetArrayLength)
+        internal
+        view
+        returns (PortfolioAsset[] memory)
+    {
+        PortfolioAsset[] memory assets = _loadAssetArray(account, assetArrayLength);
+        // No sorting required for length of 1
+        if (assets.length <= 1) return assets;
 
-    function getEncodedId(PortfolioAsset memory asset) internal pure returns (uint256) {
-        return
-            uint256(
-                (bytes32(asset.currencyId) << 48) |
-                    (bytes32(asset.maturity) << 8) |
-                    bytes32(asset.assetType)
-            );
+        _quickSortInPlace(assets, 0, int256(assets.length) - 1);
+        return assets;
+    }
+
+    /// @notice Builds a portfolio array from storage. The new assets hint parameter will
+    /// be used to provision a new array for the new assets. This will increase gas efficiency
+    /// so that we don't have to make copies when we extend the array.
+    function buildPortfolioState(
+        address account,
+        uint8 assetArrayLength,
+        uint256 newAssetsHint
+    ) internal view returns (PortfolioState memory) {
+        PortfolioState memory state;
+        if (assetArrayLength == 0) return state;
+
+        state.storedAssets = getSortedPortfolio(account, assetArrayLength);
+        state.storedAssetLength = assetArrayLength;
+        state.newAssets = new PortfolioAsset[](newAssetsHint);
+
+        return state;
     }
 
     /// @dev These ids determine the sort order of assets
-
-    function encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
-        require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
-        require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
-        require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
-        require(asset.notional >= type(int88).min && asset.notional <= type(int88).max); // dev: encode asset notional overflow
-
-        return (bytes32(asset.currencyId) |
-            (bytes32(asset.maturity) << 16) |
-            (bytes32(asset.assetType) << 56) |
-            (bytes32(asset.notional) << 64));
+    function _getEncodedId(PortfolioAsset memory asset) private pure returns (uint256) {
+        return TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
     }
 
     function _quickSortInPlace(
         PortfolioAsset[] memory assets,
         int256 left,
         int256 right
-    ) internal pure {
+    ) private pure {
         if (left == right) return;
         int256 i = left;
         int256 j = right;
 
-        uint256 pivot = getEncodedId(assets[uint256(left + (right - left) / 2)]);
+        uint256 pivot = _getEncodedId(assets[uint256(left + (right - left) / 2)]);
         while (i <= j) {
-            while (getEncodedId(assets[uint256(i)]) < pivot) i++;
-            while (pivot < getEncodedId(assets[uint256(j)])) j--;
+            while (_getEncodedId(assets[uint256(i)]) < pivot) i++;
+            while (pivot < _getEncodedId(assets[uint256(j)])) j--;
             if (i <= j) {
                 (assets[uint256(i)], assets[uint256(j)]) = (assets[uint256(j)], assets[uint256(i)]);
                 i++;
@@ -287,7 +339,7 @@ library PortfolioHandler {
         if (i < right) _quickSortInPlace(assets, i, right);
     }
 
-    function loadAssetArray(address account, uint8 length)
+    function _loadAssetArray(address account, uint8 length)
         private
         view
         returns (PortfolioAsset[] memory)
@@ -310,37 +362,5 @@ library PortfolioHandler {
         }
 
         return assets;
-    }
-
-    function getSortedPortfolio(address account, uint8 assetArrayLength)
-        internal
-        view
-        returns (PortfolioAsset[] memory)
-    {
-        PortfolioAsset[] memory assets = loadAssetArray(account, assetArrayLength);
-
-        if (assets.length <= 1) return assets;
-
-        _quickSortInPlace(assets, 0, int256(assets.length) - 1);
-        return assets;
-    }
-
-    /// @notice Builds a portfolio array from storage. The new assets hint parameter will
-    /// be used to provision a new array for the new assets. This will increase gas efficiency
-    /// so that we don't have to make copies when we extend the array.
-
-    function buildPortfolioState(
-        address account,
-        uint8 assetArrayLength,
-        uint256 newAssetsHint
-    ) internal view returns (PortfolioState memory) {
-        PortfolioState memory state;
-        if (assetArrayLength == 0) return state;
-
-        state.storedAssets = getSortedPortfolio(account, assetArrayLength);
-        state.storedAssetLength = assetArrayLength;
-        state.newAssets = new PortfolioAsset[](newAssetsHint);
-
-        return state;
     }
 }

@@ -2,6 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+struct PortfolioState {
+    PortfolioAsset[] storedAssets;
+    PortfolioAsset[] newAssets;
+    uint256 lastNewAssetIndex;
+    // Holds the length of stored assets after accounting for deleted assets
+    uint256 storedAssetLength;
+}
+
 /**
  * @dev Exchange rate object as stored in memory, these are cached optimistically
  * when the transaction begins. This is not the same as the object in storage.

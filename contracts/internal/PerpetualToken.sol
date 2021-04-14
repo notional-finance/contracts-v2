@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import "./markets/Market.sol";
 import "./markets/CashGroup.sol";
 import "./markets/AssetRate.sol";
+import "./valuation/AssetHandler.sol";
 import "./AccountContextHandler.sol";
 import "./portfolio/BitmapAssetsHandler.sol";
 import "./portfolio/PortfolioHandler.sol";

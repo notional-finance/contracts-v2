@@ -37,7 +37,7 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         returns (AccountStorage memory)
     {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         accountContext.setAccountContext(account);
 
         return accountContext;
@@ -51,10 +51,6 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         portfolioState.deleteAsset(index);
 
         return portfolioState;
-    }
-
-    function getEncodedId(PortfolioAsset memory asset) public pure returns (uint256) {
-        return PortfolioHandler.getEncodedId(asset);
     }
 
     function buildPortfolioState(address account, uint256 newAssetsHint)

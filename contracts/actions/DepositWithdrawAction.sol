@@ -236,7 +236,7 @@ contract DepositWithdrawAction {
         }
 
         if (accountContext.bitmapCurrencyId == 0) {
-            accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);

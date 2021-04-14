@@ -104,7 +104,8 @@ library LiquidationHelpers {
             AccountContextHandler.storeAssetsAndUpdateContext(
                 c.accountContext,
                 liquidateAccount,
-                c.portfolio
+                c.portfolio,
+                false // Although this is liquidation, we should not allow past max assets here
             );
         } else {
             BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
@@ -169,11 +170,11 @@ contract LiquidateLocalCurrency {
         if (accountContext.bitmapCurrencyId != 0) {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
-            // todo: set allow liquidation flag
             AccountContextHandler.storeAssetsAndUpdateContext(
                 accountContext,
                 liquidateAccount,
-                portfolio
+                portfolio,
+                true // is liquidation
             );
         }
         accountContext.setAccountContext(liquidateAccount);
@@ -257,11 +258,11 @@ contract LiquidateCollateralCurrency {
         if (accountContext.bitmapCurrencyId != 0) {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
-            // todo: set allow liquidation flag
             AccountContextHandler.storeAssetsAndUpdateContext(
                 accountContext,
                 liquidateAccount,
-                portfolio
+                portfolio,
+                true // is liquidation
             );
         }
         accountContext.setAccountContext(liquidateAccount);

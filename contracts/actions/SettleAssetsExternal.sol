@@ -128,7 +128,7 @@ library SettleAssetsExternal {
                 block.timestamp
             );
             if (finalizePortfolio)
-                accountContext.storeAssetsAndUpdateContext(account, portfolioState);
+                accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
 
         if (finalizeAmounts)

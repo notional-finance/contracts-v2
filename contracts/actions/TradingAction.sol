@@ -11,6 +11,7 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
+import "../internal/portfolio/TransferAssets.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library TradingAction {
@@ -364,13 +365,13 @@ library TradingAction {
         // It's possible that this action will put an account into negative free collateral. In this case they
         // will immediately become eligible for liquidation and the account settling the debt can also liquidate
         // them in the same transaction. Do not run a free collateral check here to allow this to happen.
-        placefCashAssetInCounterparty(
-            counterparty,
-            counterpartyContext,
-            cashGroup.currencyId,
-            threeMonthMaturity,
-            fCashAmount.neg() // This is the debt the settled account will incur
-        );
+        {
+            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
+            assets[0].currencyId = cashGroup.currencyId;
+            assets[0].maturity = threeMonthMaturity;
+            assets[0].notional = fCashAmount.neg(); // This is the debt the settled account will incur
+            TransferAssets.placeAssetsInAccount(counterparty, counterpartyContext, assets);
+        }
         counterpartyContext.setAccountContext(counterparty);
 
         return (threeMonthMaturity, amountToSettleAsset.neg(), fCashAmount);
@@ -536,47 +537,5 @@ library TradingAction {
             cashGroup.currencyId,
             perpTokenCashBalance
         );
-    }
-
-    function placefCashAssetInCounterparty(
-        address counterparty,
-        AccountStorage memory counterpartyContext,
-        uint256 currencyId,
-        uint256 maturity,
-        int256 fCashAmount
-    ) internal {
-        if (counterpartyContext.bitmapCurrencyId != 0) {
-            require(counterpartyContext.bitmapCurrencyId == currencyId, "Invalid cash pair");
-            bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(counterparty, currencyId);
-            int256 notional;
-            (ifCashBitmap, notional) = BitmapAssetsHandler.addifCashAsset(
-                counterparty,
-                currencyId,
-                maturity,
-                counterpartyContext.nextSettleTime,
-                fCashAmount,
-                ifCashBitmap
-            );
-            if (notional < 0)
-                counterpartyContext.hasDebt =
-                    counterpartyContext.hasDebt |
-                    AccountContextHandler.HAS_ASSET_DEBT;
-            BitmapAssetsHandler.setAssetsBitmap(counterparty, currencyId, ifCashBitmap);
-        } else {
-            PortfolioState memory portfolioState =
-                PortfolioHandler.buildPortfolioState(
-                    counterparty,
-                    counterpartyContext.assetArrayLength,
-                    1
-                );
-            portfolioState.addAsset(
-                currencyId,
-                maturity,
-                Constants.FCASH_ASSET_TYPE,
-                fCashAmount,
-                false
-            );
-            counterpartyContext.storeAssetsAndUpdateContext(counterparty, portfolioState);
-        }
     }
 }
