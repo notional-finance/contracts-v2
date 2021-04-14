@@ -21,7 +21,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity
     ) public view returns (int256) {
-        return ifCashMapping[account][currencyId][maturity];
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
     function setAssetArray(address account, PortfolioAsset[] memory a) external {
@@ -86,11 +86,27 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function setifCash(
         address account,
-        uint256 id,
+        uint256 currencyId,
         uint256 maturity,
         int256 notional
     ) external {
-        ifCashMapping[account][id][maturity] = notional;
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+
+        // prettier-ignore
+        (
+            ifCashBitmap,
+            /* finalNotional */
+        ) = BitmapAssetsHandler.addifCashAsset(
+            account,
+            currencyId,
+            maturity,
+            accountContext.nextSettleTime,
+            notional,
+            ifCashBitmap
+        );
+
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
     }
 
     function setSettlementRate(

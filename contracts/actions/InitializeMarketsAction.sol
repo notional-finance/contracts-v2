@@ -162,13 +162,67 @@ library InitializeMarketsAction {
 
         // Recalculate what the withholdings are if there are any ifCash assets remaining
         int256 assetCashWithholding =
-            BitmapAssetsHandler.getPerpetualTokenNegativefCashWithholding(
-                perpToken,
-                blockTime,
-                ifCashBitmap
-            );
+            _getPerpetualTokenNegativefCashWithholding(perpToken, blockTime, ifCashBitmap);
 
         return (assetCashWithholding, ifCashBitmap);
+    }
+
+    /// @notice If a perpetual token incurs a negative fCash residual as a result of lending, this means
+    /// that we are going to need to withold some amount of cash so that market makers can purchase and
+    /// clear the debts off the balance sheet.
+    function _getPerpetualTokenNegativefCashWithholding(
+        PerpetualTokenPortfolio memory perpToken,
+        uint256 blockTime,
+        bytes32 assetsBitmap
+    ) internal view returns (int256) {
+        int256 totalCashWithholding;
+        uint256 bitNum = 1;
+        // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
+        // that sufficient cash is withheld for negative fCash balances.
+        uint256 oracleRateBuffer =
+            uint256(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) *
+                10 *
+                Constants.BASIS_POINT;
+
+        while (assetsBitmap != 0) {
+            if (assetsBitmap & Constants.MSB == Constants.MSB) {
+                uint256 maturity =
+                    DateTime.getMaturityFromBitNum(perpToken.lastInitializedTime, bitNum);
+                int256 notional =
+                    BitmapAssetsHandler.getifCashNotional(
+                        perpToken.tokenAddress,
+                        perpToken.cashGroup.currencyId,
+                        maturity
+                    );
+
+                // Withholding only applies for negative cash balances
+                if (notional < 0) {
+                    // This is only calculated during initialize markets action, therefore we get the market
+                    // index referenced in the previous quarter because the markets array refers to previous
+                    // markets in this case.
+                    (uint256 marketIndex, bool idiosyncratic) =
+                        perpToken.cashGroup.getMarketIndex(maturity, blockTime - Constants.QUARTER);
+                    // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
+                    require(!idiosyncratic); // dev: fail on market index
+
+                    uint256 oracleRate = perpToken.markets[marketIndex - 1].oracleRate;
+                    if (oracleRateBuffer > oracleRate) {
+                        oracleRate = 0;
+                    } else {
+                        oracleRate = oracleRate.sub(oracleRateBuffer);
+                    }
+
+                    totalCashWithholding = totalCashWithholding.sub(
+                        AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
+                    );
+                }
+            }
+
+            assetsBitmap = assetsBitmap << 1;
+            bitNum += 1;
+        }
+
+        return perpToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
     }
 
     function calculateNetAssetCashAvailable(

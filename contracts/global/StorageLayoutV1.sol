@@ -20,9 +20,6 @@ contract StorageLayoutV1 {
     // and free collateral. Mapping is from currency id to rate storage object.
     mapping(uint256 => AssetRateStorage) internal assetToUnderlyingRateMapping;
 
-    // address => currency id => maturity => ifCash value
-    mapping(address => mapping(uint256 => mapping(uint256 => int256))) internal ifCashMapping;
-
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions
     address internal owner;
