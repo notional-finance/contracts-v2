@@ -5,7 +5,8 @@ pragma experimental ABIEncoderV2;
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/BitmapAssetsHandler.sol";
 import "../global/StorageLayoutV1.sol";
-import "../internal/settlement/SettleAssets.sol";
+import "../internal/settlement/SettlePortfolioAssets.sol";
+import "../internal/settlement/SettleBitmapAssets.sol";
 
 contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
@@ -136,7 +137,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         PortfolioState memory pStateView =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         SettleAmount[] memory settleAmounts =
-            SettleAssets.getSettleAssetContextView(pStateView, blockTime);
+            SettlePortfolioAssets.getSettleAssetContextView(pStateView, blockTime);
 
         return (settleAmounts, pStateView);
     }
@@ -152,9 +153,9 @@ contract MockSettleAssets is StorageLayoutV1 {
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
 
         SettleAmount[] memory settleAmountView =
-            SettleAssets.getSettleAssetContextView(pStateView, blockTime);
+            SettlePortfolioAssets.getSettleAssetContextView(pStateView, blockTime);
         SettleAmount[] memory settleAmount =
-            SettleAssets.getSettleAssetContextStateful(pState, blockTime);
+            SettlePortfolioAssets.getSettleAssetContextStateful(pState, blockTime);
 
         require(pStateView.storedAssetLength == pState.storedAssetLength); // dev: stored asset length equal
         require(pStateView.storedAssets.length == pState.storedAssets.length); // dev: stored asset array length equal
@@ -213,7 +214,12 @@ contract MockSettleAssets is StorageLayoutV1 {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
         (bytes32 newBitmap, int256 newAssetCash) =
-            SettleAssets.settleBitmappedCashGroup(account, currencyId, nextSettleTime, blockTime);
+            SettleBitmapAssets.settleBitmappedCashGroup(
+                account,
+                currencyId,
+                nextSettleTime,
+                blockTime
+            );
 
         newBitmapStorage = newBitmap;
         totalAssetCash = newAssetCash;
@@ -228,7 +234,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         bytes32 bits
     ) public returns (bytes32, int256) {
         return
-            SettleAssets.settleBitmappedAsset(
+            SettleBitmapAssets.settleBitmappedAsset(
                 account,
                 currencyId,
                 nextSettleTime,
@@ -255,7 +261,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         bytes32 bits
     ) public pure returns (SplitBitmap memory, bytes32) {
         bytes32 newBits =
-            SettleAssets.remapBitSection(
+            SettleBitmapAssets.remapBitSection(
                 nextSettleTime,
                 blockTimeUTC0,
                 bitOffset,

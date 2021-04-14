@@ -8,7 +8,6 @@ import "../external/actions/nTokenMintAction.sol";
 import "../external/actions/nTokenRedeemAction.sol";
 import "./TradingAction.sol";
 import "../math/SafeInt256.sol";
-import "../internal/settlement/SettleAssets.sol";
 import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";

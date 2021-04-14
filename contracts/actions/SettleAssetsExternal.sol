@@ -4,7 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/balances/BalanceHandler.sol";
-import "../internal/settlement/SettleAssets.sol";
+import "../internal/settlement/SettlePortfolioAssets.sol";
+import "../internal/settlement/SettleBitmapAssets.sol";
 import "../internal/AccountContextHandler.sol";
 
 library SettleAssetsExternal {
@@ -21,7 +22,7 @@ library SettleAssetsExternal {
         PortfolioState memory portfolioState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         SettleAmount[] memory settleAmounts =
-            SettleAssets.getSettleAssetContextView(portfolioState, blockTime);
+            SettlePortfolioAssets.getSettleAssetContextView(portfolioState, blockTime);
 
         return (portfolioState, settleAmounts);
     }
@@ -45,7 +46,7 @@ library SettleAssetsExternal {
             });
 
         SettleAmount[] memory settleAmounts =
-            SettleAssets.getSettleAssetContextView(portfolioState, blockTime);
+            SettlePortfolioAssets.getSettleAssetContextView(portfolioState, blockTime);
 
         return settleAmounts[0].netCashChange;
     }
@@ -123,7 +124,7 @@ library SettleAssetsExternal {
                 accountContext.assetArrayLength,
                 0
             );
-            settleAmounts = SettleAssets.getSettleAssetContextStateful(
+            settleAmounts = SettlePortfolioAssets.getSettleAssetContextStateful(
                 portfolioState,
                 block.timestamp
             );
@@ -143,7 +144,7 @@ library SettleAssetsExternal {
         uint256 nextSettleTime
     ) internal returns (SettleAmount[] memory) {
         (bytes32 assetsBitmap, int256 settledCash) =
-            SettleAssets.settleBitmappedCashGroup(
+            SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
                 nextSettleTime,

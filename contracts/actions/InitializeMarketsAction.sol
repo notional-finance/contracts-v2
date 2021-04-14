@@ -7,7 +7,8 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/settlement/SettleAssets.sol";
+import "../internal/settlement/SettlePortfolioAssets.sol";
+import "../internal/settlement/SettleBitmapAssets.sol";
 import "../internal/PerpetualToken.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -79,12 +80,15 @@ library InitializeMarketsAction {
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
             SettleAmount[] memory settleAmount =
-                SettleAssets.getSettleAssetContextStateful(perpToken.portfolioState, blockTime);
+                SettlePortfolioAssets.getSettleAssetContextStateful(
+                    perpToken.portfolioState,
+                    blockTime
+                );
             perpToken.cashBalance = perpToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
         (bytes32 ifCashBitmap, int256 settledAssetCash) =
-            SettleAssets.settleBitmappedCashGroup(
+            SettleBitmapAssets.settleBitmappedCashGroup(
                 perpToken.tokenAddress,
                 perpToken.cashGroup.currencyId,
                 perpToken.lastInitializedTime,
