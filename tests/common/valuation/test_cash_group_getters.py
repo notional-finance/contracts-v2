@@ -94,7 +94,7 @@ def test_build_cash_group(cashGroup, aggregator):
 
     for i in range(1, 50):
         cashGroup.setAssetRateMapping(i, rateStorage)
-        maxMarketIndex = random.randint(0, 9)
+        maxMarketIndex = random.randint(0, 7)
         maxMarketIndex = 3
         cashGroupParameters = (
             maxMarketIndex,
@@ -135,7 +135,7 @@ def test_build_cash_group(cashGroup, aggregator):
 
 
 @given(
-    maxMarketIndex=strategy("uint8", min_value=2, max_value=9),
+    maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
     blockTime=strategy("uint32", min_value=START_TIME),
 )
 def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
@@ -174,7 +174,7 @@ def test_get_market(cashGroup, aggregator, maxMarketIndex, blockTime):
 
 
 @given(
-    maxMarketIndex=strategy("uint8", min_value=2, max_value=9),
+    maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
     blockTime=strategy("uint32", min_value=START_TIME),
     # this is a per block interest rate of 0.2% to 42%, (rate = 2102400 * supplyRate / 1e18)
     supplyRate=strategy("uint", min_value=1e9, max_value=2e11),

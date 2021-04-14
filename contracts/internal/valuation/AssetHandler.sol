@@ -25,7 +25,6 @@ library AssetHandler {
 
     /// @notice Liquidity tokens settle every 90 days (not at the designated maturity). This method
     /// calculates the settlement date for any PortfolioAsset.
-
     function getSettlementDate(PortfolioAsset memory asset) internal pure returns (uint256) {
         require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: settlement date invalid asset type
         // 3 month tokens and fCash tokens settle at maturity
@@ -39,9 +38,8 @@ library AssetHandler {
         return asset.maturity.sub(marketLength).add(Constants.QUARTER);
     }
 
-    /// @notice Returns the compound rate given an oracle rate and a time to maturity. The formula is:
-    /// notional * e^(-rate * timeToMaturity).
-
+    /// @notice Returns the continuously compounded discount rate given an oracle rate and a time to maturity.
+    /// The formula is: notional * e^(-rate * timeToMaturity).
     function getDiscountFactor(uint256 timeToMaturity, uint256 oracleRate)
         internal
         pure
@@ -58,7 +56,6 @@ library AssetHandler {
     }
 
     /// @notice Present value of an fCash asset without any risk adjustments.
-
     function getPresentValue(
         int256 notional,
         uint256 maturity,
@@ -76,7 +73,6 @@ library AssetHandler {
 
     /// @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
     /// heavily than the oracle rate given and vice versa for negative fCash.
-
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
         int256 notional,
@@ -108,27 +104,41 @@ library AssetHandler {
     }
 
     /// @notice Returns the unhaircut claims on cash and fCash by the liquidity token.
+    function getCashClaims(PortfolioAsset memory token, MarketParameters memory market)
+        internal
+        pure
+        returns (int256 assetCash, int256 fCash)
+    {
+        require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
+        assetCash = market.totalCurrentCash.mul(token.notional).div(market.totalLiquidity);
+        fCash = market.totalfCash.mul(token.notional).div(market.totalLiquidity);
+    }
+
+    /// @notice Returns the haircut claims on cash and fCash
     /// @return (assetCash, fCash)
-
-    function getCashClaims(
-        PortfolioAsset memory liquidityToken,
-        MarketParameters memory marketState
+    function getHaircutCashClaims(
+        PortfolioAsset memory token,
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup
     ) internal pure returns (int256, int256) {
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: invalid asset, get cash claims
+        require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset get haircut cash claims
+
+        require(token.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
+        // This won't overflow, the liquidity token haircut is stored as an uint8
+        int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
 
         int256 assetCash =
-            marketState.totalCurrentCash.mul(liquidityToken.notional).div(
-                marketState.totalLiquidity
-            );
+            _calcToken(market.totalCurrentCash, token.notional, haircut, market.totalLiquidity);
 
         int256 fCash =
-            marketState.totalfCash.mul(liquidityToken.notional).div(marketState.totalLiquidity);
+            _calcToken(market.totalfCash, token.notional, haircut, market.totalLiquidity);
 
         return (assetCash, fCash);
     }
 
-    function calcToken(
+    /// @dev This is here to clean up the stack in getHaircutCashClaims
+    function _calcToken(
         int256 numerator,
         int256 tokens,
         int256 haircut,
@@ -137,48 +147,16 @@ library AssetHandler {
         return numerator.mul(tokens).mul(haircut).div(Constants.PERCENTAGE_DECIMALS).div(liquidity);
     }
 
-    /// @notice Returns the haircut claims on cash and fCash
-
-    /// @return (assetCash, fCash)
-
-    function getHaircutCashClaims(
-        PortfolioAsset memory liquidityToken,
-        MarketParameters memory marketState,
-        CashGroupParameters memory cashGroup
-    ) internal pure returns (int256, int256) {
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: invalid asset get haircut cash claims
-
-        require(liquidityToken.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
-        // This won't overflow, the liquidity token haircut is stored as an uint8
-        int256 haircut = int256(cashGroup.getLiquidityHaircut(liquidityToken.assetType));
-
-        int256 assetCash =
-            calcToken(
-                marketState.totalCurrentCash,
-                liquidityToken.notional,
-                haircut,
-                marketState.totalLiquidity
-            );
-
-        int256 fCash =
-            calcToken(
-                marketState.totalfCash,
-                liquidityToken.notional,
-                haircut,
-                marketState.totalLiquidity
-            );
-
-        return (assetCash, fCash);
-    }
-
+    /// @notice Returns the asset cash claim and the present value of the fCash asset (if it exists)
     function getLiquidityTokenValue(
-        PortfolioAsset memory liquidityToken,
+        uint256 index,
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
-        PortfolioAsset[] memory fCashAssets,
+        PortfolioAsset[] memory assets,
         uint256 blockTime,
         bool riskAdjusted
     ) internal view returns (int256, int256) {
+        PortfolioAsset memory liquidityToken = assets[index];
         require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: get liquidity token value, not liquidity token
 
         MarketParameters memory market;
@@ -187,8 +165,7 @@ library AssetHandler {
                 cashGroup.getMarketIndex(liquidityToken.maturity, blockTime);
             // Liquidity tokens can never be idiosyncractic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
-            // This market will always be initialized, if a liquidity token exists that means the market has some
-            // liquidity in it (duh)
+            // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.
             market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
         }
 
@@ -200,19 +177,17 @@ library AssetHandler {
             (assetCashClaim, fCashClaim) = getCashClaims(liquidityToken, market);
         }
 
-        // Find the matching fCash asset and net off the value
-        // TODO: we can use the same logic in settlement here, look back one slot, need to pass in the index
-        for (uint256 j; j < fCashAssets.length; j++) {
-            if (
-                fCashAssets[j].assetType == Constants.FCASH_ASSET_TYPE &&
-                fCashAssets[j].currencyId == liquidityToken.currencyId &&
-                fCashAssets[j].maturity == liquidityToken.maturity
-            ) {
-                // Net off the fCashClaim here and we will discount it to present value in the second pass
-                fCashAssets[j].notional = fCashAssets[j].notional.add(fCashClaim);
-
-                return (assetCashClaim, 0);
-            }
+        // Find the matching fCash asset and net off the value, assumes that the portfolio is sorted and
+        // in that case we know the previous asset will be the matching fCash asset
+        if (
+            index > 0 &&
+            assets[index - 1].maturity == liquidityToken.maturity &&
+            assets[index - 1].assetType == Constants.FCASH_ASSET_TYPE
+        ) {
+            // Net off the fCashClaim here and we will discount it to present value in the second pass.
+            // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
+            assets[index - 1].notional = assets[index - 1].notional.add(fCashClaim);
+            return (assetCashClaim, 0);
         }
 
         // If not matching fCash asset found then get the pv directly
@@ -235,6 +210,7 @@ library AssetHandler {
         }
     }
 
+    /// @notice Returns the asset cash claim and the present value of the fCash asset (if it exists)
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
@@ -245,13 +221,15 @@ library AssetHandler {
         int256 presentValueAsset;
         int256 presentValueUnderlying;
 
+        // First calculate value of liquidity tokens because we need to net off fCash value
+        // before discounting to present value
         for (uint256 i = portfolioIndex; i < assets.length; i++) {
             if (!isLiquidityToken(assets[i].assetType)) continue;
             if (assets[i].currencyId != cashGroup.currencyId) break;
 
             (int256 assetCashClaim, int256 pv) =
                 getLiquidityTokenValue(
-                    assets[i],
+                    i,
                     cashGroup,
                     markets,
                     assets,
@@ -260,12 +238,13 @@ library AssetHandler {
                 );
 
             presentValueAsset = presentValueAsset.add(assetCashClaim);
-            if (pv != 0) presentValueUnderlying = presentValueUnderlying.add(pv);
+            presentValueUnderlying = presentValueUnderlying.add(pv);
         }
 
         uint256 j = portfolioIndex;
         for (; j < assets.length; j++) {
             if (assets[j].assetType != Constants.FCASH_ASSET_TYPE) continue;
+            // If we hit a different currency id then we've accounted for all assets in this currency
             if (assets[j].currencyId != cashGroup.currencyId) break;
 
             uint256 maturity = assets[j].maturity;

@@ -131,7 +131,7 @@ def test_deposit_parameters_failures(perpetualToken):
         perpetualToken.setDepositParameters(1, [1e8, 100], [100] * 2)
 
 
-@given(maxMarketIndex=strategy("uint", min_value=2, max_value=9))
+@given(maxMarketIndex=strategy("uint", min_value=2, max_value=7))
 def test_deposit_parameters(perpetualToken, maxMarketIndex):
     currencyId = 1
     randNums = [random.random() for i in range(0, maxMarketIndex)]

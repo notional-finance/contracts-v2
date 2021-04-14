@@ -118,7 +118,7 @@ library Liquidation {
             factors
                 .collateralETHRate
                 .convertETHTo(factors.netETHValue.neg())
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .mul(Constants.PERCENTAGE_DECIMALS)
             // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
             // collateral with a zero haircut will have no net benefit back to the liquidated account.
                 .div(factors.collateralETHRate.haircut);
@@ -147,7 +147,7 @@ library Liquidation {
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
         int256 localToPurchase =
             collateralPresentValue
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .mul(Constants.PERCENTAGE_DECIMALS)
                 .mul(factors.localETHRate.rateDecimals)
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
                 .div(liquidationDiscount);
@@ -257,7 +257,7 @@ library Liquidation {
             factors
                 .localETHRate
                 .convertETHTo(factors.netETHValue.neg())
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(factors.localETHRate.buffer);
         int256 netLocalFromLiquidator;
 
@@ -441,13 +441,11 @@ library Liquidation {
                 factors
                     .localETHRate
                     .buffer
-                    .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                    .mul(Constants.PERCENTAGE_DECIMALS)
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
-            collateralToRaise = benefitRequired.mul(ExchangeRate.MULTIPLIER_DECIMALS).div(
-                denominator
-            );
+            collateralToRaise = benefitRequired.mul(Constants.PERCENTAGE_DECIMALS).div(denominator);
         }
 
         collateralToRaise = calculateMaxLiquidationAmount(
@@ -554,7 +552,7 @@ library Liquidation {
                 .factors
                 .localETHRate
                 .convertETHTo(c.factors.netETHValue.neg())
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(c.factors.localETHRate.haircut);
         } else {
             // If local available is negative then we can bring it up to zero
@@ -562,7 +560,7 @@ library Liquidation {
                 .factors
                 .localAvailable
                 .neg()
-                .mul(ExchangeRate.MULTIPLIER_DECIMALS)
+                .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(c.factors.localETHRate.buffer);
         }
 

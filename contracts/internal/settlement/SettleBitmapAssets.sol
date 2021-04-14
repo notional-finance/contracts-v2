@@ -16,14 +16,14 @@ library SettleBitmapAssets {
 
     /// @notice Stateful settlement function to settle a bitmapped asset. Deletes the
     /// asset from storage after calculating it.
-    function settleBitmappedAsset(
+    function _settleBitmappedAsset(
         address account,
         uint256 currencyId,
         uint256 nextSettleTime,
         uint256 blockTime,
         uint256 bitNum,
         bytes32 bits
-    ) internal returns (bytes32, int256) {
+    ) private returns (bytes32, int256) {
         int256 assetCash;
 
         if ((bits & Constants.MSB) == Constants.MSB) {
@@ -52,7 +52,6 @@ library SettleBitmapAssets {
 
     /// @notice Given a bitmap for a cash group and timestamps, will settle all assets
     /// that have matured and remap the bitmap to correspond to the current time.
-
     function settleBitmappedCashGroup(
         address account,
         uint256 currencyId,
@@ -82,7 +81,7 @@ library SettleBitmapAssets {
                 }
 
                 int256 assetCash;
-                (splitBitmap.dayBits, assetCash) = settleBitmappedAsset(
+                (splitBitmap.dayBits, assetCash) = _settleBitmappedAsset(
                     account,
                     currencyId,
                     nextSettleTime,
@@ -101,7 +100,7 @@ library SettleBitmapAssets {
                 }
 
                 int256 assetCash;
-                (splitBitmap.weekBits, assetCash) = settleBitmappedAsset(
+                (splitBitmap.weekBits, assetCash) = _settleBitmappedAsset(
                     account,
                     currencyId,
                     nextSettleTime,
@@ -120,7 +119,7 @@ library SettleBitmapAssets {
                 }
 
                 int256 assetCash;
-                (splitBitmap.monthBits, assetCash) = settleBitmappedAsset(
+                (splitBitmap.monthBits, assetCash) = _settleBitmappedAsset(
                     account,
                     currencyId,
                     nextSettleTime,
@@ -139,7 +138,7 @@ library SettleBitmapAssets {
                 }
 
                 int256 assetCash;
-                (splitBitmap.quarterBits, assetCash) = settleBitmappedAsset(
+                (splitBitmap.quarterBits, assetCash) = _settleBitmappedAsset(
                     account,
                     currencyId,
                     nextSettleTime,
@@ -152,18 +151,18 @@ library SettleBitmapAssets {
             }
         }
 
-        remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
+        _remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
         bitmap = Bitmap.combineAssetBitmap(splitBitmap);
 
         return (bitmap, totalAssetCash);
     }
 
-    function remapBitmap(
+    function _remapBitmap(
         SplitBitmap memory splitBitmap,
         uint256 nextSettleTime,
         uint256 blockTimeUTC0,
         uint256 lastSettleBit
-    ) internal pure {
+    ) private pure {
         if (splitBitmap.weekBits != 0x00 && lastSettleBit < Constants.MONTH_BIT_OFFSET) {
             // Ensures that if part of the week portion is settled we still remap the remaining part
             // starting from the lastSettleBit. Skips if the lastSettleBit is past the offset
@@ -213,7 +212,6 @@ library SettleBitmapAssets {
     }
 
     /// @dev Given a section of the bitmap, will remap active bits to a lower part of the bitmap.
-
     function remapBitSection(
         uint256 nextSettleTime,
         uint256 blockTimeUTC0,
@@ -221,7 +219,7 @@ library SettleBitmapAssets {
         uint256 bitTimeLength,
         SplitBitmap memory splitBitmap,
         bytes32 bits
-    ) internal pure returns (bytes32) {
+    ) private pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset
         uint256 firstBitRef = DateTime.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
         uint256 newFirstBitRef = DateTime.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);

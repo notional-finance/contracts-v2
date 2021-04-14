@@ -89,10 +89,10 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional
+        int256 notional,
+        uint256 nextSettleTime
     ) external {
         bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
 
         // prettier-ignore
         (
@@ -102,7 +102,7 @@ contract MockSettleAssets is StorageLayoutV1 {
             account,
             currencyId,
             maturity,
-            accountContext.nextSettleTime,
+            nextSettleTime,
             notional,
             ifCashBitmap
         );
@@ -128,56 +128,20 @@ contract MockSettleAssets is StorageLayoutV1 {
         }
     }
 
-    function _getSettleAssetContextView(address account, uint256 blockTime)
-        public
-        view
-        returns (SettleAmount[] memory, PortfolioState memory)
-    {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory pStateView =
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
-        SettleAmount[] memory settleAmounts =
-            SettlePortfolioAssets.getSettleAssetContextView(pStateView, blockTime);
-
-        return (settleAmounts, pStateView);
-    }
-
-    function testSettleAssetArray(address account, uint256 blockTime)
+    function settlePortfolio(address account, uint256 blockTime)
         public
         returns (SettleAmount[] memory)
     {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory pStateView =
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         PortfolioState memory pState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
 
-        SettleAmount[] memory settleAmountView =
-            SettlePortfolioAssets.getSettleAssetContextView(pStateView, blockTime);
         SettleAmount[] memory settleAmount =
-            SettlePortfolioAssets.getSettleAssetContextStateful(pState, blockTime);
-
-        require(pStateView.storedAssetLength == pState.storedAssetLength); // dev: stored asset length equal
-        require(pStateView.storedAssets.length == pState.storedAssets.length); // dev: stored asset array length equal
-        // Assert that portfolio state is equal
-        for (uint256 i; i < pStateView.storedAssets.length; i++) {
-            require(pStateView.storedAssets[i].currencyId == pState.storedAssets[i].currencyId); // dev: asset currency id
-            require(pStateView.storedAssets[i].assetType == pState.storedAssets[i].assetType); // dev: asset type
-            require(pStateView.storedAssets[i].maturity == pState.storedAssets[i].maturity); // dev: maturity
-            require(pStateView.storedAssets[i].notional == pState.storedAssets[i].notional); // dev: notional
-            require(pStateView.storedAssets[i].storageState == pState.storedAssets[i].storageState); // dev: storage state
-        }
+            SettlePortfolioAssets.settlePortfolio(pState, blockTime);
 
         // This will change the stored asset array
         accountContext.storeAssetsAndUpdateContext(account, pState, false);
         accountContext.setAccountContext(account);
-
-        // Assert that balance context is equal
-        require(settleAmountView.length == settleAmount.length); // dev: settle amount length
-        for (uint256 i; i < settleAmountView.length; i++) {
-            require(settleAmountView[i].currencyId == settleAmount[i].currencyId); // dev: settle amount currency id
-            require(settleAmountView[i].netCashChange == settleAmount[i].netCashChange); // dev: settle amount net cash change
-        }
 
         return settleAmount;
     }
@@ -225,51 +189,11 @@ contract MockSettleAssets is StorageLayoutV1 {
         totalAssetCash = newAssetCash;
     }
 
-    function _settleBitmappedAsset(
-        address account,
-        uint256 currencyId,
-        uint256 nextSettleTime,
-        uint256 blockTime,
-        uint256 bitNum,
-        bytes32 bits
-    ) public returns (bytes32, int256) {
-        return
-            SettleBitmapAssets.settleBitmappedAsset(
-                account,
-                currencyId,
-                nextSettleTime,
-                blockTime,
-                bitNum,
-                bits
-            );
-    }
-
     function _splitBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
         return Bitmap.splitAssetBitmap(bitmap);
     }
 
     function _combineBitmap(SplitBitmap memory bitmap) public pure returns (bytes32) {
         return Bitmap.combineAssetBitmap(bitmap);
-    }
-
-    function _remapBitSection(
-        uint256 nextSettleTime,
-        uint256 blockTimeUTC0,
-        uint256 bitOffset,
-        uint256 bitTimeLength,
-        SplitBitmap memory bitmap,
-        bytes32 bits
-    ) public pure returns (SplitBitmap memory, bytes32) {
-        bytes32 newBits =
-            SettleBitmapAssets.remapBitSection(
-                nextSettleTime,
-                blockTimeUTC0,
-                bitOffset,
-                bitTimeLength,
-                bitmap,
-                bits
-            );
-
-        return (bitmap, newBits);
     }
 }

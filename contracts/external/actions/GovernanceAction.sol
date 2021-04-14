@@ -296,7 +296,7 @@ contract GovernanceAction is StorageLayoutV1 {
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 
         uint8 rateDecimalPlaces;
-        if (currencyId == ExchangeRate.ETH) {
+        if (currencyId == Constants.ETH_CURRENCY_ID) {
             // ETH to ETH exchange rate is fixed at 1 and has no rate oracle
             rateOracle = address(0);
             rateDecimalPlaces = 18;
@@ -304,10 +304,10 @@ contract GovernanceAction is StorageLayoutV1 {
             require(rateOracle != address(0), "G: zero rate oracle address");
             rateDecimalPlaces = AggregatorV2V3Interface(rateOracle).decimals();
         }
-        require(buffer >= ExchangeRate.MULTIPLIER_DECIMALS, "G: buffer must be gte decimals");
-        require(haircut <= ExchangeRate.MULTIPLIER_DECIMALS, "G: buffer must be lte decimals");
+        require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
+        require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
         require(
-            liquidationDiscount > ExchangeRate.MULTIPLIER_DECIMALS,
+            liquidationDiscount > Constants.PERCENTAGE_DECIMALS,
             "G: discount must be gt decimals"
         );
 

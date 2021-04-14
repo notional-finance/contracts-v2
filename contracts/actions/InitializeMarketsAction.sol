@@ -80,10 +80,7 @@ library InitializeMarketsAction {
         {
             // Settles liquidity token balances and portfolio state now contains the net fCash amounts
             SettleAmount[] memory settleAmount =
-                SettlePortfolioAssets.getSettleAssetContextStateful(
-                    perpToken.portfolioState,
-                    blockTime
-                );
+                SettlePortfolioAssets.settlePortfolio(perpToken.portfolioState, blockTime);
             perpToken.cashBalance = perpToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 

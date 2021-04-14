@@ -12,45 +12,6 @@ library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
 
-    // TODO: can this be a static call?
-    function settleAssetsView(address account, uint256 blockTime)
-        external
-        view
-        returns (PortfolioState memory, SettleAmount[] memory)
-    {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory portfolioState =
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
-        SettleAmount[] memory settleAmounts =
-            SettlePortfolioAssets.getSettleAssetContextView(portfolioState, blockTime);
-
-        return (portfolioState, settleAmounts);
-    }
-
-    // TODO: can this be a static call?
-    function settleBitmappedAccountView(
-        address account,
-        uint256 currencyId,
-        uint256 nextSettleTime,
-        uint256 blockTime
-    ) external view returns (int256) {
-        PortfolioAsset[] memory ifCashAssets =
-            BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
-
-        PortfolioState memory portfolioState =
-            PortfolioState({
-                storedAssets: ifCashAssets,
-                newAssets: new PortfolioAsset[](0),
-                lastNewAssetIndex: 0,
-                storedAssetLength: ifCashAssets.length
-            });
-
-        SettleAmount[] memory settleAmounts =
-            SettlePortfolioAssets.getSettleAssetContextView(portfolioState, blockTime);
-
-        return settleAmounts[0].netCashChange;
-    }
-
     function settleAssetsAndFinalize(address account) external returns (AccountStorage memory) {
         (AccountStorage memory accountContext, , ) =
             /* SettleAmount[] memory settleAmounts */
@@ -124,16 +85,16 @@ library SettleAssetsExternal {
                 accountContext.assetArrayLength,
                 0
             );
-            settleAmounts = SettlePortfolioAssets.getSettleAssetContextStateful(
-                portfolioState,
-                block.timestamp
-            );
-            if (finalizePortfolio)
+            settleAmounts = SettlePortfolioAssets.settlePortfolio(portfolioState, block.timestamp);
+
+            if (finalizePortfolio) {
                 accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+            }
         }
 
-        if (finalizeAmounts)
+        if (finalizeAmounts) {
             BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
+        }
 
         return (accountContext, settleAmounts, portfolioState);
     }

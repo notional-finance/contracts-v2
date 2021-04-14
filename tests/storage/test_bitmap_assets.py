@@ -66,6 +66,15 @@ def test_set_ifcash_asset(bitmapAssets, bitmap, bitNum, accounts):
     assert newBitlist[bitNum - 1] == "0"
 
 
+def test_set_ifcash_asset_set_zero(bitmapAssets, accounts):
+    maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, 1)
+    bitmap = brownie.convert.datatypes.HexString(0, "bytes32")
+    # Ensure that setting a notional to zero does not set the bitmap
+    txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, 0, bitmap)
+    (newBitmap, _) = txn.return_value
+    assert newBitmap == bitmap
+
+
 def test_get_ifcash_array(bitmapAssets, accounts):
     currencyId = 1
     (bitmap, bitmapList) = random_asset_bitmap(10)
@@ -90,7 +99,7 @@ def test_get_ifcash_array(bitmapAssets, accounts):
 
 
 def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
-    cg = get_cash_group_with_max_markets(9)
+    cg = get_cash_group_with_max_markets(7)
     bitmapAssets.setAssetRateMapping(1, (mockAssetRate.address, 18))
     bitmapAssets.setCashGroup(1, cg)
 
@@ -104,8 +113,6 @@ def test_ifcash_npv(bitmapAssets, mockAssetRate, accounts):
         get_market_state(MARKETS[4], oracleRate=0.05 * RATE_PRECISION, storageSlot="0x01"),
         get_market_state(MARKETS[5], oracleRate=0.06 * RATE_PRECISION, storageSlot="0x01"),
         get_market_state(MARKETS[6], oracleRate=0.07 * RATE_PRECISION, storageSlot="0x01"),
-        get_market_state(MARKETS[7], oracleRate=0.08 * RATE_PRECISION, storageSlot="0x01"),
-        get_market_state(MARKETS[8], oracleRate=0.09 * RATE_PRECISION, storageSlot="0x01"),
     ]
 
     # TODO: test a random negative offset to next maturing asset to simulate an unsettled

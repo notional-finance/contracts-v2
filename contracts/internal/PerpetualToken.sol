@@ -481,7 +481,7 @@ library PerpetualToken {
             for (uint256 i; i < perpToken.portfolioState.storedAssets.length; i++) {
                 (int256 assetCashClaim, int256 pv) =
                     AssetHandler.getLiquidityTokenValue(
-                        perpToken.portfolioState.storedAssets[i],
+                        i,
                         perpToken.cashGroup,
                         perpToken.markets,
                         emptyPortfolio,

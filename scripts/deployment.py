@@ -6,13 +6,9 @@ from brownie import (
     GovernanceAction,
     GovernorAlpha,
     InitializeMarketsAction,
-    MintPerpetualTokenAction,
     MockAggregator,
     MockERC20,
     NoteERC20,
-    PerpetualTokenAction,
-    PerpetualTokenERC20,
-    RedeemPerpetualTokenAction,
     Router,
     SettleAssetsExternal,
     TradingAction,
@@ -25,6 +21,10 @@ from brownie import (
     nJumpRateModel,
     nPriceOracle,
     nProxyAdmin,
+    nTokenAction,
+    nTokenERC20Proxy,
+    nTokenMintAction,
+    nTokenRedeemAction,
     nTransparentUpgradeableProxy,
     nWhitePaperInterestRateModel,
 )
@@ -192,14 +192,14 @@ class TestEnvironment:
         FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
         TradingAction.deploy({"from": self.deployer})
-        MintPerpetualTokenAction.deploy({"from": self.deployer})
+        nTokenMintAction.deploy({"from": self.deployer})
 
         # Deploy logic contracts
         governance = GovernanceAction.deploy({"from": self.deployer})
         views = Views.deploy({"from": self.deployer})
         initializeMarkets = InitializeMarketsAction.deploy({"from": self.deployer})
-        perpetualTokenRedeem = RedeemPerpetualTokenAction.deploy({"from": self.deployer})
-        perpetualTokenAction = PerpetualTokenAction.deploy({"from": self.deployer})
+        nTokenRedeem = nTokenRedeemAction.deploy({"from": self.deployer})
+        nTokenAction_ = nTokenAction.deploy({"from": self.deployer})
         depositWithdrawAction = DepositWithdrawAction.deploy({"from": self.deployer})
 
         # Deploy router
@@ -207,8 +207,8 @@ class TestEnvironment:
             governance.address,
             views.address,
             initializeMarkets.address,
-            perpetualTokenAction.address,
-            perpetualTokenRedeem.address,
+            nTokenAction_.address,
+            nTokenRedeem.address,
             depositWithdrawAction.address,
             self.cToken["ETH"].address,
             {"from": self.deployer},
@@ -266,7 +266,7 @@ class TestEnvironment:
         self.currencyId[symbol] = currencyId
         perpTokenAddress = self.notional.nTokenAddress(currencyId)
         self.perpToken[currencyId] = Contract.from_abi(
-            "PerpetualToken", perpTokenAddress, abi=PerpetualTokenERC20.abi, owner=self.deployer
+            "PerpetualToken", perpTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
         )
 
 

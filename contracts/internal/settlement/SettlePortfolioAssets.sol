@@ -123,71 +123,8 @@ library SettlePortfolioAssets {
         return (assetCash, market);
     }
 
-    /// @notice View version of settle asset with a call to getSettlementRateView, the reason here is that
-    /// in the stateful version we will set the settlement rate if it is not set.
-    function getSettleAssetContextView(PortfolioState memory portfolioState, uint256 blockTime)
-        internal
-        view
-        returns (SettleAmount[] memory)
-    {
-        AssetRateParameters memory settlementRate;
-        SettleAmount[] memory settleAmounts = _getSettleAmountArray(portfolioState, blockTime);
-        if (settleAmounts.length == 0) return settleAmounts;
-        uint256 settleAmountIndex;
-        uint256 lastMaturity;
-
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (asset.getSettlementDate() > blockTime) continue;
-
-            if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
-                lastMaturity = 0;
-                settleAmountIndex += 1;
-                require(settleAmountIndex < settleAmounts.length); // dev: settle amount index
-                settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
-            }
-
-            // Settlement rates are used to convert fCash and fCash claims back into assetCash values. This means
-            // that settlement rates are required whenever fCash matures and when liquidity tokens' **fCash claims**
-            // mature. fCash claims on liquidity tokens settle at asset.maturity, not the settlement date
-            if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
-                // Storage Read inside getSettlementRateView
-                settlementRate = AssetRate.buildSettlementRateView(
-                    asset.currencyId,
-                    asset.maturity
-                );
-                lastMaturity = asset.maturity;
-            }
-
-            int256 assetCash;
-            if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
-                assetCash = settlementRate.convertFromUnderlying(asset.notional);
-                portfolioState.deleteAsset(i);
-            } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
-                if (asset.maturity > blockTime) {
-                    (
-                        assetCash, /* */
-
-                    ) = _settleLiquidityTokenTofCash(portfolioState, i);
-                } else {
-                    (
-                        assetCash, /* */
-
-                    ) = _settleLiquidityToken(asset, settlementRate);
-                    portfolioState.deleteAsset(i);
-                }
-            }
-
-            settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
-                .netCashChange
-                .add(assetCash);
-        }
-
-        return settleAmounts;
-    }
-
-    /// @notice Stateful version of settle asset, the only difference is the call to getSettlementRateStateful
-    function getSettleAssetContextStateful(PortfolioState memory portfolioState, uint256 blockTime)
+    /// @notice Settles a portfolio array
+    function settlePortfolio(PortfolioState memory portfolioState, uint256 blockTime)
         internal
         returns (SettleAmount[] memory)
     {
@@ -202,13 +139,14 @@ library SettlePortfolioAssets {
             if (asset.getSettlementDate() > blockTime) continue;
 
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
+                // New currency in the portfolio
                 lastMaturity = 0;
                 settleAmountIndex += 1;
                 settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
+            // Saves a storage call if there is an fCash token and then an liquidity token after it
             if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
-                // Storage Read / Write inside getSettlementRateStateful
                 settlementRate = AssetRate.buildSettlementRateStateful(
                     asset.currencyId,
                     asset.maturity,
@@ -230,7 +168,6 @@ library SettlePortfolioAssets {
                     portfolioState.deleteAsset(i);
                 }
 
-                // 2x storage write
                 Market.setSettlementMarket(market);
             }
 

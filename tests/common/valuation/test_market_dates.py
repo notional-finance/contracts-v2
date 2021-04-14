@@ -42,7 +42,7 @@ def test_maturity_non_mod(cashGroup):
 @given(
     quarters=strategy("uint40", min_value=0, max_value=800),
     blockTime=strategy("uint40", min_value=START_TIME),
-    maxMarketIndex=strategy("uint8", min_value=2, max_value=9),
+    maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
 )
 def test_valid_maturity(cashGroup, quarters, blockTime, maxMarketIndex):
     cashGroupParameters = get_cash_group_with_max_markets(maxMarketIndex)
@@ -65,7 +65,7 @@ def test_valid_maturity(cashGroup, quarters, blockTime, maxMarketIndex):
 @given(
     days=strategy("uint40", min_value=0, max_value=7500),
     blockTime=strategy("uint40", min_value=START_TIME),
-    maxMarketIndex=strategy("uint8", min_value=2, max_value=9),
+    maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
 )
 def test_bit_number(cashGroup, days, blockTime, maxMarketIndex):
     cashGroupParameters = get_cash_group_with_max_markets(maxMarketIndex)

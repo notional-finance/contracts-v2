@@ -40,14 +40,12 @@ MARKETS = [
     START_TIME_TREF + SECONDS_IN_YEAR,
     START_TIME_TREF + 2 * SECONDS_IN_YEAR,
     START_TIME_TREF + 5 * SECONDS_IN_YEAR,
-    START_TIME_TREF + 7 * SECONDS_IN_YEAR,
     START_TIME_TREF + 10 * SECONDS_IN_YEAR,
-    START_TIME_TREF + 15 * SECONDS_IN_YEAR,
     START_TIME_TREF + 20 * SECONDS_IN_YEAR,
 ]
 
 CASH_GROUP_PARAMETERS = (
-    9,  # 0: Max Market Index
+    7,  # 0: Max Market Index
     10,  # 1: time window, 10 min
     30,  # 2: total fee, 30 BPS
     50,  # 3: reserve fee share, percentage

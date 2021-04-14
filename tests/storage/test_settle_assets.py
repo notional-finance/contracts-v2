@@ -16,8 +16,6 @@ SETTLEMENT_RATE = [
     (18, MARKETS[4], 0.05e18),
     (18, MARKETS[5], 0.06e18),
     (18, MARKETS[6], 0.07e18),
-    (18, MARKETS[7], 0.08e18),
-    (18, MARKETS[8], 0.09e18),
 ]
 
 SETTLED_RATE = 0.01e18
@@ -62,7 +60,7 @@ def mockSettleAssets(MockSettleAssets, mockAggregators, accounts):
 
 
 def generate_asset_array(numAssets):
-    cashGroups = [(i, 9) for i in range(1, NUM_CURRENCIES)]
+    cashGroups = [(i, 7) for i in range(1, NUM_CURRENCIES)]
     assets = get_portfolio_array(numAssets, cashGroups)
     if len(assets) == 0:
         return (assets, 0)
@@ -149,7 +147,6 @@ def settled_balance_context(assetArray, blockTime):
 
 
 @given(numAssets=strategy("uint", min_value=0, max_value=4))
-@pytest.mark.only
 def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # SETUP TEST
     blockTime = random.choice(MARKETS[0:3]) + random.randint(0, 6000)
@@ -158,8 +155,9 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     # Set state
     mockSettleAssets.setAssetArray(accounts[1], assetArray)
 
-    # Run this beforehand, debug trace crashes if trying to get return values via stateful call
-    (settleAmounts, portfolio) = mockSettleAssets._getSettleAssetContextView(accounts[1], blockTime)
+    # This will assert the values from the view match the values from the stateful method
+    settleAmounts = mockSettleAssets.settlePortfolio(accounts[1], blockTime).return_value
+    assets = mockSettleAssets.getAssetArray(accounts[1])
 
     # Assert that net balance change are equal
     (computedSettleAmounts, remainingAssets) = settled_balance_context(assetArray, blockTime)
@@ -168,9 +166,6 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
         assert sa[0] == computedSettleAmounts[i][0]
         assert pytest.approx(sa[1], rel=1e-12) == computedSettleAmounts[i][1]
 
-    # This will assert the values from the view match the values from the stateful method
-    mockSettleAssets.testSettleAssetArray(accounts[1], blockTime)
-
     # Assert that the rate is set after
     assert_rates_settled(mockSettleAssets, assetArray, blockTime)
 
@@ -178,7 +173,6 @@ def test_settle_assets(mockSettleAssets, mockAggregators, accounts, numAssets):
     assert_markets_updated(mockSettleAssets, assetArray)
 
     # Assert that remaining assets are ok
-    assets = mockSettleAssets.getAssetArray(accounts[1])
     assets = [(a[0], a[1], a[2], a[3]) for a in assets]
     assert sorted(assets) == sorted(remainingAssets)
 
@@ -214,7 +208,7 @@ def test_settle_ifcash_bitmap(mockSettleAssets, accounts, nextSettleTime):
             assert (i + 1) == bitNum
 
             activeMaturities.append((maturity, bitNum))
-            mockSettleAssets.setifCash(accounts[0], currencyId, maturity, notional)
+            mockSettleAssets.setifCash(accounts[0], currencyId, maturity, notional, nextSettleTime)
 
             if maturity < blockTime:
                 computedTotalAssetCash += int(
