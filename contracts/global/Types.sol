@@ -2,6 +2,19 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+struct LiquidationFactors {
+    address account;
+    int256 netETHValue;
+    int256 localAvailable;
+    int256 collateralAvailable;
+    int256 nTokenValue;
+    bytes6 nTokenParameters;
+    ETHRate localETHRate;
+    ETHRate collateralETHRate;
+    CashGroupParameters cashGroup;
+    MarketParameters[] markets;
+}
+
 struct PortfolioState {
     PortfolioAsset[] storedAssets;
     PortfolioAsset[] newAssets;

@@ -74,12 +74,8 @@ contract MockFreeCollateral is MockAssetHandler {
     ) external {
         AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
         if (cashBalance < 0)
-            accountContext.hasDebt = accountContext.hasDebt | AccountContextHandler.HAS_CASH_DEBT;
-        accountContext.setActiveCurrency(
-            currencyId,
-            true,
-            AccountContextHandler.ACTIVE_IN_BALANCES_FLAG
-        );
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
+        accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);
         accountContext.setAccountContext(account);
 
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));

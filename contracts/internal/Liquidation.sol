@@ -273,24 +273,18 @@ library Liquidation {
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        if (factors.perpetualTokenValue > 0) {
+        if (factors.nTokenValue > 0) {
             int256 perpetualTokensToLiquidate;
             {
                 // This will not underflow, checked when saving parameters
                 int256 haircutDiff =
                     (int256(
                         uint8(
-                            factors.perpetualTokenParameters[
-                                PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE
-                            ]
+                            factors.nTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE]
                         )
                     ) -
                         int256(
-                            uint8(
-                                factors.perpetualTokenParameters[
-                                    PerpetualToken.PV_HAIRCUT_PERCENTAGE
-                                ]
-                            )
+                            uint8(factors.nTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])
                         )) * Constants.PERCENTAGE_DECIMALS;
 
                 // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
@@ -298,9 +292,7 @@ library Liquidation {
                 // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
                 perpetualTokensToLiquidate = benefitRequired
                     .mul(Constants.INTERNAL_TOKEN_PRECISION)
-                    .div(
-                    factors.perpetualTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
-                );
+                    .div(factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS));
             }
 
             perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
@@ -318,20 +310,16 @@ library Liquidation {
                         .mul(
                         int256(
                             uint8(
-                                factors.perpetualTokenParameters[
+                                factors.nTokenParameters[
                                     PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE
                                 ]
                             )
                         )
                     )
-                        .mul(factors.perpetualTokenValue)
+                        .mul(factors.nTokenValue)
                         .div(
                         int256(
-                            uint8(
-                                factors.perpetualTokenParameters[
-                                    PerpetualToken.PV_HAIRCUT_PERCENTAGE
-                                ]
-                            )
+                            uint8(factors.nTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])
                         )
                     )
                         .div(balanceState.storedPerpetualTokenBalance);
@@ -387,7 +375,7 @@ library Liquidation {
             collateralRemaining = postWithdrawCollateral;
         }
 
-        if (collateralRemaining > 0 && factors.perpetualTokenValue > 0) {
+        if (collateralRemaining > 0 && factors.nTokenValue > 0) {
             collateralRemaining = calculateCollateralPerpetualTokenTransfer(
                 balanceState,
                 factors,
@@ -491,18 +479,14 @@ library Liquidation {
         // collateralToRaise = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
         // tokensToLiquidate = collateralToRaise * totalBalance / (fullPerpTokenPV * liquidationHaircut)
         int256 perpetualTokenLiquidationHaircut =
-            int256(
-                uint8(
-                    factors.perpetualTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE]
-                )
-            );
+            int256(uint8(factors.nTokenParameters[PerpetualToken.LIQUIDATION_HAIRCUT_PERCENTAGE]));
         int256 perpetualTokenHaircut =
-            int256(uint8(factors.perpetualTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE]));
+            int256(uint8(factors.nTokenParameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE]));
         int256 perpetualTokensToLiquidate =
             collateralRemaining
                 .mul(balanceState.storedPerpetualTokenBalance)
                 .mul(perpetualTokenHaircut)
-                .div(factors.perpetualTokenValue.mul(perpetualTokenLiquidationHaircut));
+                .div(factors.nTokenValue.mul(perpetualTokenLiquidationHaircut));
 
         if (
             maxPerpetualTokenLiquidation > 0 &&
@@ -519,7 +503,7 @@ library Liquidation {
         collateralRemaining = collateralRemaining.subNoNeg(
             // collateralToRaise = (perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage) / perpetualTokenBalance
             perpetualTokensToLiquidate
-                .mul(factors.perpetualTokenValue)
+                .mul(factors.nTokenValue)
                 .mul(perpetualTokenLiquidationHaircut)
                 .div(perpetualTokenHaircut)
                 .div(balanceState.storedPerpetualTokenBalance)

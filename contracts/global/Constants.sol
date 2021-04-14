@@ -59,4 +59,10 @@ library Constants {
 
     bytes1 internal constant BOOL_FALSE = 0x00;
     bytes1 internal constant BOOL_TRUE = 0x01;
+
+    // Account context flags
+    bytes1 internal constant HAS_ASSET_DEBT = 0x01;
+    bytes1 internal constant HAS_CASH_DEBT = 0x02;
+    bytes2 internal constant ACTIVE_IN_PORTFOLIO = 0x8000;
+    bytes2 internal constant ACTIVE_IN_BALANCES = 0x4000;
 }

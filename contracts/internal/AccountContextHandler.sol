@@ -10,15 +10,12 @@ library AccountContextHandler {
     using PortfolioHandler for PortfolioState;
 
     bytes18 private constant ZERO = bytes18(0);
-    bytes1 internal constant HAS_ASSET_DEBT = 0x01;
-    bytes1 internal constant HAS_CASH_DEBT = 0x02;
-    bytes2 internal constant ACTIVE_IN_PORTFOLIO_FLAG = 0x8000;
-    bytes2 internal constant ACTIVE_IN_BALANCES_FLAG = 0x4000;
     bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
     uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
     bytes18 internal constant UNMASK_ALL_ACTIVE_CURRENCIES = 0x3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF;
     bytes18 internal constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
 
+    /// @notice Returns the account context of a given account
     function getAccountContext(address account) internal view returns (AccountStorage memory) {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data;
@@ -37,6 +34,7 @@ library AccountContextHandler {
             });
     }
 
+    /// @notice Sets the account context of a given account
     function setAccountContext(AccountStorage memory accountContext, address account) internal {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data =
@@ -51,6 +49,7 @@ library AccountContextHandler {
         }
     }
 
+    /// @notice Sets the account context of a given account
     function enableBitmapForAccount(
         AccountStorage memory accountContext,
         address account,
@@ -71,6 +70,7 @@ library AccountContextHandler {
         accountContext.bitmapCurrencyId = uint16(currencyId);
     }
 
+    /// @notice Returns true if the context needs to settle
     function mustSettleAssets(AccountStorage memory accountContext) internal view returns (bool) {
         return (accountContext.nextSettleTime != 0 &&
             accountContext.nextSettleTime <= block.timestamp);
@@ -78,7 +78,6 @@ library AccountContextHandler {
 
     /// @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
     /// context active currencies list.
-
     function isActiveInBalances(AccountStorage memory accountContext, uint256 currencyId)
         internal
         pure
@@ -91,7 +90,8 @@ library AccountContextHandler {
 
         while (currencies != ZERO) {
             uint256 cid = uint256(uint16(bytes2(currencies) & UNMASK_FLAGS));
-            bool isActive = bytes2(currencies) & ACTIVE_IN_BALANCES_FLAG == ACTIVE_IN_BALANCES_FLAG;
+            bool isActive =
+                bytes2(currencies) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES;
 
             if (cid == currencyId && isActive) return true;
             currencies = currencies << 16;
@@ -103,9 +103,9 @@ library AccountContextHandler {
     /// @notice Iterates through the active currency list and removes, inserts or does nothing
     /// to ensure that the active currency list is an ordered byte array of uint16 currency ids
     /// that refer to the currencies that an account is active in.
+    ///
     /// This is called to ensure that currencies are active when the account has a non zero cash balance,
     /// a non zero perpetual token balance or a portfolio asset.
-
     function setActiveCurrency(
         AccountStorage memory accountContext,
         uint256 currencyId,
@@ -192,13 +192,13 @@ library AccountContextHandler {
             (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
     }
 
-    function clearPortfolioActiveFlags(bytes18 activeCurrencies) internal pure returns (bytes18) {
+    function _clearPortfolioActiveFlags(bytes18 activeCurrencies) internal pure returns (bytes18) {
         bytes18 result;
         bytes18 suffix = activeCurrencies & TURN_OFF_PORTFOLIO_FLAGS;
         uint256 shifts;
 
         while (suffix != ZERO) {
-            if (bytes2(suffix) & ACTIVE_IN_BALANCES_FLAG == ACTIVE_IN_BALANCES_FLAG) {
+            if (bytes2(suffix) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
                 // If any flags are active, then append.
                 result = result | (bytes18(bytes2(suffix)) >> (shifts * 16));
                 shifts += 1;
@@ -209,6 +209,8 @@ library AccountContextHandler {
         return result;
     }
 
+    /// @notice Stores a portfolio array and updates the account context information, this method should
+    /// be used whenever updating a portfolio array except in the case of nTokens
     function storeAssetsAndUpdateContext(
         AccountStorage memory accountContext,
         address account,
@@ -223,22 +225,24 @@ library AccountContextHandler {
         }
 
         if (hasDebt) {
-            accountContext.hasDebt = accountContext.hasDebt | HAS_ASSET_DEBT;
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
         } else {
-            // Turns off the FCASH_DEBT flag
-            accountContext.hasDebt = accountContext.hasDebt & HAS_CASH_DEBT;
+            // Turns off the ASSET_DEBT flag
+            accountContext.hasDebt = accountContext.hasDebt & Constants.HAS_CASH_DEBT;
         }
         accountContext.assetArrayLength = assetArrayLength;
         accountContext.nextSettleTime = nextSettleTime;
 
         uint256 lastCurrency;
-        accountContext.activeCurrencies = clearPortfolioActiveFlags(
+        // Clear the active portfolio active flags and they will be recalculated in the next step
+        accountContext.activeCurrencies = _clearPortfolioActiveFlags(
             accountContext.activeCurrencies
         );
+
         while (portfolioCurrencies != 0) {
             uint256 currencyId = uint256(uint16(bytes2(portfolioCurrencies)));
             if (currencyId != lastCurrency) {
-                setActiveCurrency(accountContext, currencyId, true, ACTIVE_IN_PORTFOLIO_FLAG);
+                setActiveCurrency(accountContext, currencyId, true, Constants.ACTIVE_IN_PORTFOLIO);
             }
             lastCurrency = currencyId;
 

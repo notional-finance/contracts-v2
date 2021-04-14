@@ -204,9 +204,7 @@ contract DepositWithdrawAction {
                         actions[i].trades
                     );
                     if (didIncurDebt)
-                        accountContext.hasDebt =
-                            accountContext.hasDebt |
-                            AccountContextHandler.HAS_ASSET_DEBT;
+                        accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
                 } else {
                     // TODO: see if passing in account context and calling storeAssetsAndUpdateContext inside trading action
                     // will be more efficient, would return accountContext here instead of portfolioState. Should result in fewer

@@ -38,7 +38,7 @@ contract MockAccountContextHandler {
     }
 
     function clearPortfolioActiveFlags(bytes18 activeCurrencies) external pure returns (bytes18) {
-        return AccountContextHandler.clearPortfolioActiveFlags(activeCurrencies);
+        return AccountContextHandler._clearPortfolioActiveFlags(activeCurrencies);
     }
 
     function setActiveCurrency(
@@ -59,10 +59,10 @@ contract MockAccountContextHandler {
             assert(thisCurrency != 0);
             // Either flag must be set
             assert(
-                ((bytes2(currencies) & AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG) ==
-                    AccountContextHandler.ACTIVE_IN_PORTFOLIO_FLAG) ||
-                    ((bytes2(currencies) & AccountContextHandler.ACTIVE_IN_BALANCES_FLAG) ==
-                        AccountContextHandler.ACTIVE_IN_BALANCES_FLAG)
+                ((bytes2(currencies) & Constants.ACTIVE_IN_PORTFOLIO) ==
+                    Constants.ACTIVE_IN_PORTFOLIO) ||
+                    ((bytes2(currencies) & Constants.ACTIVE_IN_BALANCES) ==
+                        Constants.ACTIVE_IN_BALANCES)
             );
             // currencies are in order
             assert(thisCurrency > lastCurrency);

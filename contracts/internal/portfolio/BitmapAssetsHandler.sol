@@ -82,9 +82,7 @@ library BitmapAssetsHandler {
             );
 
             if (finalNotional < 0)
-                accountContext.hasDebt =
-                    accountContext.hasDebt |
-                    AccountContextHandler.HAS_ASSET_DEBT;
+                accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
         }
 
         setAssetsBitmap(account, currencyId, ifCashBitmap);
@@ -112,6 +110,7 @@ library BitmapAssetsHandler {
             }
             existingNotional = existingNotional.add(notional);
 
+            // TODO: check notional int128 bounds
             assembly {
                 sstore(fCashSlot, existingNotional)
             }
@@ -126,6 +125,7 @@ library BitmapAssetsHandler {
 
         if (notional != 0) {
             // Bit is not set so we turn it on and update the mapping directly, no read required.
+            // TODO: check notional int128 bounds
             assembly {
                 sstore(fCashSlot, notional)
             }
