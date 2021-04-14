@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../internal/markets/Market.sol";
-import "../../internal/PerpetualToken.sol";
+import "../../internal/nTokenHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/balances/BalanceHandler.sol";
@@ -19,7 +19,7 @@ contract nTokenRedeemAction {
     using CashGroup for CashGroupParameters;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
-    using PerpetualToken for PerpetualTokenPortfolio;
+    using nTokenHandler for nTokenPortfolio;
 
     /// @notice Emitted when tokens are redeemed
     event nTokenRedeemed(address indexed redeemer, uint16 currencyId, uint96 tokensRedeemed);
@@ -101,8 +101,7 @@ contract nTokenRedeemAction {
         )
     {
         require(tokensToRedeem > 0);
-        PerpetualTokenPortfolio memory nToken =
-            PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
 
         // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
         (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
@@ -132,7 +131,7 @@ contract nTokenRedeemAction {
 
     /// @notice Removes nToken assets and returns the net amount of asset cash owed to the account.
     function _reduceTokenAssets(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         int256 tokensToRedeem,
         uint256 blockTime
     ) private returns (PortfolioAsset[] memory, int256) {
@@ -197,7 +196,7 @@ contract nTokenRedeemAction {
 
     /// @notice Removes nToken liquidity tokens and updates the netfCash figures.
     function _removeLiquidityTokens(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         PortfolioAsset[] memory newifCashAssets,
         int256 tokensToRedeem,
         int256 totalSupply,

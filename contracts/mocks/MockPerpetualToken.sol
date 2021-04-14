@@ -2,15 +2,15 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../internal/PerpetualToken.sol";
+import "../internal/nTokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockPerpetualToken is StorageLayoutV1 {
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) external {
-        PerpetualToken.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
+        nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
 
-    function getPerpetualTokenContext(address tokenAddress)
+    function getNTokenContext(address tokenAddress)
         external
         view
         returns (
@@ -27,20 +27,20 @@ contract MockPerpetualToken is StorageLayoutV1 {
             uint256 incentiveRate,
             uint256 lastInitializedTime,
             bytes6 parameters
-        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
-        assert(PerpetualToken.nTokenAddress(currencyId) == tokenAddress);
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
+        assert(nTokenHandler.nTokenAddress(currencyId) == tokenAddress);
 
         return (currencyId, totalSupply, incentiveRate, lastInitializedTime, parameters);
     }
 
     function nTokenAddress(uint256 currencyId) external view returns (address) {
-        address tokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address tokenAddress = nTokenHandler.nTokenAddress(currencyId);
         (uint256 currencyIdStored, , , , ) =
             /* uint totalSupply */
             /* incentiveRate */
             /* lastInitializedTime */
             /* parameters */
-            PerpetualToken.getPerpetualTokenContext(tokenAddress);
+            nTokenHandler.getNTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
 
         return tokenAddress;
@@ -51,23 +51,23 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint8 arrayLength,
         uint256 lastInitializedTime
     ) external {
-        PerpetualToken.setArrayLengthAndInitializedTime(
+        nTokenHandler.setArrayLengthAndInitializedTime(
             tokenAddress,
             arrayLength,
             lastInitializedTime
         );
     }
 
-    function changePerpetualTokenSupply(address tokenAddress, int256 netChange) external {
-        PerpetualToken.changePerpetualTokenSupply(tokenAddress, netChange);
+    function changeNTokenSupply(address tokenAddress, int256 netChange) external {
+        nTokenHandler.changeNTokenSupply(tokenAddress, netChange);
     }
 
-    function setPerpetualTokenAddress(uint16 currencyId, address tokenAddress) external {
-        PerpetualToken.setPerpetualTokenAddress(currencyId, tokenAddress);
+    function setNTokenAddress(uint16 currencyId, address tokenAddress) external {
+        nTokenHandler.setNTokenAddress(currencyId, tokenAddress);
 
         // Test the assertions
         this.nTokenAddress(currencyId);
-        this.getPerpetualTokenContext(tokenAddress);
+        this.getNTokenContext(tokenAddress);
     }
 
     function getDepositParameters(uint256 currencyId, uint256 maxMarketIndex)
@@ -75,7 +75,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        return PerpetualToken.getDepositParameters(currencyId, maxMarketIndex);
+        return nTokenHandler.getDepositParameters(currencyId, maxMarketIndex);
     }
 
     function setDepositParameters(
@@ -83,7 +83,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external {
-        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
+        nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
     }
 
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
@@ -91,7 +91,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        return PerpetualToken.getInitializationParameters(currencyId, maxMarketIndex);
+        return nTokenHandler.getInitializationParameters(currencyId, maxMarketIndex);
     }
 
     function setInitializationParameters(
@@ -99,21 +99,16 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external {
-        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
     }
 
-    function getPerpetualTokenPV(uint256 currencyId, uint256 blockTime)
-        external
-        view
-        returns (int256)
-    {
-        PerpetualTokenPortfolio memory perpToken =
-            PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
+    function getNTokenPV(uint256 currencyId, uint256 blockTime) external view returns (int256) {
+        nTokenPortfolio memory perpToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
 
         (
             int256 assetPv, /* ifCashBitmap */
 
-        ) = PerpetualToken.getPerpetualTokenPV(perpToken, blockTime);
+        ) = nTokenHandler.getNTokenPV(perpToken, blockTime);
 
         return assetPv;
     }
@@ -126,10 +121,10 @@ contract MockPerpetualToken is StorageLayoutV1 {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external {
-        address perpTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address perpTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(perpTokenAddress != address(0), "Invalid currency");
 
-        PerpetualToken.setPerpetualTokenCollateralParameters(
+        nTokenHandler.setNTokenCollateralParameters(
             perpTokenAddress,
             residualPurchaseIncentive10BPS,
             pvHaircutPercentage,

@@ -3,8 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./AssetHandler.sol";
-import "../markets/CashGroup.sol";
 import "./ExchangeRate.sol";
+import "../markets/CashGroup.sol";
 import "../AccountContextHandler.sol";
 import "../balances/BalanceHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
@@ -16,7 +16,7 @@ library FreeCollateral {
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountStorage;
-    using PerpetualToken for PerpetualTokenPortfolio;
+    using nTokenHandler for nTokenPortfolio;
 
     /// @dev This is only used within the library to clean up the stack
     struct FreeCollateralFactors {
@@ -63,8 +63,8 @@ library FreeCollateral {
         int256 tokenBalance,
         uint256 blockTime
     ) internal view returns (int256, bytes6) {
-        PerpetualTokenPortfolio memory nToken =
-            PerpetualToken.buildPerpetualTokenPortfolioNoCashGroup(cashGroup.currencyId);
+        nTokenPortfolio memory nToken =
+            nTokenHandler.buildNTokenPortfolioNoCashGroup(cashGroup.currencyId);
         nToken.cashGroup = cashGroup;
         nToken.markets = markets;
 
@@ -72,12 +72,12 @@ library FreeCollateral {
         (
             int256 nTokenPV,
             /* ifCashBitmap */
-        ) = nToken.getPerpetualTokenPV(blockTime);
+        ) = nToken.getNTokenPV(blockTime);
 
         int256 nTokenHaircutPV =
             tokenBalance
                 .mul(nTokenPV)
-                .mul(int256(uint8(nToken.parameters[PerpetualToken.PV_HAIRCUT_PERCENTAGE])))
+                .mul(int256(uint8(nToken.parameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                 .div(Constants.PERCENTAGE_DECIMALS)
                 .div(nToken.totalSupply);
 

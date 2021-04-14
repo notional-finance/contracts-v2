@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
-import "../../internal/PerpetualToken.sol";
+import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../adapters/nTokenERC20Proxy.sol";
@@ -13,8 +13,6 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV1 {
-    using AccountContextHandler for AccountStorage;
-
     // Emitted when a new currency is listed
     event ListCurrency(uint16 newCurrencyId);
     event UpdateETHRate(uint16 currencyId);
@@ -108,7 +106,7 @@ contract GovernanceAction is StorageLayoutV1 {
                 )
             );
 
-        PerpetualToken.setPerpetualTokenAddress(currencyId, nTokenAddress);
+        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
         emit DeployNToken(currencyId, nTokenAddress);
     }
 
@@ -127,7 +125,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external onlyOwner {
-        PerpetualToken.setDepositParameters(currencyId, depositShares, leverageThresholds);
+        nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
         emit UpdateDepositParameters(currencyId);
     }
 
@@ -145,7 +143,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external onlyOwner {
-        PerpetualToken.setInitializationParameters(currencyId, rateAnchors, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
         emit UpdateInitializationParameters(currencyId);
     }
 
@@ -159,10 +157,10 @@ contract GovernanceAction is StorageLayoutV1 {
         external
         onlyOwner
     {
-        address nTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
 
-        PerpetualToken.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
+        nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
     }
 
@@ -194,10 +192,10 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external onlyOwner {
-        address nTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
 
-        PerpetualToken.setPerpetualTokenCollateralParameters(
+        nTokenHandler.setNTokenCollateralParameters(
             nTokenAddress,
             residualPurchaseIncentive10BPS,
             pvHaircutPercentage,

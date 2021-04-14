@@ -420,7 +420,7 @@ library TradingAction {
         // it is an idiosyncratic maturity)
         require(!cashGroup.isValidMaturity(maturity, blockTime), "Invalid maturity");
 
-        address perpTokenAddress = PerpetualToken.nTokenAddress(cashGroup.currencyId);
+        address perpTokenAddress = nTokenHandler.nTokenAddress(cashGroup.currencyId);
         (
             ,
             ,
@@ -430,12 +430,12 @@ library TradingAction {
             /* incentiveRate */
             uint256 lastInitializedTime,
             bytes6 parameters
-        ) = PerpetualToken.getPerpetualTokenContext(perpTokenAddress);
+        ) = nTokenHandler.getNTokenContext(perpTokenAddress);
 
         require(
             blockTime >
                 lastInitializedTime.add(
-                    uint256(uint8(parameters[PerpetualToken.RESIDUAL_PURCHASE_TIME_BUFFER])) * 3600
+                    uint256(uint8(parameters[Constants.RESIDUAL_PURCHASE_TIME_BUFFER])) * 3600
                 ),
             "Insufficient block time"
         );
@@ -482,7 +482,7 @@ library TradingAction {
     ) internal view returns (int256) {
         uint256 oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
         uint256 purchaseIncentive =
-            uint256(uint8(parameters[PerpetualToken.RESIDUAL_PURCHASE_INCENTIVE])) *
+            uint256(uint8(parameters[Constants.RESIDUAL_PURCHASE_INCENTIVE])) *
                 10 *
                 Constants.BASIS_POINT;
 

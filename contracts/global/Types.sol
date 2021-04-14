@@ -2,6 +2,17 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+struct nTokenPortfolio {
+    CashGroupParameters cashGroup;
+    MarketParameters[] markets;
+    PortfolioState portfolioState;
+    int256 totalSupply;
+    int256 cashBalance;
+    uint256 lastInitializedTime;
+    bytes6 parameters;
+    address tokenAddress;
+}
+
 struct LiquidationFactors {
     address account;
     int256 netETHValue;

@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../global/Constants.sol";
-import "../../internal/PerpetualToken.sol";
+import "../../internal/nTokenHandler.sol";
 import "../../internal/markets/Market.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/AssetRate.sol";
@@ -17,7 +17,7 @@ library nTokenMintAction {
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
-    using PerpetualToken for PerpetualTokenPortfolio;
+    using nTokenHandler for nTokenPortfolio;
     using PortfolioHandler for PortfolioState;
     using AssetRate for AssetRateParameters;
     using SafeMath for uint256;
@@ -31,8 +31,7 @@ library nTokenMintAction {
         returns (int256)
     {
         uint256 blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory nToken =
-            PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
 
         (int256 tokensToMint, bytes32 ifCashBitmap) =
             calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
@@ -59,7 +58,7 @@ library nTokenMintAction {
     /// @notice Calculates the tokens to mint to the account as a ratio of the nToken
     /// present value denominated in asset cash terms.
     function calculateTokensToMint(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         int256 amountToDepositInternal,
         uint256 blockTime
     ) internal view returns (int256, bytes32) {
@@ -73,7 +72,7 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "PT: requires settlement");
         }
 
-        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getPerpetualTokenPV(blockTime);
+        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenPV(blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
 
         // Allow for the first deposit
@@ -88,13 +87,13 @@ library nTokenMintAction {
     /// entering this method we know that assetCashDeposit is positive and the nToken has been
     /// initialized to have liquidity tokens.
     function _depositIntoPortfolio(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         bytes32 ifCashBitmap,
         int256 assetCashDeposit,
         uint256 blockTime
     ) private {
         (int256[] memory depositShares, int256[] memory leverageThresholds) =
-            PerpetualToken.getDepositParameters(
+            nTokenHandler.getDepositParameters(
                 nToken.cashGroup.currencyId,
                 nToken.cashGroup.maxMarketIndex
             );
@@ -118,10 +117,9 @@ library nTokenMintAction {
 
             // We know from the call into this method that assetCashDeposit is positive
             int256 perMarketDeposit =
-                assetCashDeposit
-                    .mul(depositShares[i])
-                    .div(PerpetualToken.DEPOSIT_PERCENT_BASIS)
-                    .add(residualCash);
+                assetCashDeposit.mul(depositShares[i]).div(Constants.DEPOSIT_PERCENT_BASIS).add(
+                    residualCash
+                );
 
             (fCashAmount, residualCash) = _lendOrAddLiquidity(
                 nToken,
@@ -175,7 +173,7 @@ library nTokenMintAction {
     /// @notice For a given amount of cash to deposit, decides how much to lend or provide
     /// given the market conditions.
     function _lendOrAddLiquidity(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         MarketParameters memory market,
         int256 perMarketDeposit,
         int256 leverageThreshold,
@@ -235,7 +233,7 @@ library nTokenMintAction {
     }
 
     function _addLiquidityToMarket(
-        PerpetualTokenPortfolio memory nToken,
+        nTokenPortfolio memory nToken,
         MarketParameters memory market,
         uint256 index,
         int256 perMarketDeposit

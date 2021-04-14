@@ -9,7 +9,7 @@ import "../internal/balances/BalanceHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/settlement/SettlePortfolioAssets.sol";
 import "../internal/settlement/SettleBitmapAssets.sol";
-import "../internal/PerpetualToken.sol";
+import "../internal/nTokenHandler.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -53,12 +53,12 @@ library InitializeMarketsAction {
         returns (GovernanceParameters memory)
     {
         GovernanceParameters memory params;
-        (params.depositShares, params.leverageThresholds) = PerpetualToken.getDepositParameters(
+        (params.depositShares, params.leverageThresholds) = nTokenHandler.getDepositParameters(
             currencyId,
             maxMarketIndex
         );
 
-        (params.rateAnchors, params.proportions) = PerpetualToken.getInitializationParameters(
+        (params.rateAnchors, params.proportions) = nTokenHandler.getInitializationParameters(
             currencyId,
             maxMarketIndex
         );
@@ -66,10 +66,10 @@ library InitializeMarketsAction {
         return params;
     }
 
-    function settlePerpetualTokenPortfolio(
-        PerpetualTokenPortfolio memory perpToken,
-        uint256 blockTime
-    ) private returns (bytes32) {
+    function settlePerpetualTokenPortfolio(nTokenPortfolio memory perpToken, uint256 blockTime)
+        private
+        returns (bytes32)
+    {
         // Perpetual token never has idiosyncratic cash between 90 day intervals but since it also has a
         // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
         // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
@@ -105,7 +105,7 @@ library InitializeMarketsAction {
     function getPreviousMarkets(
         uint256 currencyId,
         uint256 blockTime,
-        PerpetualTokenPortfolio memory perpToken
+        nTokenPortfolio memory perpToken
     ) private view {
         uint256 rateOracleTimeWindow = perpToken.cashGroup.getRateOracleTimeWindow();
         // This will reference the previous settlement date to get the previous markets
@@ -134,7 +134,7 @@ library InitializeMarketsAction {
     /// the PV of negative ifCash. Also sets the ifCash assets into the perp token mapping.
 
     function withholdAndSetfCashAssets(
-        PerpetualTokenPortfolio memory perpToken,
+        nTokenPortfolio memory perpToken,
         uint256 currencyId,
         bytes32 ifCashBitmap,
         uint256 blockTime
@@ -172,7 +172,7 @@ library InitializeMarketsAction {
     /// that we are going to need to withold some amount of cash so that market makers can purchase and
     /// clear the debts off the balance sheet.
     function _getPerpetualTokenNegativefCashWithholding(
-        PerpetualTokenPortfolio memory perpToken,
+        nTokenPortfolio memory perpToken,
         uint256 blockTime,
         bytes32 assetsBitmap
     ) internal view returns (int256) {
@@ -181,7 +181,7 @@ library InitializeMarketsAction {
         // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
         // that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
-            uint256(uint8(perpToken.parameters[PerpetualToken.CASH_WITHHOLDING_BUFFER])) *
+            uint256(uint8(perpToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) *
                 10 *
                 Constants.BASIS_POINT;
 
@@ -227,7 +227,7 @@ library InitializeMarketsAction {
     }
 
     function calculateNetAssetCashAvailable(
-        PerpetualTokenPortfolio memory perpToken,
+        nTokenPortfolio memory perpToken,
         uint256 blockTime,
         uint256 currencyId,
         bool isFirstInit
@@ -260,7 +260,7 @@ library InitializeMarketsAction {
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
         require(
-            netAssetCashAvailable > int256(PerpetualToken.DEPOSIT_PERCENT_BASIS),
+            netAssetCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS),
             "IM: insufficient cash"
         );
 
@@ -369,11 +369,11 @@ library InitializeMarketsAction {
         int256 depositShare,
         uint256 assetType,
         MarketParameters memory newMarket,
-        PerpetualTokenPortfolio memory perpToken
+        nTokenPortfolio memory perpToken
     ) private pure returns (int256) {
         // The portion of the cash available that will be deposited into the market
         int256 assetCashToMarket =
-            netAssetCashAvailable.mul(depositShare).div(PerpetualToken.DEPOSIT_PERCENT_BASIS);
+            netAssetCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
         newMarket.totalCurrentCash = assetCashToMarket;
         newMarket.totalLiquidity = assetCashToMarket;
 
@@ -396,8 +396,7 @@ library InitializeMarketsAction {
 
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external {
         uint256 blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory perpToken =
-            PerpetualToken.buildPerpetualTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory perpToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
 
         // This should be sufficient to validate that the currency id is valid
         require(perpToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
@@ -574,7 +573,7 @@ library InitializeMarketsAction {
             perpToken.cashBalance
         );
         BitmapAssetsHandler.setAssetsBitmap(perpToken.tokenAddress, currencyId, ifCashBitmap);
-        PerpetualToken.setArrayLengthAndInitializedTime(
+        nTokenHandler.setArrayLengthAndInitializedTime(
             perpToken.tokenAddress,
             assetArrayLength,
             perpToken.lastInitializedTime

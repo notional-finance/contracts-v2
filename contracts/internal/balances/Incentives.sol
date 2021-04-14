@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./TokenHandler.sol";
-import "../PerpetualToken.sol";
+import "../nTokenHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {
@@ -25,7 +25,7 @@ library Incentives {
             uint256 incentiveAnnualEmissionRate,
             /* initializedTime */,
             /* parameters */
-        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
         if (totalSupply == 0) return 0;
 
         // No overflow here, checked above
@@ -52,7 +52,7 @@ library Incentives {
         returns (uint256)
     {
         uint256 blockTime = block.timestamp;
-        address tokenAddress = PerpetualToken.nTokenAddress(balanceState.currencyId);
+        address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
 
         uint256 incentivesToClaim =
             calculateIncentivesToClaim(
@@ -67,7 +67,7 @@ library Incentives {
 
         // Change the supply amount after incentives have been claimed
         if (balanceState.netPerpetualTokenSupplyChange != 0) {
-            PerpetualToken.changePerpetualTokenSupply(
+            nTokenHandler.changeNTokenSupply(
                 tokenAddress,
                 balanceState.netPerpetualTokenSupplyChange
             );

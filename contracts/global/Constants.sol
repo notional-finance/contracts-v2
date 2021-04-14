@@ -65,4 +65,13 @@ library Constants {
     bytes1 internal constant HAS_CASH_DEBT = 0x02;
     bytes2 internal constant ACTIVE_IN_PORTFOLIO = 0x8000;
     bytes2 internal constant ACTIVE_IN_BALANCES = 0x4000;
+
+    // nToken Parameters
+    int256 internal constant DEPOSIT_PERCENT_BASIS = 1e8;
+    uint8 internal constant LIQUIDATION_HAIRCUT_PERCENTAGE = 0;
+    uint8 internal constant CASH_WITHHOLDING_BUFFER = 1;
+    uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 2;
+    uint8 internal constant PV_HAIRCUT_PERCENTAGE = 3;
+    uint8 internal constant RESIDUAL_PURCHASE_INCENTIVE = 4;
+    uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 }

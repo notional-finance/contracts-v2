@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../internal/PerpetualToken.sol";
+import "../../internal/nTokenHandler.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/Incentives.sol";
@@ -35,7 +35,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             totalSupply,
             /* lastInitialized */,
             /* parameters */ ,
-        ) = PerpetualToken.getPerpetualTokenContext(nTokenAddress);
+        ) = nTokenHandler.getNTokenContext(nTokenAddress);
     }
 
     /// @notice Get the number of tokens held by the `account`
@@ -85,7 +85,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address spender,
         uint256 amount
     ) external override returns (bool) {
-        address nTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "PA: unauthorized caller");
 
         uint256 allowance = nTokenAllowance[owner][spender][currencyId];
@@ -106,7 +106,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address to,
         uint256 amount
     ) external override returns (bool) {
-        address nTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "PA: unauthorized caller");
 
         return _transfer(currencyId, from, to, amount);
@@ -127,7 +127,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address to,
         uint256 amount
     ) external override returns (bool, uint256) {
-        address nTokenAddress = PerpetualToken.nTokenAddress(currencyId);
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "PA: unauthorized caller");
 
         uint256 allowance = nTokenWhitelist[from][spender];
@@ -198,7 +198,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
 
         uint256 incentives =
             Incentives.calculateIncentivesToClaim(
-                PerpetualToken.nTokenAddress(currencyId),
+                nTokenHandler.nTokenAddress(currencyId),
                 uint256(balanceState.storedPerpetualTokenBalance),
                 balanceState.lastIncentiveClaim,
                 block.timestamp
@@ -230,8 +230,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         override
         returns (int256)
     {
-        (int256 totalAssetPV, PerpetualTokenPortfolio memory nToken) =
-            _getPerpetualTokenPV(currencyId);
+        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getPerpetualTokenPV(currencyId);
 
         return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
@@ -239,17 +238,16 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     function _getPerpetualTokenPV(uint256 currencyId)
         private
         view
-        returns (int256, PerpetualTokenPortfolio memory)
+        returns (int256, nTokenPortfolio memory)
     {
         uint256 blockTime = block.timestamp;
-        PerpetualTokenPortfolio memory nToken =
-            PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
 
         // prettier-ignore
         (
             int256 totalAssetPV,
             /* ifCashMapping */
-        ) = PerpetualToken.getPerpetualTokenPV(nToken, blockTime);
+        ) = nTokenHandler.getNTokenPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }

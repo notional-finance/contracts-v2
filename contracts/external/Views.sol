@@ -7,7 +7,7 @@ import "./actions/nTokenMintAction.sol";
 import "../internal/valuation/ExchangeRate.sol";
 import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
-import "../internal/PerpetualToken.sol";
+import "../internal/nTokenHandler.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
@@ -127,7 +127,7 @@ contract Views is StorageLayoutV1 {
         returns (int256[] memory, int256[] memory)
     {
         CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
-        return PerpetualToken.getInitializationParameters(currencyId, cg.maxMarketIndex);
+        return nTokenHandler.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
     function getPerpetualDepositParameters(uint16 currencyId)
@@ -136,11 +136,11 @@ contract Views is StorageLayoutV1 {
         returns (int256[] memory, int256[] memory)
     {
         CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
-        return PerpetualToken.getDepositParameters(currencyId, cg.maxMarketIndex);
+        return nTokenHandler.getDepositParameters(currencyId, cg.maxMarketIndex);
     }
 
     function nTokenAddress(uint16 currencyId) external view returns (address) {
-        return PerpetualToken.nTokenAddress(currencyId);
+        return nTokenHandler.nTokenAddress(currencyId);
     }
 
     function getOwner() external view returns (address) {
@@ -190,12 +190,12 @@ contract Views is StorageLayoutV1 {
             /* incentiveRate */
             uint256 lastInitializedTime,
             bytes6 parameters
-        ) = PerpetualToken.getPerpetualTokenContext(tokenAddress);
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
 
         return (
             PortfolioHandler.getSortedPortfolio(
                 tokenAddress,
-                uint8(parameters[PerpetualToken.ASSET_ARRAY_LENGTH])
+                uint8(parameters[Constants.ASSET_ARRAY_LENGTH])
             ),
             BitmapAssetsHandler.getifCashArray(tokenAddress, currencyId, lastInitializedTime)
         );
@@ -223,8 +223,7 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
-        PerpetualTokenPortfolio memory perpToken =
-            PerpetualToken.buildPerpetualTokenPortfolioView(currencyId);
+        nTokenPortfolio memory perpToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
 
         (
             int256 tokensToMint, /* */
