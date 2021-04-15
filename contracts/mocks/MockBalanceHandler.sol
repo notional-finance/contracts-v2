@@ -93,7 +93,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         BalanceState memory balanceState,
         address account,
         int256 assetAmountExternal,
-        bool useCashBalance
+        bool forceTransfer
     )
         external
         returns (
@@ -103,7 +103,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         )
     {
         (int256 assetAmountInternal, int256 assetAmountTransferred) =
-            balanceState.depositAssetToken(account, assetAmountExternal, useCashBalance);
+            balanceState.depositAssetToken(account, assetAmountExternal, forceTransfer);
 
         return (balanceState, assetAmountInternal, assetAmountTransferred);
     }

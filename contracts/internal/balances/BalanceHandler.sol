@@ -20,9 +20,7 @@ library BalanceHandler {
     ///  - If a token has transfer fees then the amount specified does not equal the amount that the contract
     ///    will receive. Complete the deposit here rather than in finalize so that the contract has the correct
     ///    balance to work with.
-    ///  - A method may specify that it wants to apply positive cash balances against the deposit, netting off the
-    ///    amount that must actually be transferred. In this case we use the cash balance to determine the net amount
-    ///    required to deposit
+    ///  - Force a transfer before finalize to allow a different account to deposit into an account
     /// @return Returns two values:
     ///  - assetAmountInternal which is the converted asset amount accounting for transfer fees
     ///  - assetAmountTransferred which is the internal precision amount transferred into the account
@@ -30,7 +28,7 @@ library BalanceHandler {
         BalanceState memory balanceState,
         address account,
         int256 assetAmountExternal,
-        bool useCashBalance
+        bool forceTransfer
     ) internal returns (int256, int256) {
         if (assetAmountExternal == 0) return (0, 0);
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
@@ -38,24 +36,8 @@ library BalanceHandler {
         int256 assetAmountInternal = token.convertToInternal(assetAmountExternal);
         int256 assetAmountTransferred;
 
-        if (useCashBalance) {
-            // Calculate what we assume the total cash position to be if transfers and cash changes are
-            // successful. We then apply any positive amount of this total cash balance to net off the deposit.
-            int256 totalCash =
-                balanceState.storedCashBalance.add(balanceState.netCashChange).add(
-                    balanceState.netAssetTransferInternalPrecision
-                );
-
-            if (totalCash > assetAmountInternal) {
-                // Sufficient total cash to account for the deposit so no transfer is necessary
-                return (assetAmountInternal, 0);
-            } else if (totalCash > 0) {
-                // Set the remainder as the transfer amount
-                assetAmountExternal = token.convertToExternal(assetAmountInternal.sub(totalCash));
-            }
-        }
-
-        if (token.hasTransferFee) {
+        // Force transfer is used to complete the transfer before going to finalize
+        if (token.hasTransferFee || forceTransfer) {
             // If the token has a transfer fee the deposit amount may not equal the actual amount
             // that the contract will receive. We handle the deposit here and then update the netCashChange
             // accordingly which is denominated in internal precision.
@@ -231,7 +213,10 @@ library BalanceHandler {
                 );
 
             // Withdraws the underlying amount out to the destination account
-            underlyingToken.transfer(account, underlyingAmountExternal.neg());
+            transferAmountExternal = underlyingToken.transfer(
+                account,
+                underlyingAmountExternal.neg()
+            );
         } else {
             transferAmountExternal = assetToken.transfer(account, transferAmountExternal);
         }

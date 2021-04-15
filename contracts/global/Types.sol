@@ -71,9 +71,9 @@ enum DepositActionType {
     None,
     DepositAsset,
     DepositUnderlying,
-    DepositAssetAndMintPerpetual,
-    DepositUnderlyingAndMintPerpetual,
-    RedeemPerpetual
+    DepositAssetAndMintNToken,
+    DepositUnderlyingAndMintNToken,
+    RedeemNToken
 }
 
 struct BalanceAction {
