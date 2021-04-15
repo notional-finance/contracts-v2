@@ -2,15 +2,15 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../internal/markets/Market.sol";
-import "../internal/markets/CashGroup.sol";
-import "../internal/markets/AssetRate.sol";
-import "../internal/balances/BalanceHandler.sol";
-import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/settlement/SettlePortfolioAssets.sol";
-import "../internal/settlement/SettleBitmapAssets.sol";
-import "../internal/nTokenHandler.sol";
-import "../math/SafeInt256.sol";
+import "../../internal/markets/Market.sol";
+import "../../internal/markets/CashGroup.sol";
+import "../../internal/markets/AssetRate.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/settlement/SettlePortfolioAssets.sol";
+import "../../internal/settlement/SettleBitmapAssets.sol";
+import "../../internal/nTokenHandler.sol";
+import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /// @notice Initialize markets is called once every quarter to setup the new markets. Only the nToken account
