@@ -387,6 +387,10 @@ library InitializeMarketsAction {
     }
 
     /// @notice Initialize the market for a given currency id, done once a quarter
+    /// @param currencyId currency of markets to initialize
+    /// @param isFirstInit true if this is the first time the markets have been initialized
+    /// @dev emit:MarketsInitialized
+    /// @dev auth:none
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);

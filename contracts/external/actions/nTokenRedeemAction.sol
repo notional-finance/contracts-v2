@@ -28,6 +28,7 @@ contract nTokenRedeemAction {
     /// method will return the amount of asset cash sold. This method can only be invoked via delegatecall.
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem the amount of nTokens to convert to cash
+    /// @dev auth:only internal
     /// @return amount of asset cash to return to the account, denominated in internal token decimals
     function nTokenRedeemViaBatch(uint256 currencyId, int256 tokensToRedeem)
         external
@@ -53,13 +54,17 @@ contract nTokenRedeemAction {
     /// @param tokensToRedeem_ the amount of nTokens to convert to cash
     /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
     /// residual fCash assets will be placed into the portfolio
+    /// @dev auth:msg.sender auth:ERC1155
     function nTokenRedeem(
+        address redeemer,
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets
     ) external {
+        // ERC1155 can call this method during a post transfer event
+        require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
+
         uint256 blockTime = block.timestamp;
-        address redeemer = msg.sender;
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
         AccountStorage memory context = AccountContextHandler.getAccountContext(redeemer);

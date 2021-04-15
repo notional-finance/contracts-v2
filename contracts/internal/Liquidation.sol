@@ -10,7 +10,7 @@ import "./AccountContextHandler.sol";
 import "./portfolio/BitmapAssetsHandler.sol";
 import "./portfolio/PortfolioHandler.sol";
 import "./balances/BalanceHandler.sol";
-import "../actions/SettleAssetsExternal.sol";
+import "../external/SettleAssetsExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Liquidation {

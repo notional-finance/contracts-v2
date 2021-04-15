@@ -8,15 +8,20 @@ import "../internal/settlement/SettlePortfolioAssets.sol";
 import "../internal/settlement/SettleBitmapAssets.sol";
 import "../internal/AccountContextHandler.sol";
 
+/// @notice External library for settling assets, presents different options for calling methods
+/// depending on their data requirements. Note that bitmapped portfolios will always be settled
+/// and an empty portfolio state will be returned.
 library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountStorage;
 
     function settleAssetsAndFinalize(address account) external returns (AccountStorage memory) {
-        (AccountStorage memory accountContext, , ) =
-            /* SettleAmount[] memory settleAmounts */
-            /* portfolioState */
-            _settleAccount(account, true, true);
+        // prettier-ignore
+        (
+            AccountStorage memory accountContext,
+            /* SettleAmount[] memory settleAmounts */,
+            /* PortfolioState memory portfolioState */
+        ) = _settleAccount(account, true, true);
 
         return accountContext;
     }
@@ -25,9 +30,12 @@ library SettleAssetsExternal {
         external
         returns (AccountStorage memory, SettleAmount[] memory)
     {
-        (AccountStorage memory accountContext, SettleAmount[] memory settleAmounts, ) =
-            /* portfolioState */
-            _settleAccount(account, true, false);
+        // prettier-ignore
+        (
+            AccountStorage memory accountContext,
+            SettleAmount[] memory settleAmounts,
+            /* PortfolioState memory portfolioState */
+        ) = _settleAccount(account, false, true);
 
         return (accountContext, settleAmounts);
     }
@@ -36,10 +44,10 @@ library SettleAssetsExternal {
         external
         returns (AccountStorage memory, PortfolioState memory)
     {
+        // prettier-ignore
         (
             AccountStorage memory accountContext,
-            ,
-            /* SettleAmount[] memory settleAmounts */
+            /* SettleAmount[] memory settleAmounts */,
             PortfolioState memory portfolioState
         ) = _settleAccount(account, true, false);
 
@@ -59,10 +67,10 @@ library SettleAssetsExternal {
 
     function _settleAccount(
         address account,
-        bool finalizePortfolio,
-        bool finalizeAmounts
+        bool finalizeAmounts,
+        bool finalizePortfolio
     )
-        internal
+        private
         returns (
             AccountStorage memory,
             SettleAmount[] memory,
@@ -74,7 +82,7 @@ library SettleAssetsExternal {
         PortfolioState memory portfolioState;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            settleAmounts = settleBitmappedAccountStateful(
+            settleAmounts = _settleBitmappedAccountStateful(
                 account,
                 accountContext.bitmapCurrencyId,
                 accountContext.nextSettleTime
@@ -99,11 +107,11 @@ library SettleAssetsExternal {
         return (accountContext, settleAmounts, portfolioState);
     }
 
-    function settleBitmappedAccountStateful(
+    function _settleBitmappedAccountStateful(
         address account,
         uint256 currencyId,
         uint256 nextSettleTime
-    ) internal returns (SettleAmount[] memory) {
+    ) private returns (SettleAmount[] memory) {
         (bytes32 assetsBitmap, int256 settledCash) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
