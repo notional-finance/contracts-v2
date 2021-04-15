@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../internal/nTokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
 
-contract MockPerpetualToken is StorageLayoutV1 {
+contract MockNTokenHandler is StorageLayoutV1 {
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) external {
         nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
@@ -113,7 +113,7 @@ contract MockPerpetualToken is StorageLayoutV1 {
         return assetPv;
     }
 
-    function updatePerpetualTokenCollateralParameters(
+    function updateNTokenCollateralParameters(
         uint16 currencyId,
         uint8 residualPurchaseIncentive10BPS,
         uint8 pvHaircutPercentage,
