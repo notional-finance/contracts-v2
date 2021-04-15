@@ -12,8 +12,7 @@ contract MockLiquidationSetup is BaseMockLiquidation {
     function preLiquidationActions(
         address liquidateAccount,
         uint256 localCurrency,
-        uint256 collateralCurrency,
-        uint256 blockTime
+        uint256 collateralCurrency
     )
         external
         returns (
@@ -23,12 +22,7 @@ contract MockLiquidationSetup is BaseMockLiquidation {
         )
     {
         return
-            Liquidation.preLiquidationActions(
-                liquidateAccount,
-                localCurrency,
-                collateralCurrency,
-                blockTime
-            );
+            Liquidation.preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency);
     }
 }
 
@@ -38,7 +32,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         uint256 blockTime
     )
         external
@@ -53,14 +47,14 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
+        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0);
         BalanceState memory liquidatedBalanceState;
         liquidatedBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
             Liquidation.liquidateLocalCurrency(
                 localCurrency,
-                maxPerpetualTokenLiquidation,
+                maxNTokenLiquidation,
                 blockTime,
                 liquidatedBalanceState,
                 factors,
@@ -74,7 +68,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
 contract MockLocalLiquidationOverride is BaseMockLiquidation {
     function liquidateLocalCurrencyOverride(
         uint256 localCurrency,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         uint256 blockTime,
         BalanceState memory liquidatedBalanceState,
         LiquidationFactors memory factors
@@ -91,7 +85,7 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
         int256 netLocalFromLiquidator =
             Liquidation.liquidateLocalCurrency(
                 localCurrency,
-                maxPerpetualTokenLiquidation,
+                maxNTokenLiquidation,
                 blockTime,
                 liquidatedBalanceState,
                 factors,
@@ -108,7 +102,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio,
         uint128 maxCollateralLiquidation,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         uint256 blockTime
     )
         external
@@ -122,7 +116,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         int256 localToPurchase =
             Liquidation.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
-                maxPerpetualTokenLiquidation,
+                maxNTokenLiquidation,
                 blockTime,
                 liquidatedBalanceState,
                 factors,

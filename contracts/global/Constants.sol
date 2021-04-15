@@ -76,4 +76,8 @@ library Constants {
     uint8 internal constant PV_HAIRCUT_PERCENTAGE = 3;
     uint8 internal constant RESIDUAL_PURCHASE_INCENTIVE = 4;
     uint8 internal constant ASSET_ARRAY_LENGTH = 5;
+
+    // Liquidation parameters
+    int256 internal constant MAX_LIQUIDATION_PORTION = 40;
+    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
 }

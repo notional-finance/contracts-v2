@@ -127,7 +127,7 @@ library LiquidationHelpers {
     }
 }
 
-contract LiquidateLocalCurrency {
+contract LiquidateCurrency {
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
@@ -135,21 +135,21 @@ contract LiquidateLocalCurrency {
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
-        uint96 maxPerpetualTokenLiquidation
+        uint96 maxNTokenLiquidation
     ) external returns (int256) {
         uint256 blockTime = block.timestamp;
         (
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
+        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0);
         BalanceState memory localBalanceState;
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
             Liquidation.liquidateLocalCurrency(
                 localCurrency,
-                maxPerpetualTokenLiquidation,
+                maxNTokenLiquidation,
                 blockTime,
                 localBalanceState,
                 factors,
@@ -181,19 +181,13 @@ contract LiquidateLocalCurrency {
 
         return netLocalFromLiquidator;
     }
-}
-
-contract LiquidateCollateralCurrency {
-    using AccountContextHandler for AccountContext;
-    using BalanceHandler for BalanceState;
-    using SafeInt256 for int256;
 
     function liquidateCollateralCurrency(
         address liquidateAccount,
         uint256 localCurrency,
         uint256 collateralCurrency,
         uint128 maxCollateralLiquidation,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) external returns (int256) {
@@ -202,13 +196,7 @@ contract LiquidateCollateralCurrency {
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
-        ) =
-            Liquidation.preLiquidationActions(
-                liquidateAccount,
-                localCurrency,
-                collateralCurrency,
-                blockTime
-            );
+        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency);
         BalanceState memory collateralBalanceState;
         collateralBalanceState.loadBalanceState(
             liquidateAccount,
@@ -219,7 +207,7 @@ contract LiquidateCollateralCurrency {
         int256 netLocalFromLiquidator =
             Liquidation.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
-                maxPerpetualTokenLiquidation,
+                maxNTokenLiquidation,
                 blockTime,
                 collateralBalanceState,
                 factors,
@@ -271,7 +259,7 @@ contract LiquidateCollateralCurrency {
     }
 }
 
-contract LiquidatefCashLocal {
+contract LiquidatefCash {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
@@ -286,8 +274,7 @@ contract LiquidatefCashLocal {
         (c.accountContext, c.factors, c.portfolio) = Liquidation.preLiquidationActions(
             liquidateAccount,
             localCurrency,
-            0,
-            blockTime
+            0
         );
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
@@ -315,15 +302,14 @@ contract LiquidatefCashLocal {
             c.localToPurchase
         );
 
-        // TODO: this causes size to overflow, maybe use ERC1155?
-        // LiquidationHelpers.transferAssets(
-        //     liquidateAccount,
-        //     msg.sender,
-        //     liquidatorContext,
-        //     localCurrency,
-        //     fCashMaturities,
-        //     c
-        // );
+        LiquidationHelpers.transferAssets(
+            liquidateAccount,
+            msg.sender,
+            liquidatorContext,
+            localCurrency,
+            fCashMaturities,
+            c
+        );
 
         liquidatorContext.setAccountContext(msg.sender);
         c.accountContext.setAccountContext(liquidateAccount);
@@ -343,8 +329,7 @@ contract LiquidatefCashLocal {
         (c.accountContext, c.factors, c.portfolio) = Liquidation.preLiquidationActions(
             liquidateAccount,
             localCurrency,
-            0,
-            blockTime
+            0
         );
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
@@ -372,15 +357,14 @@ contract LiquidatefCashLocal {
             c.localToPurchase
         );
 
-        // TODO: this causes size to overflow, maybe use ERC1155?
-        // LiquidationHelpers.transferAssets(
-        //     liquidateAccount,
-        //     msg.sender,
-        //     liquidatorContext,
-        //     collateralCurrency,
-        //     fCashMaturities,
-        //     c
-        // );
+        LiquidationHelpers.transferAssets(
+            liquidateAccount,
+            msg.sender,
+            liquidatorContext,
+            collateralCurrency,
+            fCashMaturities,
+            c
+        );
 
         liquidatorContext.setAccountContext(msg.sender);
         c.accountContext.setAccountContext(liquidateAccount);

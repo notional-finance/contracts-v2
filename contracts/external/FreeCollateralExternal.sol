@@ -34,4 +34,35 @@ library FreeCollateralExternal {
 
         require(ethDenominatedFC >= 0, "Insufficient free collateral");
     }
+
+    /// @notice Calculates liquidation factors for an account
+    /// @param account account to liquidate
+    /// @param localCurrencyId currency that the debts are denominated in
+    /// @param collateralCurrencyId collateral currency to liquidate against, set to zero in the case of local currency liquidation
+    function getLiquidationFactors(
+        address account,
+        uint256 localCurrencyId,
+        uint256 collateralCurrencyId
+    )
+        external
+        returns (
+            AccountContext memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        )
+    {
+        accountContext = AccountContextHandler.getAccountContext(account);
+
+        if (accountContext.mustSettleAssets()) {
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+        }
+
+        (factors, portfolio) = FreeCollateral.getLiquidationFactors(
+            account,
+            accountContext,
+            block.timestamp,
+            localCurrencyId,
+            collateralCurrencyId
+        );
+    }
 }

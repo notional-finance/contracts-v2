@@ -2,15 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./AccountContextHandler.sol";
 import "./valuation/AssetHandler.sol";
-import "./valuation/FreeCollateral.sol";
 import "./valuation/ExchangeRate.sol";
 import "./markets/CashGroup.sol";
-import "./AccountContextHandler.sol";
 import "./portfolio/BitmapAssetsHandler.sol";
 import "./portfolio/PortfolioHandler.sol";
 import "./balances/BalanceHandler.sol";
-import "../external/SettleAssetsExternal.sol";
+import "../external/FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Liquidation {
@@ -25,16 +24,11 @@ library Liquidation {
     using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
 
-    int256 internal constant MAX_LIQUIDATION_PORTION = 40;
-    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
-
     /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
-
     function preLiquidationActions(
         address liquidateAccount,
         uint256 localCurrency,
-        uint256 collateralCurrency,
-        uint256 blockTime
+        uint256 collateralCurrency
     )
         internal
         returns (
@@ -46,18 +40,13 @@ library Liquidation {
         require(localCurrency != 0);
         // Collateral currency must be unset or not equal to the local currency
         require(collateralCurrency == 0 || collateralCurrency != localCurrency);
-        AccountContext memory accountContext =
-            AccountContextHandler.getAccountContext(liquidateAccount);
-
-        if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(liquidateAccount);
-        }
-
-        (LiquidationFactors memory factors, PortfolioAsset[] memory portfolio) =
-            FreeCollateral.getLiquidationFactors(
+        (
+            AccountContext memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioAsset[] memory portfolio
+        ) =
+            FreeCollateralExternal.getLiquidationFactors(
                 liquidateAccount,
-                accountContext,
-                blockTime,
                 localCurrency,
                 collateralCurrency
             );
@@ -73,19 +62,20 @@ library Liquidation {
         return (accountContext, factors, portfolioState);
     }
 
-    /// @notice We allow liquidators to purchase up to MAX_LIQUIDATION_PORTION percentage of collateral
+    /// @notice We allow liquidators to purchase up to Constants.MAX_LIQUIDATION_PORTION percentage of collateral
     /// assets during liquidation to recollateralize an account as long as it does not also put the account
     /// further into negative free collateral (i.e. constraints on local available and collateral available).
     /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
     /// purchase so we also enforce that limit here.
-
-    function calculateMaxLiquidationAmount(
+    function _calculateMaxLiquidationAmount(
         int256 initialAmountToLiquidate,
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) private pure returns (int256) {
         int256 maxAllowedAmount =
-            maxTotalBalance.mul(MAX_LIQUIDATION_PORTION).div(Constants.PERCENTAGE_DECIMALS);
+            maxTotalBalance.mul(Constants.MAX_LIQUIDATION_PORTION).div(
+                Constants.PERCENTAGE_DECIMALS
+            );
 
         int256 result = initialAmountToLiquidate;
 
@@ -106,7 +96,8 @@ library Liquidation {
         return result;
     }
 
-    function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
+    /// @dev Calculates factors when liquidating across two currencies
+    function _calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
         private
         pure
         returns (int256, int256)
@@ -136,8 +127,7 @@ library Liquidation {
 
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
     /// is not so large that the account is put further into debt.
-
-    function calculateLocalToPurchase(
+    function _calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
         int256 collateralPresentValue,
@@ -167,8 +157,7 @@ library Liquidation {
     }
 
     /// @notice Calculates the two discount factors relevant when liquidating fCash.
-
-    function calculatefCashDiscounts(
+    function _calculatefCashDiscounts(
         LiquidationFactors memory factors,
         uint256 maturity,
         uint256 blockTime
@@ -193,7 +182,7 @@ library Liquidation {
         return (riskAdjustedDiscountFactor, liquidationDiscountFactor);
     }
 
-    function hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
+    function _hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
         private
         pure
         returns (bool)
@@ -210,7 +199,8 @@ library Liquidation {
         return false;
     }
 
-    function getfCashNotional(
+    /// @dev Helper function because of two portfolio types
+    function _getfCashNotional(
         address liquidateAccount,
         fCashContext memory context,
         uint256 currencyId,
@@ -244,10 +234,9 @@ library Liquidation {
     /// eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
     /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
     /// encounter this scenario but this method is here for completeness.
-
     function liquidateLocalCurrency(
         uint256 localCurrency,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         uint256 blockTime,
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
@@ -261,9 +250,9 @@ library Liquidation {
                 .div(factors.localETHRate.buffer);
         int256 netLocalFromLiquidator;
 
-        if (hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
+        if (_hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
             WithdrawFactors memory w;
-            (w, benefitRequired) = withdrawLocalLiquidityTokens(
+            (w, benefitRequired) = _withdrawLocalLiquidityTokens(
                 portfolio,
                 factors,
                 blockTime,
@@ -274,7 +263,7 @@ library Liquidation {
         }
 
         if (factors.nTokenValue > 0) {
-            int256 perpetualTokensToLiquidate;
+            int256 nTokensToLiquidate;
             {
                 // This will not underflow, checked when saving parameters
                 int256 haircutDiff =
@@ -286,34 +275,27 @@ library Liquidation {
                 // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
                 // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
                 // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
-                perpetualTokensToLiquidate = benefitRequired
-                    .mul(Constants.INTERNAL_TOKEN_PRECISION)
-                    .div(factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS));
+                nTokensToLiquidate = benefitRequired.mul(Constants.INTERNAL_TOKEN_PRECISION).div(
+                    factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
+                );
             }
 
-            perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
-                perpetualTokensToLiquidate,
+            nTokensToLiquidate = _calculateMaxLiquidationAmount(
+                nTokensToLiquidate,
                 balanceState.storedNTokenBalance,
-                int256(maxPerpetualTokenLiquidation)
+                int256(maxNTokenLiquidation)
             );
-            balanceState.netNTokenTransfer = perpetualTokensToLiquidate.neg();
+            balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
 
             {
                 // fullPerpTokenPV = haircutTokenPV / haircutPercentage
                 // localFromLiquidator = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
+                // prettier-ignore
                 int256 localCashValue =
-                    perpetualTokensToLiquidate
-                        .mul(
-                        int256(
-                            uint8(
-                                factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]
-                            )
-                        )
-                    )
+                    nTokensToLiquidate
+                        .mul(int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])))
                         .mul(factors.nTokenValue)
-                        .div(
-                        int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))
-                    )
+                        .div(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                         .div(balanceState.storedNTokenBalance);
 
                 balanceState.netCashChange = balanceState.netCashChange.add(localCashValue);
@@ -324,9 +306,11 @@ library Liquidation {
         return netLocalFromLiquidator;
     }
 
+    /// @notice Liquidates collateral in the form of cash, liquidity token cash claims, or nTokens in that
+    /// liquidation preference.
     function liquidateCollateralCurrency(
         uint128 maxCollateralLiquidation,
-        uint96 maxPerpetualTokenLiquidation,
+        uint96 maxNTokenLiquidation,
         uint256 blockTime,
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
@@ -336,7 +320,7 @@ library Liquidation {
         require(factors.collateralAvailable > 0, "No collateral");
 
         (int256 collateralToRaise, int256 localToPurchase, int256 liquidationDiscount) =
-            calculateCollateralToRaise(factors, int256(maxCollateralLiquidation));
+            _calculateCollateralToRaise(factors, int256(maxCollateralLiquidation));
 
         int256 collateralRemaining = collateralToRaise;
         if (balanceState.storedCashBalance > 0) {
@@ -352,10 +336,10 @@ library Liquidation {
 
         if (
             collateralRemaining > 0 &&
-            hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
+            _hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
         ) {
             int256 postWithdrawCollateral =
-                withdrawCollateralLiquidityTokens(
+                _withdrawCollateralLiquidityTokens(
                     portfolio,
                     factors,
                     blockTime,
@@ -368,20 +352,20 @@ library Liquidation {
         }
 
         if (collateralRemaining > 0 && factors.nTokenValue > 0) {
-            collateralRemaining = calculateCollateralPerpetualTokenTransfer(
+            collateralRemaining = _calculateCollateralNTokenTransfer(
                 balanceState,
                 factors,
                 collateralRemaining,
-                int256(maxPerpetualTokenLiquidation)
+                int256(maxNTokenLiquidation)
             );
         }
 
         if (collateralRemaining > 0) {
+            // prettier-ignore
             (
-                ,
-                /* collateralToRaise */
+                /* collateralToRaise */,
                 localToPurchase
-            ) = calculateLocalToPurchase(
+            ) = _calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
                 collateralToRaise.sub(collateralRemaining),
@@ -392,11 +376,13 @@ library Liquidation {
         return localToPurchase;
     }
 
-    function calculateCollateralToRaise(
+    /// @dev Calculates anticipated collateral to raise, enforcing some limits. Actual transfers may be lower due
+    /// to limits on the nToken transfer
+    function _calculateCollateralToRaise(
         LiquidationFactors memory factors,
         int256 maxCollateralLiquidation
     )
-        internal
+        private
         pure
         returns (
             int256,
@@ -405,7 +391,7 @@ library Liquidation {
         )
     {
         (int256 benefitRequired, int256 liquidationDiscount) =
-            calculateCrossCurrencyBenefitAndDiscount(factors);
+            _calculateCrossCurrencyBenefitAndDiscount(factors);
         int256 collateralToRaise;
         {
             // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
@@ -428,14 +414,14 @@ library Liquidation {
             collateralToRaise = benefitRequired.mul(Constants.PERCENTAGE_DECIMALS).div(denominator);
         }
 
-        collateralToRaise = calculateMaxLiquidationAmount(
+        collateralToRaise = _calculateMaxLiquidationAmount(
             collateralToRaise,
             factors.collateralAvailable,
             0 // will check userSpecifiedAmount below
         );
 
         int256 localToPurchase;
-        (collateralToRaise, localToPurchase) = calculateLocalToPurchase(
+        (collateralToRaise, localToPurchase) = _calculateLocalToPurchase(
             factors,
             liquidationDiscount,
             collateralToRaise,
@@ -446,11 +432,11 @@ library Liquidation {
         if (maxCollateralLiquidation > 0 && collateralToRaise > maxCollateralLiquidation) {
             collateralToRaise = maxCollateralLiquidation;
 
+            // prettier-ignore
             (
-                ,
-                /* collateralToRaise */
+                /* collateralToRaise */,
                 localToPurchase
-            ) = calculateLocalToPurchase(
+            ) = _calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
                 collateralToRaise,
@@ -461,43 +447,43 @@ library Liquidation {
         return (collateralToRaise, localToPurchase, liquidationDiscount);
     }
 
-    function calculateCollateralPerpetualTokenTransfer(
+    /// @dev Calculates the nToken transfer.
+    function _calculateCollateralNTokenTransfer(
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         int256 collateralRemaining,
-        int256 maxPerpetualTokenLiquidation
+        int256 maxNTokenLiquidation
     ) internal pure returns (int256) {
-        // fullPerpTokenPV = haircutTokenPV / haircutPercentage
-        // collateralToRaise = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
-        // tokensToLiquidate = collateralToRaise * totalBalance / (fullPerpTokenPV * liquidationHaircut)
-        int256 perpetualTokenLiquidationHaircut =
+        // fullNTokenPV = haircutTokenPV / haircutPercentage
+        // collateralToRaise = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
+        // tokensToLiquidate = collateralToRaise * totalBalance / (fullNTokenPV * liquidationHaircut)
+        int256 nTokenLiquidationHaircut =
             int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]));
-        int256 perpetualTokenHaircut =
+        int256 nTokenHaircut =
             int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
-        int256 perpetualTokensToLiquidate =
-            collateralRemaining
-                .mul(balanceState.storedNTokenBalance)
-                .mul(perpetualTokenHaircut)
-                .div(factors.nTokenValue.mul(perpetualTokenLiquidationHaircut));
+        int256 nTokensToLiquidate =
+            collateralRemaining.mul(balanceState.storedNTokenBalance).mul(nTokenHaircut).div(
+                factors.nTokenValue.mul(nTokenLiquidationHaircut)
+            );
 
-        if (
-            maxPerpetualTokenLiquidation > 0 &&
-            perpetualTokensToLiquidate > maxPerpetualTokenLiquidation
-        ) {
-            perpetualTokensToLiquidate = maxPerpetualTokenLiquidation;
+        if (maxNTokenLiquidation > 0 && nTokensToLiquidate > maxNTokenLiquidation) {
+            nTokensToLiquidate = maxNTokenLiquidation;
         }
 
-        if (perpetualTokensToLiquidate > balanceState.storedNTokenBalance) {
-            perpetualTokensToLiquidate = balanceState.storedNTokenBalance;
+        if (nTokensToLiquidate > balanceState.storedNTokenBalance) {
+            nTokensToLiquidate = balanceState.storedNTokenBalance;
         }
 
-        balanceState.netNTokenTransfer = perpetualTokensToLiquidate.neg();
+        balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
+        // NOTE: it's possible that this results in > MAX_LIQUIDATION_PORTION in PV terms. However, it will not be more than
+        // the liquidateHaircutPercentage which will be set to a nominal amount. Since MAX_LIQUIDATION_PORTION is arbitrary we
+        // don't put too much emphasis on this and allow it to occur.
         collateralRemaining = collateralRemaining.subNoNeg(
-            // collateralToRaise = (perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage) / perpetualTokenBalance
-            perpetualTokensToLiquidate
+            // collateralToRaise = (nTokenToLiquidate * nTokenPV * liquidateHaircutPercentage) / nTokenBalance
+            nTokensToLiquidate
                 .mul(factors.nTokenValue)
-                .mul(perpetualTokenLiquidationHaircut)
-                .div(perpetualTokenHaircut)
+                .mul(nTokenLiquidationHaircut)
+                .div(nTokenHaircut)
                 .div(balanceState.storedNTokenBalance)
         );
 
@@ -514,6 +500,9 @@ library Liquidation {
         int256[] fCashNotionalTransfers;
     }
 
+    /// @notice Allows the liquidator to purchase fCash in the same currency that a debt is denominated in. Ut's
+    /// also possible that there is no debt in the local currency, in that case the liquidated account will gain the
+    /// benefit of the difference between the discounted fCash value and the cash
     function liquidatefCashLocal(
         address liquidateAccount,
         uint256 localCurrency,
@@ -542,13 +531,13 @@ library Liquidation {
 
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
-                getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
+                _getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
             if (notional == 0) continue;
 
             // We know that liquidation discount > risk adjusted discount because they are required to
             // be this way when setting cash group variables.
             (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
-                calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime);
+                _calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime);
 
             // The benefit to the liquidated account is the difference between the liquidation discount factor
             // and the risk adjusted discount factor:
@@ -558,7 +547,7 @@ library Liquidation {
                 liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)
             );
 
-            c.fCashNotionalTransfers[i] = calculateMaxLiquidationAmount(
+            c.fCashNotionalTransfers[i] = _calculateMaxLiquidationAmount(
                 c.fCashNotionalTransfers[i],
                 notional,
                 int256(maxfCashLiquidateAmounts[i])
@@ -582,7 +571,7 @@ library Liquidation {
         }
     }
 
-    function calculateCrossCurrencyfCashToLiquidate(
+    function _calculateCrossCurrencyfCashToLiquidate(
         fCashContext memory c,
         uint256 maturity,
         uint256 blockTime,
@@ -590,10 +579,10 @@ library Liquidation {
         int256 notional
     ) private view returns (int256) {
         (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
-            calculatefCashDiscounts(c.factors, maturity, blockTime);
+            _calculatefCashDiscounts(c.factors, maturity, blockTime);
 
         // collateralPurchased = fCashToLiquidate * fCashDiscountFactor
-        // (see: calculateCollateralToRaise)
+        // (see: _calculateCollateralToRaise)
         // collateralBenefit = collateralPurchased * (localBuffer / liquidationDiscount - collateralHaircut)
         // totalBenefit = fCashBenefit + collateralBenefit
         // totalBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
@@ -608,13 +597,12 @@ library Liquidation {
         // ]
         int256 benefitMultiplier;
         {
-            int256 termTwo =
-                (
+            // prettier-ignore
+            int256 termTwo = (
                     c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
                         c.liquidationDiscount
                     )
-                )
-                    .sub(c.factors.collateralETHRate.haircut);
+                ).sub(c.factors.collateralETHRate.haircut);
             termTwo = liquidationDiscountFactor.mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
             int256 termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
             benefitMultiplier = termOne.add(termTwo);
@@ -622,7 +610,7 @@ library Liquidation {
 
         int256 fCashToLiquidate =
             c.benefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
-        fCashToLiquidate = calculateMaxLiquidationAmount(
+        fCashToLiquidate = _calculateMaxLiquidationAmount(
             fCashToLiquidate,
             notional,
             maxfCashLiquidateAmount
@@ -630,7 +618,7 @@ library Liquidation {
 
         // Ensures that local available does not go above zero and collateral available does not go below zero
         int256 localToPurchase;
-        (fCashToLiquidate, localToPurchase) = limitPurchaseByAvailableAmounts(
+        (fCashToLiquidate, localToPurchase) = _limitPurchaseByAvailableAmounts(
             c,
             liquidationDiscountFactor,
             riskAdjustedDiscountFactor,
@@ -651,7 +639,9 @@ library Liquidation {
         return fCashToLiquidate;
     }
 
-    function limitPurchaseByAvailableAmounts(
+    /// @dev Limits the fCash purchase to ensure that collateral available and local available do not go below zero,
+    /// in both those cases the liquidated account would incur debt
+    function _limitPurchaseByAvailableAmounts(
         fCashContext memory c,
         int256 liquidationDiscountFactor,
         int256 riskAdjustedDiscountFactor,
@@ -674,7 +664,7 @@ library Liquidation {
         }
 
         int256 localToPurchase;
-        (fCashToLiquidate, localToPurchase) = calculateLocalToPurchase(
+        (fCashToLiquidate, localToPurchase) = _calculateLocalToPurchase(
             c.factors,
             c.liquidationDiscount,
             fCashLiquidationPV,
@@ -692,6 +682,7 @@ library Liquidation {
         return (fCashToLiquidate, localToPurchase);
     }
 
+    /// @notice Allows the liquidator to purchase fCash in a different currency that a debt is denominated in.
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
         uint256 collateralCurrency,
@@ -704,16 +695,16 @@ library Liquidation {
         require(c.factors.collateralAvailable > 0, "No collateral assets");
 
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
-        (c.benefitRequired, c.liquidationDiscount) = calculateCrossCurrencyBenefitAndDiscount(
+        (c.benefitRequired, c.liquidationDiscount) = _calculateCrossCurrencyBenefitAndDiscount(
             c.factors
         );
 
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
-                getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
+                _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
             if (notional == 0) continue;
 
-            c.fCashNotionalTransfers[i] = calculateCrossCurrencyfCashToLiquidate(
+            c.fCashNotionalTransfers[i] = _calculateCrossCurrencyfCashToLiquidate(
                 c,
                 fCashMaturities[i],
                 blockTime,
@@ -737,8 +728,7 @@ library Liquidation {
     /// @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
     /// liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
     /// not create new assets, the net fCash asset will replace the liquidity token asset.
-
-    function withdrawLocalLiquidityTokens(
+    function _withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
         uint256 blockTime,
@@ -778,7 +768,7 @@ library Liquidation {
                     Constants.PERCENTAGE_DECIMALS
                 );
             }
-            w.incentivePaid = w.netCashIncrease.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(
+            w.incentivePaid = w.netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
                 Constants.PERCENTAGE_DECIMALS
             );
 
@@ -796,9 +786,9 @@ library Liquidation {
                     w.netCashIncrease.sub(w.incentivePaid);
             } else {
                 // incentivePaid
-                w.incentivePaid = assetAmountRemaining.mul(TOKEN_REPO_INCENTIVE_PERCENT).div(
-                    Constants.PERCENTAGE_DECIMALS
-                );
+                w.incentivePaid = assetAmountRemaining
+                    .mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT)
+                    .div(Constants.PERCENTAGE_DECIMALS);
 
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 int256 tokensToRemove =
@@ -832,8 +822,7 @@ library Liquidation {
 
     /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
     /// haircut amounts, we simply withdraw as much collateral as needed.
-
-    function withdrawCollateralLiquidityTokens(
+    function _withdrawCollateralLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
         uint256 blockTime,
