@@ -198,7 +198,11 @@ library InitializeMarketsAction {
                     // index referenced in the previous quarter because the markets array refers to previous
                     // markets in this case.
                     (uint256 marketIndex, bool idiosyncratic) =
-                        nToken.cashGroup.getMarketIndex(maturity, blockTime - Constants.QUARTER);
+                        DateTime.getMarketIndex(
+                            nToken.cashGroup.maxMarketIndex,
+                            maturity,
+                            blockTime - Constants.QUARTER
+                        );
                     // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
                     require(!idiosyncratic); // dev: fail on market index
 

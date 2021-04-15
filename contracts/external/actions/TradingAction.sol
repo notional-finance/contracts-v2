@@ -52,7 +52,6 @@ library TradingAction {
         for (uint256 i; i < trades.length; i++) {
             uint256 maturity;
             (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
-                account,
                 cashGroup,
                 markets,
                 trades[i],
@@ -110,7 +109,6 @@ library TradingAction {
             } else {
                 uint256 maturity;
                 (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
-                    account,
                     cashGroup,
                     markets,
                     trades[i],
@@ -141,7 +139,6 @@ library TradingAction {
     }
 
     function _executeTrade(
-        address account,
         CashGroupParameters memory cashGroup,
         // TODO: refactor this to get rid of the markets array
         MarketParameters[] memory markets,
@@ -414,7 +411,10 @@ library TradingAction {
         require(maturity > blockTime, "Invalid maturity");
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
         // it is an idiosyncratic maturity)
-        require(!cashGroup.isValidMaturity(maturity, blockTime), "Invalid maturity");
+        require(
+            !DateTime.isValidMaturity(cashGroup.maxMarketIndex, maturity, blockTime),
+            "Invalid maturity"
+        );
 
         address nTokenAddress = nTokenHandler.nTokenAddress(cashGroup.currencyId);
         // prettier-ignore

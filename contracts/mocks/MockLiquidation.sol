@@ -80,6 +80,7 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
         LiquidationFactors memory factors
     )
         external
+        view
         returns (
             BalanceState memory,
             int256,
@@ -143,6 +144,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         uint256 blockTime
     )
         external
+        view
         returns (
             int256[] memory,
             int256,

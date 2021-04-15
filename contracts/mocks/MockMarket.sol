@@ -196,7 +196,7 @@ contract MockMarket is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 timeToMaturity,
         uint256 maxfCashDelta
-    ) external view returns (int256) {
+    ) external pure returns (int256) {
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         // Rate scalar can never be zero so this signifies a failure and we return zero

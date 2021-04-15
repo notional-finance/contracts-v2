@@ -162,7 +162,11 @@ library AssetHandler {
         MarketParameters memory market;
         {
             (uint256 marketIndex, bool idiosyncratic) =
-                cashGroup.getMarketIndex(liquidityToken.maturity, blockTime);
+                DateTime.getMarketIndex(
+                    cashGroup.maxMarketIndex,
+                    liquidityToken.maturity,
+                    blockTime
+                );
             // Liquidity tokens can never be idiosyncractic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
             // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.

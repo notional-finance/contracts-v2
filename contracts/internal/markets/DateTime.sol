@@ -3,8 +3,11 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../global/Constants.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library DateTime {
+    using SafeMath for uint256;
+
     /// @notice Returns the current reference time which is how all the AMM dates are calculated.
     function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {
         require(blockTime > Constants.QUARTER);
@@ -31,6 +34,59 @@ library DateTime {
         if (index == 7) return 20 * Constants.YEAR;
 
         revert("CG: invalid index");
+    }
+
+    /// @notice Determines if the maturity falls on one of the valid on chain market dates.
+    function isValidMarketMaturity(
+        uint256 maxMarketIndex,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (bool) {
+        require(maxMarketIndex > 0, "CG: no markets listed");
+        require(maxMarketIndex < 10, "CG: market index bound");
+
+        if (maturity % Constants.QUARTER != 0) return false;
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+
+        for (uint256 i = 1; i <= maxMarketIndex; i++) {
+            if (maturity == tRef.add(DateTime.getTradedMarket(i))) return true;
+        }
+
+        return false;
+    }
+
+    /// @notice Determines if an idiosyncratic maturity is valid and returns the bit reference that is the case.
+    function isValidMaturity(
+        uint256 maxMarketIndex,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (bool) {
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+        uint256 maxMaturity = tRef.add(DateTime.getTradedMarket(maxMarketIndex));
+        if (maturity > maxMaturity) return false;
+
+        // prettier-ignore
+        (/* */, bool isValid) = DateTime.getBitNumFromMaturity(blockTime, maturity);
+        return isValid;
+    }
+
+    /// @notice Returns the market index for a given maturity
+    function getMarketIndex(
+        uint256 maxMarketIndex,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (uint256, bool) {
+        require(maxMarketIndex > 0, "CG: no markets listed");
+        require(maxMarketIndex < 10, "CG: market index bound");
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+
+        for (uint256 i = 1; i <= maxMarketIndex; i++) {
+            uint256 marketMaturity = tRef.add(DateTime.getTradedMarket(i));
+            if (marketMaturity == maturity) return (i, false);
+            if (marketMaturity > maturity) return (i, true);
+        }
+
+        revert("CG: no market found");
     }
 
     /// @notice Given a bit number and the reference time of the first bit, returns the bit number

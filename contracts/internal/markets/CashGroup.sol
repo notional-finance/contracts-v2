@@ -118,61 +118,6 @@ library CashGroup {
             (5 * Constants.BASIS_POINT);
     }
 
-    /// @notice Determines if the maturity falls on one of the valid on chain market dates.
-    function isValidMaturity(
-        CashGroupParameters memory cashGroup,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal pure returns (bool) {
-        uint256 maxMarketIndex = cashGroup.maxMarketIndex;
-        require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex < 10, "CG: market index bound");
-
-        if (maturity % Constants.QUARTER != 0) return false;
-        uint256 tRef = DateTime.getReferenceTime(blockTime);
-
-        for (uint256 i = 1; i <= maxMarketIndex; i++) {
-            if (maturity == tRef.add(DateTime.getTradedMarket(i))) return true;
-        }
-
-        return false;
-    }
-
-    /// @notice Determines if an idiosyncratic maturity is valid and returns the bit reference that is the case.
-    function isValidIdiosyncraticMaturity(
-        CashGroupParameters memory cashGroup,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal pure returns (bool) {
-        uint256 tRef = DateTime.getReferenceTime(blockTime);
-        uint256 maxMaturity = tRef.add(DateTime.getTradedMarket(cashGroup.maxMarketIndex));
-        if (maturity > maxMaturity) return false;
-
-        // prettier-ignore
-        ( /* */, bool isValid) = DateTime.getBitNumFromMaturity(blockTime, maturity);
-        return isValid;
-    }
-
-    /// @notice Returns the market index for a given maturity
-    function getMarketIndex(
-        CashGroupParameters memory cashGroup,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal pure returns (uint256, bool) {
-        uint256 maxMarketIndex = cashGroup.maxMarketIndex;
-        require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex < 10, "CG: market index bound");
-        uint256 tRef = DateTime.getReferenceTime(blockTime);
-
-        for (uint256 i = 1; i <= maxMarketIndex; i++) {
-            uint256 marketMaturity = tRef.add(DateTime.getTradedMarket(i));
-            if (marketMaturity == maturity) return (i, false);
-            if (marketMaturity > maturity) return (i, true);
-        }
-
-        revert("CG: no market found");
-    }
-
     function getMarket(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
@@ -248,7 +193,7 @@ library CashGroup {
         uint256 blockTime
     ) internal view returns (uint256) {
         (uint256 marketIndex, bool idiosyncractic) =
-            getMarketIndex(cashGroup, assetMaturity, blockTime);
+            DateTime.getMarketIndex(cashGroup.maxMarketIndex, assetMaturity, blockTime);
         MarketParameters memory market =
             getMarket(cashGroup, markets, marketIndex, blockTime, false);
 
@@ -305,6 +250,12 @@ library CashGroup {
         }
 
         return data;
+    }
+
+    /// @dev Helper method for validating maturities in ERC1155Action
+    function getMaxMarketIndex(uint256 currencyId) internal view returns (uint8) {
+        bytes32 data = _getCashGroupStorageBytes(currencyId);
+        return uint8(data[31]);
     }
 
     /// @notice Checks all cash group settings for invalid values and sets them into storage

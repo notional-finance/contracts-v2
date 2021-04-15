@@ -20,7 +20,7 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
     bytes4 internal constant ERC1155_BATCH_ACCEPTED = 0xbc197c81;
     bytes4 internal constant ERC1155_INTERFACE = 0xd9b67a26;
 
-    function supportsInterface(bytes4 interfaceId) external override view returns (bool) {
+    function supportsInterface(bytes4 interfaceId) external override pure returns (bool) {
         return interfaceId == ERC1155_INTERFACE;
     }
 
@@ -33,10 +33,8 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
     }
 
     function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external override {
-        require(to != address(0), "Invalid address");
-        require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
         require(amount <= uint(type(int).max)); // dev: int overflow
-        // ensure not perpetual token
+        _validateAccounts(from, to);
 
         PortfolioAsset[] memory assets = new PortfolioAsset[](1);
         (
@@ -45,6 +43,7 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
             assets[0].assetType
         ) = TransferAssets.decodeAssetId(id);
         assets[0].notional = int(amount);
+        _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
 
         AccountContext memory fromContext = _transfer(from, to, assets);
 
@@ -67,11 +66,9 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
     }
 
     function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external override {
-        require(to != address(0), "Invalid address");
-        require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
-        // ensure not perpetual token
+        _validateAccounts(from, to);
 
-        PortfolioAsset[] memory assets; // = decodeToAssets(ids, amounts);
+        PortfolioAsset[] memory assets = decodeToAssets(ids, amounts);
         AccountContext memory fromContext = _transfer(from, to, assets);
 
         emit TransferBatch(msg.sender, from, to, ids, amounts);
@@ -93,7 +90,35 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         _checkPostTransferEvent(from, fromContext, data);
     }
 
-    function decodeToAssets(uint[] calldata ids, uint[] calldata amounts) public pure returns (PortfolioAsset[] memory) {
+    function _validateAccounts(address from, address to) private view {
+        require(to != address(0), "Invalid address");
+        require(from != to, "Invalid address");
+        require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
+        _assertNotNToken(from);
+        _assertNotNToken(to);
+    }
+
+    function _assertNotNToken(address account) private view {
+        // prettier-ignore
+        (
+            uint256 currencyId,
+            /* uint totalSupply */,
+            /* incentiveRate */,
+            /* lastInitializedTime */,
+            /* parameters */
+        ) = nTokenHandler.getNTokenContext(account);
+        require(currencyId == 0, "Cannot transfer to nToken");
+    }
+
+    function _assertValidMaturity(uint currencyId, uint maturity, uint blockTime) private view {
+        require(
+            DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
+            "Invalid maturity"
+        );
+    }
+
+    function decodeToAssets(uint[] calldata ids, uint[] calldata amounts) public view returns (PortfolioAsset[] memory) {
+        uint blockTime = block.timestamp;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
         for (uint i; i < ids.length; i++) {
             (
@@ -103,8 +128,7 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
             ) = TransferAssets.decodeAssetId(ids[i]);
 
             require(amounts[i] <= uint(type(int).max)); // dev: int overflow
-            // TODO: FIX ME
-            // require(CashGroup.isValidIdiosyncraticMaturity(assets[i].maturity), "Invalid maturity"); // dev: int overflow
+            _assertValidMaturity(assets[i].currencyId, assets[i].maturity, blockTime);
             assets[i].notional = int(amounts[i]);
         }
 

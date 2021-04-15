@@ -273,7 +273,7 @@ library LiquidatefCash {
         uint256[] calldata maxfCashLiquidateAmounts,
         fCashContext memory c,
         uint256 blockTime
-    ) internal {
+    ) internal view {
         require(c.factors.localAvailable < 0, "No local debt");
         require(c.factors.collateralAvailable > 0, "No collateral assets");
 

@@ -259,5 +259,7 @@ library LiquidationHelpers {
             assets[i].notional = fCashNotionalTransfers[i];
             assets[i].maturity = fCashMaturities[i];
         }
+
+        return assets;
     }
 }
