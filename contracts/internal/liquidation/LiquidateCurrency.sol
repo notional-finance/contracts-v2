@@ -2,185 +2,20 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./AccountContextHandler.sol";
-import "./valuation/AssetHandler.sol";
-import "./valuation/ExchangeRate.sol";
-import "./markets/CashGroup.sol";
-import "./portfolio/BitmapAssetsHandler.sol";
-import "./portfolio/PortfolioHandler.sol";
-import "./balances/BalanceHandler.sol";
-import "../external/FreeCollateralExternal.sol";
+import "./LiquidationHelpers.sol";
+import "../valuation/ExchangeRate.sol";
+import "../markets/CashGroup.sol";
+import "../portfolio/BitmapAssetsHandler.sol";
+import "../portfolio/PortfolioHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-library Liquidation {
-    using SafeMath for uint256;
+library LiquidateCurrency {
     using SafeInt256 for int256;
-    using BalanceHandler for BalanceState;
     using ExchangeRate for ETHRate;
-    using AssetRate for AssetRateParameters;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
-    using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
-
-    /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
-    function preLiquidationActions(
-        address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
-    )
-        internal
-        returns (
-            AccountContext memory,
-            LiquidationFactors memory,
-            PortfolioState memory
-        )
-    {
-        require(localCurrency != 0);
-        // Collateral currency must be unset or not equal to the local currency
-        require(collateralCurrency == 0 || collateralCurrency != localCurrency);
-        (
-            AccountContext memory accountContext,
-            LiquidationFactors memory factors,
-            PortfolioAsset[] memory portfolio
-        ) =
-            FreeCollateralExternal.getLiquidationFactors(
-                liquidateAccount,
-                localCurrency,
-                collateralCurrency
-            );
-
-        PortfolioState memory portfolioState =
-            PortfolioState({
-                storedAssets: portfolio,
-                newAssets: new PortfolioAsset[](0),
-                lastNewAssetIndex: 0,
-                storedAssetLength: portfolio.length
-            });
-
-        return (accountContext, factors, portfolioState);
-    }
-
-    /// @notice We allow liquidators to purchase up to Constants.MAX_LIQUIDATION_PORTION percentage of collateral
-    /// assets during liquidation to recollateralize an account as long as it does not also put the account
-    /// further into negative free collateral (i.e. constraints on local available and collateral available).
-    /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
-    /// purchase so we also enforce that limit here.
-    function _calculateMaxLiquidationAmount(
-        int256 initialAmountToLiquidate,
-        int256 maxTotalBalance,
-        int256 userSpecifiedMaximum
-    ) private pure returns (int256) {
-        int256 maxAllowedAmount =
-            maxTotalBalance.mul(Constants.MAX_LIQUIDATION_PORTION).div(
-                Constants.PERCENTAGE_DECIMALS
-            );
-
-        int256 result = initialAmountToLiquidate;
-
-        if (initialAmountToLiquidate > maxTotalBalance) {
-            result = maxTotalBalance;
-        }
-
-        if (initialAmountToLiquidate < maxAllowedAmount) {
-            // Allow the liquidator to go up to the max allowed amount
-            result = maxAllowedAmount;
-        }
-
-        if (userSpecifiedMaximum > 0 && result > userSpecifiedMaximum) {
-            // Do not allow liquidation above the user specified maximum
-            result = userSpecifiedMaximum;
-        }
-
-        return result;
-    }
-
-    /// @dev Calculates factors when liquidating across two currencies
-    function _calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
-        private
-        pure
-        returns (int256, int256)
-    {
-        int256 liquidationDiscount;
-        // This calculation returns the amount of benefit that selling collateral for local currency will
-        // be back to the account.
-        int256 benefitRequired =
-            factors
-                .collateralETHRate
-                .convertETHTo(factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-            // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
-            // collateral with a zero haircut will have no net benefit back to the liquidated account.
-                .div(factors.collateralETHRate.haircut);
-
-        if (
-            factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount
-        ) {
-            liquidationDiscount = factors.collateralETHRate.liquidationDiscount;
-        } else {
-            liquidationDiscount = factors.localETHRate.liquidationDiscount;
-        }
-
-        return (benefitRequired, liquidationDiscount);
-    }
-
-    /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
-    /// is not so large that the account is put further into debt.
-    function _calculateLocalToPurchase(
-        LiquidationFactors memory factors,
-        int256 liquidationDiscount,
-        int256 collateralPresentValue,
-        int256 collateralBalanceToSell
-    ) private pure returns (int256, int256) {
-        // Converts collateral present value to the local amount along with the liquidation discount.
-        // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 localToPurchase =
-            collateralPresentValue
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .mul(factors.localETHRate.rateDecimals)
-                .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
-                .div(liquidationDiscount);
-
-        if (localToPurchase > factors.localAvailable.neg()) {
-            // If the local to purchase will put the local available into negative territory we
-            // have to cut the collateral purchase amount back. Putting local available into negative
-            // territory will force the liquidated account to incur more debt.
-            collateralBalanceToSell = collateralBalanceToSell.mul(factors.localAvailable.neg()).div(
-                localToPurchase
-            );
-
-            localToPurchase = factors.localAvailable.neg();
-        }
-
-        return (collateralBalanceToSell, localToPurchase);
-    }
-
-    /// @notice Calculates the two discount factors relevant when liquidating fCash.
-    function _calculatefCashDiscounts(
-        LiquidationFactors memory factors,
-        uint256 maturity,
-        uint256 blockTime
-    ) private view returns (int256, int256) {
-        uint256 oracleRate = factors.cashGroup.getOracleRate(factors.markets, maturity, blockTime);
-
-        uint256 timeToMaturity = maturity.sub(blockTime);
-        // This is the discount factor used to calculate the fCash present value during free collateral
-        int256 riskAdjustedDiscountFactor =
-            AssetHandler.getDiscountFactor(
-                timeToMaturity,
-                oracleRate.add(factors.cashGroup.getfCashHaircut())
-            );
-        // This is the discount factor that liquidators get to purchase fCash at, will be larger than
-        // the risk adjusted discount factor.
-        int256 liquidationDiscountFactor =
-            AssetHandler.getDiscountFactor(
-                timeToMaturity,
-                oracleRate.add(factors.cashGroup.getLiquidationfCashHaircut())
-            );
-
-        return (riskAdjustedDiscountFactor, liquidationDiscountFactor);
-    }
 
     function _hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
         private
@@ -197,37 +32,6 @@ library Liquidation {
         }
 
         return false;
-    }
-
-    /// @dev Helper function because of two portfolio types
-    function _getfCashNotional(
-        address liquidateAccount,
-        fCashContext memory context,
-        uint256 currencyId,
-        uint256 maturity
-    ) private view returns (int256) {
-        if (context.accountContext.bitmapCurrencyId == currencyId) {
-            int256 notional =
-                BitmapAssetsHandler.getifCashNotional(liquidateAccount, currencyId, maturity);
-            require(notional > 0, "Invalid fCash asset");
-        }
-
-        PortfolioAsset[] memory portfolio = context.portfolio.storedAssets;
-        for (uint256 i; i < portfolio.length; i++) {
-            if (
-                portfolio[i].currencyId == currencyId &&
-                portfolio[i].assetType == Constants.FCASH_ASSET_TYPE &&
-                portfolio[i].maturity == maturity
-            ) {
-                require(portfolio[i].notional > 0, "Invalid fCash asset");
-                return portfolio[i].notional;
-            }
-        }
-
-        // If asset is not found then we return zero instead of failing in the case that a previous
-        // liquidation has already liquidated the specified fCash asset. This liquidation can continue
-        // to the next specified fCash asset.
-        return 0;
     }
 
     /// @notice Liquidates an account by converting their local currency collateral into cash and
@@ -280,7 +84,7 @@ library Liquidation {
                 );
             }
 
-            nTokensToLiquidate = _calculateMaxLiquidationAmount(
+            nTokensToLiquidate = LiquidationHelpers.calculateMaxLiquidationAmount(
                 nTokensToLiquidate,
                 balanceState.storedNTokenBalance,
                 int256(maxNTokenLiquidation)
@@ -365,7 +169,7 @@ library Liquidation {
             (
                 /* collateralToRaise */,
                 localToPurchase
-            ) = _calculateLocalToPurchase(
+            ) = LiquidationHelpers.calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
                 collateralToRaise.sub(collateralRemaining),
@@ -391,7 +195,7 @@ library Liquidation {
         )
     {
         (int256 benefitRequired, int256 liquidationDiscount) =
-            _calculateCrossCurrencyBenefitAndDiscount(factors);
+            LiquidationHelpers.calculateCrossCurrencyBenefitAndDiscount(factors);
         int256 collateralToRaise;
         {
             // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
@@ -414,14 +218,14 @@ library Liquidation {
             collateralToRaise = benefitRequired.mul(Constants.PERCENTAGE_DECIMALS).div(denominator);
         }
 
-        collateralToRaise = _calculateMaxLiquidationAmount(
+        collateralToRaise = LiquidationHelpers.calculateMaxLiquidationAmount(
             collateralToRaise,
             factors.collateralAvailable,
             0 // will check userSpecifiedAmount below
         );
 
         int256 localToPurchase;
-        (collateralToRaise, localToPurchase) = _calculateLocalToPurchase(
+        (collateralToRaise, localToPurchase) = LiquidationHelpers.calculateLocalToPurchase(
             factors,
             liquidationDiscount,
             collateralToRaise,
@@ -436,7 +240,7 @@ library Liquidation {
             (
                 /* collateralToRaise */,
                 localToPurchase
-            ) = _calculateLocalToPurchase(
+            ) = LiquidationHelpers.calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
                 collateralToRaise,
@@ -488,232 +292,6 @@ library Liquidation {
         );
 
         return collateralRemaining;
-    }
-
-    struct fCashContext {
-        AccountContext accountContext;
-        LiquidationFactors factors;
-        PortfolioState portfolio;
-        int256 benefitRequired;
-        int256 localToPurchase;
-        int256 liquidationDiscount;
-        int256[] fCashNotionalTransfers;
-    }
-
-    /// @notice Allows the liquidator to purchase fCash in the same currency that a debt is denominated in. Ut's
-    /// also possible that there is no debt in the local currency, in that case the liquidated account will gain the
-    /// benefit of the difference between the discounted fCash value and the cash
-    function liquidatefCashLocal(
-        address liquidateAccount,
-        uint256 localCurrency,
-        uint256[] calldata fCashMaturities,
-        uint256[] calldata maxfCashLiquidateAmounts,
-        fCashContext memory c,
-        uint256 blockTime
-    ) internal view {
-        if (c.factors.localAvailable > 0) {
-            // If local available is positive then we can bring it down to zero
-            c.benefitRequired = c
-                .factors
-                .localETHRate
-                .convertETHTo(c.factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(c.factors.localETHRate.haircut);
-        } else {
-            // If local available is negative then we can bring it up to zero
-            c.benefitRequired = c
-                .factors
-                .localAvailable
-                .neg()
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(c.factors.localETHRate.buffer);
-        }
-
-        for (uint256 i; i < fCashMaturities.length; i++) {
-            int256 notional =
-                _getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
-            if (notional == 0) continue;
-
-            // We know that liquidation discount > risk adjusted discount because they are required to
-            // be this way when setting cash group variables.
-            (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
-                _calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime);
-
-            // The benefit to the liquidated account is the difference between the liquidation discount factor
-            // and the risk adjusted discount factor:
-            // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            // fCash = localCurrencyBeneift / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            c.fCashNotionalTransfers[i] = c.benefitRequired.mul(Constants.RATE_PRECISION).div(
-                liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)
-            );
-
-            c.fCashNotionalTransfers[i] = _calculateMaxLiquidationAmount(
-                c.fCashNotionalTransfers[i],
-                notional,
-                int256(maxfCashLiquidateAmounts[i])
-            );
-
-            // Calculate the amount of local currency required from the liquidator
-            c.localToPurchase = c.localToPurchase.add(
-                c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
-                    Constants.RATE_PRECISION
-                )
-            );
-
-            // Deduct the total benefit gained from liquidating this fCash position
-            c.benefitRequired = c.benefitRequired.sub(
-                c.fCashNotionalTransfers[i]
-                    .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
-                    .div(Constants.RATE_PRECISION)
-            );
-
-            if (c.benefitRequired <= 0) break;
-        }
-    }
-
-    function _calculateCrossCurrencyfCashToLiquidate(
-        fCashContext memory c,
-        uint256 maturity,
-        uint256 blockTime,
-        int256 maxfCashLiquidateAmount,
-        int256 notional
-    ) private view returns (int256) {
-        (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
-            _calculatefCashDiscounts(c.factors, maturity, blockTime);
-
-        // collateralPurchased = fCashToLiquidate * fCashDiscountFactor
-        // (see: _calculateCollateralToRaise)
-        // collateralBenefit = collateralPurchased * (localBuffer / liquidationDiscount - collateralHaircut)
-        // totalBenefit = fCashBenefit + collateralBenefit
-        // totalBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
-        //      fCashToLiquidate * liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut)
-        // totalBenefit = fCashToLiquidate * [
-        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
-        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
-        // ]
-        // fCashToLiquidate = totalBenefit / [
-        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
-        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
-        // ]
-        int256 benefitMultiplier;
-        {
-            // prettier-ignore
-            int256 termTwo = (
-                    c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
-                        c.liquidationDiscount
-                    )
-                ).sub(c.factors.collateralETHRate.haircut);
-            termTwo = liquidationDiscountFactor.mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
-            int256 termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
-            benefitMultiplier = termOne.add(termTwo);
-        }
-
-        int256 fCashToLiquidate =
-            c.benefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
-        fCashToLiquidate = _calculateMaxLiquidationAmount(
-            fCashToLiquidate,
-            notional,
-            maxfCashLiquidateAmount
-        );
-
-        // Ensures that local available does not go above zero and collateral available does not go below zero
-        int256 localToPurchase;
-        (fCashToLiquidate, localToPurchase) = _limitPurchaseByAvailableAmounts(
-            c,
-            liquidationDiscountFactor,
-            riskAdjustedDiscountFactor,
-            fCashToLiquidate
-        );
-
-        // inverse of initial fCashToLiquidate calculation above
-        // totalBenefit = fCashToLiquidate * [
-        //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
-        //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
-        // ]
-        int256 benefitGained =
-            fCashToLiquidate.mul(benefitMultiplier).div(Constants.RATE_PRECISION);
-
-        c.benefitRequired = c.benefitRequired.sub(benefitGained);
-        c.localToPurchase = c.localToPurchase.add(localToPurchase);
-
-        return fCashToLiquidate;
-    }
-
-    /// @dev Limits the fCash purchase to ensure that collateral available and local available do not go below zero,
-    /// in both those cases the liquidated account would incur debt
-    function _limitPurchaseByAvailableAmounts(
-        fCashContext memory c,
-        int256 liquidationDiscountFactor,
-        int256 riskAdjustedDiscountFactor,
-        int256 fCashToLiquidate
-    ) private pure returns (int256, int256) {
-        // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
-        // this is the discounted value that the liquidator will purchase it at.
-        int256 fCashLiquidationPV =
-            fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
-        int256 fCashBenefit =
-            fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)).div(
-                Constants.RATE_PRECISION
-            );
-
-        // Ensures that collateralAvailable does not go below zero
-        if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
-            fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
-                liquidationDiscountFactor
-            );
-        }
-
-        int256 localToPurchase;
-        (fCashToLiquidate, localToPurchase) = _calculateLocalToPurchase(
-            c.factors,
-            c.liquidationDiscount,
-            fCashLiquidationPV,
-            fCashToLiquidate
-        );
-
-        // As we liquidate here the local available and collateral available will change. Update values accordingly so
-        // that the limits will be hit on subsequent iterations.
-        c.factors.collateralAvailable = c.factors.collateralAvailable.sub(
-            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION)
-        );
-        // Local available does not have any buffers applied to it
-        c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
-
-        return (fCashToLiquidate, localToPurchase);
-    }
-
-    /// @notice Allows the liquidator to purchase fCash in a different currency that a debt is denominated in.
-    function liquidatefCashCrossCurrency(
-        address liquidateAccount,
-        uint256 collateralCurrency,
-        uint256[] calldata fCashMaturities,
-        uint256[] calldata maxfCashLiquidateAmounts,
-        fCashContext memory c,
-        uint256 blockTime
-    ) internal {
-        require(c.factors.localAvailable < 0, "No local debt");
-        require(c.factors.collateralAvailable > 0, "No collateral assets");
-
-        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
-        (c.benefitRequired, c.liquidationDiscount) = _calculateCrossCurrencyBenefitAndDiscount(
-            c.factors
-        );
-
-        for (uint256 i; i < fCashMaturities.length; i++) {
-            int256 notional =
-                _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
-            if (notional == 0) continue;
-
-            c.fCashNotionalTransfers[i] = _calculateCrossCurrencyfCashToLiquidate(
-                c,
-                fCashMaturities[i],
-                blockTime,
-                int256(maxfCashLiquidateAmounts[i]),
-                notional
-            );
-
-            if (c.benefitRequired <= 0 || c.factors.collateralAvailable <= 0) break;
-        }
     }
 
     struct WithdrawFactors {

@@ -2,15 +2,13 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";
-import "../internal/Liquidation.sol";
+import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
-    using Liquidation for LiquidationFactors;
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {

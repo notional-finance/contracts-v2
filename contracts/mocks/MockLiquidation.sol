@@ -4,7 +4,9 @@ pragma experimental ABIEncoderV2;
 
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";
-import "../internal/Liquidation.sol";
+import "../internal/liquidation/LiquidationHelpers.sol";
+import "../internal/liquidation/LiquidateCurrency.sol";
+import "../internal/liquidation/LiquidatefCash.sol";
 import "../global/StorageLayoutV1.sol";
 import "./BaseMockLiquidation.sol";
 
@@ -22,7 +24,11 @@ contract MockLiquidationSetup is BaseMockLiquidation {
         )
     {
         return
-            Liquidation.preLiquidationActions(liquidateAccount, localCurrency, collateralCurrency);
+            LiquidationHelpers.preLiquidationActions(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency
+            );
     }
 }
 
@@ -47,12 +53,12 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
-        ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0);
+        ) = LiquidationHelpers.preLiquidationActions(liquidateAccount, localCurrency, 0);
         BalanceState memory liquidatedBalanceState;
         liquidatedBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
-            Liquidation.liquidateLocalCurrency(
+            LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
                 blockTime,
@@ -83,7 +89,7 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
         PortfolioState memory portfolio;
 
         int256 netLocalFromLiquidator =
-            Liquidation.liquidateLocalCurrency(
+            LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
                 blockTime,
@@ -114,7 +120,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         )
     {
         int256 localToPurchase =
-            Liquidation.liquidateCollateralCurrency(
+            LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
                 blockTime,
@@ -133,7 +139,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         uint256 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
-        Liquidation.fCashContext memory c,
+        LiquidatefCash.fCashContext memory c,
         uint256 blockTime
     )
         external
@@ -144,7 +150,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         )
     {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
-        Liquidation.liquidatefCashLocal(
+        LiquidatefCash.liquidatefCashLocal(
             liquidateAccount,
             localCurrency,
             fCashMaturities,
@@ -161,7 +167,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         uint256 collateralCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
-        Liquidation.fCashContext memory c,
+        LiquidatefCash.fCashContext memory c,
         uint256 blockTime
     )
         external
@@ -173,7 +179,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
     {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
-        Liquidation.liquidatefCashCrossCurrency(
+        LiquidatefCash.liquidatefCashCrossCurrency(
             liquidateAccount,
             collateralCurrency,
             fCashMaturities,
