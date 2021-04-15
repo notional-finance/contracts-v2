@@ -308,7 +308,7 @@ library CashGroup {
     }
 
     /// @notice Checks all cash group settings for invalid values and sets them into storage
-    function setCashGroupStorage(uint256 currencyId, CashGroupParameterStorage calldata cashGroup)
+    function setCashGroupStorage(uint256 currencyId, CashGroupSettings calldata cashGroup)
         internal
     {
         bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
@@ -377,7 +377,7 @@ library CashGroup {
     function deserializeCashGroupStorage(uint256 currencyId)
         internal
         view
-        returns (CashGroupParameterStorage memory)
+        returns (CashGroupSettings memory)
     {
         bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint8 maxMarketIndex = uint8(data[31]);
@@ -390,7 +390,7 @@ library CashGroup {
         }
 
         return
-            CashGroupParameterStorage({
+            CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
                 rateOracleTimeWindowMin: uint8(data[30]),
                 totalFeeBPS: uint8(data[29]),

@@ -112,11 +112,10 @@ library BalanceHandler {
         bool redeemToUnderlying
     ) internal returns (int256 transferAmountExternal) {
         bool mustUpdate;
-        if (balanceState.netPerpetualTokenTransfer < 0) {
+        if (balanceState.netNTokenTransfer < 0) {
             require(
-                balanceState.storedPerpetualTokenBalance.add(
-                    balanceState.netPerpetualTokenSupplyChange
-                ) >= balanceState.netPerpetualTokenTransfer.neg(),
+                balanceState.storedNTokenBalance.add(balanceState.netNTokenSupplyChange) >=
+                    balanceState.netNTokenTransfer.neg(),
                 "BH: cannot withdraw negative"
             );
         }
@@ -145,19 +144,16 @@ library BalanceHandler {
             mustUpdate = true;
         }
 
-        if (
-            balanceState.netPerpetualTokenTransfer != 0 ||
-            balanceState.netPerpetualTokenSupplyChange != 0
-        ) {
+        if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
             // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
             // of the system. This method will update the lastIncentiveClaim time in the balanceState for storage.
             Incentives.claimIncentives(balanceState, account);
 
             // Perpetual tokens are within the notional system so we can update balances directly.
-            balanceState.storedPerpetualTokenBalance = balanceState
-                .storedPerpetualTokenBalance
-                .add(balanceState.netPerpetualTokenTransfer)
-                .add(balanceState.netPerpetualTokenSupplyChange);
+            balanceState.storedNTokenBalance = balanceState
+                .storedNTokenBalance
+                .add(balanceState.netNTokenTransfer)
+                .add(balanceState.netNTokenSupplyChange);
 
             mustUpdate = true;
         }
@@ -167,7 +163,7 @@ library BalanceHandler {
                 account,
                 balanceState.currencyId,
                 balanceState.storedCashBalance,
-                balanceState.storedPerpetualTokenBalance,
+                balanceState.storedNTokenBalance,
                 balanceState.lastIncentiveClaim
             );
         }
@@ -175,7 +171,7 @@ library BalanceHandler {
         accountContext.setActiveCurrency(
             balanceState.currencyId,
             // Set active currency to true if either balance is non-zero
-            balanceState.storedCashBalance != 0 || balanceState.storedPerpetualTokenBalance != 0,
+            balanceState.storedCashBalance != 0 || balanceState.storedNTokenBalance != 0,
             Constants.ACTIVE_IN_BALANCES
         );
 
@@ -387,19 +383,19 @@ library BalanceHandler {
         if (accountContext.isActiveInBalances(currencyId)) {
             (
                 balanceState.storedCashBalance,
-                balanceState.storedPerpetualTokenBalance,
+                balanceState.storedNTokenBalance,
                 balanceState.lastIncentiveClaim
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = 0;
-            balanceState.storedPerpetualTokenBalance = 0;
+            balanceState.storedNTokenBalance = 0;
             balanceState.lastIncentiveClaim = 0;
         }
 
         balanceState.netCashChange = 0;
         balanceState.netAssetTransferInternalPrecision = 0;
-        balanceState.netPerpetualTokenTransfer = 0;
-        balanceState.netPerpetualTokenSupplyChange = 0;
+        balanceState.netNTokenTransfer = 0;
+        balanceState.netNTokenSupplyChange = 0;
     }
 
     /// @notice Used when manually claiming incentives in nTokenAction
@@ -412,7 +408,7 @@ library BalanceHandler {
             account,
             balanceState.currencyId,
             balanceState.storedCashBalance,
-            balanceState.storedPerpetualTokenBalance,
+            balanceState.storedNTokenBalance,
             balanceState.lastIncentiveClaim
         );
 

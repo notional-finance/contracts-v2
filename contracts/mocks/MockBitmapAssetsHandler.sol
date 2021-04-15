@@ -11,7 +11,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         assetToUnderlyingRateMapping[id] = rs;
     }
 
-    function setCashGroup(uint256 id, CashGroupParameterStorage calldata cg) external {
+    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 

@@ -293,10 +293,10 @@ library Liquidation {
 
             perpetualTokensToLiquidate = calculateMaxLiquidationAmount(
                 perpetualTokensToLiquidate,
-                balanceState.storedPerpetualTokenBalance,
+                balanceState.storedNTokenBalance,
                 int256(maxPerpetualTokenLiquidation)
             );
-            balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+            balanceState.netNTokenTransfer = perpetualTokensToLiquidate.neg();
 
             {
                 // fullPerpTokenPV = haircutTokenPV / haircutPercentage
@@ -314,7 +314,7 @@ library Liquidation {
                         .div(
                         int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))
                     )
-                        .div(balanceState.storedPerpetualTokenBalance);
+                        .div(balanceState.storedNTokenBalance);
 
                 balanceState.netCashChange = balanceState.netCashChange.add(localCashValue);
                 netLocalFromLiquidator = netLocalFromLiquidator.add(localCashValue);
@@ -476,7 +476,7 @@ library Liquidation {
             int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
         int256 perpetualTokensToLiquidate =
             collateralRemaining
-                .mul(balanceState.storedPerpetualTokenBalance)
+                .mul(balanceState.storedNTokenBalance)
                 .mul(perpetualTokenHaircut)
                 .div(factors.nTokenValue.mul(perpetualTokenLiquidationHaircut));
 
@@ -487,18 +487,18 @@ library Liquidation {
             perpetualTokensToLiquidate = maxPerpetualTokenLiquidation;
         }
 
-        if (perpetualTokensToLiquidate > balanceState.storedPerpetualTokenBalance) {
-            perpetualTokensToLiquidate = balanceState.storedPerpetualTokenBalance;
+        if (perpetualTokensToLiquidate > balanceState.storedNTokenBalance) {
+            perpetualTokensToLiquidate = balanceState.storedNTokenBalance;
         }
 
-        balanceState.netPerpetualTokenTransfer = perpetualTokensToLiquidate.neg();
+        balanceState.netNTokenTransfer = perpetualTokensToLiquidate.neg();
         collateralRemaining = collateralRemaining.subNoNeg(
             // collateralToRaise = (perpetualTokenToLiquidate * perpTokenPV * liquidateHaircutPercentage) / perpetualTokenBalance
             perpetualTokensToLiquidate
                 .mul(factors.nTokenValue)
                 .mul(perpetualTokenLiquidationHaircut)
                 .div(perpetualTokenHaircut)
-                .div(balanceState.storedPerpetualTokenBalance)
+                .div(balanceState.storedNTokenBalance)
         );
 
         return collateralRemaining;

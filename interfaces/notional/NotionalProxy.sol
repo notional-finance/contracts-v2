@@ -44,7 +44,7 @@ interface NotionalProxy is nTokenERC20 {
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
-        CashGroupParameterStorage calldata cashGroup
+        CashGroupSettings calldata cashGroup
     ) external;
 
     function updateDepositParameters(
@@ -70,8 +70,7 @@ interface NotionalProxy is nTokenERC20 {
         uint8 liquidationHaircutPercentage
     ) external;
 
-    function updateCashGroup(uint16 currencyId, CashGroupParameterStorage calldata cashGroup)
-        external;
+    function updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) external;
 
     function updateAssetRate(uint16 currencyId, address rateOracle) external;
 
@@ -135,10 +134,7 @@ interface NotionalProxy is nTokenERC20 {
         view
         returns (Token memory, ETHRate memory);
 
-    function getCashGroup(uint16 currencyId)
-        external
-        view
-        returns (CashGroupParameterStorage memory);
+    function getCashGroup(uint16 currencyId) external view returns (CashGroupSettings memory);
 
     function getAssetRateStorage(uint16 currencyId) external view returns (AssetRateStorage memory);
 
@@ -152,7 +148,7 @@ interface NotionalProxy is nTokenERC20 {
     function getCashGroupAndRate(uint16 currencyId)
         external
         view
-        returns (CashGroupParameterStorage memory, AssetRateParameters memory);
+        returns (CashGroupSettings memory, AssetRateParameters memory);
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
 

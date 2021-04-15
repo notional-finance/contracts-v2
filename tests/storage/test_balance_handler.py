@@ -82,7 +82,7 @@ def convert_to_internal(externalValue, externalPrecision):
     perpetualTokenBalance=strategy("uint80", max_value=10e18),
     netCashChange=strategy("int88", min_value=-10e18, max_value=10e18),
     netTransfer=strategy("int88", min_value=-10e18, max_value=10e18),
-    netPerpetualTokenTransfer=strategy("int88", min_value=-10e18, max_value=10e18),
+    netNTokenTransfer=strategy("int88", min_value=-10e18, max_value=10e18),
 )
 @settings(max_examples=10)
 def test_build_and_finalize_balances(
@@ -93,21 +93,21 @@ def test_build_and_finalize_balances(
     perpetualTokenBalance,
     netCashChange,
     netTransfer,
-    netPerpetualTokenTransfer,
+    netNTokenTransfer,
     tokens,
 ):
     # Dust accrual example
     # assetBalance = 0
     # currencyId = 1
     # netCashChange = 3
-    # netPerpetualTokenTransfer = 0
+    # netNTokenTransfer = 0
     # netTransfer = -3
     # perpetualTokenBalance = 0
     # Precision loss example
     assetBalance = 0
     currencyId = 6
     netCashChange = 0
-    netPerpetualTokenTransfer = 0
+    netNTokenTransfer = 0
     netTransfer = 83952385
     perpetualTokenBalance = 0
     active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
@@ -123,14 +123,14 @@ def test_build_and_finalize_balances(
     bsCopy = list(bs)
     bsCopy[3] = netCashChange
     bsCopy[4] = netTransfer
-    bsCopy[5] = netPerpetualTokenTransfer
+    bsCopy[5] = netNTokenTransfer
 
     # These scenarios should fail
     if netTransfer < 0 and assetBalance + netCashChange + netTransfer < 0:
         # Cannot withdraw to a negative balance
         with brownie.reverts("BH: cannot withdraw negative"):
             context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
-    elif perpetualTokenBalance + netPerpetualTokenTransfer < 0:
+    elif perpetualTokenBalance + netNTokenTransfer < 0:
         with brownie.reverts("BH: cannot withdraw negative"):
             context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
     else:
@@ -176,7 +176,7 @@ def test_build_and_finalize_balances(
             )
             assert balanceAfter - balanceBefore == transferExternal
 
-        assert bsFinal[2] == bsCopy[2] + netPerpetualTokenTransfer
+        assert bsFinal[2] == bsCopy[2] + netNTokenTransfer
 
 
 @given(

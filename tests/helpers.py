@@ -32,32 +32,28 @@ impliedRateStrategy = strategy(
 def get_balance_state(currencyId, **kwargs):
     storedCashBalance = 0 if "storedCashBalance" not in kwargs else kwargs["storedCashBalance"]
     netCashChange = 0 if "netCashChange" not in kwargs else kwargs["netCashChange"]
-    storedPerpetualTokenBalance = (
-        0 if "storedPerpetualTokenBalance" not in kwargs else kwargs["storedPerpetualTokenBalance"]
+    storedNTokenBalance = (
+        0 if "storedNTokenBalance" not in kwargs else kwargs["storedNTokenBalance"]
     )
     netAssetTransferInternalPrecision = (
         0
         if "netAssetTransferInternalPrecision" not in kwargs
         else kwargs["netAssetTransferInternalPrecision"]
     )
-    netPerpetualTokenTransfer = (
-        0 if "netPerpetualTokenTransfer" not in kwargs else kwargs["netPerpetualTokenTransfer"]
-    )
-    netPerpetualTokenSupplyChange = (
-        0
-        if "netPerpetualTokenSupplyChange" not in kwargs
-        else kwargs["netPerpetualTokenSupplyChange"]
+    netNTokenTransfer = 0 if "netNTokenTransfer" not in kwargs else kwargs["netNTokenTransfer"]
+    netNTokenSupplyChange = (
+        0 if "netNTokenSupplyChange" not in kwargs else kwargs["netNTokenSupplyChange"]
     )
     lastIncentiveClaim = 0 if "lastIncentiveClaim" not in kwargs else kwargs["lastIncentiveClaim"]
 
     return (
         currencyId,
         storedCashBalance,
-        storedPerpetualTokenBalance,
+        storedNTokenBalance,
         netCashChange,
         netAssetTransferInternalPrecision,
-        netPerpetualTokenTransfer,
-        netPerpetualTokenSupplyChange,
+        netNTokenTransfer,
+        netNTokenSupplyChange,
         lastIncentiveClaim,
     )
 

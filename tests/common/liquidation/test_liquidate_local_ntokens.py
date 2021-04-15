@@ -77,7 +77,7 @@ def test_liquidate_ntoken_no_limit(liquidation, accounts):
         1,
         0,
         START_TIME,
-        get_balance_state(1, storedCashBalance=-100e8, storedPerpetualTokenBalance=1100e8),
+        get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=1100e8),
         factors,
     ).return_value
 
@@ -111,7 +111,7 @@ def test_liquidate_ntoken_more_than_limit(liquidation, accounts):
         1,
         0,
         START_TIME,
-        get_balance_state(1, storedCashBalance=-100e8, storedPerpetualTokenBalance=110e8),
+        get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
         factors,
     ).return_value
 
@@ -145,7 +145,7 @@ def test_liquidate_ntoken_limit_to_user_specification(liquidation, accounts):
         1,
         10e8,
         START_TIME,
-        get_balance_state(1, storedCashBalance=-100e8, storedPerpetualTokenBalance=110e8),
+        get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
         factors,
     ).return_value
 

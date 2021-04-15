@@ -199,7 +199,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 incentives =
             Incentives.calculateIncentivesToClaim(
                 nTokenHandler.nTokenAddress(currencyId),
-                uint256(balanceState.storedPerpetualTokenBalance),
+                uint256(balanceState.storedNTokenBalance),
                 balanceState.lastIncentiveClaim,
                 block.timestamp
             );
@@ -268,8 +268,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
 
         int256 amountInt = SafeCast.toInt256(amount);
-        senderBalance.netPerpetualTokenTransfer = amountInt.neg();
-        recipientBalance.netPerpetualTokenTransfer = amountInt;
+        senderBalance.netNTokenTransfer = amountInt.neg();
+        recipientBalance.netNTokenTransfer = amountInt;
 
         senderBalance.finalize(sender, senderContext, false);
         recipientBalance.finalize(recipient, recipientContext, false);

@@ -51,11 +51,7 @@ contract Views is StorageLayoutV1 {
         );
     }
 
-    function getCashGroup(uint16 currencyId)
-        external
-        view
-        returns (CashGroupParameterStorage memory)
-    {
+    function getCashGroup(uint16 currencyId) external view returns (CashGroupSettings memory) {
         return CashGroup.deserializeCashGroupStorage(currencyId);
     }
 
@@ -82,9 +78,9 @@ contract Views is StorageLayoutV1 {
     function getCashGroupAndRate(uint16 currencyId)
         external
         view
-        returns (CashGroupParameterStorage memory, AssetRateParameters memory)
+        returns (CashGroupSettings memory, AssetRateParameters memory)
     {
-        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
+        CashGroupSettings memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         if (cg.maxMarketIndex == 0) {
             // No markets listed for the currency id
             return (cg, AssetRateParameters(address(0), 0, 0));
@@ -126,7 +122,7 @@ contract Views is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
+        CashGroupSettings memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         return nTokenHandler.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
@@ -135,7 +131,7 @@ contract Views is StorageLayoutV1 {
         view
         returns (int256[] memory, int256[] memory)
     {
-        CashGroupParameterStorage memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
+        CashGroupSettings memory cg = CashGroup.deserializeCashGroupStorage(currencyId);
         return nTokenHandler.getDepositParameters(currencyId, cg.maxMarketIndex);
     }
 

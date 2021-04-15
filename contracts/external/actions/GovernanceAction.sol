@@ -88,7 +88,7 @@ contract GovernanceAction is StorageLayoutV1 {
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
-        CashGroupParameterStorage calldata cashGroup
+        CashGroupSettings calldata cashGroup
     ) external onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
@@ -210,7 +210,7 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @dev emit:UpdateCashGroup
     /// @param currencyId id of the currency to enable
     /// @param cashGroup new parameters for the cash group
-    function updateCashGroup(uint16 currencyId, CashGroupParameterStorage calldata cashGroup)
+    function updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup)
         external
         onlyOwner
     {
@@ -245,9 +245,7 @@ contract GovernanceAction is StorageLayoutV1 {
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
     }
 
-    function _updateCashGroup(uint256 currencyId, CashGroupParameterStorage calldata cashGroup)
-        internal
-    {
+    function _updateCashGroup(uint256 currencyId, CashGroupSettings calldata cashGroup) internal {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 

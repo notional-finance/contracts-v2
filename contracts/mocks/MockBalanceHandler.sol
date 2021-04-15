@@ -34,7 +34,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         uint256 currencyId,
         int256 storedCashBalance,
-        int256 storedPerpetualTokenBalance
+        int256 storedNTokenBalance
     ) external {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
 
@@ -44,13 +44,13 @@ contract MockBalanceHandler is StorageLayoutV1 {
         );
 
         require(
-            storedPerpetualTokenBalance >= 0 && storedPerpetualTokenBalance <= type(uint128).max,
+            storedNTokenBalance >= 0 && storedNTokenBalance <= type(uint128).max,
             "CH: token balance overflow"
         );
 
         bytes32 data =
             (// Truncate the higher bits of the signed integer when it is negative
-            (bytes32(uint256(storedPerpetualTokenBalance))) | (bytes32(storedCashBalance) << 128));
+            (bytes32(uint256(storedNTokenBalance))) | (bytes32(storedCashBalance) << 128));
 
         assembly {
             sstore(slot, data)

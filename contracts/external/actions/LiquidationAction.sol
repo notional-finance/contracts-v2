@@ -43,7 +43,7 @@ library LiquidationHelpers {
         } else {
             liquidatorLocalBalance.netAssetTransferInternalPrecision = netLocalFromLiquidator;
         }
-        liquidatorLocalBalance.netPerpetualTokenTransfer = netLocalPerpetualTokens;
+        liquidatorLocalBalance.netNTokenTransfer = netLocalPerpetualTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
 
         return liquidatorContext;
@@ -67,7 +67,7 @@ library LiquidationHelpers {
         } else {
             balance.netCashChange = netCollateralToLiquidator;
         }
-        balance.netPerpetualTokenTransfer = netCollateralPerpetualTokens;
+        balance.netNTokenTransfer = netCollateralPerpetualTokens;
         balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;
@@ -161,7 +161,7 @@ contract LiquidateLocalCurrency {
                 msg.sender,
                 localCurrency,
                 netLocalFromLiquidator,
-                localBalanceState.netPerpetualTokenTransfer.neg()
+                localBalanceState.netNTokenTransfer.neg()
             );
         liquidatorContext.setAccountContext(msg.sender);
 
@@ -240,7 +240,7 @@ contract LiquidateCollateralCurrency {
                 liquidatorContext,
                 collateralCurrency,
                 collateralBalanceState.netCashChange.neg(),
-                collateralBalanceState.netPerpetualTokenTransfer.neg(),
+                collateralBalanceState.netNTokenTransfer.neg(),
                 withdrawCollateral,
                 redeemToUnderlying
             );

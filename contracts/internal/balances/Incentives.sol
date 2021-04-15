@@ -57,7 +57,7 @@ library Incentives {
         uint256 incentivesToClaim =
             calculateIncentivesToClaim(
                 tokenAddress,
-                uint256(balanceState.storedPerpetualTokenBalance),
+                uint256(balanceState.storedNTokenBalance),
                 balanceState.lastIncentiveClaim,
                 blockTime
             );
@@ -66,11 +66,8 @@ library Incentives {
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
 
         // Change the supply amount after incentives have been claimed
-        if (balanceState.netPerpetualTokenSupplyChange != 0) {
-            nTokenHandler.changeNTokenSupply(
-                tokenAddress,
-                balanceState.netPerpetualTokenSupplyChange
-            );
+        if (balanceState.netNTokenSupplyChange != 0) {
+            nTokenHandler.changeNTokenSupply(tokenAddress, balanceState.netNTokenSupplyChange);
         }
 
         return incentivesToClaim;

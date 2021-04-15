@@ -349,9 +349,7 @@ def test_ntokens_suffcient_amount(liquidation, accounts):
         newPortfolioState,
         _,
     ) = liquidation.liquidateCollateralCurrency(
-        get_balance_state(
-            2, storedCashBalance=cashBalance, storedPerpetualTokenBalance=nTokenBalance
-        ),
+        get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
         factors,
         portfolioState,
         0,
@@ -393,9 +391,7 @@ def test_ntokens_limited_by_collateral_specification(liquidation, accounts):
         newPortfolioState,
         _,
     ) = liquidation.liquidateCollateralCurrency(
-        get_balance_state(
-            2, storedCashBalance=cashBalance, storedPerpetualTokenBalance=nTokenBalance
-        ),
+        get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
         factors,
         portfolioState,
         106e8,
@@ -438,9 +434,7 @@ def test_ntokens_limited_by_ntoken_specification(liquidation, accounts):
         newPortfolioState,
         _,
     ) = liquidation.liquidateCollateralCurrency(
-        get_balance_state(
-            2, storedCashBalance=cashBalance, storedPerpetualTokenBalance=nTokenBalance
-        ),
+        get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
         factors,
         portfolioState,
         0,
@@ -483,9 +477,7 @@ def test_ntokens_limited_by_balance(liquidation, accounts):
         newPortfolioState,
         _,
     ) = liquidation.liquidateCollateralCurrency(
-        get_balance_state(
-            2, storedCashBalance=cashBalance, storedPerpetualTokenBalance=nTokenBalance
-        ),
+        get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
         factors,
         portfolioState,
         0,
@@ -528,9 +520,7 @@ def test_ntokens_limited_max_collateral_allowed(liquidation, accounts):
         newPortfolioState,
         _,
     ) = liquidation.liquidateCollateralCurrency(
-        get_balance_state(
-            2, storedCashBalance=cashBalance, storedPerpetualTokenBalance=nTokenBalance
-        ),
+        get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
         factors,
         portfolioState,
         0,

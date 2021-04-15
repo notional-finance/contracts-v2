@@ -376,21 +376,21 @@ contract DepositWithdrawAction {
             int256 tokensMinted =
                 nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
 
-            balanceState.netPerpetualTokenSupplyChange = balanceState
-                .netPerpetualTokenSupplyChange
-                .add(tokensMinted);
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
+                tokensMinted
+            );
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
                 balanceState
-                    .storedPerpetualTokenBalance
-                    .add(balanceState.netPerpetualTokenTransfer) // transfers would not occur at this point
-                    .add(balanceState.netPerpetualTokenSupplyChange) >= depositActionAmount,
+                    .storedNTokenBalance
+                    .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
+                    .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
                 "Insufficient token balance"
             );
 
-            balanceState.netPerpetualTokenSupplyChange = balanceState
-                .netPerpetualTokenSupplyChange
-                .sub(depositActionAmount);
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(
+                depositActionAmount
+            );
 
             int256 assetCash =
                 nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
@@ -401,11 +401,11 @@ contract DepositWithdrawAction {
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
         }
 
-        if (balanceState.netPerpetualTokenSupplyChange != 0) {
+        if (balanceState.netNTokenSupplyChange != 0) {
             emit nTokenSupplyChange(
                 account,
                 uint16(balanceState.currencyId),
-                balanceState.netPerpetualTokenSupplyChange
+                balanceState.netNTokenSupplyChange
             );
         }
     }

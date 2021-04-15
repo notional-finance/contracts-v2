@@ -71,8 +71,8 @@ contract nTokenRedeemAction {
         BalanceState memory balance;
         balance.loadBalanceState(redeemer, currencyId, context);
 
-        require(balance.storedPerpetualTokenBalance >= tokensToRedeem, "Insufficient tokens");
-        balance.netPerpetualTokenSupplyChange = tokensToRedeem.neg();
+        require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
+        balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
         (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
