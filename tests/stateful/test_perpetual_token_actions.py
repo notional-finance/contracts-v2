@@ -48,11 +48,7 @@ def test_deleverage_markets_no_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100000e8
-            )
-        ],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
         {"from": accounts[0]},
     )
 
@@ -90,7 +86,7 @@ def test_deleverage_markets_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100e8)],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100e8)],
         {"from": accounts[0]},
     )
 
@@ -134,11 +130,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=5000e8
-            )
-        ],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=5000e8)],
         {"from": accounts[0]},
     )
 
@@ -327,7 +319,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
             "None",
             [
                 {
-                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "tradeActionType": "PurchaseNTokenResidual",
                     "maturity": ifCashAssetsBefore[2][1],
                     "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
                 }
@@ -343,7 +335,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
             "None",
             [
                 {
-                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "tradeActionType": "PurchaseNTokenResidual",
                     "maturity": ifCashAssetsBefore[1][1],
                     "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
                 }
@@ -363,7 +355,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
             "None",
             [
                 {
-                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "tradeActionType": "PurchaseNTokenResidual",
                     "maturity": ifCashAssetsBefore[2][1],
                     "fCashAmountToPurchase": 100e8,
                 }
@@ -378,7 +370,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
         "None",
         [
             {
-                "tradeActionType": "PurchasePerpetualTokenResidual",
+                "tradeActionType": "PurchaseNTokenResidual",
                 "maturity": ifCashAssetsBefore[2][1],
                 "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
             }
@@ -458,7 +450,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
             "None",
             [
                 {
-                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "tradeActionType": "PurchaseNTokenResidual",
                     "maturity": ifCashAssetsBefore[2][1],
                     "fCashAmountToPurchase": -100e8,
                 }
@@ -474,7 +466,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
             "None",
             [
                 {
-                    "tradeActionType": "PurchasePerpetualTokenResidual",
+                    "tradeActionType": "PurchaseNTokenResidual",
                     "maturity": ifCashAssetsBefore[2][1],
                     "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
                 }
@@ -490,7 +482,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
         "DepositAsset",
         [
             {
-                "tradeActionType": "PurchasePerpetualTokenResidual",
+                "tradeActionType": "PurchaseNTokenResidual",
                 "maturity": ifCashAssetsBefore[2][1],
                 "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
             }

@@ -376,7 +376,7 @@ def get_trade_action(**kwargs):
         )
     elif tradeActionType == "MintCashPair":
         pass
-    elif tradeActionType == "PurchasePerpetualTokenResidual":
+    elif tradeActionType == "PurchaseNTokenResidual":
         return encode_abi_packed(
             ["uint8", "uint32", "int88", "uint128"],
             [
@@ -443,11 +443,7 @@ def initialize_environment(accounts):
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100000e8
-            )
-        ],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
         {"from": accounts[0]},
     )
     env.notional.initializeMarkets(currencyId, True)
@@ -465,11 +461,7 @@ def initialize_environment(accounts):
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=100000e8
-            )
-        ],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
         {"from": accounts[0]},
     )
     env.notional.initializeMarkets(currencyId, True)

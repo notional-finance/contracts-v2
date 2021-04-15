@@ -84,9 +84,9 @@ DEPOSIT_ACTION_TYPE = {
     "None": 0,
     "DepositAsset": 1,
     "DepositUnderlying": 2,
-    "DepositAssetAndMintPerpetual": 3,
-    "DepositUnderlyingAndMintPerpetual": 4,
-    "RedeemPerpetual": 5,
+    "DepositAssetAndMintNToken": 3,
+    "DepositUnderlyingAndMintNToken": 4,
+    "RedeemNToken": 5,
 }
 
 TRADE_ACTION_TYPE = {
@@ -94,6 +94,6 @@ TRADE_ACTION_TYPE = {
     "Borrow": 1,
     "AddLiquidity": 2,
     "RemoveLiquidity": 3,
-    "PurchasePerpetualTokenResidual": 4,
+    "PurchaseNTokenResidual": 4,
     "SettleCashDebt": 5,
 }

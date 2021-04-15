@@ -172,7 +172,7 @@ def test_mint_perp_tokens_and_borrow_specify_fcash(environment, accounts):
     )
 
     collateral = get_balance_trade_action(
-        3, "DepositUnderlyingAndMintPerpetual", [], depositActionAmount=10000e6
+        3, "DepositUnderlyingAndMintNToken", [], depositActionAmount=10000e6
     )
 
     marketsBefore = environment.notional.getActiveMarkets(2)

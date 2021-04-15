@@ -62,7 +62,7 @@ enum TradeActionType {
     // (uint8, uint8, uint88, uint32, uint32)
     RemoveLiquidity,
     // (uint8, uint32, int88)
-    PurchasePerpetualTokenResidual,
+    PurchaseNTokenResidual,
     // (uint8, address, int88)
     SettleCashDebt
 }

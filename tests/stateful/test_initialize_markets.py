@@ -52,7 +52,7 @@ def initialize_markets(environment, accounts):
         accounts[0],
         [
             get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
             )
         ],
         {"from": accounts[0]},
@@ -245,7 +245,7 @@ def test_first_initialization(environment, accounts):
         accounts[0],
         [
             get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
             )
         ],
         {"from": accounts[0]},
@@ -318,7 +318,7 @@ def test_mint_after_markets_initialized(environment, accounts):
         accounts[0],
         [
             get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
             )
         ],
         {"from": accounts[0]},
@@ -365,7 +365,7 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
         accounts[0],
         [
             get_balance_action(
-                currencyId, "DepositAssetAndMintPerpetual", depositActionAmount=INITIAL_CASH_AMOUNT
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
             )
         ],
         {"from": accounts[0]},
@@ -393,9 +393,7 @@ def test_failing_initialize_time(environment, accounts):
             accounts[0],
             [
                 get_balance_action(
-                    currencyId,
-                    "DepositAssetAndMintPerpetual",
-                    depositActionAmount=INITIAL_CASH_AMOUNT,
+                    currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
                 )
             ],
             {"from": accounts[0]},

@@ -134,8 +134,8 @@ def test_deposit_asset_and_mint_perpetual(environment, accounts):
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
+            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
         ],
         {"from": accounts[1]},
     )
@@ -169,8 +169,8 @@ def test_deposit_underlying_and_mint_perpetual(environment, accounts):
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositUnderlyingAndMintPerpetual", depositActionAmount=100e18),
-            get_balance_action(3, "DepositUnderlyingAndMintPerpetual", depositActionAmount=100e6),
+            get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
+            get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
         ],
         {"from": accounts[1]},
     )
@@ -204,8 +204,8 @@ def test_redeem_perpetual(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
+            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
         ],
         {"from": accounts[1]},
     )
@@ -213,8 +213,8 @@ def test_redeem_perpetual(environment, accounts):
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "RedeemPerpetual", depositActionAmount=100e8),
-            get_balance_action(3, "RedeemPerpetual", depositActionAmount=100e8),
+            get_balance_action(2, "RedeemNToken", depositActionAmount=100e8),
+            get_balance_action(3, "RedeemNToken", depositActionAmount=100e8),
         ],
         {"from": accounts[1]},
     )
@@ -249,8 +249,8 @@ def test_redeem_perpetual_and_withdraw_asset(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintPerpetual", depositActionAmount=100e8),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
+            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
         ],
         {"from": accounts[1]},
     )
@@ -262,10 +262,10 @@ def test_redeem_perpetual_and_withdraw_asset(environment, accounts):
         accounts[1],
         [
             get_balance_action(
-                2, "RedeemPerpetual", depositActionAmount=100e8, withdrawEntireCashBalance=True
+                2, "RedeemNToken", depositActionAmount=100e8, withdrawEntireCashBalance=True
             ),
             get_balance_action(
-                3, "RedeemPerpetual", depositActionAmount=100e8, withdrawEntireCashBalance=True
+                3, "RedeemNToken", depositActionAmount=100e8, withdrawEntireCashBalance=True
             ),
         ],
         {"from": accounts[1]},
@@ -306,8 +306,8 @@ def test_redeem_perpetual_and_withdraw_underlying(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositUnderlyingAndMintPerpetual", depositActionAmount=100e18),
-            get_balance_action(3, "DepositUnderlyingAndMintPerpetual", depositActionAmount=100e6),
+            get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
+            get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
         ],
         {"from": accounts[1]},
     )
@@ -320,14 +320,14 @@ def test_redeem_perpetual_and_withdraw_underlying(environment, accounts):
         [
             get_balance_action(
                 2,
-                "RedeemPerpetual",
+                "RedeemNToken",
                 depositActionAmount=100e8,
                 withdrawEntireCashBalance=True,
                 redeemToUnderlying=True,
             ),
             get_balance_action(
                 3,
-                "RedeemPerpetual",
+                "RedeemNToken",
                 depositActionAmount=100e8,
                 withdrawEntireCashBalance=True,
                 redeemToUnderlying=True,
