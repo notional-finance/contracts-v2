@@ -94,6 +94,7 @@ contract GovernanceAction is StorageLayoutV1 {
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
+        // TODO: here
         string memory name;
         string memory symbol;
         address nTokenAddress =

@@ -126,7 +126,7 @@ contract Views is StorageLayoutV1 {
         return nTokenHandler.getInitializationParameters(currencyId, cg.maxMarketIndex);
     }
 
-    function getPerpetualDepositParameters(uint16 currencyId)
+    function getDepositParameters(uint16 currencyId)
         external
         view
         returns (int256[] memory, int256[] memory)
@@ -173,7 +173,7 @@ contract Views is StorageLayoutV1 {
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
-    function getPerpetualTokenPortfolio(address tokenAddress)
+    function getNTokenPortfolio(address tokenAddress)
         external
         view
         returns (PortfolioAsset[] memory, PortfolioAsset[] memory)
@@ -212,10 +212,11 @@ contract Views is StorageLayoutV1 {
             );
     }
 
-    function calculatePerpetualTokensToMint(
-        uint16 currencyId,
-        uint88 amountToDepositExternalPrecision
-    ) external view returns (uint256) {
+    function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
+        external
+        view
+        returns (uint256)
+    {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));

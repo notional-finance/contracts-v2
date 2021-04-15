@@ -189,8 +189,8 @@ class TestEnvironment:
 
     def _deployNotional(self):
         # Deploy Libraries
-        FreeCollateralExternal.deploy({"from": self.deployer})
         SettleAssetsExternal.deploy({"from": self.deployer})
+        FreeCollateralExternal.deploy({"from": self.deployer})
         TradingAction.deploy({"from": self.deployer})
         nTokenMintAction.deploy({"from": self.deployer})
 

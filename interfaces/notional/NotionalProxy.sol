@@ -18,12 +18,10 @@ interface NotionalProxy is nTokenERC20 {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /** User trading events */
-    event CashBalanceChange(address indexed account, uint16 currencyId, int256 amount);
-    event PerpetualTokenSupplyChange(address indexed account, uint16 currencyId, int256 amount);
+    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
+    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
     event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
-    // This is emitted from RedeemPerpetualTokenAction
-    event nTokenRedeemed(address indexed redeemer, uint16 currencyId, uint96 tokensRedeemed);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
@@ -106,7 +104,6 @@ interface NotionalProxy is nTokenERC20 {
     ) external returns (uint256);
 
     function withdraw(
-        address account,
         uint16 currencyId,
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
@@ -162,7 +159,7 @@ interface NotionalProxy is nTokenERC20 {
         view
         returns (int256[] memory, int256[] memory);
 
-    function getPerpetualDepositParameters(uint16 currencyId)
+    function getDepositParameters(uint16 currencyId)
         external
         view
         returns (int256[] memory, int256[] memory);
@@ -186,17 +183,17 @@ interface NotionalProxy is nTokenERC20 {
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
 
-    function getPerpetualTokenPortfolio(address tokenAddress)
+    function getNTokenPortfolio(address tokenAddress)
         external
         view
         returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
 
     function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
 
-    function calculatePerpetualTokensToMint(
-        uint16 currencyId,
-        uint88 amountToDepositExternalPrecision
-    ) external view returns (uint256);
+    function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
+        external
+        view
+        returns (uint256);
 
     function getifCashNotional(
         address account,

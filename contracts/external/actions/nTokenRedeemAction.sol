@@ -21,8 +21,7 @@ contract nTokenRedeemAction {
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
 
-    /// @notice Emitted when tokens are redeemed
-    event nTokenRedeemed(address indexed redeemer, uint16 currencyId, uint96 tokensRedeemed);
+    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
 
     /// @notice When redeeming nTokens via the batch they must all be sold to cash and this
     /// method will return the amount of asset cash sold. This method can only be invoked via delegatecall.
@@ -85,7 +84,7 @@ contract nTokenRedeemAction {
         balance.finalize(redeemer, context, false);
         context.setAccountContext(redeemer);
 
-        emit nTokenRedeemed(redeemer, currencyId, tokensToRedeem_);
+        emit nTokenSupplyChange(redeemer, currencyId, tokensToRedeem.neg());
 
         if (context.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
