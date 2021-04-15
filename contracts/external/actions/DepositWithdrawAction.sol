@@ -2,15 +2,15 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../external/SettleAssetsExternal.sol";
-import "../external/FreeCollateralExternal.sol";
-import "../external/actions/nTokenMintAction.sol";
-import "../external/actions/nTokenRedeemAction.sol";
 import "./TradingAction.sol";
-import "../math/SafeInt256.sol";
-import "../internal/balances/BalanceHandler.sol";
-import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/AccountContextHandler.sol";
+import "./nTokenMintAction.sol";
+import "./nTokenRedeemAction.sol";
+import "../SettleAssetsExternal.sol";
+import "../FreeCollateralExternal.sol";
+import "../../math/SafeInt256.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/AccountContextHandler.sol";
 
 contract DepositWithdrawAction {
     using BalanceHandler for BalanceState;

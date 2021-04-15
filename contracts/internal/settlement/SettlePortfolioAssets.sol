@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../valuation/AssetHandler.sol";
+import "../markets/Market.sol";
 import "../markets/AssetRate.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../../math/SafeInt256.sol";

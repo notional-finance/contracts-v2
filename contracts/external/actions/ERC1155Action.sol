@@ -3,11 +3,11 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./DepositWithdrawAction.sol";
-import "../external/actions/nTokenRedeemAction.sol";
-import "../external/FreeCollateralExternal.sol";
-import "../global/StorageLayoutV1.sol";
-import "../internal/AccountContextHandler.sol";
-import "../internal/portfolio/TransferAssets.sol";
+import "./nTokenRedeemAction.sol";
+import "../FreeCollateralExternal.sol";
+import "../../global/StorageLayoutV1.sol";
+import "../../internal/AccountContextHandler.sol";
+import "../../internal/portfolio/TransferAssets.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 

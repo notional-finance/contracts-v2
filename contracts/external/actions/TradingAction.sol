@@ -2,16 +2,16 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../external/FreeCollateralExternal.sol";
-import "../external/SettleAssetsExternal.sol";
 import "./DepositWithdrawAction.sol";
-import "../internal/markets/Market.sol";
-import "../internal/markets/CashGroup.sol";
-import "../internal/markets/AssetRate.sol";
-import "../internal/balances/BalanceHandler.sol";
-import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/portfolio/TransferAssets.sol";
-import "../math/SafeInt256.sol";
+import "../FreeCollateralExternal.sol";
+import "../SettleAssetsExternal.sol";
+import "../../internal/markets/Market.sol";
+import "../../internal/markets/CashGroup.sol";
+import "../../internal/markets/AssetRate.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/portfolio/TransferAssets.sol";
+import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library TradingAction {

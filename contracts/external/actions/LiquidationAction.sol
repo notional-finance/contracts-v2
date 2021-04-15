@@ -2,12 +2,12 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../internal/AccountContextHandler.sol";
-import "../internal/Liquidation.sol";
-import "../internal/portfolio/TransferAssets.sol";
-import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/balances/BalanceHandler.sol";
-import "../math/SafeInt256.sol";
+import "../../internal/AccountContextHandler.sol";
+import "../../internal/Liquidation.sol";
+import "../../internal/portfolio/TransferAssets.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../math/SafeInt256.sol";
 
 library LiquidationHelpers {
     using AccountContextHandler for AccountContext;
