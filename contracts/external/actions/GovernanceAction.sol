@@ -60,7 +60,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint16 currencyId = maxCurrencyId + 1;
         // Set the new max currency id
         maxCurrencyId = currencyId;
-        require(currencyId <= maxCurrencyId, "G: max currency overflow");
+        require(currencyId <= Constants.MAX_CURRENCIES, "G: max currency overflow");
         // TODO: should check for listing of duplicate tokens?
 
         // Set the underlying first because the asset token may set an approval using the underlying

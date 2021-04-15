@@ -9,10 +9,6 @@ import "./portfolio/PortfolioHandler.sol";
 library AccountContextHandler {
     using PortfolioHandler for PortfolioState;
 
-    bytes18 private constant ZERO = bytes18(0);
-    bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
-    uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
-    bytes18 internal constant UNMASK_ALL_ACTIVE_CURRENCIES = 0x3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF;
     bytes18 private constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
 
     /// @notice Returns the account context of a given account
@@ -56,7 +52,7 @@ library AccountContextHandler {
         uint256 currencyId
     ) internal view {
         // Allow setting the currency id to zero to turn off bitmap
-        require(currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
+        require(currencyId <= Constants.MAX_CURRENCIES, "AC: invalid currency id");
         if (accountContext.bitmapCurrencyId == 0) {
             require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
             // Account context also cannot have negative cash debts
@@ -84,12 +80,15 @@ library AccountContextHandler {
         returns (bool)
     {
         bytes18 currencies = accountContext.activeCurrencies;
-        require(currencyId != 0 && currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
+        require(
+            currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES,
+            "AC: invalid currency id"
+        );
 
         if (accountContext.bitmapCurrencyId == currencyId) return true;
 
-        while (currencies != ZERO) {
-            uint256 cid = uint256(uint16(bytes2(currencies) & UNMASK_FLAGS));
+        while (currencies != 0x00) {
+            uint256 cid = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
             bool isActive =
                 bytes2(currencies) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES;
 
@@ -112,7 +111,10 @@ library AccountContextHandler {
         bool isActive,
         bytes2 flags
     ) internal pure {
-        require(currencyId != 0 && currencyId <= MAX_CURRENCIES, "AC: invalid currency id");
+        require(
+            currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES,
+            "AC: invalid currency id"
+        );
 
         // If the bitmapped currency is already set then return here. Turning off the bitmap currency
         // id requires other logical handling so we will do it elsewhere.
@@ -135,8 +137,8 @@ library AccountContextHandler {
         ///        append to the prefix
         ///      - it must be set to inactive, do nothing
 
-        while (suffix != ZERO) {
-            uint256 cid = uint256(uint16(bytes2(suffix) & UNMASK_FLAGS));
+        while (suffix != 0x00) {
+            uint256 cid = uint256(uint16(bytes2(suffix) & Constants.UNMASK_FLAGS));
             // if matches and isActive then return, already in list
             if (cid == currencyId && isActive) {
                 // set flag and return
@@ -150,7 +152,7 @@ library AccountContextHandler {
             if (cid == currencyId && !isActive) {
                 // turn off flag, if both flags are off then remove
                 suffix = suffix & ~bytes18(flags);
-                if (bytes2(suffix) & ~UNMASK_FLAGS == 0x0000) suffix = suffix << 16;
+                if (bytes2(suffix) & ~Constants.UNMASK_FLAGS == 0x0000) suffix = suffix << 16;
                 accountContext.activeCurrencies = prefix | (suffix >> (shifts * 16));
                 return;
             }
@@ -197,7 +199,7 @@ library AccountContextHandler {
         bytes18 suffix = activeCurrencies & TURN_OFF_PORTFOLIO_FLAGS;
         uint256 shifts;
 
-        while (suffix != ZERO) {
+        while (suffix != 0x00) {
             if (bytes2(suffix) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
                 // If any flags are active, then append.
                 result = result | (bytes18(bytes2(suffix)) >> (shifts * 16));

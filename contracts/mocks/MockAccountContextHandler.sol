@@ -54,8 +54,7 @@ contract MockAccountContextHandler {
         bytes18 currencies = accountContext.activeCurrencies;
         uint256 lastCurrency;
         while (currencies != 0x0) {
-            uint256 thisCurrency =
-                uint256(uint16(bytes2(currencies) & AccountContextHandler.UNMASK_FLAGS));
+            uint256 thisCurrency = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
             assert(thisCurrency != 0);
             // Either flag must be set
             assert(

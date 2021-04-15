@@ -65,6 +65,8 @@ library Constants {
     bytes1 internal constant HAS_CASH_DEBT = 0x02;
     bytes2 internal constant ACTIVE_IN_PORTFOLIO = 0x8000;
     bytes2 internal constant ACTIVE_IN_BALANCES = 0x4000;
+    bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
+    uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
 
     // nToken Parameters
     int256 internal constant DEPOSIT_PERCENT_BASIS = 1e8;
