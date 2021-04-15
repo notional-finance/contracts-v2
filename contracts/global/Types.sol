@@ -291,7 +291,7 @@ struct MarketStorage {
  * @dev Holds account level context information used to determine settlement and
  * free collateral actions. Total storage is 28 bytes
  */
-struct AccountStorage {
+struct AccountContext {
     // Used to check when settlement must be trigged on an account
     uint40 nextSettleTime;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.

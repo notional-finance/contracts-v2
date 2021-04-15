@@ -11,7 +11,7 @@ import "../internal/settlement/SettleBitmapAssets.sol";
 contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -26,7 +26,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     }
 
     function setAssetArray(address account, PortfolioAsset[] memory a) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory state;
         state.newAssets = a;
         state.lastNewAssetIndex = a.length - 1;
@@ -69,11 +69,11 @@ contract MockSettleAssets is StorageLayoutV1 {
     }
 
     function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
-    function setAccountContext(address account, AccountStorage memory a) external {
+    function setAccountContext(address account, AccountContext memory a) external {
         a.setAccountContext(account);
     }
 
@@ -132,7 +132,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         public
         returns (SettleAmount[] memory)
     {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory pState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
 

@@ -22,7 +22,7 @@ library Liquidation {
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
 
     int256 internal constant MAX_LIQUIDATION_PORTION = 40;
@@ -38,7 +38,7 @@ library Liquidation {
     )
         internal
         returns (
-            AccountStorage memory,
+            AccountContext memory,
             LiquidationFactors memory,
             PortfolioState memory
         )
@@ -46,7 +46,7 @@ library Liquidation {
         require(localCurrency != 0);
         // Collateral currency must be unset or not equal to the local currency
         require(collateralCurrency == 0 || collateralCurrency != localCurrency);
-        AccountStorage memory accountContext =
+        AccountContext memory accountContext =
             AccountContextHandler.getAccountContext(liquidateAccount);
 
         if (accountContext.mustSettleAssets()) {
@@ -505,7 +505,7 @@ library Liquidation {
     }
 
     struct fCashContext {
-        AccountStorage accountContext;
+        AccountContext accountContext;
         LiquidationFactors factors;
         PortfolioState portfolio;
         int256 benefitRequired;

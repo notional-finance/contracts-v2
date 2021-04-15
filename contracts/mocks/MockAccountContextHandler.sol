@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import "../internal/AccountContextHandler.sol";
 
 contract MockAccountContextHandler {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     function setAssetBitmap(
         address account,
@@ -16,20 +16,20 @@ contract MockAccountContextHandler {
     }
 
     function enableBitmapForAccount(address account, uint256 currencyId) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.enableBitmapForAccount(account, currencyId);
         accountContext.setAccountContext(account);
     }
 
-    function getAccountContext(address account) external view returns (AccountStorage memory) {
+    function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
-    function setAccountContext(AccountStorage memory accountContext, address account) external {
+    function setAccountContext(AccountContext memory accountContext, address account) external {
         return accountContext.setAccountContext(account);
     }
 
-    function isActiveInBalances(AccountStorage memory accountContext, uint256 currencyId)
+    function isActiveInBalances(AccountContext memory accountContext, uint256 currencyId)
         external
         pure
         returns (bool)
@@ -47,7 +47,7 @@ contract MockAccountContextHandler {
         bool isActive,
         bytes2 flags
     ) external pure returns (bytes18) {
-        AccountStorage memory accountContext = AccountStorage(0, 0x00, 0, 0, activeCurrencies);
+        AccountContext memory accountContext = AccountContext(0, 0x00, 0, 0, activeCurrencies);
         accountContext.setActiveCurrency(currencyId, isActive, flags);
 
         // Assert that the currencies are in order

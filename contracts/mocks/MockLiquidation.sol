@@ -17,7 +17,7 @@ contract MockLiquidationSetup is BaseMockLiquidation {
     )
         external
         returns (
-            AccountStorage memory,
+            AccountContext memory,
             LiquidationFactors memory,
             PortfolioState memory
         )
@@ -50,7 +50,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
         )
     {
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);

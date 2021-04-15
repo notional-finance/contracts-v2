@@ -8,7 +8,7 @@ import "../global/StorageLayoutV1.sol";
 
 contract MockBalanceHandler is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -26,7 +26,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         TokenHandler.setToken(id, underlying, ts);
     }
 
-    function setAccountContext(address account, AccountStorage memory a) external {
+    function setAccountContext(address account, AccountContext memory a) external {
         a.setAccountContext(account);
     }
 
@@ -70,9 +70,9 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         bool redeemToUnderlying
-    ) public returns (AccountStorage memory) {
+    ) public returns (AccountContext memory) {
         balanceState.finalize(account, accountContext, redeemToUnderlying);
 
         return accountContext;
@@ -81,8 +81,8 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function loadBalanceState(
         address account,
         uint256 currencyId,
-        AccountStorage memory accountContext
-    ) public view returns (BalanceState memory, AccountStorage memory) {
+        AccountContext memory accountContext
+    ) public view returns (BalanceState memory, AccountContext memory) {
         BalanceState memory bs;
         bs.loadBalanceState(account, currencyId, accountContext);
 

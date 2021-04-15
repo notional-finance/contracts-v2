@@ -175,7 +175,7 @@ interface NotionalProxy is nTokenERC20 {
 
     function getOwner() external view returns (address);
 
-    function getAccountContext(address account) external view returns (AccountStorage memory);
+    function getAccountContext(address account) external view returns (AccountContext memory);
 
     function getAccountBalance(uint16 currencyId, address account)
         external

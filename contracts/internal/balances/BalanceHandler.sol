@@ -13,7 +13,7 @@ library BalanceHandler {
     using SafeInt256 for int256;
     using TokenHandler for Token;
     using AssetRate for AssetRateParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
@@ -108,7 +108,7 @@ library BalanceHandler {
     function finalize(
         BalanceState memory balanceState,
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         bool redeemToUnderlying
     ) internal returns (int256 transferAmountExternal) {
         bool mustUpdate;
@@ -237,7 +237,7 @@ library BalanceHandler {
         address account,
         CashGroupParameters memory cashGroup,
         int256 amountToSettleAsset,
-        AccountStorage memory accountContext
+        AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
         (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveClaim) =
@@ -278,7 +278,7 @@ library BalanceHandler {
     /// @notice Helper method for settling the output of the SettleAssets method
     function finalizeSettleAmounts(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         SettleAmount[] memory settleAmounts
     ) internal {
         for (uint256 i; i < settleAmounts.length; i++) {
@@ -379,7 +379,7 @@ library BalanceHandler {
         BalanceState memory balanceState,
         address account,
         uint256 currencyId,
-        AccountStorage memory accountContext
+        AccountContext memory accountContext
     ) internal view {
         require(currencyId != 0, "BH: invalid currency id");
         balanceState.currencyId = currencyId;

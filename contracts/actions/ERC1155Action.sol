@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 
 contract ERC1155 is IERC1155, StorageLayoutV1 {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))
     bytes4 internal constant ERC1155_ACCEPTED = 0xf23a6e61;
@@ -36,6 +36,7 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
         require(to != address(0), "Invalid address");
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
         require(amount <= uint(type(int).max)); // dev: int overflow
+        // ensure not perpetual token
 
         PortfolioAsset[] memory assets = new PortfolioAsset[](1);
         (
@@ -45,7 +46,7 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
         ) = TransferAssets.decodeAssetId(id);
         assets[0].notional = int(amount);
 
-        AccountStorage memory fromContext = _transfer(from, to, assets);
+        AccountContext memory fromContext = _transfer(from, to, assets);
 
         emit TransferSingle(msg.sender, from, to, id, amount);
 
@@ -68,9 +69,10 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
     function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external override {
         require(to != address(0), "Invalid address");
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
+        // ensure not perpetual token
 
         PortfolioAsset[] memory assets; // = decodeToAssets(ids, amounts);
-        AccountStorage memory fromContext = _transfer(from, to, assets);
+        AccountContext memory fromContext = _transfer(from, to, assets);
 
         emit TransferBatch(msg.sender, from, to, ids, amounts);
 
@@ -109,9 +111,9 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
         return assets;
     }
 
-    function _transfer(address from, address to, PortfolioAsset[] memory assets) internal returns (AccountStorage memory) {
-        AccountStorage memory fromContext = AccountContextHandler.getAccountContext(from);
-        AccountStorage memory toContext = AccountContextHandler.getAccountContext(to);
+    function _transfer(address from, address to, PortfolioAsset[] memory assets) internal returns (AccountContext memory) {
+        AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
+        AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
 
         TransferAssets.placeAssetsInAccount(to, toContext, assets);
         TransferAssets.invertNotionalAmountsInPlace(assets);
@@ -123,13 +125,14 @@ contract ERC1155 is IERC1155, StorageLayoutV1 {
         return fromContext;
     }
 
-    function _checkPostTransferEvent(address from, AccountStorage memory fromContext, bytes calldata data) internal {
+    function _checkPostTransferEvent(address from, AccountContext memory fromContext, bytes calldata data) internal {
         bytes4 sig = abi.decode(data[:4], (bytes4));
 
         // These are the only two methods allowed to occur in a post transfer event. Either of these actions ensure
         // that accounts may take any sort of trading action as a result of their transfer. Both of these actions will
         // handle checking free collateral so no additional check is necessary here.
         if (sig == nTokenRedeemAction.nTokenRedeem.selector ||
+            sig == DepositWithdrawAction.batchBalanceAction.selector ||
             sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector) {
             // Ensure that the "account" parameter of the call is set to the from address
             require(abi.decode(data[4:32], (address)) == from, "Unauthorized call");

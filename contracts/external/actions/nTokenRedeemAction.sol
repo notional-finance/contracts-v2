@@ -18,7 +18,7 @@ contract nTokenRedeemAction {
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
 
     /// @notice Emitted when tokens are redeemed
@@ -67,7 +67,7 @@ contract nTokenRedeemAction {
         uint256 blockTime = block.timestamp;
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
-        AccountStorage memory context = AccountContextHandler.getAccountContext(redeemer);
+        AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
         BalanceState memory balance;
         balance.loadBalanceState(redeemer, currencyId, context);
 

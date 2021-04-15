@@ -59,7 +59,7 @@ library BitmapAssetsHandler {
     /// @notice Adds multiple assets to a bitmap portfolio
     function addMultipleifCashAssets(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
         uint256 currencyId = accountContext.bitmapCurrencyId;

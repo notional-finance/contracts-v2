@@ -10,7 +10,7 @@ import "../internal/balances/BalanceHandler.sol";
 import "../math/SafeInt256.sol";
 
 library LiquidationHelpers {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using PortfolioHandler for PortfolioState;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
@@ -20,11 +20,11 @@ library LiquidationHelpers {
         uint256 localCurrencyId,
         int256 netLocalFromLiquidator,
         int256 netLocalPerpetualTokens
-    ) internal returns (AccountStorage memory) {
+    ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
         Token memory token = TokenHandler.getToken(localCurrencyId, false);
-        AccountStorage memory liquidatorContext =
+        AccountContext memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
         // TODO: maybe reuse these...
         BalanceState memory liquidatorLocalBalance;
@@ -51,13 +51,13 @@ library LiquidationHelpers {
 
     function finalizeLiquidatorCollateral(
         address liquidator,
-        AccountStorage memory liquidatorContext,
+        AccountContext memory liquidatorContext,
         uint256 collateralCurrencyId,
         int256 netCollateralToLiquidator,
         int256 netCollateralPerpetualTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
-    ) internal returns (AccountStorage memory) {
+    ) internal returns (AccountContext memory) {
         // TODO: maybe reuse these...
         BalanceState memory balance;
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
@@ -76,7 +76,7 @@ library LiquidationHelpers {
     function finalizeLiquidatedLocalBalance(
         address liquidateAccount,
         uint256 localCurrency,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         int256 netLocalFromLiquidator
     ) internal {
         BalanceState memory balance;
@@ -88,7 +88,7 @@ library LiquidationHelpers {
     function transferAssets(
         address liquidateAccount,
         address liquidator,
-        AccountStorage memory liquidatorContext,
+        AccountContext memory liquidatorContext,
         uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         Liquidation.fCashContext memory c
@@ -128,7 +128,7 @@ library LiquidationHelpers {
 }
 
 contract LiquidateLocalCurrency {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
 
@@ -139,7 +139,7 @@ contract LiquidateLocalCurrency {
     ) external returns (int256) {
         uint256 blockTime = block.timestamp;
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = Liquidation.preLiquidationActions(liquidateAccount, localCurrency, 0, blockTime);
@@ -156,7 +156,7 @@ contract LiquidateLocalCurrency {
                 portfolio
             );
 
-        AccountStorage memory liquidatorContext =
+        AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
                 localCurrency,
@@ -184,7 +184,7 @@ contract LiquidateLocalCurrency {
 }
 
 contract LiquidateCollateralCurrency {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
 
@@ -199,7 +199,7 @@ contract LiquidateCollateralCurrency {
     ) external returns (int256) {
         uint256 blockTime = block.timestamp;
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) =
@@ -227,7 +227,7 @@ contract LiquidateCollateralCurrency {
             );
 
         {
-            AccountStorage memory liquidatorContext =
+            AccountContext memory liquidatorContext =
                 LiquidationHelpers.finalizeLiquidatorLocal(
                     msg.sender,
                     localCurrency,
@@ -272,7 +272,7 @@ contract LiquidateCollateralCurrency {
 }
 
 contract LiquidatefCashLocal {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
     function liquidatefCashLocal(
@@ -300,7 +300,7 @@ contract LiquidatefCashLocal {
             blockTime
         );
 
-        AccountStorage memory liquidatorContext =
+        AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
                 localCurrency,
@@ -357,7 +357,7 @@ contract LiquidatefCashLocal {
             blockTime
         );
 
-        AccountStorage memory liquidatorContext =
+        AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
                 localCurrency,

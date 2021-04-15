@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -174,7 +174,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     /// @param currencyId Currency id associated with the nToken
     /// @return Total amount of incentives claimed
     function nTokenClaimIncentives(uint16 currencyId) external returns (uint256) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
 
@@ -192,7 +192,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         override
         returns (uint256)
     {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
 
@@ -259,11 +259,11 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
-        AccountStorage memory senderContext = AccountContextHandler.getAccountContext(sender);
+        AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
 
-        AccountStorage memory recipientContext = AccountContextHandler.getAccountContext(recipient);
+        AccountContext memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance;
         recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
 

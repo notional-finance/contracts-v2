@@ -8,10 +8,10 @@ import "../global/StorageLayoutV1.sol";
 
 contract MockPortfolioHandler is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
@@ -28,15 +28,15 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         return portfolioState;
     }
 
-    function getAccountContext(address account) external view returns (AccountStorage memory) {
+    function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
     function storeAssets(address account, PortfolioState memory portfolioState)
         public
-        returns (AccountStorage memory)
+        returns (AccountContext memory)
     {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         accountContext.setAccountContext(account);
 
@@ -58,7 +58,7 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         view
         returns (PortfolioState memory)
     {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
 
         return
             PortfolioHandler.buildPortfolioState(

@@ -13,12 +13,12 @@ import "../internal/AccountContextHandler.sol";
 /// and an empty portfolio state will be returned.
 library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
-    function settleAssetsAndFinalize(address account) external returns (AccountStorage memory) {
+    function settleAssetsAndFinalize(address account) external returns (AccountContext memory) {
         // prettier-ignore
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             /* SettleAmount[] memory settleAmounts */,
             /* PortfolioState memory portfolioState */
         ) = _settleAccount(account, true, true);
@@ -28,11 +28,11 @@ library SettleAssetsExternal {
 
     function settleAssetsAndStorePortfolio(address account)
         external
-        returns (AccountStorage memory, SettleAmount[] memory)
+        returns (AccountContext memory, SettleAmount[] memory)
     {
         // prettier-ignore
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             SettleAmount[] memory settleAmounts,
             /* PortfolioState memory portfolioState */
         ) = _settleAccount(account, false, true);
@@ -42,11 +42,11 @@ library SettleAssetsExternal {
 
     function settleAssetsAndReturnPortfolio(address account)
         external
-        returns (AccountStorage memory, PortfolioState memory)
+        returns (AccountContext memory, PortfolioState memory)
     {
         // prettier-ignore
         (
-            AccountStorage memory accountContext,
+            AccountContext memory accountContext,
             /* SettleAmount[] memory settleAmounts */,
             PortfolioState memory portfolioState
         ) = _settleAccount(account, true, false);
@@ -57,7 +57,7 @@ library SettleAssetsExternal {
     function settleAssetsAndReturnAll(address account)
         external
         returns (
-            AccountStorage memory,
+            AccountContext memory,
             SettleAmount[] memory,
             PortfolioState memory
         )
@@ -72,12 +72,12 @@ library SettleAssetsExternal {
     )
         private
         returns (
-            AccountStorage memory,
+            AccountContext memory,
             SettleAmount[] memory,
             PortfolioState memory
         )
     {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         SettleAmount[] memory settleAmounts;
         PortfolioState memory portfolioState;
 

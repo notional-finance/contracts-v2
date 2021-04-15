@@ -15,7 +15,7 @@ import "../internal/AccountContextHandler.sol";
 contract DepositWithdrawAction {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
     event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
@@ -28,7 +28,7 @@ contract DepositWithdrawAction {
     /// @dev emit:AccountSettled
     /// @dev auth:none
     function settleAccount(address account) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
             accountContext.setAccountContext(account);
@@ -53,7 +53,7 @@ contract DepositWithdrawAction {
         // No other authorization required on depositing
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
@@ -89,7 +89,7 @@ contract DepositWithdrawAction {
     ) external returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
@@ -132,7 +132,7 @@ contract DepositWithdrawAction {
     ) external returns (uint256) {
         address account = msg.sender;
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
         _settleAccountIfRequiredAndFinalize(account, accountContext);
 
@@ -163,7 +163,7 @@ contract DepositWithdrawAction {
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // Return any settle amounts here to reduce the number of storage writes to balances
         SettleAmount[] memory settleAmounts =
             _settleAccountIfRequiredAndStorePortfolio(account, accountContext);
@@ -212,7 +212,7 @@ contract DepositWithdrawAction {
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         (SettleAmount[] memory settleAmounts, PortfolioState memory portfolioState) =
             _settleAccountIfRequiredAndReturnPortfolio(account, accountContext);
 
@@ -291,7 +291,7 @@ contract DepositWithdrawAction {
         uint256 currencyId,
         SettleAmount[] memory settleAmounts,
         BalanceState memory balanceState,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         DepositActionType depositType,
         uint256 depositActionAmount
     ) private returns (uint256) {
@@ -413,7 +413,7 @@ contract DepositWithdrawAction {
     /// @dev Calculations any withdraws and finalizes balances
     function _calculateWithdrawActionAndFinalize(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         BalanceState memory balanceState,
         uint256 withdrawAmountInternalPrecision,
         bool withdrawEntireCashBalance,
@@ -446,7 +446,7 @@ contract DepositWithdrawAction {
         }
     }
 
-    function _finalizeAccountContext(address account, AccountStorage memory accountContext)
+    function _finalizeAccountContext(address account, AccountContext memory accountContext)
         private
     {
         // At this point all balances, market states and portfolio states should be finalized. Just need to check free
@@ -475,11 +475,11 @@ contract DepositWithdrawAction {
 
     function _settleAccountIfRequiredAndReturnPortfolio(
         address account,
-        AccountStorage memory accountContext
+        AccountContext memory accountContext
     ) private returns (SettleAmount[] memory, PortfolioState memory) {
         if (accountContext.mustSettleAssets()) {
             (
-                AccountStorage memory newAccountContext,
+                AccountContext memory newAccountContext,
                 SettleAmount[] memory settleAmounts,
                 PortfolioState memory portfolioState
             ) = SettleAssetsExternal.settleAssetsAndReturnAll(account);
@@ -496,7 +496,7 @@ contract DepositWithdrawAction {
 
     function _settleAccountIfRequiredAndStorePortfolio(
         address account,
-        AccountStorage memory accountContext
+        AccountContext memory accountContext
     ) private returns (SettleAmount[] memory) {
         SettleAmount[] memory settleAmounts;
 
@@ -511,7 +511,7 @@ contract DepositWithdrawAction {
 
     function _settleAccountIfRequiredAndFinalize(
         address account,
-        AccountStorage memory accountContext
+        AccountContext memory accountContext
     ) private {
         if (accountContext.mustSettleAssets()) {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);

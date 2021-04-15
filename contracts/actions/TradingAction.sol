@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library TradingAction {
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
@@ -38,7 +38,7 @@ library TradingAction {
     /// @dev Executes trades for a bitmapped portfolio
     function executeTradesBitmapBatch(
         address account,
-        AccountStorage calldata accountContext,
+        AccountContext calldata accountContext,
         bytes32[] calldata trades
     ) external returns (int256, bool) {
         (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
@@ -326,7 +326,7 @@ library TradingAction {
         address counterparty = address(bytes20(trade << 8));
         int256 amountToSettleAsset = int256(int88(bytes11(trade << 168)));
 
-        AccountStorage memory counterpartyContext =
+        AccountContext memory counterpartyContext =
             AccountContextHandler.getAccountContext(counterparty);
 
         if (counterpartyContext.mustSettleAssets()) {

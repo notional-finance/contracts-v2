@@ -34,7 +34,7 @@ library InitializeMarketsAction {
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
     event MarketsInitialized(uint16 currencyId);
 

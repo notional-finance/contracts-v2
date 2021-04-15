@@ -9,7 +9,7 @@ import "../../external/SettleAssetsExternal.sol";
 
 /// @notice Helper library for transferring assets from one portfolio to another
 library TransferAssets {
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using PortfolioHandler for PortfolioState;
     using SafeInt256 for int256;
 
@@ -52,7 +52,7 @@ library TransferAssets {
     /// @dev Useful method for hiding the logic of updating an account
     function placeAssetsInAccount(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
         if (accountContext.bitmapCurrencyId == 0) {
@@ -64,7 +64,7 @@ library TransferAssets {
 
     function addAssetsToPortfolio(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
         PortfolioState memory portfolioState;
@@ -86,7 +86,7 @@ library TransferAssets {
 
     function addAssetsToBitmap(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
         if (accountContext.mustSettleAssets()) {

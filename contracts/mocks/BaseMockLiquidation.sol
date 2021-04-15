@@ -9,7 +9,7 @@ import "../global/StorageLayoutV1.sol";
 
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using Liquidation for LiquidationFactors;
     using Market for MarketParameters;
 
@@ -45,7 +45,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     }
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         portfolioState.newAssets = assets;
@@ -59,7 +59,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         int256 cashBalance,
         int256 perpTokenBalance
     ) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);
         accountContext.setAccountContext(account);
 

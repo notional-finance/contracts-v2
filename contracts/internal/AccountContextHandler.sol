@@ -13,10 +13,10 @@ library AccountContextHandler {
     bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
     uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
     bytes18 internal constant UNMASK_ALL_ACTIVE_CURRENCIES = 0x3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF3FFF;
-    bytes18 internal constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
+    bytes18 private constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
 
     /// @notice Returns the account context of a given account
-    function getAccountContext(address account) internal view returns (AccountStorage memory) {
+    function getAccountContext(address account) internal view returns (AccountContext memory) {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data;
 
@@ -25,7 +25,7 @@ library AccountContextHandler {
         }
 
         return
-            AccountStorage({
+            AccountContext({
                 nextSettleTime: uint40(uint256(data)),
                 hasDebt: bytes1(data << 208),
                 assetArrayLength: uint8(uint256(data >> 48)),
@@ -35,7 +35,7 @@ library AccountContextHandler {
     }
 
     /// @notice Sets the account context of a given account
-    function setAccountContext(AccountStorage memory accountContext, address account) internal {
+    function setAccountContext(AccountContext memory accountContext, address account) internal {
         bytes32 slot = keccak256(abi.encode(account, "account.context"));
         bytes32 data =
             (bytes32(uint256(accountContext.nextSettleTime)) |
@@ -51,7 +51,7 @@ library AccountContextHandler {
 
     /// @notice Sets the account context of a given account
     function enableBitmapForAccount(
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         address account,
         uint256 currencyId
     ) internal view {
@@ -71,14 +71,14 @@ library AccountContextHandler {
     }
 
     /// @notice Returns true if the context needs to settle
-    function mustSettleAssets(AccountStorage memory accountContext) internal view returns (bool) {
+    function mustSettleAssets(AccountContext memory accountContext) internal view returns (bool) {
         return (accountContext.nextSettleTime != 0 &&
             accountContext.nextSettleTime <= block.timestamp);
     }
 
     /// @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
     /// context active currencies list.
-    function isActiveInBalances(AccountStorage memory accountContext, uint256 currencyId)
+    function isActiveInBalances(AccountContext memory accountContext, uint256 currencyId)
         internal
         pure
         returns (bool)
@@ -107,7 +107,7 @@ library AccountContextHandler {
     /// This is called to ensure that currencies are active when the account has a non zero cash balance,
     /// a non zero perpetual token balance or a portfolio asset.
     function setActiveCurrency(
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         uint256 currencyId,
         bool isActive,
         bytes2 flags
@@ -212,7 +212,7 @@ library AccountContextHandler {
     /// @notice Stores a portfolio array and updates the account context information, this method should
     /// be used whenever updating a portfolio array except in the case of nTokens
     function storeAssetsAndUpdateContext(
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         address account,
         PortfolioState memory portfolioState,
         bool isLiquidation

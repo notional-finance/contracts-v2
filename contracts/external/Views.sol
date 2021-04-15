@@ -147,7 +147,7 @@ contract Views is StorageLayoutV1 {
         return owner;
     }
 
-    function getAccountContext(address account) external view returns (AccountStorage memory) {
+    function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
@@ -173,7 +173,7 @@ contract Views is StorageLayoutV1 {
     }
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
     }
 
@@ -202,7 +202,7 @@ contract Views is StorageLayoutV1 {
     }
 
     function getifCashAssets(address account) external view returns (PortfolioAsset[] memory) {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.bitmapCurrencyId == 0) {
             return new PortfolioAsset[](0);

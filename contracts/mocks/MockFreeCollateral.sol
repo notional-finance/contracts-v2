@@ -9,14 +9,14 @@ import "./MockAssetHandler.sol";
 
 contract MockFreeCollateral is MockAssetHandler {
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
 
-    function getAccountContext(address account) external view returns (AccountStorage memory) {
+    function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
     function enableBitmapForAccount(address account, uint256 currencyId) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.enableBitmapForAccount(account, currencyId);
         accountContext.setAccountContext(account);
     }
@@ -28,7 +28,7 @@ contract MockFreeCollateral is MockAssetHandler {
         int256 notional,
         uint256 blockTime
     ) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         if (
             accountContext.nextSettleTime != 0 &&
@@ -58,7 +58,7 @@ contract MockFreeCollateral is MockAssetHandler {
     }
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
         portfolioState.newAssets = assets;
@@ -72,7 +72,7 @@ contract MockFreeCollateral is MockAssetHandler {
         int256 cashBalance,
         int256 perpTokenBalance
     ) external {
-        AccountStorage memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (cashBalance < 0)
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
         accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);

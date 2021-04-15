@@ -15,7 +15,7 @@ library FreeCollateral {
     using Bitmap for bytes;
     using ExchangeRate for ETHRate;
     using AssetRate for AssetRateParameters;
-    using AccountContextHandler for AccountStorage;
+    using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
 
     /// @dev This is only used within the library to clean up the stack
@@ -128,7 +128,7 @@ library FreeCollateral {
     function _getBitmapBalanceValue(
         address account,
         uint256 blockTime,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         FreeCollateralFactors memory factors
     )
         private
@@ -161,7 +161,7 @@ library FreeCollateral {
     function _getBitmapPortfolioValue(
         address account,
         uint256 blockTime,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         FreeCollateralFactors memory factors
     ) private view returns (int256) {
         bytes32 assetsBitmap =
@@ -209,7 +209,7 @@ library FreeCollateral {
     /// context needs to be updated.
     function getFreeCollateralStateful(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         uint256 blockTime
     ) internal returns (int256, bool) {
         FreeCollateralFactors memory factors;
@@ -285,7 +285,7 @@ library FreeCollateral {
     /// all the update context logic.
     function getFreeCollateralView(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         uint256 blockTime
     ) internal view returns (int256) {
         FreeCollateralFactors memory factors;
@@ -378,7 +378,7 @@ library FreeCollateral {
     /// @notice A version of getFreeCollateral used during liquidation to save off necessary additional information.
     function getLiquidationFactors(
         address account,
-        AccountStorage memory accountContext,
+        AccountContext memory accountContext,
         uint256 blockTime,
         uint256 localCurrencyId,
         uint256 collateralCurrencyId
