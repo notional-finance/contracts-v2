@@ -11,7 +11,7 @@ import "../../internal/portfolio/TransferAssets.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 
-contract ERC1155 is IERC1155, StorageLayoutV1 {
+contract ERC1155Action is IERC1155, StorageLayoutV1 {
     using AccountContextHandler for AccountContext;
 
     // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))

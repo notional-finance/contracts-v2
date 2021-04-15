@@ -2,10 +2,13 @@ from copy import copy
 
 from brownie import (
     DepositWithdrawAction,
+    ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
     GovernorAlpha,
     InitializeMarketsAction,
+    LiquidateCurrencyAction,
+    LiquidatefCashAction,
     MockAggregator,
     MockERC20,
     NoteERC20,
@@ -201,6 +204,9 @@ class TestEnvironment:
         nTokenRedeem = nTokenRedeemAction.deploy({"from": self.deployer})
         nTokenAction_ = nTokenAction.deploy({"from": self.deployer})
         depositWithdrawAction = DepositWithdrawAction.deploy({"from": self.deployer})
+        erc1155Action = ERC1155Action.deploy({"from": self.deployer})
+        liquidateCurrencyAction = LiquidateCurrencyAction.deploy({"from": self.deployer})
+        liquidatefCashAction = LiquidatefCashAction.deploy({"from": self.deployer})
 
         # Deploy router
         router = Router.deploy(
@@ -210,6 +216,9 @@ class TestEnvironment:
             nTokenAction_.address,
             nTokenRedeem.address,
             depositWithdrawAction.address,
+            erc1155Action.address,
+            liquidateCurrencyAction.address,
+            liquidatefCashAction.address,
             self.cToken["ETH"].address,
             {"from": self.deployer},
         )

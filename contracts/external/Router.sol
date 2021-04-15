@@ -8,6 +8,9 @@ import "./actions/nTokenRedeemAction.sol";
 import "./actions/GovernanceAction.sol";
 import "./actions/InitializeMarketsAction.sol";
 import "./actions/DepositWithdrawAction.sol";
+import "./actions/ERC1155Action.sol";
+import "./actions/LiquidatefCashAction.sol";
+import "./actions/LiquidateCurrencyAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
 import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
@@ -29,6 +32,9 @@ contract Router is StorageLayoutV1 {
     address public immutable NTOKEN_ACTIONS;
     address public immutable NTOKEN_REDEEM;
     address public immutable DEPOSIT_WITHDRAW_ACTION;
+    address public immutable ERC1155;
+    address public immutable LIQUIDATE_CURRENCY;
+    address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
 
     constructor(
@@ -38,6 +44,9 @@ contract Router is StorageLayoutV1 {
         address nTokenActions_,
         address nTokenRedeem_,
         address depositWithdrawAction_,
+        address erc1155_,
+        address liquidateCurrency_,
+        address liquidatefCash_,
         address cETH_
     ) {
         GOVERNANCE = governance_;
@@ -46,6 +55,9 @@ contract Router is StorageLayoutV1 {
         NTOKEN_ACTIONS = nTokenActions_;
         NTOKEN_REDEEM = nTokenRedeem_;
         DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
+        ERC1155 = erc1155_;
+        LIQUIDATE_CURRENCY = liquidateCurrency_;
+        LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
     }
 
@@ -115,6 +127,33 @@ contract Router is StorageLayoutV1 {
             sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
         ) {
             return NTOKEN_REDEEM;
+        }
+
+        if (
+            sig == ERC1155Action.supportsInterface.selector ||
+            sig == ERC1155Action.balanceOf.selector ||
+            sig == ERC1155Action.balanceOfBatch.selector ||
+            sig == ERC1155Action.safeTransferFrom.selector ||
+            sig == ERC1155Action.safeBatchTransferFrom.selector ||
+            sig == ERC1155Action.decodeToAssets.selector ||
+            sig == ERC1155Action.setApprovalForAll.selector ||
+            sig == ERC1155Action.isApprovedForAll.selector
+        ) {
+            return ERC1155;
+        }
+
+        if (
+            sig == LiquidateCurrencyAction.liquidateLocalCurrency.selector ||
+            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector
+        ) {
+            return LIQUIDATE_CURRENCY;
+        }
+
+        if (
+            sig == LiquidatefCashAction.liquidatefCashLocal.selector ||
+            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector
+        ) {
+            return LIQUIDATE_FCASH;
         }
 
         if (sig == InitializeMarketsAction.initializeMarkets.selector) {
