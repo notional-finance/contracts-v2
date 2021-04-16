@@ -77,6 +77,7 @@ class TestLiquidityCurve:
         assert pytest.approx(math.trunc(logP / rateScalar + rateAnchor), rel=1e-7) == exchangeRate
 
     @given(initRate=impliedRateStrategy, timeToMaturity=timeToMaturityStrategy)
+    @pytest.mark.skip_coverage
     def test_implied_rate_stability_on_maturity_rolldown(self, market, initRate, timeToMaturity):
         # Implied rates must stay constant as the maturity rolls down or else there will
         # be arbitrage
@@ -128,6 +129,7 @@ class TestLiquidityCurve:
             "uint256", min_value=0.33 * RATE_PRECISION, max_value=0.66 * RATE_PRECISION
         ),
     )
+    @pytest.mark.skip_coverage
     def test_slippage_decrease_on_rolldown(self, marketWithCToken, timeToMaturity, proportion):
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
