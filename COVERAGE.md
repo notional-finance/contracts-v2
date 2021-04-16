@@ -3,6 +3,8 @@
 - Free collateral needs more work, coverage evaluation is not correct due to delegate call
 - settle assets needs to be more deterministic to catch all edge cases
 - settle bitmap does not test remap bitmap
+- account context store context, test bitmap
+- bitmap assets
 
 ### Invariants
 
