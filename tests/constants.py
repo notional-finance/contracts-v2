@@ -54,9 +54,9 @@ CASH_GROUP_PARAMETERS = (
     40,  # 6: settlement penalty 400 bps
     20,  # 7: liquidation discount 100 bps
     # 8: token haircuts (percentages)
-    (99, 98, 97, 96, 95, 94, 93, 92, 91),
+    (99, 98, 97, 96, 95, 94, 93),
     # 9: rate scalar (increments of 10)
-    (20, 19, 18, 17, 16, 15, 14, 13, 12),
+    (20, 19, 18, 17, 16, 15, 14),
 )
 
 CURVE_SHAPES = {
