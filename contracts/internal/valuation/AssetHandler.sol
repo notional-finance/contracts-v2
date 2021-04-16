@@ -185,6 +185,7 @@ library AssetHandler {
         // in that case we know the previous asset will be the matching fCash asset
         if (
             index > 0 &&
+            assets[index - 1].currencyId == liquidityToken.currencyId &&
             assets[index - 1].maturity == liquidityToken.maturity &&
             assets[index - 1].assetType == Constants.FCASH_ASSET_TYPE
         ) {

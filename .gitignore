@@ -3,7 +3,6 @@ __pycache__
 .hypothesis/
 .tox/
 build/
-reports/
 venv/
 chaindb/
 ganache-out.txt

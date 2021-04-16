@@ -1,5 +1,6 @@
 from itertools import product
 
+import brownie
 import pytest
 
 parameterNames = "rateDecimals,mustInvert"
@@ -19,6 +20,17 @@ class TestExchangeRate:
     @pytest.fixture(autouse=True)
     def isolation(self, fn_isolation):
         pass
+
+    def test_exchange_rate_failure(self, accounts, MockAggregator, exchangeRate):
+        aggregator = accounts[0].deploy(MockAggregator, 18)
+        aggregator.setAnswer(-1)
+        with brownie.reverts():
+            exchangeRate.buildExchangeRate(2)
+
+        rateStorage = (aggregator.address, 18, False, 120, 80, 105)
+        exchangeRate.setETHRateMapping(2, rateStorage)
+        with brownie.reverts():
+            exchangeRate.buildExchangeRate(2)
 
     @pytest.mark.parametrize(parameterNames, parameterValues)
     def test_build_exchange_rate(

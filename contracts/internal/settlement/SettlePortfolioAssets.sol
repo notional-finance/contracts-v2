@@ -105,6 +105,7 @@ library SettlePortfolioAssets {
             PortfolioAsset memory fCashAsset = portfolioState.storedAssets[index - 1];
 
             if (
+                fCashAsset.currencyId == liquidityToken.currencyId &&
                 fCashAsset.maturity == liquidityToken.maturity &&
                 fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
             ) {

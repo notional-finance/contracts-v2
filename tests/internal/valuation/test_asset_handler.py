@@ -151,6 +151,11 @@ class TestAssetHandler:
         with brownie.reverts():
             assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, marketStates, [token], 0)
 
+        with brownie.reverts():
+            token = list(token)
+            token[3] = -1000
+            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, marketStates, [token], 0)
+
     def test_liquidity_token_value_fcash_not_found(self, assetLibrary, cashGroups):
         token = get_liquidity_token(1)
         (cashGroup, marketStates) = cashGroups[0]
@@ -171,6 +176,32 @@ class TestAssetHandler:
         # Test when not risk adjusted
         (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
             0, cashGroup, marketStates, assetsBefore, START_TIME
+        )
+
+        assert assetsAfter == assetsBefore
+        assert assetCash == 1e18
+        assert pv == assetLibrary.getPresentValue(1e18, MARKETS[0], START_TIME, oracleRate)
+
+    def test_liquidity_token_value_fcash_not_found_index_positive(self, assetLibrary, cashGroups):
+        token = get_liquidity_token(1, currencyId=2)
+        (cashGroup, marketStates) = cashGroups[1]
+        oracleRate = get_market_state(MARKETS[0])[6]
+        assetsBefore = [get_fcash_token(1, notional=-0.25e18), token]
+
+        # Case when token is not found
+        (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
+            1, cashGroup, marketStates, assetsBefore, START_TIME
+        )
+
+        assert assetsAfter == assetsBefore
+        assert assetCash == 0.99e18
+        assert riskAdjustedPv == assetLibrary.getRiskAdjustedPresentValue(
+            cashGroup, 0.99e18, MARKETS[0], START_TIME, oracleRate
+        )
+
+        # Test when not risk adjusted
+        (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
+            1, cashGroup, marketStates, assetsBefore, START_TIME
         )
 
         assert assetsAfter == assetsBefore
@@ -229,6 +260,13 @@ class TestAssetHandler:
             assert pvNegative > riskPVNegative
             assert prevNegativePV < riskPVNegative or riskPVNegative == -1e18
             prevNegativePV = riskPVNegative
+
+    def test_floor_discount_rate(self, assetLibrary, cashGroups):
+        cashGroup = cashGroups[0][0]
+        riskPVNegative = assetLibrary.getRiskAdjustedPresentValue(
+            cashGroup, -1e18, MARKETS[0], START_TIME, 1
+        )
+        assert riskPVNegative == -1e18
 
     def test_oracle_rate_failure(self, assetLibrary, cashGroups):
         (cashGroup, markets) = cashGroups[0]

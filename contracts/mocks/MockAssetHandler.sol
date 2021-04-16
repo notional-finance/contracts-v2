@@ -64,7 +64,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         if (notional > 0) assert(pv > 0);
         if (notional < 0) assert(pv < 0);
 
-        assert(pv.abs() < notional.abs());
+        assert(pv.abs() <= notional.abs());
         return pv;
     }
 
