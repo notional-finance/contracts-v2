@@ -7,7 +7,8 @@ library Constants {
     // limit the dust amount caused by precision mismatches
     int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;
     uint256 internal constant ETH_CURRENCY_ID = 1;
-    int256 internal constant ETH_DECIMALS = 18;
+    int256 internal constant ETH_DECIMAL_PLACES = 18;
+    int256 internal constant ETH_DECIMALS = 1e18;
 
     // Used to when calculating the amount to deleverage of a market when minting incentives
     uint256 internal constant DELEVERAGE_BUFFER = 30000000; // 300 * Constants.BASIS_POINT

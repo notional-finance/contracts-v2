@@ -198,7 +198,7 @@ library FreeCollateral {
     ) private view returns (ETHRate memory) {
         ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
         factors.netETHValue = ethRate.convertToETH(
-            factors.cashGroup.assetRate.convertToUnderlying(netLocalAssetValue)
+            factors.assetRate.convertToUnderlying(netLocalAssetValue)
         );
 
         return ethRate;
@@ -228,6 +228,7 @@ library FreeCollateral {
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioValue);
+            factors.assetRate = factors.cashGroup.assetRate;
             _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
@@ -302,6 +303,7 @@ library FreeCollateral {
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioBalance);
+            factors.assetRate = factors.cashGroup.assetRate;
             _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
@@ -339,7 +341,8 @@ library FreeCollateral {
         return factors.netETHValue;
     }
 
-    function calculateLiquidationAssetValue(
+    /// @dev this is used to clear the stack frame
+    function _calculateLiquidationAssetValue(
         FreeCollateralFactors memory factors,
         LiquidationFactors memory liquidationFactors,
         bytes2 currencyBytes,
@@ -395,6 +398,7 @@ library FreeCollateral {
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
             int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioBalance);
+            factors.assetRate = factors.cashGroup.assetRate;
             ETHRate memory ethRate =
                 _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
 
@@ -432,7 +436,7 @@ library FreeCollateral {
                     tempId == collateralCurrencyId;
             }
             int256 netLocalAssetValue =
-                calculateLiquidationAssetValue(
+                _calculateLiquidationAssetValue(
                     factors,
                     liquidationFactors,
                     currencyBytes,

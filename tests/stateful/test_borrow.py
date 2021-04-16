@@ -327,7 +327,6 @@ def test_roll_borrow_to_maturity(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_settle_cash_debt(environment, accounts):
     fCashAmount = 100e8
     borrowAction = get_balance_trade_action(

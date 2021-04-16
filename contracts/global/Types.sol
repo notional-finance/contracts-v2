@@ -96,11 +96,8 @@ struct PortfolioState {
     uint256 storedAssetLength;
 }
 
-/**
- * @dev Exchange rate object as stored in memory, these are cached optimistically
- * when the transaction begins. This is not the same as the object in storage.
- */
-
+/// @dev Exchange rate object as stored in memory, these are cached optimistically
+/// when the transaction begins. This is not the same as the object in storage.
 struct ETHRate {
     // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
     int256 rateDecimals;
