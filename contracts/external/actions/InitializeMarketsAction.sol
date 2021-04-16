@@ -249,9 +249,7 @@ library InitializeMarketsAction {
             );
         }
 
-        // We do not consider "storedCashBalance" because it may be holding cash that is used to
-        // collateralize negative fCash from previous settlements except on the first initialization when
-        // we know that there are no fCash assets at all
+        // Deduct the amount of withholding required from the cash balance (at this point includes all settled cash)
         netAssetCashAvailable = nToken.cashBalance.subNoNeg(assetCashWithholding);
 
         // This is the new balance to store
