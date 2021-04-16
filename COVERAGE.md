@@ -4,7 +4,8 @@
 - settle assets needs to be more deterministic to catch all edge cases
 - settle bitmap does not test remap bitmap
 - account context store context, test bitmap
-- bitmap assets
+- bitmap assets other methods
+- portfolio handler more branches
 
 ### Invariants
 
