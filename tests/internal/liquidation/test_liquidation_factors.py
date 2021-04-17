@@ -12,7 +12,7 @@ from tests.helpers import (
 chain = Chain()
 
 
-@pytest.mark.only
+@pytest.mark.liquidation
 class TestLiquidationFactors:
     @pytest.fixture(scope="module", autouse=True)
     def ethAggregators(self, MockAggregator, accounts):
@@ -27,12 +27,14 @@ class TestLiquidationFactors:
         self,
         MockLiquidationSetup,
         SettleAssetsExternal,
+        FreeCollateralExternal,
         MockCToken,
         cTokenAggregator,
         ethAggregators,
         accounts,
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
+        FreeCollateralExternal.deploy({"from": accounts[0]})
         liq = accounts[0].deploy(MockLiquidationSetup)
         ctoken = accounts[0].deploy(MockCToken, 8)
         # This is the identity rate
@@ -68,13 +70,13 @@ class TestLiquidationFactors:
         liquidation.setBalance(accounts[0], 1, 100e8, 0)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 1, 2, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 1, 2)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 2, 1, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 2, 1)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 3, 2, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 3, 2)
 
     def test_revert_on_sufficient_portfolio_value(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
@@ -84,20 +86,20 @@ class TestLiquidationFactors:
         liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=100e8)])
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 1, 2, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 1, 2)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 2, 1, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 2, 1)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 3, 2, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 3, 2)
 
     def test_revert_on_invalid_currencies(self, liquidation, accounts):
         with brownie.reverts():
-            liquidation.preLiquidationActions(accounts[0], 1, 1, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 1, 1)
 
         with brownie.reverts():
-            liquidation.preLiquidationActions(accounts[0], 0, 1, START_TIME)
+            liquidation.preLiquidationActions(accounts[0], 0, 1)
 
     def test_asset_factors_local_and_collateral(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
@@ -107,9 +109,7 @@ class TestLiquidationFactors:
         liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
         liquidation.setBalance(accounts[0], 3, 100e8, 0)
 
-        (_, factors, _) = liquidation.preLiquidationActions(
-            accounts[0], 1, 3, START_TIME
-        ).return_value
+        (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 3).return_value
 
         # Local available
         assert factors[2] > -100e8 and factors[2] < -99e8
@@ -128,9 +128,7 @@ class TestLiquidationFactors:
         liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
         liquidation.setBalance(accounts[0], 1, 10e8, 0)
 
-        (_, factors, _) = liquidation.preLiquidationActions(
-            accounts[0], 1, 0, START_TIME
-        ).return_value
+        (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 0).return_value
 
         # Local available
         assert factors[2] > -90e8 and factors[2] < -89e8

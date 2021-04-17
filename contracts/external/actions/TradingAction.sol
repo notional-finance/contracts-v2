@@ -361,6 +361,7 @@ library TradingAction {
             assets[0].currencyId = cashGroup.currencyId;
             assets[0].maturity = threeMonthMaturity;
             assets[0].notional = fCashAmount.neg(); // This is the debt the settled account will incur
+            assets[0].assetType = Constants.FCASH_ASSET_TYPE;
             TransferAssets.placeAssetsInAccount(counterparty, counterpartyContext, assets);
         }
         counterpartyContext.setAccountContext(counterparty);

@@ -45,23 +45,22 @@ contract MockCashGroup is StorageLayoutV1 {
     }
 
     function isValidMarketMaturity(
-        CashGroupParameters memory cashGroup,
+        uint256 maxMarketIndex,
         uint256 maturity,
         uint256 blockTime
     ) public pure returns (bool) {
-        bool isValid =
-            DateTime.isValidMarketMaturity(cashGroup.maxMarketIndex, maturity, blockTime);
+        bool isValid = DateTime.isValidMarketMaturity(maxMarketIndex, maturity, blockTime);
         if (maturity < blockTime) assert(!isValid);
 
         return isValid;
     }
 
     function isValidMaturity(
-        CashGroupParameters memory cashGroup,
+        uint256 maxMarketIndex,
         uint256 maturity,
         uint256 blockTime
     ) public pure returns (bool) {
-        bool isValid = DateTime.isValidMaturity(cashGroup.maxMarketIndex, maturity, blockTime);
+        bool isValid = DateTime.isValidMaturity(maxMarketIndex, maturity, blockTime);
 
         return isValid;
     }
@@ -148,11 +147,11 @@ contract MockCashGroup is StorageLayoutV1 {
     }
 
     function getMarketIndex(
-        CashGroupParameters memory cashGroup,
+        uint256 maxMarketIndex,
         uint256 maturity,
         uint256 blockTime
     ) public pure returns (uint256, bool) {
-        return DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
+        return DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
     }
 
     function getMarket(

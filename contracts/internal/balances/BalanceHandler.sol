@@ -184,45 +184,47 @@ library BalanceHandler {
         return transferAmountExternal;
     }
 
+    /// @dev Returns the amount transferred in underlying or asset terms depending on how redeem to underlying
+    /// is specified.
     function _finalizeTransfers(
         BalanceState memory balanceState,
         address account,
         bool redeemToUnderlying
-    ) private returns (int256 transferAmountExternal) {
+    ) private returns (int256 actualTransferAmountExternal) {
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
-        transferAmountExternal = assetToken.convertToExternal(
-            balanceState.netAssetTransferInternalPrecision
-        );
+        int256 assetTransferAmountExternal =
+            assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
         if (redeemToUnderlying) {
             // We use the internal amount here and then scale it to the external amount so that there is
             // no loss of precision between our internal accounting and the external account. In this case
             // there will be no dust accrual since we will transfer the exact amount of underlying that was
             // received.
-            require(transferAmountExternal < 0); // dev: invalid redeem balance
+            require(assetTransferAmountExternal < 0); // dev: invalid redeem balance
             Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
             int256 underlyingAmountExternal =
                 assetToken.redeem(
                     underlyingToken,
                     // NOTE: dust may accrue at the lowest decimal place
-                    uint256(transferAmountExternal.neg())
+                    uint256(assetTransferAmountExternal.neg())
                 );
 
             // Withdraws the underlying amount out to the destination account
-            transferAmountExternal = underlyingToken.transfer(
+            actualTransferAmountExternal = underlyingToken.transfer(
                 account,
                 underlyingAmountExternal.neg()
             );
         } else {
-            transferAmountExternal = assetToken.transfer(account, transferAmountExternal);
+            assetTransferAmountExternal = assetToken.transfer(account, assetTransferAmountExternal);
+            actualTransferAmountExternal = assetTransferAmountExternal;
         }
 
         // Convert the actual transferred amount
         balanceState.netAssetTransferInternalPrecision = assetToken.convertToInternal(
-            transferAmountExternal
+            assetTransferAmountExternal
         );
 
-        return transferAmountExternal;
+        return actualTransferAmountExternal;
     }
 
     /// @notice Special method for settling negative current cash debts. This occurs when an account

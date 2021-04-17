@@ -52,6 +52,19 @@ class TestCashGroupGetters:
             cashGroupParameters[0] = 3
             cashGroup.setCashGroup(1, cashGroupParameters)
 
+    def test_invalid_fcash_haircut_settings(self, cashGroup):
+        cashGroupParameters = list(CASH_GROUP_PARAMETERS)
+
+        with brownie.reverts():
+            # cannot be higher than fcash discount
+            cashGroupParameters[7] = cashGroupParameters[5]
+            cashGroup.setCashGroup(1, cashGroupParameters)
+
+        with brownie.reverts():
+            # cannot be higher than fcash discount
+            cashGroupParameters[7] = cashGroupParameters[5] + 1
+            cashGroup.setCashGroup(1, cashGroupParameters)
+
     def test_invalid_rate_scalar_settings(self, cashGroup):
         cashGroupParameters = list(CASH_GROUP_PARAMETERS)
 
@@ -90,20 +103,24 @@ class TestCashGroupGetters:
             cashGroup.setAssetRateMapping(i, rateStorage)
             maxMarketIndex = random.randint(0, 7)
             maxMarketIndex = 3
-            cashGroupParameters = (
+            cashGroupParameters = [
                 maxMarketIndex,
                 random.randint(1, 255),  # 1 rateOracleTimeWindowMin,
                 random.randint(1, 255),  # 2 totalFeeBPS,
-                random.randint(1, 100),  # 2 reserveFeeShare,
-                random.randint(1, 255),  # 3 debtBuffer5BPS,
-                random.randint(1, 255),  # 4 fCashHaircut5BPS,
-                random.randint(1, 255),  # 4 settlement penalty bps,
-                random.randint(1, 255),  # 5 liquidation fcash haircut
+                random.randint(1, 100),  # 3 reserveFeeShare,
+                random.randint(1, 255),  # 4 debtBuffer5BPS,
+                random.randint(1, 255),  # 5 fCashHaircut5BPS,
+                random.randint(1, 255),  # 6 settlement penalty bps,
+                random.randint(1, 255),  # 7 liquidation fcash haircut
                 # 7: token haircuts (percentages)
                 tuple([100 - i for i in range(0, maxMarketIndex)]),
                 # 8: rate scalar (increments of 10)
                 tuple([10 - i for i in range(0, maxMarketIndex)]),
-            )
+            ]
+
+            # ensure liquidation fcash is less that fcash haircut
+            if cashGroupParameters[7] > cashGroupParameters[5]:
+                cashGroupParameters[7] = cashGroupParameters[5] - 1
 
             cashGroup.setCashGroup(i, cashGroupParameters)
 
@@ -210,7 +227,9 @@ class TestCashGroupGetters:
         for i in range(0, 5):
             randomM = random.randint(blockTime + 1, validMarkets[-1])
             rate = cashGroup.getOracleRate(cg, markets, randomM, blockTime)
-            (marketIndex, idiosyncratic) = cashGroup.getMarketIndex(cg, randomM, blockTime)
+            (marketIndex, idiosyncratic) = cashGroup.getMarketIndex(
+                maxMarketIndex, randomM, blockTime
+            )
 
             if not idiosyncratic:
                 assert rate == impliedRates[randomM]
