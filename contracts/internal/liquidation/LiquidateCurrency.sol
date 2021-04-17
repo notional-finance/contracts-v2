@@ -142,17 +142,14 @@ library LiquidateCurrency {
             collateralRemaining > 0 &&
             _hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
         ) {
-            int256 postWithdrawCollateral =
-                _withdrawCollateralLiquidityTokens(
-                    portfolio,
-                    factors,
-                    blockTime,
-                    collateralRemaining
-                );
-            balanceState.netCashChange = balanceState.netCashChange.add(
-                collateralRemaining.sub(postWithdrawCollateral)
+            // We don't change netCashBalance here because all the collateral withdrawn is going
+            // to go to the liquidator
+            collateralRemaining = _withdrawCollateralLiquidityTokens(
+                portfolio,
+                factors,
+                blockTime,
+                collateralRemaining
             );
-            collateralRemaining = postWithdrawCollateral;
         }
 
         if (collateralRemaining > 0 && factors.nTokenValue > 0) {

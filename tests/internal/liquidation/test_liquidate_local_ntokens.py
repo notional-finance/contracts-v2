@@ -24,12 +24,14 @@ class TestLiquidateLocalNTokens:
         MockLocalLiquidationOverride,
         MockLiquidationSetup,
         SettleAssetsExternal,
+        FreeCollateralExternal,
         MockCToken,
         cTokenAggregator,
         ethAggregators,
         accounts,
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
+        FreeCollateralExternal.deploy({"from": accounts[0]})
 
         liquidateOverride = accounts[0].deploy(MockLocalLiquidationOverride)
         liquidateSetup = accounts[0].deploy(MockLiquidationSetup)
@@ -81,7 +83,7 @@ class TestLiquidateLocalNTokens:
             START_TIME,
             get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=1100e8),
             factors,
-        ).return_value
+        )
 
         # allowed to purchase up to 40% of 1100
         assert balanceState[5] == -440e8
@@ -114,7 +116,7 @@ class TestLiquidateLocalNTokens:
             START_TIME,
             get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
             factors,
-        ).return_value
+        )
 
         # allowed to purchase up to 100% of 110
         assert balanceState[5] == -110e8
@@ -147,7 +149,7 @@ class TestLiquidateLocalNTokens:
             START_TIME,
             get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
             factors,
-        ).return_value
+        )
 
         # allowed to purchase up to 100% of 110
         assert balanceState[5] == -10e8

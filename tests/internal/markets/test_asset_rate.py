@@ -31,7 +31,7 @@ class TestAssetRate:
 
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
         aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
-        cToken.setAnswer(10 ** rateDecimals / 100)
+        cToken.setAnswer(10 ** rateDecimals / 100, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, underlyingDecimals)
 
@@ -113,7 +113,7 @@ class TestAssetRate:
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
         aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
         rateSet = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
-        cToken.setAnswer(rateSet)
+        cToken.setAnswer(rateSet, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, underlyingDecimals)
         assetRate.setAssetRateMapping(1, rateStorage)
@@ -141,7 +141,7 @@ class TestAssetRate:
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
         aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
         rateSet = 0.01 * (10 ** 18)
-        cToken.setAnswer(rateSet)
+        cToken.setAnswer(rateSet, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, 8)
         assetRate.setAssetRateMapping(1, rateStorage)

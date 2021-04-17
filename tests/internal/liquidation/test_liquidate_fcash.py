@@ -84,7 +84,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
             accounts[0], 1, maturities, [0, 0, 0], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [100e8, 100e8, 100e8]
@@ -120,7 +120,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
             accounts[0], 1, maturities, [0, 0, 0], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [50000e8, 20000e8, 0]
@@ -156,7 +156,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
             accounts[0], 1, maturities, [0, 0, 0], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [50000e8, 50000e8, 20000e8]
@@ -192,7 +192,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
             accounts[0], 1, maturities, [10000e8, 20000e8, 30000e8], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [10000e8, 20000e8, 30000e8]
@@ -228,7 +228,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
             accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert localFromLiquidator == 200e8
@@ -269,10 +269,9 @@ class TestLiquidatefCash:
         # (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
         #     accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
         # ).return_value
-        txn = liquidation.liquidatefCashCrossCurrency(
+        (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
             accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
         )
-        (notionals, localFromLiquidator, _) = txn.return_value
 
         assert sum(notionals) > localFromLiquidator
         assert localFromLiquidator == 200e8
@@ -309,7 +308,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
             accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [100e8, 100e8, 100e8]
@@ -345,7 +344,7 @@ class TestLiquidatefCash:
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
             accounts[0], 2, maturities, [20e8, 20e8, 20e8], fCashContext, START_TIME
-        ).return_value
+        )
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [20e8, 20e8, 20e8]

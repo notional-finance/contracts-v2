@@ -29,12 +29,14 @@ class TestLiquidateLocalLiquidityTokens:
         self,
         MockLocalLiquidation,
         SettleAssetsExternal,
+        FreeCollateralExternal,
         MockCToken,
         cTokenAggregator,
         ethAggregators,
         accounts,
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
+        FreeCollateralExternal.deploy({"from": accounts[0]})
         liq = accounts[0].deploy(MockLocalLiquidation)
         ctoken = accounts[0].deploy(MockCToken, 8)
         # This is the identity rate

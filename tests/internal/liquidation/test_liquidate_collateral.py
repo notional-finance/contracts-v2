@@ -101,7 +101,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 100e8
@@ -143,7 +143,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -185,7 +185,7 @@ class TestLiquidateCollateral:
             53e8,  # Specification is here
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -227,7 +227,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -269,7 +269,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -312,7 +312,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == -localBalance
@@ -355,7 +355,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == 100e8
@@ -396,7 +396,7 @@ class TestLiquidateCollateral:
             106e8,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == 100e8
@@ -438,10 +438,12 @@ class TestLiquidateCollateral:
             0,
             100e8,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc((100e8 * 0.95) / discount)
+        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
+            (100e8 * 0.95) / discount * 100
+        )
         assert pytest.approx(newBalanceState[3], abs=2) == 0
         assert pytest.approx(newBalanceState[5], abs=2) == -100e8
 
@@ -480,10 +482,12 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc((100e8 * 0.95) / discount)
+        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
+            ((100e8 * 0.95) / discount) * 100
+        )
         assert pytest.approx(newBalanceState[3], abs=2) == 0
         assert pytest.approx(newBalanceState[5], abs=2) == -100e8
 
@@ -522,10 +526,10 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        ).return_value
+        )
 
         assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(400e8 / discount)
+        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc((400e8 / discount) * 100)
         assert pytest.approx(newBalanceState[3], abs=2) == 0
         # TODO: This overshoots the 40% liquidation allowance
         assert pytest.approx(newBalanceState[5] * 0.95, abs=2) == -400e8
@@ -575,7 +579,7 @@ class TestLiquidateCollateral:
             20e8,  # Cap the withdraw amount so that this is a partial withdraw
             0,
             START_TIME,
-        ).return_value
+        )
 
         withdrawn = (
             (localFromLiquidator * discount / 100 - collateralBalance)
@@ -629,7 +633,7 @@ class TestLiquidateCollateral:
             markets,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2), factors, portfolioState, 0, 0, START_TIME
-        ).return_value
+        )
 
         assert pytest.approx(localFromLiquidator, abs=2) == cashClaim * 100 / discount
         assert newBalanceState[4] == 0
