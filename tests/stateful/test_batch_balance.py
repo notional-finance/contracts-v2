@@ -72,11 +72,11 @@ def test_deposit_asset_batch(environment, accounts):
 
     assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert txn.events["CashBalanceChange"][0]["amount"] == 100e8
+    assert txn.events["CashBalanceChange"][0]["netCashChange"] == 100e8
 
     assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert txn.events["CashBalanceChange"][1]["amount"] == 100e8
+    assert txn.events["CashBalanceChange"][1]["netCashChange"] == 100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -107,11 +107,11 @@ def test_deposit_underlying_batch(environment, accounts):
 
     assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert txn.events["CashBalanceChange"][0]["amount"] == 5000e8
+    assert txn.events["CashBalanceChange"][0]["netCashChange"] == 5000e8
 
     assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert txn.events["CashBalanceChange"][1]["amount"] == 5000e8
+    assert txn.events["CashBalanceChange"][1]["netCashChange"] == 5000e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -140,13 +140,13 @@ def test_deposit_asset_and_mint_perpetual(environment, accounts):
         {"from": accounts[1]},
     )
 
-    assert txn.events["PerpetualTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["PerpetualTokenSupplyChange"][0]["amount"] == 100e8
+    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == 100e8
 
-    assert txn.events["PerpetualTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["PerpetualTokenSupplyChange"][1]["amount"] == 100e8
+    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == 100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -175,13 +175,13 @@ def test_deposit_underlying_and_mint_perpetual(environment, accounts):
         {"from": accounts[1]},
     )
 
-    assert txn.events["PerpetualTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["PerpetualTokenSupplyChange"][0]["amount"] == 5000e8
+    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == 5000e8
 
-    assert txn.events["PerpetualTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["PerpetualTokenSupplyChange"][1]["amount"] == 5000e8
+    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == 5000e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -219,13 +219,13 @@ def test_redeem_perpetual(environment, accounts):
         {"from": accounts[1]},
     )
 
-    assert txn.events["PerpetualTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["PerpetualTokenSupplyChange"][0]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
 
-    assert txn.events["PerpetualTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["PerpetualTokenSupplyChange"][1]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -274,13 +274,13 @@ def test_redeem_perpetual_and_withdraw_asset(environment, accounts):
     daiBalanceAfter = environment.cToken["DAI"].balanceOf(accounts[1])
     usdcBalanceAfter = environment.cToken["USDC"].balanceOf(accounts[1])
 
-    assert txn.events["PerpetualTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["PerpetualTokenSupplyChange"][0]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
 
-    assert txn.events["PerpetualTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["PerpetualTokenSupplyChange"][1]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -339,13 +339,13 @@ def test_redeem_perpetual_and_withdraw_underlying(environment, accounts):
     daiBalanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     usdcBalanceAfter = environment.token["USDC"].balanceOf(accounts[1])
 
-    assert txn.events["PerpetualTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["PerpetualTokenSupplyChange"][0]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
 
-    assert txn.events["PerpetualTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["PerpetualTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["PerpetualTokenSupplyChange"][1]["amount"] == -100e8
+    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
+    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])

@@ -49,6 +49,7 @@ contract nTokenRedeemAction {
     /// @notice Allows accounts to redeem perpetual tokens into constituent assets and then absorb the assets
     /// into their portfolio. Due to the complexity here, it is not allowed to be called during a batch trading
     /// operation and must be done separately.
+    /// @param redeemer the address that holdes the nTokens to redeem
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem_ the amount of nTokens to convert to cash
     /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
@@ -174,7 +175,6 @@ contract nTokenRedeemAction {
             )
         );
 
-        // Update perpetual token portfolio
         {
             // prettier-ignore
             (
@@ -186,7 +186,7 @@ contract nTokenRedeemAction {
 
             // This can happen if a liquidity token is redeemed down to zero. It's possible that due to dust amounts
             // one token is reduced down to a zero balance while the others still have some amount remaining. In this case
-            // the mint perpetual token will fail in `addLiquidityToMarket`, an account must accept redeeming part of their
+            // the mint nToken will fail in `addLiquidityToMarket`, an account must accept redeeming part of their
             // nTokens and leaving some dust amount behind.
             require(
                 nToken.portfolioState.storedAssets.length == uint256(newStorageLength),

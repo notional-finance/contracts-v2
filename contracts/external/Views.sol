@@ -160,10 +160,11 @@ contract Views is StorageLayoutV1 {
     }
 
     function getReserveBalance(uint16 currencyId) external view returns (int256) {
+        // prettier-ignore
         (
-            int256 cashBalance, /* */ /* */
-            ,
-
+            int256 cashBalance,
+            /* */,
+            /* */
         ) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
         return cashBalance;
     }
@@ -178,12 +179,11 @@ contract Views is StorageLayoutV1 {
         view
         returns (PortfolioAsset[] memory, PortfolioAsset[] memory)
     {
+        // prettier-ignore
         (
             uint256 currencyId,
-            ,
-            ,
-            /* uint totalSupply */
-            /* incentiveRate */
+            /* uint totalSupply */,
+            /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
@@ -222,15 +222,15 @@ contract Views is StorageLayoutV1 {
             token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory perpToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
 
+        // prettier-ignore
         (
-            int256 tokensToMint, /* */
-
-        ) =
-            nTokenMintAction.calculateTokensToMint(
-                perpToken,
-                amountToDepositInternal,
-                block.timestamp
-            );
+            int256 tokensToMint,
+            /* */
+        ) = nTokenMintAction.calculateTokensToMint(
+            perpToken,
+            amountToDepositInternal,
+            block.timestamp
+        );
 
         return SafeCast.toUint256(tokensToMint);
     }

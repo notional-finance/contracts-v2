@@ -40,9 +40,7 @@ def isolation(fn_isolation):
 
 def initialize_markets(environment, accounts):
     currencyId = 2
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9]
-    )
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
         currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9]
@@ -120,16 +118,14 @@ def interpolate_market_rate(a, b, isSixMonth=False):
 
 def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
     blockTime = chain.time()
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (cashBalance, perpTokenBalance, lastMintTime) = environment.notional.getAccountBalance(
-        currencyId, perpTokenAddress
+        currencyId, nTokenAddress
     )
 
     (cashGroup, assetRate) = environment.notional.getCashGroupAndRate(currencyId)
-    (portfolio, ifCashAssets) = environment.notional.getPerpetualTokenPortfolio(perpTokenAddress)
-    (depositShares, leverageThresholds) = environment.notional.getPerpetualDepositParameters(
-        currencyId
-    )
+    (portfolio, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (depositShares, leverageThresholds) = environment.notional.getDepositParameters(currencyId)
     (rateAnchors, proportions) = environment.notional.getInitializationParameters(currencyId)
     maturity = get_maturities(cashGroup[0])
     markets = environment.notional.getActiveMarkets(currencyId)
@@ -217,7 +213,7 @@ def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=T
             assert pytest.approx(market[6], abs=2) == computedOracleRate
 
     # TODO: where to check last initialized time?
-    # accountContext = environment.notional.getAccountContext(perpTokenAddress)
+    # accountContext = environment.notional.getAccountContext(nTokenAddress)
     # assert accountContext[0] < get_tref(blockTime) + SECONDS_IN_QUARTER
 
     check_system_invariants(environment, accounts)
@@ -229,9 +225,7 @@ def test_first_initialization(environment, accounts):
         # no parameters are set
         environment.notional.initializeMarkets(currencyId, True)
 
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9]
-    )
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
         currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
@@ -276,7 +270,7 @@ def test_settle_and_extend(environment, accounts):
     cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
-    environment.notional.updatePerpetualDepositParameters(
+    environment.notional.updateDepositParameters(
         currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
@@ -303,7 +297,7 @@ def test_mint_after_markets_initialized(environment, accounts):
     currencyId = 2
 
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    tokensToMint = environment.notional.calculatePerpetualTokensToMint(currencyId, 100000e8)
+    tokensToMint = environment.notional.calculateNTokensToMint(currencyId, 100000e8)
     (
         cashBalanceBefore,
         perpTokenBalanceBefore,
@@ -345,21 +339,26 @@ def test_mint_after_markets_initialized(environment, accounts):
     assert lastMintTimeAfter > lastMintTimeBefore
 
 
-def test_redeem_all_liquidity_and_initialize(environment, accounts):
+def test_redeem_to_zero_fails(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    environment.notional.perpetualTokenRedeem(
-        currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
+    with brownie.reverts("Cannot redeem to zero"):
+        environment.notional.nTokenRedeem(
+            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
+        )
+
+    # This can succeed
+    environment.notional.nTokenRedeem(
+        accounts[0].address, currencyId, INITIAL_CASH_AMOUNT - 1e8, True, {"from": accounts[0]}
     )
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    portfolio = environment.notional.getAccountPortfolio(perpTokenAddress)
-    ifCashAssets = environment.notional.getifCashAssets(perpTokenAddress)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolio, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # assert no assets in perp token
-    assert len(portfolio) == 0
-    assert len(ifCashAssets) == 0
+    assert len(portfolio) == 2
+    assert len(ifCashAssets) == 2
 
     environment.notional.batchBalanceAction(
         accounts[0],
@@ -370,10 +369,6 @@ def test_redeem_all_liquidity_and_initialize(environment, accounts):
         ],
         {"from": accounts[0]},
     )
-
-    # Set is first init to true if the market does not have assets
-    environment.notional.initializeMarkets(currencyId, True)
-    perp_token_asserts(environment, currencyId, True, accounts)
 
 
 def test_failing_initialize_time(environment, accounts):
@@ -400,4 +395,6 @@ def test_failing_initialize_time(environment, accounts):
         )
 
     with brownie.reverts("PT: requires settlement"):
-        environment.notional.perpetualTokenRedeem(currencyId, 100e8, True, {"from": accounts[0]})
+        environment.notional.nTokenRedeem(
+            accounts[0].address, currencyId, 100e8, True, {"from": accounts[0]}
+        )

@@ -6,7 +6,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import strategy
 from eth_abi.packed import encode_abi_packed
-from scripts.config import CurrencyDefaults, PerpetualTokenDefaults
+from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TestEnvironment
 from tests.constants import (
     BALANCE_FLAG_INT,
@@ -370,8 +370,6 @@ def get_trade_action(**kwargs):
                 0,
             ],
         )
-    elif tradeActionType == "MintCashPair":
-        pass
     elif tradeActionType == "PurchaseNTokenResidual":
         return encode_abi_packed(
             ["uint8", "uint32", "int88", "uint128"],
@@ -427,15 +425,11 @@ def initialize_environment(accounts):
     chain.mine(1, timestamp=newTime)
 
     currencyId = 2
-    env.notional.updatePerpetualDepositParameters(currencyId, *(PerpetualTokenDefaults["Deposit"]))
+    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
 
-    env.notional.updateInitializationParameters(
-        currencyId, *(PerpetualTokenDefaults["Initialization"])
-    )
+    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
 
-    env.notional.updatePerpetualTokenCollateralParameters(
-        currencyId, *(PerpetualTokenDefaults["Collateral"])
-    )
+    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],
@@ -445,15 +439,11 @@ def initialize_environment(accounts):
     env.notional.initializeMarkets(currencyId, True)
 
     currencyId = 3
-    env.notional.updatePerpetualDepositParameters(currencyId, *(PerpetualTokenDefaults["Deposit"]))
+    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
 
-    env.notional.updateInitializationParameters(
-        currencyId, *(PerpetualTokenDefaults["Initialization"])
-    )
+    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
 
-    env.notional.updatePerpetualTokenCollateralParameters(
-        currencyId, *(PerpetualTokenDefaults["Collateral"])
-    )
+    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     env.notional.batchBalanceAction(
         accounts[0],

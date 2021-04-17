@@ -35,14 +35,10 @@ def get_market_proportion(currencyId, environment):
 def test_deleverage_markets_no_lend(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9]
-    )
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9])
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
     totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
 
@@ -52,10 +48,8 @@ def test_deleverage_markets_no_lend(environment, accounts):
         {"from": accounts[0]},
     )
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    balanceAfter = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
     totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
@@ -73,14 +67,10 @@ def test_deleverage_markets_no_lend(environment, accounts):
 def test_deleverage_markets_lend(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9]
-    )
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9])
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
     totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
     marketProportionsBefore = get_market_proportion(currencyId, environment)
 
@@ -90,10 +80,8 @@ def test_deleverage_markets_lend(environment, accounts):
         {"from": accounts[0]},
     )
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    balanceAfter = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
     totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
     marketProportionsAfter = get_market_proportion(currencyId, environment)
@@ -117,14 +105,10 @@ def test_deleverage_markets_lend(environment, accounts):
 def test_deleverage_markets_lend_and_provide(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
-    environment.notional.updatePerpetualDepositParameters(
-        currencyId, [0.4e8, 0.6e8], [0.49e9, 0.49e9]
-    )
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.49e9, 0.49e9])
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
     totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
     marketProportionsBefore = get_market_proportion(currencyId, environment)
 
@@ -134,10 +118,8 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
         {"from": accounts[0]},
     )
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    balanceAfter = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
     totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
     marketProportionsAfter = get_market_proportion(currencyId, environment)
@@ -167,10 +149,8 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     action = get_balance_trade_action(
         2,
@@ -185,12 +165,12 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    environment.notional.perpetualTokenRedeem(currencyId, 1e8, True, {"from": accounts[0]})
+    environment.notional.nTokenRedeem(
+        accounts[0].address, currencyId, 1e8, True, {"from": accounts[0]}
+    )
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     (
         cashBalanceAfter,
         perpTokenBalanceAfter,
@@ -220,7 +200,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    # perpTokenAddress = environment.notional.nTokenAddress(currencyId)
+    # nTokenAddress = environment.notional.nTokenAddress(currencyId)
     totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
@@ -236,7 +216,9 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    environment.notional.perpetualTokenRedeem(currencyId, 1e8, False, {"from": accounts[0]})
+    environment.notional.nTokenRedeem(
+        accounts[0].address, currencyId, 1e8, False, {"from": accounts[0]}
+    )
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
     (
@@ -280,7 +262,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
-    environment.notional.updatePerpetualDepositParameters(
+    environment.notional.updateDepositParameters(
         currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
@@ -307,11 +289,9 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
 
     with brownie.reverts("Insufficient block time"):
         action = get_balance_trade_action(
@@ -378,10 +358,8 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     )
     environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     (accountCashBalance, _, _) = environment.notional.getAccountBalance(currencyId, accounts[2])
     accountPortfolio = environment.notional.getAccountPortfolio(accounts[2])
 
@@ -402,7 +380,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
-    environment.notional.updatePerpetualDepositParameters(
+    environment.notional.updateDepositParameters(
         currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
@@ -434,11 +412,9 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    perpTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
 
     blockTime = chain.time()
     # 96 hour buffer period
@@ -491,10 +467,8 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     )
     environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getPerpetualTokenPortfolio(
-        perpTokenAddress
-    )
-    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, perpTokenAddress)
+    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     (accountCashBalance, _, _) = environment.notional.getAccountBalance(currencyId, accounts[0])
     accountPortfolio = environment.notional.getAccountPortfolio(accounts[0])
 

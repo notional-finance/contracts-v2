@@ -67,9 +67,7 @@ def compute_settled_fcash(currencyId, symbol, env, accounts):
         # TODO: check for ifCash assets here too
 
     # Check perp token portfolios
-    (portfolio, ifCashAssets) = env.notional.getPerpetualTokenPortfolio(
-        env.perpToken[currencyId].address
-    )
+    (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(env.perpToken[currencyId].address)
 
     for asset in portfolio:
         settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
@@ -181,7 +179,7 @@ def check_portfolio_invariants(env, accounts):
             env.notional.initializeMarkets(currencyId, False)
         except Exception as e:
             print(e)
-        (portfolio, ifCashAssets) = env.notional.getPerpetualTokenPortfolio(perpToken.address)
+        (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(perpToken.address)
 
         for asset in portfolio:
             # Perp token cannot have any other currencies in its portfolio

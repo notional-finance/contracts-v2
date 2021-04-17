@@ -378,6 +378,7 @@ library nTokenHandler {
     }
 
     function getNextSettleTime(nTokenPortfolio memory nToken) internal pure returns (uint256) {
+        if (nToken.lastInitializedTime == 0) return 0;
         return DateTime.getReferenceTime(nToken.lastInitializedTime) + Constants.QUARTER;
     }
 
@@ -415,14 +416,15 @@ library nTokenHandler {
         // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
         // underlying terms.
         {
-            PortfolioAsset[] memory emptyPortfolio = new PortfolioAsset[](0);
             for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
+                // NOTE: getLiquidityTokenValue can rewrite fCash values in memory, however, that does not
+                // happen in this call because there are no fCash values in the nToken portfolio.
                 (int256 assetCashClaim, int256 pv) =
                     AssetHandler.getLiquidityTokenValue(
                         i,
                         nToken.cashGroup,
                         nToken.markets,
-                        emptyPortfolio,
+                        nToken.portfolioState.storedAssets,
                         blockTime,
                         false
                     );

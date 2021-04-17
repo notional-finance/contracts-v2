@@ -81,10 +81,11 @@ interface NotionalProxy is nTokenERC20 {
         uint8 liquidationDiscount
     ) external;
 
-    /** Redeem Perpetual Token Action */
+    /** Redeem nToken Action */
     function nTokenRedeem(
+        address redeemer,
         uint16 currencyId,
-        uint88 tokensToRedeem_,
+        uint96 tokensToRedeem_,
         bool sellTokenAssets
     ) external;
 

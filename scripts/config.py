@@ -37,7 +37,7 @@ CurrencyDefaults = {
     "incentiveEmissionRate": 0.005e8,
 }
 
-PerpetualTokenDefaults = {
+nTokenDefaults = {
     "Deposit": [[0.4e8, 0.6e8], [0.8e9, 0.8e9]],  # Deposit shares  # Leverage thresholds
     "Initialization": [[1.01e9, 1.021e9], [0.5e9, 0.5e9]],  # Rate anchors  # Target proportion
     "Collateral": [

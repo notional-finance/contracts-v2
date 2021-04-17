@@ -121,11 +121,11 @@ contract MockNTokenHandler is StorageLayoutV1 {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external {
-        address perpTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(perpTokenAddress != address(0), "Invalid currency");
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        require(nTokenAddress != address(0), "Invalid currency");
 
         nTokenHandler.setNTokenCollateralParameters(
-            perpTokenAddress,
+            nTokenAddress,
             residualPurchaseIncentive10BPS,
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,

@@ -149,7 +149,7 @@ library BalanceHandler {
             // of the system. This method will update the lastIncentiveClaim time in the balanceState for storage.
             Incentives.claimIncentives(balanceState, account);
 
-            // Perpetual tokens are within the notional system so we can update balances directly.
+            // nTokens are within the notional system so we can update balances directly.
             balanceState.storedNTokenBalance = balanceState
                 .storedNTokenBalance
                 .add(balanceState.netNTokenTransfer)

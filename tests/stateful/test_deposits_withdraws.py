@@ -43,7 +43,9 @@ def test_deposit_underlying_token_from_self(environment, accounts):
 
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+    assert (
+        txn.events["CashBalanceChange"]["netCashChange"] == cTokenSupplyAfter - cTokenSupplyBefore
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -67,7 +69,9 @@ def test_deposit_eth_underlying(environment, accounts):
 
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == 1
-    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+    assert (
+        txn.events["CashBalanceChange"]["netCashChange"] == cTokenSupplyAfter - cTokenSupplyBefore
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -91,7 +95,9 @@ def test_deposit_underlying_token_from_other(environment, accounts):
 
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+    assert (
+        txn.events["CashBalanceChange"]["netCashChange"] == cTokenSupplyAfter - cTokenSupplyBefore
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -114,7 +120,7 @@ def test_deposit_asset_token_from_self(environment, accounts):
     )
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["amount"] == 100e8
+    assert txn.events["CashBalanceChange"]["netCashChange"] == 100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -148,7 +154,7 @@ def test_withdraw_asset_token_pass_fc(environment, accounts):
     )
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["amount"] == -100e8
+    assert txn.events["CashBalanceChange"]["netCashChange"] == -100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -177,7 +183,7 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     txn = environment.notional.withdraw(accounts[1], currencyId, 100e8, True, {"from": accounts[1]})
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["amount"] == -100e8
+    assert txn.events["CashBalanceChange"]["netCashChange"] == -100e8
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -209,7 +215,9 @@ def test_withdraw_and_redeem_eth(environment, accounts):
 
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == 1
-    assert txn.events["CashBalanceChange"]["amount"] == cTokenSupplyAfter - cTokenSupplyBefore
+    assert (
+        txn.events["CashBalanceChange"]["netCashChange"] == cTokenSupplyAfter - cTokenSupplyBefore
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])

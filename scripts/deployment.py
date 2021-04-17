@@ -273,9 +273,9 @@ class TestEnvironment:
         )
 
         self.currencyId[symbol] = currencyId
-        perpTokenAddress = self.notional.nTokenAddress(currencyId)
+        nTokenAddress = self.notional.nTokenAddress(currencyId)
         self.perpToken[currencyId] = Contract.from_abi(
-            "PerpetualToken", perpTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
+            "PerpetualToken", nTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
         )
 
 
