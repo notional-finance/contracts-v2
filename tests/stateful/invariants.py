@@ -67,7 +67,7 @@ def compute_settled_fcash(currencyId, symbol, env, accounts):
         # TODO: check for ifCash assets here too
 
     # Check perp token portfolios
-    (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(env.perpToken[currencyId].address)
+    (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(env.nToken[currencyId].address)
 
     for asset in portfolio:
         settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
@@ -103,7 +103,7 @@ def check_cash_balance(env, accounts):
 
         # Add perp token balances
         (cashBalance, _, _) = env.notional.getAccountBalance(
-            currencyId, env.perpToken[currencyId].address
+            currencyId, env.nToken[currencyId].address
         )
         accountBalances += cashBalance
 
@@ -117,14 +117,14 @@ def check_cash_balance(env, accounts):
 
         assert contractBalance == accountBalances
         # Check that total supply equals total balances
-        assert perpTokenTotalBalances == env.perpToken[currencyId].totalSupply()
+        assert perpTokenTotalBalances == env.nToken[currencyId].totalSupply()
 
 
 def check_perp_token(env, accounts):
     # For every perp token, check that it has no other balances and its
     # total outstanding supply matches its supply
-    for (currencyId, perpToken) in env.perpToken.items():
-        totalSupply = perpToken.totalSupply()
+    for (currencyId, nToken) in env.nToken.items():
+        totalSupply = nToken.totalSupply()
         totalTokensHeld = 0
 
         for account in accounts:
@@ -137,7 +137,7 @@ def check_perp_token(env, accounts):
         # Ensure that the perp token never holds other balances
         for (_, testCurrencyId) in env.currencyId.items():
             (cashBalance, tokens, lastMintTime) = env.notional.getAccountBalance(
-                testCurrencyId, perpToken.address
+                testCurrencyId, nToken.address
             )
             assert tokens == 0
             assert lastMintTime == 0
@@ -174,12 +174,12 @@ def check_portfolio_invariants(env, accounts):
         # TODO: check for ifCash assets here too
 
     # Check perp token portfolios
-    for (currencyId, perpToken) in env.perpToken.items():
+    for (currencyId, nToken) in env.nToken.items():
         try:
             env.notional.initializeMarkets(currencyId, False)
         except Exception as e:
             print(e)
-        (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(perpToken.address)
+        (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(nToken.address)
 
         for asset in portfolio:
             # Perp token cannot have any other currencies in its portfolio

@@ -412,7 +412,7 @@ library TradingAction {
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
         // it is an idiosyncratic maturity)
         require(
-            !DateTime.isValidMaturity(cashGroup.maxMarketIndex, maturity, blockTime),
+            !DateTime.isValidMarketMaturity(cashGroup.maxMarketIndex, maturity, blockTime),
             "Invalid maturity"
         );
 

@@ -54,7 +54,7 @@ class TestEnvironment:
         self.ethOracle = {}
         self.cToken = {}
         self.cTokenAggregator = {}
-        self.perpToken = {}
+        self.nToken = {}
         self.router = {}
         self.multisig = multisig
 
@@ -274,7 +274,7 @@ class TestEnvironment:
 
         self.currencyId[symbol] = currencyId
         nTokenAddress = self.notional.nTokenAddress(currencyId)
-        self.perpToken[currencyId] = Contract.from_abi(
+        self.nToken[currencyId] = Contract.from_abi(
             "PerpetualToken", nTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
         )
 

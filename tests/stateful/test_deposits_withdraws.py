@@ -136,10 +136,10 @@ def test_deposit_asset_token_from_self(environment, accounts):
 
 def test_withdraw_asset_token_insufficient_balance(environment, accounts):
     with brownie.reverts():
-        environment.notional.withdraw(accounts[1], 2, 100e8, False, {"from": accounts[1]})
+        environment.notional.withdraw(2, 100e8, False, {"from": accounts[1]})
 
     with brownie.reverts():
-        environment.notional.withdraw(accounts[1], 2, 100e8, True, {"from": accounts[1]})
+        environment.notional.withdraw(2, 100e8, True, {"from": accounts[1]})
 
 
 def test_withdraw_asset_token_pass_fc(environment, accounts):
@@ -149,9 +149,7 @@ def test_withdraw_asset_token_pass_fc(environment, accounts):
     environment.notional.depositAssetToken(accounts[1], currencyId, 100e8, {"from": accounts[1]})
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
 
-    txn = environment.notional.withdraw(
-        accounts[1], currencyId, 100e8, False, {"from": accounts[1]}
-    )
+    txn = environment.notional.withdraw(currencyId, 100e8, False, {"from": accounts[1]})
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
     assert txn.events["CashBalanceChange"]["netCashChange"] == -100e8
@@ -180,7 +178,7 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
     cTokenBalanceBefore = environment.cToken["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
-    txn = environment.notional.withdraw(accounts[1], currencyId, 100e8, True, {"from": accounts[1]})
+    txn = environment.notional.withdraw(currencyId, 100e8, True, {"from": accounts[1]})
     assert txn.events["CashBalanceChange"]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
     assert txn.events["CashBalanceChange"]["netCashChange"] == -100e8
@@ -209,7 +207,7 @@ def test_withdraw_and_redeem_eth(environment, accounts):
 
     balanceBefore = accounts[1].balance()
     cTokenSupplyBefore = environment.cToken["ETH"].totalSupply()
-    txn = environment.notional.withdraw(accounts[1], 1, 5000e8, True, {"from": accounts[1]})
+    txn = environment.notional.withdraw(1, 5000e8, True, {"from": accounts[1]})
     assert environment.notional.balance() == 0
     cTokenSupplyAfter = environment.cToken["ETH"].totalSupply()
 

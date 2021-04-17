@@ -5,16 +5,9 @@ pragma experimental ABIEncoderV2;
 interface nTokenERC20 {
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 amount
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
-    function nTokenTotalSupply(address nTokenAddress)
-        external
-        view
-        returns (uint256);
+    function nTokenTotalSupply(address nTokenAddress) external view returns (uint256);
 
     function nTokenTransferAllowance(
         uint16 currencyId,
@@ -22,10 +15,7 @@ interface nTokenERC20 {
         address spender
     ) external view returns (uint256);
 
-    function nTokenBalanceOf(uint16 currencyId, address account)
-        external
-        view
-        returns (uint256);
+    function nTokenBalanceOf(uint16 currencyId, address account) external view returns (uint256);
 
     function nTokenTransferApprove(
         uint16 currencyId,
@@ -49,19 +39,16 @@ interface nTokenERC20 {
         uint256 amount
     ) external returns (bool, uint256);
 
-    function nTokenTransferApproveAll(address spender, uint256 amount)
-        external
-        returns (bool);
+    function nTokenTransferApproveAll(address spender, uint256 amount) external returns (bool);
+
+    function nTokenClaimIncentives(uint16 currencyId) external returns (uint256);
 
     function nTokenGetClaimableIncentives(uint16 currencyId, address account)
         external
         view
         returns (uint256);
 
-    function nTokenPresentValueAssetDenominated(uint16 currencyId)
-        external
-        view
-        returns (int256);
+    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (int256);
 
     function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
         external

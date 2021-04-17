@@ -121,6 +121,7 @@ contract DepositWithdrawAction {
     /// @param currencyId currency id of the asset token
     /// @param amountInternalPrecision the amount of asset tokens in its native decimal precision
     /// (i.e. 8 decimals for cTokens). This will be converted to 8 decimals during transfer if necessary.
+    /// @param redeemToUnderlying true if the tokens should be converted to underlying assets
     /// @dev emit:CashBalanceChange
     /// @dev auth:msg.sender
     /// @return the amount of tokens recieved by the account denominated in the destination token precision (if

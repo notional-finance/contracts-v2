@@ -220,14 +220,14 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
-        nTokenPortfolio memory perpToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
 
         // prettier-ignore
         (
             int256 tokensToMint,
             /* */
         ) = nTokenMintAction.calculateTokensToMint(
-            perpToken,
+            nToken,
             amountToDepositInternal,
             block.timestamp
         );

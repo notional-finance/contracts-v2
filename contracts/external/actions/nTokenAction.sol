@@ -173,7 +173,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     /// @notice Claims incentives accrued on the nToken and transfers them to the msg.sender
     /// @param currencyId Currency id associated with the nToken
     /// @return Total amount of incentives claimed
-    function nTokenClaimIncentives(uint16 currencyId) external returns (uint256) {
+    function nTokenClaimIncentives(uint16 currencyId) external override returns (uint256) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);

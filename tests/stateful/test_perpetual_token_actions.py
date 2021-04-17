@@ -40,7 +40,7 @@ def test_deleverage_markets_no_lend(environment, accounts):
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
+    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
 
     environment.notional.batchBalanceAction(
         accounts[0],
@@ -52,7 +52,7 @@ def test_deleverage_markets_no_lend(environment, accounts):
     balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
+    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
     assert portfolioBefore == portfolioAfter
     assert ifCashAssetsBefore == ifCashAssetsAfter
@@ -71,7 +71,7 @@ def test_deleverage_markets_lend(environment, accounts):
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
+    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
     marketProportionsBefore = get_market_proportion(currencyId, environment)
 
     environment.notional.batchBalanceAction(
@@ -83,7 +83,7 @@ def test_deleverage_markets_lend(environment, accounts):
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
+    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
     marketProportionsAfter = get_market_proportion(currencyId, environment)
 
     assert portfolioBefore == portfolioAfter
@@ -109,7 +109,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
+    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
     marketProportionsBefore = get_market_proportion(currencyId, environment)
 
     environment.notional.batchBalanceAction(
@@ -121,7 +121,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
+    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
     marketProportionsAfter = get_market_proportion(currencyId, environment)
 
     for (assetBefore, assetAfter) in zip(portfolioBefore, portfolioAfter):
@@ -201,7 +201,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
     # nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
+    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
         2,
@@ -226,7 +226,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
         perpTokenBalanceAfter,
         lastMintTimeAfter,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
-    totalSupplyAfter = environment.perpToken[currencyId].totalSupply()
+    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
     # Assert that no assets in portfolio
     portfolio = environment.notional.getAccountPortfolio(accounts[0])
@@ -482,18 +482,18 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
 
 def test_transfer_tokens(environment, accounts):
     currencyId = 2
-    totalSupplyBefore = environment.perpToken[currencyId].totalSupply()
-    assert totalSupplyBefore == environment.perpToken[currencyId].balanceOf(accounts[0])
+    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
+    assert totalSupplyBefore == environment.nToken[currencyId].balanceOf(accounts[0])
     (_, _, accountOneLastMintTime) = environment.notional.getAccountBalance(currencyId, accounts[1])
     assert accountOneLastMintTime == 0
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
-    txn = environment.perpToken[currencyId].transfer(accounts[1], 100e8)
+    txn = environment.nToken[currencyId].transfer(accounts[1], 100e8)
 
-    assert environment.perpToken[currencyId].totalSupply() == totalSupplyBefore
-    assert environment.perpToken[currencyId].balanceOf(accounts[1]) == 100e8
-    assert environment.perpToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8
+    assert environment.nToken[currencyId].totalSupply() == totalSupplyBefore
+    assert environment.nToken[currencyId].balanceOf(accounts[1]) == 100e8
+    assert environment.nToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8
     assert environment.noteERC20.balanceOf(accounts[0]) > 0
     assert environment.noteERC20.balanceOf(accounts[1]) == 0
 
@@ -508,14 +508,14 @@ def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
-    txn = environment.perpToken[currencyId].claimIncentives(accounts[0])
+    txn = environment.notional.nTokenClaimIncentives(currencyId)
     balanceBefore = environment.noteERC20.balanceOf(accounts[0])
     assert balanceBefore > 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
 
-    environment.perpToken[currencyId].claimIncentives(accounts[0])
+    environment.notional.nTokenClaimIncentives(currencyId)
     assert environment.noteERC20.balanceOf(accounts[0]) == balanceBefore
 
     check_system_invariants(environment, accounts)
