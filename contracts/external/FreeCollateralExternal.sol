@@ -8,13 +8,21 @@ import "../internal/valuation/FreeCollateral.sol";
 /// @title Externally deployed library for free collateral calculations
 library FreeCollateralExternal {
     using AccountContextHandler for AccountContext;
+    event AccountContextUpdate(address account);
 
     /// @notice Returns the ETH denominated free collateral of an account, represents the amount of
     /// debt that the account can incur before liquidation.
     /// @dev Called via the Views.sol method to return an account's free collateral. Does not work
     /// for the nToken
     /// @param account account to calculate free collateral for
-    function getFreeCollateralView(address account) external view returns (int256) {
+    /// @return
+    ///     - total free collateral in ETH w/ 8 decimal places
+    ///     - array of net local values in asset values ordered
+    function getFreeCollateralView(address account)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
         uint256 blockTime = block.timestamp;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
@@ -30,7 +38,10 @@ library FreeCollateralExternal {
         (int256 ethDenominatedFC, bool updateContext) =
             FreeCollateral.getFreeCollateralStateful(account, accountContext, blockTime);
 
-        if (updateContext) accountContext.setAccountContext(account);
+        if (updateContext) {
+            accountContext.setAccountContext(account);
+            emit AccountContextUpdate(account);
+        }
 
         require(ethDenominatedFC >= 0, "Insufficient free collateral");
     }

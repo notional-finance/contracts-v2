@@ -188,7 +188,7 @@ library FreeCollateral {
             factors.updateContext = true;
         }
 
-        return netPortfolioValue;
+        return factors.cashGroup.assetRate.convertFromUnderlying(netPortfolioValue);
     }
 
     function _updateNetETHValue(
@@ -224,6 +224,7 @@ library FreeCollateral {
                 int256 nTokenValue,
                 /* nTokenParameters */
             ) = _getBitmapBalanceValue(account, blockTime, accountContext, factors);
+            if (netCashBalance < 0) hasCashDebt = true;
             int256 portfolioValue =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
@@ -286,8 +287,10 @@ library FreeCollateral {
         address account,
         AccountContext memory accountContext,
         uint256 blockTime
-    ) internal view returns (int256) {
+    ) internal view returns (int256, int256[] memory) {
         FreeCollateralFactors memory factors;
+        uint256 netLocalIndex;
+        int256[] memory netLocalAssetValues = new int256[](10);
 
         if (accountContext.bitmapCurrencyId != 0) {
             (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(
@@ -302,9 +305,16 @@ library FreeCollateral {
             int256 portfolioBalance =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
-            int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioBalance);
+            netLocalAssetValues[netLocalIndex] = netCashBalance.add(nTokenValue).add(
+                portfolioBalance
+            );
             factors.assetRate = factors.cashGroup.assetRate;
-            _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
+            _updateNetETHValue(
+                accountContext.bitmapCurrencyId,
+                netLocalAssetValues[netLocalIndex],
+                factors
+            );
+            netLocalIndex++;
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
                 account,
@@ -316,8 +326,11 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint256 currencyId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
-            (int256 netLocalAssetValue, int256 nTokenBalance) =
-                _getCurrencyBalances(account, currencyBytes);
+            int256 nTokenBalance;
+            (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
+                account,
+                currencyBytes
+            );
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
                 (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(currencyId);
@@ -328,17 +341,20 @@ library FreeCollateral {
                     /* nTokenParameters */
                 ) = _getPortfolioAndNTokenValue(factors, nTokenBalance, blockTime);
 
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(nTokenValue);
+                netLocalAssetValues[netLocalIndex] = netLocalAssetValues[netLocalIndex]
+                    .add(netPortfolioValue)
+                    .add(nTokenValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 factors.assetRate = AssetRate.buildAssetRateView(currencyId);
             }
 
-            _updateNetETHValue(currencyId, netLocalAssetValue, factors);
+            _updateNetETHValue(currencyId, netLocalAssetValues[netLocalIndex], factors);
+            netLocalIndex++;
             currencies = currencies << 16;
         }
 
-        return factors.netETHValue;
+        return (factors.netETHValue, netLocalAssetValues);
     }
 
     /// @dev this is used to clear the stack frame

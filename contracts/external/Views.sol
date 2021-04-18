@@ -252,7 +252,11 @@ contract Views is StorageLayoutV1 {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function getFreeCollateralView(address account) external view returns (int256) {
+    function getFreeCollateralView(address account)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
 

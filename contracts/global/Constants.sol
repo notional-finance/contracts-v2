@@ -6,11 +6,13 @@ library Constants {
     // Token precision used for all internal balances, TokenHandler library ensures that we
     // limit the dust amount caused by precision mismatches
     int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;
+
+    // ETH will be initialized as the first currency
     uint256 internal constant ETH_CURRENCY_ID = 1;
     int256 internal constant ETH_DECIMAL_PLACES = 18;
     int256 internal constant ETH_DECIMALS = 1e18;
 
-    // Used to when calculating the amount to deleverage of a market when minting incentives
+    // Used to when calculating the amount to deleverage of a market when minting nTokens
     uint256 internal constant DELEVERAGE_BUFFER = 30000000; // 300 * Constants.BASIS_POINT
 
     // Address of the reserve account
@@ -22,6 +24,7 @@ library Constants {
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
+    // Basis for
     int256 internal constant PERCENTAGE_DECIMALS = 100;
     uint256 internal constant MAX_TRADED_MARKET_INDEX = 7;
 

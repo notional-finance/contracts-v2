@@ -2,14 +2,58 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../internal/valuation/ExchangeRate.sol";
+import "../internal/markets/AssetRate.sol";
+
 import "../external/FreeCollateralExternal.sol";
+import "../internal/valuation/FreeCollateral.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";
-import "./MockAssetHandler.sol";
+import "../internal/markets/Market.sol";
+import "../global/StorageLayoutV1.sol";
 
-contract MockFreeCollateral is MockAssetHandler {
+contract MockFreeCollateral is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    using Market for MarketParameters;
+
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
+        assetToUnderlyingRateMapping[id] = rs;
+    }
+
+    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
+        CashGroup.setCashGroupStorage(id, cg);
+    }
+
+    function buildCashGroupView(uint256 currencyId)
+        public
+        view
+        returns (CashGroupParameters memory, MarketParameters[] memory)
+    {
+        return CashGroup.buildCashGroupView(currencyId);
+    }
+
+    function setMarketStorage(
+        uint256 currencyId,
+        uint256 settlementDate,
+        MarketParameters memory market
+    ) public {
+        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
+        // ensure that state gets set
+        market.storageState = 0xFF;
+        market.setMarketStorage();
+    }
+
+    function getMarketStorage(
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) public view returns (MarketParameters memory) {
+        MarketParameters memory market;
+        Market.loadMarket(market, currencyId, maturity, blockTime, true, 1);
+
+        return market;
+    }
 
     function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
@@ -38,10 +82,8 @@ contract MockFreeCollateral is MockAssetHandler {
         }
         accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
 
-        (
-            bitmap, /* notional */
-
-        ) = BitmapAssetsHandler.addifCashAsset(
+        int256 finalNotional;
+        (bitmap, finalNotional) = BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
@@ -49,7 +91,11 @@ contract MockFreeCollateral is MockAssetHandler {
             notional,
             bitmap
         );
+        if (finalNotional < 0)
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
+
         accountContext.setAccountContext(account);
+
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
     }
 
@@ -90,22 +136,51 @@ contract MockFreeCollateral is MockAssetHandler {
         }
     }
 
-    function testFreeCollateral(address account) external returns (int256) {
-        int256 fcView = FreeCollateralExternal.getFreeCollateralView(account);
+    function convert(uint256 currencyId, int256 balance) public view returns (int256, int256) {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
+        int256 underlying = AssetRate.convertToUnderlying(assetRate, balance);
+        ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+        int256 eth = ExchangeRate.convertToETH(ethRate, underlying);
+
+        return (underlying, eth);
+    }
+
+    event AccountContextUpdate();
+    event Liquidation(LiquidationFactors factors);
+    event Test(AccountContext context, bool updateContext);
+
+    function testFreeCollateral(address account, uint256 blockTime)
+        external
+        returns (int256, int256[] memory)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        (int256 fcView, int256[] memory netLocal) =
+            FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
+
         if (fcView >= 0) {
-            // This should pass
-            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+            // Refetch to clear state
+            AccountContext memory accountContextNew =
+                AccountContextHandler.getAccountContext(account);
+
+            // prettier-ignore
+            (int256 ethDenominatedFC, bool updateContext) =
+                FreeCollateral.getFreeCollateralStateful(account, accountContextNew, blockTime);
+
+            if (updateContext) {
+                accountContextNew.setAccountContext(account);
+                emit AccountContextUpdate();
+            }
+
+            assert(fcView == ethDenominatedFC);
         } else {
-            // This should not revert
-            FreeCollateralExternal.getLiquidationFactors(account, 1, 0);
+            // prettier-ignore
+            (LiquidationFactors memory factors, /* */) = FreeCollateral.getLiquidationFactors(
+                account, accountContext, blockTime, 1, 0);
+            emit Liquidation(factors);
+
+            assert(fcView == factors.netETHValue);
         }
-    }
 
-    function getFreeCollateralView(address account) external view returns (int256) {
-        return FreeCollateralExternal.getFreeCollateralView(account);
-    }
-
-    function checkFreeCollateralAndRevert(address account) external {
-        FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+        return (fcView, netLocal);
     }
 }
