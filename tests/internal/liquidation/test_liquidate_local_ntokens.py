@@ -8,6 +8,7 @@ chain = Chain()
 EMPTY_PORTFOLIO_STATE = ([], [], 0, 0)
 
 
+@pytest.mark.skip_coverage
 @pytest.mark.liquidation
 class TestLiquidateLocalNTokens:
     @pytest.fixture(scope="module", autouse=True)

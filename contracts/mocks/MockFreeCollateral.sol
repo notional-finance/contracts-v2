@@ -90,6 +90,17 @@ contract MockFreeCollateral is MockAssetHandler {
         }
     }
 
+    function testFreeCollateral(address account) external returns (int256) {
+        int256 fcView = FreeCollateralExternal.getFreeCollateralView(account);
+        if (fcView >= 0) {
+            // This should pass
+            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+        } else {
+            // This should not revert
+            FreeCollateralExternal.getLiquidationFactors(account, 1, 0);
+        }
+    }
+
     function getFreeCollateralView(address account) external view returns (int256) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }

@@ -29,6 +29,7 @@ class TestDateTime:
         blockTime=strategy("uint40", min_value=START_TIME),
         maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
     )
+    @pytest.mark.skip_coverage
     def test_valid_market_maturity(self, dateTime, blockTime, maxMarketIndex):
         tRef = blockTime - blockTime % (90 * SECONDS_IN_DAY)
         validMarkets = [tRef + dateTime.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]

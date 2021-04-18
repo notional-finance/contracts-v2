@@ -11,6 +11,7 @@ from tests.helpers import (
 chain = Chain()
 
 
+@pytest.mark.skip_coverage
 @pytest.mark.liquidation
 class TestLiquidatefCash:
     @pytest.fixture(scope="module", autouse=True)
