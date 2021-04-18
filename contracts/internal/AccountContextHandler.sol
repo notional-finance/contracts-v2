@@ -53,10 +53,15 @@ library AccountContextHandler {
     ) internal view {
         // Allow setting the currency id to zero to turn off bitmap
         require(currencyId <= Constants.MAX_CURRENCIES, "AC: invalid currency id");
+
         if (accountContext.bitmapCurrencyId == 0) {
             require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
             // Account context also cannot have negative cash debts
             require(accountContext.hasDebt == 0x00, "AC: cannot have debt");
+
+            // Ensure that the active currency is set to false in the array so that there is no double
+            // counting during FreeCollateral
+            setActiveCurrency(accountContext, currencyId, false, Constants.ACTIVE_IN_BALANCES);
         } else {
             bytes32 ifCashBitmap =
                 BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);

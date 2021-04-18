@@ -61,10 +61,10 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # is active and portfolio is set to true
-        assert accountContext.setActiveCurrency(acBytes, 2, True, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 4, True, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 1024, True, PORTFOLIO_FLAG) == acBytes
-        result = accountContext.setActiveCurrency(acBytes, 512, True, PORTFOLIO_FLAG)
+        assert accountContext.setActiveCurrency(acBytes, 2, True, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 4, True, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 1024, True, PORTFOLIO_FLAG, 0) == acBytes
+        result = accountContext.setActiveCurrency(acBytes, 512, True, PORTFOLIO_FLAG, 0)
         currencies[2] = (512, True, True)
         assert result == HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
@@ -73,10 +73,18 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # is active and balance is set to true
-        assert accountContext.setActiveCurrency(acBytes, 2, True, BALANCE_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 512, True, BALANCE_FLAG) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 2, True, BALANCE_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 512, True, BALANCE_FLAG, 0) == acBytes
 
-        result = accountContext.setActiveCurrency(acBytes, 4, True, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 4, True, BALANCE_FLAG, 0)
+        currencies[1] = (4, True, True)
+        assert result == HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
+
+        # test bitmap (should not affect bitmap)
+        assert accountContext.setActiveCurrency(acBytes, 10, True, BALANCE_FLAG, 10) == acBytes
+
+        # test bitmap, should affect
+        result = accountContext.setActiveCurrency(acBytes, 4, True, BALANCE_FLAG, 10)
         currencies[1] = (4, True, True)
         assert result == HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
@@ -85,7 +93,7 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # is active and must insert
-        result = accountContext.setActiveCurrency(acBytes, 1, True, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1, True, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -98,7 +106,7 @@ class TestAccountContext:
             ),
             "bytes18",
         )
-        result = accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -111,7 +119,7 @@ class TestAccountContext:
             ),
             "bytes18",
         )
-        result = accountContext.setActiveCurrency(acBytes, 513, True, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 513, True, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -126,7 +134,7 @@ class TestAccountContext:
         )
 
         # is active and append to end
-        result = accountContext.setActiveCurrency(acBytes, 1025, True, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1025, True, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -145,7 +153,7 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # is active and must insert
-        result = accountContext.setActiveCurrency(acBytes, 1, True, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1, True, BALANCE_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -158,7 +166,7 @@ class TestAccountContext:
             ),
             "bytes18",
         )
-        result = accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -171,7 +179,7 @@ class TestAccountContext:
             ),
             "bytes18",
         )
-        result = accountContext.setActiveCurrency(acBytes, 513, True, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 513, True, BALANCE_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -186,7 +194,64 @@ class TestAccountContext:
         )
 
         # is active and append to end
-        result = accountContext.setActiveCurrency(acBytes, 1025, True, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1025, True, BALANCE_FLAG, 0)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [
+                    (2, True, True),
+                    (4, True, False),
+                    (512, False, True),
+                    (1024, True, False),
+                    (1025, False, True),
+                ]
+            ),
+            "bytes18",
+        )
+
+        # duplicate tests with bitmap set
+        # is active and must insert
+        result = accountContext.setActiveCurrency(acBytes, 1, True, BALANCE_FLAG, 10)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [
+                    (1, False, True),
+                    (2, True, True),
+                    (4, True, False),
+                    (512, False, True),
+                    (1024, True, False),
+                ]
+            ),
+            "bytes18",
+        )
+        result = accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 10)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [
+                    (2, True, True),
+                    (3, False, True),
+                    (4, True, False),
+                    (512, False, True),
+                    (1024, True, False),
+                ]
+            ),
+            "bytes18",
+        )
+        result = accountContext.setActiveCurrency(acBytes, 513, True, BALANCE_FLAG, 10)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [
+                    (2, True, True),
+                    (4, True, False),
+                    (512, False, True),
+                    (513, False, True),
+                    (1024, True, False),
+                ]
+            ),
+            "bytes18",
+        )
+
+        # is active and append to end
+        result = accountContext.setActiveCurrency(acBytes, 1025, True, BALANCE_FLAG, 10)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [
@@ -205,7 +270,7 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # turn off portfolio flag for existing
-        result = accountContext.setActiveCurrency(acBytes, 2, False, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 2, False, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, False, True), (4, True, False), (512, False, True), (1024, True, False)]
@@ -213,7 +278,7 @@ class TestAccountContext:
             "bytes18",
         )
 
-        result = accountContext.setActiveCurrency(acBytes, 4, False, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 4, False, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, True, True), (512, False, True), (1024, True, False)]
@@ -221,9 +286,9 @@ class TestAccountContext:
             "bytes18",
         )
 
-        assert accountContext.setActiveCurrency(acBytes, 512, False, PORTFOLIO_FLAG) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 512, False, PORTFOLIO_FLAG, 0) == acBytes
 
-        result = accountContext.setActiveCurrency(acBytes, 1024, False, PORTFOLIO_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1024, False, PORTFOLIO_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, True, True), (4, True, False), (512, False, True)]
@@ -236,7 +301,7 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # turn off balance flag for existing
-        result = accountContext.setActiveCurrency(acBytes, 2, False, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 2, False, BALANCE_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, True, False), (4, True, False), (512, False, True), (1024, False, True)]
@@ -244,10 +309,10 @@ class TestAccountContext:
             "bytes18",
         )
 
-        result = accountContext.setActiveCurrency(acBytes, 4, False, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 4, False, BALANCE_FLAG, 0)
         assert result == acBytes
 
-        result = accountContext.setActiveCurrency(acBytes, 512, False, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 512, False, BALANCE_FLAG, 0)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, True, True), (4, True, False), (1024, False, True)]
@@ -255,7 +320,35 @@ class TestAccountContext:
             "bytes18",
         )
 
-        result = accountContext.setActiveCurrency(acBytes, 1024, False, BALANCE_FLAG)
+        result = accountContext.setActiveCurrency(acBytes, 1024, False, BALANCE_FLAG, 0)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [(2, True, True), (4, True, False), (512, False, True)]
+            ),
+            "bytes18",
+        )
+
+        # Duplicate test for bitmap
+        result = accountContext.setActiveCurrency(acBytes, 2, False, BALANCE_FLAG, 10)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [(2, True, False), (4, True, False), (512, False, True), (1024, False, True)]
+            ),
+            "bytes18",
+        )
+
+        result = accountContext.setActiveCurrency(acBytes, 4, False, BALANCE_FLAG, 10)
+        assert result == acBytes
+
+        result = accountContext.setActiveCurrency(acBytes, 512, False, BALANCE_FLAG, 10)
+        assert result == HexString(
+            currencies_list_to_active_currency_bytes(
+                [(2, True, True), (4, True, False), (1024, False, True)]
+            ),
+            "bytes18",
+        )
+
+        result = accountContext.setActiveCurrency(acBytes, 1024, False, BALANCE_FLAG, 10)
         assert result == HexString(
             currencies_list_to_active_currency_bytes(
                 [(2, True, True), (4, True, False), (512, False, True)]
@@ -268,14 +361,21 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # not active and not in list
-        assert accountContext.setActiveCurrency(acBytes, 3, False, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 5, False, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 513, False, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 1025, False, PORTFOLIO_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 3, False, BALANCE_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 5, False, BALANCE_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 513, False, BALANCE_FLAG) == acBytes
-        assert accountContext.setActiveCurrency(acBytes, 1025, False, BALANCE_FLAG) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 3, False, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 5, False, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 513, False, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 1025, False, PORTFOLIO_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 3, False, BALANCE_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 5, False, BALANCE_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 513, False, BALANCE_FLAG, 0) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 1025, False, BALANCE_FLAG, 0) == acBytes
+
+        # test with bitmap set
+        assert accountContext.setActiveCurrency(acBytes, 10, False, BALANCE_FLAG, 10) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 3, False, BALANCE_FLAG, 10) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 5, False, BALANCE_FLAG, 10) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 513, False, BALANCE_FLAG, 10) == acBytes
+        assert accountContext.setActiveCurrency(acBytes, 1025, False, BALANCE_FLAG, 10) == acBytes
 
     def test_extend_list_too_long(self, accountContext):
         currencies = [
@@ -293,17 +393,32 @@ class TestAccountContext:
 
         # is active and append to end, too long
         with brownie.reverts("AC: too many currencies"):
-            accountContext.setActiveCurrency(acBytes, 20, True, PORTFOLIO_FLAG)
+            accountContext.setActiveCurrency(acBytes, 20, True, PORTFOLIO_FLAG, 0)
 
         with brownie.reverts("AC: too many currencies"):
-            accountContext.setActiveCurrency(acBytes, 20, True, BALANCE_FLAG)
+            accountContext.setActiveCurrency(acBytes, 20, True, BALANCE_FLAG, 0)
 
         # is active and must insert, too long
         with brownie.reverts("AC: too many currencies"):
-            accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG)
+            accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG, 0)
 
         with brownie.reverts("AC: too many currencies"):
-            accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG)
+            accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 0)
+
+        # duplicate tests with bitmap
+        # is active and append to end, too long
+        with brownie.reverts("AC: too many currencies"):
+            accountContext.setActiveCurrency(acBytes, 20, True, PORTFOLIO_FLAG, 10)
+
+        with brownie.reverts("AC: too many currencies"):
+            accountContext.setActiveCurrency(acBytes, 20, True, BALANCE_FLAG, 10)
+
+        # is active and must insert, too long
+        with brownie.reverts("AC: too many currencies"):
+            accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG, 10)
+
+        with brownie.reverts("AC: too many currencies"):
+            accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 10)
 
     def test_clear_portfolio_flags(self, accountContext):
         currencies = [(2, True, True), (4, True, False), (512, False, True), (1024, True, False)]
@@ -327,6 +442,17 @@ class TestAccountContext:
         accountContext.enableBitmapForAccount(accounts[0], 0)
         context = accountContext.getAccountContext(accounts[0])
         assert context[3] == 0
+
+    def test_enable_bitmap_currency_duplicate(self, accountContext, accounts):
+        # Ensure that only the bitmap currency is logged as a record for the active currency
+        activeCurrencies = HexString(
+            currencies_list_to_active_currency_bytes([(1, False, True)]), "bytes18"
+        )
+        accountContext.setAccountContext((START_TIME, "0x00", 0, 0, activeCurrencies), accounts[0])
+        accountContext.enableBitmapForAccount(accounts[0], 1)
+        context = accountContext.getAccountContext(accounts[0])
+        assert context[3] == 1
+        assert context[-1] == HexString(currencies_list_to_active_currency_bytes([]), "bytes18")
 
     def test_fail_enable_bitmap_currency(self, accountContext, accounts):
         with brownie.reverts("AC: invalid currency id"):

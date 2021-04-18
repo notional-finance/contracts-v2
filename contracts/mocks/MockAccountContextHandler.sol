@@ -45,9 +45,11 @@ contract MockAccountContextHandler {
         bytes18 activeCurrencies,
         uint256 currencyId,
         bool isActive,
-        bytes2 flags
+        bytes2 flags,
+        uint16 bitmapId
     ) external pure returns (bytes18) {
-        AccountContext memory accountContext = AccountContext(0, 0x00, 0, 0, activeCurrencies);
+        AccountContext memory accountContext =
+            AccountContext(0, 0x00, 0, bitmapId, activeCurrencies);
         accountContext.setActiveCurrency(currencyId, isActive, flags);
 
         // Assert that the currencies are in order
@@ -75,6 +77,9 @@ contract MockAccountContextHandler {
             lastCurrency = thisCurrency;
             currencies = currencies << 16;
         }
+
+        // Bitmap id should never change in this method
+        assert(accountContext.bitmapCurrencyId == bitmapId);
 
         return accountContext.activeCurrencies;
     }
