@@ -270,18 +270,27 @@ class TestFreeCollateral:
         context = freeCollateral.getAccountContext(accounts[0])
         assert context[1] == "0x00"  # no debt
 
-    # def test_free_collateral_multiple_cash_groups()
-    #     markets = get_market_curve(3, "flat")
-    #     for m in markets:
-    #         freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
-    #         freeCollateral.setMarketStorage(3, SETTLEMENT_DATE, m)
+    def test_free_collateral_multiple_cash_groups(self, freeCollateral, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
+            freeCollateral.setMarketStorage(2, SETTLEMENT_DATE, m)
+            freeCollateral.setMarketStorage(3, SETTLEMENT_DATE, m)
 
-    #     freeCollateral.setPortfolio(
-    #         accounts[0], [get_fcash_token(1, currencyId=3, notional=-100e8)]
-    #     )
-    #     (fc, netLocal) = freeCollateral.testFreeCollateral(accounts[0], START_TIME).return_value
-    #     assert fc > -14.0e8 and fc < -13.0e8
-    #     assert netLocal[0] < 50 * -100e8 * 0.95
+        freeCollateral.setPortfolio(
+            accounts[0],
+            [
+                get_fcash_token(1, currencyId=2, notional=100e8),
+                get_fcash_token(1, currencyId=1, notional=-1e8),
+                get_fcash_token(1, currencyId=3, notional=100e8),
+            ],
+        )
+        freeCollateral.testFreeCollateral(accounts[0], START_TIME)
+        (fc, netLocal) = freeCollateral.freeCollateralView(accounts[0], START_TIME)
+        assert netLocal[0] < 50e8
+        assert netLocal[1] < 5000e8
+        assert netLocal[2] < 5000e8
+        assert pytest.approx(fc, rel=1e-3) == -(1e8 * 1.4 - 0.80e8)
 
-    # def test_free_collateral_perp_token_value(self, freeCollateral, accounts):
+    # def test_free_collateral_ntoken_value(self, freeCollateral, accounts):
     # def test_free_collateral_combined(self, freeCollateral):

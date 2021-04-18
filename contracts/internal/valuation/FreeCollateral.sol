@@ -197,8 +197,8 @@ library FreeCollateral {
         FreeCollateralFactors memory factors
     ) private view returns (ETHRate memory) {
         ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
-        factors.netETHValue = ethRate.convertToETH(
-            factors.assetRate.convertToUnderlying(netLocalAssetValue)
+        factors.netETHValue = factors.netETHValue.add(
+            ethRate.convertToETH(factors.assetRate.convertToUnderlying(netLocalAssetValue))
         );
 
         return ethRate;

@@ -12,7 +12,7 @@ networks:
     cmd_settings:
       port: 8646
       mnemonic: owner dignity sense
-  
+      log: ganache-out.txt
 
 reports:
   exclude_paths:

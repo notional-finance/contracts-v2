@@ -149,6 +149,15 @@ contract MockFreeCollateral is StorageLayoutV1 {
     event Liquidation(LiquidationFactors factors);
     event Test(AccountContext context, bool updateContext);
 
+    function freeCollateralView(address account, uint256 blockTime)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
+    }
+
     function testFreeCollateral(address account, uint256 blockTime)
         external
         returns (int256, int256[] memory)

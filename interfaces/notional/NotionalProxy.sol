@@ -204,7 +204,7 @@ interface NotionalProxy is nTokenERC20 {
 
     function getifCashBitmap(address account, uint256 currencyId) external view returns (bytes32);
 
-    function getFreeCollateralView(address account) external view returns (int256);
+    function getFreeCollateralView(address account) external view returns (int256, int256[] memory);
 
     function getIncentivesToMint(
         uint16 currencyId,
