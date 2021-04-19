@@ -19,6 +19,19 @@ def isolation(fn_isolation):
     pass
 
 
+def execute_proposal(environment, targets, values, calldatas):
+    environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
+    chain.mine(1)
+    environment.governor.castVote(1, True, {"from": environment.multisig})
+    chain.mine(GovernanceConfig["governorConfig"]["votingPeriodBlocks"])
+
+    assert environment.governor.state(1) == 4  # success
+    delay = environment.governor.getMinDelay()
+    environment.governor.queueProposal(1, targets, values, calldatas)
+    chain.mine(1, timestamp=chain.time() + delay)
+    environment.governor.executeProposal(1, targets, values, calldatas)
+
+
 def test_note_token_initial_balances(environment, accounts):
     assert environment.noteERC20.balanceOf(environment.deployer.address) == 0
     assert (
@@ -43,6 +56,53 @@ def test_note_token_cannot_reinitialize(environment, accounts):
         environment.noteERC20.initialize(accounts[2].address, {"from": accounts[2].address})
 
 
+def test_governor_must_update_parameters_via_governance(environment, accounts):
+    with brownie.reverts():
+        environment.governor.updateQuorumVotes(0, {"from": environment.deployer})
+
+    with brownie.reverts():
+        environment.governor.updateProposalThreshold(0, {"from": environment.deployer})
+
+    with brownie.reverts():
+        environment.governor.updateVotingDelayBlocks(0, {"from": environment.deployer})
+
+    with brownie.reverts():
+        environment.governor.updateVotingPeriodBlocks(0, {"from": environment.deployer})
+
+    with brownie.reverts():
+        environment.governor.updateDelay(0, {"from": environment.deployer})
+
+
+def test_update_governance_parameters(environment, accounts):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+
+    targets = [environment.governor.address] * 5
+    values = [0] * 5
+    calldatas = [
+        web3.eth.contract(abi=environment.governor.abi).encodeABI(
+            fn_name="updateQuorumVotes", args=[0]
+        ),
+        web3.eth.contract(abi=environment.governor.abi).encodeABI(
+            fn_name="updateProposalThreshold", args=[0]
+        ),
+        web3.eth.contract(abi=environment.governor.abi).encodeABI(
+            fn_name="updateVotingDelayBlocks", args=[0]
+        ),
+        web3.eth.contract(abi=environment.governor.abi).encodeABI(
+            fn_name="updateVotingPeriodBlocks", args=[0]
+        ),
+        web3.eth.contract(abi=environment.governor.abi).encodeABI(fn_name="updateDelay", args=[0]),
+    ]
+
+    execute_proposal(environment, targets, values, calldatas)
+
+    assert environment.governor.quorumVotes() == 0
+    assert environment.governor.proposalThreshold() == 0
+    assert environment.governor.votingDelayBlocks() == 0
+    assert environment.governor.votingPeriodBlocks() == 0
+    assert environment.governor.getMinDelay() == 0
+
+
 def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reservoir):
     # TODO: where should this go?
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
@@ -62,18 +122,7 @@ def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reserv
     values = [0]
     calldatas = [transferToReservoir]
 
-    # Values should not be listed here
-    environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
-
-    chain.mine(1)
-    environment.governor.castVote(1, True, {"from": environment.multisig})
-    chain.mine(GovernanceConfig["governorConfig"]["votingPeriodBlocks"])
-
-    assert environment.governor.state(1) == 4  # success
-    delay = environment.governor.getMinDelay()
-    environment.governor.queueProposal(1, targets, values, calldatas, delay)
-    chain.mine(1, timestamp=chain.time() + delay)
-    environment.governor.executeProposal(1, targets, values, calldatas)
+    execute_proposal(environment, targets, values, calldatas)
 
     assert environment.noteERC20.balanceOf(reservoir.address) == 1_000_000e8
 

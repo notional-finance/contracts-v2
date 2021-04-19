@@ -417,6 +417,26 @@ contract GovernorAlpha is TimelockController {
         emit VoteCast(voter, proposalId, support, votes);
     }
 
+    function updateQuorumVotes(uint96 newQuorumVotes) external {
+        require(msg.sender == address(this), "Unauthorized caller");
+        quorumVotes = newQuorumVotes;
+    }
+
+    function updateProposalThreshold(uint96 newProposalThreshold) external {
+        require(msg.sender == address(this), "Unauthorized caller");
+        proposalThreshold = newProposalThreshold;
+    }
+
+    function updateVotingDelayBlocks(uint32 newVotingDelayBlocks) external {
+        require(msg.sender == address(this), "Unauthorized caller");
+        votingDelayBlocks = newVotingDelayBlocks;
+    }
+
+    function updateVotingPeriodBlocks(uint32 newVotingPeriodBlocks) external {
+        require(msg.sender == address(this), "Unauthorized caller");
+        votingPeriodBlocks = newVotingPeriodBlocks;
+    }
+
     /// @dev Hidden public method
     function __abdicate() public {
         require(msg.sender == guardian, "GovernorAlpha::__abdicate: sender must be gov guardian");
