@@ -102,13 +102,6 @@ contract nTokenERC20Proxy is IERC20 {
         return success;
     }
 
-    /// @notice Returns the claimable incentives for a particular currency
-    /// @param account The address of the account which holds the tokens
-    /// @return Incentives an account is eligible to claim
-    function getClaimableIncentives(address account) external view returns (uint256) {
-        return proxy.nTokenGetClaimableIncentives(currencyId, account);
-    }
-
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
     function getPresentValueAssetDenominated() external view returns (int256) {
         return proxy.nTokenPresentValueAssetDenominated(currencyId);

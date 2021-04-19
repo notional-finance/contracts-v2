@@ -72,8 +72,11 @@ contract NoteERC20 is Initializable {
     /// @notice The standard EIP-20 approval event
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
+    /// @initialAccounts initial address to grant tokens to
+    /// @initialGrantAmount in
+    /// @note address of note token
+
     /// @notice Construct a new Note token
-    /// @param account the initial account to grant all the tokens
     function initialize(address account) public initializer {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);

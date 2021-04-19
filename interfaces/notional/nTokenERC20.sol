@@ -41,12 +41,9 @@ interface nTokenERC20 {
 
     function nTokenTransferApproveAll(address spender, uint256 amount) external returns (bool);
 
-    function nTokenClaimIncentives(uint16 currencyId) external returns (uint256);
+    function nTokenClaimIncentives() external returns (uint256);
 
-    function nTokenGetClaimableIncentives(uint16 currencyId, address account)
-        external
-        view
-        returns (uint256);
+    function nTokenGetClaimableIncentives(address account) external view returns (uint256);
 
     function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (int256);
 

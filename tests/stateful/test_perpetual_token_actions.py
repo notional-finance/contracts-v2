@@ -508,14 +508,15 @@ def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
-    txn = environment.notional.nTokenClaimIncentives(currencyId)
     balanceBefore = environment.noteERC20.balanceOf(accounts[0])
-    assert balanceBefore > 0
+    incentivesClaimed = environment.notional.nTokenGetClaimableIncentives(accounts[0].address)
+    txn = environment.notional.nTokenClaimIncentives()
+    balanceAfter = environment.noteERC20.balanceOf(accounts[0])
+
+    assert balanceAfter - balanceBefore == incentivesClaimed
+    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
-
-    environment.notional.nTokenClaimIncentives(currencyId)
-    assert environment.noteERC20.balanceOf(accounts[0]) == balanceBefore
 
     check_system_invariants(environment, accounts)

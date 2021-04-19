@@ -170,23 +170,37 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return true;
     }
 
-    /// @notice Claims incentives accrued on the nToken and transfers them to the msg.sender
-    /// @param currencyId Currency id associated with the nToken
+    /// @notice Claims incentives accrued on all nToken balances and transfers them to the msg.sender
+    /// @dev auth:msg.sender
     /// @return Total amount of incentives claimed
-    function nTokenClaimIncentives(uint16 currencyId) external override returns (uint256) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(msg.sender);
+    function nTokenClaimIncentives() external override returns (uint256) {
+        address account = msg.sender;
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
-        balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
+
+        bytes18 currencies = accountContext.activeCurrencies;
+        uint256 totalIncentivesClaimed;
+        while (currencies != 0) {
+            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+
+            balanceState.loadBalanceState(account, currencyId, accountContext);
+            if (balanceState.storedNTokenBalance > 0) {
+                totalIncentivesClaimed = totalIncentivesClaimed.add(
+                    BalanceHandler.claimIncentivesManual(balanceState, account)
+                );
+            }
+
+            currencies = currencies << 16;
+        }
 
         // NOTE: no need to set account context after claiming incentives
-        return BalanceHandler.claimIncentivesManual(balanceState, msg.sender);
+        return totalIncentivesClaimed;
     }
 
-    /// @notice Returns the claimable incentives for a particular currency
-    /// @param currencyId Currency id associated with the nToken
+    /// @notice Returns the claimable incentives for all nToken balances
     /// @param account The address of the account which holds the tokens
     /// @return Incentives an account is eligible to claim
-    function nTokenGetClaimableIncentives(uint16 currencyId, address account)
+    function nTokenGetClaimableIncentives(address account)
         external
         view
         override
@@ -194,17 +208,29 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
-        balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
+        uint256 blockTime = block.timestamp;
 
-        uint256 incentives =
-            Incentives.calculateIncentivesToClaim(
-                nTokenHandler.nTokenAddress(currencyId),
-                uint256(balanceState.storedNTokenBalance),
-                balanceState.lastIncentiveClaim,
-                block.timestamp
-            );
+        bytes18 currencies = accountContext.activeCurrencies;
+        uint256 totalIncentivesClaimable;
+        while (currencies != 0) {
+            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        return incentives;
+            if (balanceState.storedNTokenBalance > 0) {
+                totalIncentivesClaimable = totalIncentivesClaimable.add(
+                    Incentives.calculateIncentivesToClaim(
+                        nTokenHandler.nTokenAddress(balanceState.currencyId),
+                        uint256(balanceState.storedNTokenBalance),
+                        balanceState.lastIncentiveClaim,
+                        blockTime
+                    )
+                );
+            }
+
+            currencies = currencies << 16;
+        }
+
+        return totalIncentivesClaimable;
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
