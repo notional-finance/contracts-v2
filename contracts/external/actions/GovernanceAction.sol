@@ -85,25 +85,26 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @param assetRateOracle address of the rate oracle for converting interest bearing assets to
     /// underlying values
     /// @param cashGroup parameters for the cash group
+    /// @param underlyingName underlying token name for seeding nToken name
+    /// @param underlyingSymbol underlying token symbol for seeding nToken symbol (i.e. nDAI)
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
-        CashGroupSettings calldata cashGroup
+        CashGroupSettings calldata cashGroup,
+        string calldata underlyingName,
+        string calldata underlyingSymbol
     ) external onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        // TODO: here
-        string memory name;
-        string memory symbol;
         address nTokenAddress =
             Create2.deploy(
                 0,
                 bytes32(uint256(currencyId)),
                 abi.encodePacked(
                     type(nTokenERC20Proxy).creationCode,
-                    abi.encode(address(this), currencyId, name, symbol)
+                    abi.encode(address(this), currencyId, underlyingName, underlyingSymbol)
                 )
             );
 
@@ -259,9 +260,17 @@ contract GovernanceAction is StorageLayoutV1 {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 
+        // If rate oracle refers to address zero then do not apply any updates here, this means
+        // that a token is non mintable.
+        Token memory assetToken = TokenHandler.getToken(currencyId, false);
+        if (rateOracle == address(0)) {
+            // Sanity check that unset rate oracles are only for non mintable tokens
+            require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");
+            return;
+        }
+
         // Sanity check that the rate oracle refers to the proper asset token
         address token = AssetRateAdapter(rateOracle).token();
-        Token memory assetToken = TokenHandler.getToken(currencyId, false);
         require(assetToken.tokenAddress == token, "G: invalid rate oracle");
 
         uint8 underlyingDecimals;

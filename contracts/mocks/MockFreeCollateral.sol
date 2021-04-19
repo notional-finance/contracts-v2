@@ -145,7 +145,7 @@ contract MockFreeCollateral is StorageLayoutV1 {
         return (underlying, eth);
     }
 
-    event AccountContextUpdate();
+    event AccountContextUpdate(address indexed account);
     event Liquidation(LiquidationFactors factors);
     event Test(AccountContext context, bool updateContext);
 
@@ -177,7 +177,6 @@ contract MockFreeCollateral is StorageLayoutV1 {
 
             if (updateContext) {
                 accountContextNew.setAccountContext(account);
-                emit AccountContextUpdate();
             }
 
             assert(fcView == ethDenominatedFC);

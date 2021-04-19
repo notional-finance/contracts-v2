@@ -148,3 +148,14 @@ class TestAssetRate:
         txn = assetRate.buildAssetRateStateful(1)
         # Assert that token interest has been accrued
         assert txn.events.count("AccrueInterest") == 1
+
+    def test_build_asset_rate_not_set(self, accounts, MockCToken, cTokenAggregator, assetRate):
+        rate = assetRate.buildAssetRateStateful(1).return_value
+
+        assert assetRate.convertToUnderlying(rate, 1e18) == 1e18
+        assert assetRate.convertFromUnderlying(rate, 1e18) == 1e18
+
+        txn = assetRate.buildSettlementRate(1, START_TIME_TREF, START_TIME)
+        assert txn.events.count("SetSettlementRate") == 0
+        settlementRate = txn.return_value
+        assert settlementRate == rate

@@ -31,6 +31,7 @@ from brownie import (
     nTransparentUpgradeableProxy,
     nWhitePaperInterestRateModel,
 )
+from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
@@ -187,7 +188,9 @@ class TestEnvironment:
             )
             self.ethOracle[symbol] = MockAggregator.deploy(18, {"from": self.deployer})
             self.ethOracle[symbol].setAnswer(config["rate"])
-            self._deployCToken(symbol, token, config["rate"])
+
+            if symbol != "NOMINT":
+                self._deployCToken(symbol, token, config["rate"])
             self.token[symbol] = token
 
     def _deployNotional(self):
@@ -242,8 +245,20 @@ class TestEnvironment:
 
     def enableCurrency(self, symbol, config):
         currencyId = 1
-        if symbol != "ETH":
+        if symbol == "NOMINT":
+            zeroAddress = HexString(0, "bytes20")
+            txn = self.notional.listCurrency(
+                (self.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
+                (zeroAddress, False, 0),
+                self.ethOracle[symbol].address,
+                False,
+                config["buffer"],
+                config["haircut"],
+                config["liquidationDiscount"],
+            )
+            currencyId = txn.events["ListCurrency"]["newCurrencyId"]
 
+        elif symbol != "ETH":
             txn = self.notional.listCurrency(
                 (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
                 (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
@@ -255,9 +270,14 @@ class TestEnvironment:
             )
             currencyId = txn.events["ListCurrency"]["newCurrencyId"]
 
+        if symbol == "NOMINT":
+            assetRateAddress = HexString(0, "bytes20")
+        else:
+            assetRateAddress = self.cTokenAggregator[symbol].address
+
         self.notional.enableCashGroup(
             currencyId,
-            self.cTokenAggregator[symbol].address,
+            assetRateAddress,
             (
                 config["maxMarketIndex"],
                 config["rateOracleTimeWindow"],
@@ -270,6 +290,8 @@ class TestEnvironment:
                 config["tokenHaircut"][0 : config["maxMarketIndex"]],
                 config["rateScalar"][0 : config["maxMarketIndex"]],
             ),
+            self.token[symbol].name() if symbol != "ETH" else "Ether",
+            symbol,
         )
 
         self.currencyId[symbol] = currencyId

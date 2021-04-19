@@ -231,7 +231,11 @@ library LiquidationHelpers {
         PortfolioAsset[] memory assets =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
-        TransferAssets.placeAssetsInAccount(liquidator, liquidatorContext, assets);
+        liquidatorContext = TransferAssets.placeAssetsInAccount(
+            liquidator,
+            liquidatorContext,
+            assets
+        );
         TransferAssets.invertNotionalAmountsInPlace(assets);
 
         if (c.accountContext.bitmapCurrencyId == 0) {

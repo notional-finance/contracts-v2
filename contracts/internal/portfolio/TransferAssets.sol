@@ -54,19 +54,19 @@ library TransferAssets {
         address account,
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
-    ) internal {
+    ) internal returns (AccountContext memory) {
         if (accountContext.bitmapCurrencyId == 0) {
-            addAssetsToPortfolio(account, accountContext, assets);
+            return _addAssetsToPortfolio(account, accountContext, assets);
         } else {
-            addAssetsToBitmap(account, accountContext, assets);
+            return _addAssetsToBitmap(account, accountContext, assets);
         }
     }
 
-    function addAssetsToPortfolio(
+    function _addAssetsToPortfolio(
         address account,
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
-    ) internal {
+    ) private returns (AccountContext memory) {
         PortfolioState memory portfolioState;
         if (accountContext.mustSettleAssets()) {
             (accountContext, portfolioState) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(
@@ -82,17 +82,21 @@ library TransferAssets {
 
         portfolioState.addMultipleAssets(assets);
         accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+
+        return accountContext;
     }
 
-    function addAssetsToBitmap(
+    function _addAssetsToBitmap(
         address account,
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
-    ) internal {
+    ) private returns (AccountContext memory) {
         if (accountContext.mustSettleAssets()) {
-            SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
         }
 
         BitmapAssetsHandler.addMultipleifCashAssets(account, accountContext, assets);
+
+        return accountContext;
     }
 }

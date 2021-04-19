@@ -18,7 +18,7 @@ def isolation(fn_isolation):
 
 
 def test_cannot_deposit_invalid_currency_id(environment, accounts):
-    currencyId = 4
+    currencyId = 5
 
     with brownie.reverts():
         environment.notional.depositUnderlyingToken(

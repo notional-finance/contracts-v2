@@ -2,6 +2,12 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+/// @notice Different types of internal tokens
+///  - UnderlyingToken: underlying asset for a cToken (except for Ether)
+///  - cToken: Compound interest bearing token
+///  - cETH: Special handling for cETH tokens
+///  - Ether: the one and only
+///  - NonMintable: tokens that do not have an underlying (therefore not cTokens)
 enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable}
 
 enum TradeActionType {
@@ -239,11 +245,13 @@ struct AssetRateStorage {
     uint8 underlyingDecimalPlaces;
 }
 
-/// @dev Governance parameters for a cash group, total storage is 7 bytes + 9 bytes
-/// for liquidity token haircuts and 9 bytes for rate scalars, total of 25 bytes
+/// @dev Governance parameters for a cash group, total storage is 7 bytes + 9 bytes for liquidity token haircuts
+/// and 9 bytes for rate scalars, total of 25 bytes. Note that this is stored packed in the storage slot so there
+/// are no indexes stored for liquidityTokenHaircuts or rateScalars, maxMarketIndex is used instead to determine the
+/// length.
 struct CashGroupSettings {
     // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
-    //  that is less than the longest AMM will be tradable.
+    // that is dated less than the longest AMM will be tradable.
     uint8 maxMarketIndex;
     // Time window in minutes that the rate oracle will be averaged over
     uint8 rateOracleTimeWindowMin;
@@ -255,8 +263,10 @@ struct CashGroupSettings {
     uint8 debtBuffer5BPS;
     // fCash haircut specified in 5 BPS increments
     uint8 fCashHaircut5BPS;
-    /* Liquidation Parameters */
+    // If an account has a negative cash balance, it can be settled by incuring debt at the 3 month market. This
+    // is the basis points for the penalty rate that will be added the current 3 month oracle rate.
     uint8 settlementPenaltyRateBPS;
+    // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
     uint8 liquidationfCashHaircut5BPS;
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
     uint8[] liquidityTokenHaircuts;

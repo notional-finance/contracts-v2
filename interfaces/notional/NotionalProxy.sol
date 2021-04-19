@@ -20,8 +20,14 @@ interface NotionalProxy is nTokenERC20 {
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
     event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-    event AccountSettled(address indexed account);
     event BatchTradeExecution(address account, uint16 currencyId);
+
+    /// @notice Emitted whenever an account context has updated
+    event AccountContextUpdate(address indexed account);
+    /// @notice Emitted when an account has assets that are settled
+    event AccountSettled(address indexed account);
+    /// @notice Emitted when an asset rate is settled
+    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
@@ -42,7 +48,9 @@ interface NotionalProxy is nTokenERC20 {
     function enableCashGroup(
         uint16 currencyId,
         address assetRateOracle,
-        CashGroupSettings calldata cashGroup
+        CashGroupSettings calldata cashGroup,
+        string calldata underlyingName,
+        string calldata underlyingSymbol
     ) external;
 
     function updateDepositParameters(

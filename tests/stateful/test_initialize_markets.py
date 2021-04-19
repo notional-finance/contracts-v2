@@ -116,7 +116,7 @@ def interpolate_market_rate(a, b, isSixMonth=False):
         )
 
 
-def perp_token_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
+def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True):
     blockTime = chain.time()
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (cashBalance, perpTokenBalance, lastMintTime) = environment.notional.getAccountBalance(
@@ -245,7 +245,7 @@ def test_first_initialization(environment, accounts):
         {"from": accounts[0]},
     )
     environment.notional.initializeMarkets(currencyId, True)
-    perp_token_asserts(environment, currencyId, True, accounts)
+    ntoken_asserts(environment, currencyId, True, accounts)
 
 
 def test_settle_and_initialize(environment, accounts):
@@ -256,7 +256,7 @@ def test_settle_and_initialize(environment, accounts):
 
     # No trading has occured
     environment.notional.initializeMarkets(currencyId, False)
-    perp_token_asserts(environment, currencyId, False, accounts)
+    ntoken_asserts(environment, currencyId, False, accounts)
 
 
 def test_settle_and_extend(environment, accounts):
@@ -282,14 +282,14 @@ def test_settle_and_extend(environment, accounts):
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     environment.notional.initializeMarkets(currencyId, False)
-    perp_token_asserts(environment, currencyId, False, accounts)
+    ntoken_asserts(environment, currencyId, False, accounts)
 
     # Test re-initialization the second time
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     environment.notional.initializeMarkets(currencyId, False)
-    perp_token_asserts(environment, currencyId, False, accounts)
+    ntoken_asserts(environment, currencyId, False, accounts)
 
 
 def test_mint_after_markets_initialized(environment, accounts):
@@ -317,7 +317,7 @@ def test_mint_after_markets_initialized(environment, accounts):
         ],
         {"from": accounts[0]},
     )
-    perp_token_asserts(environment, currencyId, False, accounts, wasInit=False)
+    ntoken_asserts(environment, currencyId, False, accounts, wasInit=False)
     # Assert that no assets in portfolio
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
 

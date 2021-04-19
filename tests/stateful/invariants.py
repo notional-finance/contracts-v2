@@ -22,7 +22,7 @@ def get_all_markets(env, currencyId):
 
 def check_system_invariants(env, accounts):
     check_cash_balance(env, accounts)
-    check_perp_token(env, accounts)
+    check_ntoken(env, accounts)
     check_portfolio_invariants(env, accounts)
     check_account_context(env, accounts)
     check_token_incentive_balance(env, accounts)
@@ -36,7 +36,7 @@ def computed_settled_asset_cash(env, asset, currencyId, symbol):
         return 0
 
     assetRate = env.notional.getSettlementRate(currencyId, asset[1])
-    decimals = 10 ** env.token[symbol].decimals()
+    decimals = assetRate[2]
     conversionRate = Wei(1e18) * Wei(decimals) / Wei(assetRate[1] * 1e8)
     if asset[2] == 1:
         settledCash += asset[3] * conversionRate
@@ -66,7 +66,7 @@ def compute_settled_fcash(currencyId, symbol, env, accounts):
 
         # TODO: check for ifCash assets here too
 
-    # Check perp token portfolios
+    # Check nToken portfolios
     (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(env.nToken[currencyId].address)
 
     for asset in portfolio:
@@ -87,21 +87,28 @@ def check_cash_balance(env, accounts):
             tokenBalance = env.notional.balance()
         else:
             tokenBalance = env.token[symbol].balanceOf(env.notional.address)
-        # Notional contract should never accumulate underlying balances
-        assert tokenBalance == 0
 
-        contractBalance = env.cToken[symbol].balanceOf(env.notional.address)
+        if symbol != "NOMINT":
+            # Should not accumulate underlying balances if mintable
+            assert tokenBalance == 0
+
+        contractBalance = 0
+        if symbol != "NOMINT":
+            contractBalance = env.cToken[symbol].balanceOf(env.notional.address)
+        else:
+            contractBalance = tokenBalance * 1e8 / 1e18
+
         accountBalances = 0
-        perpTokenTotalBalances = 0
+        nTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, perpTokenBalance, lastMintTime) = env.notional.getAccountBalance(
+            (cashBalance, nTokenBalance, _) = env.notional.getAccountBalance(
                 currencyId, account.address
             )
             accountBalances += cashBalance
-            perpTokenTotalBalances += perpTokenBalance
+            nTokenTotalBalances += nTokenBalance
 
-        # Add perp token balances
+        # Add nToken balances
         (cashBalance, _, _) = env.notional.getAccountBalance(
             currencyId, env.nToken[currencyId].address
         )
@@ -117,11 +124,11 @@ def check_cash_balance(env, accounts):
 
         assert contractBalance == accountBalances
         # Check that total supply equals total balances
-        assert perpTokenTotalBalances == env.nToken[currencyId].totalSupply()
+        assert nTokenTotalBalances == env.nToken[currencyId].totalSupply()
 
 
-def check_perp_token(env, accounts):
-    # For every perp token, check that it has no other balances and its
+def check_ntoken(env, accounts):
+    # For every nToken, check that it has no other balances and its
     # total outstanding supply matches its supply
     for (currencyId, nToken) in env.nToken.items():
         totalSupply = nToken.totalSupply()
@@ -134,7 +141,7 @@ def check_perp_token(env, accounts):
         # Ensure that total supply equals tokens held
         assert totalTokensHeld == totalSupply
 
-        # Ensure that the perp token never holds other balances
+        # Ensure that the nToken never holds other balances
         for (_, testCurrencyId) in env.currencyId.items():
             (cashBalance, tokens, lastMintTime) = env.notional.getAccountBalance(
                 testCurrencyId, nToken.address
@@ -145,8 +152,10 @@ def check_perp_token(env, accounts):
             if testCurrencyId != currencyId:
                 assert cashBalance == 0
 
-        # TODO: ensure that the perp token holds enough PV for negative fcash balances
-        # TODO: ensure that the FC of the perp token is gte 0
+        # TODO: ensure that the nToken holds enough PV for negative fcash balances
+
+        # Ensure that the FC of the nToken is gte 0
+        assert env.notional.getFreeCollateralView(nToken.address)[0] >= 0
 
 
 def check_portfolio_invariants(env, accounts):
@@ -173,7 +182,7 @@ def check_portfolio_invariants(env, accounts):
 
         # TODO: check for ifCash assets here too
 
-    # Check perp token portfolios
+    # Check nToken portfolios
     for (currencyId, nToken) in env.nToken.items():
         try:
             env.notional.initializeMarkets(currencyId, False)
@@ -241,10 +250,10 @@ def check_account_context(env, accounts):
         hasCashDebt = False
         for (_, currencyId) in env.currencyId.items():
             # Checks that active currencies is set properly
-            (cashBalance, perpTokenBalance, lastMintTime) = env.notional.getAccountBalance(
+            (cashBalance, nTokenBalance, _) = env.notional.getAccountBalance(
                 currencyId, account.address
             )
-            if cashBalance != 0 or perpTokenBalance != 0:
+            if cashBalance != 0 or nTokenBalance != 0:
                 assert (currencyId, True) in [(a[0], a[2]) for a in activeCurrencies]
 
             if cashBalance < 0:

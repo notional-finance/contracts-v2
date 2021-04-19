@@ -20,7 +20,6 @@ contract DepositWithdrawAction {
 
     event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
     event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-    event AccountSettled(address indexed account);
 
     /// @notice Method for manually settling an account, generally should not be called because other
     /// methods will check if an account needs to be settled automatically.
@@ -32,7 +31,6 @@ contract DepositWithdrawAction {
         if (accountContext.mustSettleAssets()) {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
             accountContext.setAccountContext(account);
-            emit AccountSettled(account);
         }
     }
 
@@ -133,9 +131,8 @@ contract DepositWithdrawAction {
     ) external returns (uint256) {
         address account = msg.sender;
 
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // This happens before reading the balance state to get the most up to date cash balance
-        _settleAccountIfRequiredAndFinalize(account, accountContext);
+        AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(account);
 
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
@@ -164,10 +161,9 @@ contract DepositWithdrawAction {
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // Return any settle amounts here to reduce the number of storage writes to balances
-        SettleAmount[] memory settleAmounts =
-            _settleAccountIfRequiredAndStorePortfolio(account, accountContext);
+        (AccountContext memory accountContext, SettleAmount[] memory settleAmounts) =
+            _settleAccountIfRequiredAndStorePortfolio(account);
 
         uint256 settleAmountIndex;
         BalanceState memory balanceState;
@@ -213,9 +209,11 @@ contract DepositWithdrawAction {
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        (SettleAmount[] memory settleAmounts, PortfolioState memory portfolioState) =
-            _settleAccountIfRequiredAndReturnPortfolio(account, accountContext);
+        (
+            AccountContext memory accountContext,
+            SettleAmount[] memory settleAmounts,
+            PortfolioState memory portfolioState
+        ) = _settleAccountIfRequiredAndReturnPortfolio(account);
 
         uint256 settleAmountIndex;
         BalanceState memory balanceState;
@@ -474,48 +472,49 @@ contract DepositWithdrawAction {
         );
     }
 
-    function _settleAccountIfRequiredAndReturnPortfolio(
-        address account,
-        AccountContext memory accountContext
-    ) private returns (SettleAmount[] memory, PortfolioState memory) {
+    function _settleAccountIfRequiredAndReturnPortfolio(address account)
+        private
+        returns (
+            AccountContext memory,
+            SettleAmount[] memory,
+            PortfolioState memory
+        )
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            (
-                AccountContext memory newAccountContext,
-                SettleAmount[] memory settleAmounts,
-                PortfolioState memory portfolioState
-            ) = SettleAssetsExternal.settleAssetsAndReturnAll(account);
-
-            accountContext = newAccountContext;
-            return (settleAmounts, portfolioState);
+            return SettleAssetsExternal.settleAssetsAndReturnAll(account);
         }
 
         return (
+            accountContext,
             new SettleAmount[](0),
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
         );
     }
 
-    function _settleAccountIfRequiredAndStorePortfolio(
-        address account,
-        AccountContext memory accountContext
-    ) private returns (SettleAmount[] memory) {
+    function _settleAccountIfRequiredAndStorePortfolio(address account)
+        private
+        returns (AccountContext memory, SettleAmount[] memory)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         SettleAmount[] memory settleAmounts;
 
         if (accountContext.mustSettleAssets()) {
-            (accountContext, settleAmounts) = SettleAssetsExternal.settleAssetsAndStorePortfolio(
-                account
-            );
+            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
         }
 
-        return settleAmounts;
+        return (accountContext, settleAmounts);
     }
 
-    function _settleAccountIfRequiredAndFinalize(
-        address account,
-        AccountContext memory accountContext
-    ) private {
+    function _settleAccountIfRequiredAndFinalize(address account)
+        private
+        returns (AccountContext memory)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            return SettleAssetsExternal.settleAssetsAndFinalize(account);
         }
+
+        return accountContext;
     }
 }

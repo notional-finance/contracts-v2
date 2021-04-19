@@ -8,7 +8,6 @@ import "../internal/valuation/FreeCollateral.sol";
 /// @title Externally deployed library for free collateral calculations
 library FreeCollateralExternal {
     using AccountContextHandler for AccountContext;
-    event AccountContextUpdate(address account);
 
     /// @notice Returns the ETH denominated free collateral of an account, represents the amount of
     /// debt that the account can incur before liquidation.
@@ -40,7 +39,6 @@ library FreeCollateralExternal {
 
         if (updateContext) {
             accountContext.setAccountContext(account);
-            emit AccountContextUpdate(account);
         }
 
         require(ethDenominatedFC >= 0, "Insufficient free collateral");

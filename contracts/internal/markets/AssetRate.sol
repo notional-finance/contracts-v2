@@ -96,7 +96,7 @@ library AssetRate {
         if (rateOracle == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
-            underlyingDecimalPlaces = 1;
+            underlyingDecimalPlaces = 0;
         } else {
             rate = AssetRateAdapter(rateOracle).getExchangeRateView();
             require(rate > 0, "AR: invalid rate");
@@ -121,7 +121,7 @@ library AssetRate {
         if (rateOracle == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
-            underlyingDecimalPlaces = 1;
+            underlyingDecimalPlaces = 0;
         } else {
             rate = AssetRateAdapter(rateOracle).getExchangeRateStateful();
             require(rate > 0, "AR: invalid rate");
@@ -221,27 +221,33 @@ library AssetRate {
 
         if (settlementRate == 0) {
             // Settlement rate has not yet been set, set it in this branch
+            address rateOracle;
             // prettier-ignore
             (
                 settlementRate,
-                /* address */,
+                rateOracle,
                 underlyingDecimalPlaces
             ) = _getAssetRateStateful(currencyId);
 
-            require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
-            require(settlementRate > 0 && settlementRate <= type(uint128).max); // dev: settlement rate overflow
-            uint128 storedRate = uint128(uint256(settlementRate));
+            if (rateOracle != address(0)) {
+                // Only need to set settlement rates when the rate oracle is set (meaning the asset token has
+                // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
+                // rate since they are the same.
+                require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
+                require(settlementRate > 0 && settlementRate <= type(uint128).max); // dev: settlement rate overflow
+                uint128 storedRate = uint128(uint256(settlementRate));
 
-            bytes32 data =
-                (bytes32(blockTime) |
-                    (bytes32(uint256(storedRate)) << 40) |
-                    (bytes32(uint256(underlyingDecimalPlaces)) << 168));
+                bytes32 data =
+                    (bytes32(blockTime) |
+                        (bytes32(uint256(storedRate)) << 40) |
+                        (bytes32(uint256(underlyingDecimalPlaces)) << 168));
 
-            assembly {
-                sstore(slot, data)
+                assembly {
+                    sstore(slot, data)
+                }
+
+                emit SetSettlementRate(currencyId, maturity, storedRate);
             }
-
-            emit SetSettlementRate(currencyId, maturity, storedRate);
         }
 
         return AssetRateParameters(address(0), settlementRate, int256(10**underlyingDecimalPlaces));

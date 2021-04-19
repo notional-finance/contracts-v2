@@ -14,6 +14,7 @@ import "../internal/AccountContextHandler.sol";
 library SettleAssetsExternal {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    event AccountSettled(address indexed account);
 
     function settleAssetsAndFinalize(address account) external returns (AccountContext memory) {
         // prettier-ignore
@@ -103,6 +104,8 @@ library SettleAssetsExternal {
         if (finalizeAmounts) {
             BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
         }
+
+        emit AccountSettled(account);
 
         return (accountContext, settleAmounts, portfolioState);
     }

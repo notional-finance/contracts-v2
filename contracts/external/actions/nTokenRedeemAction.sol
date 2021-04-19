@@ -79,7 +79,7 @@ contract nTokenRedeemAction {
         balance.netCashChange = totalAssetCash;
 
         if (hasResidual) {
-            TransferAssets.placeAssetsInAccount(redeemer, context, assets);
+            context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
 
         balance.finalize(redeemer, context, false);

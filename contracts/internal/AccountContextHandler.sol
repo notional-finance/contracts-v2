@@ -10,6 +10,7 @@ library AccountContextHandler {
     using PortfolioHandler for PortfolioState;
 
     bytes18 private constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;
+    event AccountContextUpdate(address indexed account);
 
     /// @notice Returns the account context of a given account
     function getAccountContext(address account) internal view returns (AccountContext memory) {
@@ -43,6 +44,8 @@ library AccountContextHandler {
         assembly {
             sstore(slot, data)
         }
+
+        emit AccountContextUpdate(account);
     }
 
     /// @notice Sets the account context of a given account
