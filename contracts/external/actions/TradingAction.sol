@@ -2,7 +2,6 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./DepositWithdrawAction.sol";
 import "../FreeCollateralExternal.sol";
 import "../SettleAssetsExternal.sol";
 import "../../internal/markets/Market.sol";

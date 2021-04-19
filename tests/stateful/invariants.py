@@ -266,8 +266,13 @@ def check_account_context(env, accounts):
 
         hasPortfolioDebt = False
         for asset in portfolio:
-            # Check that currency id is in the active currencies list
-            assert (asset[0], True) in [(a[0], a[1]) for a in activeCurrencies]
+            if context[3] == 0:
+                # Check that currency id is in the active currencies list
+                assert (asset[0], True) in [(a[0], a[1]) for a in activeCurrencies]
+            else:
+                # Check that assets are set in the bitmap
+                assert asset[0] == context[3]
+
             settleTime = get_settlement_date(asset, chain.time())
 
             if settleTime < nextSettleTime:
@@ -278,8 +283,10 @@ def check_account_context(env, accounts):
                 # Negative fcash
                 hasPortfolioDebt = True
 
-        # Check next maturity, TODO: this does not work with idiosyncratic accounts
-        assert context[0] == nextSettleTime
+        # Check next settle time for portfolio array
+        if context[3] == 0:
+            assert context[0] == nextSettleTime
+
         # Check that has debt is set properly.
         if hasPortfolioDebt and hasCashDebt:
             assert context[1] == HAS_BOTH_DEBT

@@ -2,7 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./DepositWithdrawAction.sol";
+import "./BatchAction.sol";
 import "./nTokenRedeemAction.sol";
 import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
@@ -156,8 +156,8 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         // that accounts may take any sort of trading action as a result of their transfer. Both of these actions will
         // handle checking free collateral so no additional check is necessary here.
         if (sig == nTokenRedeemAction.nTokenRedeem.selector ||
-            sig == DepositWithdrawAction.batchBalanceAction.selector ||
-            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector) {
+            sig == BatchAction.batchBalanceAction.selector ||
+            sig == BatchAction.batchBalanceAndTradeAction.selector) {
             // Ensure that the "account" parameter of the call is set to the from address
             require(abi.decode(data[4:32], (address)) == from, "Unauthorized call");
             (bool status,) = address(this).delegatecall(data);

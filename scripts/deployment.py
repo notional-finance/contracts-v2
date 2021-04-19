@@ -1,7 +1,8 @@
 from copy import copy
 
 from brownie import (
-    DepositWithdrawAction,
+    AccountAction,
+    BatchAction,
     ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
@@ -206,7 +207,8 @@ class TestEnvironment:
         initializeMarkets = InitializeMarketsAction.deploy({"from": self.deployer})
         nTokenRedeem = nTokenRedeemAction.deploy({"from": self.deployer})
         nTokenAction_ = nTokenAction.deploy({"from": self.deployer})
-        depositWithdrawAction = DepositWithdrawAction.deploy({"from": self.deployer})
+        batchAction = BatchAction.deploy({"from": self.deployer})
+        accountAction = AccountAction.deploy({"from": self.deployer})
         erc1155Action = ERC1155Action.deploy({"from": self.deployer})
         liquidateCurrencyAction = LiquidateCurrencyAction.deploy({"from": self.deployer})
         liquidatefCashAction = LiquidatefCashAction.deploy({"from": self.deployer})
@@ -218,7 +220,8 @@ class TestEnvironment:
             initializeMarkets.address,
             nTokenAction_.address,
             nTokenRedeem.address,
-            depositWithdrawAction.address,
+            batchAction.address,
+            accountAction.address,
             erc1155Action.address,
             liquidateCurrencyAction.address,
             liquidatefCashAction.address,

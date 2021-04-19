@@ -167,7 +167,7 @@ class TestFreeCollateral:
         for m in markets:
             freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        freeCollateral.enableBitmapForAccount(accounts[0], 1)
+        freeCollateral.enableBitmapForAccount(accounts[0], 1, START_TIME)
         freeCollateral.setifCashAsset(
             accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, -100e8, START_TIME
         )
@@ -198,7 +198,7 @@ class TestFreeCollateral:
         for m in markets:
             freeCollateral.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        freeCollateral.enableBitmapForAccount(accounts[0], 1)
+        freeCollateral.enableBitmapForAccount(accounts[0], 1, START_TIME)
         freeCollateral.setifCashAsset(
             accounts[0], 1, markets[0][1] + SECONDS_IN_DAY * 5, -100e8, START_TIME
         )
@@ -249,7 +249,7 @@ class TestFreeCollateral:
         assert context[1] == "0x00"  # no debt
 
     def test_remove_cash_debt_bitmap_currency(self, freeCollateral, accounts):
-        freeCollateral.enableBitmapForAccount(accounts[0], 1)
+        freeCollateral.enableBitmapForAccount(accounts[0], 1, START_TIME)
         freeCollateral.setBalance(accounts[0], 1, -200e8, 0)
         freeCollateral.setBalance(accounts[0], 2, 400e8, 0)
         context = freeCollateral.getAccountContext(accounts[0])

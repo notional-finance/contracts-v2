@@ -119,7 +119,7 @@ class TestCashGroupGetters:
             ]
 
             # ensure liquidation fcash is less that fcash haircut
-            if cashGroupParameters[7] > cashGroupParameters[5]:
+            if cashGroupParameters[7] >= cashGroupParameters[5]:
                 cashGroupParameters[7] = cashGroupParameters[5] - 1
 
             cashGroup.setCashGroup(i, cashGroupParameters)

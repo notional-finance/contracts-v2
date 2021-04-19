@@ -97,7 +97,9 @@ interface NotionalProxy is nTokenERC20 {
         bool sellTokenAssets
     ) external;
 
-    /** Deposit Withdraw Action */
+    /** Account Action */
+    function enableBitmapCurrency(uint16 currencyId) external;
+
     function settleAccount(address account) external;
 
     function depositUnderlyingToken(
@@ -118,6 +120,7 @@ interface NotionalProxy is nTokenERC20 {
         bool redeemToUnderlying
     ) external returns (uint256);
 
+    /** Batch Action */
     function batchBalanceAction(address account, BalanceAction[] calldata actions) external payable;
 
     function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
@@ -196,8 +199,6 @@ interface NotionalProxy is nTokenERC20 {
         external
         view
         returns (PortfolioAsset[] memory, PortfolioAsset[] memory);
-
-    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory);
 
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
         external

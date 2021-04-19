@@ -59,9 +59,13 @@ contract MockFreeCollateral is StorageLayoutV1 {
         return AccountContextHandler.getAccountContext(account);
     }
 
-    function enableBitmapForAccount(address account, uint256 currencyId) external {
+    function enableBitmapForAccount(
+        address account,
+        uint256 currencyId,
+        uint256 blockTime
+    ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.enableBitmapForAccount(account, currencyId);
+        accountContext.enableBitmapForAccount(account, currencyId, blockTime);
         accountContext.setAccountContext(account);
     }
 

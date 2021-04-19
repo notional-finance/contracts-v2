@@ -431,16 +431,19 @@ class TestAccountContext:
         )
 
     def test_enable_bitmap_currency(self, accountContext, accounts):
-        accountContext.enableBitmapForAccount(accounts[0], 1)
+        accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
         context = accountContext.getAccountContext(accounts[0])
+        assert context[0] != 0
         assert context[3] == 1
 
-        accountContext.enableBitmapForAccount(accounts[0], 4)
+        accountContext.enableBitmapForAccount(accounts[0], 4, START_TIME)
         context = accountContext.getAccountContext(accounts[0])
+        assert context[0] != 0
         assert context[3] == 4
 
-        accountContext.enableBitmapForAccount(accounts[0], 0)
+        accountContext.enableBitmapForAccount(accounts[0], 0, START_TIME)
         context = accountContext.getAccountContext(accounts[0])
+        assert context[0] != 0
         assert context[3] == 0
 
     def test_enable_bitmap_currency_duplicate(self, accountContext, accounts):
@@ -449,20 +452,21 @@ class TestAccountContext:
             currencies_list_to_active_currency_bytes([(1, False, True)]), "bytes18"
         )
         accountContext.setAccountContext((START_TIME, "0x00", 0, 0, activeCurrencies), accounts[0])
-        accountContext.enableBitmapForAccount(accounts[0], 1)
+        accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
         context = accountContext.getAccountContext(accounts[0])
         assert context[3] == 1
+        assert context[0] != 0
         assert context[-1] == HexString(currencies_list_to_active_currency_bytes([]), "bytes18")
 
     def test_fail_enable_bitmap_currency(self, accountContext, accounts):
         with brownie.reverts("AC: invalid currency id"):
-            accountContext.enableBitmapForAccount(accounts[0], 16384)
+            accountContext.enableBitmapForAccount(accounts[0], 16384, START_TIME)
 
         with brownie.reverts("AC: cannot have assets"):
             accountContext.setAccountContext((START_TIME, "0x00", 1, 0, "0x00"), accounts[0])
-            accountContext.enableBitmapForAccount(accounts[0], 1)
+            accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
 
         with brownie.reverts("AC: cannot have assets"):
             accountContext.setAccountContext((START_TIME, "0x00", 0, 5, "0x00"), accounts[0])
             accountContext.setAssetBitmap(accounts[0], 5, "0x1")
-            accountContext.enableBitmapForAccount(accounts[0], 1)
+            accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)

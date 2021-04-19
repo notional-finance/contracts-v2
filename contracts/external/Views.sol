@@ -171,7 +171,16 @@ contract Views is StorageLayoutV1 {
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+        if (accountContext.bitmapCurrencyId != 0) {
+            return
+                BitmapAssetsHandler.getifCashArray(
+                    account,
+                    accountContext.bitmapCurrencyId,
+                    accountContext.nextSettleTime
+                );
+        } else {
+            return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+        }
     }
 
     function getNTokenPortfolio(address tokenAddress)
@@ -195,21 +204,6 @@ contract Views is StorageLayoutV1 {
             ),
             BitmapAssetsHandler.getifCashArray(tokenAddress, currencyId, lastInitializedTime)
         );
-    }
-
-    function getifCashAssets(address account) external view returns (PortfolioAsset[] memory) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-
-        if (accountContext.bitmapCurrencyId == 0) {
-            return new PortfolioAsset[](0);
-        }
-
-        return
-            BitmapAssetsHandler.getifCashArray(
-                account,
-                accountContext.bitmapCurrencyId,
-                accountContext.nextSettleTime
-            );
     }
 
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)

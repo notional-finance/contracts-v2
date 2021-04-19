@@ -257,3 +257,52 @@ def test_roll_lend_to_maturity(environment, accounts):
     assert portfolio[0][3] == fCashAmount
 
     check_system_invariants(environment, accounts)
+
+
+def test_deposit_and_lend_bitmap(environment, accounts):
+    currencyId = 2
+    environment.notional.enableBitmapCurrency(currencyId, {"from": accounts[1]})
+
+    action = get_balance_trade_action(
+        currencyId,
+        "DepositAsset",
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
+        depositActionAmount=5100e8,
+        withdrawEntireCashBalance=True,
+    )
+    marketsBefore = environment.notional.getActiveMarkets(2)
+
+    txn = environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [action], {"from": accounts[1]}
+    )
+
+    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
+    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == []
+    assert context[1] == "0x00"
+    assert context[2] == 0
+    assert context[3] == 2
+    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
+
+    portfolio = environment.notional.getAccountPortfolio(accounts[1])
+    assert portfolio[0][0] == 2
+    assert portfolio[0][1] == marketsBefore[0][1]
+    assert portfolio[0][2] == 1
+    assert portfolio[0][3] == 100e8
+
+    marketsAfter = environment.notional.getActiveMarkets(2)
+    reserveBalance = environment.notional.getReserveBalance(2)
+
+    assert marketsBefore[1] == marketsAfter[1]
+    assert marketsBefore[0][2] - marketsAfter[0][2] == portfolio[0][3]
+    assert (
+        marketsBefore[0][3] - marketsAfter[0][3]
+        == -txn.events["Transfer"]["amount"] + reserveBalance
+    )  # cToken transfer amount
+    assert marketsBefore[0][4] - marketsAfter[0][4] == 0
+    assert marketsBefore[0][5] > marketsAfter[0][5]
+
+    check_system_invariants(environment, accounts)

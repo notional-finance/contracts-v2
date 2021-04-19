@@ -2,12 +2,13 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./actions/AccountAction.sol";
+import "./actions/BatchAction.sol";
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "./actions/nTokenRedeemAction.sol";
 import "./actions/GovernanceAction.sol";
 import "./actions/InitializeMarketsAction.sol";
-import "./actions/DepositWithdrawAction.sol";
 import "./actions/ERC1155Action.sol";
 import "./actions/LiquidatefCashAction.sol";
 import "./actions/LiquidateCurrencyAction.sol";
@@ -31,7 +32,8 @@ contract Router is StorageLayoutV1 {
     address public immutable INITIALIZE_MARKET;
     address public immutable NTOKEN_ACTIONS;
     address public immutable NTOKEN_REDEEM;
-    address public immutable DEPOSIT_WITHDRAW_ACTION;
+    address public immutable BATCH_ACTION;
+    address public immutable ACCOUNT_ACTION;
     address public immutable ERC1155;
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
@@ -43,7 +45,8 @@ contract Router is StorageLayoutV1 {
         address initializeMarket_,
         address nTokenActions_,
         address nTokenRedeem_,
-        address depositWithdrawAction_,
+        address batchAction_,
+        address accountAction_,
         address erc1155_,
         address liquidateCurrency_,
         address liquidatefCash_,
@@ -54,7 +57,8 @@ contract Router is StorageLayoutV1 {
         INITIALIZE_MARKET = initializeMarket_;
         NTOKEN_ACTIONS = nTokenActions_;
         NTOKEN_REDEEM = nTokenRedeem_;
-        DEPOSIT_WITHDRAW_ACTION = depositWithdrawAction_;
+        BATCH_ACTION = batchAction_;
+        ACCOUNT_ACTION = accountAction_;
         ERC1155 = erc1155_;
         LIQUIDATE_CURRENCY = liquidateCurrency_;
         LIQUIDATE_FCASH = liquidatefCash_;
@@ -94,16 +98,10 @@ contract Router is StorageLayoutV1 {
     /// @return implementation address
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         if (
-            // TODO: move these to their own contract?
-            sig == DepositWithdrawAction.depositUnderlyingToken.selector ||
-            sig == DepositWithdrawAction.depositAssetToken.selector ||
-            sig == DepositWithdrawAction.withdraw.selector ||
-            sig == DepositWithdrawAction.settleAccount.selector ||
-            // TODO: move these to their own contract?
-            sig == DepositWithdrawAction.batchBalanceAction.selector ||
-            sig == DepositWithdrawAction.batchBalanceAndTradeAction.selector
+            sig == BatchAction.batchBalanceAction.selector ||
+            sig == BatchAction.batchBalanceAndTradeAction.selector
         ) {
-            return DEPOSIT_WITHDRAW_ACTION;
+            return BATCH_ACTION;
         }
 
         if (
@@ -120,6 +118,16 @@ contract Router is StorageLayoutV1 {
             sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
         ) {
             return NTOKEN_ACTIONS;
+        }
+
+        if (
+            sig == AccountAction.depositUnderlyingToken.selector ||
+            sig == AccountAction.depositAssetToken.selector ||
+            sig == AccountAction.withdraw.selector ||
+            sig == AccountAction.settleAccount.selector ||
+            sig == AccountAction.enableBitmapCurrency.selector
+        ) {
+            return ACCOUNT_ACTION;
         }
 
         if (

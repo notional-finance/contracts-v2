@@ -386,3 +386,49 @@ def test_settle_cash_debt(environment, accounts):
     assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
 
     check_system_invariants(environment, accounts)
+
+
+def test_deposit_and_borrow_bitmap(environment, accounts):
+    currencyId = 2
+    environment.notional.enableBitmapCurrency(currencyId, {"from": accounts[1]})
+
+    fCashAmount = 100e8
+    borrowAction = get_balance_trade_action(
+        currencyId,
+        "None",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 1,
+                "notional": fCashAmount,
+                "maxSlippage": 0,
+            }
+        ],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=500000e8)
+
+    marketsBefore = environment.notional.getActiveMarkets(2)
+    txn = environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+    )
+
+    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
+    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+
+    context = environment.notional.getAccountContext(accounts[1])
+    activeCurrenciesList = active_currencies_to_list(context[4])
+    assert activeCurrenciesList == [(3, False, True)]
+    assert context[1] == HAS_ASSET_DEBT
+    assert context[2] == 0
+    assert context[3] == 2
+    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
+
+    portfolio = environment.notional.getAccountPortfolio(accounts[1])
+    assert portfolio[0][0] == 2
+    assert portfolio[0][1] == marketsBefore[0][1]
+    assert portfolio[0][2] == 1
+    assert portfolio[0][3] == -100e8
+
+    check_system_invariants(environment, accounts)

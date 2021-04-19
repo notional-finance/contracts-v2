@@ -52,7 +52,8 @@ library AccountContextHandler {
     function enableBitmapForAccount(
         AccountContext memory accountContext,
         address account,
-        uint256 currencyId
+        uint256 currencyId,
+        uint256 blockTime
     ) internal view {
         // Allow setting the currency id to zero to turn off bitmap
         require(currencyId <= Constants.MAX_CURRENCIES, "AC: invalid currency id");
@@ -72,6 +73,7 @@ library AccountContextHandler {
         }
 
         accountContext.bitmapCurrencyId = uint16(currencyId);
+        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
     }
 
     /// @notice Returns true if the context needs to settle
