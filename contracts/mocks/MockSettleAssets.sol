@@ -193,6 +193,22 @@ contract MockSettleAssets is StorageLayoutV1 {
         return Bitmap.splitAssetBitmap(bitmap);
     }
 
+    function _remapBitmap(
+        SplitBitmap memory splitBitmap,
+        uint256 nextSettleTime,
+        uint256 blockTimeUTC0
+    ) public pure returns (SplitBitmap memory) {
+        // prettier-ignore
+        (
+            uint256 lastSettleBit,
+            /* isValid */
+        ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
+
+        SettleBitmapAssets._remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
+
+        return splitBitmap;
+    }
+
     function _combineBitmap(SplitBitmap memory bitmap) public pure returns (bytes32) {
         return Bitmap.combineAssetBitmap(bitmap);
     }

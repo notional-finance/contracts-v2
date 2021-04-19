@@ -3,8 +3,7 @@ import random
 
 import pytest
 from brownie.test import given, strategy
-from hypothesis import settings
-from tests.constants import MARKETS, SECONDS_IN_DAY, SECONDS_IN_YEAR, SETTLEMENT_DATE, START_TIME
+from tests.constants import MARKETS, SETTLEMENT_DATE
 from tests.helpers import get_market_state, get_portfolio_array
 
 NUM_CURRENCIES = 3
@@ -19,6 +18,16 @@ SETTLEMENT_RATE = [
 ]
 
 SETTLED_RATE = 0.01e18
+
+
+def get_settle_rate(currencyId, maturity):
+    if maturity == MARKETS[0]:
+        rate = SETTLEMENT_RATE[0][2]
+    elif maturity == MARKETS[1]:
+        rate = SETTLEMENT_RATE[1][2]
+    else:
+        rate = SETTLED_RATE * currencyId
+    return rate
 
 
 @pytest.mark.settlement
@@ -84,15 +93,6 @@ class TestSettleAssets:
                 value = mockSettleAssets.getSettlementMarket(a[0], maturity, SETTLEMENT_DATE)
                 assert value[1:4] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
 
-    def get_settle_rate(self, currencyId, maturity):
-        if maturity == MARKETS[0]:
-            rate = SETTLEMENT_RATE[0][2]
-        elif maturity == MARKETS[1]:
-            rate = SETTLEMENT_RATE[1][2]
-        else:
-            rate = SETTLED_RATE * currencyId
-        return rate
-
     def settled_balance_context(self, assetArray, blockTime):
         assetsSorted = sorted(assetArray)
         settledBalances = []
@@ -101,7 +101,7 @@ class TestSettleAssets:
         for a in assetsSorted:
             # fcash asset type
             if a[2] == 1 and a[1] < blockTime:
-                rate = self.get_settle_rate(a[0], a[1])
+                rate = get_settle_rate(a[0], a[1])
                 cashClaim = a[3] * 1e18 / rate
                 settledBalances.append((a[0], cashClaim))
             elif a[2] > 1 and a[1] < blockTime:
@@ -109,7 +109,7 @@ class TestSettleAssets:
                 cashClaim = a[3]
                 settledBalances.append((a[0], cashClaim))
 
-                rate = self.get_settle_rate(a[0], a[1])
+                rate = get_settle_rate(a[0], a[1])
                 fCashClaim = a[3] * 1e18 / rate
                 settledBalances.append((a[0], fCashClaim))
             elif a[2] > 1 and SETTLEMENT_DATE < blockTime:
@@ -173,79 +173,3 @@ class TestSettleAssets:
         # Assert that remaining assets are ok
         assets = [(a[0], a[1], a[2], a[3]) for a in assets]
         assert sorted(assets) == sorted(remainingAssets)
-
-    @given(
-        nextSettleTime=strategy(
-            "uint", min_value=START_TIME, max_value=START_TIME + (40 * SECONDS_IN_YEAR)
-        )
-    )
-    @settings(max_examples=20)
-    @pytest.mark.no_call_coverage
-    def test_settle_ifcash_bitmap(self, mockSettleAssets, accounts, nextSettleTime):
-        # Simulate that block time can be arbitrarily far into the future
-        currencyId = 1
-        blockTime = nextSettleTime + random.randint(0, SECONDS_IN_YEAR)
-        # Make sure that this references UTC0 of the first bit
-        nextSettleTime = nextSettleTime - nextSettleTime % SECONDS_IN_DAY
-        # Choose K bits to set
-        bitmapList = ["0"] * 256
-        setBits = random.choices(range(0, 255), k=10)
-        for b in setBits:
-            bitmapList[b] = "1"
-        bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
-
-        activeMaturities = []
-        computedTotalAssetCash = 0
-
-        for i, b in enumerate(bitmapList):
-            if b == "1":
-                notional = random.randint(-1e18, 1e18)
-                maturity = mockSettleAssets.getMaturityFromBitNum(nextSettleTime, i + 1)
-                (bitNum, isValid) = mockSettleAssets.getBitNumFromMaturity(nextSettleTime, maturity)
-                assert isValid
-                assert (i + 1) == bitNum
-
-                activeMaturities.append((maturity, bitNum))
-                mockSettleAssets.setifCash(
-                    accounts[0], currencyId, maturity, notional, nextSettleTime
-                )
-
-                if maturity < blockTime:
-                    computedTotalAssetCash += int(
-                        notional * 1e18 / self.get_settle_rate(currencyId, maturity)
-                    )
-
-        # Compute the new bitmap
-        blockTimeUTC0 = blockTime - blockTime % SECONDS_IN_DAY
-        (lastSettleBit, _) = mockSettleAssets.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0)
-        computedNewBitmap = ["0"] * 256
-        for a in activeMaturities:
-            if a[0] > blockTimeUTC0:
-                (newBit, _) = mockSettleAssets.getBitNumFromMaturity(blockTimeUTC0, a[0])
-                computedNewBitmap[newBit - 1] = "1"
-
-        joinedNewBitmap = "0x{:0{}x}".format(int("".join(computedNewBitmap), 2), 64)
-
-        mockSettleAssets._settleBitmappedCashGroup(
-            accounts[0], currencyId, bitmap, nextSettleTime, blockTime
-        )
-
-        newBitmap = mockSettleAssets.newBitmapStorage()
-        totalAssetCash = mockSettleAssets.totalAssetCash()
-        assert pytest.approx(computedTotalAssetCash, rel=1e-12) == totalAssetCash
-        newBitmapList = list("{:0256b}".format(int(newBitmap.hex(), 16)))
-        # For testing:
-        # inputOnes = list(filter(lambda x: x[1] == "1", enumerate(bitmapList)))
-        # ones = list(filter(lambda x: x[1] == "1", enumerate(newBitmapList)))
-        # computedOnes = list(filter(lambda x: x[1] == "1", enumerate(computedNewBitmap)))
-        assert newBitmap == joinedNewBitmap
-
-        # Ensure that the bitmap covers every location where there is ifCash
-        for i, b in enumerate(newBitmapList):
-            maturity = mockSettleAssets.getMaturityFromBitNum(blockTimeUTC0, i + 1)
-            ifCash = mockSettleAssets.getifCashAsset(accounts[0], currencyId, maturity)
-
-            if b == "1":
-                assert ifCash != 0
-            else:
-                assert ifCash == 0

@@ -65,9 +65,10 @@ library SettleBitmapAssets {
         uint256 blockTimeUTC0 = DateTime.getTimeUTC0(blockTime);
         // This blockTimeUTC0 will be set to the new "nextSettleTime", this will refer to the
         // new next bit
+        // prettier-ignore
         (
-            uint256 lastSettleBit, /* isValid */
-
+            uint256 lastSettleBit,
+            /* isValid */
         ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
         if (lastSettleBit == 0) return (bitmap, totalAssetCash);
 
@@ -157,12 +158,14 @@ library SettleBitmapAssets {
         return (bitmap, totalAssetCash);
     }
 
+    /// @notice Remaps bitmap bits from higher time chunks to lower time chunks
+    /// @dev Marked as internal rather than private so we can mock and test directly
     function _remapBitmap(
         SplitBitmap memory splitBitmap,
         uint256 nextSettleTime,
         uint256 blockTimeUTC0,
         uint256 lastSettleBit
-    ) private pure {
+    ) internal pure {
         if (splitBitmap.weekBits != 0x00 && lastSettleBit < Constants.MONTH_BIT_OFFSET) {
             // Ensures that if part of the week portion is settled we still remap the remaining part
             // starting from the lastSettleBit. Skips if the lastSettleBit is past the offset
@@ -216,22 +219,22 @@ library SettleBitmapAssets {
         uint256 nextSettleTime,
         uint256 blockTimeUTC0,
         uint256 bitOffset,
-        uint256 bitTimeLength,
+        uint256 timeChunkTimeLength,
         SplitBitmap memory splitBitmap,
         bytes32 bits
     ) private pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset
-        uint256 firstBitRef = DateTime.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
-        uint256 newFirstBitRef = DateTime.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
+        uint256 firstBitMaturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitOffset + 1);
+        uint256 newFirstBitMaturity = DateTime.getMaturityFromBitNum(blockTimeUTC0, bitOffset + 1);
         // NOTE: this will truncate the decimals
-        uint256 bitsToShift = (newFirstBitRef - firstBitRef) / bitTimeLength;
+        uint256 bitsToShift = (newFirstBitMaturity - firstBitMaturity) / timeChunkTimeLength;
 
         for (uint256 i; i < bitsToShift; i++) {
             if (bits == 0x00) break;
 
             if ((bits & Constants.MSB) == Constants.MSB) {
                 // Map this into the lower section of the bitmap
-                uint256 maturity = firstBitRef + i * bitTimeLength;
+                uint256 maturity = firstBitMaturity + i * timeChunkTimeLength;
                 (uint256 newBitNum, bool isValid) =
                     DateTime.getBitNumFromMaturity(blockTimeUTC0, maturity);
                 require(isValid); // dev: remap bit section invalid maturity
