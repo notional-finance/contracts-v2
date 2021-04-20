@@ -146,7 +146,7 @@ library BalanceHandler {
 
         if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
             // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
-            // of the system. This method will update the lastIncentiveClaim time in the balanceState for storage.
+            // of the system. This method will update the lastClaimTime time in the balanceState for storage.
             Incentives.claimIncentives(balanceState, account);
 
             // nTokens are within the notional system so we can update balances directly.
@@ -164,7 +164,7 @@ library BalanceHandler {
                 balanceState.currencyId,
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
-                balanceState.lastIncentiveClaim
+                balanceState.lastClaimTime
             );
         }
 
@@ -238,7 +238,7 @@ library BalanceHandler {
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveClaim) =
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
@@ -267,7 +267,7 @@ library BalanceHandler {
             cashGroup.currencyId,
             cashBalance,
             nTokenBalance,
-            lastIncentiveClaim
+            lastClaimTime
         );
 
         return amountToSettleAsset;
@@ -282,7 +282,7 @@ library BalanceHandler {
         for (uint256 i; i < settleAmounts.length; i++) {
             if (settleAmounts[i].netCashChange == 0) continue;
 
-            (int256 cashBalance, int256 nTokenBalance, uint256 lastIncentiveClaim) =
+            (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime) =
                 getBalanceStorage(account, settleAmounts[i].currencyId);
 
             cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
@@ -301,7 +301,7 @@ library BalanceHandler {
                 settleAmounts[i].currencyId,
                 cashBalance,
                 nTokenBalance,
-                lastIncentiveClaim
+                lastClaimTime
             );
         }
     }
@@ -331,16 +331,16 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance,
         int256 nTokenBalance,
-        uint256 lastIncentiveClaim
+        uint256 lastClaimTime
     ) private {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
         require(cashBalance >= type(int128).min && cashBalance <= type(int128).max); // dev: stored cash balance overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint96).max); // dev: stored perpetual token balance overflow
-        require(lastIncentiveClaim >= 0 && lastIncentiveClaim <= type(uint32).max); // dev: last incentive claim overflow
+        require(lastClaimTime >= 0 && lastClaimTime <= type(uint32).max); // dev: last claim time overflow
 
         bytes32 data =
             ((bytes32(uint256(nTokenBalance))) |
-                (bytes32(lastIncentiveClaim) << 96) |
+                (bytes32(lastClaimTime) << 96) |
                 (bytes32(cashBalance) << 128));
 
         assembly {
@@ -355,7 +355,7 @@ library BalanceHandler {
         returns (
             int256 cashBalance,
             int256 nTokenBalance,
-            uint256 lastIncentiveClaim
+            uint256 lastClaimTime
         )
     {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
@@ -367,7 +367,7 @@ library BalanceHandler {
 
         cashBalance = int256(int128(int256(data >> 128)));
         nTokenBalance = int256(uint96(uint256(data)));
-        lastIncentiveClaim = uint256(uint32(uint256(data >> 96)));
+        lastClaimTime = uint256(uint32(uint256(data >> 96)));
     }
 
     /// @notice Loads a balance state memory object
@@ -386,12 +386,12 @@ library BalanceHandler {
             (
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
-                balanceState.lastIncentiveClaim
+                balanceState.lastClaimTime
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = 0;
             balanceState.storedNTokenBalance = 0;
-            balanceState.lastIncentiveClaim = 0;
+            balanceState.lastClaimTime = 0;
         }
 
         balanceState.netCashChange = 0;
@@ -411,7 +411,7 @@ library BalanceHandler {
             balanceState.currencyId,
             balanceState.storedCashBalance,
             balanceState.storedNTokenBalance,
-            balanceState.lastIncentiveClaim
+            balanceState.lastClaimTime
         );
 
         return incentivesClaimed;

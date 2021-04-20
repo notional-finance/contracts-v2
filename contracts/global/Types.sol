@@ -132,7 +132,7 @@ struct BalanceState {
     // Net token supply change from minting or redeeming
     int256 netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
-    uint256 lastIncentiveClaim;
+    uint256 lastClaimTime;
 }
 
 /// @dev Asset rate object as stored in memory, these are cached optimistically

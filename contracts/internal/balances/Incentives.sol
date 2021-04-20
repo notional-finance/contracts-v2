@@ -89,10 +89,10 @@ library Incentives {
             calculateIncentivesToClaim(
                 tokenAddress,
                 uint256(balanceState.storedNTokenBalance),
-                balanceState.lastIncentiveClaim,
+                balanceState.lastClaimTime,
                 blockTime
             );
-        balanceState.lastIncentiveClaim = blockTime;
+        balanceState.lastClaimTime = blockTime;
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
 

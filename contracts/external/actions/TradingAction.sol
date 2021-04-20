@@ -533,7 +533,7 @@ library TradingAction {
         (
             int256 nTokenCashBalance,
             /* storedNTokenBalance */,
-            /* lastIncentiveClaim */
+            /* lastClaimTime */
         ) = BalanceHandler.getBalanceStorage(nTokenAddress, currencyId);
         nTokenCashBalance = nTokenCashBalance.add(netAssetCashNToken);
 

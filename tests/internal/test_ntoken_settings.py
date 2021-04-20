@@ -14,9 +14,12 @@ class TestNTokenSettings:
         return accounts[0].deploy(MockNTokenHandler)
 
     @given(currencyId=strategy("uint16"), tokenAddress=strategy("address"))
+    @pytest.mark.only
     def test_set_perpetual_token_setters(self, nToken, currencyId, tokenAddress):
         # This has assertions inside
         nToken.setNTokenAddress(currencyId, tokenAddress)
+        # TODO: more secure test is to set random bits and then ensure that our
+        # current settings make it properly
 
         assert nToken.nTokenAddress(currencyId) == tokenAddress
         (
@@ -32,7 +35,7 @@ class TestNTokenSettings:
         assert lastInitializeTime == 0
         assert parameters == "0x00000000000000"
 
-        nToken.setIncentiveEmissionRate(tokenAddress, 0.01e9)
+        nToken.setIncentiveEmissionRate(tokenAddress, 100_000)
         nToken.updateNTokenCollateralParameters(currencyId, 40, 90, 96, 50, 95)
 
         (
@@ -44,7 +47,7 @@ class TestNTokenSettings:
         ) = nToken.getNTokenContext(tokenAddress)
         assert currencyIdStored == currencyId
         assert totalSupply == 0
-        assert incentives == 0.01e9
+        assert incentives == 100_000
         assert lastInitializeTime == 0
         assert bytearray(parameters)[0] == 95
         assert bytearray(parameters)[1] == 50
@@ -73,6 +76,25 @@ class TestNTokenSettings:
         assert bytearray(parameters)[4] == 40
         assert bytearray(parameters)[5] == 5
 
+        nToken.updateNTokenCollateralParameters(currencyId, 41, 91, 97, 51, 96)
+        (
+            currencyIdStored,
+            totalSupply,
+            incentives,
+            lastInitializeTime,
+            parameters,
+        ) = nToken.getNTokenContext(tokenAddress)
+        assert currencyIdStored == currencyId
+        assert totalSupply == 0
+        assert incentives == 0.01e9
+        assert lastInitializeTime == START_TIME
+        assert bytearray(parameters)[0] == 96
+        assert bytearray(parameters)[1] == 51
+        assert bytearray(parameters)[2] == 97
+        assert bytearray(parameters)[3] == 91
+        assert bytearray(parameters)[4] == 41
+        assert bytearray(parameters)[5] == 5
+
         nToken.changeNTokenSupply(tokenAddress, 1e8)
         (
             currencyIdStored,
@@ -85,11 +107,11 @@ class TestNTokenSettings:
         assert totalSupply == 1e8
         assert incentives == 0.01e9
         assert lastInitializeTime == START_TIME
-        assert bytearray(parameters)[0] == 95
-        assert bytearray(parameters)[1] == 50
-        assert bytearray(parameters)[2] == 96
-        assert bytearray(parameters)[3] == 90
-        assert bytearray(parameters)[4] == 40
+        assert bytearray(parameters)[0] == 96
+        assert bytearray(parameters)[1] == 51
+        assert bytearray(parameters)[2] == 97
+        assert bytearray(parameters)[3] == 91
+        assert bytearray(parameters)[4] == 41
         assert bytearray(parameters)[5] == 5
 
         nToken.changeNTokenSupply(tokenAddress, -0.5e8)
@@ -104,11 +126,11 @@ class TestNTokenSettings:
         assert totalSupply == 0.5e8
         assert incentives == 0.01e9
         assert lastInitializeTime == START_TIME
-        assert bytearray(parameters)[0] == 95
-        assert bytearray(parameters)[1] == 50
-        assert bytearray(parameters)[2] == 96
-        assert bytearray(parameters)[3] == 90
-        assert bytearray(parameters)[4] == 40
+        assert bytearray(parameters)[0] == 96
+        assert bytearray(parameters)[1] == 51
+        assert bytearray(parameters)[2] == 97
+        assert bytearray(parameters)[3] == 91
+        assert bytearray(parameters)[4] == 41
         assert bytearray(parameters)[5] == 5
 
         with brownie.reverts():
