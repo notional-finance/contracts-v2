@@ -1,7 +1,8 @@
 GovernanceConfig = {
     "initialBalances": {
         "DAO": 55_000_000e8,
-        "MULTISIG": 45_000_000e8,  # TODO: update this to account for airdrop
+        "MULTISIG": 44_000_000e8,  # TODO: update this to account for airdrop
+        "NOTIONAL": 1_000_000e8,  # TODO: update this to account for airdrop
     },
     "governorConfig": {
         "quorumVotes": 4_000_000e8,

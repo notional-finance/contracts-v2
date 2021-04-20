@@ -176,10 +176,19 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     function nTokenClaimIncentives() external override returns (uint256) {
         address account = msg.sender;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        uint256 totalIncentivesClaimed;
         BalanceState memory balanceState;
 
+        if (accountContext.bitmapCurrencyId != 0) {
+            balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
+            if (balanceState.storedNTokenBalance > 0) {
+                totalIncentivesClaimed = totalIncentivesClaimed.add(
+                    BalanceHandler.claimIncentivesManual(balanceState, account)
+                );
+            }
+        }
+
         bytes18 currencies = accountContext.activeCurrencies;
-        uint256 totalIncentivesClaimed;
         while (currencies != 0) {
             uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
 
@@ -209,9 +218,23 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
         uint256 blockTime = block.timestamp;
+        uint256 totalIncentivesClaimable;
+
+        if (accountContext.bitmapCurrencyId != 0) {
+            balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
+            if (balanceState.storedNTokenBalance > 0) {
+                totalIncentivesClaimable = totalIncentivesClaimable.add(
+                    Incentives.calculateIncentivesToClaim(
+                        nTokenHandler.nTokenAddress(balanceState.currencyId),
+                        uint256(balanceState.storedNTokenBalance),
+                        balanceState.lastIncentiveClaim,
+                        blockTime
+                    )
+                );
+            }
+        }
 
         bytes18 currencies = accountContext.activeCurrencies;
-        uint256 totalIncentivesClaimable;
         while (currencies != 0) {
             uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
             balanceState.loadBalanceState(account, currencyId, accountContext);

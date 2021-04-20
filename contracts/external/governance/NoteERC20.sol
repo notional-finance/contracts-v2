@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 
 /// @title Note ERC20 Token
@@ -19,6 +20,9 @@ contract NoteERC20 is Initializable {
 
     /// @notice Total number of tokens in circulation (100 million NOTE)
     uint256 public constant totalSupply = 100000000e8;
+
+    /// @notice Notional router address
+    NotionalProxy public notionalProxy;
 
     // Allowance amounts on behalf of others
     mapping(address => mapping(address => uint96)) internal allowances;
@@ -72,14 +76,27 @@ contract NoteERC20 is Initializable {
     /// @notice The standard EIP-20 approval event
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
-    /// @initialAccounts initial address to grant tokens to
-    /// @initialGrantAmount in
-    /// @note address of note token
+    /// @notice Initialize note token with initial grants
+    /// @param initialAccounts initial address to grant tokens to
+    /// @param initialGrantAmount amount to grant address initially
+    /// @param notionalProxy_ address of notional proxy
+    function initialize(
+        address[] calldata initialAccounts,
+        uint96[] calldata initialGrantAmount,
+        NotionalProxy notionalProxy_
+    ) public initializer {
+        require(initialGrantAmount.length == initialAccounts.length);
 
-    /// @notice Construct a new Note token
-    function initialize(address account) public initializer {
-        balances[account] = uint96(totalSupply);
-        emit Transfer(address(0), account, totalSupply);
+        notionalProxy = notionalProxy_;
+        uint96 totalGrants;
+        for (uint256 i; i < initialGrantAmount.length; i++) {
+            totalGrants = _add96(totalGrants, initialGrantAmount[i], "");
+            balances[initialAccounts[i]] = initialGrantAmount[i];
+
+            emit Transfer(address(0), initialAccounts[i], initialGrantAmount[i]);
+        }
+
+        require(totalGrants == totalSupply);
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -200,9 +217,14 @@ contract NoteERC20 is Initializable {
     /// @param account The address to get votes balance
     /// @return The number of current votes for `account`
     function getCurrentVotes(address account) external view returns (uint96) {
-        // TODO: this must count non minted votes
         uint32 nCheckpoints = numCheckpoints[account];
-        return nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
+        uint96 currentVotes = nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
+        return
+            _add96(
+                currentVotes,
+                getUnclaimedVotes(account),
+                "Note::getCurrentVotes: uint96 overflow"
+            );
     }
 
     /// @notice Determine the prior number of votes for an account as of a block number
@@ -241,7 +263,23 @@ contract NoteERC20 is Initializable {
                 upper = center - 1;
             }
         }
-        return checkpoints[account][lower].votes;
+
+        return
+            _add96(
+                checkpoints[account][lower].votes,
+                getUnclaimedVotes(account),
+                "Note::getPriorVotes: uint96 overflow"
+            );
+    }
+
+    /// @notice Notional counts unclaimed incentives as part of a users' voting power. There is no
+    /// need to checkpoint these values because they cannot be transferred or delegated.
+    /// @param account the address of the Notional account to check
+    /// @return Total number of unclaimed tokens accrued on the Notional account
+    function getUnclaimedVotes(address account) public view returns (uint96) {
+        uint256 votes = notionalProxy.nTokenGetClaimableIncentives(account);
+        require(votes <= type(uint96).max);
+        return uint96(votes);
     }
 
     /// @dev Changes delegates from one address to another

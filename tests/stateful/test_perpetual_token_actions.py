@@ -520,3 +520,8 @@ def test_mint_incentives(environment, accounts):
     assert mintTimeAfterZero == txn.timestamp
 
     check_system_invariants(environment, accounts)
+
+
+@pytest.mark.skip
+def test_mint_multiple_incentives(environment, accounts):
+    pass

@@ -73,7 +73,11 @@ library AccountContextHandler {
         }
 
         accountContext.bitmapCurrencyId = uint16(currencyId);
-        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
+
+        // Setting this is required to initialize the assets bitmap
+        uint256 nextSettleTime = DateTime.getTimeUTC0(blockTime);
+        require(nextSettleTime < type(uint40).max); // dev: blockTime overflow
+        accountContext.nextSettleTime = uint40(nextSettleTime);
     }
 
     /// @notice Returns true if the context needs to settle

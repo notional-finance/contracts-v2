@@ -74,19 +74,23 @@ class TestEnvironment:
 
         if withGovernance:
             self.notional.transferOwnership(self.governor.address)
-            self.noteERC20.transfer(
-                self.governor.address,
-                GovernanceConfig["initialBalances"]["DAO"],
-                {"from": self.deployer},
-            )
-            self.noteERC20.transfer(
-                self.multisig.address,
-                GovernanceConfig["initialBalances"]["MULTISIG"],
+            self.noteERC20.initialize(
+                [self.governor.address, self.multisig.address, self.notional.address],
+                [
+                    GovernanceConfig["initialBalances"]["DAO"],
+                    GovernanceConfig["initialBalances"]["MULTISIG"],
+                    GovernanceConfig["initialBalances"]["NOTIONAL"],
+                ],
+                self.notional.address,
                 {"from": self.deployer},
             )
         else:
-            # Transfer some initial supply for minting
-            self.noteERC20.transfer(self.proxy.address, 1000000e8, {"from": self.deployer})
+            self.noteERC20.initialize(
+                [self.deployer, self.notional.address],
+                [99_000_000e8, GovernanceConfig["initialBalances"]["NOTIONAL"]],
+                self.notional.address,
+                {"from": self.deployer},
+            )
 
         self.startTime = chain.time()
 
@@ -94,14 +98,10 @@ class TestEnvironment:
         # Deploy governance contracts
         noteERC20Implementation = NoteERC20.deploy({"from": self.deployer})
         # This is a proxied ERC20
-        initializeData = web3.eth.contract(abi=NoteERC20.abi).encodeABI(
-            fn_name="initialize", args=[self.deployer.address]
-        )
-
         self.noteERC20Proxy = nTransparentUpgradeableProxy.deploy(
             noteERC20Implementation.address,
             self.proxyAdmin.address,
-            initializeData,
+            bytes(),
             {"from": self.deployer},
         )
 

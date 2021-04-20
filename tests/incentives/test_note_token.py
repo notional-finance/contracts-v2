@@ -42,18 +42,28 @@ def test_note_token_initial_balances(environment, accounts):
         environment.noteERC20.balanceOf(environment.multisig.address)
         == GovernanceConfig["initialBalances"]["MULTISIG"]
     )
+
     assert (
-        GovernanceConfig["initialBalances"]["DAO"] + GovernanceConfig["initialBalances"]["MULTISIG"]
+        environment.noteERC20.balanceOf(environment.notional.address)
+        == GovernanceConfig["initialBalances"]["NOTIONAL"]
+    )
+
+    assert (
+        GovernanceConfig["initialBalances"]["DAO"]
+        + GovernanceConfig["initialBalances"]["MULTISIG"]
+        + GovernanceConfig["initialBalances"]["NOTIONAL"]
         == environment.noteERC20.totalSupply()
     )
 
 
 def test_note_token_cannot_reinitialize(environment, accounts):
     with brownie.reverts():
-        environment.noteERC20.initialize(accounts[2].address, {"from": environment.deployer})
-
-    with brownie.reverts():
-        environment.noteERC20.initialize(accounts[2].address, {"from": accounts[2].address})
+        environment.noteERC20.initialize(
+            [accounts[2].address],
+            [100_000_000e8],
+            accounts[2].address,
+            {"from": environment.deployer},
+        )
 
 
 def test_governor_must_update_parameters_via_governance(environment, accounts):
