@@ -51,7 +51,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (
             /* int cashBalance */,
             int256 nTokenBalance,
-            /* uint lastClaimTime */
+            /* uint lastClaimTime */,
+            /* uint lastClaimSupply */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance
@@ -223,14 +224,18 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         if (accountContext.bitmapCurrencyId != 0) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
-                totalIncentivesClaimable = totalIncentivesClaimable.add(
-                    Incentives.calculateIncentivesToClaim(
-                        nTokenHandler.nTokenAddress(balanceState.currencyId),
-                        uint256(balanceState.storedNTokenBalance),
-                        balanceState.lastClaimTime,
-                        blockTime
-                    )
+                // prettier-ignore
+                (
+                    uint256 incentivesToClaim,
+                    /* totalSupply */
+                ) = Incentives.calculateIncentivesToClaim(
+                    nTokenHandler.nTokenAddress(balanceState.currencyId),
+                    uint256(balanceState.storedNTokenBalance),
+                    balanceState.lastClaimTime,
+                    balanceState.lastClaimSupply,
+                    blockTime
                 );
+                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
         }
 
@@ -240,14 +245,18 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             balanceState.loadBalanceState(account, currencyId, accountContext);
 
             if (balanceState.storedNTokenBalance > 0) {
-                totalIncentivesClaimable = totalIncentivesClaimable.add(
-                    Incentives.calculateIncentivesToClaim(
-                        nTokenHandler.nTokenAddress(balanceState.currencyId),
-                        uint256(balanceState.storedNTokenBalance),
-                        balanceState.lastClaimTime,
-                        blockTime
-                    )
+                // prettier-ignore
+                (
+                    uint256 incentivesToClaim,
+                    /* totalSupply */
+                ) = Incentives.calculateIncentivesToClaim(
+                    nTokenHandler.nTokenAddress(balanceState.currencyId),
+                    uint256(balanceState.storedNTokenBalance),
+                    balanceState.lastClaimTime,
+                    balanceState.lastClaimSupply,
+                    blockTime
                 );
+                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
 
             currencies = currencies << 16;

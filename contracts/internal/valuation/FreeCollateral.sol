@@ -46,7 +46,8 @@ library FreeCollateral {
             (
                 int256 netLocalAssetValue,
                 int256 nTokenBalance,
-                /* lastClaimTime */
+                /* lastClaimTime */,
+                /* lastClaimSupply */
             ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
             return (netLocalAssetValue, nTokenBalance);
@@ -143,7 +144,8 @@ library FreeCollateral {
         (
             cashBalance,
             nTokenBalance, 
-            /* lastClaimTime */
+            /* lastClaimTime */,
+            /* lastClaimSupply */
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
         if (nTokenBalance > 0) {

@@ -67,7 +67,7 @@ class TestNTokenSettings:
         ) = nToken.getNTokenContext(tokenAddress)
         assert currencyIdStored == currencyId
         assert totalSupply == 0
-        assert incentives == 0.01e9
+        assert incentives == 100_000
         assert lastInitializeTime == START_TIME
         assert bytearray(parameters)[0] == 95
         assert bytearray(parameters)[1] == 50
@@ -86,7 +86,7 @@ class TestNTokenSettings:
         ) = nToken.getNTokenContext(tokenAddress)
         assert currencyIdStored == currencyId
         assert totalSupply == 0
-        assert incentives == 0.01e9
+        assert incentives == 100_000
         assert lastInitializeTime == START_TIME
         assert bytearray(parameters)[0] == 96
         assert bytearray(parameters)[1] == 51
@@ -105,7 +105,7 @@ class TestNTokenSettings:
         ) = nToken.getNTokenContext(tokenAddress)
         assert currencyIdStored == currencyId
         assert totalSupply == 1e8
-        assert incentives == 0.01e9
+        assert incentives == 100_000
         assert lastInitializeTime == START_TIME
         assert bytearray(parameters)[0] == 96
         assert bytearray(parameters)[1] == 51
@@ -124,7 +124,7 @@ class TestNTokenSettings:
         ) = nToken.getNTokenContext(tokenAddress)
         assert currencyIdStored == currencyId
         assert totalSupply == 0.5e8
-        assert incentives == 0.01e9
+        assert incentives == 100_000
         assert lastInitializeTime == START_TIME
         assert bytearray(parameters)[0] == 96
         assert bytearray(parameters)[1] == 51

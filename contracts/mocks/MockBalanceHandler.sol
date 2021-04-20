@@ -33,24 +33,19 @@ contract MockBalanceHandler is StorageLayoutV1 {
     function setBalance(
         address account,
         uint256 currencyId,
-        int256 storedCashBalance,
-        int256 storedNTokenBalance
+        int256 cashBalance,
+        int256 nTokenBalance
     ) external {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
-
-        require(
-            storedCashBalance >= type(int128).min && storedCashBalance <= type(int128).max,
-            "CH: cash balance overflow"
-        );
-
-        require(
-            storedNTokenBalance >= 0 && storedNTokenBalance <= type(uint128).max,
-            "CH: token balance overflow"
-        );
+        require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
+        // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
+        require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
 
         bytes32 data =
-            (// Truncate the higher bits of the signed integer when it is negative
-            (bytes32(uint256(storedNTokenBalance))) | (bytes32(storedCashBalance) << 128));
+            ((bytes32(uint256(nTokenBalance))) |
+                (bytes32(0) << 80) |
+                (bytes32(0) << 112) |
+                (bytes32(cashBalance) << 168));
 
         assembly {
             sstore(slot, data)

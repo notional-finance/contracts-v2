@@ -164,7 +164,8 @@ library BalanceHandler {
                 balanceState.currencyId,
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
-                balanceState.lastClaimTime
+                balanceState.lastClaimTime,
+                balanceState.lastClaimSupply
             );
         }
 
@@ -238,7 +239,7 @@ library BalanceHandler {
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime) =
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimSupply) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
@@ -267,7 +268,8 @@ library BalanceHandler {
             cashGroup.currencyId,
             cashBalance,
             nTokenBalance,
-            lastClaimTime
+            lastClaimTime,
+            lastClaimSupply
         );
 
         return amountToSettleAsset;
@@ -282,8 +284,12 @@ library BalanceHandler {
         for (uint256 i; i < settleAmounts.length; i++) {
             if (settleAmounts[i].netCashChange == 0) continue;
 
-            (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime) =
-                getBalanceStorage(account, settleAmounts[i].currencyId);
+            (
+                int256 cashBalance,
+                int256 nTokenBalance,
+                uint256 lastClaimTime,
+                uint256 lastClaimSupply
+            ) = getBalanceStorage(account, settleAmounts[i].currencyId);
 
             cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
             accountContext.setActiveCurrency(
@@ -301,7 +307,8 @@ library BalanceHandler {
                 settleAmounts[i].currencyId,
                 cashBalance,
                 nTokenBalance,
-                lastClaimTime
+                lastClaimTime,
+                lastClaimSupply
             );
         }
     }
@@ -313,16 +320,16 @@ library BalanceHandler {
         int256 cashBalance
     ) internal {
         require(cashBalance >= 0); // dev: invalid perp token cash balance
-        _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0);
+        _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
     }
 
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
         require(fee >= 0); // dev: invalid fee
         // prettier-ignore
-        (int256 totalReserve, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
+        (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
-        _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0);
+        _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
     }
 
     /// @notice Sets internal balance storage.
@@ -331,17 +338,24 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance,
         int256 nTokenBalance,
-        uint256 lastClaimTime
+        uint256 lastClaimTime,
+        uint256 lastClaimSupply
     ) private {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
-        require(cashBalance >= type(int128).min && cashBalance <= type(int128).max); // dev: stored cash balance overflow
-        require(nTokenBalance >= 0 && nTokenBalance <= type(uint96).max); // dev: stored perpetual token balance overflow
+        require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
+        // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
+        require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
         require(lastClaimTime >= 0 && lastClaimTime <= type(uint32).max); // dev: last claim time overflow
+        // Last claim supply is uint56 and denominated in whole nTokens (i.e. removing the 8 decimal places), this allows
+        // for 72 quadrillion nToken supply before overflow. nToken supply will be approximately the same amount of cToken supply
+        // plus fee accrual, current cToken supply is ~50x underlying. This amounts to ~1.44 quadrillion underlying supply before overflow.
+        require(lastClaimSupply >= 0 && lastClaimSupply <= type(uint56).max); // dev: last claim supply overflow
 
         bytes32 data =
             ((bytes32(uint256(nTokenBalance))) |
-                (bytes32(lastClaimTime) << 96) |
-                (bytes32(cashBalance) << 128));
+                (bytes32(lastClaimTime) << 80) |
+                (bytes32(lastClaimSupply) << 112) |
+                (bytes32(cashBalance) << 168));
 
         assembly {
             sstore(slot, data)
@@ -355,7 +369,8 @@ library BalanceHandler {
         returns (
             int256 cashBalance,
             int256 nTokenBalance,
-            uint256 lastClaimTime
+            uint256 lastClaimTime,
+            uint256 lastClaimSupply
         )
     {
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
@@ -365,9 +380,10 @@ library BalanceHandler {
             data := sload(slot)
         }
 
-        cashBalance = int256(int128(int256(data >> 128)));
-        nTokenBalance = int256(uint96(uint256(data)));
-        lastClaimTime = uint256(uint32(uint256(data >> 96)));
+        nTokenBalance = int256(uint80(uint256(data)));
+        lastClaimTime = uint256(uint32(uint256(data >> 80)));
+        lastClaimSupply = uint256(uint56(uint256(data >> 112)));
+        cashBalance = int256(int88(int256(data >> 168)));
     }
 
     /// @notice Loads a balance state memory object
@@ -386,12 +402,14 @@ library BalanceHandler {
             (
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
-                balanceState.lastClaimTime
+                balanceState.lastClaimTime,
+                balanceState.lastClaimSupply
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = 0;
             balanceState.storedNTokenBalance = 0;
             balanceState.lastClaimTime = 0;
+            balanceState.lastClaimSupply = 0;
         }
 
         balanceState.netCashChange = 0;
@@ -411,7 +429,8 @@ library BalanceHandler {
             balanceState.currencyId,
             balanceState.storedCashBalance,
             balanceState.storedNTokenBalance,
-            balanceState.lastClaimTime
+            balanceState.lastClaimTime,
+            balanceState.lastClaimSupply
         );
 
         return incentivesClaimed;

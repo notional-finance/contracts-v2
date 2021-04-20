@@ -21,14 +21,21 @@ contract MockIncentives {
         address tokenAddress,
         uint256 nTokenBalance,
         uint256 lastClaimTime,
+        uint256 lastClaimSupply,
         uint256 blockTime
     ) external view returns (uint256) {
-        return
+        (
+            uint256 incentives, /* */
+
+        ) =
             Incentives.calculateIncentivesToClaim(
                 tokenAddress,
                 nTokenBalance,
                 lastClaimTime,
+                lastClaimSupply,
                 blockTime
             );
+
+        return incentives;
     }
 }

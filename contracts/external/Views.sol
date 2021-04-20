@@ -151,18 +151,25 @@ contract Views is StorageLayoutV1 {
         external
         view
         returns (
-            int256,
-            int256,
-            uint256
+            int256 cashBalance,
+            int256 nTokenBalance,
+            uint256 lastClaimTime
         )
     {
-        return BalanceHandler.getBalanceStorage(account, currencyId);
+        // prettier-ignore
+        (
+            cashBalance,
+            nTokenBalance,
+            lastClaimTime,
+            /* */
+        ) = BalanceHandler.getBalanceStorage(account, currencyId);
     }
 
     function getReserveBalance(uint16 currencyId) external view returns (int256) {
         // prettier-ignore
         (
             int256 cashBalance,
+            /* */,
             /* */,
             /* */
         ) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);

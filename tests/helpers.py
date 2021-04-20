@@ -45,6 +45,7 @@ def get_balance_state(currencyId, **kwargs):
         0 if "netNTokenSupplyChange" not in kwargs else kwargs["netNTokenSupplyChange"]
     )
     lastClaimTime = 0 if "lastClaimTime" not in kwargs else kwargs["lastClaimTime"]
+    lastClaimSupply = 0 if "lastClaimSupply" not in kwargs else kwargs["lastClaimSupply"]
 
     return (
         currencyId,
@@ -55,6 +56,7 @@ def get_balance_state(currencyId, **kwargs):
         netNTokenTransfer,
         netNTokenSupplyChange,
         lastClaimTime,
+        lastClaimSupply,
     )
 
 

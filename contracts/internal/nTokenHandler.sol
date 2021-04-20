@@ -124,7 +124,7 @@ library nTokenHandler {
     }
 
     /// @notice Updates the nToken token supply amount when minting or redeeming.
-    function changeNTokenSupply(address tokenAddress, int256 netChange) internal {
+    function changeNTokenSupply(address tokenAddress, int256 netChange) internal returns (uint256) {
         bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
         bytes32 data;
         assembly {
@@ -144,6 +144,9 @@ library nTokenHandler {
         assembly {
             sstore(slot, data)
         }
+
+        // Overflow check done above
+        return uint256(newSupply);
     }
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
@@ -361,7 +364,8 @@ library nTokenHandler {
         (
             nToken.cashBalance,
             /* nTokenBalance */,
-            /* lastClaimTime */
+            /* lastClaimTime */,
+            /* lastClaimSupply */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
 
         return nToken;

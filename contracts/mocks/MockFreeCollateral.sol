@@ -120,7 +120,7 @@ contract MockFreeCollateral is StorageLayoutV1 {
         address account,
         uint256 currencyId,
         int256 cashBalance,
-        int256 perpTokenBalance
+        int256 nTokenBalance
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (cashBalance < 0)
@@ -129,11 +129,15 @@ contract MockFreeCollateral is StorageLayoutV1 {
         accountContext.setAccountContext(account);
 
         bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+        require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
+        // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
+        require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
 
         bytes32 data =
-            ((bytes32(uint256(perpTokenBalance))) |
-                (bytes32(0) << 96) |
-                (bytes32(cashBalance) << 128));
+            ((bytes32(uint256(nTokenBalance))) |
+                (bytes32(0) << 80) |
+                (bytes32(0) << 112) |
+                (bytes32(cashBalance) << 168));
 
         assembly {
             sstore(slot, data)
