@@ -14,6 +14,19 @@ library nTokenHandler {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
+    /// @dev Stores (uint96)
+    bytes32 private constant NTOKEN_SUPPLY_MASK =
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
+    /// @dev Stores (uint32)
+    bytes32 private constant INCENTIVE_RATE_MASK =
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    /// @dev Stores (uint8, uint32)
+    bytes32 private constant ARRAY_TIME_MASK =
+        0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    /// @dev Stores (uint8, uint8, uint8, uint8, uint8)
+    bytes32 private constant COLLATERAL_MASK =
+        0xFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+
     /// @notice Returns an account context object that is specific to nTokens.
     function getNTokenContext(address tokenAddress)
         internal
@@ -97,7 +110,7 @@ library nTokenHandler {
         require(residualPurchaseIncentive10BPS <= cashWithholdingBuffer10BPS, "Invalid discounts");
 
         // Clear the bytes where collateral parameters will go and OR the data in
-        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & COLLATERAL_MASK;
         bytes32 parameters =
             (bytes32(uint256(residualPurchaseIncentive10BPS)) |
                 (bytes32(uint256(pvHaircutPercentage)) << 8) |
@@ -126,7 +139,7 @@ library nTokenHandler {
         );
 
         // Clear the 12 bytes where stored supply will go and OR it in
-        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
+        data = data & NTOKEN_SUPPLY_MASK;
         data = data | (bytes32(uint256(newSupply)) << 16);
         assembly {
             sstore(slot, data)
@@ -141,7 +154,7 @@ library nTokenHandler {
             data := sload(slot)
         }
         // Clear the 4 bytes where emissions rate will go and OR it in
-        data = data & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & INCENTIVE_RATE_MASK;
         data = data | (bytes32(uint256(newEmissionsRate)) << 112);
         assembly {
             sstore(slot, data)
@@ -161,7 +174,7 @@ library nTokenHandler {
             data := sload(slot)
         }
         // Clear the 6 bytes where array length and settle time will go
-        data = data & 0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data & ARRAY_TIME_MASK;
         data = data | (bytes32(uint256(lastInitializedTime)) << 144);
         data = data | (bytes32(uint256(arrayLength)) << 176);
         assembly {

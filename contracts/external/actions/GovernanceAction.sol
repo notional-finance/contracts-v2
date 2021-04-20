@@ -152,15 +152,17 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @notice Updates the emission rate of incentives for a given currency
     /// @dev emit:UpdateIncentiveEmissionRate
     /// @param currencyId the currency id that the nToken references
-    /// @param newEmissionRate average rate of token incentives that can be claimed for
-    /// a nToken liquidity providers over a year. The rate is not exact because the total
-    /// supply of tokens will fluctuate
+    /// @param newEmissionRate Target total incentives to emit for an nToken over an entire year
+    /// denominated in WHOLE TOKENS (i.e. setting this to 1 means 1e8 tokens). The rate will not be
+    /// exact due to multiplier effects and fluctuating token supply.
     function updateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate)
         external
         onlyOwner
     {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
+        // Sanity check that emissions rate is not specified in 1e8 terms.
+        require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
 
         nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
