@@ -8,6 +8,7 @@ import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 import "interfaces/notional/nERC1155Interface.sol";
 
@@ -21,17 +22,82 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     bytes4 internal constant ERC1155_INTERFACE = 0xd9b67a26;
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
+        // TODO: this interface is not completely correct...
         return interfaceId == ERC1155_INTERFACE;
     }
 
-    function balanceOf(address account, uint256 id) external view override returns (uint256) {}
+    /// @notice Returns the balance of an ERC1155 id on an account
+    /// @param account account to get the id for
+    /// @param id the ERC1155 id
+    /// @return Balance of the ERC1155 id
+    function balanceOf(address account, uint256 id) public view override returns (int256) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        int256 notional;
 
+        if (accountContext.bitmapCurrencyId != 0) {
+            notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, id);
+        } else {
+            notional = _balanceInArray(
+                PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength),
+                id
+            );
+        }
+
+        // TODO: deal with the int / uint issue
+        return int256(notional);
+    }
+
+    /// @notice Returns the balance of a batch of accounts and ids
+    /// @param accounts array of accounts to get balances for
+    /// @param ids array of ids to get balances for
+    /// @return Returns an array of balances
     function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external
         view
         override
-        returns (uint256[] memory)
-    {}
+        returns (int256[] memory)
+    {
+        require(accounts.length == ids.length);
+        int256[] memory amounts = new int256[](accounts.length);
+
+        for (uint256 i; i < accounts.length; i++) {
+            // This is pretty inefficient but gets the job done
+            amounts[i] = balanceOf(accounts[i], ids[i]);
+        }
+
+        return amounts;
+    }
+
+    /// @dev Returns the balance from a bitmap given the id
+    function _balanceInBitmap(
+        address account,
+        uint256 bitmapCurrencyId,
+        uint256 id
+    ) internal view returns (int256) {
+        (uint256 currencyId, uint256 maturity, uint256 assetType) =
+            TransferAssets.decodeAssetId(id);
+        if (currencyId != bitmapCurrencyId) return 0;
+        if (assetType != Constants.FCASH_ASSET_TYPE) return 0;
+
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+    }
+
+    /// @dev Searches an array for the matching asset
+    function _balanceInArray(PortfolioAsset[] memory portfolio, uint256 id)
+        internal
+        pure
+        returns (int256)
+    {
+        for (uint256 i; i < portfolio.length; i++) {
+            if (
+                TransferAssets.encodeAssetId(
+                    portfolio[i].currencyId,
+                    portfolio[i].maturity,
+                    portfolio[i].assetType
+                ) == id
+            ) return portfolio[i].notional;
+        }
+    }
 
     /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows `from` account to transfer more fCash
     /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
