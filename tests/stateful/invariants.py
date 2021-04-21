@@ -253,7 +253,7 @@ def check_account_context(env, accounts):
             (cashBalance, nTokenBalance, _) = env.notional.getAccountBalance(
                 currencyId, account.address
             )
-            if cashBalance != 0 or nTokenBalance != 0:
+            if (cashBalance != 0 or nTokenBalance != 0) and context[3] != currencyId:
                 assert (currencyId, True) in [(a[0], a[2]) for a in activeCurrencies]
 
             if cashBalance < 0:

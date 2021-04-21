@@ -209,8 +209,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
 
     /// @notice Returns the claimable incentives for all nToken balances
     /// @param account The address of the account which holds the tokens
+    /// @param blockTime The block time when incentives will be minted
     /// @return Incentives an account is eligible to claim
-    function nTokenGetClaimableIncentives(address account)
+    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
         external
         view
         override
@@ -218,7 +219,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
-        uint256 blockTime = block.timestamp;
         uint256 totalIncentivesClaimable;
 
         if (accountContext.bitmapCurrencyId != 0) {

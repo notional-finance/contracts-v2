@@ -3,7 +3,7 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
-from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER
+from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
 from tests.helpers import get_balance_action, get_balance_trade_action, initialize_environment
 from tests.stateful.invariants import check_system_invariants
 
@@ -507,14 +507,17 @@ def test_transfer_tokens(environment, accounts):
 def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()
-    chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_YEAR)
     balanceBefore = environment.noteERC20.balanceOf(accounts[0])
-    incentivesClaimed = environment.notional.nTokenGetClaimableIncentives(accounts[0].address)
+    incentivesClaimed = environment.notional.nTokenGetClaimableIncentives(
+        accounts[0].address, chain.time()
+    )
     txn = environment.notional.nTokenClaimIncentives()
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address) == 0
+    assert pytest.approx(incentivesClaimed) == 150000e8 * 2
+    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
@@ -522,6 +525,24 @@ def test_mint_incentives(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.skip
-def test_mint_multiple_incentives(environment, accounts):
-    pass
+def test_mint_bitmap_incentives(environment, accounts):
+    currencyId = 2
+    environment.notional.enableBitmapCurrency(2, {"from": accounts[0]})
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_YEAR)
+    balanceBefore = environment.noteERC20.balanceOf(accounts[0])
+    incentivesClaimed = environment.notional.nTokenGetClaimableIncentives(
+        accounts[0].address, chain.time()
+    )
+    txn = environment.notional.nTokenClaimIncentives()
+    balanceAfter = environment.noteERC20.balanceOf(accounts[0])
+
+    assert balanceAfter - balanceBefore == incentivesClaimed
+    assert pytest.approx(incentivesClaimed) == 150000e8 * 2
+    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
+
+    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    assert mintTimeAfterZero == txn.timestamp
+
+    check_system_invariants(environment, accounts)
