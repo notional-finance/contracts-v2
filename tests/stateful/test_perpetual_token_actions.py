@@ -491,6 +491,9 @@ def test_transfer_tokens(environment, accounts):
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
     txn = environment.nToken[currencyId].transfer(accounts[1], 100e8)
 
+    assert txn.events["Transfer"][0]["from"] == accounts[0]
+    assert txn.events["Transfer"][0]["to"] == accounts[1]
+    assert txn.events["Transfer"][0]["value"] == 100e8
     assert environment.nToken[currencyId].totalSupply() == totalSupplyBefore
     assert environment.nToken[currencyId].balanceOf(accounts[1]) == 100e8
     assert environment.nToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8

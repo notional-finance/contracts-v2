@@ -18,9 +18,6 @@ contract BatchAction {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
-    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
-    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-
     /// @notice Executes a batch of balance transfers including minting and redeeming nTokens.
     /// @param account the account for the action
     /// @param actions array of balance actions to take, must be sorted by currency id
@@ -270,14 +267,6 @@ contract BatchAction {
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
         }
-
-        if (balanceState.netNTokenSupplyChange != 0) {
-            emit nTokenSupplyChange(
-                account,
-                uint16(balanceState.currencyId),
-                balanceState.netNTokenSupplyChange
-            );
-        }
     }
 
     /// @dev Calculations any withdraws and finalizes balances
@@ -308,12 +297,6 @@ contract BatchAction {
             .sub(withdrawAmount);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
-        int256 finalBalanceChange =
-            balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
-
-        if (finalBalanceChange != 0) {
-            emit CashBalanceChange(account, uint16(balanceState.currencyId), finalBalanceChange);
-        }
     }
 
     function _finalizeAccountContext(address account, AccountContext memory accountContext)

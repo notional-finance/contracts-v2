@@ -15,6 +15,11 @@ library BalanceHandler {
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
 
+    /// @notice Emitted when a cash balance changes
+    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
+    /// @notice Emitted when nToken supply changes (not the same as transfers)
+    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
+
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
     ///  - If a token has transfer fees then the amount specified does not equal the amount that the contract
@@ -142,6 +147,12 @@ library BalanceHandler {
                 .add(balanceState.netAssetTransferInternalPrecision);
 
             mustUpdate = true;
+
+            emit CashBalanceChange(
+                account,
+                uint16(balanceState.currencyId),
+                balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision)
+            );
         }
 
         if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
@@ -154,6 +165,14 @@ library BalanceHandler {
                 .storedNTokenBalance
                 .add(balanceState.netNTokenTransfer)
                 .add(balanceState.netNTokenSupplyChange);
+
+            if (balanceState.netNTokenSupplyChange != 0) {
+                emit nTokenSupplyChange(
+                    account,
+                    uint16(balanceState.currencyId),
+                    balanceState.netNTokenSupplyChange
+                );
+            }
 
             mustUpdate = true;
         }
@@ -272,6 +291,9 @@ library BalanceHandler {
             lastClaimSupply
         );
 
+        // Emit the event here, we do not call finalize
+        emit CashBalanceChange(account, uint16(cashGroup.currencyId), amountToSettleAsset);
+
         return amountToSettleAsset;
     }
 
@@ -301,6 +323,12 @@ library BalanceHandler {
             if (cashBalance < 0) {
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
             }
+
+            emit CashBalanceChange(
+                account,
+                uint16(settleAmounts[i].currencyId),
+                settleAmounts[i].netCashChange
+            );
 
             _setBalanceStorage(
                 account,

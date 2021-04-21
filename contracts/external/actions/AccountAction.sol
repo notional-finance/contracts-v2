@@ -13,9 +13,6 @@ contract AccountAction {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
-    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
-    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-
     /// @notice Enables a bitmap currency for msg.sender, account cannot have any assets when this call
     /// occurs.
     /// @param currencyId the currency to enable the bitmap for
@@ -73,7 +70,6 @@ contract AccountAction {
         accountContext.setAccountContext(account);
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
-        emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -115,7 +111,6 @@ contract AccountAction {
         accountContext.setAccountContext(account);
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
-        emit CashBalanceChange(account, currencyId, assetTokensReceivedInternal);
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -155,9 +150,6 @@ contract AccountAction {
         }
 
         require(amountWithdrawn <= 0);
-        // Event emitted is denominated internal cash balances
-        emit CashBalanceChange(account, currencyId, int256(amountInternalPrecision).neg());
-
         return uint256(amountWithdrawn.neg());
     }
 

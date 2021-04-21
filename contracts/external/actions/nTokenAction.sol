@@ -334,6 +334,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         senderContext.setAccountContext(sender);
         recipientContext.setAccountContext(recipient);
 
+        emit Transfer(sender, recipient, amount);
+
         return true;
     }
 }
