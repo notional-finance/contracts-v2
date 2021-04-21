@@ -40,14 +40,6 @@ def test_transfer_authentication_failures(environment, accounts):
             accounts[0], accounts[0], [erc1155id], [100e8], ""
         )
 
-    with brownie.reverts("Cannot transfer to nToken"):
-        environment.notional.safeTransferFrom(
-            accounts[0], environment.nToken[1], erc1155id, 100e8, ""
-        )
-        environment.notional.safeBatchTransferFrom(
-            accounts[0], environment.nToken[1], [erc1155id], [100e8], ""
-        )
-
     with brownie.reverts("Unauthorized"):
         environment.notional.safeTransferFrom(addressZero, accounts[1], erc1155id, 100e8, "")
         environment.notional.safeBatchTransferFrom(
@@ -146,6 +138,31 @@ def test_calldata_encoding_failure(environment, accounts):
 
         environment.notional.safeBatchTransferFrom(
             accounts[1], accounts[0], [erc1155id], [100e8], data, {"from": accounts[1]}
+        )
+
+
+def test_fail_on_non_acceptance(environment, accounts, MockTransferOperator):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
+    transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
+    transferOp.setShouldReject(True)
+
+    with brownie.reverts("Not accepted"):
+        environment.notional.safeTransferFrom(
+            accounts[1], transferOp.address, erc1155id, 100e8, bytes(), {"from": accounts[1]}
+        )
+
+        environment.notional.safeBatchTransferFrom(
+            accounts[1], transferOp.address, [erc1155id], [100e8], bytes(), {"from": accounts[1]}
+        )
+
+    with brownie.reverts("Not accepted"):
+        # nTokens will reject ERC1155 transfers
+        environment.notional.safeTransferFrom(
+            accounts[0], environment.nToken[1], erc1155id, 100e8, ""
+        )
+        environment.notional.safeBatchTransferFrom(
+            accounts[0], environment.nToken[1], [erc1155id], [100e8], ""
         )
 
 

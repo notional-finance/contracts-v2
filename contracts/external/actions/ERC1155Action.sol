@@ -128,21 +128,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     function _validateAccounts(address from, address to) private view {
         require(from != to && to != address(0), "Invalid address");
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
-        _assertNotNToken(from);
-        _assertNotNToken(to);
-    }
-
-    /// @dev Ensures that transfers to not occur to the nToken
-    function _assertNotNToken(address account) private view {
-        // prettier-ignore
-        (
-            uint256 currencyId,
-            /* uint totalSupply */,
-            /* incentiveRate */,
-            /* lastInitializedTime */,
-            /* parameters */
-        ) = nTokenHandler.getNTokenContext(account);
-        require(currencyId == 0, "Cannot transfer to nToken");
     }
 
     /// @notice Decodes ids and amounts to PortfolioAsset objects
