@@ -4,9 +4,10 @@ pragma experimental ABIEncoderV2;
 
 import "../../contracts/global/Types.sol";
 import "./nTokenERC20.sol";
+import "./nERC1155Interface.sol";
 
 // TODO: split this proxy into smaller parts
-interface NotionalProxy is nTokenERC20 {
+interface NotionalProxy is nTokenERC20, nERC1155Interface {
     event ListCurrency(uint16 newCurrencyId);
     event UpdateETHRate(uint16 currencyId);
     event UpdateAssetRate(uint16 currencyId);
@@ -15,6 +16,7 @@ interface NotionalProxy is nTokenERC20 {
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     event UpdateTokenCollateralParameters(uint16 currencyId);
+    event UpdateGlobalTransferOperator(address operator, bool approved);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /** User trading events */
@@ -88,6 +90,8 @@ interface NotionalProxy is nTokenERC20 {
         uint8 haircut,
         uint8 liquidationDiscount
     ) external;
+
+    function updateGlobalTransferOperator(address operator, bool approved) external;
 
     /** Redeem nToken Action */
     function nTokenRedeem(

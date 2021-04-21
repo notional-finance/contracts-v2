@@ -23,6 +23,7 @@ contract GovernanceAction is StorageLayoutV1 {
     event UpdateInitializationParameters(uint16 currencyId);
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     event UpdateTokenCollateralParameters(uint16 currencyId);
+    event UpdateGlobalTransferOperator(address operator, bool approved);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /// @dev Throws if called by any account other than the owner.
@@ -247,6 +248,23 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 liquidationDiscount
     ) external onlyOwner {
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
+    }
+
+    /// @notice Sets a global transfer operator that can do authenticated ERC1155 transfers. This enables
+    /// OTC trading or other use cases such as layer 2 authenticated transfers.
+    /// @dev emit:UpdateGlobalTransferOperator
+    /// @param operator address of the operator
+    /// @param approved true if the operator is allowed to transfer globally
+    function updateGlobalTransferOperator(address operator, bool approved) external onlyOwner {
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(operator)
+        }
+        // Sanity check to ensure that operator is a contract, not an EOA
+        require(codeSize > 0, "Operator must be a contract");
+
+        globalTransferOperator[operator] = approved;
+        emit UpdateGlobalTransferOperator(operator, approved);
     }
 
     function _updateCashGroup(uint256 currencyId, CashGroupSettings calldata cashGroup) internal {

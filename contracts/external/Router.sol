@@ -144,6 +144,7 @@ contract Router is StorageLayoutV1 {
             sig == ERC1155Action.safeTransferFrom.selector ||
             sig == ERC1155Action.safeBatchTransferFrom.selector ||
             sig == ERC1155Action.decodeToAssets.selector ||
+            sig == ERC1155Action.encodeToId.selector ||
             sig == ERC1155Action.setApprovalForAll.selector ||
             sig == ERC1155Action.isApprovedForAll.selector
         ) {

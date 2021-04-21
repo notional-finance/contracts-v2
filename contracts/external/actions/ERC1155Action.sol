@@ -8,10 +8,10 @@ import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
+import "interfaces/notional/nERC1155Interface.sol";
 
-contract ERC1155Action is IERC1155, StorageLayoutV1 {
+contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     using AccountContextHandler for AccountContext;
 
     // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))
@@ -90,14 +90,15 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         _checkPostTransferEvent(from, fromContext, data);
     }
 
+    /// @dev Validates accounts on transfer
     function _validateAccounts(address from, address to) private view {
-        require(to != address(0), "Invalid address");
-        require(from != to, "Invalid address");
+        require(from != to && to != address(0), "Invalid address");
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
         _assertNotNToken(from);
         _assertNotNToken(to);
     }
 
+    /// @dev Ensures that transfers to not occur to the nToken
     function _assertNotNToken(address account) private view {
         // prettier-ignore
         (
@@ -110,14 +111,11 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         require(currencyId == 0, "Cannot transfer to nToken");
     }
 
-    function _assertValidMaturity(uint currencyId, uint maturity, uint blockTime) private view {
-        require(
-            DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
-            "Invalid maturity"
-        );
-    }
-
-    function decodeToAssets(uint[] calldata ids, uint[] calldata amounts) public view returns (PortfolioAsset[] memory) {
+    /// @notice Decodes ids and amounts to PortfolioAsset objects
+    /// @param ids array of ERC1155 ids
+    /// @param amounts amounts to transfer
+    /// @return array of portfolio asset objects
+    function decodeToAssets(uint[] calldata ids, uint[] calldata amounts) public override view returns (PortfolioAsset[] memory) {
         uint blockTime = block.timestamp;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
         for (uint i; i < ids.length; i++) {
@@ -135,6 +133,25 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         return assets;
     }
 
+    /// @notice Encodes parameters into an ERC1155 id
+    /// @param currencyId currency id of the asset
+    /// @param maturity timestamp of the maturity
+    /// @param assetType id of the asset type
+    /// @return ERC1155 id
+    function encodeToId(uint16 currencyId, uint40 maturity, uint8 assetType) external override pure returns (uint) {
+        return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
+    }
+
+    /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
+    /// go past the max maturity date)
+    function _assertValidMaturity(uint currencyId, uint maturity, uint blockTime) private view {
+        require(
+            DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
+            "Invalid maturity"
+        );
+    }
+
+    /// @dev Internal asset transfer event between accounts
     function _transfer(address from, address to, PortfolioAsset[] memory assets) internal returns (AccountContext memory) {
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
@@ -149,6 +166,8 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         return fromContext;
     }
 
+    /// @dev Checks post transfer events which will either be initiating one of the batch trading events or a free collateral
+    /// check if required.
     function _checkPostTransferEvent(address from, AccountContext memory fromContext, bytes calldata data) internal {
         bytes4 sig = abi.decode(data[:4], (bytes4));
 
@@ -167,11 +186,20 @@ contract ERC1155Action is IERC1155, StorageLayoutV1 {
         }
     }
 
+    /// @notice Allows an account to set approval for an operator
+    /// @param operator address of the operator
+    /// @param approved state of the approval
+    /// @dev emit:ApprovalForAll
     function setApprovalForAll(address operator, bool approved) external override {
         accountAuthorizedTransferOperator[msg.sender][operator] = approved;
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
+    /// @notice Checks approval state for an account, will first check if global transfer operator is enabled
+    /// before falling through to an account specific transfer operator.
+    /// @param account address of the account
+    /// @param operator address of the operator
+    /// @return true for approved
     function isApprovedForAll(address account, address operator) public override view returns (bool) {
         if (globalTransferOperator[operator]) return true;
 
