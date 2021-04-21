@@ -519,7 +519,7 @@ def test_mint_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed) == 150000e8 * 2
+    assert pytest.approx(incentivesClaimed, abs=1e8) == 150000e8 * 2
     assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
@@ -542,7 +542,7 @@ def test_mint_bitmap_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed) == 150000e8 * 2
+    assert pytest.approx(incentivesClaimed, abs=1e8) == 150000e8 * 2
     assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])

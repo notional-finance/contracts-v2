@@ -308,8 +308,8 @@ def get_balance_action(currencyId, depositActionType, **kwargs):
     return (
         DEPOSIT_ACTION_TYPE[depositActionType],
         currencyId,
-        depositActionAmount,
-        withdrawAmountInternalPrecision,
+        int(depositActionAmount),
+        int(withdrawAmountInternalPrecision),
         withdrawEntireCashBalance,
         redeemToUnderlying,
     )

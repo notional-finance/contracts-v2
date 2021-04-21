@@ -179,7 +179,8 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateIncentiveEmissionRate.selector ||
             sig == GovernanceAction.updateDepositParameters.selector ||
             sig == GovernanceAction.updateInitializationParameters.selector ||
-            sig == GovernanceAction.updateTokenCollateralParameters.selector
+            sig == GovernanceAction.updateTokenCollateralParameters.selector ||
+            sig == GovernanceAction.updateGlobalTransferOperator.selector
         ) {
             return GOVERNANCE;
         }

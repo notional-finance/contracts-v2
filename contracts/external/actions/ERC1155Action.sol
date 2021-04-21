@@ -20,29 +20,42 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     bytes4 internal constant ERC1155_BATCH_ACCEPTED = 0xbc197c81;
     bytes4 internal constant ERC1155_INTERFACE = 0xd9b67a26;
 
-    function supportsInterface(bytes4 interfaceId) external override pure returns (bool) {
+    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
         return interfaceId == ERC1155_INTERFACE;
     }
 
-    function balanceOf(address account, uint256 id) external override view returns (uint256) {
+    function balanceOf(address account, uint256 id) external view override returns (uint256) {}
 
-    }
+    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external
+        view
+        override
+        returns (uint256[] memory)
+    {}
 
-    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids) external override view returns (uint256[] memory) {
-        
-    }
-
-    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external override {
-        require(amount <= uint(type(int).max)); // dev: int overflow
+    /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows `from` account to transfer more fCash
+    /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
+    /// @param from account to transfer from
+    /// @param to account to transfer to
+    /// @param id ERC1155 id of the asset
+    /// @param amount amount to transfer
+    /// @param data arbitratry data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// a trading action on Notional for the `from` address
+    /// @dev emit:TransferSingle
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes calldata data
+    ) external override {
+        require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
         PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-        (
-            assets[0].currencyId,
-            assets[0].maturity,
-            assets[0].assetType
-        ) = TransferAssets.decodeAssetId(id);
-        assets[0].notional = int(amount);
+        (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
+            .decodeAssetId(id);
+        assets[0].notional = int256(amount);
         _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
 
         AccountContext memory fromContext = _transfer(from, to, assets);
@@ -57,7 +70,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         }
         if (codeSize > 0) {
             require(
-                IERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) == ERC1155_ACCEPTED,
+                IERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
+                    ERC1155_ACCEPTED,
                 "Not accepted"
             );
         }
@@ -65,7 +79,22 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         _checkPostTransferEvent(from, fromContext, data);
     }
 
-    function safeBatchTransferFrom(address from, address to, uint256[] calldata ids, uint256[] calldata amounts, bytes calldata data) external override {
+    /// @notice Transfer of a batch of fCash or liquidity token assets between accounts. Allows `from` account to transfer more fCash
+    /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
+    /// @param from account to transfer from
+    /// @param to account to transfer to
+    /// @param ids ERC1155 ids of the assets
+    /// @param amounts amounts to transfer
+    /// @param data arbitratry data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// a trading action on Notional for the `from` address
+    /// @dev emit:TransferBatch
+    function safeBatchTransferFrom(
+        address from,
+        address to,
+        uint256[] calldata ids,
+        uint256[] calldata amounts,
+        bytes calldata data
+    ) external override {
         _validateAccounts(from, to);
 
         PortfolioAsset[] memory assets = decodeToAssets(ids, amounts);
@@ -81,8 +110,13 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         }
         if (codeSize > 0) {
             require(
-                IERC1155TokenReceiver(to).onERC1155BatchReceived(msg.sender, from, ids, amounts, data) ==
-                    ERC1155_BATCH_ACCEPTED,
+                IERC1155TokenReceiver(to).onERC1155BatchReceived(
+                    msg.sender,
+                    from,
+                    ids,
+                    amounts,
+                    data
+                ) == ERC1155_BATCH_ACCEPTED,
                 "Not accepted"
             );
         }
@@ -115,19 +149,21 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param ids array of ERC1155 ids
     /// @param amounts amounts to transfer
     /// @return array of portfolio asset objects
-    function decodeToAssets(uint[] calldata ids, uint[] calldata amounts) public override view returns (PortfolioAsset[] memory) {
-        uint blockTime = block.timestamp;
+    function decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
+        public
+        view
+        override
+        returns (PortfolioAsset[] memory)
+    {
+        uint256 blockTime = block.timestamp;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
-        for (uint i; i < ids.length; i++) {
-            (
-                assets[i].currencyId,
-                assets[i].maturity,
-                assets[i].assetType
-            ) = TransferAssets.decodeAssetId(ids[i]);
+        for (uint256 i; i < ids.length; i++) {
+            (assets[i].currencyId, assets[i].maturity, assets[i].assetType) = TransferAssets
+                .decodeAssetId(ids[i]);
 
-            require(amounts[i] <= uint(type(int).max)); // dev: int overflow
+            require(amounts[i] <= uint256(type(int256).max)); // dev: int overflow
             _assertValidMaturity(assets[i].currencyId, assets[i].maturity, blockTime);
-            assets[i].notional = int(amounts[i]);
+            assets[i].notional = int256(amounts[i]);
         }
 
         return assets;
@@ -138,13 +174,21 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param maturity timestamp of the maturity
     /// @param assetType id of the asset type
     /// @return ERC1155 id
-    function encodeToId(uint16 currencyId, uint40 maturity, uint8 assetType) external override pure returns (uint) {
+    function encodeToId(
+        uint16 currencyId,
+        uint40 maturity,
+        uint8 assetType
+    ) external pure override returns (uint256) {
         return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
     }
 
     /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
     /// go past the max maturity date)
-    function _assertValidMaturity(uint currencyId, uint maturity, uint blockTime) private view {
+    function _assertValidMaturity(
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) private view {
         require(
             DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
             "Invalid maturity"
@@ -152,7 +196,11 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     }
 
     /// @dev Internal asset transfer event between accounts
-    function _transfer(address from, address to, PortfolioAsset[] memory assets) internal returns (AccountContext memory) {
+    function _transfer(
+        address from,
+        address to,
+        PortfolioAsset[] memory assets
+    ) internal returns (AccountContext memory) {
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
 
@@ -168,19 +216,31 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
     /// @dev Checks post transfer events which will either be initiating one of the batch trading events or a free collateral
     /// check if required.
-    function _checkPostTransferEvent(address from, AccountContext memory fromContext, bytes calldata data) internal {
-        bytes4 sig = abi.decode(data[:4], (bytes4));
+    function _checkPostTransferEvent(
+        address from,
+        AccountContext memory fromContext,
+        bytes calldata data
+    ) internal {
+        bytes4 sig;
+        if (data.length >= 32) {
+            // Method signature is not abi encoded so decode to bytes32 first and take the first 4 bytes. This works
+            // because all the methods we want to call below require more than 32 bytes in the calldata
+            bytes32 tmp = abi.decode(data, (bytes32));
+            sig = bytes4(tmp);
+        }
 
-        // These are the only two methods allowed to occur in a post transfer event. Either of these actions ensure
-        // that accounts may take any sort of trading action as a result of their transfer. Both of these actions will
+        // These are the only three methods allowed to occur in a post transfer event. These actions allow `from`
+        // accounts to take any sort of trading action as a result of their transfer. All of these actions will
         // handle checking free collateral so no additional check is necessary here.
-        if (sig == nTokenRedeemAction.nTokenRedeem.selector ||
+        if (
+            sig == nTokenRedeemAction.nTokenRedeem.selector ||
             sig == BatchAction.batchBalanceAction.selector ||
-            sig == BatchAction.batchBalanceAndTradeAction.selector) {
+            sig == BatchAction.batchBalanceAndTradeAction.selector
+        ) {
             // Ensure that the "account" parameter of the call is set to the from address
-            require(abi.decode(data[4:32], (address)) == from, "Unauthorized call");
-            (bool status,) = address(this).delegatecall(data);
-            require(status);
+            require(abi.decode(data[4:36], (address)) == from, "Unauthorized call");
+            (bool status, ) = address(this).delegatecall(data);
+            require(status, "Call failed");
         } else if (fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
@@ -200,7 +260,12 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param account address of the account
     /// @param operator address of the operator
     /// @return true for approved
-    function isApprovedForAll(address account, address operator) public override view returns (bool) {
+    function isApprovedForAll(address account, address operator)
+        public
+        view
+        override
+        returns (bool)
+    {
         if (globalTransferOperator[operator]) return true;
 
         return accountAuthorizedTransferOperator[account][operator];
