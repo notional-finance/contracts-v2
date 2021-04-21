@@ -59,10 +59,10 @@ def test_transfer_authentication_failures(environment, accounts):
         erc1155id = environment.notional.encodeToId(2, markets[0][1] + 10, 1)
 
         environment.notional.safeTransferFrom(
-            accounts[1], accounts[0], erc1155id, 100e8, "", {"from": accounts[0]}
+            accounts[1], accounts[0], erc1155id, 100e8, "", {"from": accounts[1]}
         )
         environment.notional.safeBatchTransferFrom(
-            accounts[1], accounts[0], [erc1155id], [100e8], "", {"from": accounts[0]}
+            accounts[1], accounts[0], [erc1155id], [100e8], "", {"from": accounts[1]}
         )
 
 
@@ -451,16 +451,128 @@ def test_transfer_fail_liquidity_tokens(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
-    pass
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
+    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="batchBalanceAction",
+        args=[
+            accounts[1].address,
+            [get_balance_action(2, "DepositAsset", depositActionAmount=5000e8)],
+        ],
+    )
+
+    environment.notional.safeTransferFrom(
+        accounts[1], accounts[0], erc1155id, 50e8, data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[1])
+    toAssets = environment.notional.getAccountPortfolio(accounts[0])
+    assert len(toAssets) == 1
+    assert len(fromAssets) == 1
+    assert toAssets[0][0] == fromAssets[0][0]
+    assert toAssets[0][1] == fromAssets[0][1]
+    assert toAssets[0][2] == fromAssets[0][2]
+    assert toAssets[0][3] == -fromAssets[0][3]
+
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance == 5000e8
+    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+
+    check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_transfer_borrow_fcash_borrow_market(environment, accounts):
-    pass
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
+    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="batchBalanceAndTradeAction",
+        args=[
+            accounts[1].address,
+            [
+                get_balance_trade_action(
+                    2,
+                    "DepositAsset",
+                    [
+                        {
+                            "tradeActionType": "Lend",
+                            "marketIndex": 1,
+                            "notional": 100e8,
+                            "minSlippage": 0,
+                        }
+                    ],
+                    depositActionAmount=5000e8,
+                    withdrawEntireCashBalance=False,
+                    redeemToUnderlying=False,
+                )
+            ],
+        ],
+    )
+
+    environment.notional.safeBatchTransferFrom(
+        accounts[1], accounts[0], [erc1155id], [50e8], data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[1])
+    toAssets = environment.notional.getAccountPortfolio(accounts[0])
+    assert len(toAssets) == 1
+    assert len(fromAssets) == 2
+    assert toAssets[0][0] == fromAssets[1][0]
+    assert toAssets[0][1] == fromAssets[1][1]
+    assert toAssets[0][2] == fromAssets[1][2]
+    assert toAssets[0][3] == -fromAssets[1][3]
+
+    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+
+    check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
-    pass
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
+    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True]
+    )
+
+    environment.notional.safeTransferFrom(
+        accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[0]}
+    )
+
+    check_system_invariants(environment, accounts)
+
+
+def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
+    environment, accounts, MockTransferOperator
+):
+    transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
+    environment.notional.updateGlobalTransferOperator(
+        transferOp.address, True, {"from": accounts[0]}
+    )
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
+    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="batchBalanceAction",
+        args=[
+            accounts[1].address,  # Using "to" address
+            [get_balance_action(2, "DepositAsset", depositActionAmount=5000e8)],
+        ],
+    )
+
+    transferOp.initiateTransfer(
+        accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[1])
+    toAssets = environment.notional.getAccountPortfolio(accounts[0])
+    assert len(toAssets) == 1
+    assert len(fromAssets) == 1
+    assert toAssets[0][0] == fromAssets[0][0]
+    assert toAssets[0][1] == fromAssets[0][1]
+    assert toAssets[0][2] == fromAssets[0][2]
+    assert toAssets[0][3] == -fromAssets[0][3]
+
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance == 5000e8
+    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+
+    check_system_invariants(environment, accounts)

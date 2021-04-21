@@ -76,7 +76,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
         }
 
-        _checkPostTransferEvent(from, fromContext, data);
+        _checkPostTransferEvent(from, to, fromContext, data);
     }
 
     /// @notice Transfer of a batch of fCash or liquidity token assets between accounts. Allows `from` account to transfer more fCash
@@ -121,7 +121,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
         }
 
-        _checkPostTransferEvent(from, fromContext, data);
+        _checkPostTransferEvent(from, to, fromContext, data);
     }
 
     /// @dev Validates accounts on transfer
@@ -203,6 +203,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// check if required.
     function _checkPostTransferEvent(
         address from,
+        address to,
         AccountContext memory fromContext,
         bytes calldata data
     ) internal {
@@ -222,11 +223,23 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             sig == BatchAction.batchBalanceAction.selector ||
             sig == BatchAction.batchBalanceAndTradeAction.selector
         ) {
-            // Ensure that the "account" parameter of the call is set to the from address
-            require(abi.decode(data[4:36], (address)) == from, "Unauthorized call");
-            (bool status, ) = address(this).delegatecall(data);
+            address account = abi.decode(data[4:36], (address));
+            // Ensure that the "account" parameter of the call is set to the from address or the
+            // to address. If it is the "to" address then ensure that the msg.sender has approval to
+            // execute operations
+            require(
+                account == from || (account == to && isApprovedForAll(to, msg.sender)),
+                "Unauthorized call"
+            );
+
+            (bool status, ) = address(this).call(data);
             require(status, "Call failed");
-        } else if (fromContext.hasDebt != 0x00) {
+
+            // If the account is `from` then we can return, the call would have checked free collateral.
+            if (account == from) return;
+        }
+
+        if (fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
     }
