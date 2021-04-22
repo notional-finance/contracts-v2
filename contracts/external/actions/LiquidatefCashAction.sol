@@ -25,7 +25,6 @@ contract LiquidatefCashAction {
             0
         );
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
-
         LiquidatefCash.liquidatefCashLocal(
             liquidateAccount,
             localCurrency,
@@ -35,34 +34,16 @@ contract LiquidatefCashAction {
             blockTime
         );
 
-        AccountContext memory liquidatorContext =
-            LiquidationHelpers.finalizeLiquidatorLocal(
+        return
+            LiquidatefCash.finalizefCashLiquidation(
+                liquidateAccount,
                 msg.sender,
                 localCurrency,
-                c.localToPurchase.neg(),
-                0
+                localCurrency,
+                fCashMaturities,
+                c,
+                blockTime
             );
-
-        LiquidationHelpers.finalizeLiquidatedLocalBalance(
-            liquidateAccount,
-            localCurrency,
-            c.accountContext,
-            c.localToPurchase
-        );
-
-        LiquidationHelpers.transferAssets(
-            liquidateAccount,
-            msg.sender,
-            liquidatorContext,
-            localCurrency,
-            fCashMaturities,
-            c
-        );
-
-        liquidatorContext.setAccountContext(msg.sender);
-        c.accountContext.setAccountContext(liquidateAccount);
-
-        return (c.fCashNotionalTransfers, c.localToPurchase);
     }
 
     function liquidatefCashCrossCurrency(
@@ -77,7 +58,7 @@ contract LiquidatefCashAction {
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,
             localCurrency,
-            0
+            collateralCurrency
         );
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
@@ -90,33 +71,15 @@ contract LiquidatefCashAction {
             blockTime
         );
 
-        AccountContext memory liquidatorContext =
-            LiquidationHelpers.finalizeLiquidatorLocal(
+        return
+            LiquidatefCash.finalizefCashLiquidation(
+                liquidateAccount,
                 msg.sender,
                 localCurrency,
-                c.localToPurchase.neg(),
-                0
+                collateralCurrency,
+                fCashMaturities,
+                c,
+                blockTime
             );
-
-        LiquidationHelpers.finalizeLiquidatedLocalBalance(
-            liquidateAccount,
-            localCurrency,
-            c.accountContext,
-            c.localToPurchase
-        );
-
-        LiquidationHelpers.transferAssets(
-            liquidateAccount,
-            msg.sender,
-            liquidatorContext,
-            collateralCurrency,
-            fCashMaturities,
-            c
-        );
-
-        liquidatorContext.setAccountContext(msg.sender);
-        c.accountContext.setAccountContext(liquidateAccount);
-
-        return (c.fCashNotionalTransfers, c.localToPurchase);
     }
 }

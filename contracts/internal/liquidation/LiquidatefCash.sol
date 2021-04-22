@@ -228,6 +228,10 @@ library LiquidatefCash {
         // this is the discounted value that the liquidator will purchase it at.
         int256 fCashLiquidationPV =
             fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
+        // fCash benefit is the amount of additional value given to the liquidated account from the difference
+        // in the discount factors from risk adjusted versus liquidation. A liquidator may purchase at 1000 fCash
+        // at a discount factor of 0.90 but the risk adjusted discount factor is 0.95. fCashBenefit in this case
+        // is 0.05 * 1000 = 50
         int256 fCashBenefit =
             fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)).div(
                 Constants.RATE_PRECISION
@@ -235,16 +239,22 @@ library LiquidatefCash {
 
         // Ensures that collateralAvailable does not go below zero
         if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
-            // fCashCollateralPV - fCashBenefit = collateralAvailable
-            // fCashCollateralPV = fCashToLiquidate * riskAdjustedDiscountFactor
-            // fCashBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // If inside this if statement then all collateralAvailable should be coming from fCashCollateralPV
+            // [1] collateralAvailable = fCashCollateralPV + fCashBenefit
+            // [2] fCashCollateralPV = fCashToLiquidate * riskAdjustedDiscountFactor
+            // [3] fCashBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
 
-            // fCashToLiquidate * riskAdjustedDiscountFactor - fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor) = collateralAvailable
-            // fCashToLiquidate * (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor) = collateralAvailable
+            // [1] = [2] + [3]
+            // collateralAvailable = fCashToLiquidate * riskAdjustedDiscountFactor - fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // collateralAvailable = fCashToLiquidate * (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor)
             // fCashToLiquidate = collateralAvailable / (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor)
-
             fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
-                liquidationDiscountFactor
+                riskAdjustedDiscountFactor.mul(2).sub(liquidationDiscountFactor)
+            );
+
+            // Recalculate the PV at the new liquidation amount
+            fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(
+                Constants.RATE_PRECISION
             );
         }
 
@@ -259,7 +269,10 @@ library LiquidatefCash {
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
         c.factors.collateralAvailable = c.factors.collateralAvailable.sub(
-            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION)
+            fCashToLiquidate
+            // This term is defined above
+                .mul(riskAdjustedDiscountFactor.mul(2).sub(liquidationDiscountFactor))
+                .div(Constants.RATE_PRECISION)
         );
         // Local available does not have any buffers applied to it
         c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
