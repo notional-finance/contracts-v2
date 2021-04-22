@@ -174,7 +174,7 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @param currencyId the currency id that the nToken references
     /// @param residualPurchaseIncentive10BPS nTokens will have residual amounts of fCash at the end of each
     /// quarter that are "dead weight" because they are at idiosyncratic maturities and do not contribute to
-    /// actively providing liquidity. This parameter incentivizes market participants to purchase these residuals
+    /// actively providing liquidity. This parameter will incentivize market participants to purchase these residuals
     /// at a discount from the on chain oracle rate, denominated in 10 basis point increments. These residuals will
     /// be added back into nToken balances and will be used to provide liquidity upon the next market initialization.
     /// @param pvHaircutPercentage a percentage (< 100) that the present value of the nToken's assets will be valued

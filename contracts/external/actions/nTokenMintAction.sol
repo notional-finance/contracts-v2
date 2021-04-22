@@ -215,7 +215,7 @@ library nTokenMintAction {
     /// @notice Markets are over levered when their proportion is greater than a governance set
     /// threshold. At this point, providing liquidity will incur too much negative fCash on the nToken
     /// account for the given amount of cash deposited, putting the nToken account at risk of liquidation.
-    /// If the market is overleveraged, we call `deleverageMarket` to lend to the market instead.
+    /// If the market is over leveraged, we call `deleverageMarket` to lend to the market instead.
     function _isMarketOverLeveraged(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,

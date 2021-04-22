@@ -328,7 +328,7 @@ contract NoteERC20 is Initializable {
                 uint32 srcRepNum = numCheckpoints[srcRep];
                 uint96 srcRepOld = srcRepNum > 0 ? checkpoints[srcRep][srcRepNum - 1].votes : 0;
                 uint96 srcRepNew =
-                    _sub96(srcRepOld, amount, "Note::_moveVotes: vote amount underflows");
+                    _sub96(srcRepOld, amount, "Note::_moveVotes: vote amount underflow");
                 _writeCheckpoint(srcRep, srcRepNum, srcRepOld, srcRepNew);
             }
 

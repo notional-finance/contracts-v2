@@ -68,7 +68,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address owner,
         address spender
     ) external view override returns (uint256) {
-        // This whitelist allowance supercedes any specific allowances
+        // This whitelist allowance supersedes any specific allowances
         uint256 allowance = nTokenWhitelist[owner][spender];
         if (allowance > 0) return allowance;
 
@@ -134,12 +134,12 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 allowance = nTokenWhitelist[from][spender];
 
         if (allowance > 0) {
-            // This whitelist allowance supercedes any specific allowances
+            // This whitelist allowance supersedes any specific allowances
             require(allowance >= amount, "PA: insufficient allowance");
             allowance = allowance.sub(amount);
             nTokenWhitelist[from][spender] = allowance;
         } else {
-            // This is the specific allowance for the perp token.
+            // This is the specific allowance for the nToken.
             allowance = nTokenAllowance[from][spender][currencyId];
             require(allowance >= amount, "PA: insufficient allowance");
             allowance = allowance.sub(amount);
@@ -310,7 +310,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return (totalAssetPV, nToken);
     }
 
-    /// @notice Transfering tokens will also claim incentives at the same time
+    /// @notice Transferring tokens will also claim incentives at the same time
     function _transfer(
         uint256 currencyId,
         address sender,

@@ -76,7 +76,7 @@ contract AccountAction {
     }
 
     /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
-    /// make deposit as gas efficient as possible during potentital liquidation events.
+    /// make deposit as gas efficient as possible during potential liquidation events.
     /// @param account the account to deposit into
     /// @param currencyId currency id of the asset token
     /// @param amountExternalPrecision the amount of asset tokens in its native decimal precision
@@ -125,7 +125,7 @@ contract AccountAction {
     /// @param redeemToUnderlying true if the tokens should be converted to underlying assets
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
     /// @dev auth:msg.sender
-    /// @return the amount of tokens recieved by the account denominated in the destination token precision (if
+    /// @return the amount of tokens received by the account denominated in the destination token precision (if
     // redeeming to underlying the amount will be the underlying amount received in that token's native precision)
     function withdraw(
         uint16 currencyId,

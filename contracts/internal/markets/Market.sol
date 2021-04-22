@@ -494,7 +494,7 @@ library Market {
         bytes32 slot = market.storageSlot;
 
         if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
-            // If no trade has occured then the oracleRate on chain should not update.
+            // If no trade has occurred then the oracleRate on chain should not update.
             bytes32 oldData;
             assembly {
                 oldData := sload(slot)
@@ -576,7 +576,7 @@ library Market {
         );
     }
 
-    /// @notice When settling liquidity tokens we only need to get half of the market paramteers and the settlement
+    /// @notice When settling liquidity tokens we only need to get half of the market parameters and the settlement
     /// date must be specified.
     function getSettlementMarket(
         uint256 currencyId,
@@ -593,7 +593,7 @@ library Market {
 
         int256 totalfCash = int256(uint80(uint256(data)));
         int256 totalCurrentCash = int256(uint80(uint256(data >> 80)));
-        // Clear the lower 160 bits, this data will be "OR'd" with the new totalfCash
+        // Clear the lower 160 bits, this data will be combined with the new totalfCash
         // and totalCurrentCash figures.
         data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
 

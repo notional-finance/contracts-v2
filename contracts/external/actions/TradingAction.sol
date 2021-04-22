@@ -430,7 +430,7 @@ library TradingAction {
             bytes6 parameters
         ) = nTokenHandler.getNTokenContext(nTokenAddress);
 
-        // Restrict purchaing until some amount of time after the last initialized time to ensure that arbitrage
+        // Restrict purchasing until some amount of time after the last initialized time to ensure that arbitrage
         // opportunities are not available (by generating residuals and then immediately purchasing them at a discount)
         require(
             blockTime >

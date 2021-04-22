@@ -38,7 +38,7 @@ library ExchangeRate {
         if (balance == 0) return 0;
 
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
-        // internalDecimals * rateDecimals / rateDecimala
+        // internalDecimals * rateDecimals / rateDecimals
         int256 result = balance.mul(er.rateDecimals).div(er.rate);
 
         return result;

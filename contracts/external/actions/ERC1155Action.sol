@@ -105,7 +105,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param to account to transfer to
     /// @param id ERC1155 id of the asset
     /// @param amount amount to transfer
-    /// @param data arbitratry data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
     /// a trading action on Notional for the `from` address
     /// @dev emit:TransferSingle
     function safeTransferFrom(
@@ -151,7 +151,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param to account to transfer to
     /// @param ids ERC1155 ids of the assets
     /// @param amounts amounts to transfer
-    /// @param data arbitratry data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
     /// a trading action on Notional for the `from` address
     /// @dev emit:TransferBatch
     function safeBatchTransferFrom(

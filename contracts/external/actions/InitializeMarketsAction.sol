@@ -69,8 +69,8 @@ library InitializeMarketsAction {
         returns (bytes32)
     {
         // nToken never has idiosyncratic cash between 90 day intervals but since it also has a
-        // bitmapped cash group for fCash assets we don't set the pointer to the settlement date of the
-        // liquidity tokens (1 quarter away), instead we set it to the current block time. This is a bit
+        // bitmap fCash assets we don't set the pointer to the settlement date of the liquidity
+        // tokens (1 quarter away), instead we set it to the current block time. This is a bit
         // esoteric but will ensure that ifCash is never improperly settled.
         uint256 referenceTime = DateTime.getReferenceTime(blockTime);
         require(nToken.lastInitializedTime < referenceTime, "IM: invalid time");
@@ -127,7 +127,7 @@ library InitializeMarketsAction {
         }
     }
 
-    /// @notice Check the net fCash assets set by the portfolio and withold cash to account for
+    /// @notice Check the net fCash assets set by the portfolio and withhold cash to account for
     /// the PV of negative ifCash. Also sets the ifCash assets into the nToken mapping.
     function _withholdAndSetfCashAssets(
         nTokenPortfolio memory nToken,
@@ -339,7 +339,7 @@ library InitializeMarketsAction {
         require(shortMaturity < longMaturity, "IM: interpolation error");
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
-        // we will get underflows here so we check for that
+        // we will get an underflow here so we check for that
         if (longRate >= shortRate) {
             return
                 (longRate - shortRate)

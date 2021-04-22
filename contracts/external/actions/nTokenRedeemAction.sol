@@ -49,7 +49,7 @@ contract nTokenRedeemAction {
     /// @notice Allows accounts to redeem perpetual tokens into constituent assets and then absorb the assets
     /// into their portfolio. Due to the complexity here, it is not allowed to be called during a batch trading
     /// operation and must be done separately.
-    /// @param redeemer the address that holdes the nTokens to redeem
+    /// @param redeemer the address that holds the nTokens to redeem
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem_ the amount of nTokens to convert to cash
     /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then

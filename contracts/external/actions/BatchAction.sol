@@ -117,7 +117,7 @@ contract BatchAction {
                         accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
                     }
                 } else {
-                    // NOTE: we return portfolio state here instead of setting it inside execueTradesArrayBatch
+                    // NOTE: we return portfolio state here instead of setting it inside executeTradesArrayBatch
                     // because we want to only write to storage once after all trades are completed
                     (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
                         account,
@@ -231,7 +231,7 @@ contract BatchAction {
         int256 depositActionAmount,
         int256 assetInternalAmount
     ) private {
-        // After deposits have been actioned, check if we are minting nTokens
+        // After deposits have occurred, check if we are minting nTokens
         if (
             depositType == DepositActionType.DepositAssetAndMintNToken ||
             depositType == DepositActionType.DepositUnderlyingAndMintNToken

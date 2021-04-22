@@ -480,7 +480,7 @@ library FreeCollateral {
         require(liquidationFactors.netETHValue < 0, "Sufficient collateral");
 
         // Refetch the portfolio if it exists, AssetHandler.getNetCashValue updates values in memory to do fCash
-        // netting which will make further calculations incurreoct.
+        // netting which will make further calculations incorrect.
         if (accountContext.assetArrayLength > 0) {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
                 account,

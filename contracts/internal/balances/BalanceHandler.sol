@@ -81,7 +81,7 @@ library BalanceHandler {
         int256 underlyingAmountExternal
     ) internal returns (int256) {
         if (underlyingAmountExternal == 0) return 0;
-        require(underlyingAmountExternal > 0); // dev: deposit underlying token nevative
+        require(underlyingAmountExternal > 0); // dev: deposit underlying token negative
 
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
@@ -108,8 +108,8 @@ library BalanceHandler {
     }
 
     /// @notice Finalizes an account's balances, handling any transfer logic required
-    /// @dev This method SHOULD NOT be used for perpetual token accounts, for that use setBalanceStorageForNToken
-    /// as the perp token is limited in what types of balances it can hold.
+    /// @dev This method SHOULD NOT be used for nToken accounts, for that use setBalanceStorageForNToken
+    /// as the nToken is limited in what types of balances it can hold.
     function finalize(
         BalanceState memory balanceState,
         address account,
@@ -250,7 +250,7 @@ library BalanceHandler {
     /// @notice Special method for settling negative current cash debts. This occurs when an account
     /// has a negative fCash balance settle to cash. A settler may come and force the account to borrow
     /// at the prevailing 3 month rate
-    /// @dev Use this method to avoid any nToken and transfer logic in finalize which is unncessary.
+    /// @dev Use this method to avoid any nToken and transfer logic in finalize which is unnecessary.
     function setBalanceStorageForSettleCashDebt(
         address account,
         CashGroupParameters memory cashGroup,
@@ -347,7 +347,7 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance
     ) internal {
-        require(cashBalance >= 0); // dev: invalid perp token cash balance
+        require(cashBalance >= 0); // dev: invalid nToken cash balance
         _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
     }
 

@@ -8,7 +8,7 @@ Notional has two types of portfolios to hold fCash assets and liquidity tokens. 
 
 `PortfolioHandler.sol` contains the logic required to manage an array based portfolio. It is not stored as a solidity array, however. The reason is that the array index in a solidity array consumes an entire storage slot of 32 bytes, far too much. In Notional, the array length is stored in the **account context** object as a uint8 and used to determine the storage offsets to load for the portfolio array.
 
-The portfolio array is not stored in a sorted order (this would be prohibitively expensive), but is quicksorted every time it is loaded. This makes operating over assets much simplier. The sort order is currency id, maturity and then asset type. This ensures a few nice qualities:
+The portfolio array is not stored in a sorted order (this would be prohibitively expensive), but is sorted every time it is loaded. This makes operating over assets much simpler. The sort order is currency id, maturity and then asset type. This ensures a few nice qualities:
 
 - When a currency id does not equal the previous currency id, we know that we will need to load a new cash group.
 - Because fCash has an asset type of 1 and liquidity tokens have asset types of 2+ we know that a matching fCash asset to liquidity token will always immediately precede it if it exists.

@@ -266,7 +266,7 @@ library PortfolioHandler {
         }
 
         // Swap the storage slots of the deleted asset with the last non-deleted asset in the array. Mark them accordingly
-        // so that when we call store assets they will be updated approporiately
+        // so that when we call store assets they will be updated appropriately
         (
             portfolioState.storedAssets[maxActiveSlotIndex].storageSlot,
             portfolioState.storedAssets[index].storageSlot

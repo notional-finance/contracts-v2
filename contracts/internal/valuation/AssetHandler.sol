@@ -167,7 +167,7 @@ library AssetHandler {
                     liquidityToken.maturity,
                     blockTime
                 );
-            // Liquidity tokens can never be idiosyncractic
+            // Liquidity tokens can never be idiosyncratic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
             // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.
             market = cashGroup.getMarket(markets, marketIndex, blockTime, true);

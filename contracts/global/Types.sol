@@ -265,7 +265,7 @@ struct CashGroupSettings {
     uint8 debtBuffer5BPS;
     // fCash haircut specified in 5 BPS increments
     uint8 fCashHaircut5BPS;
-    // If an account has a negative cash balance, it can be settled by incuring debt at the 3 month market. This
+    // If an account has a negative cash balance, it can be settled by incurring debt at the 3 month market. This
     // is the basis points for the penalty rate that will be added the current 3 month oracle rate.
     uint8 settlementPenaltyRateBPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
@@ -279,7 +279,7 @@ struct CashGroupSettings {
 /// @dev Holds account level context information used to determine settlement and
 /// free collateral actions. Total storage is 28 bytes
 struct AccountContext {
-    // Used to check when settlement must be trigged on an account
+    // Used to check when settlement must be triggered on an account
     uint40 nextSettleTime;
     // For lenders that never incur debt, we use this flag to skip the free collateral check.
     bytes1 hasDebt;

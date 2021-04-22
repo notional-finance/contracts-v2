@@ -72,7 +72,7 @@ def getMaturityFromBitNum(blockTimeUTC0, bitNum):
 
 ### Mapping on Roll Down
 
-As assets roll down from higher time chunks to lower time chunks, we must ensure that they can be mapped to an existing bit number. Since all the time granularities are factors of each other, we know that the dates in higher time granularities will be contained in lower granularities.
+As assets roll down from higher time chunks to lower time chunks, we must ensure that they can be mapped to an existing bit number. Since all the time chunks are factors of each other, we know that the dates in higher time chunks will be contained in lower chunks.
 
 If `ac = bc mod mc` then `a = b mod m`, therefore all of these are equal:
 
@@ -89,7 +89,7 @@ The algorithm for settling bitmapped portfolios is:
 - Scan each time chunk in [1, `lastSettleBit`] as defined above and settle fCash to asset cash. Delete mappings accordingly.
 - As time progresses, bits from higher time chunks need to be remapped to lower time chunks. We cannot simply shift the bits because the time chunks are of different sizes. Remapping is as follows:
   - If a time chunk has been completely settled (i.e. `lastSettleBit > maxBitOffset`) then there is no need to remap, all bits are already set to zero.
-  - Set the beginning of the bit remapping to the first bit that needs to be remapped, this is `remapBitOffset = max(lastSettleBit, firstBitofTimeChunk)`
+  - Set the beginning of the bit remapping to the first bit that needs to be remapped, this is `remapBitOffset = max(lastSettleBit, firstBitOfTimeChunk)`
   - For the bit range [`remapBitOffset`, `maxBitOffset`], calculate the amount of time that has passed between settlements and convert this into bits that need to be shifted in that time chunk
     - `totalTimePassed = getMaturityFromBitNum(nextSettleTime, remapBitOffset) - getMaturityFromBitNum(blockTimeUTC0, remapBitOffset)`
     - `bitsToShiftInTimeChunk = totalTimePassed / timeChunkTimeLength`

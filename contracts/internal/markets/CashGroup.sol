@@ -86,7 +86,7 @@ library CashGroup {
         return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * (5 * Constants.BASIS_POINT);
     }
 
-    /// @notice Time window factor for the rate oracle denomianted in seconds
+    /// @notice Time window factor for the rate oracle denominated in seconds
     function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
         internal
         pure
@@ -162,7 +162,7 @@ library CashGroup {
         require(assetMaturity < longMaturity); // dev: cash group interpolation error, long maturity
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
-        // we will get underflows here so we check for that
+        // we will get an underflow here so we check for that
         if (longRate >= shortRate) {
             return
                 (longRate - shortRate)
@@ -192,7 +192,7 @@ library CashGroup {
         uint256 assetMaturity,
         uint256 blockTime
     ) internal view returns (uint256) {
-        (uint256 marketIndex, bool idiosyncractic) =
+        (uint256 marketIndex, bool idiosyncratic) =
             DateTime.getMarketIndex(cashGroup.maxMarketIndex, assetMaturity, blockTime);
         MarketParameters memory market =
             getMarket(cashGroup, markets, marketIndex, blockTime, false);
@@ -215,7 +215,7 @@ library CashGroup {
         }
         require(market.oracleRate != 0, "C: market not initialized");
 
-        if (!idiosyncractic) return market.oracleRate;
+        if (!idiosyncratic) return market.oracleRate;
 
         if (marketIndex == 1) {
             // In this case the short market is the annualized asset supply rate
@@ -269,7 +269,7 @@ library CashGroup {
             "CG: invalid market index"
         );
         // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.
-        // The reason is that borrowers will not have a futher maturity to roll from their 3 month fixed to a 6 month
+        // The reason is that borrowers will not have a further maturity to roll from their 3 month fixed to a 6 month
         // fixed. It also complicates the logic in the perpetual token initialization method
         require(cashGroup.maxMarketIndex != 1, "CG: invalid market index");
         require(
@@ -324,7 +324,7 @@ library CashGroup {
         }
     }
 
-    /// @notice Deserializes the cash group storage bytes into a user friendly object
+    /// @notice Deserialize the cash group storage bytes into a user friendly object
     function deserializeCashGroupStorage(uint256 currencyId)
         internal
         view
