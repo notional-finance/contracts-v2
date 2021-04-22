@@ -148,6 +148,62 @@ def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reserv
     assert proxyBalanceAfterSecondDrip - proxyBalanceAfter == (blockTime2 - blockTime) * 1e8
 
 
+def test_cancel_proposal_non_pending(environment, accounts):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+
+    transferTokens = web3.eth.contract(abi=environment.noteERC20.abi).encodeABI(
+        fn_name="transfer", args=[accounts[3].address, int(1_000_000e8)]
+    )
+
+    targets = [environment.noteERC20.address]
+    values = [0]
+    calldatas = [transferTokens]
+
+    environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
+    environment.governor.cancelProposal(1, {"from": environment.multisig})
+    assert environment.governor.state(1) == 2  # canceled
+    assert not environment.governor.isOperation(environment.governor.proposals(1)[-1])
+
+    delay = environment.governor.getMinDelay()
+    chain.mine(1, timestamp=chain.time() + delay)
+
+    with brownie.reverts():
+        # This cannot occur, proposal cancelled
+        environment.governor.executeProposal(1, targets, values, calldatas)
+
+
+def test_cancel_proposal_pending(environment, accounts):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+
+    transferTokens = web3.eth.contract(abi=environment.noteERC20.abi).encodeABI(
+        fn_name="transfer", args=[accounts[3].address, int(1_000_000e8)]
+    )
+
+    targets = [environment.noteERC20.address]
+    values = [0]
+    calldatas = [transferTokens]
+
+    environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
+    chain.mine(1)
+    environment.governor.castVote(1, True, {"from": environment.multisig})
+    chain.mine(GovernanceConfig["governorConfig"]["votingPeriodBlocks"])
+
+    assert environment.governor.state(1) == 4  # success
+    environment.governor.queueProposal(1, targets, values, calldatas)
+    assert environment.governor.isOperation(environment.governor.proposals(1)[-1])
+
+    environment.governor.cancelProposal(1, {"from": environment.multisig})
+    assert environment.governor.state(1) == 2  # canceled
+    assert not environment.governor.isOperation(environment.governor.proposals(1)[-1])
+
+    delay = environment.governor.getMinDelay()
+    chain.mine(1, timestamp=chain.time() + delay * 2)
+
+    with brownie.reverts():
+        # This cannot occur, proposal cancelled
+        environment.governor.executeProposal(1, targets, values, calldatas)
+
+
 def test_note_token_reservoir_fails_on_zero(environment, accounts):
     pass
 

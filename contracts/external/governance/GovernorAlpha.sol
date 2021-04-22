@@ -311,8 +311,8 @@ contract GovernorAlpha is TimelockController {
         );
 
         proposal.canceled = true;
-        // Removes the operation hash from the timelock controller
-        cancel(proposal.operationHash);
+        // Removes the operation hash from the timelock controller if pending.
+        if (isOperationPending(proposal.operationHash)) this.cancel(proposal.operationHash);
 
         emit ProposalCanceled(proposalId);
     }
