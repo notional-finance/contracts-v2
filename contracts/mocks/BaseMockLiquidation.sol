@@ -38,6 +38,26 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         market.setMarketStorage();
     }
 
+    function getMarkets(uint256 currencyId, uint256 blockTime)
+        public
+        view
+        returns (MarketParameters[] memory)
+    {
+        (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
+            CashGroup.buildCashGroupView(currencyId);
+
+        for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
+            CashGroup.getMarket(cashGroup, markets, i, blockTime, true);
+        }
+
+        return markets;
+    }
+
+    function getPortfolio(address account) public view returns (PortfolioAsset[] memory) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+    }
+
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
         underlyingToETHRateMapping[id] = rs;
     }

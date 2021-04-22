@@ -335,22 +335,7 @@ library LiquidateCurrency {
             // additional collateral value back into the account. It's probably too complex to deal with this so
             // we will just leave it as such.
             (w.assetCash, w.fCash) = asset.getCashClaims(market);
-
-            {
-                // We can only recollateralize the local currency using the part of the liquidity token that
-                // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
-                // is paid out as an incentive so that must be accounted for.
-                // netCashIncrease = cashClaim * (1 - haircut)
-                // netCashIncrease = netCashToAccount + incentivePaid
-                // incentivePaid = netCashIncrease * incentive
-                int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(asset.assetType));
-                w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
-                    Constants.PERCENTAGE_DECIMALS
-                );
-            }
-            w.incentivePaid = w.netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
-                Constants.PERCENTAGE_DECIMALS
-            );
+            _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
             // (netCashToAccount <= assetAmountRemaining)
             if (w.netCashIncrease.subNoNeg(w.incentivePaid) <= assetAmountRemaining) {
@@ -365,16 +350,14 @@ library LiquidateCurrency {
                     assetAmountRemaining -
                     w.netCashIncrease.sub(w.incentivePaid);
             } else {
-                // incentivePaid
-                w.incentivePaid = assetAmountRemaining
-                    .mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT)
-                    .div(Constants.PERCENTAGE_DECIMALS);
-
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 int256 tokensToRemove =
                     asset.notional.mul(assetAmountRemaining).div(w.netCashIncrease);
 
                 (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
+                // Recalculate net cash increase and incentive paid because w.assetCash is different because we partially
+                // remove asset cash
+                _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
@@ -398,6 +381,26 @@ library LiquidateCurrency {
         }
 
         return (w, assetAmountRemaining);
+    }
+
+    function _calculateNetCashIncreaseAndIncentivePaid(
+        LiquidationFactors memory factors,
+        WithdrawFactors memory w,
+        uint256 assetType
+    ) private view {
+        // We can only recollateralize the local currency using the part of the liquidity token that
+        // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
+        // is paid out as an incentive so that must be accounted for.
+        // netCashIncrease = cashClaim * (1 - haircut)
+        // netCashIncrease = netCashToAccount + incentivePaid
+        // incentivePaid = netCashIncrease * incentive
+        int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(assetType));
+        w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
+            Constants.PERCENTAGE_DECIMALS
+        );
+        w.incentivePaid = w.netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
+            Constants.PERCENTAGE_DECIMALS
+        );
     }
 
     /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
@@ -466,7 +469,7 @@ library LiquidateCurrency {
     ) internal {
         // Finalize liquidated account balance
         collateralBalanceState.finalize(liquidateAccount, accountContext, false);
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.bitmapCurrencyId == 0) {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
             accountContext.storeAssetsAndUpdateContext(
