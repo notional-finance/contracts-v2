@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from tests.constants import SECONDS_IN_QUARTER
@@ -14,7 +15,7 @@ from tests.stateful.test_initialize_markets import ntoken_asserts
 
 chain = Chain()
 
-INITIAL_CASH_AMOUNT = 100000e18
+INITIAL_CASH_AMOUNT = Wei(100000e18)
 
 
 @pytest.fixture(scope="module", autouse=True)
