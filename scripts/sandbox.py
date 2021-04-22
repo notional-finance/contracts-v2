@@ -37,3 +37,12 @@ def main():
 
     with open("v2.local.json", "w") as f:
         json.dump(v2contractsFile, f, sort_keys=True, indent=4)
+
+    with open("abi/Governor.json", "w") as f:
+        json.dump(v2env.governor.abi, f, sort_keys=True, indent=4)
+
+    with open("abi/NoteERC20.json", "w") as f:
+        json.dump(v2env.noteERC20.abi, f, sort_keys=True, indent=4)
+
+    with open("abi/Notional.json", "w") as f:
+        json.dump(v2env.notional.abi, f, sort_keys=True, indent=4)
