@@ -83,7 +83,7 @@ library LiquidatefCash {
         int256[] fCashNotionalTransfers;
     }
 
-    /// @notice Allows the liquidator to purchase fCash in the same currency that a debt is denominated in. Ut's
+    /// @notice Allows the liquidator to purchase fCash in the same currency that a debt is denominated in. It's
     /// also possible that there is no debt in the local currency, in that case the liquidated account will gain the
     /// benefit of the difference between the discounted fCash value and the cash
     function liquidatefCashLocal(
@@ -96,20 +96,14 @@ library LiquidatefCash {
     ) internal view {
         if (c.factors.localAvailable > 0) {
             // If local available is positive then we can bring it down to zero
-            c.benefitRequired = c
-                .factors
-                .localETHRate
+            // prettier-ignore
+            c.benefitRequired = c.factors.localETHRate
                 .convertETHTo(c.factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(c.factors.localETHRate.haircut);
         } else {
             // If local available is negative then we can bring it up to zero
-            c.benefitRequired = c
-                .factors
-                .localAvailable
-                .neg()
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(c.factors.localETHRate.buffer);
+            c.benefitRequired = c.factors.localAvailable.neg();
         }
 
         for (uint256 i; i < fCashMaturities.length; i++) {
@@ -125,7 +119,7 @@ library LiquidatefCash {
             // The benefit to the liquidated account is the difference between the liquidation discount factor
             // and the risk adjusted discount factor:
             // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            // fCash = localCurrencyBeneift / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // fCash = localCurrencyBenefit / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
             c.fCashNotionalTransfers[i] = c.benefitRequired.mul(Constants.RATE_PRECISION).div(
                 liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)
             );
@@ -241,6 +235,14 @@ library LiquidatefCash {
 
         // Ensures that collateralAvailable does not go below zero
         if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
+            // fCashCollateralPV - fCashBenefit = collateralAvailable
+            // fCashCollateralPV = fCashToLiquidate * riskAdjustedDiscountFactor
+            // fCashBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+
+            // fCashToLiquidate * riskAdjustedDiscountFactor - fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor) = collateralAvailable
+            // fCashToLiquidate * (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor) = collateralAvailable
+            // fCashToLiquidate = collateralAvailable / (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor)
+
             fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
                 liquidationDiscountFactor
             );
