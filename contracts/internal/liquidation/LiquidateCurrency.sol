@@ -3,10 +3,12 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./LiquidationHelpers.sol";
+import "../AccountContextHandler.sol";
 import "../valuation/ExchangeRate.sol";
 import "../markets/CashGroup.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
+import "../balances/BalanceHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library LiquidateCurrency {
@@ -16,6 +18,8 @@ library LiquidateCurrency {
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
+    using AccountContextHandler for AccountContext;
+    using BalanceHandler for BalanceState;
 
     function _hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
         private
@@ -76,9 +80,9 @@ library LiquidateCurrency {
                     ) - int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))) *
                         Constants.PERCENTAGE_DECIMALS;
 
-                // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
-                // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
-                // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
+                // benefitGained = nTokensToLiquidate * (liquidatedPV - freeCollateralPV)
+                // benefitGained = nTokensToLiquidate * nTokenPV * (liquidationHaircut - pvHaircut)
+                // nTokensToLiquidate = benefitGained / (nTokenPV * (liquidationHaircut - pvHaircut))
                 nTokensToLiquidate = benefitRequired.mul(Constants.INTERNAL_TOKEN_PRECISION).div(
                     factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
                 );
@@ -92,8 +96,8 @@ library LiquidateCurrency {
             balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
 
             {
-                // fullPerpTokenPV = haircutTokenPV / haircutPercentage
-                // localFromLiquidator = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
+                // fullNTokenPV = haircutTokenPV / haircutPercentage
+                // localFromLiquidator = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
                 // prettier-ignore
                 int256 localCashValue =
                     nTokensToLiquidate
@@ -203,7 +207,7 @@ library LiquidateCurrency {
             //      collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = collateralToSell * (localBuffer / liquidationDiscount - collateralHaircut)
-            // collateralToSell = collateralCurrencyBeneift / [(localBuffer / liquidationDiscount - collateralHaircut)]
+            // collateralToSell = collateralCurrencyBenefit / [(localBuffer / liquidationDiscount - collateralHaircut)]
             int256 denominator =
                 factors
                     .localETHRate
@@ -303,6 +307,7 @@ library LiquidateCurrency {
     /// @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
     /// liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
     /// not create new assets, the net fCash asset will replace the liquidity token asset.
+    /// NOTE: Market states get finalized in finalizeLiquidatedCollateralAndPortfolio
     function _withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -397,6 +402,7 @@ library LiquidateCurrency {
 
     /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
     /// haircut amounts, we simply withdraw as much collateral as needed.
+    /// NOTE: Market states get finalized in finalizeLiquidatedCollateralAndPortfolio
     function _withdrawCollateralLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -449,5 +455,31 @@ library LiquidateCurrency {
         }
 
         return collateralToWithdraw;
+    }
+
+    function finalizeLiquidatedCollateralAndPortfolio(
+        address liquidateAccount,
+        BalanceState memory collateralBalanceState,
+        AccountContext memory accountContext,
+        PortfolioState memory portfolio,
+        MarketParameters[] memory markets
+    ) internal {
+        // Finalize liquidated account balance
+        collateralBalanceState.finalize(liquidateAccount, accountContext, false);
+        if (accountContext.bitmapCurrencyId != 0) {
+            // Portfolio updates only happen if the account has liquidity tokens, which can only be the
+            // case in a non-bitmapped portfolio.
+            accountContext.storeAssetsAndUpdateContext(
+                liquidateAccount,
+                portfolio,
+                true // is liquidation
+            );
+
+            for (uint256 i; i < markets.length; i++) {
+                // Will short circuit if market does not need to be set
+                markets[i].setMarketStorage();
+            }
+        }
+        accountContext.setAccountContext(liquidateAccount);
     }
 }

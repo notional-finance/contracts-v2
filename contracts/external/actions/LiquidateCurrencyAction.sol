@@ -36,6 +36,8 @@ contract LiquidateCurrencyAction {
                 portfolio
             );
 
+        // Transfers a positive or negative amount of local currency as well as the net nToken
+        // amounts to the liquidator
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
@@ -45,19 +47,13 @@ contract LiquidateCurrencyAction {
             );
         liquidatorContext.setAccountContext(msg.sender);
 
-        // Finalize liquidated account balance
-        localBalanceState.finalize(liquidateAccount, accountContext, false);
-        if (accountContext.bitmapCurrencyId != 0) {
-            // Portfolio updates only happen if the account has liquidity tokens, which can only be the
-            // case in a non-bitmapped portfolio.
-            AccountContextHandler.storeAssetsAndUpdateContext(
-                accountContext,
-                liquidateAccount,
-                portfolio,
-                true // is liquidation
-            );
-        }
-        accountContext.setAccountContext(liquidateAccount);
+        LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
+            liquidateAccount,
+            localBalanceState, // In this case, local currency is the collateral
+            accountContext,
+            portfolio,
+            factors.markets
+        );
 
         return netLocalFromLiquidator;
     }
@@ -100,14 +96,16 @@ contract LiquidateCurrencyAction {
             );
 
         {
+            // Will transfer local currency from the liquidator
             AccountContext memory liquidatorContext =
                 LiquidationHelpers.finalizeLiquidatorLocal(
                     msg.sender,
                     localCurrency,
                     netLocalFromLiquidator,
-                    0
+                    0 // No nToken transfers
                 );
 
+            // Will transfer collateral to the liquidator
             LiquidationHelpers.finalizeLiquidatorCollateral(
                 msg.sender,
                 liquidatorContext,
@@ -117,28 +115,25 @@ contract LiquidateCurrencyAction {
                 withdrawCollateral,
                 redeemToUnderlying
             );
+
             liquidatorContext.setAccountContext(msg.sender);
         }
 
-        // Finalize liquidated account balance
+        // Local account balance will increase by the net paid from the liquidator
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,
             localCurrency,
             accountContext,
             netLocalFromLiquidator
         );
-        collateralBalanceState.finalize(liquidateAccount, accountContext, false);
-        if (accountContext.bitmapCurrencyId != 0) {
-            // Portfolio updates only happen if the account has liquidity tokens, which can only be the
-            // case in a non-bitmapped portfolio.
-            AccountContextHandler.storeAssetsAndUpdateContext(
-                accountContext,
-                liquidateAccount,
-                portfolio,
-                true // is liquidation
-            );
-        }
-        accountContext.setAccountContext(liquidateAccount);
+
+        LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
+            liquidateAccount,
+            collateralBalanceState,
+            accountContext,
+            portfolio,
+            factors.markets
+        );
 
         return netLocalFromLiquidator;
     }
