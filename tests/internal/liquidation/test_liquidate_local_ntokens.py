@@ -1,5 +1,6 @@
 import pytest
 from brownie.network.state import Chain
+from brownie.test import given, strategy
 from tests.constants import START_TIME
 from tests.helpers import get_balance_state, get_cash_group_with_max_markets, get_eth_rate_mapping
 
@@ -57,16 +58,18 @@ class TestLiquidateLocalNTokens:
 
         return (liquidateOverride, liquidateSetup)
 
-    def test_liquidate_ntoken_no_limit(self, liquidation, accounts):
-        (liquidateOverride, liquidateSetup) = liquidation
+    @given(localAvailable=strategy("int", min_value=-1000e8, max_value=-1e8))
+    def test_liquidate_ntoken_no_limit(self, liquidation, accounts, localAvailable):
+        (liquidateOverride, _) = liquidation
         (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
+        nTokenBalance = 10000e8
 
         factors = (
             accounts[0],
-            -100e8,
-            100e8,
+            localAvailable,
+            localAvailable,
             0,
-            990e8,
+            nTokenBalance * 0.90,
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (0, 0, 0, 0, 0),
@@ -82,24 +85,28 @@ class TestLiquidateLocalNTokens:
             1,
             0,
             START_TIME,
-            get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=1100e8),
+            get_balance_state(
+                1, storedCashBalance=localAvailable, storedNTokenBalance=nTokenBalance
+            ),
             factors,
         )
 
         # allowed to purchase up to 40% of 1100
-        assert balanceState[5] == -440e8
-        assert netLocalFromLiquidator == (440e8 * 0.95)
+        assert balanceState[5] == -(nTokenBalance * 0.40)
+        assert netLocalFromLiquidator == (nTokenBalance * 0.40 * 0.95)
 
-    def test_liquidate_ntoken_more_than_limit(self, liquidation, accounts):
-        (liquidateOverride, liquidateSetup) = liquidation
+    @given(nTokenValue=strategy("int", min_value=1e8, max_value=400e8))
+    def test_liquidate_ntoken_more_than_limit(self, liquidation, accounts, nTokenValue):
+        (liquidateOverride, _) = liquidation
         (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
+        nTokenBalance = int(nTokenValue / 0.90)
 
         factors = (
             accounts[0],
             -1000000e8,
-            100e8,
+            -1000e8,
             0,
-            99e8,
+            nTokenValue,
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (0, 0, 0, 0, 0),
@@ -115,22 +122,22 @@ class TestLiquidateLocalNTokens:
             1,
             0,
             START_TIME,
-            get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
+            get_balance_state(1, storedCashBalance=-1000e8, storedNTokenBalance=nTokenBalance),
             factors,
         )
 
-        # allowed to purchase up to 100% of 110
-        assert balanceState[5] == -110e8
-        assert netLocalFromLiquidator == (110e8 * 0.95)
+        # allowed to purchase up to 100% of token balance
+        assert -balanceState[5] <= nTokenBalance
+        assert pytest.approx(netLocalFromLiquidator, abs=2) == (-balanceState[5] * 0.95)
 
     def test_liquidate_ntoken_limit_to_user_specification(self, liquidation, accounts):
-        (liquidateOverride, liquidateSetup) = liquidation
+        (liquidateOverride, _) = liquidation
         (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
 
         factors = (
             accounts[0],
             -1000000e8,
-            100e8,
+            -100e8,
             0,
             99e8,
             "0x5F00005A0000",  # 95 liquidation, 90 haircut

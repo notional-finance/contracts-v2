@@ -83,9 +83,9 @@ library LiquidateCurrency {
                         Constants.PERCENTAGE_DECIMALS;
 
                 // benefitGained = nTokensToLiquidate * (liquidatedPV - freeCollateralPV)
-                // benefitGained = nTokensToLiquidate * nTokenPV * (liquidationHaircut - pvHaircut)
-                // nTokensToLiquidate = benefitGained / (nTokenPV * (liquidationHaircut - pvHaircut))
-                nTokensToLiquidate = benefitRequired.mul(Constants.INTERNAL_TOKEN_PRECISION).div(
+                // benefitGained = nTokensToLiquidate * fullNTokenPV * (liquidationHaircut - pvHaircut) / totalBalance
+                // nTokensToLiquidate = (benefitGained * totalBalance) / (fullNTokenPV * (liquidationHaircut - pvHaircut))
+                nTokensToLiquidate = benefitRequired.mul(balanceState.storedNTokenBalance).div(
                     factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
                 );
             }
