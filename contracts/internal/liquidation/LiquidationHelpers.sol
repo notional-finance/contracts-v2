@@ -56,18 +56,18 @@ library LiquidationHelpers {
         return (accountContext, factors, portfolioState);
     }
 
-    /// @notice We allow liquidators to purchase up to Constants.MAX_LIQUIDATION_PORTION percentage of collateral
+    /// @notice We allow liquidators to purchase up to Constants.DEFAULT_LIQUIDATION_PORTION percentage of collateral
     /// assets during liquidation to recollateralize an account as long as it does not also put the account
     /// further into negative free collateral (i.e. constraints on local available and collateral available).
     /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
     /// purchase so we also enforce that limit here.
-    function calculateMaxLiquidationAmount(
+    function calculateLiquidationAmount(
         int256 initialAmountToLiquidate,
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) internal pure returns (int256) {
         int256 maxAllowedAmount =
-            maxTotalBalance.mul(Constants.MAX_LIQUIDATION_PORTION).div(
+            maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
             );
 

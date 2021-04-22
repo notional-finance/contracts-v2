@@ -130,7 +130,7 @@ library LiquidatefCash {
                 liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)
             );
 
-            c.fCashNotionalTransfers[i] = LiquidationHelpers.calculateMaxLiquidationAmount(
+            c.fCashNotionalTransfers[i] = LiquidationHelpers.calculateLiquidationAmount(
                 c.fCashNotionalTransfers[i],
                 notional,
                 int256(maxfCashLiquidateAmounts[i])
@@ -193,7 +193,7 @@ library LiquidatefCash {
 
         int256 fCashToLiquidate =
             c.benefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
-        fCashToLiquidate = LiquidationHelpers.calculateMaxLiquidationAmount(
+        fCashToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
             fCashToLiquidate,
             notional,
             maxfCashLiquidateAmount

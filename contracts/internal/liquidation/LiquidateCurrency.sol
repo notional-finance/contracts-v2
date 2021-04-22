@@ -88,7 +88,7 @@ library LiquidateCurrency {
                 );
             }
 
-            nTokensToLiquidate = LiquidationHelpers.calculateMaxLiquidationAmount(
+            nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
                 nTokensToLiquidate,
                 balanceState.storedNTokenBalance,
                 int256(maxNTokenLiquidation)
@@ -219,7 +219,7 @@ library LiquidateCurrency {
             collateralToRaise = benefitRequired.mul(Constants.PERCENTAGE_DECIMALS).div(denominator);
         }
 
-        collateralToRaise = LiquidationHelpers.calculateMaxLiquidationAmount(
+        collateralToRaise = LiquidationHelpers.calculateLiquidationAmount(
             collateralToRaise,
             factors.collateralAvailable,
             0 // will check userSpecifiedAmount below
@@ -280,8 +280,8 @@ library LiquidateCurrency {
         }
 
         balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
-        // NOTE: it's possible that this results in > MAX_LIQUIDATION_PORTION in PV terms. However, it will not be more than
-        // the liquidateHaircutPercentage which will be set to a nominal amount. Since MAX_LIQUIDATION_PORTION is arbitrary we
+        // NOTE: it's possible that this results in > DEFAULT_LIQUIDATION_PORTION in PV terms. However, it will not be more than
+        // the liquidateHaircutPercentage which will be set to a nominal amount. Since DEFAULT_LIQUIDATION_PORTION is arbitrary we
         // don't put too much emphasis on this and allow it to occur.
         collateralRemaining = collateralRemaining.subNoNeg(
             // collateralToRaise = (nTokenToLiquidate * nTokenPV * liquidateHaircutPercentage) / nTokenBalance
