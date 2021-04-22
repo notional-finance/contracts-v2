@@ -3,9 +3,11 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./LiquidationHelpers.sol";
+import "../AccountContextHandler.sol";
 import "../valuation/AssetHandler.sol";
 import "../markets/CashGroup.sol";
 import "../valuation/ExchangeRate.sol";
+import "../portfolio/PortfolioHandler.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -15,6 +17,8 @@ library LiquidatefCash {
     using ExchangeRate for ETHRate;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
+    using AccountContextHandler for AccountContext;
+    using PortfolioHandler for PortfolioState;
 
     /// @notice Calculates the two discount factors relevant when liquidating fCash.
     function _calculatefCashDiscounts(
@@ -311,5 +315,92 @@ library LiquidatefCash {
 
             if (c.benefitRequired <= 0 || c.factors.collateralAvailable <= 0) break;
         }
+    }
+
+    /// @dev Finalizes fCash liquidation for both local and cross currency liquidation
+    function finalizefCashLiquidation(
+        address liquidateAccount,
+        address liquidator,
+        uint256 localCurrency,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        fCashContext memory c,
+        uint256 blockTime
+    ) internal returns (int256[] memory, int256) {
+        AccountContext memory liquidatorContext =
+            LiquidationHelpers.finalizeLiquidatorLocal(
+                liquidator,
+                localCurrency,
+                c.localToPurchase.neg(),
+                0
+            );
+
+        LiquidationHelpers.finalizeLiquidatedLocalBalance(
+            liquidateAccount,
+            localCurrency,
+            c.accountContext,
+            c.localToPurchase
+        );
+
+        _transferAssets(
+            liquidateAccount,
+            liquidator,
+            liquidatorContext,
+            fCashCurrency,
+            fCashMaturities,
+            c
+        );
+
+        liquidatorContext.setAccountContext(msg.sender);
+        c.accountContext.setAccountContext(liquidateAccount);
+
+        return (c.fCashNotionalTransfers, c.localToPurchase);
+    }
+
+    function _transferAssets(
+        address liquidateAccount,
+        address liquidator,
+        AccountContext memory liquidatorContext,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        fCashContext memory c
+    ) private {
+        PortfolioAsset[] memory assets =
+            _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
+
+        liquidatorContext = TransferAssets.placeAssetsInAccount(
+            liquidator,
+            liquidatorContext,
+            assets
+        );
+        TransferAssets.invertNotionalAmountsInPlace(assets);
+
+        if (c.accountContext.bitmapCurrencyId == 0) {
+            c.portfolio.addMultipleAssets(assets);
+            AccountContextHandler.storeAssetsAndUpdateContext(
+                c.accountContext,
+                liquidateAccount,
+                c.portfolio,
+                false // Although this is liquidation, we should not allow past max assets here
+            );
+        } else {
+            BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
+        }
+    }
+
+    function _makeAssetArray(
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        int256[] memory fCashNotionalTransfers
+    ) private pure returns (PortfolioAsset[] memory) {
+        PortfolioAsset[] memory assets = new PortfolioAsset[](fCashMaturities.length);
+        for (uint256 i; i < assets.length; i++) {
+            assets[i].currencyId = fCashCurrency;
+            assets[i].assetType = Constants.FCASH_ASSET_TYPE;
+            assets[i].notional = fCashNotionalTransfers[i];
+            assets[i].maturity = fCashMaturities[i];
+        }
+
+        return assets;
     }
 }

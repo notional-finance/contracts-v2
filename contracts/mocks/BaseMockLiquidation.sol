@@ -62,6 +62,17 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         underlyingToETHRateMapping[id] = rs;
     }
 
+    function clearPortfolio(address account) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState =
+            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+            portfolioState.deleteAsset(i);
+        }
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        accountContext.setAccountContext(account);
+    }
+
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState =

@@ -24,8 +24,17 @@ class TestLiquidatefCash:
 
     @pytest.fixture(scope="module", autouse=True)
     def liquidation(
-        self, MockfCashLiquidation, MockCToken, cTokenAggregator, ethAggregators, accounts
+        self,
+        MockfCashLiquidation,
+        MockCToken,
+        FreeCollateralExternal,
+        SettleAssetsExternal,
+        cTokenAggregator,
+        ethAggregators,
+        accounts,
     ):
+        SettleAssetsExternal.deploy({"from": accounts[0]})
+        FreeCollateralExternal.deploy({"from": accounts[0]})
         liquidation = accounts[0].deploy(MockfCashLiquidation)
         ctoken = accounts[0].deploy(MockCToken, 8)
         # This is the identity rate
@@ -237,7 +246,6 @@ class TestLiquidatefCash:
         assert notionals[1] == 0
         assert notionals[2] == 0
 
-    @pytest.mark.skip
     def test_liquidate_fcash_cross_currency_collateral_available_limit(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
         for m in markets:
@@ -245,38 +253,31 @@ class TestLiquidatefCash:
 
         portfolio = [
             get_fcash_token(1, currencyId=2, notional=200e8),
-            get_fcash_token(2, currencyId=2, notional=100e8),
-            get_fcash_token(3, currencyId=2, notional=100e8),
+            get_fcash_token(2, currencyId=2, notional=-50e8),
         ]
-        portfolioState = (portfolio, [], 0, len(portfolio))
-        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
-        factors = (
-            accounts[0],
-            -100e8,
-            -500e8,
-            290e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup,
-            markets,
-        )
+        liquidation.setPortfolio(accounts[0], portfolio)
+        liquidation.setBalance(accounts[0], 1, -1000e8, 0)
+        (accountContext, factors, portfolioState) = liquidation.preLiquidationActions(
+            accounts[0], 1, 2
+        ).return_value
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
-        maturities = [a[1] for a in portfolio]
+        maturities = [portfolio[0][1]]
 
-        # (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
-        #     accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
-        # ).return_value
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
             accounts[0], 2, maturities, [0, 0, 0], fCashContext, START_TIME
         )
 
+        asset = list(portfolio[0])
+        asset[3] -= notionals[0]
+        portfolio[0] = tuple(asset)
+        liquidation.clearPortfolio(accounts[0])
+        liquidation.setPortfolio(accounts[0], portfolio)
+        (_, netLocal) = liquidation.fc(accounts[0])
+
         assert sum(notionals) > localFromLiquidator
-        assert localFromLiquidator == 200e8
-        assert notionals == [200e8, 100e8, 0]
+        # Collateral available should be close to zero here
+        assert pytest.approx(netLocal[1], abs=0.01e8) == 0
 
     def test_liquidate_fcash_cross_currency_maximum_amount(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")

@@ -148,6 +148,26 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
 }
 
 contract MockfCashLiquidation is BaseMockLiquidation {
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 collateralCurrency
+    )
+        external
+        returns (
+            AccountContext memory,
+            LiquidationFactors memory,
+            PortfolioState memory
+        )
+    {
+        return
+            LiquidationHelpers.preLiquidationActions(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency
+            );
+    }
+
     function liquidatefCashLocal(
         address liquidateAccount,
         uint256 localCurrency,
@@ -205,5 +225,9 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         );
 
         return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
+    }
+
+    function fc(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
     }
 }
