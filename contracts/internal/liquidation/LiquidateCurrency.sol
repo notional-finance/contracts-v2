@@ -39,7 +39,7 @@ library LiquidateCurrency {
     }
 
     /// @notice Liquidates an account by converting their local currency collateral into cash and
-    /// eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
+    /// eliminates any haircut value incurred by liquidity tokens or nTokens. Requires no capital
     /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
     /// encounter this scenario but this method is here for completeness.
     function liquidateLocalCurrency(
@@ -228,6 +228,8 @@ library LiquidateCurrency {
         );
 
         int256 localToPurchase;
+        // Local to purchase is calculated twice here in case the liquidator does not specify the max liquidation
+        // amount. In this calculation the local to purchase is limited so that it does not go over localAvailable.
         (collateralToRaise, localToPurchase) = LiquidationHelpers.calculateLocalToPurchase(
             factors,
             liquidationDiscount,
@@ -306,9 +308,7 @@ library LiquidateCurrency {
         int256 incentivePaid;
     }
 
-    /// @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
-    /// liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
-    /// not create new assets, the net fCash asset will replace the liquidity token asset.
+    /// @notice Withdraws local liquidity tokens from a portfolio and pays an incentive to the liquidator.
     /// NOTE: Market states get finalized in finalizeLiquidatedCollateralAndPortfolio
     function _withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
@@ -320,8 +320,6 @@ library LiquidateCurrency {
         // Do this to deal with stack issues
         WithdrawFactors memory w;
 
-        // NOTE: even if stored assets have been modified in memory as a result of the Asset.getRiskAdjustedPortfolioValue
-        // method getting the haircut value will still work here because we do not reference the fCash value.
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
@@ -357,7 +355,7 @@ library LiquidateCurrency {
                     asset.notional.mul(assetAmountRemaining).div(w.netCashIncrease);
 
                 (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
-                // Recalculate net cash increase and incentive paid because w.assetCash is different because we partially
+                // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
                 // remove asset cash
                 _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
