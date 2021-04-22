@@ -50,6 +50,8 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
     ) internal view returns (int256) {
+        require(factors.localAvailable < 0, "No local debt");
+
         int256 benefitRequired =
             factors
                 .localETHRate
