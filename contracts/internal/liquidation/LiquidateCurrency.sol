@@ -232,31 +232,18 @@ library LiquidateCurrency {
             0 // will check userSpecifiedAmount below
         );
 
+        // Enforce the user specified max liquidation amount
+        if (maxCollateralLiquidation > 0 && collateralToRaise > maxCollateralLiquidation) {
+            collateralToRaise = maxCollateralLiquidation;
+        }
+
         int256 localToPurchase;
-        // Local to purchase is calculated twice here in case the liquidator does not specify the max liquidation
-        // amount. In this calculation the local to purchase is limited so that it does not go over localAvailable.
         (collateralToRaise, localToPurchase) = LiquidationHelpers.calculateLocalToPurchase(
             factors,
             liquidationDiscount,
             collateralToRaise,
             collateralToRaise
         );
-
-        // Enforce the user specified max liquidation amount
-        if (maxCollateralLiquidation > 0 && collateralToRaise > maxCollateralLiquidation) {
-            collateralToRaise = maxCollateralLiquidation;
-
-            // prettier-ignore
-            (
-                /* collateralToRaise */,
-                localToPurchase
-            ) = LiquidationHelpers.calculateLocalToPurchase(
-                factors,
-                liquidationDiscount,
-                collateralToRaise,
-                collateralToRaise
-            );
-        }
 
         return (collateralToRaise, localToPurchase, liquidationDiscount);
     }
