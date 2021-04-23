@@ -357,7 +357,9 @@ library LiquidateCurrency {
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 int256 tokensToRemove =
-                    asset.notional.mul(assetAmountRemaining).div(w.netCashIncrease);
+                    asset.notional.mul(assetAmountRemaining).div(
+                        w.netCashIncrease.subNoNeg(w.incentivePaid)
+                    );
 
                 (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
                 // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
