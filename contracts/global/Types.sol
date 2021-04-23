@@ -31,7 +31,8 @@ enum DepositActionType {
     DepositUnderlying,
     DepositAssetAndMintNToken,
     DepositUnderlyingAndMintNToken,
-    RedeemNToken
+    RedeemNToken,
+    ConvertCashToNToken
 }
 
 enum AssetStorageState {NoChange, Update, Delete}

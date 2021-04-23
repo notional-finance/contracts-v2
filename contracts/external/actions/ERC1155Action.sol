@@ -118,15 +118,18 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
-        PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-        (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
-            .decodeAssetId(id);
-        assets[0].notional = int256(amount);
-        _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
+        // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
+        if (amount > 0) {
+            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
+            (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
+                .decodeAssetId(id);
+            assets[0].notional = int256(amount);
+            _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
 
-        AccountContext memory fromContext = _transfer(from, to, assets);
+            AccountContext memory fromContext = _transfer(from, to, assets);
 
-        emit TransferSingle(msg.sender, from, to, id, amount);
+            emit TransferSingle(msg.sender, from, to, id, amount);
+        }
 
         // If code size > 0 call onERC1155received
         uint256 codeSize;

@@ -212,6 +212,9 @@ contract BatchAction {
             depositType == DepositActionType.DepositUnderlyingAndMintNToken
         ) {
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
+        } else if (depositType == DepositActionType.ConvertCashToNToken) {
+            // _executeNTokenAction, will check if the account has sufficient cash
+            assetInternalAmount = depositActionAmount;
         }
 
         _executeNTokenAction(
@@ -234,7 +237,8 @@ contract BatchAction {
         // After deposits have occurred, check if we are minting nTokens
         if (
             depositType == DepositActionType.DepositAssetAndMintNToken ||
-            depositType == DepositActionType.DepositUnderlyingAndMintNToken
+            depositType == DepositActionType.DepositUnderlyingAndMintNToken ||
+            depositType == DepositActionType.ConvertCashToNToken
         ) {
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
