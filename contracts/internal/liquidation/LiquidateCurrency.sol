@@ -82,12 +82,17 @@ library LiquidateCurrency {
                     ) - int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))) *
                         Constants.PERCENTAGE_DECIMALS;
 
+                // fullNTokenPV = haircutTokenPV / haircutPercentage
                 // benefitGained = nTokensToLiquidate * (liquidatedPV - freeCollateralPV)
-                // benefitGained = nTokensToLiquidate * fullNTokenPV * (liquidationHaircut - pvHaircut) / totalBalance
-                // nTokensToLiquidate = (benefitGained * totalBalance) / (fullNTokenPV * (liquidationHaircut - pvHaircut))
-                nTokensToLiquidate = benefitRequired.mul(balanceState.storedNTokenBalance).div(
-                    factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
-                );
+                // benefitGained = nTokensToLiquidate * (fullNTokenPV * liquidatedPV - fullNTokenPV * pvHaircut)
+                // benefitGained = nTokensToLiquidate * fullNTokenPV * (liquidatedPV - pvHaircut) / totalBalance
+                // benefitGained = nTokensToLiquidate * (haircutTokenPV / haircutPercentage) * (liquidationHaircut - pvHaircut) / totalBalance
+                // benefitGained = nTokensToLiquidate * haircutTokenPV * (liquidationHaircut - pvHaircut) / (totalBalance * haircutPercentage)
+                // nTokensToLiquidate = (benefitGained * totalBalance * haircutPercentage) / (haircutTokenPV * (liquidationHaircut - pvHaircut))
+                nTokensToLiquidate = benefitRequired
+                    .mul(balanceState.storedNTokenBalance)
+                    .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
+                    .div(factors.nTokenValue.mul(haircutDiff));
             }
 
             nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
