@@ -234,7 +234,7 @@ library LiquidatefCash {
             fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
         // fCash benefit is the amount of additional value given to the liquidated account from the difference
         // in the discount factors from risk adjusted versus liquidation. A liquidator may purchase at 1000 fCash
-        // at a discount factor of 0.90 but the risk adjusted discount factor is 0.95. fCashBenefit in this case
+        // at a discount factor of 0.95 but the risk adjusted discount factor is 0.90. fCashBenefit in this case
         // is 0.05 * 1000 = 50
         int256 fCashBenefit =
             fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)).div(
