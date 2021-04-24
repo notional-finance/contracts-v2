@@ -100,10 +100,12 @@ library LiquidatefCash {
     ) internal view {
         if (c.factors.localAvailable > 0) {
             // If local available is positive then we can bring it down to zero
-            // prettier-ignore
+            //prettier-ignore
             c.benefitRequired = c.factors.localETHRate
                 .convertETHTo(c.factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
+                // If the haircut is zero then this will revert which is the correct result. A currency with
+                // a haircut to zero does not affect free collateral.
                 .div(c.factors.localETHRate.haircut);
         } else {
             // If local available is negative then we can bring it up to zero
@@ -232,29 +234,21 @@ library LiquidatefCash {
         // this is the discounted value that the liquidator will purchase it at.
         int256 fCashLiquidationPV =
             fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
-        // fCash benefit is the amount of additional value given to the liquidated account from the difference
-        // in the discount factors from risk adjusted versus liquidation. A liquidator may purchase at 1000 fCash
-        // at a discount factor of 0.95 but the risk adjusted discount factor is 0.90. fCashBenefit in this case
-        // is 0.05 * 1000 = 50
-        int256 fCashBenefit =
-            fCashToLiquidate.mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor)).div(
-                Constants.RATE_PRECISION
-            );
+
+        int256 fCashRiskAdjustedPV =
+            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION);
 
         // Ensures that collateralAvailable does not go below zero
-        if (fCashLiquidationPV > c.factors.collateralAvailable.add(fCashBenefit)) {
-            // If inside this if statement then all collateralAvailable should be coming from fCashCollateralPV
-            // [1] collateralAvailable = fCashCollateralPV + fCashBenefit
-            // [2] fCashCollateralPV = fCashToLiquidate * riskAdjustedDiscountFactor
-            // [3] fCashBenefit = fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-
-            // [1] = [2] + [3]
-            // collateralAvailable = fCashToLiquidate * riskAdjustedDiscountFactor - fCashToLiquidate * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            // collateralAvailable = fCashToLiquidate * (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor)
-            // fCashToLiquidate = collateralAvailable / (2 * riskAdjustedDiscountFactor - liquidationDiscountFactor)
+        if (fCashRiskAdjustedPV > c.factors.collateralAvailable) {
+            // If inside this if statement then all collateralAvailable should be coming from fCashRiskAdjustedPV
+            // collateralAvailable = fCashRiskAdjustedPV
+            // collateralAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
+            // fCashToLiquidate = collateralAvailable / riskAdjustedDiscountFactor
             fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
-                riskAdjustedDiscountFactor.mul(2).sub(liquidationDiscountFactor)
+                riskAdjustedDiscountFactor
             );
+
+            fCashRiskAdjustedPV = c.factors.collateralAvailable;
 
             // Recalculate the PV at the new liquidation amount
             fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(
@@ -272,12 +266,7 @@ library LiquidatefCash {
 
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
-        c.factors.collateralAvailable = c.factors.collateralAvailable.sub(
-            fCashToLiquidate
-            // This term is defined above
-                .mul(riskAdjustedDiscountFactor.mul(2).sub(liquidationDiscountFactor))
-                .div(Constants.RATE_PRECISION)
-        );
+        c.factors.collateralAvailable = c.factors.collateralAvailable.subNoNeg(fCashRiskAdjustedPV);
         // Local available does not have any buffers applied to it
         c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
 

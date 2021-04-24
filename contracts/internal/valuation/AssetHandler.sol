@@ -103,7 +103,7 @@ library AssetHandler {
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
-    /// @notice Returns the unhaircut claims on cash and fCash by the liquidity token.
+    /// @notice Returns the non haircut claims on cash and fCash by the liquidity token.
     function getCashClaims(PortfolioAsset memory token, MarketParameters memory market)
         internal
         pure

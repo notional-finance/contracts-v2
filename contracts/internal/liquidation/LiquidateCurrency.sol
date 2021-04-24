@@ -77,10 +77,10 @@ library LiquidateCurrency {
             {
                 // This will not underflow, checked when saving parameters
                 int256 haircutDiff =
-                    (int256(
-                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])
-                    ) - int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))) *
-                        Constants.PERCENTAGE_DECIMALS;
+                    int256(
+                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
+                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
+                    ) * Constants.PERCENTAGE_DECIMALS;
 
                 // fullNTokenPV = haircutTokenPV / haircutPercentage
                 // benefitGained = nTokensToLiquidate * (liquidatedPV - freeCollateralPV)
@@ -258,6 +258,7 @@ library LiquidateCurrency {
         // fullNTokenPV = haircutTokenPV / haircutPercentage
         // collateralToRaise = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
         // tokensToLiquidate = collateralToRaise * totalBalance / (fullNTokenPV * liquidationHaircut)
+        // tokensToLiquidate = (collateralToRaise * totalBalance * haircutPercentage) / (haircutTokenPV * liquidationHaircut)
         int256 nTokenLiquidationHaircut =
             int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]));
         int256 nTokenHaircut =
