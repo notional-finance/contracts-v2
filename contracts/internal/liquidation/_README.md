@@ -26,11 +26,8 @@ Local currency liquidation occurs when **local available** is negative and the a
 
 To be eligible for this liquidation an account may have:
 
-- Provided liquidity directly to a market and have a resulting net negative fCash position. This can occur by either borrowing against liquidity token collateral or providing liquidity while a market has high interest rates.
-- Holds nTokens in local currency and is a net borrower in local currency
-- A debt in a different currency and holds local currency liquidity tokens or nTokens. In this case the potential for free collateral change is quite small but still non zero.
-
-If interest rates continue to increase, the value of nTokens and liquidity tokens will decrease. Note that higher interest rates also reduce the account's collateral requirements for negative fCash so this has some countervailing effect.
+- Provided liquidity directly to a market and have a net negative fCash position that outweighs the collateral value of the account's liquidity tokens. This can occur by either borrowing against liquidity token collateral in the local currency or by providing liquidity while a market has high interest rates. In each case, the account would get into a negative local available position through market moves that decrease the value of its liquidity token collateral relative to its negative fCash.
+- Holds nTokens in local currency and is a net borrower in local currency.
 
 ### Withdraw Liquidity Tokens
 
@@ -65,17 +62,17 @@ decreaseInCollateral = collateralSold * collateralHaircut
 collateralDenominatedBenefit = localPurchased * localCurrencyBuffer * exchangeRate - collateralSold * collateralHaircut
 ```
 
-The contribution of collateral to the overall free collateral of an account is:
-
-`freeCollateralContribution = collateral * collateralHaircut * ethExchangeRate`
-
-And the rate at which local currency is purchased must incorporate a discount given to the liquidator as an incentive:
+Given a required collateral denominated benefit, we can solve for the amount of collateral to sell because collateral to sell and local to purchase are related.
 
 `localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)`
 
-Setting `freeCollateralContribution = collateralDenominatedBenefit` we can solve for the ideal `collateralSold` to recapitalize the account:
+`collateralDenominatedBenefitRequired = collateralToSell / (exchangeRate * liquidationDiscount) * localCurrencyBuffer * exchangeRate - collateralToSell * collateralHaircut`
 
-`collateralSold = collateralDenominatedBenefit / ((localCurrencyBuffer / liquidationDiscount) - collateralHaircut)`
+`collateralDenominatedBenefitRequired = collateralToSell / liquidationDiscount * localCurrencyBuffer - collateralToSell * collateralHaircut`
+
+`collateralDenominatedBenefitRequired = collateralToSell * ((localCurrencyBuffer / liquidationDiscount) - collateralHaircut)`
+
+`collateralToSell = collateralDenominatedBenefitRequired / ((localCurrencyBuffer / liquidationDiscount) - collateralHaircut)`
 
 ### Withdrawing Liquidity
 
@@ -93,7 +90,7 @@ The number of tokens to liquidate given is: `tokensToLiquidate = collateralToRai
 
 ### Limits to Collateral Purchased
 
-If a liquidator purchases too much collateral it may no longer be the case that an account's free collateral position will increase. This is due to potential differences in the haircuts and buffers given to the local currency and collateral currency. To ensure this, the collateral purchased is limited to the point where local available is zero.
+If the liquidator purchases so much collateral that local available becomes positive, it's no longer certain that the free collateral position of the account will continue to increase. This is due to potential differences in the haircuts given to the local currency and collateral currency - if the local currency has a larger haircut than the collateral currency, decreasing collateral available to increase local available above 0 will actually have a _negative_ effect on free collateral. To ensure this doesn't happen, the collateral purchased is limited to the point that local available is brought up to 0, but not higher.
 
 ## fCash Liquidation
 
@@ -101,12 +98,11 @@ Positive fCash is collateral for accounts in Notional and therefore can be liqui
 
 ## fCash Local Currency
 
-Liquidation fCash in local currency can be done in either two conditions:
+Liquidating fCash in local currency can occur in the following scenario:
 
-- Total free collateral is negative but local available is positive. This can occur when borrowing in a different currency collateralized by local currency fCash.
-- The account has negative local available. This can occur if the account has borrowed and lent fCash at different maturities in the local currency.
+- The account has negative local available because it has borrowed and lent at different maturities in the local currency, and the value of its debt in the local currency outweighs the value of the fCash collateral in that currency.
 
-In either of these cases, the benefit to the account is based on the difference between the `liquidationDiscountFactor` and the `riskAdjustedDiscountFactor`. For example, if the risk adjusted fCash haircut is 300 basis points (3%) then the liquidation discount haircut may be 150 basis points (1.5%). The liquidator will purchase fCash at 150 basis points below market value and the account will receive local currency cash. The benefit to their free collateral is equal to `benefit = fCashSold * (liquidationDiscountFactor - riskAdjustedDiscountFactor)`
+The benefit to the account is based on the difference between the `liquidationDiscountFactor` and the `riskAdjustedDiscountFactor`. For example, if the risk adjusted fCash haircut is 300 basis points (3%) then the liquidation discount haircut may be 150 basis points (1.5%). The liquidator will purchase fCash at 150 basis points below market value and the account will receive local currency cash. The benefit to their free collateral is equal to `benefit = fCashSold * (liquidationDiscountFactor - riskAdjustedDiscountFactor)`
 
 ## fCash Cross Currency
 
