@@ -34,7 +34,7 @@ If interest rates continue to increase, the value of nTokens and liquidity token
 
 ### Withdraw Liquidity Tokens
 
-Withdrawing liquidity tokens from the market will convert the shifting liquidity token value into a fixed cash and fCash value. This will reduce the volatility of the account's value. It will also add collateral back to the account by removing the liquidity token haircut on the cash and fCash claims.
+Withdrawing liquidity tokens from the market will convert the shifting liquidity token value into a fixed cash and fCash value. This will reduce the volatility of the account's free collateral. It will also add collateral back to the account by removing the liquidity token haircut on the cash and fCash claims.
 
 This action does not require the liquidator to provide any local currency. The liquidator is instead paid an incentive for taking this action from the cash claim withdrawn.
 
