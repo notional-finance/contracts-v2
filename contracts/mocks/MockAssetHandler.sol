@@ -97,7 +97,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         (int256 cash, int256 fCash) = liquidityToken.getCashClaims(marketState);
         assert(cash > 0);
         assert(fCash > 0);
-        assert(cash <= marketState.totalCurrentCash);
+        assert(cash <= marketState.totalAssetCash);
         assert(fCash <= marketState.totalfCash);
 
         return (cash, fCash);

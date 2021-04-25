@@ -111,7 +111,7 @@ library AssetHandler {
     {
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
-        assetCash = market.totalCurrentCash.mul(token.notional).div(market.totalLiquidity);
+        assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
         fCash = market.totalfCash.mul(token.notional).div(market.totalLiquidity);
     }
 
@@ -129,7 +129,7 @@ library AssetHandler {
         int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
 
         int256 assetCash =
-            _calcToken(market.totalCurrentCash, token.notional, haircut, market.totalLiquidity);
+            _calcToken(market.totalAssetCash, token.notional, haircut, market.totalLiquidity);
 
         int256 fCash =
             _calcToken(market.totalfCash, token.notional, haircut, market.totalLiquidity);

@@ -37,13 +37,13 @@ library Market {
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
-        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalCurrentCash);
-        // No need to convert this to underlying, assetCash / totalCurrentCash is a unitless proportion.
-        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalCurrentCash);
+        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
+        // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
+        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
 
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
         market.totalfCash = market.totalfCash.add(fCash);
-        market.totalCurrentCash = market.totalCurrentCash.add(assetCash);
+        market.totalAssetCash = market.totalAssetCash.add(assetCash);
         market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (liquidityTokens, fCash.neg());
@@ -59,12 +59,12 @@ library Market {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
-        int256 assetCash = market.totalCurrentCash.mul(tokensToRemove).div(market.totalLiquidity);
+        int256 assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
         int256 fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalCurrentCash = market.totalCurrentCash.subNoNeg(assetCash);
+        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
         market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (assetCash, fCash);
@@ -151,8 +151,7 @@ library Market {
         )
     {
         int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
-        int256 totalCashUnderlying =
-            cashGroup.assetRate.convertToUnderlying(market.totalCurrentCash);
+        int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
 
         // This will result in a divide by zero
         if (market.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
@@ -231,7 +230,7 @@ library Market {
         int256 netCashToReserve
     ) private view returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
-        market.totalCurrentCash = market.totalCurrentCash.add(netAssetCashToMarket);
+        market.totalAssetCash = market.totalAssetCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
         market.previousTradeTime = block.timestamp;
@@ -336,7 +335,7 @@ library Market {
     /// Calculates the following exchange rate:
     ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    ///     proportion = totalfCash / (totalfCash + totalCurrentCash)
+    ///     proportion = totalfCash / (totalfCash + totalAssetCash)
     /// @dev has an underscore to denote as private but is marked internal for the mock
     function _getExchangeRate(
         int256 totalfCash,
@@ -475,7 +474,7 @@ library Market {
         market.storageSlot = slot;
         market.maturity = maturity;
         market.totalfCash = int256(uint80(uint256(data)));
-        market.totalCurrentCash = int256(uint80(uint256(data >> 80)));
+        market.totalAssetCash = int256(uint80(uint256(data >> 80)));
         market.lastImpliedRate = uint256(uint32(uint256(data >> 160)));
         market.oracleRate = uint256(uint32(uint256(data >> 192)));
         market.previousTradeTime = uint256(uint32(uint256(data >> 224)));
@@ -503,14 +502,14 @@ library Market {
         }
 
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: market storage totalCurrentCash overflow
+        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: market storage totalAssetCash overflow
         require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max); // dev: market storage lastImpliedRate overflow
         require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
         require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
 
         bytes32 data =
             (bytes32(market.totalfCash) |
-                (bytes32(market.totalCurrentCash) << 80) |
+                (bytes32(market.totalAssetCash) << 80) |
                 (bytes32(market.lastImpliedRate) << 160) |
                 (bytes32(market.oracleRate) << 192) |
                 (bytes32(market.previousTradeTime) << 224));
@@ -592,9 +591,9 @@ library Market {
         }
 
         int256 totalfCash = int256(uint80(uint256(data)));
-        int256 totalCurrentCash = int256(uint80(uint256(data >> 80)));
+        int256 totalAssetCash = int256(uint80(uint256(data >> 80)));
         // Clear the lower 160 bits, this data will be combined with the new totalfCash
-        // and totalCurrentCash figures.
+        // and totalAssetCash figures.
         data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
 
         slot = uint256(slot) + 1;
@@ -607,7 +606,7 @@ library Market {
             SettlementMarket({
                 storageSlot: bytes32(slot - 1),
                 totalfCash: totalfCash,
-                totalCurrentCash: totalCurrentCash,
+                totalAssetCash: totalAssetCash,
                 totalLiquidity: int256(totalLiquidity),
                 data: data
             });
@@ -617,11 +616,11 @@ library Market {
         bytes32 slot = market.storageSlot;
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: settlement market storage totalCurrentCash overflow
+        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
         require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
 
         data = (bytes32(market.totalfCash) |
-            (bytes32(market.totalCurrentCash) << 80) |
+            (bytes32(market.totalAssetCash) << 80) |
             bytes32(market.data));
 
         // Don't clear the storage even when all liquidity tokens have been removed because we need to use

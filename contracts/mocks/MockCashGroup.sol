@@ -166,7 +166,7 @@ contract MockCashGroup is StorageLayoutV1 {
 
         // Ensure that the market cache gets updated via the memory reference
         assert(markets[marketIndex - 1].totalfCash == market.totalfCash);
-        assert(markets[marketIndex - 1].totalCurrentCash == market.totalCurrentCash);
+        assert(markets[marketIndex - 1].totalAssetCash == market.totalAssetCash);
         assert(markets[marketIndex - 1].totalLiquidity == market.totalLiquidity);
         assert(markets[marketIndex - 1].lastImpliedRate == market.lastImpliedRate);
         assert(markets[marketIndex - 1].oracleRate == market.oracleRate);

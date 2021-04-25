@@ -102,10 +102,10 @@ def get_market_state(maturity, **kwargs):
     if "proportion" in kwargs:
         proportion = kwargs["proportion"]
         totalfCash = totalLiquidity * (1 - proportion)
-        totalCurrentCash = totalLiquidity * proportion
+        totalAssetCash = totalLiquidity * proportion
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
-        totalCurrentCash = 1e18 if "totalCurrentCash" not in kwargs else kwargs["totalCurrentCash"]
+        totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
 
     lastImpliedRate = 0.1e9 if "lastImpliedRate" not in kwargs else kwargs["lastImpliedRate"]
     oracleRate = 0.1e9 if "oracleRate" not in kwargs else kwargs["oracleRate"]
@@ -117,7 +117,7 @@ def get_market_state(maturity, **kwargs):
         storageSlot,
         maturity,
         Wei(totalfCash),
-        Wei(totalCurrentCash),
+        Wei(totalAssetCash),
         Wei(totalLiquidity),
         lastImpliedRate,
         oracleRate,

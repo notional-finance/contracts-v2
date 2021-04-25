@@ -372,7 +372,7 @@ library InitializeMarketsAction {
         // The portion of the cash available that will be deposited into the market
         int256 assetCashToMarket =
             netAssetCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
-        newMarket.totalCurrentCash = assetCashToMarket;
+        newMarket.totalAssetCash = assetCashToMarket;
         newMarket.totalLiquidity = assetCashToMarket;
 
         // Add a new liquidity token, this will end up in the new asset array

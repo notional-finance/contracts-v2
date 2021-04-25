@@ -88,7 +88,7 @@ class TestMarket:
             market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
 
         with brownie.reverts():
-            marketStorage = get_market_state(MARKETS[0], totalCurrentCash=2 ** 81)
+            marketStorage = get_market_state(MARKETS[0], totalAssetCash=2 ** 81)
             market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
 
         with brownie.reverts():
@@ -113,7 +113,7 @@ class TestMarket:
             market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
 
         with brownie.reverts():
-            marketStorage = get_market_state(MARKETS[0], totalCurrentCash=-1)
+            marketStorage = get_market_state(MARKETS[0], totalAssetCash=-1)
             market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
 
         with brownie.reverts():

@@ -140,7 +140,7 @@ class TestLiquidityCurve:
         marketState = get_market_state(
             MARKETS[0],
             totalfCash=totalfCash,
-            totalCurrentCash=totalCashUnderlying,
+            totalAssetCash=totalCashUnderlying,
             lastImpliedRate=0.06e9,
         )
         fCashAmount = 1e12
@@ -193,7 +193,7 @@ class TestLiquidityCurve:
         marketState = get_market_state(
             MARKETS[marketIndex - 1],
             totalfCash=totalfCash,
-            totalCurrentCash=totalCashUnderlying,
+            totalAssetCash=totalCashUnderlying,
             lastImpliedRate=impliedRate,
         )
 

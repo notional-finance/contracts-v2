@@ -178,7 +178,7 @@ struct MarketParameters {
     // Total amount of fCash available for purchase in the market.
     int256 totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
+    int256 totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
     // This is the implied rate that we use to smooth the anchor rate between trades.
@@ -196,7 +196,7 @@ struct SettlementMarket {
     // Total amount of fCash available for purchase in the market.
     int256 totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
+    int256 totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
     // Un parsed market data used for storage
