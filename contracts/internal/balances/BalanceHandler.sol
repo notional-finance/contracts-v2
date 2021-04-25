@@ -86,7 +86,7 @@ library BalanceHandler {
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
-            underlyingAmountExternal = int256(msg.value);
+            require(underlyingAmountExternal == int256(msg.value), "Invalid ETH balance");
         } else {
             underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
         }
