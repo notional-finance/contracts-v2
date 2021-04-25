@@ -289,7 +289,7 @@ library TradingAction {
                 market.maturity.sub(blockTime),
                 marketIndex
             );
-        require(cashAmount != 0, "Trade failed");
+        require(cashAmount != 0, "Trade failed, liquidity");
 
         uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
         if (rateLimit != 0) {

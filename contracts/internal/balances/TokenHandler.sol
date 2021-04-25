@@ -97,27 +97,6 @@ library TokenHandler {
         }
     }
 
-    /// @notice Handles token deposits into Notional. If there is a transfer fee then we must
-    /// calculate the net balance after transfer. Amounts are denominated in the destination token's
-    /// precision.
-    function deposit(
-        Token memory token,
-        address account,
-        uint256 amount
-    ) private returns (int256) {
-        if (token.hasTransferFee) {
-            // Must deposit from the token and calculate the net transfer
-            uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-            safeTransferIn(IERC20(token.tokenAddress), account, amount);
-            uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-
-            return int256(endingBalance.sub(startingBalance));
-        }
-
-        safeTransferIn(IERC20(token.tokenAddress), account, amount);
-        return int256(amount);
-    }
-
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic
     function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
         uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
@@ -176,7 +155,7 @@ library TokenHandler {
     ) internal returns (int256) {
         if (netTransferExternal > 0) {
             // Deposits must account for transfer fees.
-            netTransferExternal = deposit(token, account, uint256(netTransferExternal));
+            netTransferExternal = _deposit(token, account, uint256(netTransferExternal));
         } else if (token.tokenType == TokenType.Ether) {
             require(netTransferExternal < 0); // dev: cannot transfer ether
             address payable accountPayable = payable(account);
@@ -190,6 +169,27 @@ library TokenHandler {
         }
 
         return netTransferExternal;
+    }
+
+    /// @notice Handles token deposits into Notional. If there is a transfer fee then we must
+    /// calculate the net balance after transfer. Amounts are denominated in the destination token's
+    /// precision.
+    function _deposit(
+        Token memory token,
+        address account,
+        uint256 amount
+    ) private returns (int256) {
+        if (token.hasTransferFee) {
+            // Must deposit from the token and calculate the net transfer
+            uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            safeTransferIn(IERC20(token.tokenAddress), account, amount);
+            uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+
+            return int256(endingBalance.sub(startingBalance));
+        }
+
+        safeTransferIn(IERC20(token.tokenAddress), account, amount);
+        return int256(amount);
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {

@@ -153,7 +153,9 @@ contract Router is StorageLayoutV1 {
 
         if (
             sig == LiquidateCurrencyAction.liquidateLocalCurrency.selector ||
-            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector
+            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector ||
+            sig == LiquidateCurrencyAction.calculateLocalCurrencyLiquidation.selector ||
+            sig == LiquidateCurrencyAction.calculateCollateralCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_CURRENCY;
         }

@@ -1,7 +1,7 @@
 import pytest
 from brownie import accounts
 from brownie.network.state import Chain
-from scripts.config import CurrencyDefaults
+from scripts.config import CurrencyDefaults, nTokenDefaults
 from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER
 from tests.helpers import get_balance_trade_action, initialize_environment
 from tests.stateful.invariants import check_system_invariants
@@ -147,20 +147,22 @@ def currencyLiquidation(env, accounts):
             {
                 "tradeActionType": "AddLiquidity",
                 "marketIndex": 1,
-                "notional": 50e8,
+                "notional": 2500e8,  # in asset cash terms
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
             {
                 "tradeActionType": "AddLiquidity",
                 "marketIndex": 2,
-                "notional": 50e8,
+                "notional": 2500e8,
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
             {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0},
         ],
         depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
     )
     env.notional.batchBalanceAndTradeAction(accounts[6], [collateral], {"from": accounts[6]})
 
@@ -198,16 +200,16 @@ def fCashLiquidation(env, accounts):
         2,
         "DepositUnderlying",
         [
-            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 60e8, "minSlippage": 0},
-            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 60e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 50e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 50e8, "minSlippage": 0},
             {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0},
         ],
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
-        depositActionAmount=120e18,
+        depositActionAmount=100e18,
     )
 
-    env.notional.batchBalanceAndTradeAction(accounts[1], [lendBorrowAction], {"from": accounts[1]})
+    env.notional.batchBalanceAndTradeAction(accounts[2], [lendBorrowAction], {"from": accounts[2]})
 
     return env
 
@@ -223,28 +225,87 @@ def check_liquidation_invariants(environment, liquidatedAccount, fcBefore):
 
     # Check that availables haven't crossed boundaries
     if fcBefore[1][ETH] > 0:
-        assert netLocal[1][ETH] >= 0
+        assert netLocal[ETH] >= 0
     else:
-        assert netLocal[1][ETH] <= 0
+        assert netLocal[ETH] <= 0
 
     if fcBefore[1][DAI] > 0:
-        assert netLocal[1][DAI] >= 0
+        assert netLocal[DAI] >= 0
     else:
-        assert netLocal[1][DAI] <= 0
+        assert netLocal[DAI] <= 0
 
     check_system_invariants(environment, accounts)
 
 
+def move_oracle_rate(environment, marketIndex):
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=100e18)
+    # Why am I getting a trade failed liquidity error?
+    borrow = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": marketIndex,
+                "notional": 195000e8,
+                "maxSlippage": 0.40 * RATE_PRECISION,
+            }
+        ],
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[9], [collateral, borrow], {"from": accounts[9], "value": 100e18}
+    )
+
+
 # given different max liquidation amounts
-@pytest.mark.only
 def test_liquidate_local_currency(currencyLiquidation, accounts):
     # Increase oracle rate
-    # Check decrease in nToken PV
-    # Get local currency required
+    # marketsBefore = currencyLiquidation.notional.getActiveMarkets(2)
+    # nTokenPVBefore = currencyLiquidation.nToken[2].getPresentValueUnderlyingDenominated()
+    # move_oracle_rate(currencyLiquidation, 3)
+    # marketsAfter = currencyLiquidation.notional.getActiveMarkets(2)
+    # nTokenPVAfter = currencyLiquidation.nToken[2].getPresentValueUnderlyingDenominated()
+
+    # Change the governance parameters
+    tokenDefaults = nTokenDefaults["Collateral"]
+    tokenDefaults[1] = 80
+    currencyLiquidation.notional.updateTokenCollateralParameters(2, *(tokenDefaults))
+
+    cashGroup = list(currencyLiquidation.notional.getCashGroup(2))
+    cashGroup[8] = [80, 80, 80]
+    currencyLiquidation.notional.updateCashGroup(2, cashGroup)
+
     # liquidate account[5]
+    fcBeforeNToken = currencyLiquidation.notional.getFreeCollateralView(accounts[5])
+    nTokenNetRequired = currencyLiquidation.notional.calculateLocalCurrencyLiquidation.call(
+        accounts[5], 2, 0
+    )
+
+    balanceBefore = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+    txn = currencyLiquidation.notional.liquidateLocalCurrency(accounts[5], 2, 0)
+    assert txn.events["LiquidateLocalCurrency"]
+    netLocal = txn.events["LiquidateLocalCurrency"]["netLocalFromLiquidator"]
+    balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+
+    assert pytest.approx(netLocal, rel=1e-6) == nTokenNetRequired
+    assert balanceBefore - balanceAfter == netLocal
+    check_liquidation_invariants(currencyLiquidation, accounts[5], fcBeforeNToken)
+
     # liquidate account[6]
-    # assert local required is equal
-    assert False
+    fcBeforeLiquidityToken = currencyLiquidation.notional.getFreeCollateralView(accounts[6])
+    liquidityTokenNetRequired = currencyLiquidation.notional.calculateLocalCurrencyLiquidation.call(
+        accounts[6], 2, 0
+    )
+
+    balanceBefore = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+    txn = currencyLiquidation.notional.liquidateLocalCurrency(accounts[6], 2, 0)
+    assert txn.events["LiquidateLocalCurrency"]
+    netLocal = txn.events["LiquidateLocalCurrency"]["netLocalFromLiquidator"]
+    balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+
+    assert pytest.approx(netLocal, rel=1e-6) == liquidityTokenNetRequired
+    assert balanceBefore - balanceAfter == netLocal
+    check_liquidation_invariants(currencyLiquidation, accounts[6], fcBeforeLiquidityToken)
 
 
 # given different max liquidation amounts
@@ -256,7 +317,6 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
 
 
 # given different max liquidation amounts
-@pytest.mark.only
 def test_liquidate_local_fcash(fCashLiquidation, accounts):
     # Increase oracle rate
     # Get local currency required

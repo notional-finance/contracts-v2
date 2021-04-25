@@ -8,6 +8,7 @@ import "../valuation/ExchangeRate.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../balances/BalanceHandler.sol";
+import "../balances/TokenHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 
@@ -17,6 +18,7 @@ library LiquidationHelpers {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    using TokenHandler for Token;
 
     /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
     function preLiquidationActions(
@@ -176,7 +178,7 @@ library LiquidationHelpers {
             );
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            liquidatorLocalBalance.netAssetTransferInternalPrecision = netLocalFromLiquidator;
+            token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
         }
         liquidatorLocalBalance.netNTokenTransfer = netLocalPerpetualTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
