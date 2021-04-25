@@ -222,8 +222,12 @@ def isolation(fn_isolation):
 def check_liquidation_invariants(environment, liquidatedAccount, fcBefore):
     (fc, netLocal) = environment.notional.getFreeCollateralView(liquidatedAccount)
     assert fc > fcBefore[0]
+    assert fc > 0
 
-    # Check that availables haven't crossed boundaries
+    if len(list(filter(lambda x: x != 0, netLocal))) == 1:
+        return
+
+    # Check that availables haven't crossed boundaries for cross currency
     if fcBefore[1][ETH] > 0:
         assert netLocal[ETH] >= 0
     else:
@@ -268,7 +272,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
 
     # Change the governance parameters
     tokenDefaults = nTokenDefaults["Collateral"]
-    tokenDefaults[1] = 80
+    tokenDefaults[1] = 85
     currencyLiquidation.notional.updateTokenCollateralParameters(2, *(tokenDefaults))
 
     cashGroup = list(currencyLiquidation.notional.getCashGroup(2))

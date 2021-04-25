@@ -6,6 +6,7 @@ import "./LiquidationHelpers.sol";
 import "../AccountContextHandler.sol";
 import "../valuation/ExchangeRate.sol";
 import "../markets/CashGroup.sol";
+import "../markets/AssetRate.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../balances/BalanceHandler.sol";
@@ -16,6 +17,7 @@ library LiquidateCurrency {
     using ExchangeRate for ETHRate;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
+    using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
     using AccountContextHandler for AccountContext;
@@ -52,23 +54,26 @@ library LiquidateCurrency {
     ) internal view returns (int256) {
         require(factors.localAssetAvailable < 0, "No local debt");
 
-        int256 benefitRequired =
-            factors
-                .localETHRate
-                .convertETHTo(factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(factors.localETHRate.buffer);
-        int256 netLocalFromLiquidator;
+        int256 assetBenefitRequired =
+            factors.cashGroup.assetRate.convertFromUnderlying(
+                factors
+                    .localETHRate
+                    .convertETHTo(factors.netETHValue.neg())
+                    .mul(Constants.PERCENTAGE_DECIMALS)
+                    .div(factors.localETHRate.buffer)
+            );
+
+        int256 netAssetCashFromLiquidator;
 
         if (_hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
             WithdrawFactors memory w;
-            (w, benefitRequired) = _withdrawLocalLiquidityTokens(
+            (w, assetBenefitRequired) = _withdrawLocalLiquidityTokens(
                 portfolio,
                 factors,
                 blockTime,
-                benefitRequired
+                assetBenefitRequired
             );
-            netLocalFromLiquidator = w.totalIncentivePaid.neg();
+            netAssetCashFromLiquidator = w.totalIncentivePaid.neg();
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
@@ -89,7 +94,7 @@ library LiquidateCurrency {
                 // benefitGained = nTokensToLiquidate * (haircutTokenPV / haircutPercentage) * (liquidationHaircut - pvHaircut) / totalBalance
                 // benefitGained = nTokensToLiquidate * haircutTokenPV * (liquidationHaircut - pvHaircut) / (totalBalance * haircutPercentage)
                 // nTokensToLiquidate = (benefitGained * totalBalance * haircutPercentage) / (haircutTokenPV * (liquidationHaircut - pvHaircut))
-                nTokensToLiquidate = benefitRequired
+                nTokensToLiquidate = assetBenefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                     .div(factors.nTokenHaircutAssetValue.mul(haircutDiff));
@@ -106,19 +111,19 @@ library LiquidateCurrency {
                 // fullNTokenPV = haircutTokenPV / haircutPercentage
                 // localFromLiquidator = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
                 // prettier-ignore
-                int256 localCashValue =
+                int256 localAssetCash =
                     nTokensToLiquidate
                         .mul(int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])))
                         .mul(factors.nTokenHaircutAssetValue)
                         .div(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                         .div(balanceState.storedNTokenBalance);
 
-                balanceState.netCashChange = balanceState.netCashChange.add(localCashValue);
-                netLocalFromLiquidator = netLocalFromLiquidator.add(localCashValue);
+                balanceState.netCashChange = balanceState.netCashChange.add(localAssetCash);
+                netAssetCashFromLiquidator = netAssetCashFromLiquidator.add(localAssetCash);
             }
         }
 
-        return netLocalFromLiquidator;
+        return netAssetCashFromLiquidator;
     }
 
     /// @notice Liquidates collateral in the form of cash, liquidity token cash claims, or nTokens in that
