@@ -156,7 +156,7 @@ library LiquidationHelpers {
         address liquidator,
         uint256 localCurrencyId,
         int256 netLocalFromLiquidator,
-        int256 netLocalPerpetualTokens
+        int256 netLocalNTokens
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
@@ -180,7 +180,7 @@ library LiquidationHelpers {
         } else {
             token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
         }
-        liquidatorLocalBalance.netNTokenTransfer = netLocalPerpetualTokens;
+        liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
 
         return liquidatorContext;
@@ -191,20 +191,20 @@ library LiquidationHelpers {
         AccountContext memory liquidatorContext,
         uint256 collateralCurrencyId,
         int256 netCollateralToLiquidator,
-        int256 netCollateralPerpetualTokens,
+        int256 netCollateralNTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountContext memory) {
         // TODO: maybe reuse these...
         BalanceState memory balance;
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
+        balance.netCashChange = netCollateralToLiquidator;
 
         if (withdrawCollateral) {
             balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
-        } else {
-            balance.netCashChange = netCollateralToLiquidator;
         }
-        balance.netNTokenTransfer = netCollateralPerpetualTokens;
+
+        balance.netNTokenTransfer = netCollateralNTokens;
         balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;

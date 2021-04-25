@@ -239,7 +239,7 @@ def check_liquidation_invariants(environment, liquidatedAccount, fcBefore):
 
 def move_oracle_rate(environment, marketIndex):
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=100e18)
-    # Why am I getting a trade failed liquidity error?
+    # TODO: Why am I getting a trade failed liquidity error?
     borrow = get_balance_trade_action(
         2,
         "None",
@@ -311,9 +311,41 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
 # given different max liquidation amounts
 def test_liquidate_collateral_currency(currencyLiquidation, accounts):
     # Decrease ETH rate
-    # Get local currency required
-    # liquidate account[1:4]
-    pass
+    currencyLiquidation.ethOracle["DAI"].setAnswer(0.015e18)
+
+    for account in accounts[1:5]:
+        fcBefore = currencyLiquidation.notional.getFreeCollateralView(account)
+        (
+            netLocalCalculated,
+            netCashCalculated,
+            netNTokenCalculated,
+        ) = currencyLiquidation.notional.calculateCollateralCurrencyLiquidation.call(
+            account, 2, 1, 0, 0
+        )
+
+        balanceBeforeETH = currencyLiquidation.cToken["ETH"].balanceOf(accounts[0])
+        balanceBefore = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+        balanceBeforeNToken = currencyLiquidation.nToken[1].balanceOf(accounts[0])
+        txn = currencyLiquidation.notional.liquidateCollateralCurrency(
+            account, 2, 1, 0, 0, True, False
+        )
+        assert txn.events["LiquidateCollateralCurrency"]
+        netLocal = txn.events["LiquidateCollateralCurrency"]["netLocalFromLiquidator"]
+        netCash = txn.events["LiquidateCollateralCurrency"]["netCollateralTransfer"]
+        netNToken = txn.events["LiquidateCollateralCurrency"]["netNTokenTransfer"]
+
+        balanceAfterETH = currencyLiquidation.cToken["ETH"].balanceOf(accounts[0])
+        balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
+        balanceAfterNToken = currencyLiquidation.nToken[1].balanceOf(accounts[0])
+
+        assert pytest.approx(netLocal, rel=1e-6) == netLocalCalculated
+        assert pytest.approx(netCash, rel=1e-6) == netCashCalculated
+        assert pytest.approx(netNToken, rel=1e-6) == netNTokenCalculated
+        assert balanceBefore - balanceAfter == netLocal
+        assert balanceAfterETH - balanceBeforeETH == netCash
+        assert balanceAfterNToken - balanceBeforeNToken == netNToken
+
+        check_liquidation_invariants(currencyLiquidation, account, fcBefore)
 
 
 # given different max liquidation amounts

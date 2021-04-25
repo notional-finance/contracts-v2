@@ -213,8 +213,8 @@ contract LiquidateCurrencyAction {
             liquidateAccount,
             msg.sender,
             netLocalFromLiquidator,
-            collateralBalanceState.netCashChange,
-            collateralBalanceState.netNTokenTransfer
+            collateralBalanceState.netCashChange.neg(),
+            collateralBalanceState.netNTokenTransfer.neg()
         );
 
         return (
