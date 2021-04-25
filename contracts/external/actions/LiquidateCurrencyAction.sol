@@ -15,12 +15,15 @@ contract LiquidateCurrencyAction {
     event LiquidateLocalCurrency(
         address indexed liquidated,
         address indexed liquidator,
+        uint16 localCurrencyId,
         int256 netLocalFromLiquidator
     );
 
     event LiquidateCollateralCurrency(
         address indexed liquidated,
         address indexed liquidator,
+        uint16 localCurrencyId,
+        uint16 collateralCurrencyId,
         int256 netLocalFromLiquidator,
         int256 netCollateralTransfer,
         int256 netNTokenTransfer
@@ -87,7 +90,12 @@ contract LiquidateCurrencyAction {
             markets
         );
 
-        emit LiquidateLocalCurrency(liquidateAccount, msg.sender, netLocalFromLiquidator);
+        emit LiquidateLocalCurrency(
+            liquidateAccount,
+            msg.sender,
+            uint16(localCurrency),
+            netLocalFromLiquidator
+        );
 
         return netLocalFromLiquidator;
     }
@@ -209,15 +217,31 @@ contract LiquidateCurrencyAction {
             markets
         );
 
-        emit LiquidateCollateralCurrency(
+        _emitCollateralEvent(
             liquidateAccount,
-            msg.sender,
+            uint16(localCurrency),
+            netLocalFromLiquidator,
+            collateralBalanceState
+        );
+
+        return (
             netLocalFromLiquidator,
             collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg()
         );
+    }
 
-        return (
+    function _emitCollateralEvent(
+        address liquidateAccount,
+        uint256 localCurrency,
+        int256 netLocalFromLiquidator,
+        BalanceState memory collateralBalanceState
+    ) private {
+        emit LiquidateCollateralCurrency(
+            liquidateAccount,
+            msg.sender,
+            uint16(localCurrency),
+            uint16(collateralBalanceState.currencyId),
             netLocalFromLiquidator,
             collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg()

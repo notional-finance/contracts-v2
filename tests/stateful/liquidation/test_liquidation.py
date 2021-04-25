@@ -357,8 +357,38 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.only
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.015e18)
+    fcBefore = fCashLiquidation.notional.getFreeCollateralView(accounts[1])
     # Get local currency required
-    # liquidate account[1]
-    pass
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(accounts[1])
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    (
+        fCashNotionalCalculated,
+        netLocalCalculated,
+    ) = fCashLiquidation.notional.calculatefCashCrossCurrencyLiquidation.call(
+        accounts[1], 2, 1, [maturities[0]], [0, 0]
+    )
+    balanceBefore = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+
+    txn = fCashLiquidation.notional.liquidatefCashCrossCurrency(
+        accounts[1], 2, 1, [maturities[0]], [0]
+    )
+
+    balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+    assert txn.events["LiquidatefCashCrossCurrency"]
+    netLocal = txn.events["LiquidatefCashCrossCurrency"]["netLocalFromLiquidator"]
+    transfers = txn.events["LiquidatefCashCrossCurrency"]["fCashNotionalTransfer"]
+
+    assert pytest.approx(netLocal, rel=1e-6) == netLocalCalculated
+    assert pytest.approx(transfers[0], rel=1e-6) == fCashNotionalCalculated[0]
+    assert pytest.approx(transfers[1], rel=1e-6) == fCashNotionalCalculated[1]
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-6) == netLocal
+    assert False
+
+    # liquidatedPortfolioAfter = fCashLiquidation.notional.getAccountPortfolio(accounts[1])
+    # liquidatorPortfolioAfter = fCashLiquidation.notional.getAccountPortfolio(accounts[0])
+
+    check_liquidation_invariants(fCashLiquidation, accounts[1], fcBefore)

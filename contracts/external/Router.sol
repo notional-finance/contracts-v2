@@ -162,7 +162,9 @@ contract Router is StorageLayoutV1 {
 
         if (
             sig == LiquidatefCashAction.liquidatefCashLocal.selector ||
-            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector
+            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector ||
+            sig == LiquidatefCashAction.calculatefCashLocalLiquidation.selector ||
+            sig == LiquidatefCashAction.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
         }

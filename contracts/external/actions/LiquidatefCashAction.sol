@@ -11,13 +11,191 @@ contract LiquidatefCashAction {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
+    event LiquidatefCashLocal(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        int256 netLocalFromLiquidator,
+        uint256[] fCashMaturities,
+        int256[] fCashNotionalTransfer
+    );
+
+    event LiquidatefCashCrossCurrency(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        uint16 fCashCurrency,
+        int256 netLocalFromLiquidator,
+        uint256[] fCashMaturities,
+        int256[] fCashNotionalTransfer
+    );
+
+    /// @notice Calculates fCash local liquidation amounts, may settle account so this can be called off chain using
+    /// a static call
+    /// @param liquidateAccount account to liquidate
+    /// @param localCurrency local currency to liquidate
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
+    /// no maximum
+    /// @return returns two parameters
+    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    ///   - amount of local currency required from the liquidator
+    function calculatefCashLocalLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+        LiquidatefCash.fCashContext memory c =
+            _liquidateLocal(
+                liquidateAccount,
+                localCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase);
+    }
+
+    /// @notice Liquidates fCash using local currency
+    /// @param liquidateAccount account to liquidate
+    /// @param localCurrency local currency to liquidate
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
+    /// no maximum
+    /// @return returns two parameters
+    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    ///   - amount of local currency required from the liquidator
     function liquidatefCashLocal(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+        LiquidatefCash.fCashContext memory c =
+            _liquidateLocal(
+                liquidateAccount,
+                localCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        LiquidatefCash.finalizefCashLiquidation(
+            liquidateAccount,
+            msg.sender,
+            localCurrency,
+            localCurrency,
+            fCashMaturities,
+            c,
+            blockTime
+        );
+
+        emit LiquidatefCashLocal(
+            liquidateAccount,
+            msg.sender,
+            uint16(localCurrency),
+            c.localToPurchase,
+            fCashMaturities,
+            c.fCashNotionalTransfers
+        );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase);
+    }
+
+    /// @notice Calculates fCash cross currency liquidation, can be called via staticcall off chain
+    /// @param liquidateAccount account to liquidate
+    /// @param localCurrency local currency to liquidate
+    /// @param fCashCurrency currency of fCash to purchase
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
+    /// no maximum
+    /// @return returns two parameters
+    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    ///   - amount of local currency required from the liquidator
+    function calculatefCashCrossCurrencyLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+        LiquidatefCash.fCashContext memory c =
+            _liquidateCrossCurrency(
+                liquidateAccount,
+                localCurrency,
+                fCashCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase);
+    }
+
+    /// @notice Liquidates fCash across local to collateral currency
+    /// @param liquidateAccount account to liquidate
+    /// @param localCurrency local currency to liquidate
+    /// @param fCashCurrency currency of fCash to purchase
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
+    /// no maximum
+    /// @return returns two parameters
+    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    ///   - amount of local currency required from the liquidator
+    function liquidatefCashCrossCurrency(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+
+        LiquidatefCash.fCashContext memory c =
+            _liquidateCrossCurrency(
+                liquidateAccount,
+                localCurrency,
+                fCashCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        LiquidatefCash.finalizefCashLiquidation(
+            liquidateAccount,
+            msg.sender,
+            localCurrency,
+            fCashCurrency,
+            fCashMaturities,
+            c,
+            blockTime
+        );
+
+        emit LiquidatefCashCrossCurrency(
+            liquidateAccount,
+            msg.sender,
+            uint16(localCurrency),
+            uint16(fCashCurrency),
+            c.localToPurchase,
+            fCashMaturities,
+            c.fCashNotionalTransfers
+        );
+
+        return (c.fCashNotionalTransfers, c.localToPurchase);
+    }
+
+    function _liquidateLocal(
         address liquidateAccount,
         uint256 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         uint256 blockTime
-    ) external returns (int256[] memory, int256) {
+    ) private returns (LiquidatefCash.fCashContext memory) {
         LiquidatefCash.fCashContext memory c;
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,
@@ -34,52 +212,34 @@ contract LiquidatefCashAction {
             blockTime
         );
 
-        return
-            LiquidatefCash.finalizefCashLiquidation(
-                liquidateAccount,
-                msg.sender,
-                localCurrency,
-                localCurrency,
-                fCashMaturities,
-                c,
-                blockTime
-            );
+        return c;
     }
 
-    function liquidatefCashCrossCurrency(
+    function _liquidateCrossCurrency(
         address liquidateAccount,
         uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         uint256 blockTime
-    ) external returns (int256[] memory, int256) {
+    ) private returns (LiquidatefCash.fCashContext memory) {
         LiquidatefCash.fCashContext memory c;
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,
             localCurrency,
-            collateralCurrency
+            fCashCurrency
         );
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
         LiquidatefCash.liquidatefCashCrossCurrency(
             liquidateAccount,
-            collateralCurrency,
+            fCashCurrency,
             fCashMaturities,
             maxfCashLiquidateAmounts,
             c,
             blockTime
         );
 
-        return
-            LiquidatefCash.finalizefCashLiquidation(
-                liquidateAccount,
-                msg.sender,
-                localCurrency,
-                collateralCurrency,
-                fCashMaturities,
-                c,
-                blockTime
-            );
+        return c;
     }
 }

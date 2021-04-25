@@ -320,7 +320,7 @@ library LiquidatefCash {
             LiquidationHelpers.finalizeLiquidatorLocal(
                 liquidator,
                 localCurrency,
-                c.localToPurchase.neg(),
+                c.localToPurchase,
                 0
             );
 
