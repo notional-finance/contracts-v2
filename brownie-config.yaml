@@ -13,6 +13,7 @@ networks:
       port: 8646
       mnemonic: owner dignity sense
       log: ganache-out.txt
+      default_balance: 100000
 
 reports:
   exclude_paths:
