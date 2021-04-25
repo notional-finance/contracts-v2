@@ -236,7 +236,7 @@ library BitmapAssetsHandler {
         return assets;
     }
 
-    /// @notice Used to reduce a perpetual token ifCash assets portfolio proportionately when redeeming
+    /// @notice Used to reduce an nToken ifCash assets portfolio proportionately when redeeming
     /// nTokens to its underlying assets.
     function reduceifCashAssetsProportional(
         address account,

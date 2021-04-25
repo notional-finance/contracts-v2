@@ -46,7 +46,7 @@ contract nTokenRedeemAction {
         return totalAssetCash;
     }
 
-    /// @notice Allows accounts to redeem perpetual tokens into constituent assets and then absorb the assets
+    /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets
     /// into their portfolio. Due to the complexity here, it is not allowed to be called during a batch trading
     /// operation and must be done separately.
     /// @param redeemer the address that holds the nTokens to redeem
@@ -108,7 +108,7 @@ contract nTokenRedeemAction {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
 
-        // Get the assetCash and fCash assets as a result of redeeming perpetual tokens
+        // Get the assetCash and fCash assets as a result of redeeming tokens
         (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
             _reduceTokenAssets(nToken, tokensToRedeem, blockTime);
 
@@ -237,7 +237,7 @@ contract nTokenRedeemAction {
     }
 
     /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netAssetCash
-    /// as a result. The aim here is to ensure that accounts can redeem perpetual tokens without having to take on
+    /// as a result. The aim here is to ensure that accounts can redeem nTokens without having to take on
     /// fCash assets.
     function _sellfCashAssets(
         CashGroupParameters memory cashGroup,

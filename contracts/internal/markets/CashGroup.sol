@@ -270,7 +270,7 @@ library CashGroup {
         );
         // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.
         // The reason is that borrowers will not have a further maturity to roll from their 3 month fixed to a 6 month
-        // fixed. It also complicates the logic in the perpetual token initialization method
+        // fixed. It also complicates the logic in the nToken initialization method
         require(cashGroup.maxMarketIndex != 1, "CG: invalid market index");
         require(
             cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS,

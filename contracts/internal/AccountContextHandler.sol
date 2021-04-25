@@ -118,7 +118,7 @@ library AccountContextHandler {
     /// that refer to the currencies that an account is active in.
     ///
     /// This is called to ensure that currencies are active when the account has a non zero cash balance,
-    /// a non zero perpetual token balance or a portfolio asset.
+    /// a non zero nToken balance or a portfolio asset.
     function setActiveCurrency(
         AccountContext memory accountContext,
         uint256 currencyId,

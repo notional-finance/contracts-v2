@@ -276,7 +276,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (
             int256 totalAssetPV,
             /* portfolio */
-        ) = _getPerpetualTokenPV(currencyId);
+        ) = _getNTokenPV(currencyId);
 
         return totalAssetPV;
     }
@@ -288,12 +288,12 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         override
         returns (int256)
     {
-        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getPerpetualTokenPV(currencyId);
+        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
 
         return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
-    function _getPerpetualTokenPV(uint256 currencyId)
+    function _getNTokenPV(uint256 currencyId)
         private
         view
         returns (int256, nTokenPortfolio memory)

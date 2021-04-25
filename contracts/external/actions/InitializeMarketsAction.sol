@@ -159,15 +159,15 @@ library InitializeMarketsAction {
 
         // Recalculate what the withholdings are if there are any ifCash assets remaining
         int256 assetCashWithholding =
-            _getPerpetualTokenNegativefCashWithholding(nToken, blockTime, ifCashBitmap);
+            _getNTokenNegativefCashWithholding(nToken, blockTime, ifCashBitmap);
 
         return (assetCashWithholding, ifCashBitmap);
     }
 
     /// @notice If a nToken incurs a negative fCash residual as a result of lending, this means
-    /// that we are going to need to withold some amount of cash so that market makers can purchase and
+    /// that we are going to need to withhold some amount of cash so that market makers can purchase and
     /// clear the debts off the balance sheet.
-    function _getPerpetualTokenNegativefCashWithholding(
+    function _getNTokenNegativefCashWithholding(
         nTokenPortfolio memory nToken,
         uint256 blockTime,
         bytes32 assetsBitmap

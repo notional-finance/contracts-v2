@@ -390,7 +390,7 @@ library BalanceHandler {
         }
     }
 
-    /// @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
+    /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
     function getBalanceStorage(address account, uint256 currencyId)
         internal
         view

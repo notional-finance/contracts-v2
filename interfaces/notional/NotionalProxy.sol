@@ -281,7 +281,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
 
     function getIncentivesToMint(
         uint16 currencyId,
-        uint256 perpetualTokenBalance,
+        uint256 nTokenBalance,
         uint256 lastMintTime,
         uint256 blockTime
     ) external view returns (uint256);

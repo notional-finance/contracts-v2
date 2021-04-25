@@ -239,7 +239,7 @@ contract BatchAction {
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
-            // Converts a given amount of cash (denominated in internal precision) into perpetual tokens
+            // Converts a given amount of cash (denominated in internal precision) into nTokens
             int256 tokensMinted =
                 nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
 
