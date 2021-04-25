@@ -84,9 +84,9 @@ struct nTokenPortfolio {
 struct LiquidationFactors {
     address account;
     int256 netETHValue;
-    int256 localAvailable;
-    int256 collateralAvailable;
-    int256 nTokenValue;
+    int256 localAssetAvailable;
+    int256 collateralAssetAvailable;
+    int256 nTokenHaircutAssetValue;
     bytes6 nTokenParameters;
     ETHRate localETHRate;
     ETHRate collateralETHRate;

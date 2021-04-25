@@ -50,7 +50,7 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
     ) internal view returns (int256) {
-        require(factors.localAvailable < 0, "No local debt");
+        require(factors.localAssetAvailable < 0, "No local debt");
 
         int256 benefitRequired =
             factors
@@ -72,7 +72,7 @@ library LiquidateCurrency {
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        if (factors.nTokenValue > 0) {
+        if (factors.nTokenHaircutAssetValue > 0) {
             int256 nTokensToLiquidate;
             {
                 // This will not underflow, checked when saving parameters
@@ -92,7 +92,7 @@ library LiquidateCurrency {
                 nTokensToLiquidate = benefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
-                    .div(factors.nTokenValue.mul(haircutDiff));
+                    .div(factors.nTokenHaircutAssetValue.mul(haircutDiff));
             }
 
             nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
@@ -109,7 +109,7 @@ library LiquidateCurrency {
                 int256 localCashValue =
                     nTokensToLiquidate
                         .mul(int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])))
-                        .mul(factors.nTokenValue)
+                        .mul(factors.nTokenHaircutAssetValue)
                         .div(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                         .div(balanceState.storedNTokenBalance);
 
@@ -131,8 +131,8 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
     ) internal view returns (int256) {
-        require(factors.localAvailable < 0, "No local debt");
-        require(factors.collateralAvailable > 0, "No collateral");
+        require(factors.localAssetAvailable < 0, "No local debt");
+        require(factors.collateralAssetAvailable > 0, "No collateral");
 
         (int256 collateralToRaise, int256 localToPurchase, int256 liquidationDiscount) =
             _calculateCollateralToRaise(factors, int256(maxCollateralLiquidation));
@@ -163,7 +163,7 @@ library LiquidateCurrency {
             );
         }
 
-        if (collateralRemaining > 0 && factors.nTokenValue > 0) {
+        if (collateralRemaining > 0 && factors.nTokenHaircutAssetValue > 0) {
             collateralRemaining = _calculateCollateralNTokenTransfer(
                 balanceState,
                 factors,
@@ -228,7 +228,7 @@ library LiquidateCurrency {
 
         collateralToRaise = LiquidationHelpers.calculateLiquidationAmount(
             collateralToRaise,
-            factors.collateralAvailable,
+            factors.collateralAssetAvailable,
             0 // will check userSpecifiedAmount below
         );
 
@@ -265,7 +265,7 @@ library LiquidateCurrency {
             int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
         int256 nTokensToLiquidate =
             collateralRemaining.mul(balanceState.storedNTokenBalance).mul(nTokenHaircut).div(
-                factors.nTokenValue.mul(nTokenLiquidationHaircut)
+                factors.nTokenHaircutAssetValue.mul(nTokenLiquidationHaircut)
             );
 
         if (maxNTokenLiquidation > 0 && nTokensToLiquidate > maxNTokenLiquidation) {
@@ -283,7 +283,7 @@ library LiquidateCurrency {
         collateralRemaining = collateralRemaining.subNoNeg(
             // collateralToRaise = (nTokenToLiquidate * nTokenPV * liquidateHaircutPercentage) / nTokenBalance
             nTokensToLiquidate
-                .mul(factors.nTokenValue)
+                .mul(factors.nTokenHaircutAssetValue)
                 .mul(nTokenLiquidationHaircut)
                 .div(nTokenHaircut)
                 .div(balanceState.storedNTokenBalance)

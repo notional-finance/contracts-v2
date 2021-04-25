@@ -138,15 +138,15 @@ library LiquidationHelpers {
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
                 .div(liquidationDiscount);
 
-        if (localToPurchase > factors.localAvailable.neg()) {
+        if (localToPurchase > factors.localAssetAvailable.neg()) {
             // If the local to purchase will put the local available into negative territory we
             // have to cut the collateral purchase amount back. Putting local available into negative
             // territory will force the liquidated account to incur more debt.
-            collateralBalanceToSell = collateralBalanceToSell.mul(factors.localAvailable.neg()).div(
-                localToPurchase
-            );
+            collateralBalanceToSell = collateralBalanceToSell
+                .mul(factors.localAssetAvailable.neg())
+                .div(localToPurchase);
 
-            localToPurchase = factors.localAvailable.neg();
+            localToPurchase = factors.localAssetAvailable.neg();
         }
 
         return (collateralBalanceToSell, localToPurchase);

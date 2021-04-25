@@ -98,7 +98,7 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
-        if (c.factors.localAvailable > 0) {
+        if (c.factors.localAssetAvailable > 0) {
             // If local available is positive then we can bring it down to zero
             //prettier-ignore
             c.benefitRequired = c.factors.localETHRate
@@ -109,7 +109,7 @@ library LiquidatefCash {
                 .div(c.factors.localETHRate.haircut);
         } else {
             // If local available is negative then we can bring it up to zero
-            c.benefitRequired = c.factors.localAvailable.neg();
+            c.benefitRequired = c.factors.localAssetAvailable.neg();
         }
 
         for (uint256 i; i < fCashMaturities.length; i++) {
@@ -238,17 +238,17 @@ library LiquidatefCash {
         int256 fCashRiskAdjustedPV =
             fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION);
 
-        // Ensures that collateralAvailable does not go below zero
-        if (fCashRiskAdjustedPV > c.factors.collateralAvailable) {
-            // If inside this if statement then all collateralAvailable should be coming from fCashRiskAdjustedPV
-            // collateralAvailable = fCashRiskAdjustedPV
-            // collateralAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
-            // fCashToLiquidate = collateralAvailable / riskAdjustedDiscountFactor
-            fCashToLiquidate = c.factors.collateralAvailable.mul(Constants.RATE_PRECISION).div(
+        // Ensures that collateralAssetAvailable does not go below zero
+        if (fCashRiskAdjustedPV > c.factors.collateralAssetAvailable) {
+            // If inside this if statement then all collateralAssetAvailable should be coming from fCashRiskAdjustedPV
+            // collateralAssetAvailable = fCashRiskAdjustedPV
+            // collateralAssetAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
+            // fCashToLiquidate = collateralAssetAvailable / riskAdjustedDiscountFactor
+            fCashToLiquidate = c.factors.collateralAssetAvailable.mul(Constants.RATE_PRECISION).div(
                 riskAdjustedDiscountFactor
             );
 
-            fCashRiskAdjustedPV = c.factors.collateralAvailable;
+            fCashRiskAdjustedPV = c.factors.collateralAssetAvailable;
 
             // Recalculate the PV at the new liquidation amount
             fCashLiquidationPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(
@@ -266,9 +266,11 @@ library LiquidatefCash {
 
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
-        c.factors.collateralAvailable = c.factors.collateralAvailable.subNoNeg(fCashRiskAdjustedPV);
+        c.factors.collateralAssetAvailable = c.factors.collateralAssetAvailable.subNoNeg(
+            fCashRiskAdjustedPV
+        );
         // Local available does not have any buffers applied to it
-        c.factors.localAvailable = c.factors.localAvailable.add(localToPurchase);
+        c.factors.localAssetAvailable = c.factors.localAssetAvailable.add(localToPurchase);
 
         return (fCashToLiquidate, localToPurchase);
     }
@@ -282,8 +284,8 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
-        require(c.factors.localAvailable < 0, "No local debt");
-        require(c.factors.collateralAvailable > 0, "No collateral assets");
+        require(c.factors.localAssetAvailable < 0, "No local debt");
+        require(c.factors.collateralAssetAvailable > 0, "No collateral assets");
 
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         (c.benefitRequired, c.liquidationDiscount) = LiquidationHelpers
@@ -302,7 +304,7 @@ library LiquidatefCash {
                 notional
             );
 
-            if (c.benefitRequired <= 0 || c.factors.collateralAvailable <= 0) break;
+            if (c.benefitRequired <= 0 || c.factors.collateralAssetAvailable <= 0) break;
         }
     }
 

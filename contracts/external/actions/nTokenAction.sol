@@ -305,7 +305,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         (
             int256 totalAssetPV,
             /* ifCashMapping */
-        ) = nTokenHandler.getNTokenPV(nToken, blockTime);
+        ) = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }

@@ -72,7 +72,7 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "PT: requires settlement");
         }
 
-        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenPV(blockTime);
+        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenAssetPV(blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
 
         // Allow for the first deposit

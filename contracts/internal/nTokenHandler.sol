@@ -400,7 +400,7 @@ library nTokenHandler {
     }
 
     /// @notice Returns the nToken present value denominated in asset terms.
-    function getNTokenPV(nTokenPortfolio memory nToken, uint256 blockTime)
+    function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
         returns (int256, bytes32)
