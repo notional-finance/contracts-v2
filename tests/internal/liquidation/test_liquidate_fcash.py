@@ -85,6 +85,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -121,6 +122,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -157,6 +159,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -193,6 +196,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -229,6 +233,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -301,6 +306,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -337,6 +343,7 @@ class TestLiquidatefCash:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )

@@ -73,6 +73,7 @@ class TestLiquidateLocalNTokens:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (0, 0, 0, 0, 0),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -110,6 +111,7 @@ class TestLiquidateLocalNTokens:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (0, 0, 0, 0, 0),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -143,6 +145,7 @@ class TestLiquidateLocalNTokens:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (0, 0, 0, 0, 0),
+            cashGroup[2],
             cashGroup,
             markets,
         )

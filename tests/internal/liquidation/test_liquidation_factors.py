@@ -117,9 +117,11 @@ class TestLiquidationFactors:
         # Collateral available
         assert factors[3] == 100e8
         # Markets unset (collateral has no assets)
-        assert len(factors[9]) == 0
+        assert len(factors[10]) == 0
         # Cash group unset (collateral has no assets)
-        assert factors[8][0] == 0
+        assert factors[9][0] == 0
+        # Assert that asset rate is set
+        assert factors[9][2][1] != 0
 
     def test_asset_factors_local_only(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
@@ -136,6 +138,6 @@ class TestLiquidationFactors:
         # Collateral available
         assert factors[3] == 0
         # Markets set
-        assert len(factors[9]) == 3
+        assert len(factors[10]) == 3
         # Cash group set to local
-        assert factors[8][0] == 1
+        assert factors[9][0] == 1

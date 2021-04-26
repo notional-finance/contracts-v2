@@ -85,6 +85,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -127,6 +128,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -169,6 +171,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -211,6 +214,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -253,6 +257,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -296,6 +301,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -340,6 +346,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -381,6 +388,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -422,6 +430,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -466,6 +475,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -510,6 +520,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -562,6 +573,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -621,6 +633,7 @@ class TestLiquidateCollateral:
             "0x5F00005A0000",  # 95 liquidation, 90 haircut
             (1e18, 1e18, 140, 100, 106),
             (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
             cashGroup,
             markets,
         )
@@ -637,6 +650,6 @@ class TestLiquidateCollateral:
         )
 
         assert pytest.approx(localFromLiquidator, abs=2) == cashClaim * 100 / discount
-        assert newBalanceState[4] == 0
+        assert newBalanceState[4] == cashClaim
         assert newBalanceState[5] == 0
         assert newPortfolioState[0][0][5] == 2
