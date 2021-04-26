@@ -163,14 +163,24 @@ library LiquidateCurrency {
             collateralAssetRemaining > 0 &&
             _hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
         ) {
-            // We don't change netCashBalance here because all the collateral withdrawn is going
-            // to go to the liquidator
-            collateralAssetRemaining = _withdrawCollateralLiquidityTokens(
-                portfolio,
-                factors,
-                blockTime,
-                collateralAssetRemaining
+            int256 newCollateralAssetRemaining =
+                _withdrawCollateralLiquidityTokens(
+                    portfolio,
+                    factors,
+                    blockTime,
+                    collateralAssetRemaining
+                );
+
+            // This is a hack and ugly but there are stack issues in `LiquidateCurrencyAction.liquidateCollateralCurrency`
+            // and this is a way to deal with it with the fewest contortions. There are no asset cash transfers within liquidation
+            // so we overload the meaning of the field here to hold the net liquidity token cash change. Will zero this out before
+            // going into finalize for the liquidated account's cash balances. This value is not simply added to the netCashChange field
+            // because the cashClaim value is not stored in the balances and therefore the liquidated account will have too much cash
+            // debited from their stored cash value.
+            balanceState.netAssetTransferInternalPrecision = collateralAssetRemaining.sub(
+                newCollateralAssetRemaining
             );
+            collateralAssetRemaining = newCollateralAssetRemaining;
         }
 
         if (collateralAssetRemaining > 0 && factors.nTokenHaircutAssetValue > 0) {
@@ -318,7 +328,6 @@ library LiquidateCurrency {
     }
 
     /// @notice Withdraws local liquidity tokens from a portfolio and pays an incentive to the liquidator.
-    /// NOTE: Market states get finalized in finalizeLiquidatedCollateralAndPortfolio
     function _withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -416,7 +425,6 @@ library LiquidateCurrency {
 
     /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
     /// haircut amounts, we simply withdraw as much collateral as needed.
-    /// NOTE: Market states get finalized in finalizeLiquidatedCollateralAndPortfolio
     function _withdrawCollateralLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -446,7 +454,7 @@ library LiquidateCurrency {
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // notional * collateralToWithdraw / cashClaim
+                // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
                 (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
 
@@ -478,6 +486,12 @@ library LiquidateCurrency {
         PortfolioState memory portfolio,
         MarketParameters[] memory markets
     ) internal {
+        // Asset transfer value is set to record liquidity token withdraw balances and should not be
+        // finalized inside the liquidated collateral. See comment inside liquidateCollateralCurrency
+        // for more details
+        int256 tmpAssetTransferAmount = collateralBalanceState.netAssetTransferInternalPrecision;
+        collateralBalanceState.netAssetTransferInternalPrecision = 0;
+
         // Finalize liquidated account balance
         collateralBalanceState.finalize(liquidateAccount, accountContext, false);
         if (accountContext.bitmapCurrencyId == 0) {
@@ -495,5 +509,7 @@ library LiquidateCurrency {
             }
         }
         accountContext.setAccountContext(liquidateAccount);
+
+        collateralBalanceState.netAssetTransferInternalPrecision = tmpAssetTransferAmount;
     }
 }

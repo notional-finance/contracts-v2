@@ -16,7 +16,7 @@ contract LiquidateCurrencyAction {
         address indexed liquidated,
         address indexed liquidator,
         uint16 localCurrencyId,
-        int256 netLocalFromLiquidator
+        int256 localAssetCashFromLiquidator
     );
 
     event LiquidateCollateralCurrency(
@@ -24,7 +24,7 @@ contract LiquidateCurrencyAction {
         address indexed liquidator,
         uint16 localCurrencyId,
         uint16 collateralCurrencyId,
-        int256 netLocalFromLiquidator,
+        int256 localAssetCashFromLiquidator,
         int256 netCollateralTransfer,
         int256 netNTokenTransfer
     );
@@ -43,14 +43,14 @@ contract LiquidateCurrencyAction {
     ) external returns (int256) {
         // prettier-ignore
         (
-            int256 netLocalFromLiquidator,
+            int256 localAssetCashFromLiquidator,
             /* BalanceState memory localBalanceState */,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */,
             /* MarketParameters[] memory markets */
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
-        return netLocalFromLiquidator;
+        return localAssetCashFromLiquidator;
     }
 
     /// @notice Liquidates an account using local currency only
@@ -64,7 +64,7 @@ contract LiquidateCurrencyAction {
         uint96 maxNTokenLiquidation
     ) external returns (int256) {
         (
-            int256 netLocalFromLiquidator,
+            int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext,
@@ -77,7 +77,7 @@ contract LiquidateCurrencyAction {
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
                 localCurrency,
-                netLocalFromLiquidator,
+                localAssetCashFromLiquidator,
                 localBalanceState.netNTokenTransfer.neg()
             );
         liquidatorContext.setAccountContext(msg.sender);
@@ -94,10 +94,10 @@ contract LiquidateCurrencyAction {
             liquidateAccount,
             msg.sender,
             uint16(localCurrency),
-            netLocalFromLiquidator
+            localAssetCashFromLiquidator
         );
 
-        return netLocalFromLiquidator;
+        return localAssetCashFromLiquidator;
     }
 
     /// @notice Calculates local and collateral currency transfers for a liquidation. This is a stateful method
@@ -128,7 +128,7 @@ contract LiquidateCurrencyAction {
     {
         // prettier-ignore
         (
-            int256 netLocalFromLiquidator,
+            int256 localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */,
@@ -142,8 +142,8 @@ contract LiquidateCurrencyAction {
             );
 
         return (
-            netLocalFromLiquidator,
-            collateralBalanceState.netCashChange.neg(),
+            localAssetCashFromLiquidator,
+            _collateralAssetCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -177,7 +177,7 @@ contract LiquidateCurrencyAction {
         )
     {
         (
-            int256 netLocalFromLiquidator,
+            int256 localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext,
@@ -194,10 +194,17 @@ contract LiquidateCurrencyAction {
         _finalizeLiquidatorBalances(
             localCurrency,
             collateralCurrency,
-            netLocalFromLiquidator,
+            localAssetCashFromLiquidator,
             collateralBalanceState,
             withdrawCollateral,
             redeemToUnderlying
+        );
+
+        _emitCollateralEvent(
+            liquidateAccount,
+            uint16(localCurrency),
+            localAssetCashFromLiquidator,
+            collateralBalanceState
         );
 
         // Liquidated local currency balance will increase by the net paid from the liquidator
@@ -205,10 +212,10 @@ contract LiquidateCurrencyAction {
             liquidateAccount,
             localCurrency,
             accountContext,
-            netLocalFromLiquidator
+            localAssetCashFromLiquidator
         );
 
-        // Liquidated collateral balance will change accordingly
+        // netAssetTransfer is cleared and set back when finalizing inside this function
         LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
             liquidateAccount,
             collateralBalanceState,
@@ -217,16 +224,9 @@ contract LiquidateCurrencyAction {
             markets
         );
 
-        _emitCollateralEvent(
-            liquidateAccount,
-            uint16(localCurrency),
-            netLocalFromLiquidator,
-            collateralBalanceState
-        );
-
         return (
-            netLocalFromLiquidator,
-            collateralBalanceState.netCashChange.neg(),
+            localAssetCashFromLiquidator,
+            _collateralAssetCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -234,7 +234,7 @@ contract LiquidateCurrencyAction {
     function _emitCollateralEvent(
         address liquidateAccount,
         uint256 localCurrency,
-        int256 netLocalFromLiquidator,
+        int256 localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState
     ) private {
         emit LiquidateCollateralCurrency(
@@ -242,8 +242,8 @@ contract LiquidateCurrencyAction {
             msg.sender,
             uint16(localCurrency),
             uint16(collateralBalanceState.currencyId),
-            netLocalFromLiquidator,
-            collateralBalanceState.netCashChange.neg(),
+            localAssetCashFromLiquidator,
+            _collateralAssetCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -271,7 +271,7 @@ contract LiquidateCurrencyAction {
         BalanceState memory localBalanceState;
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
-        int256 netLocalFromLiquidator =
+        int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
@@ -282,7 +282,7 @@ contract LiquidateCurrencyAction {
             );
 
         return (
-            netLocalFromLiquidator,
+            localAssetCashFromLiquidator,
             localBalanceState,
             portfolio,
             accountContext,
@@ -325,7 +325,7 @@ contract LiquidateCurrencyAction {
             accountContext
         );
 
-        int256 netLocalFromLiquidator =
+        int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
@@ -336,7 +336,7 @@ contract LiquidateCurrencyAction {
             );
 
         return (
-            netLocalFromLiquidator,
+            localAssetCashFromLiquidator,
             collateralBalanceState,
             portfolio,
             accountContext,
@@ -344,10 +344,11 @@ contract LiquidateCurrencyAction {
         );
     }
 
+    /// @dev Only used for collateral currency liquidation
     function _finalizeLiquidatorBalances(
         uint256 localCurrency,
         uint256 collateralCurrency,
-        int256 netLocalFromLiquidator,
+        int256 localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState,
         bool withdrawCollateral,
         bool redeemToUnderlying
@@ -357,7 +358,7 @@ contract LiquidateCurrencyAction {
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
                 localCurrency,
-                netLocalFromLiquidator,
+                localAssetCashFromLiquidator,
                 0 // No nToken transfers
             );
 
@@ -366,12 +367,23 @@ contract LiquidateCurrencyAction {
             msg.sender,
             liquidatorContext,
             collateralCurrency,
-            collateralBalanceState.netCashChange.neg(),
+            _collateralAssetCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg(),
             withdrawCollateral,
             redeemToUnderlying
         );
 
         liquidatorContext.setAccountContext(msg.sender);
+    }
+
+    function _collateralAssetCashToLiquidator(BalanceState memory collateralBalanceState)
+        private
+        pure
+        returns (int256)
+    {
+        return
+            collateralBalanceState.netCashChange.neg().add(
+                collateralBalanceState.netAssetTransferInternalPrecision
+            );
     }
 }

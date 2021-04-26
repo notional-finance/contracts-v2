@@ -69,14 +69,14 @@ def currencyLiquidation(env, accounts):
             {
                 "tradeActionType": "AddLiquidity",
                 "marketIndex": 1,
-                "notional": 0.75e8,
+                "notional": 37.5e8,
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
             {
                 "tradeActionType": "AddLiquidity",
-                "marketIndex": 1,
-                "notional": 0.75e8,
+                "marketIndex": 2,
+                "notional": 37.5e8,
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
@@ -103,14 +103,14 @@ def currencyLiquidation(env, accounts):
             {
                 "tradeActionType": "AddLiquidity",
                 "marketIndex": 1,
-                "notional": 0.25e8,
+                "notional": 12.5e8,
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
             {
                 "tradeActionType": "AddLiquidity",
-                "marketIndex": 1,
-                "notional": 0.25e8,
+                "marketIndex": 2,
+                "notional": 12.5e8,
                 "minSlippage": 0,
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
@@ -291,7 +291,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     netLocal = txn.events["LiquidateLocalCurrency"]["netLocalFromLiquidator"]
     balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
 
-    assert pytest.approx(netLocal, rel=1e-6) == nTokenNetRequired
+    assert pytest.approx(netLocal, rel=1e-5) == nTokenNetRequired
     assert balanceBefore - balanceAfter == netLocal
     check_liquidation_invariants(currencyLiquidation, accounts[5], fcBeforeNToken)
 
@@ -307,7 +307,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     netLocal = txn.events["LiquidateLocalCurrency"]["netLocalFromLiquidator"]
     balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
 
-    assert pytest.approx(netLocal, rel=1e-6) == liquidityTokenNetRequired
+    assert pytest.approx(netLocal, rel=1e-5) == liquidityTokenNetRequired
     assert balanceBefore - balanceAfter == netLocal
     check_liquidation_invariants(currencyLiquidation, accounts[6], fcBeforeLiquidityToken)
 
@@ -330,6 +330,7 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
         balanceBeforeETH = currencyLiquidation.cToken["ETH"].balanceOf(accounts[0])
         balanceBefore = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
         balanceBeforeNToken = currencyLiquidation.nToken[1].balanceOf(accounts[0])
+
         txn = currencyLiquidation.notional.liquidateCollateralCurrency(
             account, 2, 1, 0, 0, True, False
         )
@@ -342,9 +343,9 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
         balanceAfter = currencyLiquidation.cToken["DAI"].balanceOf(accounts[0])
         balanceAfterNToken = currencyLiquidation.nToken[1].balanceOf(accounts[0])
 
-        assert pytest.approx(netLocal, rel=1e-6) == netLocalCalculated
-        assert pytest.approx(netCash, rel=1e-6) == netCashCalculated
-        assert pytest.approx(netNToken, rel=1e-6) == netNTokenCalculated
+        assert pytest.approx(netLocal, rel=1e-5) == netLocalCalculated
+        assert pytest.approx(netCash, rel=1e-5) == netCashCalculated
+        assert pytest.approx(netNToken, rel=1e-5) == netNTokenCalculated
         assert balanceBefore - balanceAfter == netLocal
         assert balanceAfterETH - balanceBeforeETH == netCash
         assert balanceAfterNToken - balanceBeforeNToken == netNToken
@@ -361,7 +362,6 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
 
 
 # given different max liquidation amounts
-@pytest.mark.only
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     fCashLiquidation.ethOracle["DAI"].setAnswer(0.015e18)

@@ -90,7 +90,6 @@ struct LiquidationFactors {
     bytes6 nTokenParameters;
     ETHRate localETHRate;
     ETHRate collateralETHRate;
-    // Only specified during local to collateral liquidation
     AssetRateParameters localAssetRate;
     CashGroupParameters cashGroup;
     MarketParameters[] markets;
