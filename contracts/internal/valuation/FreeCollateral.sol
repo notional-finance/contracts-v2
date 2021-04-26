@@ -472,12 +472,14 @@ library FreeCollateral {
             ETHRate memory ethRate = _updateNetETHValue(currencyId, netLocalAssetValue, factors);
 
             if (currencyId == collateralCurrencyId) {
+                // Ensure that this is set even if the cash group is not loaded
+                liquidationFactors.cashGroup.assetRate = factors.assetRate;
                 liquidationFactors.collateralAssetAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
             } else if (currencyId == localCurrencyId) {
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
-                liquidationFactors.localAssetRate = factors.cashGroup.assetRate;
+                liquidationFactors.localAssetRate = factors.assetRate;
             }
 
             currencies = currencies << 16;
