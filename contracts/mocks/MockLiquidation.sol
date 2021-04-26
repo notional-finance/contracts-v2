@@ -133,7 +133,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
             MarketParameters[] memory
         )
     {
-        int256 localToPurchase =
+        int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
@@ -143,7 +143,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, localToPurchase, portfolio, factors.markets);
+        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio, factors.markets);
     }
 }
 
@@ -194,7 +194,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c.portfolio);
     }
 
     function liquidatefCashCrossCurrency(
@@ -224,7 +224,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c.portfolio);
     }
 
     function fc(address account) external view returns (int256, int256[] memory) {

@@ -407,7 +407,7 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         WithdrawFactors memory w,
         uint256 assetType
-    ) private view {
+    ) private pure {
         // We can only recollateralize the local currency using the part of the liquidity token that
         // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
         // is paid out as an incentive so that must be accounted for.

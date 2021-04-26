@@ -56,7 +56,7 @@ contract LiquidatefCashAction {
                 blockTime
             );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
 
     /// @notice Liquidates fCash using local currency
@@ -90,20 +90,19 @@ contract LiquidatefCashAction {
             localCurrency,
             localCurrency,
             fCashMaturities,
-            c,
-            blockTime
+            c
         );
 
         emit LiquidatefCashLocal(
             liquidateAccount,
             msg.sender,
             uint16(localCurrency),
-            c.localToPurchase,
+            c.localAssetCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
 
     /// @notice Calculates fCash cross currency liquidation, can be called via staticcall off chain
@@ -134,7 +133,7 @@ contract LiquidatefCashAction {
                 blockTime
             );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
 
     /// @notice Liquidates fCash across local to collateral currency
@@ -172,8 +171,7 @@ contract LiquidatefCashAction {
             localCurrency,
             fCashCurrency,
             fCashMaturities,
-            c,
-            blockTime
+            c
         );
 
         emit LiquidatefCashCrossCurrency(
@@ -181,12 +179,12 @@ contract LiquidatefCashAction {
             msg.sender,
             uint16(localCurrency),
             uint16(fCashCurrency),
-            c.localToPurchase,
+            c.localAssetCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
 
     function _liquidateLocal(

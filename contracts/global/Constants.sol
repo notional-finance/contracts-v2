@@ -87,6 +87,8 @@ library Constants {
     int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
     /// @dev Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
     int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
+    /// @dev Liquidation dust setting used during fCash liquidation
+    int256 internal constant LIQUIDATION_DUST = 10;
 
     /// @dev Annual incentive multiplier as a percentage
     uint256 internal constant ANNUAL_INCENTIVE_MULTIPLIER_PERCENT = 50;
