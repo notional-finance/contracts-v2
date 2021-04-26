@@ -11,16 +11,7 @@ contract LiquidatefCashAction {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
-    event LiquidatefCashLocal(
-        address indexed liquidated,
-        address indexed liquidator,
-        uint16 localCurrencyId,
-        int256 netLocalFromLiquidator,
-        uint256[] fCashMaturities,
-        int256[] fCashNotionalTransfer
-    );
-
-    event LiquidatefCashCrossCurrency(
+    event LiquidatefCashEvent(
         address indexed liquidated,
         address indexed liquidator,
         uint16 localCurrencyId,
@@ -93,9 +84,10 @@ contract LiquidatefCashAction {
             c
         );
 
-        emit LiquidatefCashLocal(
+        emit LiquidatefCashEvent(
             liquidateAccount,
             msg.sender,
+            uint16(localCurrency),
             uint16(localCurrency),
             c.localAssetCashFromLiquidator,
             fCashMaturities,
@@ -174,7 +166,7 @@ contract LiquidatefCashAction {
             c
         );
 
-        emit LiquidatefCashCrossCurrency(
+        emit LiquidatefCashEvent(
             liquidateAccount,
             msg.sender,
             uint16(localCurrency),

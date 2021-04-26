@@ -377,9 +377,9 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     txn = fCashLiquidation.notional.liquidatefCashLocal(liquidated, 2, maturities, [0, 0])
 
     balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
-    assert txn.events["LiquidatefCashLocal"]
-    netLocal = txn.events["LiquidatefCashLocal"]["netLocalFromLiquidator"]
-    transfers = txn.events["LiquidatefCashLocal"]["fCashNotionalTransfer"]
+    assert txn.events["LiquidatefCashEvent"]
+    netLocal = txn.events["LiquidatefCashEvent"]["netLocalFromLiquidator"]
+    transfers = txn.events["LiquidatefCashEvent"]["fCashNotionalTransfer"]
 
     assert pytest.approx(netLocal, rel=1e-5) == netLocalCalculated
     assert pytest.approx(transfers[0], rel=1e-5) == fCashNotionalCalculated[0]
@@ -411,9 +411,9 @@ def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     )
 
     balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
-    assert txn.events["LiquidatefCashCrossCurrency"]
-    netLocal = txn.events["LiquidatefCashCrossCurrency"]["netLocalFromLiquidator"]
-    transfers = txn.events["LiquidatefCashCrossCurrency"]["fCashNotionalTransfer"]
+    assert txn.events["LiquidatefCashEvent"]
+    netLocal = txn.events["LiquidatefCashEvent"]["netLocalFromLiquidator"]
+    transfers = txn.events["LiquidatefCashEvent"]["fCashNotionalTransfer"]
 
     assert pytest.approx(netLocal, rel=1e-5) == netLocalCalculated
     assert pytest.approx(transfers[0], rel=1e-5) == fCashNotionalCalculated[0]

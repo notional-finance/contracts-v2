@@ -31,6 +31,39 @@ library PortfolioHandler {
         }
     }
 
+    function _mergeAssetIntoArray(
+        PortfolioAsset[] memory assetArray,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        int256 notional
+    ) private pure returns (bool) {
+        for (uint256 i; i < assetArray.length; i++) {
+            if (assetArray[i].assetType != assetType) continue;
+            if (assetArray[i].currencyId != currencyId) continue;
+            if (assetArray[i].maturity != maturity) continue;
+
+            // If the storage index is -1 this is because it's been deleted from settlement. We cannot
+            // add fcash that has been settled.
+            require(assetArray[i].storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
+
+            int256 newNotional = assetArray[i].notional.add(notional);
+            // Liquidity tokens cannot be reduced below zero.
+            if (AssetHandler.isLiquidityToken(assetType)) {
+                require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
+            }
+
+            require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
+
+            assetArray[i].notional = newNotional;
+            assetArray[i].storageState = AssetStorageState.Update;
+
+            return true;
+        }
+
+        return false;
+    }
+
     /// @notice Adds an asset to a portfolio state in memory (does not write to storage)
     /// @dev Ensures that only one version of an asset exists in a portfolio (i.e. does not allow two fCash assets of the same maturity
     /// to exist in a single portfolio). Also ensures that liquidity tokens do not have a negative notional.
@@ -42,32 +75,31 @@ library PortfolioHandler {
         int256 notional,
         bool isNewHint
     ) internal pure {
-        if (!isNewHint || portfolioState.storedAssets.length == 0) {
-            // If the stored asset exists then we add notional to the position
-            for (uint256 i; i < portfolioState.storedAssets.length; i++) {
-                if (portfolioState.storedAssets[i].assetType != assetType) continue;
-                if (portfolioState.storedAssets[i].currencyId != currencyId) continue;
-                if (portfolioState.storedAssets[i].maturity != maturity) continue;
-
-                // If the storage index is -1 this is because it's been deleted from settlement. We cannot
-                // add fcash that has been settled.
-                require(portfolioState.storedAssets[i].storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
-
-                int256 newNotional = portfolioState.storedAssets[i].notional.add(notional);
-                // Liquidity tokens cannot be reduced below zero.
-                if (AssetHandler.isLiquidityToken(assetType)) {
-                    require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
-                }
-
-                require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
-
-                portfolioState.storedAssets[i].notional = newNotional;
-                portfolioState.storedAssets[i].storageState = AssetStorageState.Update;
-
-                return;
-            }
+        if (!isNewHint) {
+            bool merged =
+                _mergeAssetIntoArray(
+                    portfolioState.storedAssets,
+                    currencyId,
+                    maturity,
+                    assetType,
+                    notional
+                );
+            if (merged) return;
         }
 
+        if (portfolioState.newAssets.length > 0) {
+            bool merged =
+                _mergeAssetIntoArray(
+                    portfolioState.newAssets,
+                    currencyId,
+                    maturity,
+                    assetType,
+                    notional
+                );
+            if (merged) return;
+        }
+
+        // At this point if we have not merged the asset then append to the array
         // Cannot remove liquidity that the portfolio does not have
         if (AssetHandler.isLiquidityToken(assetType)) {
             require(notional >= 0); // dev: portfolio handler negative liquidity token balance

@@ -49,16 +49,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
         int256 netNTokenTransfer
     );
 
-    event LiquidatefCashLocal(
-        address indexed liquidated,
-        address indexed liquidator,
-        uint16 localCurrencyId,
-        int256 netLocalFromLiquidator,
-        uint256[] fCashMaturities,
-        int256[] fCashNotionalTransfer
-    );
-
-    event LiquidatefCashCrossCurrency(
+    event LiquidatefCashEvent(
         address indexed liquidated,
         address indexed liquidator,
         uint16 localCurrencyId,

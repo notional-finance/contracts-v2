@@ -38,6 +38,13 @@ class TestPortfolioHandler:
         sortedArray = portfolioHandler.getAssetArray(accounts[1])
         assert computedSort == tuple([s[0:3] for s in sortedArray])
 
+    def test_add_repeated_new_asset(self, portfolioHandler, accounts):
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
+        assert len(state[1]) == 1
+        assert state[1][0][3] == 200e8
+
     @given(num_assets=strategy("uint", min_value=0, max_value=7))
     def test_add_delete_assets(self, portfolioHandler, accounts, num_assets):
         assetArray = generate_asset_array(num_assets + 5)
