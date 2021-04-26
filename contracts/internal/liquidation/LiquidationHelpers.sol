@@ -9,6 +9,7 @@ import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../balances/BalanceHandler.sol";
 import "../balances/TokenHandler.sol";
+import "../markets/AssetRate.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 
@@ -17,6 +18,7 @@ library LiquidationHelpers {
     using ExchangeRate for ETHRate;
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
+    using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
 
@@ -96,19 +98,19 @@ library LiquidationHelpers {
     function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
         internal
         pure
-        returns (int256, int256)
+        returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
     {
-        int256 liquidationDiscount;
         // This calculation returns the amount of benefit that selling collateral for local currency will
         // be back to the account.
-        int256 benefitRequired =
+        assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 .convertETHTo(factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
             // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
             // collateral with a zero haircut will have no net benefit back to the liquidated account.
-                .div(factors.collateralETHRate.haircut);
+                .div(factors.collateralETHRate.haircut)
+        );
 
         if (
             factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount
@@ -118,7 +120,7 @@ library LiquidationHelpers {
             liquidationDiscount = factors.localETHRate.liquidationDiscount;
         }
 
-        return (benefitRequired, liquidationDiscount);
+        return (assetCashBenefitRequired, liquidationDiscount);
     }
 
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
@@ -126,30 +128,35 @@ library LiquidationHelpers {
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
-        int256 collateralPresentValue,
-        int256 collateralBalanceToSell
+        int256 collateralAssetPresentValue,
+        int256 collateralAssetBalanceToSell
     ) internal pure returns (int256, int256) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 localToPurchase =
-            collateralPresentValue
+        int256 collateralUnderlyingPresentValue =
+            factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
+        int256 localUnderlyingFromLiquidator =
+            collateralUnderlyingPresentValue
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .mul(factors.localETHRate.rateDecimals)
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
                 .div(liquidationDiscount);
 
-        if (localToPurchase > factors.localAssetAvailable.neg()) {
+        int256 localAssetFromLiquidator =
+            factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
+
+        if (localAssetFromLiquidator > factors.localAssetAvailable.neg()) {
             // If the local to purchase will put the local available into negative territory we
             // have to cut the collateral purchase amount back. Putting local available into negative
             // territory will force the liquidated account to incur more debt.
-            collateralBalanceToSell = collateralBalanceToSell
+            collateralAssetBalanceToSell = collateralAssetBalanceToSell
                 .mul(factors.localAssetAvailable.neg())
-                .div(localToPurchase);
+                .div(localAssetFromLiquidator);
 
-            localToPurchase = factors.localAssetAvailable.neg();
+            localAssetFromLiquidator = factors.localAssetAvailable.neg();
         }
 
-        return (collateralBalanceToSell, localToPurchase);
+        return (collateralAssetBalanceToSell, localAssetFromLiquidator);
     }
 
     function finalizeLiquidatorLocal(

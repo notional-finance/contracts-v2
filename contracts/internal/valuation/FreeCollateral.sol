@@ -477,6 +477,7 @@ library FreeCollateral {
             } else if (currencyId == localCurrencyId) {
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
+                liquidationFactors.localAssetRate = factors.cashGroup.assetRate;
             }
 
             currencies = currencies << 16;
