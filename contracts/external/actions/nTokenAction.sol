@@ -87,10 +87,10 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "PA: unauthorized caller");
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
 
         uint256 allowance = nTokenAllowance[owner][spender][currencyId];
-        require(allowance == 0, "PA: allowance not zero");
+        require(allowance == 0, "Allowance not zero");
         nTokenAllowance[owner][spender][currencyId] = amount;
 
         return true;
@@ -108,7 +108,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "PA: unauthorized caller");
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
 
         return _transfer(currencyId, from, to, amount);
     }
@@ -129,19 +129,19 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 amount
     ) external override returns (bool, uint256) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "PA: unauthorized caller");
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
 
         uint256 allowance = nTokenWhitelist[from][spender];
 
         if (allowance > 0) {
             // This whitelist allowance supersedes any specific allowances
-            require(allowance >= amount, "PA: insufficient allowance");
+            require(allowance >= amount, "Insufficient allowance");
             allowance = allowance.sub(amount);
             nTokenWhitelist[from][spender] = allowance;
         } else {
             // This is the specific allowance for the nToken.
             allowance = nTokenAllowance[from][spender][currencyId];
-            require(allowance >= amount, "PA: insufficient allowance");
+            require(allowance >= amount, "Insufficient allowance");
             allowance = allowance.sub(amount);
             nTokenAllowance[from][spender][currencyId] = allowance;
         }
@@ -163,7 +163,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         returns (bool)
     {
         uint256 allowance = nTokenWhitelist[msg.sender][spender];
-        require(allowance == 0, "PA: allowance not zero");
+        require(allowance == 0, "Allowance not zero");
         nTokenWhitelist[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -317,6 +317,19 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
+        {
+            // prettier-ignore
+            (
+                uint256 isNToken,
+                /* totalSupply */,
+                /* incentiveAnnualEmissionRate */,
+                /* lastInitializedTime */,
+                /* parameters */
+            ) = nTokenHandler.getNTokenContext(recipient);
+            // nTokens cannot hold nToken balances
+            require(isNToken == 0, "Cannot transfer to nToken");
+        }
+
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
