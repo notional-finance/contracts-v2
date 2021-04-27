@@ -299,7 +299,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         returns (int256, nTokenPortfolio memory)
     {
         uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
         // prettier-ignore
         (

@@ -31,7 +31,8 @@ library nTokenMintAction {
         returns (int256)
     {
         uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
 
         (int256 tokensToMint, bytes32 ifCashBitmap) =
             calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
@@ -106,7 +107,7 @@ library nTokenMintAction {
         // markets as this loop progresses.
         int256 residualCash;
         MarketParameters memory market;
-        for (uint256 i = nToken.markets.length - 1; i >= 0; i--) {
+        for (uint256 i = nToken.cashGroup.maxMarketIndex - 1; i >= 0; i--) {
             int256 fCashAmount;
             nToken.cashGroup.loadMarket(
                 market,
@@ -114,6 +115,9 @@ library nTokenMintAction {
                 true, // Needs liquidity to true
                 blockTime
             );
+            // If market has not been initialized, continue. This can occur when cash groups extend maxMarketIndex
+            // before initializing
+            if (market.totalLiquidity == 0) continue;
 
             // We know from the call into this method that assetCashDeposit is positive
             int256 perMarketDeposit =

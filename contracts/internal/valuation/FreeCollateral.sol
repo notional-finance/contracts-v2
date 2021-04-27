@@ -27,6 +27,7 @@ library FreeCollateral {
         MarketParameters market;
         PortfolioAsset[] portfolio;
         AssetRateParameters assetRate;
+        nTokenPortfolio nToken;
     }
 
     /// @notice Checks if an asset is active in the portfolio
@@ -59,11 +60,11 @@ library FreeCollateral {
     /// @notice Calculates the nToken asset value with a haircut set by governance
     function _getNTokenHaircutAssetPV(
         CashGroupParameters memory cashGroup,
+        nTokenPortfolio memory nToken,
         int256 tokenBalance,
         uint256 blockTime
     ) internal view returns (int256, bytes6) {
-        nTokenPortfolio memory nToken =
-            nTokenHandler.buildNTokenPortfolioNoCashGroup(cashGroup.currencyId);
+        nTokenHandler.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId, nToken);
         nToken.cashGroup = cashGroup;
 
         // prettier-ignore
@@ -115,6 +116,7 @@ library FreeCollateral {
         if (nTokenBalance > 0) {
             (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
+                factors.nToken,
                 nTokenBalance,
                 blockTime
             );
@@ -148,6 +150,7 @@ library FreeCollateral {
         if (nTokenBalance > 0) {
             (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
+                factors.nToken,
                 nTokenBalance,
                 blockTime
             );
@@ -212,10 +215,7 @@ library FreeCollateral {
         bool hasCashDebt;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (
-                factors.cashGroup, /* factors.markets */
-
-            ) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
 
             // prettier-ignore
             (
@@ -249,10 +249,7 @@ library FreeCollateral {
             if (netLocalAssetValue < 0) hasCashDebt = true;
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-                (
-                    factors.cashGroup, /* factors.markets */
-
-                ) = CashGroup.buildCashGroupStateful(currencyId);
+                factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
 
                 // prettier-ignore
                 (
@@ -299,10 +296,7 @@ library FreeCollateral {
         int256[] memory netLocalAssetValues = new int256[](10);
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (
-                factors.cashGroup, /* factors.markets*/
-
-            ) = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
+            factors.cashGroup = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
 
             // prettier-ignore
             (
@@ -341,10 +335,7 @@ library FreeCollateral {
             );
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-                (
-                    factors.cashGroup, /* factors.markets */
-
-                ) = CashGroup.buildCashGroupView(currencyId);
+                factors.cashGroup = CashGroup.buildCashGroupView(currencyId);
                 // prettier-ignore
                 (
                     int256 netPortfolioValue,
@@ -381,10 +372,7 @@ library FreeCollateral {
             _getCurrencyBalances(liquidationFactors.account, currencyBytes);
 
         if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-            (
-                factors.cashGroup, /* factors.markets */
-
-            ) = CashGroup.buildCashGroupStateful(currencyId);
+            factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
             (int256 netPortfolioValue, int256 nTokenHaircutAssetValue, bytes6 nTokenParameters) =
                 _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
 
@@ -420,10 +408,7 @@ library FreeCollateral {
         liquidationFactors.account = account;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (
-                factors.cashGroup, /* factors.markets*/
-
-            ) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
             (int256 netCashBalance, int256 nTokenHaircutAssetValue, bytes6 nTokenParameters) =
                 _getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int256 portfolioBalance =

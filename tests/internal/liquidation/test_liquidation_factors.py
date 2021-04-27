@@ -137,7 +137,5 @@ class TestLiquidationFactors:
         assert factors[2] > -90e8 and factors[2] < -89e8
         # Collateral available
         assert factors[3] == 0
-        # Markets set
-        assert len(factors[10]) == 3
         # Cash group set to local
         assert factors[9][0] == 1

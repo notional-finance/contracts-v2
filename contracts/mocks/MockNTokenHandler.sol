@@ -107,7 +107,8 @@ contract MockNTokenHandler is StorageLayoutV1 {
         view
         returns (int256)
     {
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
         (
             int256 assetPv, /* ifCashBitmap */

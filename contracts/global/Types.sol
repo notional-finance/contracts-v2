@@ -72,7 +72,6 @@ struct Token {
 
 struct nTokenPortfolio {
     CashGroupParameters cashGroup;
-    MarketParameters[] markets;
     PortfolioState portfolioState;
     int256 totalSupply;
     int256 cashBalance;

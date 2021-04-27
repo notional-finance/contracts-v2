@@ -2,6 +2,8 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../internal/markets/CashGroup.sol";
+import "../internal/markets/Market.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
@@ -9,6 +11,7 @@ import "../global/StorageLayoutV1.sol";
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
@@ -22,7 +25,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     function buildCashGroupView(uint256 currencyId)
         public
         view
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
     }
@@ -43,11 +46,11 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         view
         returns (MarketParameters[] memory)
     {
-        (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
-            CashGroup.buildCashGroupView(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
 
         for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
-            CashGroup.getMarket(cashGroup, markets, i, blockTime, true);
+            cashGroup.loadMarket(markets[i], i, true, blockTime);
         }
 
         return markets;

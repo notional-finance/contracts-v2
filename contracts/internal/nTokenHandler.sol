@@ -334,12 +334,10 @@ library nTokenHandler {
         }
     }
 
-    function buildNTokenPortfolioNoCashGroup(uint256 currencyId)
+    function loadNTokenPortfolioNoCashGroup(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
         view
-        returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken;
         nToken.tokenAddress = nTokenAddress(currencyId);
         // prettier-ignore
         (
@@ -367,31 +365,24 @@ library nTokenHandler {
             /* lastClaimTime */,
             /* lastClaimSupply */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
-
-        return nToken;
     }
 
     /// @notice Uses buildCashGroupStateful
-    function buildNTokenPortfolioStateful(uint256 currencyId)
+    function loadNTokenPortfolioStateful(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
-        returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken = buildNTokenPortfolioNoCashGroup(currencyId);
-        (nToken.cashGroup, nToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
-
-        return nToken;
+        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        nToken.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
     }
 
     /// @notice Uses buildCashGroupView
-    function buildNTokenPortfolioView(uint256 currencyId)
+    function loadNTokenPortfolioView(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
         view
         returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken = buildNTokenPortfolioNoCashGroup(currencyId);
-        (nToken.cashGroup, nToken.markets) = CashGroup.buildCashGroupView(currencyId);
-
-        return nToken;
+        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        nToken.cashGroup = CashGroup.buildCashGroupView(currencyId);
     }
 
     function getNextSettleTime(nTokenPortfolio memory nToken) internal pure returns (uint256) {

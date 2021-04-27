@@ -107,11 +107,11 @@ contract Views is StorageLayoutV1 {
         view
         returns (MarketParameters[] memory)
     {
-        (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
-            CashGroup.buildCashGroupView(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
 
         for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
-            cashGroup.getMarket(markets, i, blockTime, true);
+            cashGroup.loadMarket(markets[i], i, true, blockTime);
         }
 
         return markets;
@@ -221,7 +221,8 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
         // prettier-ignore
         (
@@ -267,11 +268,7 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256) {
-        // prettier-ignore
-        (
-            CashGroupParameters memory cashGroup,
-            /* markets */
-        ) = CashGroup.buildCashGroupView(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
@@ -300,11 +297,7 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256, int256) {
-        // prettier-ignore
-        (
-            CashGroupParameters memory cashGroup,
-            /* markets */
-        ) = CashGroup.buildCashGroupView(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 

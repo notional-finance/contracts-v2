@@ -21,7 +21,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     function buildCashGroupView(uint256 currencyId)
         public
         view
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
     }
@@ -120,24 +120,22 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
     function getPresentValue(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         int256 notional,
         uint256 maturity,
         uint256 blockTime
     ) public view returns (int256) {
-        uint256 oracleRate = CashGroup.getOracleRate(cashGroup, markets, maturity, blockTime);
+        uint256 oracleRate = CashGroup.calculateOracleRate(cashGroup, maturity, blockTime);
 
         return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
     }
 
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         int256 notional,
         uint256 maturity,
         uint256 blockTime
     ) public view returns (int256) {
-        uint256 oracleRate = CashGroup.getOracleRate(cashGroup, markets, maturity, blockTime);
+        uint256 oracleRate = CashGroup.calculateOracleRate(cashGroup, maturity, blockTime);
 
         return
             AssetHandler.getRiskAdjustedPresentValue(

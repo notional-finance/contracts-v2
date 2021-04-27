@@ -335,6 +335,7 @@ library LiquidateCurrency {
         int256 assetAmountRemaining
     ) internal view returns (WithdrawFactors memory, int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
+        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
         // Do this to deal with stack issues
         WithdrawFactors memory w;
 
@@ -346,20 +347,27 @@ library LiquidateCurrency {
                 asset.currencyId != factors.cashGroup.currencyId
             ) continue;
 
-            MarketParameters memory market =
-                factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
+            uint256 marketIndex = asset.assetType - 1;
+            // This is set up this way so that we can delay setting storage of markets so that this method can
+            // remain a view function
+            factors.cashGroup.loadMarket(
+                factors.markets[marketIndex - 1],
+                marketIndex,
+                true,
+                blockTime
+            );
 
             // NOTE: we do not give any credit to the haircut fCash in this procedure but it will end up adding
             // additional collateral value back into the account. It's probably too complex to deal with this so
             // we will just leave it as such.
-            (w.assetCash, w.fCash) = asset.getCashClaims(market);
+            (w.assetCash, w.fCash) = asset.getCashClaims(factors.markets[marketIndex - 1]);
             _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
             // (netCashToAccount <= assetAmountRemaining)
             if (w.netCashIncrease.subNoNeg(w.incentivePaid) <= assetAmountRemaining) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                market.removeLiquidity(asset.notional);
+                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
@@ -374,7 +382,9 @@ library LiquidateCurrency {
                         w.netCashIncrease.subNoNeg(w.incentivePaid)
                     );
 
-                (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
+                (w.assetCash, w.fCash) = factors.markets[marketIndex - 1].removeLiquidity(
+                    tokensToRemove
+                );
                 // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
                 // remove asset cash
                 _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
@@ -432,6 +442,7 @@ library LiquidateCurrency {
         int256 collateralToWithdraw
     ) internal view returns (int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
+        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
 
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
@@ -441,14 +452,22 @@ library LiquidateCurrency {
                 asset.currencyId != factors.cashGroup.currencyId
             ) continue;
 
-            MarketParameters memory market =
-                factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
-            (int256 cashClaim, int256 fCashClaim) = asset.getCashClaims(market);
+            uint256 marketIndex = asset.assetType - 1;
+            // This is set up this way so that we can delay setting storage of markets so that this method can
+            // remain a view function
+            factors.cashGroup.loadMarket(
+                factors.markets[marketIndex - 1],
+                marketIndex,
+                true,
+                blockTime
+            );
+            (int256 cashClaim, int256 fCashClaim) =
+                asset.getCashClaims(factors.markets[marketIndex - 1]);
 
             if (cashClaim <= collateralToWithdraw) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                market.removeLiquidity(asset.notional);
+                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
 
                 // overflow checked above
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
@@ -456,7 +475,9 @@ library LiquidateCurrency {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
-                (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
+                (cashClaim, fCashClaim) = factors.markets[marketIndex - 1].removeLiquidity(
+                    tokensToRemove
+                );
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);

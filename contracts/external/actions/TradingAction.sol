@@ -40,11 +40,8 @@ library TradingAction {
         AccountContext calldata accountContext,
         bytes32[] calldata trades
     ) external returns (int256, bool) {
-        // prettier-ignore
-        (
-            CashGroupParameters memory cashGroup,
-            /* MarketParameters[] memory markets */
-        ) = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+        CashGroupParameters memory cashGroup =
+            CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
         MarketParameters memory market;
         bytes32 ifCashBitmap =
             BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
@@ -89,11 +86,7 @@ library TradingAction {
         PortfolioState memory portfolioState,
         bytes32[] calldata trades
     ) external returns (PortfolioState memory, int256) {
-        // prettier-ignore
-        (
-            CashGroupParameters memory cashGroup,
-            /* MarketParameters[] memory markets */
-        ) = CashGroup.buildCashGroupStateful(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         MarketParameters memory market;
         TradeContext memory c;
         c.blockTime = block.timestamp;

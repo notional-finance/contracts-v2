@@ -106,11 +106,13 @@ contract nTokenRedeemAction {
         )
     {
         require(tokensToRedeem > 0);
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        MarketParameters[] memory markets = new MarketParameters[](nToken.cashGroup.maxMarketIndex);
 
         // Get the assetCash and fCash assets as a result of redeeming tokens
         (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
-            _reduceTokenAssets(nToken, tokensToRedeem, blockTime);
+            _reduceTokenAssets(nToken, markets, tokensToRedeem, blockTime);
 
         // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
         bool hasResidual = true;
@@ -118,7 +120,7 @@ contract nTokenRedeemAction {
             int256 assetCash;
             (assetCash, hasResidual) = _sellfCashAssets(
                 nToken.cashGroup,
-                nToken.markets,
+                markets,
                 newfCashAssets,
                 blockTime
             );
@@ -127,8 +129,8 @@ contract nTokenRedeemAction {
         }
 
         // Finalize all market states
-        for (uint256 i; i < nToken.markets.length; i++) {
-            nToken.markets[i].setMarketStorage();
+        for (uint256 i; i < markets.length; i++) {
+            markets[i].setMarketStorage();
         }
 
         return (totalAssetCash, hasResidual, newfCashAssets);
@@ -137,6 +139,7 @@ contract nTokenRedeemAction {
     /// @notice Removes nToken assets and returns the net amount of asset cash owed to the account.
     function _reduceTokenAssets(
         nTokenPortfolio memory nToken,
+        MarketParameters[] memory markets,
         int256 tokensToRedeem,
         uint256 blockTime
     ) private returns (PortfolioAsset[] memory, int256) {
@@ -168,6 +171,7 @@ contract nTokenRedeemAction {
         assetCashShare = assetCashShare.add(
             _removeLiquidityTokens(
                 nToken,
+                markets,
                 newifCashAssets,
                 tokensToRedeem,
                 nToken.totalSupply,
@@ -201,12 +205,12 @@ contract nTokenRedeemAction {
     /// @notice Removes nToken liquidity tokens and updates the netfCash figures.
     function _removeLiquidityTokens(
         nTokenPortfolio memory nToken,
+        MarketParameters[] memory markets,
         PortfolioAsset[] memory newifCashAssets,
         int256 tokensToRedeem,
         int256 totalSupply,
         uint256 blockTime
     ) private view returns (int256) {
-        uint256 ifCashIndex;
         int256 totalAssetCash;
 
         for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
@@ -215,22 +219,25 @@ contract nTokenRedeemAction {
             asset.notional = asset.notional.sub(tokensToRemove);
             asset.storageState = AssetStorageState.Update;
 
-            nToken.markets[i] = nToken.cashGroup.getMarket(nToken.markets, i + 1, blockTime, true);
+            nToken.cashGroup.loadMarket(markets[i], i + 1, true, blockTime);
             // Remove liquidity from the market
-            (int256 assetCash, int256 fCash) = nToken.markets[i].removeLiquidity(tokensToRemove);
+            (int256 assetCash, int256 fCash) = markets[i].removeLiquidity(tokensToRemove);
             totalAssetCash = totalAssetCash.add(assetCash);
 
             // It is improbable but possible that an fcash asset does not exist if the fCash position for an active liquidity token
             // is zero. This would occur when the nToken has done a lot of lending instead of providing liquidity to the point
             // where the fCash position is exactly zero. This is highly unlikely so instead of adding more logic to handle it we will just
             // fail here. Minting some amount of nTokens will cause the fCash position to be reinstated.
-            while (newifCashAssets[ifCashIndex].maturity != asset.maturity) {
-                ifCashIndex += 1;
-                require(ifCashIndex < newifCashAssets.length, "Error removing tokens");
+            {
+                uint256 ifCashIndex;
+                while (newifCashAssets[ifCashIndex].maturity != asset.maturity) {
+                    ifCashIndex += 1;
+                    require(ifCashIndex < newifCashAssets.length, "Error removing tokens");
+                }
+                newifCashAssets[ifCashIndex].notional = newifCashAssets[ifCashIndex].notional.add(
+                    fCash
+                );
             }
-            newifCashAssets[ifCashIndex].notional = newifCashAssets[ifCashIndex].notional.add(
-                fCash
-            );
         }
 
         return totalAssetCash;
