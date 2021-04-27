@@ -105,15 +105,15 @@ library nTokenMintAction {
         // closer to the current block time. Any residual cash from lending will be rolled into shorter
         // markets as this loop progresses.
         int256 residualCash;
+        MarketParameters memory market;
         for (uint256 i = nToken.markets.length - 1; i >= 0; i--) {
             int256 fCashAmount;
-            MarketParameters memory market =
-                nToken.cashGroup.getMarket(
-                    nToken.markets,
-                    i + 1, // Market index is 1-indexed
-                    blockTime,
-                    true // Needs liquidity to true
-                );
+            nToken.cashGroup.loadMarket(
+                market,
+                i + 1, // Market index is 1-indexed
+                true, // Needs liquidity to true
+                blockTime
+            );
 
             // We know from the call into this method that assetCashDeposit is positive
             int256 perMarketDeposit =

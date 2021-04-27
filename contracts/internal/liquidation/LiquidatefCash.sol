@@ -28,7 +28,7 @@ library LiquidatefCash {
         uint256 maturity,
         uint256 blockTime
     ) private view returns (int256, int256) {
-        uint256 oracleRate = factors.cashGroup.getOracleRate(factors.markets, maturity, blockTime);
+        uint256 oracleRate = factors.cashGroup.calculateOracleRate(maturity, blockTime);
 
         uint256 timeToMaturity = maturity.sub(blockTime);
         // This is the discount factor used to calculate the fCash present value during free collateral

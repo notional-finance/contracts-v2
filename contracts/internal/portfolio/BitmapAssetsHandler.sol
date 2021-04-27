@@ -110,7 +110,7 @@ library BitmapAssetsHandler {
             }
             existingNotional = existingNotional.add(notional);
 
-            // TODO: check notional int128 bounds
+            require(existingNotional >= type(int128).min && existingNotional <= type(int128).max); // dev: bitmap notional overflow
             assembly {
                 sstore(fCashSlot, existingNotional)
             }
@@ -125,7 +125,7 @@ library BitmapAssetsHandler {
 
         if (notional != 0) {
             // Bit is not set so we turn it on and update the mapping directly, no read required.
-            // TODO: check notional int128 bounds
+            require(notional >= type(int128).min && notional <= type(int128).max); // dev: bitmap notional overflow
             assembly {
                 sstore(fCashSlot, notional)
             }
@@ -142,7 +142,6 @@ library BitmapAssetsHandler {
         uint256 maturity,
         uint256 blockTime,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         bool riskAdjusted
     ) internal view returns (int256) {
         int256 notional = getifCashNotional(account, currencyId, maturity);
@@ -150,7 +149,7 @@ library BitmapAssetsHandler {
         // In this case the asset has matured and the total value is just the notional amount
         if (maturity <= blockTime) return notional;
 
-        uint256 oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+        uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
         if (riskAdjusted) {
             return
                 AssetHandler.getRiskAdjustedPresentValue(
@@ -173,7 +172,6 @@ library BitmapAssetsHandler {
         uint256 blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         bool riskAdjusted
     ) internal view returns (int256, bool) {
         int256 totalValueUnderlying;
@@ -190,7 +188,6 @@ library BitmapAssetsHandler {
                         maturity,
                         blockTime,
                         cashGroup,
-                        markets,
                         riskAdjusted
                     );
                 totalValueUnderlying = totalValueUnderlying.add(pv);

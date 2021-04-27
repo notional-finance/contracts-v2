@@ -423,8 +423,6 @@ library nTokenHandler {
                 // for withdraws and liquidations can still be processed. If this condition persists for a long period of time then
                 // the entire protocol will have serious problems as markets will not be tradable.
                 blockTime = nextSettleTime - 1;
-                // Clear the market parameters just in case there is dirty data.
-                nToken.markets = new MarketParameters[](nToken.markets.length);
             }
         }
 
@@ -433,6 +431,7 @@ library nTokenHandler {
         // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
         // underlying terms.
         {
+            MarketParameters memory market;
             for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
                 // NOTE: getLiquidityTokenValue can rewrite fCash values in memory, however, that does not
                 // happen in this call because there are no fCash values in the nToken portfolio.
@@ -440,7 +439,7 @@ library nTokenHandler {
                     AssetHandler.getLiquidityTokenValue(
                         i,
                         nToken.cashGroup,
-                        nToken.markets,
+                        market,
                         nToken.portfolioState.storedAssets,
                         blockTime,
                         false
@@ -463,7 +462,6 @@ library nTokenHandler {
             blockTime,
             ifCashBitmap,
             nToken.cashGroup,
-            nToken.markets,
             false
         );
         totalUnderlyingPV = totalUnderlyingPV.add(bitmapPv);

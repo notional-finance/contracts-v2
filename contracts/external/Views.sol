@@ -267,13 +267,13 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256) {
-        CashGroupParameters memory cashGroup;
+        // prettier-ignore
+        (
+            CashGroupParameters memory cashGroup,
+            /* markets */
+        ) = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
-        {
-            MarketParameters[] memory markets;
-            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
-        }
+        cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         require(market.maturity > blockTime, "Error");
         uint256 timeToMaturity = market.maturity - blockTime;
@@ -300,19 +300,19 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256, int256) {
-        CashGroupParameters memory cashGroup;
+        // prettier-ignore
+        (
+            CashGroupParameters memory cashGroup,
+            /* markets */
+        ) = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
-        {
-            MarketParameters[] memory markets;
-            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
-        }
+        cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         require(market.maturity > blockTime, "Error");
         uint256 timeToMaturity = market.maturity - blockTime;
 
-        (int256 assetCash, ) =
-            /* int fee */
+        // prettier-ignore
+        (int256 assetCash, /* int fee */) =
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));

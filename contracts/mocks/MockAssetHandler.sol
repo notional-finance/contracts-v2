@@ -121,7 +121,7 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getLiquidityTokenValueRiskAdjusted(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime
     )
@@ -134,7 +134,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         )
     {
         (int256 assetValue, int256 pv) =
-            AssetHandler.getLiquidityTokenValue(index, cashGroup, markets, assets, blockTime, true);
+            AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, true);
 
         return (assetValue, pv, assets);
     }
@@ -142,7 +142,7 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getLiquidityTokenValue(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime
     )
@@ -155,14 +155,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         )
     {
         (int256 assetValue, int256 pv) =
-            AssetHandler.getLiquidityTokenValue(
-                index,
-                cashGroup,
-                markets,
-                assets,
-                blockTime,
-                false
-            );
+            AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, false);
 
         return (assetValue, pv, assets);
     }
@@ -170,17 +163,11 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         uint256 blockTime,
         uint256 portfolioIndex
     ) public view returns (int256, uint256) {
         return
-            AssetHandler.getNetCashGroupValue(
-                assets,
-                cashGroup,
-                markets,
-                blockTime,
-                portfolioIndex
-            );
+            AssetHandler.getNetCashGroupValue(assets, cashGroup, market, blockTime, portfolioIndex);
     }
 }

@@ -2,11 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../internal/markets/Market.sol";
 import "../internal/portfolio/BitmapAssetsHandler.sol";
 import "../internal/markets/AssetRate.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockBitmapAssetsHandler is StorageLayoutV1 {
+    using Market for MarketParameters;
+
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         assetToUnderlyingRateMapping[id] = rs;
     }
@@ -21,6 +24,17 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         returns (CashGroupParameters memory, MarketParameters[] memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
+    }
+
+    function setMarketStorage(
+        uint256 currencyId,
+        uint256 settlementDate,
+        MarketParameters memory market
+    ) public {
+        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
+        // ensure that state gets set
+        market.storageState = 0xFF;
+        market.setMarketStorage();
     }
 
     function getifCashAsset(
@@ -74,7 +88,6 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 blockTime,
         bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         bool riskAdjusted
     ) public view returns (int256, bool) {
         return
@@ -85,7 +98,6 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
                 blockTime,
                 assetsBitmap,
                 cashGroup,
-                markets,
                 riskAdjusted
             );
     }

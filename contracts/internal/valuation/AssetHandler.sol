@@ -151,7 +151,7 @@ library AssetHandler {
     function getLiquidityTokenValue(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime,
         bool riskAdjusted
@@ -159,7 +159,6 @@ library AssetHandler {
         PortfolioAsset memory liquidityToken = assets[index];
         require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: get liquidity token value, not liquidity token
 
-        MarketParameters memory market;
         {
             (uint256 marketIndex, bool idiosyncratic) =
                 DateTime.getMarketIndex(
@@ -169,8 +168,9 @@ library AssetHandler {
                 );
             // Liquidity tokens can never be idiosyncratic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
+
             // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
+            cashGroup.loadMarket(market, marketIndex, true, blockTime);
         }
 
         int256 assetCashClaim;
@@ -219,7 +219,7 @@ library AssetHandler {
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         uint256 blockTime,
         uint256 portfolioIndex
     ) internal view returns (int256, uint256) {
@@ -236,7 +236,7 @@ library AssetHandler {
                 getLiquidityTokenValue(
                     i,
                     cashGroup,
-                    markets,
+                    market,
                     assets,
                     blockTime,
                     true // risk adjusted
@@ -253,7 +253,7 @@ library AssetHandler {
             if (assets[j].currencyId != cashGroup.currencyId) break;
 
             uint256 maturity = assets[j].maturity;
-            uint256 oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
 
             int256 pv =
                 getRiskAdjustedPresentValue(
