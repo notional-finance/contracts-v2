@@ -57,6 +57,9 @@ library AssetRate {
     /// @notice Returns the current per block supply rate, is used when calculating oracle rates
     /// for idiosyncratic fCash with a shorter duration than the 3 month maturity.
     function getSupplyRate(AssetRateParameters memory ar) internal view returns (uint256) {
+        // If the rate oracle is not set, the asset is not interest bearing and has an oracle rate of zero.
+        if (ar.rateOracle == address(0)) return 0;
+
         uint256 rate = AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
         require(rate > 0, "AR: invalid supply rate");
 

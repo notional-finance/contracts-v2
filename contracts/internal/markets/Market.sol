@@ -454,6 +454,47 @@ library Market {
         market.totalLiquidity = totalLiquidity;
     }
 
+    function getOracleRate(
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 rateOracleTimeWindow,
+        uint256 blockTime
+    ) internal view returns (uint256) {
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        bytes32 slot = getSlot(currencyId, settlementDate, maturity);
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        uint256 lastImpliedRate = uint256(uint32(uint256(data >> 160)));
+        uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
+        uint256 previousTradeTime = uint256(uint32(uint256(data >> 224)));
+
+        // If the oracle rate is set to zero this can only be because the markets have past their settlement
+        // date but the new set of markets has not yet been initialized. Use the oracle rate from the previous
+        // markets instead. Due to the logic in initialize markets, these rates will be quite close to what the
+        // markets will actually initialize at.
+        if (oracleRate == 0) {
+            // No overflows possible here
+            uint256 prevBlockTime = blockTime - Constants.QUARTER;
+            uint256 prevMaturity = maturity - Constants.QUARTER;
+            // This should never enter an infinite loop but if it does then the transaction will be invalid anyway and
+            // will fail due to out of gas.
+            return getOracleRate(currencyId, prevMaturity, rateOracleTimeWindow, prevBlockTime);
+        }
+
+        return
+            _updateRateOracle(
+                previousTradeTime,
+                lastImpliedRate,
+                oracleRate,
+                rateOracleTimeWindow,
+                blockTime
+            );
+    }
+
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
     /// which ensures that the rate oracle is set properly.
     function _loadMarketStorage(

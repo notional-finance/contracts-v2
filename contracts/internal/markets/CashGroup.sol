@@ -118,6 +118,26 @@ library CashGroup {
             (5 * Constants.BASIS_POINT);
     }
 
+    function loadMarket(
+        CashGroupParameters memory cashGroup,
+        MarketParameters memory market,
+        uint256 marketIndex,
+        bool needsLiquidity,
+        uint256 blockTime
+    ) internal view {
+        require(marketIndex > 0 && marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
+        uint256 maturity =
+            DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
+
+        market.loadMarket(
+            cashGroup.currencyId,
+            maturity,
+            blockTime,
+            needsLiquidity,
+            getRateOracleTimeWindow(cashGroup)
+        );
+    }
+
     function getMarket(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
@@ -184,6 +204,47 @@ library CashGroup {
                         .div(longMaturity - shortMaturity)
                 );
         }
+    }
+
+    /// @dev Gets an oracle rate without interpolation
+    function calculateOracleRate(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal view returns (uint256) {
+        (uint256 marketIndex, bool idiosyncratic) =
+            DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
+        uint256 timeWindow = getRateOracleTimeWindow(cashGroup);
+
+        if (!idiosyncratic) {
+            return Market.getOracleRate(cashGroup.currencyId, maturity, timeWindow, blockTime);
+        }
+
+        uint256 longMaturity =
+            DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
+        uint256 longRate =
+            Market.getOracleRate(cashGroup.currencyId, longMaturity, timeWindow, blockTime);
+
+        uint256 shortMaturity;
+        uint256 shortRate;
+        if (marketIndex == 1) {
+            // In this case the short market is the annualized asset supply rate
+            shortMaturity = blockTime;
+            shortRate = cashGroup.assetRate.getSupplyRate();
+        } else {
+            shortMaturity = DateTime.getReferenceTime(blockTime).add(
+                DateTime.getTradedMarket(marketIndex - 1)
+            );
+
+            shortRate = Market.getOracleRate(
+                cashGroup.currencyId,
+                shortMaturity,
+                timeWindow,
+                blockTime
+            );
+        }
+
+        return interpolateOracleRate(shortMaturity, longMaturity, shortRate, longRate, maturity);
     }
 
     function getOracleRate(
