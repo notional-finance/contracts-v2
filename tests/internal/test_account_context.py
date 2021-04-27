@@ -25,6 +25,10 @@ class TestAccountContext:
         context = MockAccountContextHandler.deploy({"from": accounts[0]})
         return context
 
+    @pytest.fixture(autouse=True)
+    def isolation(self, fn_isolation):
+        pass
+
     @given(
         length=strategy("uint", min_value=0, max_value=9),
         hasDebt=strategy("uint8", min_value=0, max_value=3),

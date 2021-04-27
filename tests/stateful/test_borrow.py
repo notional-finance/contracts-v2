@@ -82,7 +82,7 @@ def test_borrow_failures(environment, accounts):
             accounts[1], [borrowAction, collateral], {"from": accounts[1]}
         )
 
-    with brownie.reverts("Trade failed"):
+    with brownie.reverts("Trade failed, liquidity"):
         collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=10000e8)
 
         borrowAction = get_balance_trade_action(
