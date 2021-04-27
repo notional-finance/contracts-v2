@@ -74,7 +74,7 @@ class TestLiquidateCollateral:
         collateralBalance = 500e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -87,7 +87,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -117,7 +117,7 @@ class TestLiquidateCollateral:
         collateralBalance = 500e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -130,7 +130,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -160,7 +160,7 @@ class TestLiquidateCollateral:
         collateralBalance = 500e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -173,7 +173,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -203,7 +203,7 @@ class TestLiquidateCollateral:
         collateralBalance = 53e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -216,7 +216,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -246,7 +246,7 @@ class TestLiquidateCollateral:
         collateralBalance = 500e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -259,7 +259,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -290,7 +290,7 @@ class TestLiquidateCollateral:
         collateralBalance = 500e8
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -303,7 +303,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -335,7 +335,7 @@ class TestLiquidateCollateral:
         nTokenValue = 900e8  # This is haircut at 90%
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -348,7 +348,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         (
@@ -377,7 +377,7 @@ class TestLiquidateCollateral:
         nTokenValue = 900e8  # This is haircut at 90%
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -390,7 +390,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         (
@@ -419,7 +419,7 @@ class TestLiquidateCollateral:
         nTokenValue = 900e8  # This is haircut at 90%
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -432,7 +432,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -464,7 +464,7 @@ class TestLiquidateCollateral:
         nTokenValue = 90e8  # This is haircut at 90%
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -477,7 +477,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -509,7 +509,7 @@ class TestLiquidateCollateral:
         nTokenValue = 900e8  # This is haircut at 90%
 
         portfolioState = ([], [], 0, 0)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -522,7 +522,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -562,7 +562,7 @@ class TestLiquidateCollateral:
             get_fcash_token(1, currencyId=2, notional=-fCashClaim),
         ]
         portfolioState = (portfolio, [], 0, 2)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -575,7 +575,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -622,7 +622,7 @@ class TestLiquidateCollateral:
 
         portfolio = [get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional)]
         portfolioState = (portfolio, [], 0, 1)
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
 
         factors = (
             accounts[0],
@@ -635,7 +635,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         discount = max(factors[6][-1], factors[7][-1])

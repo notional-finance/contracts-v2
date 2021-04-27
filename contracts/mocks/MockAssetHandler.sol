@@ -121,7 +121,6 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getLiquidityTokenValueRiskAdjusted(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime
     )
@@ -133,6 +132,7 @@ contract MockAssetHandler is StorageLayoutV1 {
             PortfolioAsset[] memory
         )
     {
+        MarketParameters memory market;
         (int256 assetValue, int256 pv) =
             AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, true);
 
@@ -142,7 +142,6 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getLiquidityTokenValue(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime
     )
@@ -154,6 +153,7 @@ contract MockAssetHandler is StorageLayoutV1 {
             PortfolioAsset[] memory
         )
     {
+        MarketParameters memory market;
         (int256 assetValue, int256 pv) =
             AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, false);
 
@@ -163,10 +163,10 @@ contract MockAssetHandler is StorageLayoutV1 {
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
         uint256 blockTime,
         uint256 portfolioIndex
     ) public view returns (int256, uint256) {
+        MarketParameters memory market;
         return
             AssetHandler.getNetCashGroupValue(assets, cashGroup, market, blockTime, portfolioIndex);
     }

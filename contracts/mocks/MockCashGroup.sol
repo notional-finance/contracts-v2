@@ -154,6 +154,15 @@ contract MockCashGroup is StorageLayoutV1 {
         return DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
     }
 
+    function loadMarket(
+        CashGroupParameters memory cashGroup,
+        uint256 marketIndex,
+        bool needsLiquidity,
+        uint256 blockTime
+    ) public view returns (MarketParameters memory market) {
+        cashGroup.loadMarket(market, marketIndex, needsLiquidity, blockTime);
+    }
+
     function interpolateOracleRate(
         uint256 shortMaturity,
         uint256 longMaturity,

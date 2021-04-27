@@ -49,8 +49,8 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
 
-        for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
-            cashGroup.loadMarket(markets[i], i, true, blockTime);
+        for (uint256 i = 0; i < cashGroup.maxMarketIndex; i++) {
+            cashGroup.loadMarket(markets[i], i + 1, true, blockTime);
         }
 
         return markets;

@@ -3,7 +3,7 @@ import random
 import brownie
 import pytest
 from brownie.test import given, strategy
-from tests.constants import MARKETS, RATE_PRECISION, START_TIME, START_TIME_TREF
+from tests.constants import MARKETS, RATE_PRECISION, SETTLEMENT_DATE, START_TIME, START_TIME_TREF
 from tests.helpers import (
     get_bitstring_from_bitmap,
     get_cash_group_with_max_markets,
@@ -17,6 +17,28 @@ class TestBitmapAssets:
     @pytest.fixture(scope="module", autouse=True)
     def bitmapAssets(self, MockBitmapAssetsHandler, accounts):
         handler = MockBitmapAssetsHandler.deploy({"from": accounts[0]})
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[0], oracleRate=0.01 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[1], oracleRate=0.02 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[2], oracleRate=0.03 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[3], oracleRate=0.04 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[4], oracleRate=0.05 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[5], oracleRate=0.06 * RATE_PRECISION)
+        )
+        handler.setMarketStorage(
+            1, SETTLEMENT_DATE, get_market_state(MARKETS[6], oracleRate=0.07 * RATE_PRECISION)
+        )
+
         return handler
 
     @pytest.fixture(scope="module", autouse=True)
@@ -32,11 +54,15 @@ class TestBitmapAssets:
 
     @given(bitmap=strategy("bytes32"), currencyId=strategy("uint8"))
     def test_get_and_set_bitmap(self, bitmapAssets, bitmap, currencyId, accounts):
-        bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
-        storedValue = bitmapAssets.getAssetsBitmap(accounts[0], currencyId)
-        bmHex = brownie.convert.datatypes.HexString(bitmap.hex().ljust(64, "0"), "bytes32")
+        if len(list(filter(lambda x: x == "1", get_bitstring_from_bitmap(bitmap)))) > 20:
+            with brownie.reverts("Over max assets"):
+                bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
+        else:
+            bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
+            storedValue = bitmapAssets.getAssetsBitmap(accounts[0], currencyId)
+            bmHex = brownie.convert.datatypes.HexString(bitmap.hex().ljust(64, "0"), "bytes32")
 
-        assert bmHex == storedValue
+            assert bmHex == storedValue
 
     @given(bitmap=strategy("bytes32"), bitNum=strategy("uint", min_value=1, max_value=256))
     def test_set_ifcash_asset(self, bitmapAssets, bitmap, bitNum, accounts):
@@ -101,23 +127,13 @@ class TestBitmapAssets:
         bitmapAssets.setAssetRateMapping(1, (mockAssetRate.address, 18))
         bitmapAssets.setCashGroup(1, cg)
 
-        (cashGroup, _) = bitmapAssets.buildCashGroupView(1)
-
-        markets = [
-            get_market_state(MARKETS[0], oracleRate=0.01 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[1], oracleRate=0.02 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[2], oracleRate=0.03 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[3], oracleRate=0.04 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[4], oracleRate=0.05 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[5], oracleRate=0.06 * RATE_PRECISION, storageSlot="0x01"),
-            get_market_state(MARKETS[6], oracleRate=0.07 * RATE_PRECISION, storageSlot="0x01"),
-        ]
+        cashGroup = bitmapAssets.buildCashGroupView(1)
 
         # TODO: test a random negative offset to next maturing asset to simulate an unsettled
         # perpetual token
         nextSettleTime = START_TIME_TREF
         # Get the max bit given the time offset
-        (maxBit, isExact) = bitmapAssets.getBitNumFromMaturity(nextSettleTime, markets[-1][1])
+        (maxBit, _) = bitmapAssets.getBitNumFromMaturity(nextSettleTime, MARKETS[6])
         (assetsBitmap, assetsBitmapList) = random_asset_bitmap(10, maxBit)
         computedPV = 0
         computedRiskPV = 0
@@ -141,11 +157,9 @@ class TestBitmapAssets:
                     computedPV += notional
                     computedRiskPV += notional
                 else:
-                    pv = bitmapAssets.getPresentValue(
-                        cashGroup, markets, notional, maturity, START_TIME
-                    )
+                    pv = bitmapAssets.getPresentValue(cashGroup, notional, maturity, START_TIME)
                     riskPv = bitmapAssets.getRiskAdjustedPresentValue(
-                        cashGroup, markets, notional, maturity, START_TIME
+                        cashGroup, notional, maturity, START_TIME
                     )
                     computedPV += pv
                     computedRiskPV += riskPv
@@ -157,7 +171,6 @@ class TestBitmapAssets:
             START_TIME,
             assetsBitmap,
             cashGroup,
-            markets,
             False,  # non risk adjusted
         )
 
@@ -168,7 +181,6 @@ class TestBitmapAssets:
             START_TIME,
             assetsBitmap,
             cashGroup,
-            markets,
             True,  # risk adjusted
         )
 

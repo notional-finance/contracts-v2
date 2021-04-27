@@ -61,7 +61,7 @@ class TestLiquidateLocalNTokens:
     @given(localAvailable=strategy("int", min_value=-1000e8, max_value=-1e8))
     def test_liquidate_ntoken_no_limit(self, liquidation, accounts, localAvailable):
         (liquidateOverride, _) = liquidation
-        (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
+        cashGroup = liquidateOverride.buildCashGroupView(1)
         nTokenBalance = 10000e8
 
         factors = (
@@ -75,7 +75,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         (
@@ -99,7 +99,7 @@ class TestLiquidateLocalNTokens:
     @given(nTokenValue=strategy("int", min_value=1e8, max_value=400e8))
     def test_liquidate_ntoken_more_than_limit(self, liquidation, accounts, nTokenValue):
         (liquidateOverride, _) = liquidation
-        (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
+        cashGroup = liquidateOverride.buildCashGroupView(1)
         nTokenBalance = int(nTokenValue / 0.90)
 
         factors = (
@@ -113,7 +113,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         (
@@ -134,7 +134,7 @@ class TestLiquidateLocalNTokens:
 
     def test_liquidate_ntoken_limit_to_user_specification(self, liquidation, accounts):
         (liquidateOverride, _) = liquidation
-        (cashGroup, markets) = liquidateOverride.buildCashGroupView(1)
+        cashGroup = liquidateOverride.buildCashGroupView(1)
 
         factors = (
             accounts[0],
@@ -147,7 +147,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         (

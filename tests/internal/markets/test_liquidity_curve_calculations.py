@@ -134,7 +134,7 @@ class TestLiquidityCurve:
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         initialTimeToMaturity = timeToMaturity * SECONDS_IN_DAY
-        (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
+        cashGroup = marketWithCToken.buildCashGroupView(1)
         marketIndex = 1
 
         marketState = get_market_state(
@@ -186,7 +186,7 @@ class TestLiquidityCurve:
     ):
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
-        (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
+        cashGroup = marketWithCToken.buildCashGroupView(1)
         if initialCashAmount == 0:
             return
 

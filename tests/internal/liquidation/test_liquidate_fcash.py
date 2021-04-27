@@ -75,7 +75,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(1)
+        cashGroup = liquidation.buildCashGroupView(1)
         factors = (
             accounts[0],
             -10e8,
@@ -87,7 +87,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -112,7 +112,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(1)
+        cashGroup = liquidation.buildCashGroupView(1)
         factors = (
             accounts[0],
             -10e8,
@@ -124,7 +124,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -149,7 +149,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(1)
+        cashGroup = liquidation.buildCashGroupView(1)
         factors = (
             accounts[0],
             -100e8,
@@ -161,7 +161,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -186,7 +186,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(1)
+        cashGroup = liquidation.buildCashGroupView(1)
         factors = (
             accounts[0],
             -100e8,
@@ -198,7 +198,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -223,7 +223,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
         factors = (
             accounts[0],
             -100e8,
@@ -235,7 +235,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -296,7 +296,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
         factors = (
             accounts[0],
             -500e8,
@@ -308,7 +308,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
@@ -333,7 +333,7 @@ class TestLiquidatefCash:
         ]
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
-        (cashGroup, markets) = liquidation.buildCashGroupView(2)
+        cashGroup = liquidation.buildCashGroupView(2)
         factors = (
             accounts[0],
             -500e8,
@@ -345,7 +345,7 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            markets,
+            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])

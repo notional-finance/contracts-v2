@@ -32,6 +32,8 @@ library BitmapAssetsHandler {
         bytes32 assetsBitmap
     ) internal {
         bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
+        require(assetsBitmap.totalBitsSet() <= Constants.MAX_BITMAP_ASSETS, "Over max assets");
+
         assembly {
             sstore(slot, assetsBitmap)
         }

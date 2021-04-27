@@ -124,11 +124,9 @@ class TestCashGroupGetters:
 
             cashGroup.setCashGroup(i, cashGroupParameters)
 
-            (cg, markets) = cashGroup.buildCashGroupView(i)
+            cg = cashGroup.buildCashGroupView(i)
             assert cg[0] == i  # cash group id
             assert cg[1] == cashGroupParameters[0]  # Max market index
-            # assert cg[3] == "0x" + cashGroupBytes
-            assert len(markets) == cg[1]
 
             assert cashGroupParameters[1] * 60 == cashGroup.getRateOracleTimeWindow(cg)
             assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getTotalFee(cg)
@@ -150,24 +148,24 @@ class TestCashGroupGetters:
         maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
         blockTime=strategy("uint32", min_value=START_TIME),
     )
-    def test_get_market(self, cashGroup, aggregator, maxMarketIndex, blockTime):
+    def test_load_market(self, cashGroup, aggregator, maxMarketIndex, blockTime):
         rateStorage = (aggregator.address, 18)
         cashGroup.setAssetRateMapping(1, rateStorage)
         cashGroup.setCashGroup(1, get_cash_group_with_max_markets(maxMarketIndex))
 
         tRef = get_tref(blockTime)
         validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]
-        (cg, markets) = cashGroup.buildCashGroupView(1)
+        cg = cashGroup.buildCashGroupView(1)
 
         for m in validMarkets:
             settlementDate = tRef + 90 * SECONDS_IN_DAY
             cashGroup.setMarketState(cg[0], m, settlementDate, get_market_state(m))
 
-        (cg, markets) = cashGroup.buildCashGroupView(1)
+        cg = cashGroup.buildCashGroupView(1)
 
         for i in range(0, len(validMarkets)):
             needsLiquidity = True if random.randint(0, 1) else False
-            market = cashGroup.getMarket(cg, markets, i + 1, blockTime, needsLiquidity)
+            market = cashGroup.loadMarket(cg, i + 1, needsLiquidity, blockTime)
             marketStored = cashGroup.getMarketState(cg[0], validMarkets[i], blockTime, 1)
 
             # Assert values are the same
@@ -203,7 +201,7 @@ class TestCashGroupGetters:
         tRef = get_tref(blockTime)
         validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]
         impliedRates = {}
-        (cg, markets) = cashGroup.buildCashGroupView(1)
+        cg = cashGroup.buildCashGroupView(1)
 
         for m in validMarkets:
             lastImpliedRate = random.randint(1e8, 1e9)
@@ -221,12 +219,12 @@ class TestCashGroupGetters:
 
         for m in validMarkets:
             # If we fall on a valid market then the rate must match exactly
-            rate = cashGroup.getOracleRate(cg, markets, m, blockTime)
+            rate = cashGroup.calculateOracleRate(cg, m, blockTime)
             assert rate == impliedRates[m]
 
         for i in range(0, 5):
             randomM = random.randint(blockTime + 1, validMarkets[-1])
-            rate = cashGroup.getOracleRate(cg, markets, randomM, blockTime)
+            rate = cashGroup.calculateOracleRate(cg, randomM, blockTime)
             (marketIndex, idiosyncratic) = cashGroup.getMarketIndex(
                 maxMarketIndex, randomM, blockTime
             )
