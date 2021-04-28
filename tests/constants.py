@@ -87,6 +87,7 @@ DEPOSIT_ACTION_TYPE = {
     "DepositAssetAndMintNToken": 3,
     "DepositUnderlyingAndMintNToken": 4,
     "RedeemNToken": 5,
+    "ConvertCashToNToken": 6,
 }
 
 TRADE_ACTION_TYPE = {

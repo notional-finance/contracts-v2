@@ -122,9 +122,10 @@ library Market {
                 rateAnchor,
                 timeToMaturity
             );
+
             // It's technically possible that the implied rate is actually exactly zero (or
             // more accurately the natural log rounds down to zero) but we will still fail
-            // in this case.
+            // in this case. If this does happen we may assume that markets are not initialized.
             if (market.lastImpliedRate == 0) return (0, 0);
         }
 
@@ -491,17 +492,10 @@ library Market {
         uint256 previousTradeTime = uint256(uint32(uint256(data >> 224)));
 
         // If the oracle rate is set to zero this can only be because the markets have past their settlement
-        // date but the new set of markets has not yet been initialized. Use the oracle rate from the previous
-        // markets instead. Due to the logic in initialize markets, these rates will be quite close to what the
-        // markets will actually initialize at.
-        if (oracleRate == 0) {
-            // No overflows possible here
-            uint256 prevBlockTime = blockTime - Constants.QUARTER;
-            uint256 prevMaturity = maturity - Constants.QUARTER;
-            // This should never enter an infinite loop but if it does then the transaction will be invalid anyway and
-            // will fail due to out of gas.
-            return getOracleRate(currencyId, prevMaturity, rateOracleTimeWindow, prevBlockTime);
-        }
+        // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
+        // during this time, but market initialization can be called by anyone so the actual time that this condition
+        // exists for should be quite short.
+        require(oracleRate > 0, "Market not initialized");
 
         return
             _updateRateOracle(
@@ -718,7 +712,6 @@ library Market {
         int256 fee,
         uint256 maxDelta
     ) internal pure returns (int256) {
-        // TODO: can we prove that there are no overflows at all here, reduces gas costs by 2.1k per run
         int256 fCashChangeToAccountGuess =
             netCashToAccount.mul(rateAnchor).div(Constants.RATE_PRECISION).neg();
         for (uint8 i; i < 250; i++) {

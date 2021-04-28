@@ -364,3 +364,35 @@ def test_redeem_perpetual_and_withdraw_underlying(environment, accounts):
     assert usdcBalanceAfter - usdcBalanceBefore == 2e6
 
     check_system_invariants(environment, accounts)
+
+
+def test_convert_cash_to_ntoken(environment, accounts):
+    environment.notional.batchBalanceAction(
+        accounts[1],
+        [get_balance_action(2, "DepositAsset", depositActionAmount=100000e8)],
+        {"from": accounts[1]},
+    )
+    balances = environment.notional.getAccountBalance(2, accounts[1])
+    assert balances[0] == 100000e8
+    assert balances[1] == 0
+    assert balances[2] == 0
+
+    with brownie.reverts("Insufficient cash"):
+        environment.notional.batchBalanceAction(
+            accounts[1],
+            [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=1000000e8)],
+            {"from": accounts[1]},
+        )
+
+    txn = environment.notional.batchBalanceAction(
+        accounts[1],
+        [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100000e8)],
+        {"from": accounts[1]},
+    )
+
+    balances = environment.notional.getAccountBalance(2, accounts[1])
+    assert balances[0] == 0
+    assert balances[1] == 100000e8
+    assert balances[2] == txn.timestamp
+
+    check_system_invariants(environment, accounts)

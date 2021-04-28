@@ -109,7 +109,7 @@ def test_deleverage_markets_lend(environment, accounts):
 def test_deleverage_markets_lend_and_provide(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
-    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.49e9, 0.49e9])
+    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.49999e9, 0.49999e9])
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
@@ -118,7 +118,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=5000e8)],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=500000e8)],
         {"from": accounts[0]},
     )
 
@@ -140,7 +140,7 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
     # No residual left
     assert balanceAfter[0] == 0
     assert reserveBalance > 0
-    assert totalSupplyBefore + 5000e8 == totalSupplyAfter
+    assert totalSupplyBefore + 500000e8 == totalSupplyAfter
 
     check_system_invariants(environment, accounts)
 

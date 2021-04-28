@@ -292,5 +292,6 @@ def deploy_v1(v2env):
         4,
         {"from": deployer},
     )
+    contracts["Migrator"].enableWBTC()
 
     return contracts

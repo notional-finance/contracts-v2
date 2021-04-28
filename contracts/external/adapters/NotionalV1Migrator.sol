@@ -9,8 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface WETH9 {
     function withdraw(uint256 wad) external;
 
-    function deposit() external payable;
-
     function transfer(address dst, uint256 wad) external returns (bool);
 }
 
@@ -25,21 +23,6 @@ interface UniswapPair {
         address to,
         bytes calldata data
     ) external;
-
-    function factory() external view returns (address);
-
-    function token0() external view returns (address);
-
-    function token1() external view returns (address);
-
-    function getReserves()
-        external
-        view
-        returns (
-            uint112 reserve0,
-            uint112 reserve1,
-            uint32 blockTimestampLast
-        );
 }
 
 interface INotionalV1Erc1155 {
@@ -123,6 +106,9 @@ contract NotionalV1Migrator {
         V2_DAI = v2Dai_;
         V2_USDC = v2USDC_;
         V2_WBTC = v2WBTC_;
+    }
+
+    function enableWBTC() external {
         WBTC.approve(address(NotionalV2), type(uint256).max);
     }
 
@@ -304,15 +290,6 @@ contract NotionalV1Migrator {
         uint256 collateralAmount,
         uint256 swapAmount
     ) internal {
-        // {
-        //     uint256 collateralIndex = v2CollateralId < v2DebtCurrencyId ? 0 : 1;
-        //     tradeExecution[collateralIndex].actionType = DepositActionType.DepositUnderlying;
-        //     tradeExecution[collateralIndex].currencyId = v2CollateralId;
-        //     // Denominated in underlying external precision
-        //     tradeExecution[collateralIndex].depositActionAmount = collateralAmount;
-        //     // All other values are 0 or false
-        // }
-
         if (v2CollateralId == V2_ETH) {
             NotionalV2.depositUnderlyingToken{value: swapAmount}(
                 migrator,
@@ -325,7 +302,6 @@ contract NotionalV1Migrator {
 
         BalanceActionWithTrades[] memory tradeExecution = new BalanceActionWithTrades[](1);
         {
-            // uint256 debtIndex = v2CollateralId < v2DebtCurrencyId ? 1 : 0;
             uint256 debtIndex = 0;
             tradeExecution[debtIndex].actionType = DepositActionType.None;
             tradeExecution[debtIndex].currencyId = v2DebtCurrencyId;
@@ -353,7 +329,7 @@ contract NotionalV1Migrator {
             deposits[0].currencyId = v1DebtCurrencyId;
             deposits[0].amount = v1RepayAmount;
 
-            // This will withdraw to the current contract the collateral
+            // This will withdraw to the current contract the collateral to repay the flash loan
             withdraws[0].currencyId = v1CollateralId;
             withdraws[0].to = address(this);
             withdraws[0].amount = uint128(collateralAmount);
@@ -370,7 +346,6 @@ contract NotionalV1Migrator {
 
     receive() external payable {}
 
-    /// @dev nTokens should never accept any erc1155 transfers of fCash
     function onERC1155Received(
         address _operator,
         address _from,
@@ -379,16 +354,5 @@ contract NotionalV1Migrator {
         bytes calldata _data
     ) external returns (bytes4) {
         return 0xf23a6e61;
-    }
-
-    /// @dev nTokens should never accept any erc1155 transfers of fCash
-    function onERC1155BatchReceived(
-        address _operator,
-        address _from,
-        uint256[] calldata _ids,
-        uint256[] calldata _values,
-        bytes calldata _data
-    ) external returns (bytes4) {
-        return 0;
     }
 }

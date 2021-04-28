@@ -33,7 +33,7 @@ def isolation(fn_isolation):
 
 
 def test_cannot_deposit_underlying_non_mintable(environment, accounts):
-    currencyId = 4
+    currencyId = 5
 
     with brownie.reverts():
         environment.notional.depositUnderlyingToken(
@@ -42,7 +42,7 @@ def test_cannot_deposit_underlying_non_mintable(environment, accounts):
 
 
 def test_cannot_withdraw_to_underlying_non_mintable(environment, accounts):
-    currencyId = 4
+    currencyId = 5
 
     environment.notional.depositAssetToken(accounts[1], currencyId, 100e18, {"from": accounts[1]})
 
@@ -51,7 +51,7 @@ def test_cannot_withdraw_to_underlying_non_mintable(environment, accounts):
 
 
 def test_deposit_withdraw_asset_non_mintable(environment, accounts):
-    currencyId = 4
+    currencyId = 5
 
     txn = environment.notional.depositAssetToken(
         accounts[1], currencyId, 100e18, {"from": accounts[1]}
@@ -94,7 +94,7 @@ def test_deposit_withdraw_asset_non_mintable(environment, accounts):
 
 
 def test_initialize_markets_non_mintable(environment, accounts):
-    currencyId = 4
+    currencyId = 5
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
@@ -153,6 +153,7 @@ def test_initialize_markets_non_mintable(environment, accounts):
     # Test Settlement
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
 
     txn = environment.notional.withdraw(currencyId, 30e8, False, {"from": accounts[1]})
     assert txn.events["AccountSettled"]
