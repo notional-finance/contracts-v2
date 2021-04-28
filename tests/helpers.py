@@ -102,10 +102,10 @@ def get_market_state(maturity, **kwargs):
     if "proportion" in kwargs:
         proportion = kwargs["proportion"]
         totalfCash = totalLiquidity * (1 - proportion)
-        totalCurrentCash = totalLiquidity * proportion
+        totalAssetCash = totalLiquidity * proportion
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
-        totalCurrentCash = 1e18 if "totalCurrentCash" not in kwargs else kwargs["totalCurrentCash"]
+        totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
 
     lastImpliedRate = 0.1e9 if "lastImpliedRate" not in kwargs else kwargs["lastImpliedRate"]
     oracleRate = 0.1e9 if "oracleRate" not in kwargs else kwargs["oracleRate"]
@@ -117,7 +117,7 @@ def get_market_state(maturity, **kwargs):
         storageSlot,
         maturity,
         Wei(totalfCash),
-        Wei(totalCurrentCash),
+        Wei(totalAssetCash),
         Wei(totalLiquidity),
         lastImpliedRate,
         oracleRate,
@@ -393,16 +393,39 @@ def get_trade_action(**kwargs):
         )
 
 
+def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
+    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
+
+    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
+
+    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
+    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=initialCash
+            )
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(currencyId, True)
+
+
 def initialize_environment(accounts):
     chain = Chain()
     env = TestEnvironment(accounts[0])
     env.enableCurrency("DAI", CurrencyDefaults)
     env.enableCurrency("USDC", CurrencyDefaults)
 
+    cToken = env.cToken["ETH"]
+    cToken.mint({"from": accounts[0], "value": 10000e18})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
     cToken = env.cToken["DAI"]
     env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
     env.token["DAI"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e18, {"from": accounts[0]})
+    cToken.mint(100000000e18, {"from": accounts[0]})
     cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
 
     env.token["DAI"].transfer(accounts[1], 100000e18, {"from": accounts[0]})
@@ -413,7 +436,7 @@ def initialize_environment(accounts):
     cToken = env.cToken["USDC"]
     env.token["USDC"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
     env.token["USDC"].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
-    cToken.mint(10000000e6, {"from": accounts[0]})
+    cToken.mint(100000000e6, {"from": accounts[0]})
     cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
 
     env.token["USDC"].transfer(accounts[1], 100000e6, {"from": accounts[0]})
@@ -421,37 +444,13 @@ def initialize_environment(accounts):
     cToken.transfer(accounts[1], 500000e8, {"from": accounts[0]})
     cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[1]})
 
-    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
+    # Set the blocktime to the beginning of the next tRef otherwise the rates will blow up
     blockTime = chain.time()
     newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
     chain.mine(1, timestamp=newTime)
 
-    currencyId = 2
-    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
-
-    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
-
-    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
-    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
-    env.notional.batchBalanceAction(
-        accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
-        {"from": accounts[0]},
-    )
-    env.notional.initializeMarkets(currencyId, True)
-
-    currencyId = 3
-    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
-
-    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
-
-    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
-    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
-    env.notional.batchBalanceAction(
-        accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
-        {"from": accounts[0]},
-    )
-    env.notional.initializeMarkets(currencyId, True)
+    _enable_cash_group(1, env, accounts, initialCash=40000e8)
+    _enable_cash_group(2, env, accounts)
+    _enable_cash_group(3, env, accounts)
 
     return env

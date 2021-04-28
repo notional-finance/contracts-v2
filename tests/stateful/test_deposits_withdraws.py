@@ -1,7 +1,12 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from tests.helpers import active_currencies_to_list, initialize_environment
+from tests.helpers import (
+    active_currencies_to_list,
+    get_balance_action,
+    get_balance_trade_action,
+    initialize_environment,
+)
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -229,6 +234,25 @@ def test_withdraw_and_redeem_eth(environment, accounts):
     assert accounts[1].balance() > balanceBefore
 
     check_system_invariants(environment, accounts)
+
+
+def test_eth_failures(environment, accounts):
+    with brownie.reverts("Invalid ETH balance"):
+        # Should revert, no msg.value
+        environment.notional.depositUnderlyingToken(accounts[1], 1, 1e18, {"from": accounts[1]})
+
+    with brownie.reverts("Invalid ETH balance"):
+        # Should revert, no msg.value
+        environment.notional.batchBalanceAction(
+            accounts[0], [get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)]
+        )
+
+    with brownie.reverts("Invalid ETH balance"):
+        # Should revert, no msg.value
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[0],
+            [get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=1e18)],
+        )
 
 
 def test_withdraw_asset_token_settle_first(environment, accounts):

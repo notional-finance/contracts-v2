@@ -13,6 +13,10 @@ class TestNTokenSettings:
     def nToken(self, MockNTokenHandler, accounts):
         return accounts[0].deploy(MockNTokenHandler)
 
+    @pytest.fixture(autouse=True)
+    def isolation(self, fn_isolation):
+        pass
+
     @given(currencyId=strategy("uint16"), tokenAddress=strategy("address"))
     @pytest.mark.only
     def test_set_perpetual_token_setters(self, nToken, currencyId, tokenAddress):

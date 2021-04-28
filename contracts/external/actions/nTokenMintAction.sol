@@ -31,7 +31,8 @@ library nTokenMintAction {
         returns (int256)
     {
         uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioStateful(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
 
         (int256 tokensToMint, bytes32 ifCashBitmap) =
             calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
@@ -72,7 +73,7 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "PT: requires settlement");
         }
 
-        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenPV(blockTime);
+        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenAssetPV(blockTime);
         require(assetCashPV >= 0, "PT: pv value negative");
 
         // Allow for the first deposit
@@ -105,15 +106,18 @@ library nTokenMintAction {
         // closer to the current block time. Any residual cash from lending will be rolled into shorter
         // markets as this loop progresses.
         int256 residualCash;
-        for (uint256 i = nToken.markets.length - 1; i >= 0; i--) {
+        MarketParameters memory market;
+        for (uint256 i = nToken.cashGroup.maxMarketIndex - 1; i >= 0; i--) {
             int256 fCashAmount;
-            MarketParameters memory market =
-                nToken.cashGroup.getMarket(
-                    nToken.markets,
-                    i + 1, // Market index is 1-indexed
-                    blockTime,
-                    true // Needs liquidity to true
-                );
+            nToken.cashGroup.loadMarket(
+                market,
+                i + 1, // Market index is 1-indexed
+                true, // Needs liquidity to true
+                blockTime
+            );
+            // If market has not been initialized, continue. This can occur when cash groups extend maxMarketIndex
+            // before initializing
+            if (market.totalLiquidity == 0) continue;
 
             // We know from the call into this method that assetCashDeposit is positive
             int256 perMarketDeposit =
@@ -221,8 +225,7 @@ library nTokenMintAction {
         MarketParameters memory market,
         int256 leverageThreshold
     ) private pure returns (bool) {
-        int256 totalCashUnderlying =
-            cashGroup.assetRate.convertToUnderlying(market.totalCurrentCash);
+        int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
         int256 proportion =
             market.totalfCash.mul(Constants.RATE_PRECISION).div(
                 market.totalfCash.add(totalCashUnderlying)

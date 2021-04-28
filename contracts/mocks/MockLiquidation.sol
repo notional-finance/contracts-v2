@@ -46,7 +46,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             BalanceState memory,
             int256,
             PortfolioState memory,
-            MarketParameters[] memory
+            LiquidationFactors memory
         )
     {
         (
@@ -54,20 +54,32 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             LiquidationFactors memory factors,
             PortfolioState memory portfolio
         ) = LiquidationHelpers.preLiquidationActions(liquidateAccount, localCurrency, 0);
-        BalanceState memory liquidatedBalanceState;
-        liquidatedBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
+        BalanceState memory localBalanceState;
+        localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
 
         int256 netLocalFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
                 blockTime,
-                liquidatedBalanceState,
+                localBalanceState,
                 factors,
                 portfolio
             );
 
-        return (liquidatedBalanceState, netLocalFromLiquidator, portfolio, factors.markets);
+        LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
+            liquidateAccount,
+            localBalanceState, // In this case, local currency is the collateral
+            accountContext,
+            portfolio,
+            factors.markets
+        );
+
+        return (localBalanceState, netLocalFromLiquidator, portfolio, factors);
+    }
+
+    function fc(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
     }
 }
 
@@ -121,7 +133,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
             MarketParameters[] memory
         )
     {
-        int256 localToPurchase =
+        int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
@@ -131,11 +143,31 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, localToPurchase, portfolio, factors.markets);
+        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio, factors.markets);
     }
 }
 
 contract MockfCashLiquidation is BaseMockLiquidation {
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 collateralCurrency
+    )
+        external
+        returns (
+            AccountContext memory,
+            LiquidationFactors memory,
+            PortfolioState memory
+        )
+    {
+        return
+            LiquidationHelpers.preLiquidationActions(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency
+            );
+    }
+
     function liquidatefCashLocal(
         address liquidateAccount,
         uint256 localCurrency,
@@ -162,7 +194,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c.portfolio);
     }
 
     function liquidatefCashCrossCurrency(
@@ -192,6 +224,10 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localToPurchase, c.portfolio);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c.portfolio);
+    }
+
+    function fc(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
     }
 }

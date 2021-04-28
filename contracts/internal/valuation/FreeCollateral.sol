@@ -24,9 +24,10 @@ library FreeCollateral {
         bool updateContext;
         uint256 portfolioIndex;
         CashGroupParameters cashGroup;
-        MarketParameters[] markets;
+        MarketParameters market;
         PortfolioAsset[] portfolio;
         AssetRateParameters assetRate;
+        nTokenPortfolio nToken;
     }
 
     /// @notice Checks if an asset is active in the portfolio
@@ -57,37 +58,35 @@ library FreeCollateral {
     }
 
     /// @notice Calculates the nToken asset value with a haircut set by governance
-    function _getNTokenHaircutValue(
+    function _getNTokenHaircutAssetPV(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        nTokenPortfolio memory nToken,
         int256 tokenBalance,
         uint256 blockTime
     ) internal view returns (int256, bytes6) {
-        nTokenPortfolio memory nToken =
-            nTokenHandler.buildNTokenPortfolioNoCashGroup(cashGroup.currencyId);
+        nTokenHandler.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId, nToken);
         nToken.cashGroup = cashGroup;
-        nToken.markets = markets;
 
         // prettier-ignore
         (
-            int256 nTokenPV,
+            int256 nTokenAssetPV,
             /* ifCashBitmap */
-        ) = nToken.getNTokenPV(blockTime);
+        ) = nToken.getNTokenAssetPV(blockTime);
 
-        int256 nTokenHaircutPV =
+        int256 nTokenHaircutAssetPV =
             tokenBalance
-                .mul(nTokenPV)
+                .mul(nTokenAssetPV)
                 .mul(int256(uint8(nToken.parameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                 .div(Constants.PERCENTAGE_DECIMALS)
                 .div(nToken.totalSupply);
 
-        return (nTokenHaircutPV, nToken.parameters);
+        return (nTokenHaircutAssetPV, nToken.parameters);
     }
 
     /// @notice Calculates portfolio and/or nToken values while using the supplied cash groups and
     /// markets. The reason these are grouped together is because they both require storage reads of the same
     /// values.
-    function _getPortfolioAndNTokenValue(
+    function _getPortfolioAndNTokenAssetValue(
         FreeCollateralFactors memory factors,
         int256 nTokenBalance,
         uint256 blockTime
@@ -96,7 +95,7 @@ library FreeCollateral {
         view
         returns (
             int256 netPortfolioValue,
-            int256 nTokenValue,
+            int256 nTokenHaircutAssetValue,
             bytes6 nTokenParameters
         )
     {
@@ -108,16 +107,16 @@ library FreeCollateral {
             (netPortfolioValue, factors.portfolioIndex) = AssetHandler.getNetCashGroupValue(
                 factors.portfolio,
                 factors.cashGroup,
-                factors.markets,
+                factors.market,
                 blockTime,
                 factors.portfolioIndex
             );
         }
 
         if (nTokenBalance > 0) {
-            (nTokenValue, nTokenParameters) = _getNTokenHaircutValue(
+            (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
-                factors.markets,
+                factors.nToken,
                 nTokenBalance,
                 blockTime
             );
@@ -135,7 +134,7 @@ library FreeCollateral {
         view
         returns (
             int256 cashBalance,
-            int256 nTokenValue,
+            int256 nTokenHaircutAssetValue,
             bytes6 nTokenParameters
         )
     {
@@ -149,9 +148,9 @@ library FreeCollateral {
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
         if (nTokenBalance > 0) {
-            (nTokenValue, nTokenParameters) = _getNTokenHaircutValue(
+            (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
-                factors.markets,
+                factors.nToken,
                 nTokenBalance,
                 blockTime
             );
@@ -175,7 +174,6 @@ library FreeCollateral {
                 blockTime,
                 assetsBitmap,
                 factors.cashGroup,
-                factors.markets,
                 true // risk adjusted
             );
 
@@ -217,20 +215,21 @@ library FreeCollateral {
         bool hasCashDebt;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(
-                accountContext.bitmapCurrencyId
-            );
+            factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+
             // prettier-ignore
             (
                 int256 netCashBalance,
-                int256 nTokenValue,
+                int256 nTokenHaircutAssetValue,
                 /* nTokenParameters */
             ) = _getBitmapBalanceValue(account, blockTime, accountContext, factors);
             if (netCashBalance < 0) hasCashDebt = true;
+
             int256 portfolioValue =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
+            int256 netLocalAssetValue =
+                netCashBalance.add(nTokenHaircutAssetValue).add(portfolioValue);
 
-            int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioValue);
             factors.assetRate = factors.cashGroup.assetRate;
             _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
         } else {
@@ -250,15 +249,17 @@ library FreeCollateral {
             if (netLocalAssetValue < 0) hasCashDebt = true;
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-                (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
+                factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
 
                 // prettier-ignore
                 (
                     int256 netPortfolioValue,
-                    int256 nTokenValue,
+                    int256 nTokenHaircutAssetValue,
                     /* nTokenParameters */
-                ) = _getPortfolioAndNTokenValue(factors, nTokenBalance, blockTime);
-                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(nTokenValue);
+                ) = _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
+                netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(
+                    nTokenHaircutAssetValue
+                );
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
@@ -295,19 +296,18 @@ library FreeCollateral {
         int256[] memory netLocalAssetValues = new int256[](10);
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(
-                accountContext.bitmapCurrencyId
-            );
+            factors.cashGroup = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
+
             // prettier-ignore
             (
                 int256 netCashBalance,
-                int256 nTokenValue,
+                int256 nTokenHaircutAssetValue,
                 /* nTokenParameters */
             ) = _getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int256 portfolioBalance =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
-            netLocalAssetValues[netLocalIndex] = netCashBalance.add(nTokenValue).add(
+            netLocalAssetValues[netLocalIndex] = netCashBalance.add(nTokenHaircutAssetValue).add(
                 portfolioBalance
             );
             factors.assetRate = factors.cashGroup.assetRate;
@@ -335,17 +335,17 @@ library FreeCollateral {
             );
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-                (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupView(currencyId);
+                factors.cashGroup = CashGroup.buildCashGroupView(currencyId);
                 // prettier-ignore
                 (
                     int256 netPortfolioValue,
-                    int256 nTokenValue,
+                    int256 nTokenHaircutAssetValue,
                     /* nTokenParameters */
-                ) = _getPortfolioAndNTokenValue(factors, nTokenBalance, blockTime);
+                ) = _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
 
                 netLocalAssetValues[netLocalIndex] = netLocalAssetValues[netLocalIndex]
                     .add(netPortfolioValue)
-                    .add(nTokenValue);
+                    .add(nTokenHaircutAssetValue);
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 factors.assetRate = AssetRate.buildAssetRateView(currencyId);
@@ -372,19 +372,20 @@ library FreeCollateral {
             _getCurrencyBalances(liquidationFactors.account, currencyBytes);
 
         if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
-            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(currencyId);
-            (int256 netPortfolioValue, int256 nTokenValue, bytes6 nTokenParameters) =
-                _getPortfolioAndNTokenValue(factors, nTokenBalance, blockTime);
+            factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
+            (int256 netPortfolioValue, int256 nTokenHaircutAssetValue, bytes6 nTokenParameters) =
+                _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
 
-            netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(nTokenValue);
+            netLocalAssetValue = netLocalAssetValue.add(netPortfolioValue).add(
+                nTokenHaircutAssetValue
+            );
             factors.assetRate = factors.cashGroup.assetRate;
 
             // If collateralCurrencyId is set to zero then this is a local currency liquidation
             if (setLiquidationFactors) {
                 liquidationFactors.cashGroup = factors.cashGroup;
-                liquidationFactors.markets = factors.markets;
                 liquidationFactors.nTokenParameters = nTokenParameters;
-                liquidationFactors.nTokenValue = nTokenValue;
+                liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
             }
         } else {
             factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
@@ -407,15 +408,14 @@ library FreeCollateral {
         liquidationFactors.account = account;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            (factors.cashGroup, factors.markets) = CashGroup.buildCashGroupStateful(
-                accountContext.bitmapCurrencyId
-            );
-            (int256 netCashBalance, int256 nTokenValue, bytes6 nTokenParameters) =
+            factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
+            (int256 netCashBalance, int256 nTokenHaircutAssetValue, bytes6 nTokenParameters) =
                 _getBitmapBalanceValue(account, blockTime, accountContext, factors);
             int256 portfolioBalance =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
 
-            int256 netLocalAssetValue = netCashBalance.add(nTokenValue).add(portfolioBalance);
+            int256 netLocalAssetValue =
+                netCashBalance.add(nTokenHaircutAssetValue).add(portfolioBalance);
             factors.assetRate = factors.cashGroup.assetRate;
             ETHRate memory ethRate =
                 _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
@@ -424,13 +424,12 @@ library FreeCollateral {
             // the account has no assets in their portfolio and no cash debts.
             if (accountContext.bitmapCurrencyId == localCurrencyId) {
                 liquidationFactors.cashGroup = factors.cashGroup;
-                liquidationFactors.markets = factors.markets;
-                liquidationFactors.localAvailable = netLocalAssetValue;
+                liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
 
                 // This will be the case during local currency or local fCash liquidation
                 if (collateralCurrencyId == 0) {
-                    liquidationFactors.nTokenValue = nTokenValue;
+                    liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
                     liquidationFactors.nTokenParameters = nTokenParameters;
                 }
             }
@@ -466,11 +465,14 @@ library FreeCollateral {
             ETHRate memory ethRate = _updateNetETHValue(currencyId, netLocalAssetValue, factors);
 
             if (currencyId == collateralCurrencyId) {
-                liquidationFactors.collateralAvailable = netLocalAssetValue;
+                // Ensure that this is set even if the cash group is not loaded
+                liquidationFactors.cashGroup.assetRate = factors.assetRate;
+                liquidationFactors.collateralAssetAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
             } else if (currencyId == localCurrencyId) {
-                liquidationFactors.localAvailable = netLocalAssetValue;
+                liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
+                liquidationFactors.localAssetRate = factors.assetRate;
             }
 
             currencies = currencies << 16;

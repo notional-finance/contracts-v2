@@ -154,25 +154,13 @@ contract MockCashGroup is StorageLayoutV1 {
         return DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
     }
 
-    function getMarket(
+    function loadMarket(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         uint256 marketIndex,
-        uint256 blockTime,
-        bool needsLiquidity
-    ) public view returns (MarketParameters memory) {
-        MarketParameters memory market =
-            cashGroup.getMarket(markets, marketIndex, blockTime, needsLiquidity);
-
-        // Ensure that the market cache gets updated via the memory reference
-        assert(markets[marketIndex - 1].totalfCash == market.totalfCash);
-        assert(markets[marketIndex - 1].totalCurrentCash == market.totalCurrentCash);
-        assert(markets[marketIndex - 1].totalLiquidity == market.totalLiquidity);
-        assert(markets[marketIndex - 1].lastImpliedRate == market.lastImpliedRate);
-        assert(markets[marketIndex - 1].oracleRate == market.oracleRate);
-        assert(markets[marketIndex - 1].previousTradeTime == market.previousTradeTime);
-
-        return market;
+        bool needsLiquidity,
+        uint256 blockTime
+    ) public view returns (MarketParameters memory market) {
+        cashGroup.loadMarket(market, marketIndex, needsLiquidity, blockTime);
     }
 
     function interpolateOracleRate(
@@ -202,26 +190,25 @@ contract MockCashGroup is StorageLayoutV1 {
         return rate;
     }
 
-    function getOracleRate(
+    function calculateOracleRate(
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
         uint256 assetMaturity,
         uint256 blockTime
     ) public view returns (uint256) {
-        return cashGroup.getOracleRate(markets, assetMaturity, blockTime);
+        return cashGroup.calculateOracleRate(assetMaturity, blockTime);
     }
 
     function buildCashGroupView(uint256 currencyId)
         public
         view
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
     }
 
     function buildCashGroupStateful(uint256 currencyId)
         public
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupStateful(currencyId);
     }

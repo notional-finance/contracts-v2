@@ -91,19 +91,12 @@ def test_lend_failures(environment, accounts):
             accounts[1], [action], {"from": accounts[1]}
         )
 
-    with brownie.reverts("Trade failed"):
+    with brownie.reverts("Trade failed, liquidity"):
         action = get_balance_trade_action(
             2,
             "DepositAsset",
-            [
-                {
-                    "tradeActionType": "Lend",
-                    "marketIndex": 1,
-                    "notional": 100000e8,
-                    "minSlippage": 0.40 * RATE_PRECISION,  # min bound
-                }
-            ],
-            depositActionAmount=100000e8,
+            [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 500000e8, "minSlippage": 0}],
+            depositActionAmount=200000e8,
         )
 
         environment.notional.batchBalanceAndTradeAction(

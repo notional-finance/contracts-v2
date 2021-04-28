@@ -31,7 +31,37 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
     /// @notice Emitted when an asset rate is settled
     event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
 
+    /* Liquidation Events */
+    event LiquidateLocalCurrency(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        int256 netLocalFromLiquidator
+    );
+
+    event LiquidateCollateralCurrency(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        uint16 collateralCurrencyId,
+        int256 netLocalFromLiquidator,
+        int256 netCollateralTransfer,
+        int256 netNTokenTransfer
+    );
+
+    event LiquidatefCashEvent(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        uint16 fCashCurrency,
+        int256 netLocalFromLiquidator,
+        uint256[] fCashMaturities,
+        int256[] fCashNotionalTransfer
+    );
+
     /** Initialize Markets Action */
+    event MarketsInitialized(uint16 currencyId);
+
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
 
     /** Governance Action */
@@ -131,6 +161,79 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
         external
         payable;
 
+    /** Liquidation Action */
+    function calculateLocalCurrencyLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint96 maxNTokenLiquidation
+    ) external returns (int256);
+
+    function liquidateLocalCurrency(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint96 maxNTokenLiquidation
+    ) external returns (int256);
+
+    function calculateCollateralCurrencyLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation
+    )
+        external
+        returns (
+            int256,
+            int256,
+            int256
+        );
+
+    function liquidateCollateralCurrency(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation,
+        bool withdrawCollateral,
+        bool redeemToUnderlying
+    )
+        external
+        returns (
+            int256,
+            int256,
+            int256
+        );
+
+    function calculatefCashLocalLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256);
+
+    function liquidatefCashLocal(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256);
+
+    function calculatefCashCrossCurrencyLiquidation(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256);
+
+    function liquidatefCashCrossCurrency(
+        address liquidateAccount,
+        uint256 localCurrency,
+        uint256 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256);
+
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
 
@@ -221,7 +324,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
 
     function getIncentivesToMint(
         uint16 currencyId,
-        uint256 perpetualTokenBalance,
+        uint256 nTokenBalance,
         uint256 lastMintTime,
         uint256 blockTime
     ) external view returns (uint256);

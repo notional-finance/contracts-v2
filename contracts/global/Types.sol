@@ -73,7 +73,6 @@ struct Token {
 
 struct nTokenPortfolio {
     CashGroupParameters cashGroup;
-    MarketParameters[] markets;
     PortfolioState portfolioState;
     int256 totalSupply;
     int256 cashBalance;
@@ -85,12 +84,13 @@ struct nTokenPortfolio {
 struct LiquidationFactors {
     address account;
     int256 netETHValue;
-    int256 localAvailable;
-    int256 collateralAvailable;
-    int256 nTokenValue;
+    int256 localAssetAvailable;
+    int256 collateralAssetAvailable;
+    int256 nTokenHaircutAssetValue;
     bytes6 nTokenParameters;
     ETHRate localETHRate;
     ETHRate collateralETHRate;
+    AssetRateParameters localAssetRate;
     CashGroupParameters cashGroup;
     MarketParameters[] markets;
 }
@@ -179,7 +179,7 @@ struct MarketParameters {
     // Total amount of fCash available for purchase in the market.
     int256 totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
+    int256 totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
     // This is the implied rate that we use to smooth the anchor rate between trades.
@@ -197,7 +197,7 @@ struct SettlementMarket {
     // Total amount of fCash available for purchase in the market.
     int256 totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalCurrentCash;
+    int256 totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
     // Un parsed market data used for storage

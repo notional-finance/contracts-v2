@@ -334,12 +334,10 @@ library nTokenHandler {
         }
     }
 
-    function buildNTokenPortfolioNoCashGroup(uint256 currencyId)
+    function loadNTokenPortfolioNoCashGroup(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
         view
-        returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken;
         nToken.tokenAddress = nTokenAddress(currencyId);
         // prettier-ignore
         (
@@ -367,31 +365,24 @@ library nTokenHandler {
             /* lastClaimTime */,
             /* lastClaimSupply */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
-
-        return nToken;
     }
 
     /// @notice Uses buildCashGroupStateful
-    function buildNTokenPortfolioStateful(uint256 currencyId)
+    function loadNTokenPortfolioStateful(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
-        returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken = buildNTokenPortfolioNoCashGroup(currencyId);
-        (nToken.cashGroup, nToken.markets) = CashGroup.buildCashGroupStateful(currencyId);
-
-        return nToken;
+        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        nToken.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
     }
 
     /// @notice Uses buildCashGroupView
-    function buildNTokenPortfolioView(uint256 currencyId)
+    function loadNTokenPortfolioView(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
         view
         returns (nTokenPortfolio memory)
     {
-        nTokenPortfolio memory nToken = buildNTokenPortfolioNoCashGroup(currencyId);
-        (nToken.cashGroup, nToken.markets) = CashGroup.buildCashGroupView(currencyId);
-
-        return nToken;
+        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        nToken.cashGroup = CashGroup.buildCashGroupView(currencyId);
     }
 
     function getNextSettleTime(nTokenPortfolio memory nToken) internal pure returns (uint256) {
@@ -400,7 +391,7 @@ library nTokenHandler {
     }
 
     /// @notice Returns the nToken present value denominated in asset terms.
-    function getNTokenPV(nTokenPortfolio memory nToken, uint256 blockTime)
+    function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
         returns (int256, bytes32)
@@ -423,8 +414,6 @@ library nTokenHandler {
                 // for withdraws and liquidations can still be processed. If this condition persists for a long period of time then
                 // the entire protocol will have serious problems as markets will not be tradable.
                 blockTime = nextSettleTime - 1;
-                // Clear the market parameters just in case there is dirty data.
-                nToken.markets = new MarketParameters[](nToken.markets.length);
             }
         }
 
@@ -433,6 +422,7 @@ library nTokenHandler {
         // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
         // underlying terms.
         {
+            MarketParameters memory market;
             for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
                 // NOTE: getLiquidityTokenValue can rewrite fCash values in memory, however, that does not
                 // happen in this call because there are no fCash values in the nToken portfolio.
@@ -440,7 +430,7 @@ library nTokenHandler {
                     AssetHandler.getLiquidityTokenValue(
                         i,
                         nToken.cashGroup,
-                        nToken.markets,
+                        market,
                         nToken.portfolioState.storedAssets,
                         blockTime,
                         false
@@ -463,7 +453,6 @@ library nTokenHandler {
             blockTime,
             ifCashBitmap,
             nToken.cashGroup,
-            nToken.markets,
             false
         );
         totalUnderlyingPV = totalUnderlyingPV.add(bitmapPv);

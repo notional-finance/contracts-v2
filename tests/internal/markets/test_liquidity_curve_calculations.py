@@ -134,13 +134,13 @@ class TestLiquidityCurve:
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         initialTimeToMaturity = timeToMaturity * SECONDS_IN_DAY
-        (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
+        cashGroup = marketWithCToken.buildCashGroupView(1)
         marketIndex = 1
 
         marketState = get_market_state(
             MARKETS[0],
             totalfCash=totalfCash,
-            totalCurrentCash=totalCashUnderlying,
+            totalAssetCash=totalCashUnderlying,
             lastImpliedRate=0.06e9,
         )
         fCashAmount = 1e12
@@ -186,14 +186,14 @@ class TestLiquidityCurve:
     ):
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
-        (cashGroup, _) = marketWithCToken.buildCashGroupView(1)
+        cashGroup = marketWithCToken.buildCashGroupView(1)
         if initialCashAmount == 0:
             return
 
         marketState = get_market_state(
             MARKETS[marketIndex - 1],
             totalfCash=totalfCash,
-            totalCurrentCash=totalCashUnderlying,
+            totalAssetCash=totalCashUnderlying,
             lastImpliedRate=impliedRate,
         )
 
@@ -205,4 +205,4 @@ class TestLiquidityCurve:
             marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
         )
 
-        assert pytest.approx(cashAmount, rel=1e-9, abs=10) == initialCashAmount
+        assert pytest.approx(cashAmount, rel=1e-9, abs=100) == initialCashAmount

@@ -3,10 +3,13 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./LiquidationHelpers.sol";
+import "../AccountContextHandler.sol";
 import "../valuation/ExchangeRate.sol";
 import "../markets/CashGroup.sol";
+import "../markets/AssetRate.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
+import "../balances/BalanceHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library LiquidateCurrency {
@@ -14,8 +17,11 @@ library LiquidateCurrency {
     using ExchangeRate for ETHRate;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
+    using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
+    using AccountContextHandler for AccountContext;
+    using BalanceHandler for BalanceState;
 
     function _hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
         private
@@ -35,7 +41,7 @@ library LiquidateCurrency {
     }
 
     /// @notice Liquidates an account by converting their local currency collateral into cash and
-    /// eliminates any haircut value incurred by liquidity tokens or perpetual tokens. Requires no capital
+    /// eliminates any haircut value incurred by liquidity tokens or nTokens. Requires no capital
     /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
     /// encounter this scenario but this method is here for completeness.
     function liquidateLocalCurrency(
@@ -46,45 +52,55 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
     ) internal view returns (int256) {
-        int256 benefitRequired =
-            factors
-                .localETHRate
-                .convertETHTo(factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(factors.localETHRate.buffer);
-        int256 netLocalFromLiquidator;
+        require(factors.localAssetAvailable < 0, "No local debt");
+
+        int256 assetBenefitRequired =
+            factors.cashGroup.assetRate.convertFromUnderlying(
+                factors
+                    .localETHRate
+                    .convertETHTo(factors.netETHValue.neg())
+                    .mul(Constants.PERCENTAGE_DECIMALS)
+                    .div(factors.localETHRate.buffer)
+            );
+
+        int256 netAssetCashFromLiquidator;
 
         if (_hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
             WithdrawFactors memory w;
-            (w, benefitRequired) = _withdrawLocalLiquidityTokens(
+            (w, assetBenefitRequired) = _withdrawLocalLiquidityTokens(
                 portfolio,
                 factors,
                 blockTime,
-                benefitRequired
+                assetBenefitRequired
             );
-            netLocalFromLiquidator = w.totalIncentivePaid.neg();
+            netAssetCashFromLiquidator = w.totalIncentivePaid.neg();
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        if (factors.nTokenValue > 0) {
+        if (factors.nTokenHaircutAssetValue > 0) {
             int256 nTokensToLiquidate;
             {
                 // This will not underflow, checked when saving parameters
                 int256 haircutDiff =
-                    (int256(
-                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])
-                    ) - int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))) *
-                        Constants.PERCENTAGE_DECIMALS;
+                    int256(
+                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
+                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
+                    ) * Constants.PERCENTAGE_DECIMALS;
 
-                // benefitGained = perpTokensToLiquidate * (liquidatedPV - freeCollateralPV)
-                // benefitGained = perpTokensToLiquidate * perpTokenPV * (liquidationHaircut - pvHaircut)
-                // perpTokensToLiquidate = benefitGained / (perpTokenPV * (liquidationHaircut - pvHaircut))
-                nTokensToLiquidate = benefitRequired.mul(Constants.INTERNAL_TOKEN_PRECISION).div(
-                    factors.nTokenValue.mul(haircutDiff).div(Constants.PERCENTAGE_DECIMALS)
-                );
+                // fullNTokenPV = haircutTokenPV / haircutPercentage
+                // benefitGained = nTokensToLiquidate * (liquidatedPV - freeCollateralPV)
+                // benefitGained = nTokensToLiquidate * (fullNTokenPV * liquidatedPV - fullNTokenPV * pvHaircut)
+                // benefitGained = nTokensToLiquidate * fullNTokenPV * (liquidatedPV - pvHaircut) / totalBalance
+                // benefitGained = nTokensToLiquidate * (haircutTokenPV / haircutPercentage) * (liquidationHaircut - pvHaircut) / totalBalance
+                // benefitGained = nTokensToLiquidate * haircutTokenPV * (liquidationHaircut - pvHaircut) / (totalBalance * haircutPercentage)
+                // nTokensToLiquidate = (benefitGained * totalBalance * haircutPercentage) / (haircutTokenPV * (liquidationHaircut - pvHaircut))
+                nTokensToLiquidate = assetBenefitRequired
+                    .mul(balanceState.storedNTokenBalance)
+                    .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
+                    .div(factors.nTokenHaircutAssetValue.mul(haircutDiff));
             }
 
-            nTokensToLiquidate = LiquidationHelpers.calculateMaxLiquidationAmount(
+            nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
                 nTokensToLiquidate,
                 balanceState.storedNTokenBalance,
                 int256(maxNTokenLiquidation)
@@ -92,22 +108,22 @@ library LiquidateCurrency {
             balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
 
             {
-                // fullPerpTokenPV = haircutTokenPV / haircutPercentage
-                // localFromLiquidator = tokensToLiquidate * fullPerpTokenPV * liquidationHaircut / totalBalance
+                // fullNTokenPV = haircutTokenPV / haircutPercentage
+                // localFromLiquidator = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
                 // prettier-ignore
-                int256 localCashValue =
+                int256 localAssetCash =
                     nTokensToLiquidate
                         .mul(int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])))
-                        .mul(factors.nTokenValue)
+                        .mul(factors.nTokenHaircutAssetValue)
                         .div(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                         .div(balanceState.storedNTokenBalance);
 
-                balanceState.netCashChange = balanceState.netCashChange.add(localCashValue);
-                netLocalFromLiquidator = netLocalFromLiquidator.add(localCashValue);
+                balanceState.netCashChange = balanceState.netCashChange.add(localAssetCash);
+                netAssetCashFromLiquidator = netAssetCashFromLiquidator.add(localAssetCash);
             }
         }
 
-        return netLocalFromLiquidator;
+        return netAssetCashFromLiquidator;
     }
 
     /// @notice Liquidates collateral in the form of cash, liquidity token cash claims, or nTokens in that
@@ -120,61 +136,77 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
     ) internal view returns (int256) {
-        require(factors.localAvailable < 0, "No local debt");
-        require(factors.collateralAvailable > 0, "No collateral");
+        require(factors.localAssetAvailable < 0, "No local debt");
+        require(factors.collateralAssetAvailable > 0, "No collateral");
 
-        (int256 collateralToRaise, int256 localToPurchase, int256 liquidationDiscount) =
-            _calculateCollateralToRaise(factors, int256(maxCollateralLiquidation));
+        (
+            int256 requiredCollateralAssetCash,
+            int256 localAssetCashFromLiquidator,
+            int256 liquidationDiscount
+        ) = _calculateCollateralToRaise(factors, int256(maxCollateralLiquidation));
 
-        int256 collateralRemaining = collateralToRaise;
+        int256 collateralAssetRemaining = requiredCollateralAssetCash;
         if (balanceState.storedCashBalance > 0) {
-            if (balanceState.storedCashBalance > collateralRemaining) {
-                balanceState.netCashChange = collateralRemaining.neg();
-                collateralRemaining = 0;
+            if (balanceState.storedCashBalance > collateralAssetRemaining) {
+                balanceState.netCashChange = collateralAssetRemaining.neg();
+                collateralAssetRemaining = 0;
             } else {
                 // Sell off all cash balance and calculate remaining collateral
                 balanceState.netCashChange = balanceState.storedCashBalance.neg();
-                collateralRemaining = collateralRemaining.sub(balanceState.storedCashBalance);
+                collateralAssetRemaining = collateralAssetRemaining.sub(
+                    balanceState.storedCashBalance
+                );
             }
         }
 
         if (
-            collateralRemaining > 0 &&
+            collateralAssetRemaining > 0 &&
             _hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
         ) {
-            // We don't change netCashBalance here because all the collateral withdrawn is going
-            // to go to the liquidator
-            collateralRemaining = _withdrawCollateralLiquidityTokens(
-                portfolio,
-                factors,
-                blockTime,
-                collateralRemaining
+            int256 newCollateralAssetRemaining =
+                _withdrawCollateralLiquidityTokens(
+                    portfolio,
+                    factors,
+                    blockTime,
+                    collateralAssetRemaining
+                );
+
+            // This is a hack and ugly but there are stack issues in `LiquidateCurrencyAction.liquidateCollateralCurrency`
+            // and this is a way to deal with it with the fewest contortions. There are no asset cash transfers within liquidation
+            // so we overload the meaning of the field here to hold the net liquidity token cash change. Will zero this out before
+            // going into finalize for the liquidated account's cash balances. This value is not simply added to the netCashChange field
+            // because the cashClaim value is not stored in the balances and therefore the liquidated account will have too much cash
+            // debited from their stored cash value.
+            balanceState.netAssetTransferInternalPrecision = collateralAssetRemaining.sub(
+                newCollateralAssetRemaining
             );
+            collateralAssetRemaining = newCollateralAssetRemaining;
         }
 
-        if (collateralRemaining > 0 && factors.nTokenValue > 0) {
-            collateralRemaining = _calculateCollateralNTokenTransfer(
+        if (collateralAssetRemaining > 0 && factors.nTokenHaircutAssetValue > 0) {
+            collateralAssetRemaining = _calculateCollateralNTokenTransfer(
                 balanceState,
                 factors,
-                collateralRemaining,
+                collateralAssetRemaining,
                 int256(maxNTokenLiquidation)
             );
         }
 
-        if (collateralRemaining > 0) {
+        if (collateralAssetRemaining > 0) {
+            // If there is any collateral asset remaining then recalculate the localAssetCashFromLiquidator
             // prettier-ignore
             (
                 /* collateralToRaise */,
-                localToPurchase
+                localAssetCashFromLiquidator
             ) = LiquidationHelpers.calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
-                collateralToRaise.sub(collateralRemaining),
-                collateralToRaise.sub(collateralRemaining)
+                requiredCollateralAssetCash.sub(collateralAssetRemaining),
+                requiredCollateralAssetCash.sub(collateralAssetRemaining)
             );
         }
 
-        return localToPurchase;
+        return localAssetCashFromLiquidator;
     }
 
     /// @dev Calculates anticipated collateral to raise, enforcing some limits. Actual transfers may be lower due
@@ -186,14 +218,14 @@ library LiquidateCurrency {
         private
         pure
         returns (
-            int256,
-            int256,
-            int256
+            int256 requiredCollateralAssetCash,
+            int256 localAssetCashFromLiquidator,
+            int256 liquidationDiscount
         )
     {
-        (int256 benefitRequired, int256 liquidationDiscount) =
-            LiquidationHelpers.calculateCrossCurrencyBenefitAndDiscount(factors);
-        int256 collateralToRaise;
+        int256 assetCashBenefitRequired;
+        (assetCashBenefitRequired, liquidationDiscount) = LiquidationHelpers
+            .calculateCrossCurrencyBenefitAndDiscount(factors);
         {
             // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
             //      collateralToSell * collateralHaircut
@@ -203,7 +235,7 @@ library LiquidateCurrency {
             //      collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = collateralToSell * (localBuffer / liquidationDiscount - collateralHaircut)
-            // collateralToSell = collateralCurrencyBeneift / [(localBuffer / liquidationDiscount - collateralHaircut)]
+            // collateralToSell = collateralCurrencyBenefit / [(localBuffer / liquidationDiscount - collateralHaircut)]
             int256 denominator =
                 factors
                     .localETHRate
@@ -212,59 +244,54 @@ library LiquidateCurrency {
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
-            collateralToRaise = benefitRequired.mul(Constants.PERCENTAGE_DECIMALS).div(denominator);
+            requiredCollateralAssetCash = assetCashBenefitRequired
+                .mul(Constants.PERCENTAGE_DECIMALS)
+                .div(denominator);
         }
 
-        collateralToRaise = LiquidationHelpers.calculateMaxLiquidationAmount(
-            collateralToRaise,
-            factors.collateralAvailable,
+        requiredCollateralAssetCash = LiquidationHelpers.calculateLiquidationAmount(
+            requiredCollateralAssetCash,
+            factors.collateralAssetAvailable,
             0 // will check userSpecifiedAmount below
         );
 
-        int256 localToPurchase;
-        (collateralToRaise, localToPurchase) = LiquidationHelpers.calculateLocalToPurchase(
-            factors,
-            liquidationDiscount,
-            collateralToRaise,
-            collateralToRaise
-        );
-
         // Enforce the user specified max liquidation amount
-        if (maxCollateralLiquidation > 0 && collateralToRaise > maxCollateralLiquidation) {
-            collateralToRaise = maxCollateralLiquidation;
-
-            // prettier-ignore
-            (
-                /* collateralToRaise */,
-                localToPurchase
-            ) = LiquidationHelpers.calculateLocalToPurchase(
-                factors,
-                liquidationDiscount,
-                collateralToRaise,
-                collateralToRaise
-            );
+        if (
+            maxCollateralLiquidation > 0 && requiredCollateralAssetCash > maxCollateralLiquidation
+        ) {
+            requiredCollateralAssetCash = maxCollateralLiquidation;
         }
 
-        return (collateralToRaise, localToPurchase, liquidationDiscount);
+        // prettier-ignore
+        (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
+            .calculateLocalToPurchase(
+                factors,
+                liquidationDiscount,
+                requiredCollateralAssetCash,
+                requiredCollateralAssetCash
+            );
+
+        return (requiredCollateralAssetCash, localAssetCashFromLiquidator, liquidationDiscount);
     }
 
     /// @dev Calculates the nToken transfer.
     function _calculateCollateralNTokenTransfer(
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
-        int256 collateralRemaining,
+        int256 collateralAssetRemaining,
         int256 maxNTokenLiquidation
     ) internal pure returns (int256) {
         // fullNTokenPV = haircutTokenPV / haircutPercentage
         // collateralToRaise = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
         // tokensToLiquidate = collateralToRaise * totalBalance / (fullNTokenPV * liquidationHaircut)
+        // tokensToLiquidate = (collateralToRaise * totalBalance * haircutPercentage) / (haircutTokenPV * liquidationHaircut)
         int256 nTokenLiquidationHaircut =
             int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]));
         int256 nTokenHaircut =
             int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
         int256 nTokensToLiquidate =
-            collateralRemaining.mul(balanceState.storedNTokenBalance).mul(nTokenHaircut).div(
-                factors.nTokenValue.mul(nTokenLiquidationHaircut)
+            collateralAssetRemaining.mul(balanceState.storedNTokenBalance).mul(nTokenHaircut).div(
+                factors.nTokenHaircutAssetValue.mul(nTokenLiquidationHaircut)
             );
 
         if (maxNTokenLiquidation > 0 && nTokensToLiquidate > maxNTokenLiquidation) {
@@ -276,19 +303,19 @@ library LiquidateCurrency {
         }
 
         balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
-        // NOTE: it's possible that this results in > MAX_LIQUIDATION_PORTION in PV terms. However, it will not be more than
-        // the liquidateHaircutPercentage which will be set to a nominal amount. Since MAX_LIQUIDATION_PORTION is arbitrary we
+        // NOTE: it's possible that this results in > DEFAULT_LIQUIDATION_PORTION in PV terms. However, it will not be more than
+        // the liquidateHaircutPercentage which will be set to a nominal amount. Since DEFAULT_LIQUIDATION_PORTION is arbitrary we
         // don't put too much emphasis on this and allow it to occur.
-        collateralRemaining = collateralRemaining.subNoNeg(
+        collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
             // collateralToRaise = (nTokenToLiquidate * nTokenPV * liquidateHaircutPercentage) / nTokenBalance
             nTokensToLiquidate
-                .mul(factors.nTokenValue)
+                .mul(factors.nTokenHaircutAssetValue)
                 .mul(nTokenLiquidationHaircut)
                 .div(nTokenHaircut)
                 .div(balanceState.storedNTokenBalance)
         );
 
-        return collateralRemaining;
+        return collateralAssetRemaining;
     }
 
     struct WithdrawFactors {
@@ -300,9 +327,7 @@ library LiquidateCurrency {
         int256 incentivePaid;
     }
 
-    /// @notice Withdraws liquidity tokens from a portfolio. Assumes that no trading will occur during
-    /// liquidation so portfolioState.newAssets.length == 0. If liquidity tokens are settled they will
-    /// not create new assets, the net fCash asset will replace the liquidity token asset.
+    /// @notice Withdraws local liquidity tokens from a portfolio and pays an incentive to the liquidator.
     function _withdrawLocalLiquidityTokens(
         PortfolioState memory portfolioState,
         LiquidationFactors memory factors,
@@ -310,11 +335,10 @@ library LiquidateCurrency {
         int256 assetAmountRemaining
     ) internal view returns (WithdrawFactors memory, int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
+        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
         // Do this to deal with stack issues
         WithdrawFactors memory w;
 
-        // NOTE: even if stored assets have been modified in memory as a result of the Asset.getRiskAdjustedPortfolioValue
-        // method getting the haircut value will still work here because we do not reference the fCash value.
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.storageState == AssetStorageState.Delete) continue;
@@ -323,35 +347,27 @@ library LiquidateCurrency {
                 asset.currencyId != factors.cashGroup.currencyId
             ) continue;
 
-            MarketParameters memory market =
-                factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
+            uint256 marketIndex = asset.assetType - 1;
+            // This is set up this way so that we can delay setting storage of markets so that this method can
+            // remain a view function
+            factors.cashGroup.loadMarket(
+                factors.markets[marketIndex - 1],
+                marketIndex,
+                true,
+                blockTime
+            );
 
             // NOTE: we do not give any credit to the haircut fCash in this procedure but it will end up adding
             // additional collateral value back into the account. It's probably too complex to deal with this so
             // we will just leave it as such.
-            (w.assetCash, w.fCash) = asset.getCashClaims(market);
-
-            {
-                // We can only recollateralize the local currency using the part of the liquidity token that
-                // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
-                // is paid out as an incentive so that must be accounted for.
-                // netCashIncrease = cashClaim * (1 - haircut)
-                // netCashIncrease = netCashToAccount + incentivePaid
-                // incentivePaid = netCashIncrease * incentive
-                int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(asset.assetType));
-                w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
-                    Constants.PERCENTAGE_DECIMALS
-                );
-            }
-            w.incentivePaid = w.netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
-                Constants.PERCENTAGE_DECIMALS
-            );
+            (w.assetCash, w.fCash) = asset.getCashClaims(factors.markets[marketIndex - 1]);
+            _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
             // (netCashToAccount <= assetAmountRemaining)
             if (w.netCashIncrease.subNoNeg(w.incentivePaid) <= assetAmountRemaining) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                market.removeLiquidity(asset.notional);
+                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
@@ -360,16 +376,18 @@ library LiquidateCurrency {
                     assetAmountRemaining -
                     w.netCashIncrease.sub(w.incentivePaid);
             } else {
-                // incentivePaid
-                w.incentivePaid = assetAmountRemaining
-                    .mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT)
-                    .div(Constants.PERCENTAGE_DECIMALS);
-
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 int256 tokensToRemove =
-                    asset.notional.mul(assetAmountRemaining).div(w.netCashIncrease);
+                    asset.notional.mul(assetAmountRemaining).div(
+                        w.netCashIncrease.subNoNeg(w.incentivePaid)
+                    );
 
-                (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
+                (w.assetCash, w.fCash) = factors.markets[marketIndex - 1].removeLiquidity(
+                    tokensToRemove
+                );
+                // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
+                // remove asset cash
+                _calculateNetCashIncreaseAndIncentivePaid(factors, w, asset.assetType);
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
@@ -395,6 +413,26 @@ library LiquidateCurrency {
         return (w, assetAmountRemaining);
     }
 
+    function _calculateNetCashIncreaseAndIncentivePaid(
+        LiquidationFactors memory factors,
+        WithdrawFactors memory w,
+        uint256 assetType
+    ) private pure {
+        // We can only recollateralize the local currency using the part of the liquidity token that
+        // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
+        // is paid out as an incentive so that must be accounted for.
+        // netCashIncrease = cashClaim * (1 - haircut)
+        // netCashIncrease = netCashToAccount + incentivePaid
+        // incentivePaid = netCashIncrease * incentive
+        int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(assetType));
+        w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
+            Constants.PERCENTAGE_DECIMALS
+        );
+        w.incentivePaid = w.netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
+            Constants.PERCENTAGE_DECIMALS
+        );
+    }
+
     /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
     /// haircut amounts, we simply withdraw as much collateral as needed.
     function _withdrawCollateralLiquidityTokens(
@@ -404,6 +442,7 @@ library LiquidateCurrency {
         int256 collateralToWithdraw
     ) internal view returns (int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
+        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
 
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
@@ -413,22 +452,32 @@ library LiquidateCurrency {
                 asset.currencyId != factors.cashGroup.currencyId
             ) continue;
 
-            MarketParameters memory market =
-                factors.cashGroup.getMarket(factors.markets, asset.assetType - 1, blockTime, true);
-            (int256 cashClaim, int256 fCashClaim) = asset.getCashClaims(market);
+            uint256 marketIndex = asset.assetType - 1;
+            // This is set up this way so that we can delay setting storage of markets so that this method can
+            // remain a view function
+            factors.cashGroup.loadMarket(
+                factors.markets[marketIndex - 1],
+                marketIndex,
+                true,
+                blockTime
+            );
+            (int256 cashClaim, int256 fCashClaim) =
+                asset.getCashClaims(factors.markets[marketIndex - 1]);
 
             if (cashClaim <= collateralToWithdraw) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                market.removeLiquidity(asset.notional);
+                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
 
                 // overflow checked above
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // notional * collateralToWithdraw / cashClaim
+                // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
-                (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
+                (cashClaim, fCashClaim) = factors.markets[marketIndex - 1].removeLiquidity(
+                    tokensToRemove
+                );
 
                 // Remove liquidity token balance
                 portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
@@ -449,5 +498,39 @@ library LiquidateCurrency {
         }
 
         return collateralToWithdraw;
+    }
+
+    function finalizeLiquidatedCollateralAndPortfolio(
+        address liquidateAccount,
+        BalanceState memory collateralBalanceState,
+        AccountContext memory accountContext,
+        PortfolioState memory portfolio,
+        MarketParameters[] memory markets
+    ) internal {
+        // Asset transfer value is set to record liquidity token withdraw balances and should not be
+        // finalized inside the liquidated collateral. See comment inside liquidateCollateralCurrency
+        // for more details
+        int256 tmpAssetTransferAmount = collateralBalanceState.netAssetTransferInternalPrecision;
+        collateralBalanceState.netAssetTransferInternalPrecision = 0;
+
+        // Finalize liquidated account balance
+        collateralBalanceState.finalize(liquidateAccount, accountContext, false);
+        if (accountContext.bitmapCurrencyId == 0) {
+            // Portfolio updates only happen if the account has liquidity tokens, which can only be the
+            // case in a non-bitmapped portfolio.
+            accountContext.storeAssetsAndUpdateContext(
+                liquidateAccount,
+                portfolio,
+                true // is liquidation
+            );
+
+            for (uint256 i; i < markets.length; i++) {
+                // Will short circuit if market does not need to be set
+                markets[i].setMarketStorage();
+            }
+        }
+        accountContext.setAccountContext(liquidateAccount);
+
+        collateralBalanceState.netAssetTransferInternalPrecision = tmpAssetTransferAmount;
     }
 }

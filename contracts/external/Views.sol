@@ -107,11 +107,11 @@ contract Views is StorageLayoutV1 {
         view
         returns (MarketParameters[] memory)
     {
-        (CashGroupParameters memory cashGroup, MarketParameters[] memory markets) =
-            CashGroup.buildCashGroupView(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
 
-        for (uint256 i = 1; i <= cashGroup.maxMarketIndex; i++) {
-            cashGroup.getMarket(markets, i, blockTime, true);
+        for (uint256 i = 0; i < cashGroup.maxMarketIndex; i++) {
+            cashGroup.loadMarket(markets[i], i + 1, true, blockTime);
         }
 
         return markets;
@@ -221,7 +221,8 @@ contract Views is StorageLayoutV1 {
         Token memory token = TokenHandler.getToken(currencyId, false);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
         // prettier-ignore
         (
@@ -267,13 +268,9 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256) {
-        CashGroupParameters memory cashGroup;
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
-        {
-            MarketParameters[] memory markets;
-            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
-        }
+        cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         require(market.maturity > blockTime, "Error");
         uint256 timeToMaturity = market.maturity - blockTime;
@@ -300,19 +297,15 @@ contract Views is StorageLayoutV1 {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256, int256) {
-        CashGroupParameters memory cashGroup;
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
-        {
-            MarketParameters[] memory markets;
-            (cashGroup, markets) = CashGroup.buildCashGroupView(currencyId);
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
-        }
+        cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         require(market.maturity > blockTime, "Error");
         uint256 timeToMaturity = market.maturity - blockTime;
 
-        (int256 assetCash, ) =
-            /* int fee */
+        // prettier-ignore
+        (int256 assetCash, /* int fee */) =
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));

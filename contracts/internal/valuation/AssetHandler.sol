@@ -103,7 +103,7 @@ library AssetHandler {
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
-    /// @notice Returns the unhaircut claims on cash and fCash by the liquidity token.
+    /// @notice Returns the non haircut claims on cash and fCash by the liquidity token.
     function getCashClaims(PortfolioAsset memory token, MarketParameters memory market)
         internal
         pure
@@ -111,7 +111,7 @@ library AssetHandler {
     {
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
-        assetCash = market.totalCurrentCash.mul(token.notional).div(market.totalLiquidity);
+        assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
         fCash = market.totalfCash.mul(token.notional).div(market.totalLiquidity);
     }
 
@@ -129,7 +129,7 @@ library AssetHandler {
         int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
 
         int256 assetCash =
-            _calcToken(market.totalCurrentCash, token.notional, haircut, market.totalLiquidity);
+            _calcToken(market.totalAssetCash, token.notional, haircut, market.totalLiquidity);
 
         int256 fCash =
             _calcToken(market.totalfCash, token.notional, haircut, market.totalLiquidity);
@@ -151,7 +151,7 @@ library AssetHandler {
     function getLiquidityTokenValue(
         uint256 index,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         PortfolioAsset[] memory assets,
         uint256 blockTime,
         bool riskAdjusted
@@ -159,7 +159,6 @@ library AssetHandler {
         PortfolioAsset memory liquidityToken = assets[index];
         require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: get liquidity token value, not liquidity token
 
-        MarketParameters memory market;
         {
             (uint256 marketIndex, bool idiosyncratic) =
                 DateTime.getMarketIndex(
@@ -169,8 +168,9 @@ library AssetHandler {
                 );
             // Liquidity tokens can never be idiosyncratic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
+
             // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.
-            market = cashGroup.getMarket(markets, marketIndex, blockTime, true);
+            cashGroup.loadMarket(market, marketIndex, true, blockTime);
         }
 
         int256 assetCashClaim;
@@ -219,7 +219,7 @@ library AssetHandler {
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
+        MarketParameters memory market,
         uint256 blockTime,
         uint256 portfolioIndex
     ) internal view returns (int256, uint256) {
@@ -236,7 +236,7 @@ library AssetHandler {
                 getLiquidityTokenValue(
                     i,
                     cashGroup,
-                    markets,
+                    market,
                     assets,
                     blockTime,
                     true // risk adjusted
@@ -253,7 +253,7 @@ library AssetHandler {
             if (assets[j].currencyId != cashGroup.currencyId) break;
 
             uint256 maturity = assets[j].maturity;
-            uint256 oracleRate = cashGroup.getOracleRate(markets, maturity, blockTime);
+            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
 
             int256 pv =
                 getRiskAdjustedPresentValue(

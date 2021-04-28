@@ -44,7 +44,11 @@ def test_deleverage_markets_no_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000000e8
+            )
+        ],
         {"from": accounts[0]},
     )
 
@@ -56,16 +60,16 @@ def test_deleverage_markets_no_lend(environment, accounts):
 
     assert portfolioBefore == portfolioAfter
     assert ifCashAssetsBefore == ifCashAssetsAfter
-    assert balanceAfter[0] == 100000e8
+    assert balanceAfter[0] == 50000000e8
     assert marketsBefore == marketsAfter
     assert reserveBalance == 0
-    assert totalSupplyBefore + 100000e8 == totalSupplyAfter
+    assert totalSupplyBefore + 50000000e8 == totalSupplyAfter
 
     check_system_invariants(environment, accounts)
 
 
 def test_deleverage_markets_lend(environment, accounts):
-    # Lending does not succeed when markets are over levered, cash goes into cash balance
+    # Lending does succeed with a smaller balance
     currencyId = 2
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9])
 
@@ -76,7 +80,7 @@ def test_deleverage_markets_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100e8)],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000e8)],
         {"from": accounts[0]},
     )
 
@@ -95,9 +99,9 @@ def test_deleverage_markets_lend(environment, accounts):
         assert proportionBefore > proportionAfter
 
     # Minimum residual left
-    assert balanceAfter[0] < 1e8
+    assert balanceAfter[0] < 500e8
     assert reserveBalance > 0
-    assert totalSupplyBefore + 100e8 == totalSupplyAfter
+    assert totalSupplyBefore + 50000e8 == totalSupplyAfter
 
     check_system_invariants(environment, accounts)
 
@@ -519,7 +523,7 @@ def test_mint_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed, abs=2e8) == 150000e8 * 2
+    assert pytest.approx(incentivesClaimed, rel=1e-4) == 150000e8 * 3
     assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
@@ -542,10 +546,53 @@ def test_mint_bitmap_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed, abs=2e8) == 150000e8 * 2
+    assert pytest.approx(incentivesClaimed, rel=1e-4) == 150000e8 * 3
     assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
 
     check_system_invariants(environment, accounts)
+
+
+def test_cannot_transfer_ntoken_to_ntoken(environment, accounts):
+    environment.nToken[2].approve(accounts[1], 200e8, {"from": accounts[0]})
+
+    with brownie.reverts():
+        environment.nToken[2].transfer(environment.nToken[3].address, 100e8, {"from": accounts[0]})
+
+    with brownie.reverts():
+        environment.nToken[2].transfer(environment.nToken[2].address, 100e8, {"from": accounts[0]})
+
+    with brownie.reverts():
+        environment.nToken[2].transferFrom(
+            accounts[0].address, environment.nToken[3].address, 100e8, {"from": accounts[1]}
+        )
+
+    with brownie.reverts():
+        environment.nToken[2].transferFrom(
+            accounts[0].address, environment.nToken[2].address, 100e8, {"from": accounts[1]}
+        )
+
+
+def test_transfer_allowance(environment, accounts):
+    assert environment.nToken[2].balanceOf(accounts[2]) == 0
+    environment.nToken[2].approve(accounts[1], 200e8, {"from": accounts[0]})
+    environment.nToken[2].transferFrom(
+        accounts[0].address, accounts[2].address, 100e8, {"from": accounts[1]}
+    )
+    assert environment.nToken[2].balanceOf(accounts[2]) == 100e8
+
+
+def test_transfer_all_allowance(environment, accounts):
+    assert environment.nToken[1].balanceOf(accounts[2]) == 0
+    assert environment.nToken[2].balanceOf(accounts[2]) == 0
+    environment.notional.nTokenTransferApproveAll(accounts[1], 500e8, {"from": accounts[0]})
+    environment.nToken[2].transferFrom(
+        accounts[0].address, accounts[2].address, 100e8, {"from": accounts[1]}
+    )
+    environment.nToken[1].transferFrom(
+        accounts[0].address, accounts[2].address, 100e8, {"from": accounts[1]}
+    )
+    assert environment.nToken[1].balanceOf(accounts[2]) == 100e8
+    assert environment.nToken[2].balanceOf(accounts[2]) == 100e8

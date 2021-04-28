@@ -37,13 +37,13 @@ library Market {
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
-        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalCurrentCash);
-        // No need to convert this to underlying, assetCash / totalCurrentCash is a unitless proportion.
-        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalCurrentCash);
+        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
+        // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
+        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
 
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
         market.totalfCash = market.totalfCash.add(fCash);
-        market.totalCurrentCash = market.totalCurrentCash.add(assetCash);
+        market.totalAssetCash = market.totalAssetCash.add(assetCash);
         market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (liquidityTokens, fCash.neg());
@@ -59,12 +59,12 @@ library Market {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
-        int256 assetCash = market.totalCurrentCash.mul(tokensToRemove).div(market.totalLiquidity);
+        int256 assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
         int256 fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalCurrentCash = market.totalCurrentCash.subNoNeg(assetCash);
+        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
         market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (assetCash, fCash);
@@ -90,8 +90,6 @@ library Market {
 
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        // This will result in negative interest rates
-        if (fCashToAccount >= totalCashUnderlying) return (0, 0);
 
         int256 preFeeExchangeRate;
         {
@@ -107,7 +105,12 @@ library Market {
         }
 
         (int256 netCashToAccount, int256 netCashToMarket, int256 netCashToReserve) =
-            _getNetCashAmounts(cashGroup, preFeeExchangeRate, fCashToAccount, timeToMaturity);
+            _getNetCashAmountsUnderlying(
+                cashGroup,
+                preFeeExchangeRate,
+                fCashToAccount,
+                timeToMaturity
+            );
         if (netCashToAccount == 0) return (0, 0);
 
         {
@@ -151,8 +154,7 @@ library Market {
         )
     {
         int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
-        int256 totalCashUnderlying =
-            cashGroup.assetRate.convertToUnderlying(market.totalCurrentCash);
+        int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
 
         // This will result in a divide by zero
         if (market.totalfCash == 0 || totalCashUnderlying == 0) return (0, 0, 0);
@@ -176,7 +178,7 @@ library Market {
     }
 
     /// @dev Returns net asset cash amounts to the account, the market and the reserve
-    function _getNetCashAmounts(
+    function _getNetCashAmountsUnderlying(
         CashGroupParameters memory cashGroup,
         int256 preFeeExchangeRate,
         int256 fCashToAccount,
@@ -198,27 +200,43 @@ library Market {
         int256 preFeeCashToAccount =
             fCashToAccount.mul(Constants.RATE_PRECISION).div(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+
         if (fCashToAccount > 0) {
+            // Lending
             int256 postFeeExchangeRate = preFeeExchangeRate.mul(Constants.RATE_PRECISION).div(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
-            // when borrowing.
+            // when borrowing. If this happens then the trade has failed.
             if (postFeeExchangeRate < Constants.RATE_PRECISION) return (0, 0, 0);
-            // fee = (1 - fee) * preFeeCash
+
+            // cashToAccount = -(fCashToAccount / exchangeRate)
+            // postFeeExchangeRate = preFeeExchangeRate / feeExchangeRate
+            // preFeeCashToAccount = -(fCashToAccount / preFeeExchangeRate)
+            // postFeeCashToAccount = -(fCashToAccount / postFeeExchangeRate)
+            // netFee = preFeeCashToAccount - postFeeCashToAccount
+            // netFee = (fCashToAccount / postFeeExchangeRate) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = ((fCashToAccount * feeExchangeRate) / preFeeExchangeRate) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
+            // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
+            // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
             fee = Constants.RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(
                 Constants.RATE_PRECISION
             );
         } else {
-            // fee = (fee - 1) * preFeeCash / fee
-            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(fee);
+            // Borrowing (inverse of above)
+            // netFee = preFeeCashToAccount * (feeExchangeRate - 1)
+            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(
+                Constants.RATE_PRECISION
+            );
         }
+
         int256 cashToReserve =
             fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS);
 
         return (
-            // Net cash to account
+            // postFeeCashToAccount = preFeeCashToAccount - fee
             preFeeCashToAccount.sub(fee),
-            // Net cash to market
-            preFeeCashToAccount.neg().add(fee).sub(cashToReserve),
+            // netCashToMarket = -(preFeeCashToAccount - fee + cashToReserve)
+            (preFeeCashToAccount.sub(fee).add(cashToReserve)).neg(),
             cashToReserve
         );
     }
@@ -231,7 +249,7 @@ library Market {
         int256 netCashToReserve
     ) private view returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
-        market.totalCurrentCash = market.totalCurrentCash.add(netAssetCashToMarket);
+        market.totalAssetCash = market.totalAssetCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
         market.previousTradeTime = block.timestamp;
@@ -336,7 +354,7 @@ library Market {
     /// Calculates the following exchange rate:
     ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    ///     proportion = totalfCash / (totalfCash + totalCurrentCash)
+    ///     proportion = totalfCash / (totalfCash + totalAssetCash)
     /// @dev has an underscore to denote as private but is marked internal for the mock
     function _getExchangeRate(
         int256 totalfCash,
@@ -346,7 +364,6 @@ library Market {
         int256 fCashToAccount
     ) internal pure returns (int256, bool) {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
-        if (numerator <= 0) return (0, false);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
         int256 proportion =
@@ -455,6 +472,47 @@ library Market {
         market.totalLiquidity = totalLiquidity;
     }
 
+    function getOracleRate(
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 rateOracleTimeWindow,
+        uint256 blockTime
+    ) internal view returns (uint256) {
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        bytes32 slot = getSlot(currencyId, settlementDate, maturity);
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        uint256 lastImpliedRate = uint256(uint32(uint256(data >> 160)));
+        uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
+        uint256 previousTradeTime = uint256(uint32(uint256(data >> 224)));
+
+        // If the oracle rate is set to zero this can only be because the markets have past their settlement
+        // date but the new set of markets has not yet been initialized. Use the oracle rate from the previous
+        // markets instead. Due to the logic in initialize markets, these rates will be quite close to what the
+        // markets will actually initialize at.
+        if (oracleRate == 0) {
+            // No overflows possible here
+            uint256 prevBlockTime = blockTime - Constants.QUARTER;
+            uint256 prevMaturity = maturity - Constants.QUARTER;
+            // This should never enter an infinite loop but if it does then the transaction will be invalid anyway and
+            // will fail due to out of gas.
+            return getOracleRate(currencyId, prevMaturity, rateOracleTimeWindow, prevBlockTime);
+        }
+
+        return
+            _updateRateOracle(
+                previousTradeTime,
+                lastImpliedRate,
+                oracleRate,
+                rateOracleTimeWindow,
+                blockTime
+            );
+    }
+
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
     /// which ensures that the rate oracle is set properly.
     function _loadMarketStorage(
@@ -475,7 +533,7 @@ library Market {
         market.storageSlot = slot;
         market.maturity = maturity;
         market.totalfCash = int256(uint80(uint256(data)));
-        market.totalCurrentCash = int256(uint80(uint256(data >> 80)));
+        market.totalAssetCash = int256(uint80(uint256(data >> 80)));
         market.lastImpliedRate = uint256(uint32(uint256(data >> 160)));
         market.oracleRate = uint256(uint32(uint256(data >> 192)));
         market.previousTradeTime = uint256(uint32(uint256(data >> 224)));
@@ -503,14 +561,14 @@ library Market {
         }
 
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: market storage totalCurrentCash overflow
+        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: market storage totalAssetCash overflow
         require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max); // dev: market storage lastImpliedRate overflow
         require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
         require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
 
         bytes32 data =
             (bytes32(market.totalfCash) |
-                (bytes32(market.totalCurrentCash) << 80) |
+                (bytes32(market.totalAssetCash) << 80) |
                 (bytes32(market.lastImpliedRate) << 160) |
                 (bytes32(market.oracleRate) << 192) |
                 (bytes32(market.previousTradeTime) << 224));
@@ -592,9 +650,9 @@ library Market {
         }
 
         int256 totalfCash = int256(uint80(uint256(data)));
-        int256 totalCurrentCash = int256(uint80(uint256(data >> 80)));
+        int256 totalAssetCash = int256(uint80(uint256(data >> 80)));
         // Clear the lower 160 bits, this data will be combined with the new totalfCash
-        // and totalCurrentCash figures.
+        // and totalAssetCash figures.
         data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
 
         slot = uint256(slot) + 1;
@@ -607,7 +665,7 @@ library Market {
             SettlementMarket({
                 storageSlot: bytes32(slot - 1),
                 totalfCash: totalfCash,
-                totalCurrentCash: totalCurrentCash,
+                totalAssetCash: totalAssetCash,
                 totalLiquidity: int256(totalLiquidity),
                 data: data
             });
@@ -617,11 +675,11 @@ library Market {
         bytes32 slot = market.storageSlot;
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
-        require(market.totalCurrentCash >= 0 && market.totalCurrentCash <= type(uint80).max); // dev: settlement market storage totalCurrentCash overflow
+        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
         require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
 
         data = (bytes32(market.totalfCash) |
-            (bytes32(market.totalCurrentCash) << 80) |
+            (bytes32(market.totalAssetCash) << 80) |
             bytes32(market.data));
 
         // Don't clear the storage even when all liquidity tokens have been removed because we need to use

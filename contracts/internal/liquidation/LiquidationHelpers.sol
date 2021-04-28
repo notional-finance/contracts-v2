@@ -8,6 +8,8 @@ import "../valuation/ExchangeRate.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../balances/BalanceHandler.sol";
+import "../balances/TokenHandler.sol";
+import "../markets/AssetRate.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 
@@ -16,7 +18,9 @@ library LiquidationHelpers {
     using ExchangeRate for ETHRate;
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
+    using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
+    using TokenHandler for Token;
 
     /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
     function preLiquidationActions(
@@ -56,18 +60,18 @@ library LiquidationHelpers {
         return (accountContext, factors, portfolioState);
     }
 
-    /// @notice We allow liquidators to purchase up to Constants.MAX_LIQUIDATION_PORTION percentage of collateral
+    /// @notice We allow liquidators to purchase up to Constants.DEFAULT_LIQUIDATION_PORTION percentage of collateral
     /// assets during liquidation to recollateralize an account as long as it does not also put the account
     /// further into negative free collateral (i.e. constraints on local available and collateral available).
     /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
     /// purchase so we also enforce that limit here.
-    function calculateMaxLiquidationAmount(
+    function calculateLiquidationAmount(
         int256 initialAmountToLiquidate,
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) internal pure returns (int256) {
         int256 maxAllowedAmount =
-            maxTotalBalance.mul(Constants.MAX_LIQUIDATION_PORTION).div(
+            maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
             );
 
@@ -94,19 +98,19 @@ library LiquidationHelpers {
     function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
         internal
         pure
-        returns (int256, int256)
+        returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
     {
-        int256 liquidationDiscount;
         // This calculation returns the amount of benefit that selling collateral for local currency will
         // be back to the account.
-        int256 benefitRequired =
+        assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 .convertETHTo(factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
             // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
             // collateral with a zero haircut will have no net benefit back to the liquidated account.
-                .div(factors.collateralETHRate.haircut);
+                .div(factors.collateralETHRate.haircut)
+        );
 
         if (
             factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount
@@ -116,7 +120,7 @@ library LiquidationHelpers {
             liquidationDiscount = factors.localETHRate.liquidationDiscount;
         }
 
-        return (benefitRequired, liquidationDiscount);
+        return (assetCashBenefitRequired, liquidationDiscount);
     }
 
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
@@ -124,37 +128,42 @@ library LiquidationHelpers {
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
-        int256 collateralPresentValue,
-        int256 collateralBalanceToSell
+        int256 collateralAssetPresentValue,
+        int256 collateralAssetBalanceToSell
     ) internal pure returns (int256, int256) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 localToPurchase =
-            collateralPresentValue
+        int256 collateralUnderlyingPresentValue =
+            factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
+        int256 localUnderlyingFromLiquidator =
+            collateralUnderlyingPresentValue
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .mul(factors.localETHRate.rateDecimals)
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
                 .div(liquidationDiscount);
 
-        if (localToPurchase > factors.localAvailable.neg()) {
+        int256 localAssetFromLiquidator =
+            factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
+
+        if (localAssetFromLiquidator > factors.localAssetAvailable.neg()) {
             // If the local to purchase will put the local available into negative territory we
             // have to cut the collateral purchase amount back. Putting local available into negative
             // territory will force the liquidated account to incur more debt.
-            collateralBalanceToSell = collateralBalanceToSell.mul(factors.localAvailable.neg()).div(
-                localToPurchase
-            );
+            collateralAssetBalanceToSell = collateralAssetBalanceToSell
+                .mul(factors.localAssetAvailable.neg())
+                .div(localAssetFromLiquidator);
 
-            localToPurchase = factors.localAvailable.neg();
+            localAssetFromLiquidator = factors.localAssetAvailable.neg();
         }
 
-        return (collateralBalanceToSell, localToPurchase);
+        return (collateralAssetBalanceToSell, localAssetFromLiquidator);
     }
 
     function finalizeLiquidatorLocal(
         address liquidator,
         uint256 localCurrencyId,
         int256 netLocalFromLiquidator,
-        int256 netLocalPerpetualTokens
+        int256 netLocalNTokens
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
@@ -176,9 +185,9 @@ library LiquidationHelpers {
             );
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            liquidatorLocalBalance.netAssetTransferInternalPrecision = netLocalFromLiquidator;
+            token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
         }
-        liquidatorLocalBalance.netNTokenTransfer = netLocalPerpetualTokens;
+        liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
 
         return liquidatorContext;
@@ -189,20 +198,20 @@ library LiquidationHelpers {
         AccountContext memory liquidatorContext,
         uint256 collateralCurrencyId,
         int256 netCollateralToLiquidator,
-        int256 netCollateralPerpetualTokens,
+        int256 netCollateralNTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountContext memory) {
         // TODO: maybe reuse these...
         BalanceState memory balance;
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
+        balance.netCashChange = netCollateralToLiquidator;
 
         if (withdrawCollateral) {
             balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
-        } else {
-            balance.netCashChange = netCollateralToLiquidator;
         }
-        balance.netNTokenTransfer = netCollateralPerpetualTokens;
+
+        balance.netNTokenTransfer = netCollateralNTokens;
         balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;
@@ -218,52 +227,5 @@ library LiquidationHelpers {
         balance.loadBalanceState(liquidateAccount, localCurrency, accountContext);
         balance.netCashChange = netLocalFromLiquidator;
         balance.finalize(liquidateAccount, accountContext, false);
-    }
-
-    function transferAssets(
-        address liquidateAccount,
-        address liquidator,
-        AccountContext memory liquidatorContext,
-        uint256 fCashCurrency,
-        uint256[] calldata fCashMaturities,
-        LiquidatefCash.fCashContext memory c
-    ) internal {
-        PortfolioAsset[] memory assets =
-            _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
-
-        liquidatorContext = TransferAssets.placeAssetsInAccount(
-            liquidator,
-            liquidatorContext,
-            assets
-        );
-        TransferAssets.invertNotionalAmountsInPlace(assets);
-
-        if (c.accountContext.bitmapCurrencyId == 0) {
-            c.portfolio.addMultipleAssets(assets);
-            AccountContextHandler.storeAssetsAndUpdateContext(
-                c.accountContext,
-                liquidateAccount,
-                c.portfolio,
-                false // Although this is liquidation, we should not allow past max assets here
-            );
-        } else {
-            BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
-        }
-    }
-
-    function _makeAssetArray(
-        uint256 fCashCurrency,
-        uint256[] calldata fCashMaturities,
-        int256[] memory fCashNotionalTransfers
-    ) private pure returns (PortfolioAsset[] memory) {
-        PortfolioAsset[] memory assets = new PortfolioAsset[](fCashMaturities.length);
-        for (uint256 i; i < assets.length; i++) {
-            assets[i].currencyId = fCashCurrency;
-            assets[i].assetType = Constants.FCASH_ASSET_TYPE;
-            assets[i].notional = fCashNotionalTransfers[i];
-            assets[i].maturity = fCashMaturities[i];
-        }
-
-        return assets;
     }
 }

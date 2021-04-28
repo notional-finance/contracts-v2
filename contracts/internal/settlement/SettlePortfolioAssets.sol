@@ -64,11 +64,11 @@ library SettlePortfolioAssets {
         SettlementMarket memory market =
             Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
 
-        int256 assetCash = market.totalCurrentCash.mul(asset.notional).div(market.totalLiquidity);
+        int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
         int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
 
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalCurrentCash = market.totalCurrentCash.subNoNeg(assetCash);
+        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
         market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
 
         return (assetCash, fCash, market);

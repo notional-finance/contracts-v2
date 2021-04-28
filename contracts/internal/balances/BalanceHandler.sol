@@ -86,7 +86,7 @@ library BalanceHandler {
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
-            underlyingAmountExternal = int256(msg.value);
+            require(underlyingAmountExternal == int256(msg.value), "Invalid ETH balance");
         } else {
             underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
         }
@@ -390,7 +390,7 @@ library BalanceHandler {
         }
     }
 
-    /// @notice Gets internal balance storage, perpetual tokens are stored alongside cash balances
+    /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
     function getBalanceStorage(address account, uint256 currencyId)
         internal
         view

@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, HAS_CASH_DEBT
@@ -122,7 +123,7 @@ def check_cash_balance(env, accounts):
         accountBalances += env.notional.getReserveBalance(currencyId)
         accountBalances += compute_settled_fcash(currencyId, symbol, env, accounts)
 
-        assert contractBalance == accountBalances
+        assert pytest.approx(contractBalance, abs=1) == accountBalances
         # Check that total supply equals total balances
         assert nTokenTotalBalances == env.nToken[currencyId].totalSupply()
 

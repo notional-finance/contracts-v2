@@ -153,14 +153,18 @@ contract Router is StorageLayoutV1 {
 
         if (
             sig == LiquidateCurrencyAction.liquidateLocalCurrency.selector ||
-            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector
+            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector ||
+            sig == LiquidateCurrencyAction.calculateLocalCurrencyLiquidation.selector ||
+            sig == LiquidateCurrencyAction.calculateCollateralCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_CURRENCY;
         }
 
         if (
             sig == LiquidatefCashAction.liquidatefCashLocal.selector ||
-            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector
+            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector ||
+            sig == LiquidatefCashAction.calculatefCashLocalLiquidation.selector ||
+            sig == LiquidatefCashAction.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
         }

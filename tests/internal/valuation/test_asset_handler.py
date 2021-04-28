@@ -63,10 +63,16 @@ class TestAssetHandler:
 
     @pytest.fixture(scope="class", autouse=True)
     def cashGroups(self, assetLibrary):
+        marketStates = [
+            get_market_state(MARKETS[0]),
+            get_market_state(MARKETS[1]),
+            get_market_state(MARKETS[2]),
+        ]
+
         return [
-            assetLibrary.buildCashGroupView(1),
-            assetLibrary.buildCashGroupView(2),
-            assetLibrary.buildCashGroupView(3),
+            (assetLibrary.buildCashGroupView(1), marketStates),
+            (assetLibrary.buildCashGroupView(2), marketStates),
+            (assetLibrary.buildCashGroupView(3), marketStates),
         ]
 
     @pytest.fixture(autouse=True)
@@ -137,34 +143,28 @@ class TestAssetHandler:
 
     def test_invalid_liquidity_token_value(self, assetLibrary, cashGroups):
         (cashGroup, _) = cashGroups[0]
-        marketStates = [
-            get_market_state(MARKETS[0]),
-            get_market_state(MARKETS[1]),
-            get_market_state(MARKETS[2]),
-        ]
-
         token = get_liquidity_token(1, maturity=MARKETS[0] + 100)
 
         with brownie.reverts():
-            assetLibrary.getLiquidityTokenValue(0, cashGroup, marketStates, [token], 0)
+            assetLibrary.getLiquidityTokenValue(0, cashGroup, [token], 0)
 
         with brownie.reverts():
-            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, marketStates, [token], 0)
+            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, [token], 0)
 
         with brownie.reverts():
             token = list(token)
             token[3] = -1000
-            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, marketStates, [token], 0)
+            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, [token], 0)
 
     def test_liquidity_token_value_fcash_not_found(self, assetLibrary, cashGroups):
         token = get_liquidity_token(1)
-        (cashGroup, marketStates) = cashGroups[0]
+        (cashGroup, _) = cashGroups[0]
         oracleRate = get_market_state(MARKETS[0])[6]
         assetsBefore = tuple([token])
 
         # Case when token is not found
         (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            0, cashGroup, marketStates, assetsBefore, START_TIME
+            0, cashGroup, assetsBefore, START_TIME
         )
 
         assert assetsAfter == assetsBefore
@@ -175,7 +175,7 @@ class TestAssetHandler:
 
         # Test when not risk adjusted
         (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            0, cashGroup, marketStates, assetsBefore, START_TIME
+            0, cashGroup, assetsBefore, START_TIME
         )
 
         assert assetsAfter == assetsBefore
@@ -184,13 +184,13 @@ class TestAssetHandler:
 
     def test_liquidity_token_value_fcash_not_found_index_positive(self, assetLibrary, cashGroups):
         token = get_liquidity_token(1, currencyId=2)
-        (cashGroup, marketStates) = cashGroups[1]
+        (cashGroup, _) = cashGroups[1]
         oracleRate = get_market_state(MARKETS[0])[6]
         assetsBefore = [get_fcash_token(1, notional=-0.25e18), token]
 
         # Case when token is not found
         (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            1, cashGroup, marketStates, assetsBefore, START_TIME
+            1, cashGroup, assetsBefore, START_TIME
         )
 
         assert assetsAfter == assetsBefore
@@ -201,7 +201,7 @@ class TestAssetHandler:
 
         # Test when not risk adjusted
         (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            1, cashGroup, marketStates, assetsBefore, START_TIME
+            1, cashGroup, assetsBefore, START_TIME
         )
 
         assert assetsAfter == assetsBefore
@@ -210,12 +210,12 @@ class TestAssetHandler:
 
     def test_liquidity_token_value_fcash_found(self, assetLibrary, cashGroups):
         token = get_liquidity_token(1, notional=0.5e18)
-        (cashGroup, marketStates) = cashGroups[0]
+        (cashGroup, _) = cashGroups[0]
         assets = [get_fcash_token(1, notional=-0.25e18), token]
 
         # Case when token is found
         (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            1, cashGroup, marketStates, assets, START_TIME
+            1, cashGroup, assets, START_TIME
         )
 
         assert assetCash == 0.5e18
@@ -223,7 +223,7 @@ class TestAssetHandler:
         assert assetsAfter[0][3] == 0.25e18
 
         (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            1, cashGroup, marketStates, assets, START_TIME
+            1, cashGroup, assets, START_TIME
         )
 
         assert assetCash == 0.5e18 * 0.99
@@ -269,33 +269,30 @@ class TestAssetHandler:
         assert riskPVNegative == -1e18
 
     def test_oracle_rate_failure(self, assetLibrary, cashGroups):
-        (cashGroup, markets) = cashGroups[0]
+        (cashGroup, _) = cashGroups[0]
         assets = [get_fcash_token(1, maturity=MARKETS[5])]
 
         # Fails due to unset market
         with brownie.reverts():
-            assetLibrary.getNetCashGroupValue(assets, cashGroup, markets, START_TIME, 0)
+            assetLibrary.getNetCashGroupValue(assets, cashGroup, START_TIME, 0)
 
     def test_portfolio_value_cash_group_not_found(self, assetLibrary, cashGroups):
-        (cashGroup, markets) = cashGroups[0]
+        (cashGroup, _) = cashGroups[0]
         assets = [get_fcash_token(1, currencyId=2)]
 
         # Cash group not found
-        (pvAsset, index) = assetLibrary.getNetCashGroupValue(
-            assets, cashGroup, markets, START_TIME, 0
-        )
+        (pvAsset, index) = assetLibrary.getNetCashGroupValue(assets, cashGroup, START_TIME, 0)
         assert pvAsset == 0
         assert index == 0
 
     def test_portfolio_value(self, assetLibrary, cashGroups):
         cgs = [cashGroups[0][0], cashGroups[1][0], cashGroups[2][0]]
-        markets = [cashGroups[0][1], cashGroups[1][1], cashGroups[2][1]]
         assets = get_portfolio_array(5, cgs, sorted=True)
 
         assetValuesRiskAdjusted = []
         i = 0
-        for (c, m) in zip(cgs, markets):
-            (av, i) = assetLibrary.getNetCashGroupValue(assets, c, m, START_TIME, i)
+        for c in cgs:
+            (av, i) = assetLibrary.getNetCashGroupValue(assets, c, START_TIME, i)
             assetValuesRiskAdjusted.append(av)
 
         assert len(assetValuesRiskAdjusted) == 3
@@ -311,7 +308,7 @@ class TestAssetHandler:
                 )
             else:
                 (assetCash, pv, _) = assetLibrary.getLiquidityTokenValue(
-                    0, cgs[currencyId - 1], markets[currencyId - 1], [asset], START_TIME
+                    0, cgs[currencyId - 1], [asset], START_TIME
                 )
                 totalPV[currencyId - 1] += pv
                 totalPV[currencyId - 1] += assetCash

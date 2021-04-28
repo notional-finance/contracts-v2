@@ -102,13 +102,18 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
     }
 
-    function getNTokenPV(uint256 currencyId, uint256 blockTime) external view returns (int256) {
-        nTokenPortfolio memory nToken = nTokenHandler.buildNTokenPortfolioView(currencyId);
+    function getNTokenAssetPV(uint256 currencyId, uint256 blockTime)
+        external
+        view
+        returns (int256)
+    {
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
         (
             int256 assetPv, /* ifCashBitmap */
 
-        ) = nTokenHandler.getNTokenPV(nToken, blockTime);
+        ) = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
 
         return assetPv;
     }

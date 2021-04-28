@@ -24,9 +24,13 @@ library Constants {
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
-    // Basis for
+    // Basis for percentages
     int256 internal constant PERCENTAGE_DECIMALS = 100;
+    // Max number of traded markets, also used as the maximum number of assets in a portfolio array
     uint256 internal constant MAX_TRADED_MARKET_INDEX = 7;
+    // Max number of fCash assets in a bitmap, this is based on the gas costs of calculating free collateral
+    // for a bitmap portfolio
+    uint256 internal constant MAX_BITMAP_ASSETS = 20;
 
     // Internal date representations, note we use a 6/30/360 week/month/year convention here
     uint256 internal constant DAY = 86400;
@@ -58,6 +62,7 @@ library Constants {
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
 
     uint256 internal constant FCASH_ASSET_TYPE = 1;
+    // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
     uint256 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
     uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
 
@@ -82,8 +87,13 @@ library Constants {
     uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 
     // Liquidation parameters
-    int256 internal constant MAX_LIQUIDATION_PORTION = 40;
+    /// @dev Default portion of collateral that a liquidator is allowed to liquidate, will be higher if the account
+    /// requires more collateral to be liquidated
+    int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
+    /// @dev Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
     int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
+    /// @dev Liquidation dust setting used during fCash liquidation
+    int256 internal constant LIQUIDATION_DUST = 10;
 
     /// @dev Annual incentive multiplier as a percentage
     uint256 internal constant ANNUAL_INCENTIVE_MULTIPLIER_PERCENT = 50;

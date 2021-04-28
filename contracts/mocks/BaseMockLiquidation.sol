@@ -2,6 +2,8 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../internal/markets/CashGroup.sol";
+import "../internal/markets/Market.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
@@ -9,6 +11,7 @@ import "../global/StorageLayoutV1.sol";
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
@@ -22,7 +25,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     function buildCashGroupView(uint256 currencyId)
         public
         view
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
     }
@@ -38,8 +41,39 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         market.setMarketStorage();
     }
 
+    function getMarkets(uint256 currencyId, uint256 blockTime)
+        public
+        view
+        returns (MarketParameters[] memory)
+    {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
+
+        for (uint256 i = 0; i < cashGroup.maxMarketIndex; i++) {
+            cashGroup.loadMarket(markets[i], i + 1, true, blockTime);
+        }
+
+        return markets;
+    }
+
+    function getPortfolio(address account) public view returns (PortfolioAsset[] memory) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
+    }
+
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
         underlyingToETHRateMapping[id] = rs;
+    }
+
+    function clearPortfolio(address account) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState =
+            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+            portfolioState.deleteAsset(i);
+        }
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        accountContext.setAccountContext(account);
     }
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {

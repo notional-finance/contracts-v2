@@ -28,7 +28,7 @@ contract MockMarket is StorageLayoutV1 {
     function buildCashGroupView(uint256 currencyId)
         public
         view
-        returns (CashGroupParameters memory, MarketParameters[] memory)
+        returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
     }

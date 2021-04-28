@@ -82,12 +82,9 @@ class TestLiquidateLocalLiquidityTokens:
         )
         liquidation.setBalance(accounts[0], 1, -5000e8, 0)
 
-        (
-            balanceState,
-            incentivePaid,
-            portfolioState,
-            newMarkets,
-        ) = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME).return_value
+        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        (balanceState, incentivePaid, portfolioState, _) = txn.return_value
+        newMarkets = liquidation.getMarkets(1, START_TIME)
 
         # all liquidity tokens have been removed
         fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
@@ -121,12 +118,9 @@ class TestLiquidateLocalLiquidityTokens:
         )
         liquidation.setBalance(accounts[0], 1, -5000e8, 0)
 
-        (
-            balanceState,
-            incentivePaid,
-            portfolioState,
-            newMarkets,
-        ) = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME).return_value
+        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        (balanceState, incentivePaid, portfolioState, _) = txn.return_value
+        newMarkets = liquidation.getMarkets(1, START_TIME)
 
         # all liquidity tokens have been removed
         fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
@@ -161,23 +155,21 @@ class TestLiquidateLocalLiquidityTokens:
         )
         liquidation.setBalance(accounts[0], 1, -990e8, 0)
 
-        (
-            balanceState,
-            incentivePaid,
-            portfolioState,
-            newMarkets,
-        ) = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME).return_value
+        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        (balanceState, incentivePaid, _, _) = txn.return_value
+        newMarkets = liquidation.getMarkets(1, START_TIME)
+        portfolio = liquidation.getPortfolio(accounts[0])
 
         # cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
         # netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
         # tokenRemoved = math.trunc(liquidityTokenNotional * factors[0] / netCashIncrease)
-        tokensRemoved = liquidityTokenNotional - portfolioState[0][0][3]
+        tokensRemoved = liquidityTokenNotional - portfolio[1][3]
 
         # all liquidity tokens have been removed
         fCashClaim = math.trunc(markets[0][2] * tokensRemoved / markets[0][4])
         cashClaimRemoved = math.trunc(markets[0][3] * tokensRemoved / markets[0][4])
 
-        assert pytest.approx(portfolioState[1][0][3], abs=2) == fCashClaim
+        assert pytest.approx(portfolio[0][3], abs=2) == fCashClaim
         assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] - incentivePaid
 
         # assert market updates
@@ -203,23 +195,22 @@ class TestLiquidateLocalLiquidityTokens:
         )
         liquidation.setBalance(accounts[0], 1, -490e8, 0)
 
-        (
-            balanceState,
-            incentivePaid,
-            portfolioState,
-            newMarkets,
-        ) = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME).return_value
+        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        (balanceState, incentivePaid, _, _) = txn.return_value
+        newMarkets = liquidation.getMarkets(1, START_TIME)
+        portfolio = liquidation.getPortfolio(accounts[0])
 
         # cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
         # netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
         # tokensToRemove = math.trunc(liquidityTokenNotional * factors[0] / netCashIncrease)
-        tokensRemoved = liquidityTokenNotional - portfolioState[0][1][3]
+        tokensRemoved = liquidityTokenNotional - portfolio[1][3]
 
         # all liquidity tokens have been removed
         fCashClaim = math.trunc(markets[0][2] * tokensRemoved / markets[0][4])
         cashClaimRemoved = math.trunc(markets[0][3] * tokensRemoved / markets[0][4])
+        assert liquidation.fc(accounts[0])[0] >= 0
 
-        assert pytest.approx(portfolioState[0][0][3], abs=2) == fCashClaim + fCashNotional
+        assert pytest.approx(portfolio[0][3], abs=2) == fCashClaim + fCashNotional
         assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] - incentivePaid
 
         # assert market updates
