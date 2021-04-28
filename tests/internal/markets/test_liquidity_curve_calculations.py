@@ -205,4 +205,4 @@ class TestLiquidityCurve:
             marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
         )
 
-        assert pytest.approx(cashAmount, rel=1e-9, abs=10) == initialCashAmount
+        assert pytest.approx(cashAmount, rel=1e-9, abs=100) == initialCashAmount

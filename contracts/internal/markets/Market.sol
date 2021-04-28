@@ -90,8 +90,6 @@ library Market {
 
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        // This will result in negative interest rates
-        if (fCashToAccount >= totalCashUnderlying) return (0, 0);
 
         int256 preFeeExchangeRate;
         {
@@ -107,7 +105,12 @@ library Market {
         }
 
         (int256 netCashToAccount, int256 netCashToMarket, int256 netCashToReserve) =
-            _getNetCashAmounts(cashGroup, preFeeExchangeRate, fCashToAccount, timeToMaturity);
+            _getNetCashAmountsUnderlying(
+                cashGroup,
+                preFeeExchangeRate,
+                fCashToAccount,
+                timeToMaturity
+            );
         if (netCashToAccount == 0) return (0, 0);
 
         {
@@ -175,7 +178,7 @@ library Market {
     }
 
     /// @dev Returns net asset cash amounts to the account, the market and the reserve
-    function _getNetCashAmounts(
+    function _getNetCashAmountsUnderlying(
         CashGroupParameters memory cashGroup,
         int256 preFeeExchangeRate,
         int256 fCashToAccount,
@@ -197,27 +200,43 @@ library Market {
         int256 preFeeCashToAccount =
             fCashToAccount.mul(Constants.RATE_PRECISION).div(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+
         if (fCashToAccount > 0) {
+            // Lending
             int256 postFeeExchangeRate = preFeeExchangeRate.mul(Constants.RATE_PRECISION).div(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
-            // when borrowing.
+            // when borrowing. If this happens then the trade has failed.
             if (postFeeExchangeRate < Constants.RATE_PRECISION) return (0, 0, 0);
-            // fee = (1 - fee) * preFeeCash
+
+            // cashToAccount = -(fCashToAccount / exchangeRate)
+            // postFeeExchangeRate = preFeeExchangeRate / feeExchangeRate
+            // preFeeCashToAccount = -(fCashToAccount / preFeeExchangeRate)
+            // postFeeCashToAccount = -(fCashToAccount / postFeeExchangeRate)
+            // netFee = preFeeCashToAccount - postFeeCashToAccount
+            // netFee = (fCashToAccount / postFeeExchangeRate) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = ((fCashToAccount * feeExchangeRate) / preFeeExchangeRate) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
+            // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
+            // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
             fee = Constants.RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(
                 Constants.RATE_PRECISION
             );
         } else {
-            // fee = (fee - 1) * preFeeCash / fee
-            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(fee);
+            // Borrowing (inverse of above)
+            // netFee = preFeeCashToAccount * (feeExchangeRate - 1)
+            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(
+                Constants.RATE_PRECISION
+            );
         }
+
         int256 cashToReserve =
             fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS);
 
         return (
-            // Net cash to account
+            // postFeeCashToAccount = preFeeCashToAccount - fee
             preFeeCashToAccount.sub(fee),
-            // Net cash to market
-            preFeeCashToAccount.neg().add(fee).sub(cashToReserve),
+            // netCashToMarket = -(preFeeCashToAccount - fee + cashToReserve)
+            (preFeeCashToAccount.sub(fee).add(cashToReserve)).neg(),
             cashToReserve
         );
     }
@@ -345,7 +364,6 @@ library Market {
         int256 fCashToAccount
     ) internal pure returns (int256, bool) {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
-        if (numerator <= 0) return (0, false);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
         int256 proportion =

@@ -32,7 +32,6 @@ def get_market_proportion(currencyId, environment):
     return proportions
 
 
-@pytest.mark.only
 def test_deleverage_markets_no_lend(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
@@ -45,7 +44,11 @@ def test_deleverage_markets_no_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100000e8)],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000000e8
+            )
+        ],
         {"from": accounts[0]},
     )
 
@@ -57,10 +60,10 @@ def test_deleverage_markets_no_lend(environment, accounts):
 
     assert portfolioBefore == portfolioAfter
     assert ifCashAssetsBefore == ifCashAssetsAfter
-    assert balanceAfter[0] == 100000e8
+    assert balanceAfter[0] == 50000000e8
     assert marketsBefore == marketsAfter
     assert reserveBalance == 0
-    assert totalSupplyBefore + 100000e8 == totalSupplyAfter
+    assert totalSupplyBefore + 50000000e8 == totalSupplyAfter
 
     check_system_invariants(environment, accounts)
 
@@ -77,7 +80,7 @@ def test_deleverage_markets_lend(environment, accounts):
 
     environment.notional.batchBalanceAction(
         accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=100e8)],
+        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000e8)],
         {"from": accounts[0]},
     )
 
@@ -96,9 +99,9 @@ def test_deleverage_markets_lend(environment, accounts):
         assert proportionBefore > proportionAfter
 
     # Minimum residual left
-    assert balanceAfter[0] < 1e8
+    assert balanceAfter[0] < 500e8
     assert reserveBalance > 0
-    assert totalSupplyBefore + 100e8 == totalSupplyAfter
+    assert totalSupplyBefore + 50000e8 == totalSupplyAfter
 
     check_system_invariants(environment, accounts)
 
