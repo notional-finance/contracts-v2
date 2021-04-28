@@ -67,7 +67,7 @@ def environment(accounts):
         [(3, 10e8)],  # deposit btc
         [(0, 2, daiMaturities[0], 100e6, bytes())],  # borrow 100 usdc
         [(accounts[4].address, 2, 0)],  # withdraw all
-        {"from": accounts[4], "value": 10e18},
+        {"from": accounts[4]},
     )
 
     v2env.notional.updateGlobalTransferOperator(v1env["Migrator"].address, True)
@@ -80,7 +80,6 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.mark.only
 def test_migrate_dai_eth(environment, accounts):
     account = accounts[1]
     (v1env, v2env) = environment
@@ -91,7 +90,16 @@ def test_migrate_dai_eth(environment, accounts):
     v2env.token["DAI"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
     v1env["Migrator"].migrateDaiEther(1, 100e8, 0, 100e18, {"from": account})
 
-    assert False
+    balances = v1env["Escrow"].functions.getBalances(account.address).call()
+    assert balances[0] == 0
+    assert balances[1] == 100e18
+    assert balances[2] == 0
+    assert balances[3] == 0
+
+    assert v2env.notional.getAccountBalance(1, account)[0] > 0
+    portfolio = v2env.notional.getAccountPortfolio(account)
+    assert len(portfolio) == 1
+    assert portfolio[0][3] == -100e8
 
 
 def test_migrate_dai_wbtc(environment, accounts):
@@ -104,12 +112,57 @@ def test_migrate_dai_wbtc(environment, accounts):
     v2env.token["DAI"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
     v1env["Migrator"].migrateDaiWBTC(1, 100e8, 0, 100e18, {"from": account})
 
+    balances = v1env["Escrow"].functions.getBalances(account.address).call()
+    assert balances[0] == 0
+    assert balances[1] == 100e18
+    assert balances[2] == 0
+    assert balances[3] == 0
 
-# def test_migrate_usdc_eth(environment, accounts):
-#     account = accounts[3]
-#     pass
+    assert v2env.notional.getAccountBalance(4, account)[0] > 0
+    portfolio = v2env.notional.getAccountPortfolio(account)
+    assert len(portfolio) == 1
+    assert portfolio[0][3] == -100e8
 
 
-# def test_migrate_usdc_wbtc(environment, accounts):
-#     account = accounts[4]
-#     pass
+def test_migrate_usdc_eth(environment, accounts):
+    account = accounts[3]
+    (v1env, v2env) = environment
+    erc1155 = Contract.from_abi(
+        "ERC1155Trade", address=v1env["ERC1155Trade"].address, abi=v1env["ERC1155Trade"].abi
+    )
+    erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
+    v2env.token["USDC"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
+    v1env["Migrator"].migrateUSDCEther(1, 100e8, 0, 100e6, {"from": account})
+
+    balances = v1env["Escrow"].functions.getBalances(account.address).call()
+    assert balances[0] == 0
+    assert balances[1] == 0
+    assert balances[2] == 100e6
+    assert balances[3] == 0
+
+    assert v2env.notional.getAccountBalance(1, account)[0] > 0
+    portfolio = v2env.notional.getAccountPortfolio(account)
+    assert len(portfolio) == 1
+    assert portfolio[0][3] == -100e8
+
+
+def test_migrate_usdc_wbtc(environment, accounts):
+    account = accounts[4]
+    (v1env, v2env) = environment
+    erc1155 = Contract.from_abi(
+        "ERC1155Trade", address=v1env["ERC1155Trade"].address, abi=v1env["ERC1155Trade"].abi
+    )
+    erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
+    v2env.token["USDC"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
+    v1env["Migrator"].migrateUSDCWBTC(1, 100e8, 0, 100e6, {"from": account})
+
+    balances = v1env["Escrow"].functions.getBalances(account.address).call()
+    assert balances[0] == 0
+    assert balances[1] == 0
+    assert balances[2] == 100e6
+    assert balances[3] == 0
+
+    assert v2env.notional.getAccountBalance(4, account)[0] > 0
+    portfolio = v2env.notional.getAccountPortfolio(account)
+    assert len(portfolio) == 1
+    assert portfolio[0][3] == -100e8
