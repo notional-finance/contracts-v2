@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity >=0.6.0;
+// SPDX-License-Identifier: GPL-v3
+pragma solidity >=0.7.0;
 
 /// @notice Used as a wrapper for tokens that are interest bearing for an
 /// underlying token. Follows the cToken interface, however, can be adapted

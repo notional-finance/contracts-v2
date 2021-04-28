@@ -159,6 +159,8 @@ library TokenHandler {
         } else if (token.tokenType == TokenType.Ether) {
             require(netTransferExternal < 0); // dev: cannot transfer ether
             address payable accountPayable = payable(account);
+            // This does not work with contracts, but is reentrancy safe. If contracts want to withdraw underlying
+            // ETH they will have to withdraw the cETH token and then redeem it manually.
             accountPayable.transfer(uint256(netTransferExternal.neg()));
         } else {
             safeTransferOut(

@@ -1,7 +1,9 @@
 import json
 
-from brownie import accounts, nTransparentUpgradeableProxy
+from brownie import NotionalV1Migrator, accounts, nTransparentUpgradeableProxy
 from brownie.network import web3
+from brownie.network.contract import Contract
+from brownie.network.state import Chain
 
 ARTIFACTS = [
     "CashMarket",
@@ -14,7 +16,11 @@ ARTIFACTS = [
     "RiskFramework",
     "WETH",
     "ERC1820Registry",
+    "UniswapV2Factory",
+    "UniswapV2Router02",
 ]
+
+chain = Chain()
 
 
 def load_artifacts():
@@ -25,6 +31,42 @@ def load_artifacts():
             artifacts[name] = data
 
     return artifacts
+
+
+def deploy_uniswap(tokens, artifacts, deployer, contracts):
+    factory = web3.eth.contract(
+        abi=artifacts["UniswapV2Factory"]["abi"], bytecode=artifacts["UniswapV2Factory"]["bytecode"]
+    )
+    tx_hash = factory.constructor(deployer.address).transact({"from": deployer.address})
+    tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+
+    contracts["uniswapFactory"] = Contract.from_abi(
+        "UniswapFactory", tx_receipt.contractAddress, abi=factory.abi, owner=deployer.address
+    )
+
+    router = web3.eth.contract(
+        abi=artifacts["UniswapV2Router02"]["abi"],
+        bytecode=artifacts["UniswapV2Router02"]["bytecode"],
+    )
+    tx_hash = router.constructor(
+        contracts["uniswapFactory"].address, contracts["WETH"].address
+    ).transact({"from": deployer.address})
+    tx_receipt = web3.eth.waitForTransactionReceipt(tx_hash)
+    contracts["uniswapRouter"] = Contract.from_abi(
+        "UniswapRouter", tx_receipt.contractAddress, abi=router.abi, owner=deployer.address
+    )
+
+    contracts["uniswapFactory"].createPair(tokens["WBTC"].address, contracts["WETH"].address)
+    tokens["WBTC"].approve(contracts["uniswapRouter"].address, 2 ** 255, {"from": accounts[0]})
+    contracts["uniswapRouter"].addLiquidityETH(
+        tokens["WBTC"].address,
+        1000e8,
+        1000e8,
+        1000e18,
+        deployer.address,
+        chain.time() + 864000000,
+        {"from": accounts[0], "value": 1000e18},
+    )
 
 
 def deploy_proxied_contract(name, artifacts, deployer, proxyAdmin, contracts, constructor_args=[]):
@@ -235,5 +277,20 @@ def deploy_v1(v2env):
         contracts["USDCCashMarket"].functions.addLiquidity(
             m, int(3000000e6), int(3000000e6), 0, int(1e9), 2 ** 31
         ).transact({"from": lp.address})
+
+    deploy_uniswap(v2env.token, artifacts, deployer, contracts)
+
+    contracts["Migrator"] = NotionalV1Migrator.deploy(
+        contracts["Escrow"].address,
+        v2env.notional.address,
+        contracts["ERC1155Trade"].address,
+        contracts["uniswapFactory"].getPair(contracts["WETH"].address, v2env.token["WBTC"]),
+        contracts["WETH"].address,
+        v2env.token["WBTC"],
+        1,
+        2,
+        3,
+        {"from": deployer},
+    )
 
     return contracts
