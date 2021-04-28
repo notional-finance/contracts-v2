@@ -3,6 +3,7 @@ import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults, nTokenDefaults
+from scripts.deployment import TokenType
 from tests.helpers import initialize_environment
 
 chain = Chain()
@@ -95,4 +96,20 @@ def test_non_callable_methods(environment, accounts):
         )
         environment.notional.nTokenTransferFrom(
             1, accounts[2], accounts[1], accounts[0], 100e8, {"from": accounts[1]}
+        )
+
+
+def test_prevent_duplicate_token_listing(environment, accounts):
+    symbol = "DAI"
+    assert environment.notional.getCurrencyId(environment.cToken[symbol].address) == 2
+    with brownie.reverts("G: duplicate token listing"):
+        environment.notional.listCurrency(
+            (environment.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
+            (environment.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+            environment.ethOracle[symbol].address,
+            False,
+            CurrencyDefaults["buffer"],
+            CurrencyDefaults["haircut"],
+            CurrencyDefaults["liquidationDiscount"],
+            {"from": accounts[0]},
         )

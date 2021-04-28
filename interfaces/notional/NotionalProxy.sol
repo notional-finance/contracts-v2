@@ -239,6 +239,8 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface {
     /** Views */
     function getMaxCurrencyId() external view returns (uint16);
 
+    function getCurrencyId(address tokenAddress) external view returns (uint16);
+
     function getCurrency(uint16 currencyId) external view returns (Token memory);
 
     function getUnderlying(uint16 currencyId) external view returns (Token memory);

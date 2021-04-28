@@ -9,9 +9,7 @@ import "./Types.sol";
  * layouts must inherit this and increment the version number.
  */
 contract StorageLayoutV1 {
-    /* Start Non-Mapping storage slots */
     uint16 internal maxCurrencyId;
-    /* End Non-Mapping storage slots */
 
     // Returns the exchange rate between an underlying currency and ETH for free
     // collateral purposes. Mapping is from currency id to rate storage object.
@@ -37,4 +35,8 @@ contract StorageLayoutV1 {
     // Transfer operators
     mapping(address => bool) internal globalTransferOperator;
     mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
+
+    // Reverse mapping from token addresses to currency ids, only used for referencing in views
+    // and checking for duplicate token listings.
+    mapping(address => uint16) internal tokenAddressToCurrencyId;
 }

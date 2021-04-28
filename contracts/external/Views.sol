@@ -24,6 +24,11 @@ contract Views is StorageLayoutV1 {
         return maxCurrencyId;
     }
 
+    /// @notice Returns a currency id, a zero means that it is not listed.
+    function getCurrencyId(address tokenAddress) external view returns (uint16) {
+        return tokenAddressToCurrencyId[tokenAddress];
+    }
+
     function getCurrency(uint16 currencyId) external view returns (Token memory) {
         return TokenHandler.getToken(currencyId, false);
     }
