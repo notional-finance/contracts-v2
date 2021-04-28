@@ -23,6 +23,8 @@ library TradingAction {
     using SafeMath for uint256;
 
     event BatchTradeExecution(address account, uint16 currencyId);
+    event SettledCashDebt(address settledAccount, uint16 currencyId, int256 amountToSettleAsset);
+    event nTokenResidualPurchase(uint16 currencyId, uint40 maturity, int256 fCashAmountToPurchase);
 
     /// @dev Used internally to manage stack issues
     struct TradeContext {
@@ -340,6 +342,8 @@ library TradingAction {
         }
         counterpartyContext.setAccountContext(counterparty);
 
+        emit SettledCashDebt(counterparty, uint16(cashGroup.currencyId), amountToSettleAsset);
+
         return (threeMonthMaturity, amountToSettleAsset.neg(), fCashAmount);
     }
 
@@ -436,6 +440,12 @@ library TradingAction {
             lastInitializedTime,
             fCashAmountToPurchase,
             netAssetCashNToken
+        );
+
+        emit nTokenResidualPurchase(
+            uint16(cashGroup.currencyId),
+            uint40(maturity),
+            fCashAmountToPurchase
         );
 
         return (maturity, netAssetCashNToken.neg(), fCashAmountToPurchase);
