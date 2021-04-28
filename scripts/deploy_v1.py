@@ -287,9 +287,9 @@ def deploy_v1(v2env):
         contracts["uniswapFactory"].getPair(contracts["WETH"].address, v2env.token["WBTC"]),
         contracts["WETH"].address,
         v2env.token["WBTC"],
-        1,
         2,
         3,
+        4,
         {"from": deployer},
     )
 

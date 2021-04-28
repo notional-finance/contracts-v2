@@ -123,6 +123,7 @@ contract NotionalV1Migrator {
         V2_DAI = v2Dai_;
         V2_USDC = v2USDC_;
         V2_WBTC = v2WBTC_;
+        WBTC.approve(address(NotionalV2), type(uint256).max);
     }
 
     function migrateDaiEther(
@@ -212,6 +213,10 @@ contract NotionalV1Migrator {
         uint128 v1RepayAmount
     ) internal returns (uint256) {
         int256[] memory balances = Escrow.getBalances(msg.sender);
+        int256 collateralBalance =
+            (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
+        require(collateralBalance > 0);
+
         bytes memory encodedData =
             abi.encode(
                 msg.sender,
@@ -220,24 +225,21 @@ contract NotionalV1Migrator {
                 v1CollateralId,
                 v2CollateralId,
                 tradeData,
-                v1RepayAmount
+                v1RepayAmount,
+                uint256(collateralBalance)
             );
 
+        uint256 swapAmount = (uint256(collateralBalance) * 996) / 1000;
         if (v1CollateralId == V1_WBTC) {
-            int256 collateralBalance = balances[V1_WBTC];
-            require(collateralBalance > 0);
-            wETHwBTCPair.swap(uint256(collateralBalance), 0, address(this), encodedData);
+            wETHwBTCPair.swap(swapAmount, 0, address(this), encodedData);
         } else if (v1CollateralId == V1_ETH) {
-            int256 collateralBalance = balances[V1_ETH];
-            require(collateralBalance > 0);
-            wETHwBTCPair.swap(0, uint256(collateralBalance), address(this), encodedData);
+            wETHwBTCPair.swap(0, swapAmount, address(this), encodedData);
         }
     }
 
     function _repayFlashBorrow(uint256 v1CollateralId, uint256 amount) internal {
         bool success;
         if (v1CollateralId == V1_ETH) {
-            WETH.deposit{value: amount}();
             success = WETH.transfer(msg.sender, amount);
         } else if (v1CollateralId == V1_WBTC) {
             success = WBTC.transfer(msg.sender, amount);
@@ -263,18 +265,17 @@ contract NotionalV1Migrator {
             uint16 v1CollateralId,
             uint16 v2CollateralId,
             bytes32 tradeData,
-            uint128 v1RepayAmount
-        ) = abi.decode(data, (address, uint16, uint16, uint16, uint16, bytes32, uint128));
+            uint128 v1RepayAmount,
+            uint256 collateralAmount
+        ) = abi.decode(data, (address, uint16, uint16, uint16, uint16, bytes32, uint128, uint256));
 
         // transfer tokens to original caller
-        uint256 collateralAmount;
+        uint256 swapAmount;
         if (v1CollateralId == V1_WBTC) {
-            bool success = WBTC.transfer(migrator, amount0);
-            require(success, "transfer not successful");
+            swapAmount = amount0;
         } else if (v1CollateralId == V1_ETH) {
+            swapAmount = amount1;
             WETH.withdraw(amount1);
-            address payable migratorPayable = payable(migrator);
-            migratorPayable.transfer(amount1);
         }
 
         _migrate(
@@ -285,8 +286,11 @@ contract NotionalV1Migrator {
             v2CollateralId,
             tradeData,
             v1RepayAmount,
-            collateralAmount
+            collateralAmount,
+            swapAmount
         );
+
+        _repayFlashBorrow(v1CollateralId, collateralAmount);
     }
 
     function _migrate(
@@ -297,21 +301,32 @@ contract NotionalV1Migrator {
         uint16 v2CollateralId,
         bytes32 tradeData,
         uint128 v1RepayAmount,
-        uint256 collateralAmount
+        uint256 collateralAmount,
+        uint256 swapAmount
     ) internal {
-        BalanceActionWithTrades[] memory tradeExecution = new BalanceActionWithTrades[](2);
+        // {
+        //     uint256 collateralIndex = v2CollateralId < v2DebtCurrencyId ? 0 : 1;
+        //     tradeExecution[collateralIndex].actionType = DepositActionType.DepositUnderlying;
+        //     tradeExecution[collateralIndex].currencyId = v2CollateralId;
+        //     // Denominated in underlying external precision
+        //     tradeExecution[collateralIndex].depositActionAmount = collateralAmount;
+        //     // All other values are 0 or false
+        // }
 
-        {
-            uint256 collateralIndex = v2CollateralId < v2DebtCurrencyId ? 0 : 1;
-            tradeExecution[collateralIndex].actionType = DepositActionType.DepositUnderlying;
-            tradeExecution[collateralIndex].currencyId = v2CollateralId;
-            // Denominated in underlying external precision
-            tradeExecution[collateralIndex].depositActionAmount = collateralAmount;
-            // All other values are 0 or false
+        if (v2CollateralId == V2_ETH) {
+            NotionalV2.depositUnderlyingToken{value: swapAmount}(
+                migrator,
+                v2CollateralId,
+                swapAmount
+            );
+        } else {
+            NotionalV2.depositUnderlyingToken(migrator, v2CollateralId, swapAmount);
         }
 
+        BalanceActionWithTrades[] memory tradeExecution = new BalanceActionWithTrades[](1);
         {
-            uint256 debtIndex = v2CollateralId < v2DebtCurrencyId ? 1 : 0;
+            // uint256 debtIndex = v2CollateralId < v2DebtCurrencyId ? 1 : 0;
+            uint256 debtIndex = 0;
             tradeExecution[debtIndex].actionType = DepositActionType.None;
             tradeExecution[debtIndex].currencyId = v2DebtCurrencyId;
             tradeExecution[debtIndex].withdrawEntireCashBalance = true;
@@ -351,8 +366,6 @@ contract NotionalV1Migrator {
                 withdraws
             );
         }
-
-        _repayFlashBorrow(v1CollateralId, collateralAmount);
     }
 
     receive() external payable {}

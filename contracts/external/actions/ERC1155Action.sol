@@ -114,7 +114,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 id,
         uint256 amount,
         bytes calldata data
-    ) external override {
+    ) external payable override {
         require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
@@ -304,8 +304,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
                 "Unauthorized call"
             );
 
-            (bool status, ) = address(this).call(data);
-            require(status, "Call failed");
+            (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
+            // require(status, abi.decode(result, (string)));
 
             // If the account is `from` then we can return, the call would have checked free collateral.
             if (account == from) return;

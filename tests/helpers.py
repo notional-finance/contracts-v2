@@ -417,6 +417,7 @@ def initialize_environment(accounts):
     env = TestEnvironment(accounts[0])
     env.enableCurrency("DAI", CurrencyDefaults)
     env.enableCurrency("USDC", CurrencyDefaults)
+    env.enableCurrency("WBTC", CurrencyDefaults)
 
     cToken = env.cToken["ETH"]
     cToken.mint({"from": accounts[0], "value": 10000e18})

@@ -42,7 +42,7 @@ interface nERC1155Interface is IERC165 {
         uint256 id,
         uint256 amount,
         bytes calldata data
-    ) external;
+    ) external payable;
 
     function safeBatchTransferFrom(
         address from,
