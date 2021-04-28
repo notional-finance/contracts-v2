@@ -19,17 +19,16 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     bytes4 internal constant ERC1155_ACCEPTED = 0xf23a6e61;
     // bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))
     bytes4 internal constant ERC1155_BATCH_ACCEPTED = 0xbc197c81;
-    bytes4 internal constant ERC1155_INTERFACE = 0xd9b67a26;
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        // TODO: this interface is not completely correct...
-        return interfaceId == ERC1155_INTERFACE;
+        return interfaceId == type(nERC1155Interface).interfaceId;
     }
 
-    /// @notice Returns the balance of an ERC1155 id on an account
+    /// @notice Returns the balance of an ERC1155 id on an account. WARNING: the balances returned by
+    /// this method are int256 not uint256 as specified in ERC1155. Modify smart contracts accordingly.
     /// @param account account to get the id for
     /// @param id the ERC1155 id
-    /// @return Balance of the ERC1155 id
+    /// @return Balance of the ERC1155 id as a signed integer
     function balanceOf(address account, uint256 id) public view override returns (int256) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         int256 notional;
@@ -43,14 +42,14 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
         }
 
-        // TODO: deal with the int / uint issue
-        return int256(notional);
+        return notional;
     }
 
-    /// @notice Returns the balance of a batch of accounts and ids
+    /// @notice Returns the balance of a batch of accounts and ids. WARNING: these balances are signed integers, not
+    /// unsigned integers as the ERC1155 spec designates
     /// @param accounts array of accounts to get balances for
     /// @param ids array of ids to get balances for
-    /// @return Returns an array of balances
+    /// @return Returns an array of balances as signed integers
     function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external
         view
@@ -305,6 +304,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
 
             (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
+            require(status, "Call failed");
+            // TODO: why does this fail during migration?
             // require(status, abi.decode(result, (string)));
 
             // If the account is `from` then we can return, the call would have checked free collateral.

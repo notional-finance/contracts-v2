@@ -309,7 +309,8 @@ library InitializeMarketsAction {
         int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
         // If exchange rate is less than 1 then we set it to 1 so that this can continue
         if (exchangeRate < Constants.RATE_PRECISION) {
-            // TODO: Is this the correct thing to do?
+            // This can happen if the result of interpolation results in a negative interest rate.
+            // This would be a bad result but in this case we floor the exchange rate at a 0% interest rate.
             exchangeRate = Constants.RATE_PRECISION;
         }
 

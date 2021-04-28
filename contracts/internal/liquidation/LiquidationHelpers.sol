@@ -170,7 +170,6 @@ library LiquidationHelpers {
         Token memory token = TokenHandler.getToken(localCurrencyId, false);
         AccountContext memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
-        // TODO: maybe reuse these...
         BalanceState memory liquidatorLocalBalance;
         liquidatorLocalBalance.loadBalanceState(liquidator, localCurrencyId, liquidatorContext);
 
@@ -202,7 +201,6 @@ library LiquidationHelpers {
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountContext memory) {
-        // TODO: maybe reuse these...
         BalanceState memory balance;
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
         balance.netCashChange = netCollateralToLiquidator;
