@@ -524,7 +524,9 @@ def test_mint_incentives(environment, accounts):
 
     assert balanceAfter - balanceBefore == incentivesClaimed
     assert pytest.approx(incentivesClaimed, rel=1e-4) == 150000e8 * 3
-    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
+    assert (
+        environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
+    )
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
