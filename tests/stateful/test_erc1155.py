@@ -477,7 +477,7 @@ def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
 
     (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
     assert cashBalance == 5000e8
-    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+    assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)
 
@@ -522,7 +522,7 @@ def test_transfer_borrow_fcash_borrow_market(environment, accounts):
     assert toAssets[0][2] == fromAssets[1][2]
     assert toAssets[0][3] == -fromAssets[1][3]
 
-    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+    assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)
 
@@ -573,6 +573,6 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
 
     (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
     assert cashBalance == 5000e8
-    assert environment.notional.getFreeCollateralView(accounts[1])[0] > 0
+    assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)

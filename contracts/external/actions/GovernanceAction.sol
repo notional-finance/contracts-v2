@@ -9,23 +9,11 @@ import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
+import "interfaces/notional/NotionalGovernance.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1 {
-    // Emitted when a new currency is listed
-    event ListCurrency(uint16 newCurrencyId);
-    event UpdateETHRate(uint16 currencyId);
-    event UpdateAssetRate(uint16 currencyId);
-    event UpdateCashGroup(uint16 currencyId);
-    event DeployNToken(uint16 currencyId, address nTokenAddress);
-    event UpdateDepositParameters(uint16 currencyId);
-    event UpdateInitializationParameters(uint16 currencyId);
-    event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
-    event UpdateTokenCollateralParameters(uint16 currencyId);
-    event UpdateGlobalTransferOperator(address operator, bool approved);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
+contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -34,7 +22,7 @@ contract GovernanceAction is StorageLayoutV1 {
 
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).
     /// Can only be called by the current owner.
-    function transferOwnership(address newOwner) external onlyOwner {
+    function transferOwnership(address newOwner) external override onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
@@ -57,7 +45,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
-    ) external onlyOwner {
+    ) external override onlyOwner {
         uint16 currencyId = maxCurrencyId + 1;
         // Set the new max currency id
         maxCurrencyId = currencyId;
@@ -98,7 +86,7 @@ contract GovernanceAction is StorageLayoutV1 {
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
-    ) external onlyOwner {
+    ) external override onlyOwner {
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 
@@ -131,7 +119,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint16 currencyId,
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
-    ) external onlyOwner {
+    ) external override onlyOwner {
         nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
         emit UpdateDepositParameters(currencyId);
     }
@@ -149,7 +137,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint16 currencyId,
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
-    ) external onlyOwner {
+    ) external override onlyOwner {
         nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
         emit UpdateInitializationParameters(currencyId);
     }
@@ -162,6 +150,7 @@ contract GovernanceAction is StorageLayoutV1 {
     /// exact due to multiplier effects and fluctuating token supply.
     function updateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate)
         external
+        override
         onlyOwner
     {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
@@ -200,7 +189,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
-    ) external onlyOwner {
+    ) external override onlyOwner {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
 
@@ -221,6 +210,7 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @param cashGroup new parameters for the cash group
     function updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup)
         external
+        override
         onlyOwner
     {
         _updateCashGroup(currencyId, cashGroup);
@@ -230,7 +220,7 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @dev emit:UpdateAssetRate
     /// @param currencyId id of the currency
     /// @param rateOracle new rate oracle for the asset
-    function updateAssetRate(uint16 currencyId, address rateOracle) external onlyOwner {
+    function updateAssetRate(uint16 currencyId, address rateOracle) external override onlyOwner {
         _updateAssetRate(currencyId, rateOracle);
     }
 
@@ -250,7 +240,7 @@ contract GovernanceAction is StorageLayoutV1 {
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
-    ) external onlyOwner {
+    ) external override onlyOwner {
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
     }
 
@@ -259,7 +249,11 @@ contract GovernanceAction is StorageLayoutV1 {
     /// @dev emit:UpdateGlobalTransferOperator
     /// @param operator address of the operator
     /// @param approved true if the operator is allowed to transfer globally
-    function updateGlobalTransferOperator(address operator, bool approved) external onlyOwner {
+    function updateGlobalTransferOperator(address operator, bool approved)
+        external
+        override
+        onlyOwner
+    {
         uint256 codeSize;
         assembly {
             codeSize := extcodesize(operator)

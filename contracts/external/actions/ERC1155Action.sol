@@ -304,9 +304,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
 
             (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
+            // TODO: retrieve revert string
             require(status, "Call failed");
-            // TODO: why does this fail during migration?
-            // require(status, abi.decode(result, (string)));
 
             // If the account is `from` then we can return, the call would have checked free collateral.
             if (account == from) return;

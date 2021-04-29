@@ -22,7 +22,7 @@ def isolation(fn_isolation):
 
 def get_market_proportion(currencyId, environment):
     proportions = []
-    (cashGroup, assetRate) = environment.notional.getCashGroupAndRate(currencyId)
+    (cashGroup, assetRate) = environment.notional.getCashGroupAndAssetRate(currencyId)
     markets = environment.notional.getActiveMarkets(currencyId)
     for (i, market) in enumerate(markets):
         totalCashUnderlying = (market[3] * Wei(1e8) * assetRate[1]) / (assetRate[2] * Wei(1e18))

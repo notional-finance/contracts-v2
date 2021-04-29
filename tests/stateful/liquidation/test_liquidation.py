@@ -220,7 +220,7 @@ def isolation(fn_isolation):
 
 
 def check_liquidation_invariants(environment, liquidatedAccount, fcBefore):
-    (fc, netLocal) = environment.notional.getFreeCollateralView(liquidatedAccount)
+    (fc, netLocal) = environment.notional.getFreeCollateral(liquidatedAccount)
     assert fc > fcBefore[0]
     assert fc >= 0
 
@@ -278,7 +278,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     currencyLiquidation.notional.updateCashGroup(2, cashGroup)
 
     # liquidate account[5]
-    fcBeforeNToken = currencyLiquidation.notional.getFreeCollateralView(accounts[5])
+    fcBeforeNToken = currencyLiquidation.notional.getFreeCollateral(accounts[5])
     nTokenNetRequired = currencyLiquidation.notional.calculateLocalCurrencyLiquidation.call(
         accounts[5], 2, 0
     )
@@ -294,7 +294,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     check_liquidation_invariants(currencyLiquidation, accounts[5], fcBeforeNToken)
 
     # liquidate account[6]
-    fcBeforeLiquidityToken = currencyLiquidation.notional.getFreeCollateralView(accounts[6])
+    fcBeforeLiquidityToken = currencyLiquidation.notional.getFreeCollateral(accounts[6])
     liquidityTokenNetRequired = currencyLiquidation.notional.calculateLocalCurrencyLiquidation.call(
         accounts[6], 2, 0
     )
@@ -316,7 +316,7 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
     currencyLiquidation.ethOracle["DAI"].setAnswer(0.015e18)
 
     for account in accounts[1:5]:
-        fcBefore = currencyLiquidation.notional.getFreeCollateralView(account)
+        fcBefore = currencyLiquidation.notional.getFreeCollateral(account)
         (
             netLocalCalculated,
             netCashCalculated,
@@ -361,7 +361,7 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     cashGroup[5] = 200
     fCashLiquidation.notional.updateCashGroup(2, cashGroup)
 
-    fcBefore = fCashLiquidation.notional.getFreeCollateralView(liquidated)
+    fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
     maturities = [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]
@@ -394,7 +394,7 @@ def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     liquidated = accounts[7]
     fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
-    fcBefore = fCashLiquidation.notional.getFreeCollateralView(liquidated)
+    fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
     maturities = [asset[1] for asset in liquidatedPortfolioBefore]

@@ -132,7 +132,7 @@ def get_diagnostics(proxyAddress, currencyId=None):
     activeMarkets = []
     for i in range(1, maxCurrencyId + 1):
         currencyAndRate.append(views.getCurrencyAndRate(i))
-        cashGroupsAndRate.append(views.getCashGroupAndRate(i))
+        cashGroupsAndRate.append(views.getCashGroupAndAssetRate(i))
         activeMarkets.append(views.getActiveMarkets(i))
 
     print_all_cash_groups(

@@ -189,10 +189,10 @@ library nTokenHandler {
     function getDepositParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
-        returns (int256[] memory, int256[] memory)
+        returns (int256[] memory depositShares, int256[] memory leverageThresholds)
     {
         uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.deposit")));
-        return _getParameters(slot, maxMarketIndex, false);
+        (depositShares, leverageThresholds) = _getParameters(slot, maxMarketIndex, false);
     }
 
     /// @notice Sets the deposit parameters
@@ -256,10 +256,10 @@ library nTokenHandler {
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
-        returns (int256[] memory, int256[] memory)
+        returns (int256[] memory rateAnchors, int256[] memory proportions)
     {
         uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.init")));
-        return _getParameters(slot, maxMarketIndex, true);
+        (rateAnchors, proportions) = _getParameters(slot, maxMarketIndex, true);
     }
 
     function _getParameters(

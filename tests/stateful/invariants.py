@@ -156,7 +156,7 @@ def check_ntoken(env, accounts):
         # TODO: ensure that the nToken holds enough PV for negative fcash balances
 
         # Ensure that the FC of the nToken is gte 0
-        assert env.notional.getFreeCollateralView(nToken.address)[0] >= 0
+        assert env.notional.getFreeCollateral(nToken.address)[0] >= 0
 
 
 def check_portfolio_invariants(env, accounts):

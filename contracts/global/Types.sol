@@ -291,3 +291,12 @@ struct AccountContext {
     // 9 total active currencies possible (2 bytes each)
     bytes18 activeCurrencies;
 }
+
+/// @dev Used in view methods to return account balances in a developer friendly manner
+struct AccountBalance {
+    uint256 currencyId;
+    int256 cashBalance;
+    int256 nTokenBalance;
+    uint256 lastClaimTime;
+    uint256 lastClaimSupplyAmount;
+}
