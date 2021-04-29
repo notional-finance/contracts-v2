@@ -43,6 +43,7 @@ library CashGroup {
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
+        // At large time to maturities it's possible for the rate scalar to round down to zero
         require(rateScalar > 0, "CG: rate scalar underflow");
         return rateScalar;
     }

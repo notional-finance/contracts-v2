@@ -1,4 +1,5 @@
 import math
+import random
 
 import pytest
 from brownie.test import given, strategy
@@ -179,16 +180,12 @@ class TestLiquidityCurve:
             "uint256", min_value=0.33 * RATE_PRECISION, max_value=0.66 * RATE_PRECISION
         ),
         impliedRate=impliedRateStrategy,
-        initialCashAmount=strategy("int88", min_value=-1e12, max_value=1e12),
     )
-    def test_fcash_convergence(
-        self, marketWithCToken, marketIndex, proportion, impliedRate, initialCashAmount
-    ):
+    def test_fcash_convergence(self, marketWithCToken, marketIndex, proportion, impliedRate):
+        initialCashAmount = 1e8 * random.randint(-100000, 100000)
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         cashGroup = marketWithCToken.buildCashGroupView(1)
-        if initialCashAmount == 0:
-            return
 
         marketState = get_market_state(
             MARKETS[marketIndex - 1],
@@ -205,4 +202,4 @@ class TestLiquidityCurve:
             marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
         )
 
-        assert pytest.approx(cashAmount, rel=1e-9, abs=100) == initialCashAmount
+        assert pytest.approx(cashAmount, rel=1e-9, abs=10) == initialCashAmount

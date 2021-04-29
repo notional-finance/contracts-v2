@@ -277,11 +277,10 @@ contract Views is StorageLayoutV1 {
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
-        require(market.maturity > blockTime, "Error");
+        require(market.maturity > blockTime, "Invalid block time");
         uint256 timeToMaturity = market.maturity - blockTime;
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        require(rateScalar > 0, "Error");
         int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return
@@ -306,7 +305,7 @@ contract Views is StorageLayoutV1 {
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
-        require(market.maturity > blockTime, "Error");
+        require(market.maturity > blockTime, "Invalid block time");
         uint256 timeToMaturity = market.maturity - blockTime;
 
         // prettier-ignore

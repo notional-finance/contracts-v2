@@ -219,15 +219,21 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
             // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
-            fee = Constants.RATE_PRECISION.sub(fee).mul(preFeeCashToAccount).div(
+            fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(
                 Constants.RATE_PRECISION
             );
         } else {
-            // Borrowing (inverse of above)
-            // netFee = preFeeCashToAccount * (feeExchangeRate - 1)
-            fee = fee.sub(Constants.RATE_PRECISION).mul(preFeeCashToAccount).div(
-                Constants.RATE_PRECISION
-            );
+            // Borrowing
+            // cashToAccount = -(fCashToAccount / exchangeRate)
+            // postFeeExchangeRate = preFeeExchangeRate * feeExchangeRate
+
+            // netFee = preFeeCashToAccount - postFeeCashToAccount
+            // netFee = (fCashToAccount / postFeeExchangeRate) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = ((fCashToAccount / (feeExchangeRate * preFeeExchangeRate)) - (fCashToAccount / preFeeExchangeRate)
+            // netFee = (fCashToAccount / preFeeExchangeRate) * (1 / feeExchangeRate - 1)
+            // netFee = preFeeCashToAccount * ((1 - feeExchangeRate) / feeExchangeRate)
+            // NOTE: preFeeCashToAccount is negative in this branch so we negate it to ensure that fee is a positive number
+            fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(fee).neg();
         }
 
         int256 cashToReserve =
@@ -691,16 +697,26 @@ library Market {
 
     /// Uses Newton's method to converge on an fCash amount given the amount of
     /// cash. The relation between cash and fcash is:
-    /// cashAmount * exchangeRate + fCash = 0
-    /// where exchangeRate = rateScalar ^ -1 * ln(p / (1- p)) + rateAnchor
-    ///       proportion = (totalfCash - fCash) / (totalfCash + totalCash)
+    /// cashAmount * exchangeRate * fee + fCash = 0
+    /// where exchangeRate(fCash) = (rateScalar ^ -1) * ln(p / (1 - p)) + rateAnchor
+    ///       p = (totalfCash - fCash) / (totalfCash + totalCash)
+    ///       if cashAmount < 0: fee = feeRate ^ -1
+    ///       if cashAmount > 0: fee = feeRate
     ///
     /// Newton's method is:
     /// fCash_(n+1) = fCash_n - f(fCash) / f'(fCash)
     ///
-    /// f(fCash) = cashAmount * exchangeRate * fee + fCash
-    /// f'(fCash) = 1 - (cashAmount * fee) / scalar * [(totalfCash + totalCash)/((totalfCash - fCash) * (totalCash + fCash)]
+    /// f(fCash) = cashAmount * exchangeRate(fCash) * fee + fCash
+    ///
+    ///                                    (totalfCash + totalCash)
+    /// exchangeRate'(fCash) = -  ------------------------------------------
+    ///                           (totalfCash - fCash) * (totalCash + fCash)
+    ///
     /// https://www.wolframalpha.com/input/?i=ln%28%28%28a-x%29%2F%28a%2Bb%29%29%2F%281-%28a-x%29%2F%28a%2Bb%29%29%29
+    ///
+    ///                     (cashAmount * fee) * (totalfCash + totalCash)
+    /// f'(fCash) = 1 - ------------------------------------------------------
+    ///                 rateScalar * (totalfCash - fCash) * (totalCash + fCash)
     ///
     /// NOTE: each iteration costs about 11.3k so this is only done via a view function.
     function getfCashGivenCashAmount(
@@ -709,7 +725,7 @@ library Market {
         int256 totalCashUnderlying,
         int256 rateScalar,
         int256 rateAnchor,
-        int256 fee,
+        int256 feeRate,
         uint256 maxDelta
     ) internal pure returns (int256) {
         int256 fCashChangeToAccountGuess =
@@ -733,7 +749,7 @@ library Market {
                     rateScalar,
                     fCashChangeToAccountGuess,
                     exchangeRate,
-                    fee
+                    feeRate
                 );
 
             if (delta.abs() <= int256(maxDelta)) return fCashChangeToAccountGuess;
@@ -743,6 +759,11 @@ library Market {
         revert("No convergence");
     }
 
+    /// @dev Calculates: f(fCash) / f'(fCash)
+    /// f(fCash) = cashAmount * exchangeRate * fee + fCash
+    ///                     (cashAmount * fee) * (totalfCash + totalCash)
+    /// f'(fCash) = 1 - ------------------------------------------------------
+    ///                 rateScalar * (totalfCash - fCash) * (totalCash + fCash)
     function _calculateDelta(
         int256 cashAmount,
         int256 totalfCash,
@@ -750,43 +771,47 @@ library Market {
         int256 rateScalar,
         int256 fCashGuess,
         int256 exchangeRate,
-        int256 fee
+        int256 feeRate
     ) private pure returns (int256) {
         int256 derivative;
-        int256 denominator;
+        // rateScalar * (totalfCash - fCash) * (totalCash + fCash)
+        // Precision: TOKEN_PRECISION ^ 2
+        int256 denominator =
+            rateScalar.mul(totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess));
 
         if (fCashGuess > 0) {
             // Lending
-            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(fee);
+            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(feeRate);
             require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
-            // Fees will never be big enough to make a difference in the derivative
+            // (cashAmount / fee) * (totalfCash + totalCash)
+            // Precision: TOKEN_PRECISION ^ 2
             derivative = cashAmount
                 .mul(Constants.RATE_PRECISION)
                 .mul(totalfCash.add(totalCashUnderlying))
-                .div(fee);
-
-            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
-                totalCashUnderlying.add(fCashGuess)
-            );
+                .div(feeRate);
         } else {
             // Borrowing
-            exchangeRate = exchangeRate.mul(fee).div(Constants.RATE_PRECISION);
+            exchangeRate = exchangeRate.mul(feeRate).div(Constants.RATE_PRECISION);
             require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
-            derivative = cashAmount.mul(fee).mul(totalfCash.add(totalCashUnderlying)).div(
+            // (cashAmount * fee) * (totalfCash + totalCash)
+            // Precision: TOKEN_PRECISION ^ 2
+            derivative = cashAmount.mul(feeRate).mul(totalfCash.add(totalCashUnderlying)).div(
                 Constants.RATE_PRECISION
             );
-
-            denominator = rateScalar.mul(totalfCash.sub(fCashGuess)).mul(
-                totalCashUnderlying.add(fCashGuess)
-            );
         }
+        // 1 - numerator / denominator
+        // Precision: TOKEN_PRECISION
         derivative = Constants.INTERNAL_TOKEN_PRECISION.sub(derivative.div(denominator));
 
+        // f(fCash) = cashAmount * exchangeRate * fee + fCash
+        // NOTE: exchangeRate at this point already has the fee taken into account
         int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
         numerator = numerator.add(fCashGuess);
 
+        // f(fCash) / f'(fCash), note that they are both denominated as cashAmount so use TOKEN_PRECISION
+        // here instead of RATE_PRECISION
         return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
     }
 }

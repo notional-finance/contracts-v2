@@ -251,11 +251,8 @@ class TestMarket:
             marketState[4] = 0
             market.addLiquidity(marketState, 1e9)
 
-    @given(fCashAmount=strategy("int", min_value=-10000e8, max_value=10000e8))
-    def test_lend_and_borrow_state(self, market, fCashAmount):
-        if fCashAmount > -1e8 and fCashAmount < 1e8:
-            return
-
+    @given(fCashAmount=strategy("int", min_value=-10000e8, max_value=-10e8))
+    def test_borrow_state(self, market, fCashAmount):
         marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
@@ -264,26 +261,49 @@ class TestMarket:
         (newMarket, assetCash, fee) = market.calculateTrade(
             marketState, cashGroup, fCashAmount, 30 * SECONDS_IN_DAY, 1
         )
-        assert assetCash != 0
-        if fCashAmount > 0:
-            assert assetCash < 0
-        elif fCashAmount < 0:
-            assert assetCash > 0
+        assert assetCash > 0
+        assert fee > 0
+        assert newMarket[2] == marketState[2] - fCashAmount
+        assert newMarket[3] == marketState[3] - (assetCash + fee)
+        assert newMarket[4] == marketState[4]
+        # Implied rates have increased
+        assert newMarket[5] > marketState[5]
+
+        # Oracle rate unchanged
+        assert newMarket[6] == marketState[6]
+        # Trade time has changed
+        assert newMarket[7] > marketState[7]
+
+        # Assert that oracle rates do update in storage when trading
+        newMarketOracleRate = list(newMarket)
+        newMarketOracleRate[6] = newMarketOracleRate[6] + 100
+        market.setMarketStorageSimulate(newMarketOracleRate)
+        result = market.getMarketStorageOracleRate(newMarketOracleRate[0])
+        assert result == newMarketOracleRate[6]
+
+    @given(fCashAmount=strategy("int", min_value=1e8, max_value=10000e8))
+    def test_lend_state(self, market, fCashAmount):
+        marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
+        market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
+        marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
+        cashGroup = market.buildCashGroupView(1)
+
+        (newMarket, assetCash, fee) = market.calculateTrade(
+            marketState, cashGroup, fCashAmount, 30 * SECONDS_IN_DAY, 1
+        )
+        assert assetCash < 0
         assert fee > 0
 
         assert newMarket[2] == marketState[2] - fCashAmount
         assert newMarket[3] == marketState[3] - (assetCash + fee)
         assert newMarket[4] == marketState[4]
-        # Last implied rate changed
-        if fCashAmount > 0:
-            assert newMarket[5] < marketState[5]
-        if fCashAmount < 0:
-            assert newMarket[5] > marketState[5]
+        # Implied rates have decreased
+        assert newMarket[5] < marketState[5]
 
         # Oracle rate unchanged
         assert newMarket[6] == marketState[6]
         # Trade time has changed
-        assert newMarket[7] != marketState[7]
+        assert newMarket[7] > marketState[7]
 
         # Assert that oracle rates do update in storage when trading
         newMarketOracleRate = list(newMarket)
