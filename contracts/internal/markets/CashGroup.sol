@@ -273,7 +273,7 @@ library CashGroup {
                 (bytes32(uint256(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE) |
                 (bytes32(uint256(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER) |
                 (bytes32(uint256(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT) |
-                (bytes32(uint256(cashGroup.settlementPenaltyRateBPS)) << SETTLEMENT_PENALTY) |
+                (bytes32(uint256(cashGroup.settlementPenaltyRate5BPS)) << SETTLEMENT_PENALTY) |
                 (bytes32(uint256(cashGroup.liquidationfCashHaircut5BPS)) <<
                     LIQUIDATION_FCASH_HAIRCUT));
 
@@ -325,7 +325,7 @@ library CashGroup {
                 reserveFeeShare: uint8(data[28]),
                 debtBuffer5BPS: uint8(data[27]),
                 fCashHaircut5BPS: uint8(data[26]),
-                settlementPenaltyRateBPS: uint8(data[25]),
+                settlementPenaltyRate5BPS: uint8(data[25]),
                 liquidationfCashHaircut5BPS: uint8(data[24]),
                 liquidityTokenHaircuts: tokenHaircuts,
                 rateScalars: rateScalars

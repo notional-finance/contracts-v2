@@ -268,7 +268,7 @@ struct CashGroupSettings {
     uint8 fCashHaircut5BPS;
     // If an account has a negative cash balance, it can be settled by incurring debt at the 3 month market. This
     // is the basis points for the penalty rate that will be added the current 3 month oracle rate.
-    uint8 settlementPenaltyRateBPS;
+    uint8 settlementPenaltyRate5BPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
     uint8 liquidationfCashHaircut5BPS;
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
