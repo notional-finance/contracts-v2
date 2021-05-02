@@ -111,6 +111,18 @@ contract GovernorAlpha is TimelockController {
     /// @notice An event emitted when a proposal has been executed in the Timelock
     event ProposalExecuted(uint256 id);
 
+    /// @notice An event emitted when amount of quorum votes required is updated
+    event UpdateQuorumVotes(uint96 newQuorumVotes);
+
+    /// @notice An event emitted when a new proposal threshold has been set
+    event UpdateProposalThreshold(uint96 newProposalThreshold);
+
+    /// @notice An event emitted when a new voting delay in blocks has been set
+    event UpdateVotingDelayBlocks(uint32 newVotingDelayBlocks);
+
+    /// @notice An event emitted when a new voting period in blocks has been set
+    event UpdateVotingPeriodBlocks(uint32 newVotingPeriodBlocks);
+
     constructor(
         uint96 quorumVotes_,
         uint96 proposalThreshold_,
@@ -420,21 +432,25 @@ contract GovernorAlpha is TimelockController {
     function updateQuorumVotes(uint96 newQuorumVotes) external {
         require(msg.sender == address(this), "Unauthorized caller");
         quorumVotes = newQuorumVotes;
+        emit UpdateQuorumVotes(newQuorumVotes);
     }
 
     function updateProposalThreshold(uint96 newProposalThreshold) external {
         require(msg.sender == address(this), "Unauthorized caller");
         proposalThreshold = newProposalThreshold;
+        emit UpdateProposalThreshold(newProposalThreshold);
     }
 
     function updateVotingDelayBlocks(uint32 newVotingDelayBlocks) external {
         require(msg.sender == address(this), "Unauthorized caller");
         votingDelayBlocks = newVotingDelayBlocks;
+        emit UpdateVotingDelayBlocks(newVotingDelayBlocks);
     }
 
     function updateVotingPeriodBlocks(uint32 newVotingPeriodBlocks) external {
         require(msg.sender == address(this), "Unauthorized caller");
         votingPeriodBlocks = newVotingPeriodBlocks;
+        emit UpdateVotingPeriodBlocks(newVotingPeriodBlocks);
     }
 
     /// @dev Hidden public method
