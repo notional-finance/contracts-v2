@@ -10,44 +10,68 @@ pragma experimental ABIEncoderV2;
 ///  - NonMintable: tokens that do not have an underlying (therefore not cTokens)
 enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable}
 
+/// @notice Specifies the different trade action types in the system. Each trade action type is
+/// encoded in a tightly packed bytes32 object. Trade action type is the first big endian byte of the
+/// 32 byte trade action object. The schemas for each trade action type are defined below.
 enum TradeActionType {
-    // (uint8, uint8, uint88, uint32)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 fCashAmount, uint32 minImpliedRate, uint120 unused)
     Lend,
-    // (uint8, uint8, uint88, uint32)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 fCashAmount, uint32 maxImpliedRate, uint128 unused)
     Borrow,
-    // (uint8, uint8, uint88, uint32, uint32)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     AddLiquidity,
-    // (uint8, uint8, uint88, uint32, uint32)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     RemoveLiquidity,
-    // (uint8, uint32, int88)
+    // (uint8 TradeActionType, uint32 Maturity, int88 fCashResidualAmount, uint128 unused)
     PurchaseNTokenResidual,
-    // (uint8, address, int88)
+    // (uint8 TradeActionType, address CounterpartyAddress, int88 fCashAmountToSettle)
     SettleCashDebt
 }
 
+/// @notice Specifies different deposit actions that can occur during BalanceAction or BalanceActionWithTrades
 enum DepositActionType {
+    // No deposit action
     None,
+    // Deposit asset cash, depositActionAmount is specified in asset cash external precision
     DepositAsset,
+    // Deposit underlying tokens that are mintable to asset cash, depositActionAmount is specified in underlying token
+    // external precision
     DepositUnderlying,
+    // Deposits specified asset cash external precision amount into an nToken and mints the corresponding amount of
+    // nTokens into the account
     DepositAssetAndMintNToken,
+    // Deposits specified underlying in external precision, mints asset cash, and uses that asset cash to mint nTokens
     DepositUnderlyingAndMintNToken,
+    // Redeems an nToken balance to asset cash. depositActionAmount is specified in nToken precision. Considered a deposit action
+    // because it deposits asset cash into an account. If there are fCash residuals that cannot be sold off, will revert.
     RedeemNToken,
+    // Converts specified amount of asset cash balance already in Notional to nTokens. depositActionAmount is specified in
+    // Notional internal 8 decimal precision.
     ConvertCashToNToken
 }
 
+/// @notice Used internally for PortfolioHandler state
 enum AssetStorageState {NoChange, Update, Delete}
 
 /****** Calldata objects ******/
 
+/// @notice Defines a balance action for batchAction
 struct BalanceAction {
+    // Deposit action to take (if any)
     DepositActionType actionType;
     uint16 currencyId;
+    // Deposit action amount must correspond to the depositActionType, see documentation above.
     uint256 depositActionAmount;
+    // Withdraw an amount of asset cash specified in Notional internal 8 decimal precision
     uint256 withdrawAmountInternalPrecision;
+    // If set to true, will withdraw entire cash balance. Useful if there may be an unknown amount of asset cash
+    // residual left from trading.
     bool withdrawEntireCashBalance;
+    // If set to true, will redeem asset cash to the underlying token on withdraw.
     bool redeemToUnderlying;
 }
 
+/// @notice Defines a balance action with a set of trades to do as well
 struct BalanceActionWithTrades {
     DepositActionType actionType;
     uint16 currencyId;
@@ -55,15 +79,18 @@ struct BalanceActionWithTrades {
     uint256 withdrawAmountInternalPrecision;
     bool withdrawEntireCashBalance;
     bool redeemToUnderlying;
+    // Array of tightly packed 32 byte objects that represent trades. See TradeActionType documentation
     bytes32[] trades;
 }
 
 /****** In memory objects ******/
+/// @notice Internal object that represents settled cash balances
 struct SettleAmount {
     uint256 currencyId;
     int256 netCashChange;
 }
 
+/// @notice Internal object that represents a token
 struct Token {
     address tokenAddress;
     bool hasTransferFee;
@@ -71,6 +98,7 @@ struct Token {
     TokenType tokenType;
 }
 
+/// @notice Internal object that represents an nToken portfolio
 struct nTokenPortfolio {
     CashGroupParameters cashGroup;
     PortfolioState portfolioState;
@@ -81,34 +109,48 @@ struct nTokenPortfolio {
     address tokenAddress;
 }
 
+/// @notice Internal object used during liquidation
 struct LiquidationFactors {
     address account;
+    // Aggregate free collateral of the account denominated in ETH underlying, 8 decimal precision
     int256 netETHValue;
+    // Amount of net local currency asset cash before haircuts and buffers available
     int256 localAssetAvailable;
+    // Amount of net collateral currency asset cash before haircuts and buffers available
     int256 collateralAssetAvailable;
+    // Haircut value of nToken holdings denominated in asset cash, will be local or collateral nTokens based
+    // on liquidation type
     int256 nTokenHaircutAssetValue;
+    // nToken parameters for calculating liquidation amount
     bytes6 nTokenParameters;
+    // ETH exchange rate from local currency to ETH
     ETHRate localETHRate;
+    // ETH exchange rate from collateral currency to ETH
     ETHRate collateralETHRate;
+    // Asset rate for the local currency, used in cross currency calculations to calculate local asset cash required
     AssetRateParameters localAssetRate;
+    // Used during currency liquidations if the account has liquidity tokens
     CashGroupParameters cashGroup;
+    // Used during currency liquidations if the account has liquidity tokens
     MarketParameters[] markets;
 }
 
+/// @notice Internal asset array portfolio state
 struct PortfolioState {
+    // Array of currently stored assets
     PortfolioAsset[] storedAssets;
+    // Array of new assets to add
     PortfolioAsset[] newAssets;
     uint256 lastNewAssetIndex;
     // Holds the length of stored assets after accounting for deleted assets
     uint256 storedAssetLength;
 }
 
-/// @dev Exchange rate object as stored in memory, these are cached optimistically
-/// when the transaction begins. This is not the same as the object in storage.
+/// @notice In memory ETH exchange rate used during free collateral calculation.
 struct ETHRate {
     // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
     int256 rateDecimals;
-    // The exchange rate from base to quote (if invert is required it is already done)
+    // The exchange rate from base to ETH (if rate invert is required it is already done)
     int256 rate;
     // Amount of buffer to apply to the exchange rate for negative balances.
     int256 buffer;
@@ -118,6 +160,7 @@ struct ETHRate {
     int256 liquidationDiscount;
 }
 
+/// @notice Internal object used to handle balance state during a transaction
 struct BalanceState {
     uint256 currencyId;
     // Cash balance stored in balance state at the beginning of the transaction
@@ -138,8 +181,7 @@ struct BalanceState {
     uint256 lastClaimSupply;
 }
 
-/// @dev Asset rate object as stored in memory, these are cached optimistically
-/// when the transaction begins. This is not the same as the object in storage.
+/// @dev Asset rate used to convert between underlying cash and asset cash
 struct AssetRateParameters {
     // Address of the asset rate oracle
     address rateOracle;
@@ -157,6 +199,7 @@ struct CashGroupParameters {
     bytes32 data;
 }
 
+/// @dev A portfolio asset when loaded in memory
 struct PortfolioAsset {
     // Asset currency id
     uint256 currencyId;
@@ -165,14 +208,13 @@ struct PortfolioAsset {
     uint256 assetType;
     // fCash amount or liquidity token amount
     int256 notional;
+    // Used for managing portfolio asset state
     uint256 storageSlot;
     // The state of the asset for when it is written to storage
     AssetStorageState storageState;
 }
 
-/**
- * Market object as represented in memory
- */
+/// @dev Market object as represented in memory
 struct MarketParameters {
     bytes32 storageSlot;
     uint256 maturity;
@@ -192,6 +234,7 @@ struct MarketParameters {
     bytes1 storageState;
 }
 
+/// @dev Simplified market object used during settlement
 struct SettlementMarket {
     bytes32 storageSlot;
     // Total amount of fCash available for purchase in the market.
@@ -204,7 +247,7 @@ struct SettlementMarket {
     bytes32 data;
 }
 
-/// @dev Used in SettleAssets for calculating bitmap shifts
+/// @dev Used during settling bitmap assets for calculating bitmap shifts
 struct SplitBitmap {
     bytes32 dayBits;
     bytes32 weekBits;

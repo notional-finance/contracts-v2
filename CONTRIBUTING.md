@@ -35,7 +35,7 @@ This project and everyone participating in it is governed by the [Notional Code 
 
 ## How Can I Contribute?
 
-### Reporting Bugs
+### Report Bugs
 
 ### Participate in Governance
 
@@ -56,7 +56,6 @@ All Solidity code is formatted using [Prettier](https://prettier.io/) and [Prett
 - All methods **should** have at least a `@dev` docstring.
 - Private methods **should** be declared near the methods that they are related to.
 - Private methods **must** be prefixed with an underscore.
-- Where possible, use named return values for clarity.
 
 ### Python Styleguide
 

@@ -58,6 +58,6 @@ In mathematical terms:
 ```
 netPortfolioValue = convertToAssetCash(sum(riskAdjustedfCash))
 netCashBalance = cashBalance
-netNTokenValue = (nTokenTotalValue * nTokenHoldings / nTokenTotalSupply) * nTokenHaircut
+netNTokenValue = ((nTokenTotalValue * nTokenHoldings) / nTokenTotalSupply) * nTokenHaircut
 freeCollateral = convertToETH(netPortfolioValue + netCashBalance + netNTokenValue, ethHaircut, ethBuffer)
 ```
