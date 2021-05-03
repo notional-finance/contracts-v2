@@ -29,7 +29,8 @@ def execute_proposal(environment, targets, values, calldatas):
     delay = environment.governor.getMinDelay()
     environment.governor.queueProposal(1, targets, values, calldatas)
     chain.mine(1, timestamp=chain.time() + delay)
-    environment.governor.executeProposal(1, targets, values, calldatas)
+    txn = environment.governor.executeProposal(1, targets, values, calldatas)
+    return txn
 
 
 def test_note_token_initial_balances(environment, accounts):
@@ -104,7 +105,12 @@ def test_update_governance_parameters(environment, accounts):
         web3.eth.contract(abi=environment.governor.abi).encodeABI(fn_name="updateDelay", args=[0]),
     ]
 
-    execute_proposal(environment, targets, values, calldatas)
+    txn = execute_proposal(environment, targets, values, calldatas)
+
+    assert txn.events["UpdateQuorumVotes"]["newQuorumVotes"] == 0
+    assert txn.events["UpdateProposalThreshold"]["newProposalThreshold"] == 0
+    assert txn.events["UpdateVotingDelayBlocks"]["newVotingDelayBlocks"] == 0
+    assert txn.events["UpdateVotingPeriodBlocks"]["newVotingPeriodBlocks"] == 0
 
     assert environment.governor.quorumVotes() == 0
     assert environment.governor.proposalThreshold() == 0
