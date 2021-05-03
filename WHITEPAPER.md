@@ -16,7 +16,7 @@ The basics of the liquidity curve are not changing from Notional V1, but we are 
 
 ### Convertible fCash
 
-Convertible fCash is an extension of fCash. Convertible fCash represents an amount of one currency (ex. Dai) in terms of another currency (ex. cDai) at its maturity. For example, 100 January 1st 2022 convertible fDai (simply called fDai from here on) can be thought of as 100 Dai’s worth of cDai as of January 1st 2022. On January 1st 2022, 100 fDai entitles the holder to an amount of cDai that is equivalent to 100 Dai using the Dai/cDai exchange rate as reference.
+Convertible fCash is an extension of fCash. Convertible fCash is denominated in one currency (ex. Dai) but settled in a different currency (ex. cDai). Broadly speaking, convertible fCash represents an amount of the denomination currency (Dai) in terms of the settlement currency (cDai) at its maturity. For example, 100 January 1st 2022 convertible fDai (simply called fDai from here on) can be thought of as 100 Dai’s worth of cDai as of January 1st 2022. On January 1st 2022, 100 fDai entitles the holder to an amount of cDai that is equivalent to 100 Dai using the Dai/cDai exchange rate as of maturity as a reference.
 
 Convertible fCash enables liquidity providers to earn an interest rate on their capital while they provide liquidity because they can put cTokens into Notional's liquidity pools instead of the underlying token which bears no interest. This is important to maximize capital efficiency for liquidity providers. An example illustrates how this works:
 
@@ -62,75 +62,21 @@ One of the goals of Notional V2 is to enable fCash assets with 20 year maturitie
 
 ## Settlement via Debt
 
-Matured fCash debt must be settled to ensure that there is sufficient underlying currency to allow lenders to withdraw. Notional V1 sells a debtor's collateral at a penalty to recapitalize Dai balances. This, however, is quite painful for borrowers as they lose their collateral. In Notional V2, we settle negative cash balances by allowing a lender to deposit cDai and lend directly to the borrower at a penalty rate relative to the [On-Chain Rate Oracle](#on-chain-rate-oracle) at the 3 month maturity.
+Matured fCash debt must be settled to ensure that there is sufficient underlying currency to allow lenders to withdraw. Notional V1 sells a debtor's collateral at a penalty to recapitalize cash balances. This, however, is quite painful for borrowers as they lose their collateral. In Notional V2, we settle negative cash balances by allowing a lender to deposit cash and lend directly to the borrower at a penalty rate relative to the [On-Chain Rate Oracle](#on-chain-rate-oracle) at the 3 month maturity.
 
-This is the equivalent of the borrower "rolling their borrow" forward 3 months at a time at a new fixed interest rate. The cDai the lender deposits will recapitalize the system. If the borrower ever becomes undercollateralized as a result of the interest they accrue they can be liquidated.
-
-## Perpetual Liquidity
-
-Providing liquidity in Notional V1 requires some amount of active participation. Liquidity tokens mature with the market and must be periodically rolled to new maturities. Additionally, the initialization of fCash markets poses a significant user experience issue. New fCash markets require a liquidity provider to set the market rate before they can be traded. This is inconvenient for liquidity providers who want passive exposure to trading on all fCash maturities.
-
-It also requires a knowledgeable liquidity provider to set the initial rate. This is inconvenient for lenders and borrowers who are prevented from trading on the market until a liquidity provider initializes the market.
-
-Notional V2 creates a perpetual liquidity token (called the `nToken`) to resolve this issue. The nToken is an ERC20 token that represents a liquidity provider's share of a passive pool of liquidity provided to all maturities at ratios determined by governance. Notional V2 retains the ability to add and remove liquidity from individual markets so that active liquidity providers can respond to market demand.
-
-### Adding Liquidity
-
-A liquidity provider deposits cash (i.e. cDai) into the nToken which is then provisioned across all fDai cash markets at predetermined ratios. For example, if there are 3 fCash markets (3 month, 6 month, 1 year) and governance has set predetermined ratios of (20%, 40%, 40%) then a 100 cDai deposit will be split into each market at the respective percentage.
-
-The liquidity provider is then issued a perpetual, non-maturing ERC20 token that represents their share of all the cash and fCash assets in the nToken portfolio. This token can be used as collateral on Notional V2 and potentially other protocols. Because its underlying assets are a basket of cDai, fDai and the future cash flows from trading fees in all fDai markets, we believe that it will be an attractive option for high-quality, yield-generating collateral.
-
-This ERC20 token is modeled as a special portfolio in Notional V2 that holds all the corresponding liquidity tokens. Each tradable currency (i.e. cDai, cUSDC, cETH, etc) will have a single, corresponding nToken.
-
-### Automatic Market Initialization
-
-The nToken's assets can be used to initialize markets every 90 days. This ensures that new markets will always have a source of liquidity and it allows Notional V2 to ensure that markets are properly initialized. Market initialization is done in a way that ensures newly created markets have oracle rates that align with the previous quarter's oracle rates. This ensures that on chain fCash values do not experience a sudden change when new markets are initialized.
-
-There are two scenarios to keep in mind when it comes to market initialization. The first is that the nToken does not provide liquidity above a certain market proportion of cash to fCash; it will lend to the market instead. If maintaining oracle rates requires a market proportion above the leverage threshold, the nToken will initialize the market at the leverage threshold and the oracle rate will shift.
-
-Second, during the time between market settlement (every 90 days) and market initialization active market oracle rates will be zero. This means that free collateral cannot be calculated for any accounts and therefore liquidation is not possible. Since market initialization can be initiated by anyone, the expectation is that this time period will remain very short.
-
-More details on market initialization method are described in [Appendix F](#appendix-f)
-
-### Settlement
-
-The dynamics of liquidity tokens are unchanged from Notional V1. A liquidity provider will lend to a borrower or borrow from a lender at the market rate, taking a portion of the slippage as their fee. This fee will accrue as both cash and fCash. Liquidity providers provide liquidity with leverage, so their claim on the fCash receivers in the market are partially offset by an fCash payer position in their portfolio. Therefore, when these tokens are settled, liquidity providers are left with some amount of cash and net fCash.
-
-In Notional V1, liquidity tokens mature at the same cadence as the fCash position. This means that a liquidity token in a 1 year fCash market will mature in 1 year along with the corresponding fCash. However, in Notional V2 we intend to have [persistent maturities](#persistent-maturities) instead. In this model, the liquidity token for the 1 year fCash market will settle at the end of a 3 month trading period while the 1 year fCash will mature 9 months later.
-
-This means that the nToken will likely hold residual, [idiosyncratic fCash](#idiosyncratic-fcash) positions that will mature over time. This is due to the fact that a liquidity provider may end up as a net lender or borrower as a result of market activity.
-
-Governance must carefully monitor the fCash balances for the nToken because large future fCash balances imply less cash to initialize new markets. Due to the nature of [persistent maturities](#persistent-maturities), however, governors will have an opportunity to modify market parameters to adjust for potential imbalances every quarter.
-
-These idiosyncratic fCash balances will become a drain on the total liquidity available to the nToken over time if left unmanaged. Governance will set a discount rate for idiosyncratic fCash in order to recapitalize liquidity from these residual fCash balances.
-
-If the liquidity provider is left a net borrower after a market settles, it will reserve sufficient cash to purchase offsetting fCash assets to negate its idiosyncratic balances. The reason for this is that each idiosyncratic asset increases the gas cost of redeeming and valuing nTokens.
-
-### Redeeming nTokens
-
-Redeeming nTokens means taking a portion of the cash and **all** [idiosyncratic fCash](#idiosyncratic-fcash) positions that the token contract holds. If a cash group is trading in 3 month, 6 month, 1 year, 2 year, 5 year, 7 year, 10+ year markets as we intend for Notional V2, the gas costs of performing this action may become quite large except for [idiosyncratic market makers](#idiosyncratic-market-maker).
-
-Setting aggressive prices to ensure that idiosyncratic fCash is sold will reduce this overhead to a manageable level. Also, the technical architecture of Notional V2 will allow users to withdraw and sell back residual non-idiosyncratic fCash in a single transaction, greatly reducing the gas cost of withdrawing liquidity. Finally, we believe that secondary markets may emerge for nTokens which would allow for users to easily buy and sell positions in other DeFi protocols.
-
-### Liquidation
-
-The nToken must never become undercollateralized. This can only happen if liquidity is provided at a leverage ratio that exceeds the potential for future losses. This ratio is a function of a given market's time to maturity. Governance parameters will ensure that markets are never initialized at an unsafe leverage ratio. If additional liquidity must be added to a market with an unsafe leverage ratio, the nToken will lend to the market (purchase fCash) instead of providing liquidity until the leverage ratio is reduced to an appropriate level.
-
-We discuss this further in [Appendix D](#appendix-d).
-
-### Benefits
-
-To summarize, nTokens allow users to passively provide liquidity across all fCash markets. In return, these users are issued a perpetual ERC20 token that can be freely exchanged and used as collateral in existing DeFi infrastructure. In addition, nTokens ensure all Notional V2 markets have sufficient liquidity when they become active every 90 days.
+This is the equivalent of the borrower "rolling their borrow" forward 3 months at a time at a new fixed interest rate. The cash the lender deposits will recapitalize the system. If the borrower ever becomes undercollateralized as a result of the interest they accrue they can be liquidated.
 
 ## Cash Group Improvements
 
-In Notional V1, the concept of a cash group represents a recurring cadence of liquidity pools parameterized by a currency, a maturity length and the number of maturities. For example, a cash group of Dai with two 3 month maturities will have two liquidity pools at 3 months and 6 months. Unfortunately, another Dai cash group of a single 1 month maturity will overlap with this maturity every three months.
+In Notional V1, the concept of a cash group represents a recurring cadence of liquidity pools parameterized by a currency, a maturity length and the number of maturities. For example, a cash group of Dai with two 3 month maturities will have two liquidity pools at 3 months and 6 months.
 
-The existing model is also problematic for longer dated maturities. A 1 year maturity will not be replaced until it has rolled down to maturity, meaning that trading at 1 year fixed will not be available for another year.
+This presents problems. If we want to have two 3 month maturities and a one month maturity for example, we would need two different cash groups - one 3-month cash group with two maturities and one 1-month cash group with one maturity. Every third month we would have an overlap - the 1 month maturity would coincide with one of the 3-month maturities. Handling this is awkward at best and would likely result in the fragmenting of liquidity and a poor UX.
+
+Another problem with the V1 cash group structure is that long-dated maturities have correspondingly long settlement cycles which means that users can't reliably borrow and lend to a given tenor. Consider a five year maturity. In one year's time, that would become a four year maturity and a five year maturity would no longer be available. And then after another year, a three year maturity, and so on. This would mean that a user would only be able to lend or borrow for a five year period once every five years.
 
 ### Persistent Maturities
 
-We resolve this in Notional V2 using persistent maturities. Every quarter when liquidity matures, Notional will settle liquidity tokens in all markets and launch new markets at their target maturities. The [nToken](#perpetual-liquidity) will be used to ensure that markets have a baseline amount of liquidity at initialization. Users can still add and remove liquidity to individual markets which allows for market forces to provide liquidity to different markets as needed.
+We resolve this in Notional V2 using persistent maturities. Each cash group has a set maturity cadence, for example: 3 Month, 6 Month, 1 Year, 2 Year, 5 Year. Instead of only opening up a new maturity when an existing maturity rolls down to t0, we roll all maturities every quarter and re-initialize new liquidity pools with the set maturity cadence calculated from the reference time of that quarterly roll. Every quarter, Notional will settle liquidity tokens in all markets and launch new markets at their target maturities. The [nToken](#perpetual-liquidity) will be used to ensure that markets have a baseline amount of liquidity at initialization.
 
 Take the following cadence for example:
 fCash: 3 month, 6 month, 1 year, 2 year, 5 year initialized on Jan 1 2021
@@ -149,11 +95,67 @@ The key benefit of this structure is to ensure that users can always trade fCash
 
 The downside is that longer dated fCash becomes less liquid when it changes to idiosyncratic fCash. We believe this is a necessary and reasonable trade off. Holders of 4.5 year fCash can resort to OTC markets to exit their position if necessary. We describe how we enable efficient, on-chain OTC markets in Notional V2 in a later section.
 
+## nTokens
+
+Providing liquidity in Notional V1 requires some amount of active participation. Liquidity tokens mature with the market and must be periodically rolled to new maturities. Additionally, the initialization of fCash markets poses a significant user experience issue. New fCash markets require a liquidity provider to set the market rate before they can be traded. This is inconvenient for liquidity providers who want passive exposure to trading on all fCash maturities.
+
+It also requires a knowledgeable liquidity provider to set the initial rate. This is inconvenient for lenders and borrowers who are prevented from trading on the market until a liquidity provider initializes the market.
+
+Notional V2 creates a perpetual liquidity token (called the `nToken`) to resolve this issue. Each currency type that Notional supports for lending/borrowing will have its own nToken (nDai, nUSDC, nETH, etc.). The nToken is an ERC20 token that represents a liquidity provider's share of a passive pool of liquidity provided to all active maturities of the given currency type at ratios determined by governance. Notional V2 retains the ability to add and remove liquidity from individual markets so that active liquidity providers can respond to market demand.
+
+### Adding Liquidity
+
+A liquidity provider deposits cash (i.e. cDai) into the nToken which is then provisioned across all fDai cash markets at predetermined ratios. For example, if there are 3 fCash markets (3 month, 6 month, 1 year) and governance has set predetermined ratios of (20%, 40%, 40%) then a 100 cDai deposit will be split into each market at the respective percentage.
+
+The liquidity provider is then issued a perpetual, non-maturing ERC20 token (the nToken) that represents their share of all the cash and fCash assets in the nToken portfolio. This token can be used as collateral on Notional V2 and potentially other protocols. Because its underlying assets are a basket of cDai, fDai and the future cash flows from trading fees in all fDai markets, we believe that it will be an attractive option for high-quality, yield-generating collateral.
+
+This ERC20 token is modeled as a special portfolio in Notional V2 that holds all the corresponding liquidity tokens.
+
+### Automatic Market Initialization
+
+The nToken's assets can be used to initialize markets every 90 days. This ensures that new markets will always have a source of liquidity and it allows Notional V2 to ensure that markets are properly initialized. Market initialization is done in a way that ensures newly created markets have oracle rates that align with the previous quarter's oracle rates. This ensures that on chain fCash values do not experience a sudden change when new markets are initialized.
+
+There is one scenario to keep in mind when it comes to market initialization. The nToken does not provide liquidity above a certain market proportion of cash to fCash (more on this in [Appendix D](#appendix-d)). If maintaining oracle rates requires a market proportion above the leverage threshold, the nToken will initialize the market at the leverage threshold and the oracle rate will shift.
+
+More details on market initialization method are described in [Appendix F](#appendix-f)
+
+### Settlement
+
+The dynamics of liquidity tokens are unchanged from Notional V1. A liquidity provider will lend to a borrower or borrow from a lender at the market rate, taking a portion of the slippage as their fee. This fee will accrue as both cash and fCash. Liquidity providers provide liquidity with leverage, so their claim on the fCash receivers in the market are partially offset by an fCash payer position in their portfolio. Therefore, when these tokens are settled, liquidity providers are left with some amount of cash and net fCash.
+
+In Notional V1, liquidity tokens mature at the same cadence as the fCash position. This means that a liquidity token in a 1 year fCash market will mature in 1 year along with the corresponding fCash. However, in Notional V2 we have [persistent maturities](#persistent-maturities) instead. In this model, the liquidity token for the 1 year fCash market will settle at the end of a 3 month trading period while the 1 year fCash will mature 9 months later.
+
+This means that the nToken will likely hold residual, [idiosyncratic fCash](#idiosyncratic-fcash) positions that will mature over time. This is due to the fact that a liquidity provider may end up as a net lender or borrower as a result of market activity.
+
+Governance must carefully monitor the fCash balances for the nToken because large future fCash balances imply less cash to initialize new markets. Due to the nature of [persistent maturities](#persistent-maturities), however, governors will have an opportunity to modify market parameters to adjust for potential imbalances every quarter.
+
+These idiosyncratic fCash balances will become a drain on the total liquidity available to the nToken over time if left unmanaged. Governance will set a discount rate for idiosyncratic fCash in order to recapitalize liquidity from these residual fCash balances.
+
+If the liquidity provider is left a net borrower after a market settles, it will reserve sufficient cash to purchase offsetting fCash assets to negate its idiosyncratic balances. The reason for this is that each idiosyncratic asset increases the gas cost of redeeming and valuing nTokens.
+
+### Redeeming nTokens
+
+Redeeming nTokens means taking a portion of the cash and **all** [idiosyncratic fCash](#idiosyncratic-fcash) positions that the token contract holds. If a cash group is trading in 3 month, 6 month, 1 year, 2 year, 5 year, 10+ year markets as we intend for Notional V2, the gas costs of performing this action may become quite large except for [idiosyncratic market makers](#idiosyncratic-market-maker).
+
+Setting aggressive prices to ensure that nToken accounts sell their residual idiosyncratic fCash will reduce this overhead to a manageable level. Also, the technical architecture of Notional V2 will allow users to withdraw and sell back residual non-idiosyncratic fCash in a single transaction, greatly reducing the gas cost of withdrawing liquidity. 
+
+### Liquidation
+
+The nToken must never become undercollateralized. This can only happen if liquidity is provided at a leverage ratio that exceeds the potential for future losses. This ratio is a function of a given market's time to maturity. Governance parameters will ensure that markets are never initialized at an unsafe leverage ratio. If additional liquidity must be added to a market with an unsafe leverage ratio, the nToken will lend to the market (purchase fCash) instead of providing liquidity until the leverage ratio is reduced to an appropriate level.
+
+We discuss this further in [Appendix D](#appendix-d).
+
+### Benefits
+
+To summarize, nTokens allow users to passively provide liquidity across all fCash markets without the need to roll their liquidity or interact with the individual maturities in any way. In return, these users are issued a perpetual ERC20 token that can be freely exchanged and used as collateral in existing DeFi infrastructure. In addition, nTokens ensure all Notional V2 markets have sufficient liquidity when they become active every 90 days.
+
 ## Idiosyncratic fCash (ifCash)
 
-Scalable, idiosyncratic fCash is a key feature of Notional V2. It allows users to trade fCash at any reasonable future date up to 20 years and potentially beyond. This will bring DeFi much closer to feature parity with traditional financial systems.
+Idiosyncratic fCash refers to fCash that does not fall on a maturity with an active market. So if the current active maturities are April 1st and July 1st, fCash maturing on any other date is idiosyncratic. Notional V2 supports scalable idiosyncratic fCash - users can trade fCash at any reasonable future date up to 20 years and potentially beyond. This will bring DeFi much closer to feature parity with traditional financial systems.
 
-The value of a large idiosyncratic fCash portfolio must take into account the **net** value of all its fCash positions so market makers can hold an efficient amount of collateral against a large notional fCash balance. Finally, liquidation of large portfolios must remain efficient in order to ensure the integrity of the system as a whole.
+The collateral requirement of a large idiosyncratic fCash portfolio must take into account the **net** value of all its fCash positions so market makers can hold an efficient amount of collateral against a portfolio with large, but offsetting, fCash balances. In effect, this means that positive idiosyncratic fCash positions must count as collateral, just like non-idiosyncratic fCash.
+
+Finally, liquidation of large portfolios must remain efficient in order to ensure the integrity of the system as a whole.
 
 ### Market Maker Portfolios
 
@@ -181,7 +183,7 @@ ifCash can be traded up until the longest dated on chain market, which ensures t
 
 Creating ifCash is as simple as initiating an ERC1155 asset transfer. A market maker can transfer 1000 fDai to a taker. The taker will receive 1000 fDai and the market maker will have 1000 fDai debited from their portfolio. If the balance becomes negative, the market maker simply needs to pass a free collateral check because they have become a net borrower. Because the positive and negative fCash balances offset, the system as a whole remains in balance. Any asset transfers between the maker and the taker must be done outside the system.
 
-Market makers can also instruct the ERC1155 contract to issue a transaction on the Notional contract to deposit collateral or trade. This allows market makers to lend idiosyncratic via OTC markets and borrow via Notional liquidity curves to fulfill the trade in a single transaction.
+Market makers can also instruct the ERC1155 contract to issue a transaction on the Notional contract to deposit collateral or trade. This allows market makers to lend idiosyncratic via OTC markets and borrow via Notional liquidity curves to fulfill the trade in a single transaction. Conversely, market makers will be able to borrow idiosyncratic via OTC and lend the cash they've borrowed via Notional's on chain markets in a single transaction.
 
 ### ifCash Settlement
 
@@ -191,7 +193,7 @@ A full description of the algorithm and proofs are provided in [Appendix B](#app
 
 ### ifCash Valuation
 
-Notional V2 will value all ifCash positions at a discount using the interest rates provided by the [On-Chain Rate Oracle](#on-chain-rate-oracle). ifCash is valued along the yield curve generated by the series of on-chain rate oracles.
+Notional V2 will value all ifCash positions using the interest rates provided by the [On-Chain Rate Oracle](#on-chain-rate-oracle). We interpolate the set of on-chain rate oracles for each currency to create a yield curve. The discount rate used to value the ifCash is then taken from that interpolated yield curve.
 
 Any ifCash asset's discount rate will be calculated as the interpolation of two liquid interest rates on chain. For assets maturing before the 3 month market (the shortest term market) the rates will be the per block interest rate (i.e. cToken supply rate) and the interest rate at the 3 month market.
 
@@ -380,11 +382,9 @@ The multiplier is capped at 2. Because the total supply of nTokens fluctuates, N
 
 ## Appendix F
 
-Every quarter markets will be re-initialized but Notional V2 must ensure that the ifCash valuation curve does not experience a discontinuity. For example, an account has a 9 month ifCash position with an implied rate of 5% annualized. When roll the markets forward, that 9 month position will now be valued via a linear interpolation between the new 6 month market and the new 1 year market. Notional V2 must ensure that the two new markets are initialized at rates which keep the 9 month rate constant.
+Every quarter, markets will be re-initialized and the on-chain rate oracles will migrate from the old set of maturities to the new set of maturities. Notional V2's aim here will be to keep portfolio valuations constant through this process. This means that the newly initialized rate oracles must be set at rates which keep the valuation curve unchanged. For example, consider an account with a 9 month fCash position that is valued directly from an on-chain oracle at an implied rate of 5% annualized. When the markets roll forward that 9 month position will now be idiosyncratic, and will be valued via linear interpolation between the new 6 month market and the new 1 year market. Notional V2 must ensure that the two new markets are initialized at rates which keep the 9 month rate constant at 5%.
 
-Governance can change the proportion of cash to fCash in the market by modifying the initial rate anchor for the market. Varying proportions will ensure that there will be more or less initial capacity for either borrowing or lending.
-
-Initializing markets proceeds in this fashion via the perpetual liquidity token account:
+Initializing markets keeps the valuation curve constant by proceeding in this fashion:
 
 - Existing liquidity tokens are settled to cash and fCash positions.
 - Cash is reserved to repay any negative fCash positions.
