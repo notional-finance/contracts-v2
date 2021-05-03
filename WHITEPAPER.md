@@ -364,9 +364,23 @@ When `r0` in the approximation above refers to the current time the rate we use 
 
 ## Appendix D
 
-This appendix discusses the maximum leverage ratio that a perpetual liquidity token can provide at without risk of liquidation.
+This appendix discusses liquidity provider leverage and caps on leverage ratios that ensure the nToken will never be liquidated.
 
-:tag TODO
+The nToken, like all liquidity providers in Notional, provides liquidity to individual markets with leverage. The higher the proportion of fCash to cash in the market at the time the LP (or nToken) provides liquidity, the higher leverage the LP gets. This leverage makes Notional more capital efficient, but it also introduces risk. Consider the following two examples:
+
+1. An LP provides 100 cash of liquidity to a market with an equal amount of cash and fCash (a proportion of .5). In this scenario, the LP would have -100 fCash in their portfolio alongside liquidity tokens equivalent to +100 cash and +100 fCash.
+
+2. An LP provides 100 cash of liquidity to a market that has much more fCash than cash, specifically 9x more fCash than cash (a proportion of .9). In this scenario, the LP would have -900 fCash in their portfolio alongside liquidity tokens equivalent to +100 cash and +900 fCash. 
+
+As lenders and borrowers trade on these market, the LP's liquidity token claims will change. If the traders on this market are net lenders, the LP will develop a net short fCash position coincident with decreasing interest rates. This will result in what is called impermanent loss because the present value of their negative fCash balance increases with lower interest rates. The shorter the LP becomes, the lower interest rates go, and the more money they lose. The difference between scenario 1 and 2 is that in scenario 2 the LP will get short 9x faster, and thus has a 9x greater capacity for loss relative to the same +100 cash deposited as liquidity in scenario 1.
+
+The free collateral calculation reflects the greater risk of the LP's position in scenario 2. Assuming a liquidity token haircut of 90%, and an fCash valuation discount factor of 1 for simplicity, the LP in scenario 1 will have free collateral of ~ +80. In scenario 2 though, the LP will have free collateral of ~ 0.
+
+So the LP in scenario 2 not only starts out with less free collateral than the LP in scenario 1, their free collateral position will deteriorate 9x more quickly due to impermanent loss. Clearly then, the LP in scenario 2 is at risk of falling undercollateralized and being liquidated. 
+
+We can never let this happen to the nToken. Luckily, we can ensure that this doesn't happen by capping the leverage ratio at which the nToken provides liquidity to any market. The exact placement of the cap depends on the liquidity token haircut, the fCash haircut, the duration of the maturity, the rateAnchor, and the rateScalar.
+
+It's difficult to solve for the leverage cap analytically, but it is straightforward to solve for via simulation. In practice, leverage caps will be set in conjunction with simulation work demonstrating their effectiveness.
 
 ## Appendix E
 
