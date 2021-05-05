@@ -395,11 +395,10 @@ def get_trade_action(**kwargs):
 
 def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
-
     env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
-
     env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
+
     env.notional.batchBalanceAction(
         accounts[0],
         [

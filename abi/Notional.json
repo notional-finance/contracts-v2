@@ -125,11 +125,172 @@
             {
                 "indexed": false,
                 "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "nTokenAddress",
+                "type": "address"
+            }
+        ],
+        "name": "DeployNToken",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidated",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "localCurrencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "collateralCurrencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netLocalFromLiquidator",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netCollateralTransfer",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netNTokenTransfer",
+                "type": "int256"
+            }
+        ],
+        "name": "LiquidateCollateralCurrency",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidated",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "localCurrencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netLocalFromLiquidator",
+                "type": "int256"
+            }
+        ],
+        "name": "LiquidateLocalCurrency",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidated",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "localCurrencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "fCashCurrency",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netLocalFromLiquidator",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256[]",
+                "name": "fCashMaturities",
+                "type": "uint256[]"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256[]",
+                "name": "fCashNotionalTransfer",
+                "type": "int256[]"
+            }
+        ],
+        "name": "LiquidatefCashEvent",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint16",
                 "name": "newCurrencyId",
                 "type": "uint16"
             }
         ],
         "name": "ListCurrency",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
+        "name": "MarketsInitialized",
         "type": "event"
     },
     {
@@ -174,6 +335,31 @@
             }
         ],
         "name": "SetSettlementRate",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "settledAccount",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "amountToSettleAsset",
+                "type": "int256"
+            }
+        ],
+        "name": "SettledCashDebt",
         "type": "event"
     },
     {
@@ -414,6 +600,31 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "maturity",
+                "type": "uint40"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "fCashAmountToPurchase",
+                "type": "int256"
+            }
+        ],
+        "name": "nTokenResidualPurchase",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "account",
@@ -451,9 +662,9 @@
         "name": "balanceOf",
         "outputs": [
             {
-                "internalType": "uint256",
+                "internalType": "int256",
                 "name": "",
-                "type": "uint256"
+                "type": "int256"
             }
         ],
         "stateMutability": "view",
@@ -475,9 +686,9 @@
         "name": "balanceOfBatch",
         "outputs": [
             {
-                "internalType": "uint256[]",
+                "internalType": "int256[]",
                 "name": "",
-                "type": "uint256[]"
+                "type": "int256[]"
             }
         ],
         "stateMutability": "view",
@@ -591,6 +802,84 @@
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "collateralCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint128",
+                "name": "maxCollateralLiquidation",
+                "type": "uint128"
+            },
+            {
+                "internalType": "uint96",
+                "name": "maxNTokenLiquidation",
+                "type": "uint96"
+            }
+        ],
+        "name": "calculateCollateralCurrencyLiquidation",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint96",
+                "name": "maxNTokenLiquidation",
+                "type": "uint96"
+            }
+        ],
+        "name": "calculateLocalCurrencyLiquidation",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -610,6 +899,89 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "fCashCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "fCashMaturities",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "maxfCashLiquidateAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "calculatefCashCrossCurrencyLiquidation",
+        "outputs": [
+            {
+                "internalType": "int256[]",
+                "name": "",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "fCashMaturities",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "maxfCashLiquidateAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "calculatefCashLocalLiquidation",
+        "outputs": [
+            {
+                "internalType": "int256[]",
+                "name": "",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -856,6 +1228,121 @@
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "getAccount",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint40",
+                        "name": "nextSettleTime",
+                        "type": "uint40"
+                    },
+                    {
+                        "internalType": "bytes1",
+                        "name": "hasDebt",
+                        "type": "bytes1"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "assetArrayLength",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint16",
+                        "name": "bitmapCurrencyId",
+                        "type": "uint16"
+                    },
+                    {
+                        "internalType": "bytes18",
+                        "name": "activeCurrencies",
+                        "type": "bytes18"
+                    }
+                ],
+                "internalType": "struct AccountContext",
+                "name": "accountContext",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "currencyId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "cashBalance",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "nTokenBalance",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "lastClaimTime",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "lastClaimSupplyAmount",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct AccountBalance[]",
+                "name": "accountBalances",
+                "type": "tuple[]"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "currencyId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maturity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "assetType",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "notional",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "storageSlot",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "enum AssetStorageState",
+                        "name": "storageState",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct PortfolioAsset[]",
+                "name": "portfolio",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -870,17 +1357,17 @@
         "outputs": [
             {
                 "internalType": "int256",
-                "name": "",
+                "name": "cashBalance",
                 "type": "int256"
             },
             {
                 "internalType": "int256",
-                "name": "",
+                "name": "nTokenBalance",
                 "type": "int256"
             },
             {
                 "internalType": "uint256",
-                "name": "",
+                "name": "lastClaimTime",
                 "type": "uint256"
             }
         ],
@@ -1013,7 +1500,7 @@
                     },
                     {
                         "internalType": "int256",
-                        "name": "totalCurrentCash",
+                        "name": "totalAssetCash",
                         "type": "int256"
                     },
                     {
@@ -1084,7 +1571,7 @@
                     },
                     {
                         "internalType": "int256",
-                        "name": "totalCurrentCash",
+                        "name": "totalAssetCash",
                         "type": "int256"
                     },
                     {
@@ -1124,65 +1611,22 @@
     {
         "inputs": [
             {
-                "internalType": "uint16",
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
                 "name": "currencyId",
-                "type": "uint16"
+                "type": "uint256"
             }
         ],
-        "name": "getAssetRate",
+        "name": "getAssetsBitmap",
         "outputs": [
             {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "rateOracle",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "rate",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "underlyingDecimals",
-                        "type": "int256"
-                    }
-                ],
-                "internalType": "struct AssetRateParameters",
+                "internalType": "bytes32",
                 "name": "",
-                "type": "tuple"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "getAssetRateStorage",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "rateOracle",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint8",
-                        "name": "underlyingDecimalPlaces",
-                        "type": "uint8"
-                    }
-                ],
-                "internalType": "struct AssetRateStorage",
-                "name": "",
-                "type": "tuple"
+                "type": "bytes32"
             }
         ],
         "stateMutability": "view",
@@ -1306,7 +1750,7 @@
                 "type": "uint16"
             }
         ],
-        "name": "getCashGroupAndRate",
+        "name": "getCashGroupAndAssetRate",
         "outputs": [
             {
                 "components": [
@@ -1362,7 +1806,7 @@
                     }
                 ],
                 "internalType": "struct CashGroupSettings",
-                "name": "",
+                "name": "cashGroup",
                 "type": "tuple"
             },
             {
@@ -1384,7 +1828,7 @@
                     }
                 ],
                 "internalType": "struct AssetRateParameters",
-                "name": "",
+                "name": "assetRate",
                 "type": "tuple"
             }
         ],
@@ -1425,7 +1869,34 @@
                     }
                 ],
                 "internalType": "struct Token",
-                "name": "",
+                "name": "assetToken",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "hasTransferFee",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "decimals",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct Token",
+                "name": "underlyingToken",
                 "type": "tuple"
             }
         ],
@@ -1440,7 +1911,7 @@
                 "type": "uint16"
             }
         ],
-        "name": "getCurrencyAndRate",
+        "name": "getCurrencyAndRates",
         "outputs": [
             {
                 "components": [
@@ -1466,7 +1937,34 @@
                     }
                 ],
                 "internalType": "struct Token",
-                "name": "",
+                "name": "assetToken",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "tokenAddress",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "hasTransferFee",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "decimals",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "enum TokenType",
+                        "name": "tokenType",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct Token",
+                "name": "underlyingToken",
                 "type": "tuple"
             },
             {
@@ -1498,8 +1996,49 @@
                     }
                 ],
                 "internalType": "struct ETHRate",
-                "name": "",
+                "name": "ethRate",
                 "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "rateOracle",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "rate",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "underlyingDecimals",
+                        "type": "int256"
+                    }
+                ],
+                "internalType": "struct AssetRateParameters",
+                "name": "assetRate",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "tokenAddress",
+                "type": "address"
+            }
+        ],
+        "name": "getCurrencyId",
+        "outputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
             }
         ],
         "stateMutability": "view",
@@ -1517,110 +2056,13 @@
         "outputs": [
             {
                 "internalType": "int256[]",
-                "name": "",
+                "name": "depositShares",
                 "type": "int256[]"
             },
             {
                 "internalType": "int256[]",
-                "name": "",
+                "name": "leverageThresholds",
                 "type": "int256[]"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "getETHRate",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "int256",
-                        "name": "rateDecimals",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "rate",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "buffer",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "haircut",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "liquidationDiscount",
-                        "type": "int256"
-                    }
-                ],
-                "internalType": "struct ETHRate",
-                "name": "",
-                "type": "tuple"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "getETHRateStorage",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "rateOracle",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "uint8",
-                        "name": "rateDecimalPlaces",
-                        "type": "uint8"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "mustInvert",
-                        "type": "bool"
-                    },
-                    {
-                        "internalType": "uint8",
-                        "name": "buffer",
-                        "type": "uint8"
-                    },
-                    {
-                        "internalType": "uint8",
-                        "name": "haircut",
-                        "type": "uint8"
-                    },
-                    {
-                        "internalType": "uint8",
-                        "name": "liquidationDiscount",
-                        "type": "uint8"
-                    }
-                ],
-                "internalType": "struct ETHRateStorage",
-                "name": "",
-                "type": "tuple"
             }
         ],
         "stateMutability": "view",
@@ -1634,7 +2076,7 @@
                 "type": "address"
             }
         ],
-        "name": "getFreeCollateralView",
+        "name": "getFreeCollateral",
         "outputs": [
             {
                 "internalType": "int256",
@@ -1656,52 +2098,18 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
-            },
-            {
-                "internalType": "uint256",
-                "name": "perpetualTokenBalance",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "lastMintTime",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "blockTime",
-                "type": "uint256"
-            }
-        ],
-        "name": "getIncentivesToMint",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
             }
         ],
         "name": "getInitializationParameters",
         "outputs": [
             {
                 "internalType": "int256[]",
-                "name": "",
+                "name": "rateAnchors",
                 "type": "int256[]"
             },
             {
                 "internalType": "int256[]",
-                "name": "",
+                "name": "proportions",
                 "type": "int256[]"
             }
         ],
@@ -1716,6 +2124,50 @@
                 "internalType": "uint16",
                 "name": "",
                 "type": "uint16"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "tokenAddress",
+                "type": "address"
+            }
+        ],
+        "name": "getNTokenAccount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "currencyId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalSupply",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "incentiveAnnualEmissionRate",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "lastInitializedTime",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes6",
+                "name": "nTokenParameters",
+                "type": "bytes6"
+            },
+            {
+                "internalType": "int256",
+                "name": "cashBalance",
+                "type": "int256"
             }
         ],
         "stateMutability": "view",
@@ -1765,7 +2217,7 @@
                     }
                 ],
                 "internalType": "struct PortfolioAsset[]",
-                "name": "",
+                "name": "liquidityTokens",
                 "type": "tuple[]"
             },
             {
@@ -1802,7 +2254,7 @@
                     }
                 ],
                 "internalType": "struct PortfolioAsset[]",
-                "name": "",
+                "name": "netfCashAssets",
                 "type": "tuple[]"
             }
         ],
@@ -1830,11 +2282,79 @@
                 "type": "uint16"
             }
         ],
+        "name": "getRateStorage",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "rateOracle",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "rateDecimalPlaces",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "mustInvert",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "buffer",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "haircut",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "liquidationDiscount",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct ETHRateStorage",
+                "name": "ethRate",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "address",
+                        "name": "rateOracle",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "underlyingDecimalPlaces",
+                        "type": "uint8"
+                    }
+                ],
+                "internalType": "struct AssetRateStorage",
+                "name": "assetRate",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
         "name": "getReserveBalance",
         "outputs": [
             {
                 "internalType": "int256",
-                "name": "",
+                "name": "reserveBalance",
                 "type": "int256"
             }
         ],
@@ -1849,9 +2369,9 @@
                 "type": "uint16"
             },
             {
-                "internalType": "uint32",
+                "internalType": "uint40",
                 "name": "maturity",
-                "type": "uint32"
+                "type": "uint40"
             }
         ],
         "name": "getSettlementRate",
@@ -1875,47 +2395,6 @@
                     }
                 ],
                 "internalType": "struct AssetRateParameters",
-                "name": "",
-                "type": "tuple"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "getUnderlying",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "address",
-                        "name": "tokenAddress",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "bool",
-                        "name": "hasTransferFee",
-                        "type": "bool"
-                    },
-                    {
-                        "internalType": "int256",
-                        "name": "decimals",
-                        "type": "int256"
-                    },
-                    {
-                        "internalType": "enum TokenType",
-                        "name": "tokenType",
-                        "type": "uint8"
-                    }
-                ],
-                "internalType": "struct Token",
                 "name": "",
                 "type": "tuple"
             }
@@ -1968,30 +2447,6 @@
                 "internalType": "uint256",
                 "name": "currencyId",
                 "type": "uint256"
-            }
-        ],
-        "name": "getifCashBitmap",
-        "outputs": [
-            {
-                "internalType": "bytes32",
-                "name": "",
-                "type": "bytes32"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "currencyId",
-                "type": "uint256"
             },
             {
                 "internalType": "uint256",
@@ -1999,7 +2454,7 @@
                 "type": "uint256"
             }
         ],
-        "name": "getifCashNotional",
+        "name": "getfCashNotional",
         "outputs": [
             {
                 "internalType": "int256",
@@ -2050,6 +2505,177 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "collateralCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint128",
+                "name": "maxCollateralLiquidation",
+                "type": "uint128"
+            },
+            {
+                "internalType": "uint96",
+                "name": "maxNTokenLiquidation",
+                "type": "uint96"
+            },
+            {
+                "internalType": "bool",
+                "name": "withdrawCollateral",
+                "type": "bool"
+            },
+            {
+                "internalType": "bool",
+                "name": "redeemToUnderlying",
+                "type": "bool"
+            }
+        ],
+        "name": "liquidateCollateralCurrency",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint96",
+                "name": "maxNTokenLiquidation",
+                "type": "uint96"
+            }
+        ],
+        "name": "liquidateLocalCurrency",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "fCashCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "fCashMaturities",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "maxfCashLiquidateAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "liquidatefCashCrossCurrency",
+        "outputs": [
+            {
+                "internalType": "int256[]",
+                "name": "",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "liquidateAccount",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "localCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "fCashMaturities",
+                "type": "uint256[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "maxfCashLiquidateAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "liquidatefCashLocal",
+        "outputs": [
+            {
+                "internalType": "int256[]",
+                "name": "",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -2522,7 +3148,7 @@
         ],
         "name": "safeTransferFrom",
         "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function"
     },
     {

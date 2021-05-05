@@ -40,8 +40,18 @@ CurrencyDefaults = {
 }
 
 nTokenDefaults = {
-    "Deposit": [[0.4e8, 0.6e8], [0.8e9, 0.8e9]],  # Deposit shares  # Leverage thresholds
-    "Initialization": [[1.01e9, 1.021e9], [0.5e9, 0.5e9]],  # Rate anchors  # Target proportion
+    "Deposit": [
+        # Deposit shares
+        [int(0.4e8), int(0.6e8)],
+        # Leverage thresholds
+        [int(0.8e9), int(0.8e9)],
+    ],
+    "Initialization": [
+        # Rate anchors
+        [int(1.01e9), int(1.021e9)],
+        # Target proportion
+        [int(0.5e9), int(0.5e9)],
+    ],
     "Collateral": [
         30,  # residual purchase incentive bps
         90,  # pv haircut

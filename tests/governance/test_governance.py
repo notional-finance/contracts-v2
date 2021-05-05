@@ -20,17 +20,18 @@ def isolation(fn_isolation):
 
 
 def execute_proposal(environment, targets, values, calldatas):
-    environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
+    txn = environment.governor.propose(targets, values, calldatas, {"from": environment.multisig})
+    proposalId = txn.events["ProposalCreated"]["id"]
     chain.mine(1)
-    environment.governor.castVote(1, True, {"from": environment.multisig})
+    environment.governor.castVote(proposalId, True, {"from": environment.multisig})
     chain.mine(GovernanceConfig["governorConfig"]["votingPeriodBlocks"])
 
-    assert environment.governor.state(1) == 4  # success
+    assert environment.governor.state(proposalId) == 4  # success
     delay = environment.governor.getMinDelay()
-    environment.governor.queueProposal(1, targets, values, calldatas)
+    environment.governor.queueProposal(proposalId, targets, values, calldatas)
     chain.mine(1, timestamp=chain.time() + delay)
-    txn = environment.governor.executeProposal(1, targets, values, calldatas)
-    return txn
+    environment.governor.executeProposal(proposalId, targets, values, calldatas)
+    return proposalId
 
 
 def test_note_token_initial_balances(environment, accounts):
