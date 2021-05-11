@@ -30,8 +30,8 @@ def execute_proposal(environment, targets, values, calldatas):
     delay = environment.governor.getMinDelay()
     environment.governor.queueProposal(proposalId, targets, values, calldatas)
     chain.mine(1, timestamp=chain.time() + delay)
-    environment.governor.executeProposal(proposalId, targets, values, calldatas)
-    return proposalId
+    txn = environment.governor.executeProposal(proposalId, targets, values, calldatas)
+    return txn
 
 
 def test_note_token_initial_balances(environment, accounts):
