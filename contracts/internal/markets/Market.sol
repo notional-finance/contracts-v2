@@ -464,7 +464,18 @@ library Market {
         uint256 settlementDate,
         uint256 maturity
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(maturity, settlementDate, currencyId, "market"));
+        return
+            keccak256(
+                abi.encode(
+                    maturity,
+                    keccak256(
+                        abi.encode(
+                            settlementDate,
+                            keccak256(abi.encode(currencyId, Constants.MARKET_STORAGE_OFFSET))
+                        )
+                    )
+                )
+            );
     }
 
     /// @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we

@@ -95,7 +95,13 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);
         accountContext.setAccountContext(account);
 
-        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+        bytes32 slot =
+            keccak256(
+                abi.encode(
+                    currencyId,
+                    keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET))
+                )
+            );
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow

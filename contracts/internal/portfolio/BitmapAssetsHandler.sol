@@ -17,8 +17,22 @@ library BitmapAssetsHandler {
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
 
+    function _getAssetsBitmapSlot(address account, uint256 currencyId)
+        private
+        pure
+        returns (bytes32)
+    {
+        return
+            keccak256(
+                abi.encode(
+                    account,
+                    keccak256(abi.encode(currencyId, Constants.ASSETS_BITMAP_STORAGE_OFFSET))
+                )
+            );
+    }
+
     function getAssetsBitmap(address account, uint256 currencyId) internal view returns (bytes32) {
-        bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
+        bytes32 slot = _getAssetsBitmapSlot(account, currencyId);
         bytes32 data;
         assembly {
             data := sload(slot)
@@ -31,7 +45,7 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         bytes32 assetsBitmap
     ) internal {
-        bytes32 slot = keccak256(abi.encode(account, currencyId, "assets.bitmap"));
+        bytes32 slot = _getAssetsBitmapSlot(account, currencyId);
         require(assetsBitmap.totalBitsSet() <= Constants.MAX_BITMAP_ASSETS, "Over max assets");
 
         assembly {
@@ -44,7 +58,18 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         uint256 maturity
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(maturity, currencyId, account, "assets.ifcash"));
+        return
+            keccak256(
+                abi.encode(
+                    maturity,
+                    keccak256(
+                        abi.encode(
+                            currencyId,
+                            keccak256(abi.encode(account, Constants.IFCASH_STORAGE_OFFSET))
+                        )
+                    )
+                )
+            );
     }
 
     function getifCashNotional(

@@ -177,7 +177,12 @@ library AssetRate {
         )
     {
         bytes32 data;
-        slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        slot = keccak256(
+            abi.encode(
+                currencyId,
+                keccak256(abi.encode(maturity, Constants.SETTLEMENT_RATE_STORAGE_OFFSET))
+            )
+        );
 
         assembly {
             data := sload(slot)

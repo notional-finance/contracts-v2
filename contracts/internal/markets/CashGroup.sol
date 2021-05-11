@@ -219,7 +219,7 @@ library CashGroup {
     }
 
     function _getCashGroupStorageBytes(uint256 currencyId) private view returns (bytes32) {
-        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
+        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
         bytes32 data;
 
         assembly {
@@ -239,7 +239,7 @@ library CashGroup {
     function setCashGroupStorage(uint256 currencyId, CashGroupSettings calldata cashGroup)
         internal
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
+        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
         require(
             cashGroup.maxMarketIndex >= 0 &&
                 cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX,
