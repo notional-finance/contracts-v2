@@ -88,9 +88,10 @@ def initialize_v2env(v2env, migrator):
         listCurrencyCalldata("WBTC", v2env),
     ]
     execute_proposal(v2env, targets, values, calldatas)
+    # TODO: deploy non mintable token
 
-    # proposal to enable each cash group
-    for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT"), (5, "WBTC")]:
+    # proposal to enable each cash group (wbtc left off to test no cash group and ntoken)
+    for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT")]:
         targets = [v2env.notional.address] * 5
         values = [0] * 5
         calldatas = enableCashGroupCallData(currencyId, symbol, v2env)
@@ -140,6 +141,15 @@ def main():
 
     with open("v2.local.json", "w") as f:
         json.dump(v2contractsFile, f, sort_keys=True, indent=4)
+
+    with open("abi/AssetRateAggregator.json", "w") as f:
+        json.dump(v2env.cTokenAggregator["ETH"].abi, f, sort_keys=True, indent=4)
+
+    with open("abi/IAggregator.json", "w") as f:
+        json.dump(v2env.ethOracle["DAI"].abi, f, sort_keys=True, indent=4)
+
+    with open("abi/nTokenERC20.json", "w") as f:
+        json.dump(v2env.nToken[1].abi, f, sort_keys=True, indent=4)
 
     with open("abi/Governor.json", "w") as f:
         json.dump(v2env.governor.abi, f, sort_keys=True, indent=4)
