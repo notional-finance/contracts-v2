@@ -22,7 +22,22 @@ library TradingAction {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    event BatchTradeExecution(address account, uint16 currencyId);
+    event OnChainTrade(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netFee
+    );
+    event AddRemoveLiquidity(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netLiquidityTokens
+    );
     event SettledCashDebt(address settledAccount, uint16 currencyId, int256 amountToSettleAsset);
     event nTokenResidualPurchase(uint16 currencyId, uint40 maturity, int256 fCashAmountToPurchase);
 
@@ -72,12 +87,19 @@ library TradingAction {
             if (c.fCashAmount < 0) didIncurDebt = true;
             c.netCash = c.netCash.add(c.cash);
             c.totalFee = c.totalFee.add(c.fee);
+            emit OnChainTrade(
+                account,
+                uint16(cashGroup.currencyId),
+                uint40(maturity),
+                c.cash,
+                c.fCashAmount,
+                c.fee
+            );
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
         BalanceHandler.incrementFeeToReserve(accountContext.bitmapCurrencyId, c.totalFee);
 
-        emit BatchTradeExecution(account, uint16(accountContext.bitmapCurrencyId));
         return (c.netCash, didIncurDebt);
     }
 
@@ -102,6 +124,7 @@ library TradingAction {
             ) {
                 // Liquidity tokens can only be added by array portfolio
                 c.cash = _executeLiquidityTrade(
+                    account,
                     cashGroup,
                     market,
                     tradeType,
@@ -120,12 +143,19 @@ library TradingAction {
                 // Stack issues here :(
                 _addfCashAsset(portfolioState, currencyId, maturity, c.fCashAmount);
                 c.totalFee = c.totalFee.add(c.fee);
+                emit OnChainTrade(
+                    account,
+                    uint16(cashGroup.currencyId),
+                    uint40(maturity),
+                    c.cash,
+                    c.fCashAmount,
+                    c.fee
+                );
             }
 
             c.netCash = c.netCash.add(c.cash);
         }
 
-        emit BatchTradeExecution(account, uint16(currencyId));
         BalanceHandler.incrementFeeToReserve(currencyId, c.totalFee);
 
         return (portfolioState, c.netCash);
@@ -182,6 +212,7 @@ library TradingAction {
     }
 
     function _executeLiquidityTrade(
+        address account,
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         TradeActionType tradeType,
@@ -237,6 +268,15 @@ library TradingAction {
             marketIndex + 1,
             tokens,
             false
+        );
+
+        emit AddRemoveLiquidity(
+            account,
+            uint16(cashGroup.currencyId),
+            uint40(market.maturity),
+            cashAmount,
+            fCashAmount,
+            tokens
         );
 
         return (cashAmount);

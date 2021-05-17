@@ -126,8 +126,8 @@ def test_deposit_underlying_and_borrow_specify_fcash(environment, accounts):
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["OnChainTrade"][0]["account"] == accounts[1]
+    assert txn.events["OnChainTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -178,8 +178,8 @@ def test_mint_perp_tokens_and_borrow_specify_fcash(environment, accounts):
     txn = environment.notional.batchBalanceAndTradeAction(
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
     )
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["OnChainTrade"][0]["account"] == accounts[1]
+    assert txn.events["OnChainTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -228,8 +228,8 @@ def test_deposit_asset_and_borrow(environment, accounts):
     txn = environment.notional.batchBalanceAndTradeAction(
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
     )
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["OnChainTrade"][0]["account"] == accounts[1]
+    assert txn.events["OnChainTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -305,8 +305,8 @@ def test_roll_borrow_to_maturity(environment, accounts):
         accounts[1], [action], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["OnChainTrade"][0]["account"] == accounts[1]
+    assert txn.events["OnChainTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -378,8 +378,8 @@ def test_deposit_and_borrow_bitmap(environment, accounts):
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["OnChainTrade"][0]["account"] == accounts[1]
+    assert txn.events["OnChainTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
