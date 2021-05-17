@@ -29,6 +29,49 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "maturity",
+                "type": "uint40"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netAssetCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netLiquidityTokens",
+                "type": "int256"
+            }
+        ],
+        "name": "AddRemoveLiquidity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "owner",
@@ -73,25 +116,6 @@
             }
         ],
         "name": "ApprovalForAll",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": false,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "BatchTradeExecution",
         "type": "event"
     },
     {
@@ -291,6 +315,49 @@
             }
         ],
         "name": "MarketsInitialized",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "maturity",
+                "type": "uint40"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netAssetCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netFee",
+                "type": "int256"
+            }
+        ],
+        "name": "OnChainTrade",
         "type": "event"
     },
     {
@@ -1157,7 +1224,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -1715,7 +1782,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -1786,7 +1853,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -3273,7 +3340,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
