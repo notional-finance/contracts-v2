@@ -12,10 +12,20 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
     event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-    event SettledCashDebt(address settledAccount, uint16 currencyId, int256 amountToSettleAsset);
-    event nTokenResidualPurchase(uint16 currencyId, uint40 maturity, int256 fCashAmountToPurchase);
     event MarketsInitialized(uint16 currencyId);
-    event OnChainTrade(
+    event SettledCashDebt(
+        address settledAccount,
+        uint16 currencyId,
+        int256 amountToSettleAsset,
+        int256 fCashAmount
+    );
+    event nTokenResidualPurchase(
+        uint16 currencyId,
+        uint40 maturity,
+        int256 fCashAmountToPurchase,
+        int256 netAssetCashNToken
+    );
+    event LendBorrowTrade(
         address account,
         uint16 currencyId,
         uint40 maturity,
