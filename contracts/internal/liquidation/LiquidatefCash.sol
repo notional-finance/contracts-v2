@@ -58,7 +58,6 @@ library LiquidatefCash {
         if (context.accountContext.bitmapCurrencyId == currencyId) {
             int256 notional =
                 BitmapAssetsHandler.getifCashNotional(liquidateAccount, currencyId, maturity);
-            require(notional > 0); // dev: invalid fcash asset
         }
 
         PortfolioAsset[] memory portfolio = context.portfolio.storedAssets;
@@ -68,7 +67,6 @@ library LiquidatefCash {
                 portfolio[i].assetType == Constants.FCASH_ASSET_TYPE &&
                 portfolio[i].maturity == maturity
             ) {
-                require(portfolio[i].notional > 0); // dev: invalid fcash asset
                 return portfolio[i].notional;
             }
         }
@@ -83,6 +81,8 @@ library LiquidatefCash {
         AccountContext accountContext;
         LiquidationFactors factors;
         PortfolioState portfolio;
+        // TODO: this is used to track local cash balance during negative fcash liquidation
+        int256 localCashBalance;
         int256 underlyingBenefitRequired;
         int256 localAssetCashFromLiquidator;
         int256 liquidationDiscount;
@@ -119,6 +119,9 @@ library LiquidatefCash {
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
+            // If a notional balance is negative, ensure that there is some local cash balance to
+            // purchase for the liquidation.
+            if (notional < 0) require(c.localCashBalance > 0); // dev: insufficient cash balance
             if (notional == 0) continue;
 
             // We know that liquidation discount > risk adjusted discount because they are required to
@@ -135,19 +138,48 @@ library LiquidatefCash {
                 .mul(Constants.RATE_PRECISION)
                 .div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor));
 
+            // fCashNotionalTransfers[i] is always positive at this point. The max liquidate amount is
+            // calculated using the absolute value of the notional amount to ensure that the inequalities
+            // operate properly inside calculateLiquidationAmount.
             c.fCashNotionalTransfers[i] = LiquidationHelpers.calculateLiquidationAmount(
                 c.fCashNotionalTransfers[i],
-                notional,
+                notional.abs(),
                 int256(maxfCashLiquidateAmounts[i])
             );
 
-            // NOTE: this is actually in underlying terms during this loop, it is converted to asset terms just once
+            // NOTE: localAssetCashFromLiquidator is actually in underlying terms during this loop, it is converted to asset terms just once
             // at the end of the loop to limit loss of precision
-            c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.add(
-                c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
-                    Constants.RATE_PRECISION
-                )
-            );
+            if (notional < 0) {
+                // When the notional is negative, cash balance will be transferred to the liquidator instead of
+                // being provided by the liquidator.
+                int256 cashToLiquidator =
+                    c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
+                        Constants.RATE_PRECISION
+                    );
+
+                if (cashToLiquidator > c.localCashBalance) {
+                    // We know that all these values are positive at this point.
+                    c.fCashNotionalTransfers[i] = c.fCashNotionalTransfers[i]
+                        .mul(c.localCashBalance)
+                        .div(cashToLiquidator);
+                    cashToLiquidator = c.localCashBalance;
+                }
+
+                // Flip the sign when the notional is negative
+                c.fCashNotionalTransfers[i] = c.fCashNotionalTransfers[i].neg();
+                // Not intuitive, but we subtract here instead of add since this is asset cash that
+                // comes from the liquidator.
+                c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.sub(
+                    cashToLiquidator
+                );
+                c.localCashBalance = c.localCashBalance.sub(cashToLiquidator);
+            } else {
+                c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.add(
+                    c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
+                        Constants.RATE_PRECISION
+                    )
+                );
+            }
 
             // Deduct the total benefit gained from liquidating this fCash position
             c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(
@@ -191,6 +223,7 @@ library LiquidatefCash {
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
+            require(notional > 0); // dev: invalid fcash asset
             if (notional == 0) continue;
 
             c.fCashNotionalTransfers[i] = _calculateCrossCurrencyfCashToLiquidate(
