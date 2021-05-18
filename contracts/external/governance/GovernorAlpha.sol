@@ -415,6 +415,8 @@ contract GovernorAlpha is TimelockController {
         Receipt storage receipt = receipts[proposalId][voter];
         require(receipt.hasVoted == false, "GovernorAlpha::_castVote: voter already voted");
         uint96 votes = note.getPriorVotes(voter, proposal.startBlock);
+        // Short circuit if voter has no votes
+        if (votes == 0) return;
 
         if (support) {
             proposal.forVotes = _add96(proposal.forVotes, votes);
