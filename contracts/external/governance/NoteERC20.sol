@@ -88,9 +88,10 @@ contract NoteERC20 is Initializable {
         require(initialGrantAmount.length == initialAccounts.length);
 
         notionalProxy = notionalProxy_;
-        uint96 totalGrants;
-        for (uint256 i; i < initialGrantAmount.length; i++) {
+        uint96 totalGrants = 0;
+        for (uint256 i = 0; i < initialGrantAmount.length; i++) {
             totalGrants = _add96(totalGrants, initialGrantAmount[i], "");
+            require(balances[initialAccounts[i]] == 0, "Duplicate account");
             balances[initialAccounts[i]] = initialGrantAmount[i];
 
             emit Transfer(address(0), initialAccounts[i], initialGrantAmount[i]);
