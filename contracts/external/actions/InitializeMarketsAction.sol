@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "./nTokenMintAction.sol";
 import "../../internal/markets/Market.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/AssetRate.sol";
@@ -37,6 +38,7 @@ library InitializeMarketsAction {
     using AccountContextHandler for AccountContext;
 
     event MarketsInitialized(uint16 currencyId);
+    event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
 
     struct GovernanceParameters {
         int256[] depositShares;
@@ -203,6 +205,7 @@ library InitializeMarketsAction {
                         DateTime.getMarketIndex(
                             nToken.cashGroup.maxMarketIndex,
                             maturity,
+                            // TODO: this line is invalid when referencing the current markets
                             blockTime - Constants.QUARTER
                         );
                     // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
@@ -391,6 +394,46 @@ library InitializeMarketsAction {
 
         // fCashAmount is calculated using the underlying amount
         return nToken.cashGroup.assetRate.convertToUnderlying(assetCashToMarket);
+    }
+
+    /// @notice Sweeps nToken cash balance into markets after accounting for cash withholding. Can be
+    /// done after fCash residuals are purchased to ensure that markets have maximum liquidity.
+    /// @param currencyId currency of markets to initialize
+    /// @dev emit:CashSweepIntoMarkets
+    /// @dev auth:none
+    function sweepCashIntoMarkets(uint16 currencyId) external {
+        uint256 blockTime = block.timestamp;
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        require(nToken.portfolioState.storedAssets.length > 0, "No nToken assets");
+        // TODO: this has to reference current markets
+        MarketParameters[] memory currentMarkets;
+
+        // Can only sweep cash after markets have been initialized
+        uint256 referenceTime = DateTime.getReferenceTime(blockTime);
+        require(nToken.lastInitializedTime > referenceTime, "Must initialize markets");
+
+        // Can only sweep cash after the residual purchase time has passed
+        uint256 minSweepCashTime =
+            nToken.lastInitializedTime.add(
+                uint256(uint8(nToken.parameters[Constants.RESIDUAL_PURCHASE_TIME_BUFFER])) * 3600
+            );
+        require(blockTime > minSweepCashTime, "Invalid sweep cash time");
+
+        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, currencyId);
+        int256 assetCashWithholding =
+            _getNTokenNegativefCashWithholding(nToken, currentMarkets, blockTime, ifCashBitmap);
+
+        int256 cashIntoMarkets = nToken.cashBalance.subNoNeg(assetCashWithholding);
+        BalanceHandler.setBalanceStorageForNToken(
+            nToken.tokenAddress,
+            nToken.cashGroup.currencyId,
+            assetCashWithholding
+        );
+
+        // This will deposit the cash balance into markets, but will not record a token supply change.
+        nTokenMintAction.nTokenMint(currencyId, cashIntoMarkets);
+        emit SweepCashIntoMarkets(currencyId, cashIntoMarkets);
     }
 
     /// @notice Initialize the market for a given currency id, done once a quarter
