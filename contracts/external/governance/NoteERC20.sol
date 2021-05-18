@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 /// @title Note ERC20 Token
 /// Fork of Compound Comp token at commit hash
@@ -181,7 +182,7 @@ contract NoteERC20 is Initializable {
     /// @param delegatee The address to delegate votes to
     /// @dev emit:DelegatesChanged
     function delegate(address delegatee) public {
-        return _delegate(msg.sender, delegatee);
+        _delegate(msg.sender, delegatee);
     }
 
     /// @notice Delegates votes from signatory to `delegatee`
@@ -206,11 +207,11 @@ contract NoteERC20 is Initializable {
             );
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ECDSA.recover(digest, v, r, s);
         require(signatory != address(0), "Note::delegateBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Note::delegateBySig: invalid nonce");
         require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
-        return _delegate(signatory, delegatee);
+        _delegate(signatory, delegatee);
     }
 
     /// @notice Gets the current votes balance for `account`

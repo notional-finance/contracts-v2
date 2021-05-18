@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../../global/Constants.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 /**
  * @title Notional Governor Alpha
@@ -396,7 +397,7 @@ contract GovernorAlpha is TimelockController {
             );
         bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ECDSA.recover(digest, v, r, s);
         require(signatory != address(0), "GovernorAlpha::castVoteBySig: invalid signature");
         return _castVote(signatory, proposalId, support);
     }
