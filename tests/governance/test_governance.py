@@ -210,6 +210,26 @@ def test_cancel_proposal_pending(environment, accounts):
         environment.governor.executeProposal(1, targets, values, calldatas)
 
 
+def test_abdicate_and_transfer_guardian(environment, accounts):
+    with brownie.reverts():
+        environment.governor.__abdicate({"from": accounts[2]})
+
+    with brownie.reverts():
+        environment.governor.__transferGuardian(accounts[2].address, {"from": accounts[2]})
+
+    with brownie.reverts():
+        environment.governor.__transferGuardian(
+            brownie.convert.datatypes.HexString(0, "bytes20"), {"from": accounts[1]}
+        )
+
+    environment.governor.__transferGuardian(accounts[2].address, {"from": accounts[1]})
+    environment.governor.__abdicate({"from": accounts[2]})
+
+    with brownie.reverts():
+        # Second abdicate fails, no guardian set
+        environment.governor.__abdicate({"from": accounts[2]})
+
+
 def test_note_token_reservoir_fails_on_zero(environment, accounts):
     pass
 
