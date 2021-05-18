@@ -14,6 +14,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Reservoir {
     using SafeMath for uint256;
 
+    /// @notice Emitted whenever the reservoir drips tokens to the target
+    event ReservoirDrip(address indexed targetAddress, uint256 amountTransferred);
+
     /// @notice The timestamp when the Reservoir started
     uint256 public immutable DRIP_START;
 
@@ -62,5 +65,6 @@ contract Reservoir {
         // will be compliant because it is the NOTE contract
         bool success = TOKEN.transfer(TARGET, amountToDrip);
         require(success, "Transfer failed");
+        emit ReservoirDrip(TARGET, amountToDrip);
     }
 }

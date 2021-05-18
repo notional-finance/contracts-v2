@@ -123,6 +123,9 @@ contract GovernorAlpha is TimelockController {
     /// @notice An event emitted when a new voting period in blocks has been set
     event UpdateVotingPeriodBlocks(uint32 newVotingPeriodBlocks);
 
+    /// @notice Emitted when the guardian abdicates their role
+    event Abdicate();
+
     constructor(
         uint96 quorumVotes_,
         uint96 proposalThreshold_,
@@ -457,6 +460,7 @@ contract GovernorAlpha is TimelockController {
     function __abdicate() public {
         require(msg.sender == guardian, "GovernorAlpha::__abdicate: sender must be gov guardian");
         guardian = address(0);
+        emit Abdicate();
     }
 
     /// @dev Overflow check for adding votes
