@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "interfaces/notional/INoteERC20.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
 
 /**
@@ -14,7 +15,7 @@ contract GovernorAlpha is TimelockController {
     string public constant name = "Notional Governor Alpha";
 
     /// @notice The address of the Notional governance token
-    NoteInterface public immutable note;
+    INoteERC20 public immutable note;
 
     /// @notice The maximum number of actions that can be included in a proposal
     uint8 public constant PROPOSAL_MAX_OPERATIONS = 10;
@@ -135,7 +136,7 @@ contract GovernorAlpha is TimelockController {
         proposalThreshold = proposalThreshold_;
         votingDelayBlocks = votingDelayBlocks_;
         votingPeriodBlocks = votingPeriodBlocks_;
-        note = NoteInterface(note_);
+        note = INoteERC20(note_);
         guardian = guardian_;
 
         // Only the external methods can be used to execute governance
@@ -488,8 +489,4 @@ contract GovernorAlpha is TimelockController {
         }
         return chainId;
     }
-}
-
-interface NoteInterface {
-    function getPriorVotes(address account, uint256 blockNumber) external view returns (uint96);
 }
