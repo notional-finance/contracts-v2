@@ -2,6 +2,7 @@ import json
 
 import scripts.deploy_v1
 from brownie import accounts
+from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TestEnvironment, TokenType
@@ -17,18 +18,33 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
         else CurrencyDefaults["liquidationDiscount"]
     )
 
-    return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
-        fn_name="listCurrency",
-        args=[
-            (v2env.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
-            (v2env.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
-            v2env.ethOracle[symbol].address,
-            False,
-            buffer,
-            haircut,
-            liquidationDiscount,
-        ],
-    )
+    if symbol == "NOMINT":
+        zeroAddress = HexString(0, "bytes20")
+        return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
+            fn_name="listCurrency",
+            args=[
+                (v2env.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
+                (zeroAddress, False, 0),
+                v2env.ethOracle[symbol].address,
+                False,
+                buffer,
+                haircut,
+                liquidationDiscount,
+            ],
+        )
+    else:
+        return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
+            fn_name="listCurrency",
+            args=[
+                (v2env.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
+                (v2env.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+                v2env.ethOracle[symbol].address,
+                False,
+                buffer,
+                haircut,
+                liquidationDiscount,
+            ],
+        )
 
 
 def enableCashGroupCallData(currencyId, symbol, v2env, **kwargs):
@@ -79,18 +95,19 @@ def enableCashGroupCallData(currencyId, symbol, v2env, **kwargs):
 def initialize_v2env(v2env, migrator):
     v2env.noteERC20.delegate(v2env.multisig, {"from": v2env.multisig})
     # proposal to list currencies
-    targets = [v2env.notional.address] * 4
-    values = [0] * 4
+    targets = [v2env.notional.address] * 5
+    values = [0] * 5
     calldatas = [
         listCurrencyCalldata("DAI", v2env),
         listCurrencyCalldata("USDC", v2env),
         listCurrencyCalldata("USDT", v2env, haircut=0),
         listCurrencyCalldata("WBTC", v2env),
+        listCurrencyCalldata("NOMINT", v2env),
     ]
     execute_proposal(v2env, targets, values, calldatas)
 
-    # proposal to enable each cash group
-    for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT"), (5, "WBTC")]:
+    # proposal to enable each cash group (wbtc left off to test no cash group and ntoken)
+    for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT")]:
         targets = [v2env.notional.address] * 5
         values = [0] * 5
         calldatas = enableCashGroupCallData(currencyId, symbol, v2env)
@@ -140,6 +157,15 @@ def main():
 
     with open("v2.local.json", "w") as f:
         json.dump(v2contractsFile, f, sort_keys=True, indent=4)
+
+    with open("abi/AssetRateAggregator.json", "w") as f:
+        json.dump(v2env.cTokenAggregator["ETH"].abi, f, sort_keys=True, indent=4)
+
+    with open("abi/IAggregator.json", "w") as f:
+        json.dump(v2env.ethOracle["DAI"].abi, f, sort_keys=True, indent=4)
+
+    with open("abi/nTokenERC20.json", "w") as f:
+        json.dump(v2env.nToken[1].abi, f, sort_keys=True, indent=4)
 
     with open("abi/Governor.json", "w") as f:
         json.dump(v2env.governor.abi, f, sort_keys=True, indent=4)

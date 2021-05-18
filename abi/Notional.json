@@ -29,6 +29,49 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "maturity",
+                "type": "uint40"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netAssetCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netLiquidityTokens",
+                "type": "int256"
+            }
+        ],
+        "name": "AddRemoveLiquidity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "owner",
@@ -79,25 +122,6 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            }
-        ],
-        "name": "BatchTradeExecution",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "account",
@@ -136,6 +160,49 @@
             }
         ],
         "name": "DeployNToken",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "maturity",
+                "type": "uint40"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netAssetCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netFee",
+                "type": "int256"
+            }
+        ],
+        "name": "LendBorrowTrade",
         "type": "event"
     },
     {
@@ -356,6 +423,12 @@
                 "indexed": false,
                 "internalType": "int256",
                 "name": "amountToSettleAsset",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "fCashAmount",
                 "type": "int256"
             }
         ],
@@ -615,6 +688,12 @@
                 "indexed": false,
                 "internalType": "int256",
                 "name": "fCashAmountToPurchase",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "netAssetCashNToken",
                 "type": "int256"
             }
         ],
@@ -1157,7 +1236,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -1715,7 +1794,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -1786,7 +1865,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
@@ -3273,7 +3352,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRateBPS",
+                        "name": "settlementPenaltyRate5BPS",
                         "type": "uint8"
                     },
                     {
