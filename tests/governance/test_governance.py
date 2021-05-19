@@ -100,7 +100,7 @@ def test_update_governance_parameters(environment, accounts):
             fn_name="updateVotingDelayBlocks", args=[0]
         ),
         web3.eth.contract(abi=environment.governor.abi).encodeABI(
-            fn_name="updateVotingPeriodBlocks", args=[0]
+            fn_name="updateVotingPeriodBlocks", args=[6700]
         ),
         web3.eth.contract(abi=environment.governor.abi).encodeABI(fn_name="updateDelay", args=[0]),
     ]
@@ -110,12 +110,12 @@ def test_update_governance_parameters(environment, accounts):
     assert txn.events["UpdateQuorumVotes"]["newQuorumVotes"] == 0
     assert txn.events["UpdateProposalThreshold"]["newProposalThreshold"] == 0
     assert txn.events["UpdateVotingDelayBlocks"]["newVotingDelayBlocks"] == 0
-    assert txn.events["UpdateVotingPeriodBlocks"]["newVotingPeriodBlocks"] == 0
+    assert txn.events["UpdateVotingPeriodBlocks"]["newVotingPeriodBlocks"] == 6700
 
     assert environment.governor.quorumVotes() == 0
     assert environment.governor.proposalThreshold() == 0
     assert environment.governor.votingDelayBlocks() == 0
-    assert environment.governor.votingPeriodBlocks() == 0
+    assert environment.governor.votingPeriodBlocks() == 6700
     assert environment.governor.getMinDelay() == 0
 
 

@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../../global/Constants.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title Notional Governor Alpha
@@ -19,6 +20,10 @@ contract GovernorAlpha is TimelockController {
 
     /// @notice The maximum number of actions that can be included in a proposal
     uint8 public constant proposalMaxOperations = 10;
+
+    /// @notice The minimum voting period in blocks, about 1 day assuming 13 second blocks. Ensures that proposals will always have
+    /// time to be voted on.
+    uint32 public constant MIN_VOTING_PERIOD_BLOCKS = 6700;
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
     uint96 public quorumVotes;
@@ -132,9 +137,13 @@ contract GovernorAlpha is TimelockController {
         address guardian_,
         uint256 minDelay_
     ) TimelockController(minDelay_, new address[](0), new address[](0)) {
+        require(Address.isContract(note_));
+
         quorumVotes = quorumVotes_;
         proposalThreshold = proposalThreshold_;
         votingDelayBlocks = votingDelayBlocks_;
+        // Do not enforce MIN_VOTING_DELAY during constructor so that tests don't require a large number
+        // of blocks for the voting period. During actual mainnet deployment this will be set to a reasonable value.
         votingPeriodBlocks = votingPeriodBlocks_;
         note = NoteInterface(note_);
         guardian = guardian_;
@@ -449,6 +458,7 @@ contract GovernorAlpha is TimelockController {
 
     function updateVotingPeriodBlocks(uint32 newVotingPeriodBlocks) external {
         require(msg.sender == address(this), "Unauthorized caller");
+        require(newVotingPeriodBlocks >= MIN_VOTING_PERIOD_BLOCKS, "Below min voting period");
         votingPeriodBlocks = newVotingPeriodBlocks;
         emit UpdateVotingPeriodBlocks(newVotingPeriodBlocks);
     }
