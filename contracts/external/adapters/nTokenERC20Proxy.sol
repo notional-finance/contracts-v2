@@ -114,23 +114,23 @@ contract nTokenERC20Proxy is IERC20 {
 
     /// @dev nTokens should never accept any erc1155 transfers of fCash
     function onERC1155Received(
-        address _operator,
-        address _from,
-        uint256 _id,
-        uint256 _value,
-        bytes calldata _data
-    ) external returns (bytes4) {
+        address, /* _operator */
+        address, /* _from */
+        uint256, /* _id */
+        uint256, /* _value */
+        bytes calldata /* _data */
+    ) external pure returns (bytes4) {
         return 0;
     }
 
     /// @dev nTokens should never accept any erc1155 transfers of fCash
     function onERC1155BatchReceived(
-        address _operator,
-        address _from,
-        uint256[] calldata _ids,
-        uint256[] calldata _values,
-        bytes calldata _data
-    ) external returns (bytes4) {
+        address, /* _operator */
+        address, /* _from */
+        uint256[] calldata, /* _ids */
+        uint256[] calldata, /* _values */
+        bytes calldata /* _data */
+    ) external pure returns (bytes4) {
         return 0;
     }
 }

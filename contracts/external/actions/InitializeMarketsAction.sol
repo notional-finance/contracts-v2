@@ -191,6 +191,22 @@ library InitializeMarketsAction {
             if (assetsBitmap & Constants.MSB == Constants.MSB) {
                 uint256 maturity =
                     DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
+
+                // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
+                // want to apply withholding for idiosyncratic fCash.
+                if (
+                    previousMarkets.length == 0 &&
+                    DateTime.isValidMarketMaturity(
+                        nToken.cashGroup.maxMarketIndex,
+                        maturity,
+                        blockTime
+                    )
+                ) {
+                    assetsBitmap = assetsBitmap << 1;
+                    bitNum += 1;
+                    continue;
+                }
+
                 int256 notional =
                     BitmapAssetsHandler.getifCashNotional(
                         nToken.tokenAddress,
@@ -200,18 +216,18 @@ library InitializeMarketsAction {
 
                 // Withholding only applies for negative cash balances
                 if (notional < 0) {
-                    // Get the market index referenced in the previous quarter
-                    (uint256 marketIndex, bool idiosyncratic) =
-                        DateTime.getMarketIndex(
-                            nToken.cashGroup.maxMarketIndex,
+                    uint256 oracleRate;
+                    if (previousMarkets.length > 0) {
+                        oracleRate = _getPreviousWithholdingRate(
+                            nToken.cashGroup,
+                            previousMarkets,
                             maturity,
-                            // TODO: this line is invalid when referencing the current markets
-                            blockTime - Constants.QUARTER
+                            blockTime
                         );
-                    // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
-                    require(!idiosyncratic); // dev: fail on market index
+                    } else {
+                        oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
+                    }
 
-                    uint256 oracleRate = previousMarkets[marketIndex - 1].oracleRate;
                     if (oracleRateBuffer > oracleRate) {
                         oracleRate = 0;
                     } else {
@@ -229,6 +245,25 @@ library InitializeMarketsAction {
         }
 
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
+    }
+
+    function _getPreviousWithholdingRate(
+        CashGroupParameters memory cashGroup,
+        MarketParameters[] memory markets,
+        uint256 maturity,
+        uint256 blockTime
+    ) private pure returns (uint256) {
+        // Get the market index referenced in the previous quarter
+        (uint256 marketIndex, bool idiosyncratic) =
+            DateTime.getMarketIndex(
+                cashGroup.maxMarketIndex,
+                maturity,
+                blockTime - Constants.QUARTER
+            );
+        // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
+        require(!idiosyncratic); // dev: fail on market index
+
+        return markets[marketIndex - 1].oracleRate;
     }
 
     function _calculateNetAssetCashAvailable(
@@ -406,12 +441,10 @@ library InitializeMarketsAction {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
         require(nToken.portfolioState.storedAssets.length > 0, "No nToken assets");
-        // TODO: this has to reference current markets
-        MarketParameters[] memory currentMarkets;
 
         // Can only sweep cash after markets have been initialized
         uint256 referenceTime = DateTime.getReferenceTime(blockTime);
-        require(nToken.lastInitializedTime > referenceTime, "Must initialize markets");
+        require(nToken.lastInitializedTime >= referenceTime, "Must initialize markets");
 
         // Can only sweep cash after the residual purchase time has passed
         uint256 minSweepCashTime =
@@ -422,7 +455,12 @@ library InitializeMarketsAction {
 
         bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, currencyId);
         int256 assetCashWithholding =
-            _getNTokenNegativefCashWithholding(nToken, currentMarkets, blockTime, ifCashBitmap);
+            _getNTokenNegativefCashWithholding(
+                nToken,
+                new MarketParameters[](0), // Parameter is unused when referencing current markets
+                blockTime,
+                ifCashBitmap
+            );
 
         int256 cashIntoMarkets = nToken.cashBalance.subNoNeg(assetCashWithholding);
         BalanceHandler.setBalanceStorageForNToken(

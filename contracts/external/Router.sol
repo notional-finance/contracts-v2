@@ -169,7 +169,10 @@ contract Router is StorageLayoutV1 {
             return LIQUIDATE_FCASH;
         }
 
-        if (sig == InitializeMarketsAction.initializeMarkets.selector) {
+        if (
+            sig == InitializeMarketsAction.initializeMarkets.selector ||
+            sig == InitializeMarketsAction.sweepCashIntoMarkets.selector
+        ) {
             return INITIALIZE_MARKET;
         }
 

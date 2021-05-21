@@ -598,3 +598,89 @@ def test_transfer_all_allowance(environment, accounts):
     )
     assert environment.nToken[1].balanceOf(accounts[2]) == 100e8
     assert environment.nToken[2].balanceOf(accounts[2]) == 100e8
+
+
+def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the two year markets
+    cashGroup[0] = 4
+    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:4]
+    cashGroup[9] = CurrencyDefaults["rateScalar"][0:4]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [1.01e9, 1.021e9, 1.07e9, 1.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=10e18)
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            # This leaves a positive residual
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0},
+            # This leaves a negative residual
+            {"tradeActionType": "Lend", "marketIndex": 4, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    blockTime = chain.time()
+    # 96 hour buffer period
+    chain.mine(1, timestamp=blockTime + 96 * 3600)
+
+    residualPurchaseAction = get_balance_trade_action(
+        2,
+        "DepositAsset",
+        [
+            {
+                "tradeActionType": "PurchaseNTokenResidual",
+                "maturity": ifCashAssetsBefore[2][1],
+                "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
+            }
+        ],
+        depositActionAmount=5500e8,
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[0], [residualPurchaseAction], {"from": accounts[0]}
+    )
+
+    (_, totalSupplyBefore, _, _, _, cashBalanceBefore) = environment.notional.getNTokenAccount(
+        nTokenAddress
+    )
+    txn = environment.notional.sweepCashIntoMarkets(2)
+    (portfolioAfter, _) = environment.notional.getNTokenPortfolio(nTokenAddress)
+    (_, totalSupplyAfter, _, _, _, cashBalanceAfter) = environment.notional.getNTokenAccount(
+        nTokenAddress
+    )
+    cashIntoMarkets = txn.events["SweepCashIntoMarkets"]["cashIntoMarkets"]
+
+    assert totalSupplyBefore == totalSupplyAfter
+    assert cashBalanceBefore - cashBalanceAfter == cashIntoMarkets
+
+    for (assetBefore, assetAfter) in zip(portfolioBefore, portfolioAfter):
+        assert assetAfter[3] > assetBefore[3]
+
+    check_system_invariants(environment, accounts)
