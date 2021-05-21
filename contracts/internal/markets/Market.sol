@@ -389,8 +389,12 @@ library Market {
         }
     }
 
-    /// @dev This method does ln((proportion / (1 - proportion)) * 1e9)
+    /// @dev This method calculates the log of the proportion inside the logit function which is
+    /// defined as ln(proportion / (1 - proportion)). Special handling here is required to deal with
+    /// fixed point precision and the ABDK library.
     function _logProportion(int256 proportion) internal pure returns (int256, bool) {
+        if (proportion == Constants.RATE_PRECISION) return (0, false);
+
         proportion = proportion.mul(Constants.RATE_PRECISION).div(
             Constants.RATE_PRECISION.sub(proportion)
         );
@@ -400,14 +404,21 @@ library Market {
         // pool utilization before this returns false.
         if (proportion > MAX64) return (0, false);
 
+        // ABDK does not handle log of numbers that are less than 1, in order to get the right value
+        // scaled by RATE_PRECISION we use the log identity:
+        // (ln(proportion / RATE_PRECISION)) * RATE_PRECISION = (ln(proportion) - ln(RATE_PRECISION)) * RATE_PRECISION
         int128 abdkProportion = ABDKMath64x64.fromInt(proportion);
-        // If abdkProportion is negative, this means that it is less than 1 and will
-        // return a negative log so we exit here
+        // Here, abdk will revert due to negative log so abort
         if (abdkProportion <= 0) return (0, false);
-
         int256 result =
-            ABDKMath64x64.toUInt(
-                ABDKMath64x64.mul(ABDKMath64x64.ln(abdkProportion), Constants.RATE_PRECISION_64x64)
+            ABDKMath64x64.toInt(
+                ABDKMath64x64.mul(
+                    ABDKMath64x64.sub(
+                        ABDKMath64x64.ln(abdkProportion),
+                        Constants.LOG_RATE_PRECISION_64x64
+                    ),
+                    Constants.RATE_PRECISION_64x64
+                )
             );
 
         return (result, true);

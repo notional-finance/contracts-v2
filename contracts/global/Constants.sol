@@ -60,6 +60,7 @@ library Constants {
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
+    int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
 
     uint256 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
