@@ -133,7 +133,7 @@ def currencyLiquidation(env, accounts):
         2,
         "DepositUnderlyingAndMintNToken",
         [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
-        depositActionAmount=100e18,
+        depositActionAmount=110e18,
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
@@ -195,7 +195,7 @@ def fCashLiquidation(env, accounts):
         accounts[7], [collateral, borrowAction], {"from": accounts[7], "value": 2e18}
     )
 
-    # account[2]: DAI borrower with DAI fCash collateral (2x)
+    # account[8]: DAI borrower with DAI fCash collateral (2x)
     lendBorrowAction = get_balance_trade_action(
         2,
         "DepositUnderlying",
@@ -313,7 +313,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
 # given different max liquidation amounts
 def test_liquidate_collateral_currency(currencyLiquidation, accounts):
     # Decrease ETH rate
-    currencyLiquidation.ethOracle["DAI"].setAnswer(0.015e18)
+    currencyLiquidation.ethOracle["DAI"].setAnswer(0.013e18)
 
     for account in accounts[1:5]:
         fcBefore = currencyLiquidation.notional.getFreeCollateral(account)
@@ -357,7 +357,6 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
 
     # Change the fCash Haircut
     cashGroup = list(fCashLiquidation.notional.getCashGroup(2))
-    cashGroup[4] = 200
     cashGroup[5] = 200
     fCashLiquidation.notional.updateCashGroup(2, cashGroup)
 
