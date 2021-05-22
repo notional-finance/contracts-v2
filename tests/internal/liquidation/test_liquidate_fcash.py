@@ -90,7 +90,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
@@ -127,7 +127,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
@@ -164,7 +164,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
@@ -201,7 +201,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
@@ -238,7 +238,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
@@ -266,7 +266,7 @@ class TestLiquidatefCash:
             accounts[0], 1, 2
         ).return_value
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [portfolio[0][1]]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
@@ -311,7 +311,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
@@ -348,7 +348,7 @@ class TestLiquidatefCash:
             [],
         )
 
-        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, [])
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [a[1] for a in portfolio]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashCrossCurrency(
