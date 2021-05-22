@@ -146,6 +146,14 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.getLiquidationfCashHaircut();
     }
 
+    function getLiquidationDebtBuffer(CashGroupParameters memory cashGroup)
+        public
+        pure
+        returns (uint256)
+    {
+        return cashGroup.getLiquidationDebtBuffer();
+    }
+
     function getMarketIndex(
         uint256 maxMarketIndex,
         uint256 maturity,
@@ -211,5 +219,13 @@ contract MockCashGroup is StorageLayoutV1 {
         returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupStateful(currencyId);
+    }
+
+    function deserializeCashGroupStorage(uint256 currencyId)
+        public
+        view
+        returns (CashGroupSettings memory)
+    {
+        return CashGroup.deserializeCashGroupStorage(currencyId);
     }
 }

@@ -25,8 +25,8 @@ def env(accounts):
     cashGroup = list(environment.notional.getCashGroup(2))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(2, cashGroup)
 
     environment.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
@@ -274,7 +274,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     currencyLiquidation.notional.updateTokenCollateralParameters(2, *(tokenDefaults))
 
     cashGroup = list(currencyLiquidation.notional.getCashGroup(2))
-    cashGroup[8] = [80, 80, 80]
+    cashGroup[9] = [80, 80, 80]
     currencyLiquidation.notional.updateCashGroup(2, cashGroup)
 
     # liquidate account[5]

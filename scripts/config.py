@@ -34,6 +34,7 @@ CurrencyDefaults = {
     "fCashHaircut": 30,
     "settlementPenalty": 40,
     "liquidationfCashDiscount": 20,
+    "liquidationDebtBuffer": 20,
     "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
     "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
     "incentiveEmissionRate": 100_000,

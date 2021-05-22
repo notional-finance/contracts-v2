@@ -67,8 +67,8 @@ def get_eth_rate_mapping(rateOracle, decimalPlaces=18, buffer=140, haircut=100, 
 def get_cash_group_with_max_markets(maxMarketIndex):
     cg = list(CASH_GROUP_PARAMETERS)
     cg[0] = maxMarketIndex
-    cg[8] = cg[8][0:maxMarketIndex]
     cg[9] = cg[9][0:maxMarketIndex]
+    cg[10] = cg[10][0:maxMarketIndex]
 
     return cg
 
