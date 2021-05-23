@@ -98,11 +98,13 @@ Positive fCash is collateral for accounts in Notional and therefore can be liqui
 
 ## fCash Local Currency
 
-Liquidating fCash in local currency can occur in the following scenario:
+Liquidating fCash in local currency can occur in the following scenarios:
 
+- The account has positive local available but has negative free collateral in aggregate. In this case, fCash assets are purchased in exchange for cash which has higher collateral value than fCash (cash has no discount applied to it).
 - The account has negative local available because it has borrowed and lent at different maturities in the local currency, and the value of its debt in the local currency outweighs the value of the fCash collateral in that currency.
+- The account has borrowed and has a local currency cash balance that is no longer sufficient to collateralized the debt. This can happen because oracle rate of the debt has decreased and therefore the account must hold more collateral against the debt balance.
 
-The benefit to the account is based on the difference between the `liquidationDiscountFactor` and the `riskAdjustedDiscountFactor`. For example, if the risk adjusted fCash haircut is 300 basis points (3%) then the liquidation discount haircut may be 150 basis points (1.5%). The liquidator will purchase fCash at 150 basis points below market value and the account will receive local currency cash. The benefit to their free collateral is equal to `benefit = fCashSold * (liquidationDiscountFactor - riskAdjustedDiscountFactor)`
+The benefit to the account is based on the difference between the `liquidationDiscountFactor` and the `riskAdjustedDiscountFactor`. For example, if the risk adjusted fCash haircut is 300 basis points (3%) then the liquidation discount haircut may be 150 basis points (1.5%). The liquidator will purchase fCash at 150 basis points below market value and the account will receive local currency cash. The benefit to their free collateral is equal to `benefit = fCashSold * abs(liquidationDiscountFactor - riskAdjustedDiscountFactor)`
 
 ## fCash Cross Currency
 
