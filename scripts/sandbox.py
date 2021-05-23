@@ -62,6 +62,7 @@ def enableCashGroupCallData(currencyId, symbol, v2env, **kwargs):
                 CurrencyDefaults["fCashHaircut"],
                 CurrencyDefaults["settlementPenalty"],
                 CurrencyDefaults["liquidationfCashDiscount"],
+                CurrencyDefaults["liquidationDebtBuffer"],
                 CurrencyDefaults["tokenHaircut"][0 : CurrencyDefaults["maxMarketIndex"]],
                 CurrencyDefaults["rateScalar"][0 : CurrencyDefaults["maxMarketIndex"]],
             ),

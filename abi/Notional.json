@@ -439,6 +439,25 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "cashIntoMarkets",
+                "type": "int256"
+            }
+        ],
+        "name": "SweepCashIntoMarkets",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "from",
@@ -1245,6 +1264,11 @@
                         "type": "uint8"
                     },
                     {
+                        "internalType": "uint8",
+                        "name": "liquidationDebtBuffer5BPS",
+                        "type": "uint8"
+                    },
+                    {
                         "internalType": "uint8[]",
                         "name": "liquidityTokenHaircuts",
                         "type": "uint8[]"
@@ -1803,6 +1827,11 @@
                         "type": "uint8"
                     },
                     {
+                        "internalType": "uint8",
+                        "name": "liquidationDebtBuffer5BPS",
+                        "type": "uint8"
+                    },
+                    {
                         "internalType": "uint8[]",
                         "name": "liquidityTokenHaircuts",
                         "type": "uint8[]"
@@ -1871,6 +1900,11 @@
                     {
                         "internalType": "uint8",
                         "name": "liquidationfCashHaircut5BPS",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "liquidationDebtBuffer5BPS",
                         "type": "uint8"
                     },
                     {
@@ -3283,6 +3317,19 @@
     {
         "inputs": [
             {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
+        "name": "sweepCashIntoMarkets",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "address",
                 "name": "newOwner",
                 "type": "address"
@@ -3358,6 +3405,11 @@
                     {
                         "internalType": "uint8",
                         "name": "liquidationfCashHaircut5BPS",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "liquidationDebtBuffer5BPS",
                         "type": "uint8"
                     },
                     {
