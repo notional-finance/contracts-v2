@@ -315,7 +315,7 @@ contract GovernorAlpha is TimelockController {
     /// no longer has sufficient votes (i.e. they made a proposal and then sold their tokens) or
     /// by a guardian address if it exists.
     /// @param proposalId unique identifier for the proposal
-    /// @dev emit:ProposalCanceled emit:Cancelled
+    /// @dev emit:ProposalCanceled emit:Canceled
     function cancelProposal(uint256 proposalId) public {
         ProposalState proposalState = state(proposalId);
         require(proposalState != ProposalState.Executed, "Proposal already executed");
