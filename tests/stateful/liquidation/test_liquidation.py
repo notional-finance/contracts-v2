@@ -211,6 +211,19 @@ def fCashLiquidation(env, accounts):
 
     env.notional.batchBalanceAndTradeAction(accounts[8], [lendBorrowAction], {"from": accounts[8]})
 
+    # account[9]: DAI borrower with DAI fCash and cash collateral (2x)
+    lendBorrowAction = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 50e8, "minSlippage": 0},
+        ],
+        depositActionAmount=5e18,
+    )
+
+    env.notional.batchBalanceAndTradeAction(accounts[9], [lendBorrowAction], {"from": accounts[9]})
+
     return env
 
 
@@ -364,6 +377,42 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
     maturities = [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]
+    (
+        fCashNotionalCalculated,
+        netLocalCalculated,
+    ) = fCashLiquidation.notional.calculatefCashLocalLiquidation.call(
+        liquidated, 2, maturities, [0, 0]
+    )
+
+    balanceBefore = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+
+    txn = fCashLiquidation.notional.liquidatefCashLocal(liquidated, 2, maturities, [0, 0])
+
+    balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+    assert txn.events["LiquidatefCashEvent"]
+    netLocal = txn.events["LiquidatefCashEvent"]["netLocalFromLiquidator"]
+    transfers = txn.events["LiquidatefCashEvent"]["fCashNotionalTransfer"]
+
+    assert pytest.approx(netLocal, rel=1e-5) == netLocalCalculated
+    assert pytest.approx(transfers[0], rel=1e-5) == fCashNotionalCalculated[0]
+    assert pytest.approx(transfers[1], rel=1e-5) == fCashNotionalCalculated[1]
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-5) == netLocal
+
+    check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
+
+
+def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
+    liquidated = accounts[9]
+
+    # Change the fCash Haircut
+    cashGroup = list(fCashLiquidation.notional.getCashGroup(2))
+    cashGroup[4] = 200
+    fCashLiquidation.notional.updateCashGroup(2, cashGroup)
+
+    fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
+    # Get local currency required
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
     (
         fCashNotionalCalculated,
         netLocalCalculated,
