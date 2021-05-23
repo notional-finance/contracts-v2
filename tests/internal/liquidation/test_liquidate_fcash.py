@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie.network.state import Chain
 from tests.constants import SETTLEMENT_DATE, START_TIME
@@ -7,6 +8,7 @@ from tests.helpers import (
     get_fcash_token,
     get_market_curve,
 )
+from tests.internal.liquidation.liquidation_helpers import get_portfolio
 
 chain = Chain()
 
@@ -64,21 +66,18 @@ class TestLiquidatefCash:
         return liquidation
 
     def test_liquidate_fcash_local_positive_available_insufficient(self, liquidation, accounts):
+        # This test liquidates all positive fCash
         markets = get_market_curve(3, "flat")
         for m in markets:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        portfolio = [
-            get_fcash_token(1, currencyId=1, notional=100e8),
-            get_fcash_token(2, currencyId=1, notional=100e8),
-            get_fcash_token(3, currencyId=1, notional=100e8),
-        ]
+        portfolio = get_portfolio([1, 2, 3], 1000e8, markets, START_TIME)
         portfolioState = (portfolio, [], 0, len(portfolio))
         accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
         cashGroup = liquidation.buildCashGroupView(1)
         factors = (
             accounts[0],
-            -10e8,
+            -10.1e8,
             1000e8,
             1000e8,
             0,
@@ -91,14 +90,16 @@ class TestLiquidatefCash:
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
-        maturities = [a[1] for a in portfolio]
+        maturities = [a[1] for a in portfolio if a[3] > 0]
+        maxAmounts = [0] * len(maturities)
+        positivefCash = [a[3] for a in portfolio if a[3] > 0]
 
         (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
-            accounts[0], 1, maturities, [0, 0, 0], fCashContext, START_TIME
+            accounts[0], 1, maturities, maxAmounts, fCashContext, START_TIME
         )
 
         assert sum(notionals) > localFromLiquidator
-        assert notionals == [100e8, 100e8, 100e8]
+        assert notionals == positivefCash
 
     def test_liquidate_fcash_local_positive_available_sufficient(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
@@ -210,6 +211,363 @@ class TestLiquidatefCash:
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [10000e8, 20000e8, 30000e8]
+
+    def test_liquidate_negative_fcash_sufficient(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        localCashBalanceUnderlying = 2400e8
+        portfolio = [
+            get_fcash_token(1, currencyId=1, notional=-10e8),
+            get_fcash_token(2, currencyId=1, notional=-2200e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -1e8,
+            -0.1e8,
+            0,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (
+            accountContext,
+            factors,
+            portfolioState,
+            localCashBalanceUnderlying,
+            0,
+            0,
+            0,
+            [],
+        )
+        maturities = [a[1] for a in portfolio]
+
+        (notionals, localFromLiquidator, fCashContext) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, [0, 0], fCashContext, START_TIME
+        )
+        localCashBalanceUnderlyingAfter = fCashContext[3]
+        underlyingBenefitRequired = fCashContext[4]
+
+        assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
+        assert localCashBalanceUnderlyingAfter > 0
+        assert underlyingBenefitRequired < 10
+        assert notionals == [-10e8, -880e8]
+        assert sum(notionals) < localFromLiquidator
+
+    def test_liquidate_negative_fcash_limit_by_cash_balance(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        localCashBalanceUnderlying = 500e8
+        portfolio = [
+            get_fcash_token(1, currencyId=1, notional=-10e8),
+            get_fcash_token(2, currencyId=1, notional=-2200e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -1.2e8,
+            -1.2e8,
+            0,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (
+            accountContext,
+            factors,
+            portfolioState,
+            localCashBalanceUnderlying,
+            0,
+            0,
+            0,
+            [],
+        )
+        maturities = [a[1] for a in portfolio]
+
+        (notionals, localFromLiquidator, fCashContext) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, [0, 0], fCashContext, START_TIME
+        )
+        localCashBalanceUnderlyingAfter = fCashContext[3]
+        underlyingBenefitRequired = fCashContext[4]
+
+        assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
+        assert underlyingBenefitRequired > 10
+        assert localCashBalanceUnderlyingAfter == 0
+        assert sum(notionals) < localFromLiquidator
+
+    def test_liquidate_negative_fcash_limit_insufficient(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        localCashBalanceUnderlying = 2500e8
+        portfolio = [
+            get_fcash_token(1, currencyId=1, notional=-10e8),
+            get_fcash_token(2, currencyId=1, notional=-2200e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -5e8,
+            -5e8,
+            0,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (
+            accountContext,
+            factors,
+            portfolioState,
+            localCashBalanceUnderlying,
+            0,
+            0,
+            0,
+            [],
+        )
+        maturities = [a[1] for a in portfolio]
+
+        (notionals, localFromLiquidator, fCashContext) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, [0, 0], fCashContext, START_TIME
+        )
+        localCashBalanceUnderlyingAfter = fCashContext[3]
+        underlyingBenefitRequired = fCashContext[4]
+
+        assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
+        assert localCashBalanceUnderlyingAfter > 0
+        assert underlyingBenefitRequired > 10
+        assert notionals == [-10e8, -2200e8]
+        assert sum(notionals) < localFromLiquidator
+
+    def test_liquidate_negative_fcash_limit_by_user_specified(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        localCashBalanceUnderlying = 2500e8
+        portfolio = [
+            get_fcash_token(1, currencyId=1, notional=-10e8),
+            get_fcash_token(2, currencyId=1, notional=-2200e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -5e8,
+            -5e8,
+            0,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (
+            accountContext,
+            factors,
+            portfolioState,
+            localCashBalanceUnderlying,
+            0,
+            0,
+            0,
+            [],
+        )
+        maturities = [a[1] for a in portfolio]
+
+        (notionals, localFromLiquidator, fCashContext) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, [10e8, 200e8], fCashContext, START_TIME
+        )
+        localCashBalanceUnderlyingAfter = fCashContext[3]
+        underlyingBenefitRequired = fCashContext[4]
+
+        assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
+        assert underlyingBenefitRequired > 10
+        assert localCashBalanceUnderlyingAfter > 0
+        assert notionals == [-10e8, -200e8]
+        assert sum(notionals) < localFromLiquidator
+
+    def test_liquidate_negative_and_positive_fcash(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        localCashBalanceUnderlying = 100e8
+        portfolio = [
+            get_fcash_token(1, currencyId=1, notional=1000e8),
+            get_fcash_token(2, currencyId=1, notional=-1000e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -1e8,
+            -1e8,
+            0,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (
+            accountContext,
+            factors,
+            portfolioState,
+            localCashBalanceUnderlying,
+            0,
+            0,
+            0,
+            [],
+        )
+        maturities = [a[1] for a in portfolio]
+
+        (notionals, localFromLiquidator, fCashContext) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, [0, 0], fCashContext, START_TIME
+        )
+        localCashBalanceUnderlyingAfter = fCashContext[3]
+        underlyingBenefitRequired = fCashContext[4]
+
+        assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
+        assert localCashBalanceUnderlyingAfter > 0
+        assert underlyingBenefitRequired < 10
+        assert sum(notionals) < localFromLiquidator
+
+    def test_liquidate_fcash_cross_currency_no_collateral_available_failure(
+        self, liquidation, accounts
+    ):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(2, SETTLEMENT_DATE, m)
+
+        portfolio = [
+            get_fcash_token(1, currencyId=2, notional=-101e8),
+            get_fcash_token(2, currencyId=2, notional=1e8),
+        ]
+
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(2)
+        factors = (
+            accounts[0],
+            -100e8,
+            -200e8,
+            -100e8,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
+        maturities = [portfolio[1][1]]
+
+        with brownie.reverts():
+            liquidation.liquidatefCashCrossCurrency(
+                accounts[0], 2, maturities, [0], fCashContext, START_TIME
+            )
+
+    def test_liquidate_fcash_cross_currency_no_local_debt(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(2, SETTLEMENT_DATE, m)
+
+        portfolio = [
+            get_fcash_token(1, currencyId=2, notional=-101e8),
+            get_fcash_token(2, currencyId=2, notional=1e8),
+        ]
+
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(2)
+        factors = (
+            accounts[0],
+            -100e8,
+            200e8,
+            -100e8,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
+        maturities = [portfolio[1][1]]
+
+        with brownie.reverts():
+            liquidation.liquidatefCashCrossCurrency(
+                accounts[0], 2, maturities, [0], fCashContext, START_TIME
+            )
+
+    def test_liquidate_fcash_cross_currency_cannot_liquidate_negative(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(2, SETTLEMENT_DATE, m)
+
+        portfolio = [
+            get_fcash_token(1, currencyId=2, notional=50000e8),
+            get_fcash_token(2, currencyId=2, notional=-1e8),
+            get_fcash_token(3, currencyId=2, notional=100000e8),
+        ]
+        portfolioState = (portfolio, [], 0, len(portfolio))
+        accountContext = (START_TIME, "0x01", 3, 0, "0x000000000000000000")
+        cashGroup = liquidation.buildCashGroupView(2)
+        factors = (
+            accounts[0],
+            -100e8,
+            -200e8,
+            150000e8,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+        fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
+        maturities = [portfolio[1][1]]
+
+        with brownie.reverts():
+            liquidation.liquidatefCashCrossCurrency(
+                accounts[0], 2, maturities, [0], fCashContext, START_TIME
+            )
 
     def test_liquidate_fcash_cross_currency_local_available_limit(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")

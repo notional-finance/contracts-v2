@@ -8,6 +8,7 @@ from tests.helpers import (
     get_fcash_token,
     get_market_curve,
 )
+from tests.internal.liquidation.liquidation_helpers import get_portfolio
 
 chain = Chain()
 
@@ -139,3 +140,14 @@ class TestLiquidationFactors:
         assert factors[3] == 0
         # Cash group set to local
         assert factors[9][0] == 1
+
+    def test_get_portfolio_helper(self, liquidation, accounts):
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        portfolio = get_portfolio([1, 2, 3], -1000e8, markets, START_TIME)
+        liquidation.setPortfolio(accounts[0], portfolio)
+        (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 0).return_value
+
+        assert pytest.approx(factors[2], rel=5e-2) == -1000e8
