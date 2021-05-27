@@ -13,7 +13,6 @@ from tests.internal.liquidation.liquidation_helpers import get_portfolio
 chain = Chain()
 
 
-@pytest.mark.skip_coverage
 @pytest.mark.liquidation
 class TestLiquidationFactors:
     @pytest.fixture(scope="module", autouse=True)

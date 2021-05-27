@@ -95,20 +95,6 @@ class TestBalanceHandler:
         netNTokenTransfer,
         tokens,
     ):
-        # Dust accrual example
-        # assetBalance = 0
-        # currencyId = 1
-        # netCashChange = 3
-        # netNTokenTransfer = 0
-        # netTransfer = -3
-        # perpetualTokenBalance = 0
-        # Precision loss example
-        assetBalance = 0
-        currencyId = 6
-        netCashChange = 0
-        netNTokenTransfer = 0
-        netTransfer = 83952385
-        perpetualTokenBalance = 0
         active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
         balanceHandler.setBalance(accounts[0], currencyId, assetBalance, perpetualTokenBalance)
         context = (0, "0x00", 0, 0, active_currencies)

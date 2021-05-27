@@ -248,6 +248,7 @@ class TestFreeCollateral:
         context = freeCollateral.getAccountContext(accounts[0])
         assert context[1] == "0x00"  # no debt
 
+    @pytest.mark.skip_coverage
     def test_remove_cash_debt_bitmap_currency(self, freeCollateral, accounts):
         freeCollateral.enableBitmapForAccount(accounts[0], 1, START_TIME)
         freeCollateral.setBalance(accounts[0], 1, -200e8, 0)
@@ -270,6 +271,7 @@ class TestFreeCollateral:
         context = freeCollateral.getAccountContext(accounts[0])
         assert context[1] == "0x00"  # no debt
 
+    @pytest.mark.skip_coverage
     def test_free_collateral_multiple_cash_groups(self, freeCollateral, accounts):
         markets = get_market_curve(3, "flat")
         for m in markets:
