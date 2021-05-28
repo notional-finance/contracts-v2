@@ -78,11 +78,11 @@ class TestLiquidateLocalLiquidityTokens:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
         liquidation.setPortfolio(
-            accounts[0], [get_liquidity_token(1, notional=liquidityTokenNotional)]
+            accounts[1], [get_liquidity_token(1, notional=liquidityTokenNotional)]
         )
-        liquidation.setBalance(accounts[0], 1, -5000e8, 0)
+        liquidation.setBalance(accounts[1], 1, -5000e8, 0)
 
-        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        txn = liquidation.liquidateLocalCurrency(accounts[1], 1, 0, START_TIME)
         (balanceState, incentivePaid, portfolioState, _) = txn.return_value
         newMarkets = liquidation.getMarkets(1, START_TIME)
 
@@ -110,15 +110,15 @@ class TestLiquidateLocalLiquidityTokens:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
         liquidation.setPortfolio(
-            accounts[0],
+            accounts[1],
             [
                 get_liquidity_token(1, notional=liquidityTokenNotional),
                 get_fcash_token(1, notional=fCashNotional),
             ],
         )
-        liquidation.setBalance(accounts[0], 1, -5000e8, 0)
+        liquidation.setBalance(accounts[1], 1, -5000e8, 0)
 
-        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        txn = liquidation.liquidateLocalCurrency(accounts[1], 1, 0, START_TIME)
         (balanceState, incentivePaid, portfolioState, _) = txn.return_value
         newMarkets = liquidation.getMarkets(1, START_TIME)
 
@@ -151,14 +151,14 @@ class TestLiquidateLocalLiquidityTokens:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
         liquidation.setPortfolio(
-            accounts[0], [get_liquidity_token(1, notional=liquidityTokenNotional)]
+            accounts[1], [get_liquidity_token(1, notional=liquidityTokenNotional)]
         )
-        liquidation.setBalance(accounts[0], 1, -990e8, 0)
+        liquidation.setBalance(accounts[1], 1, -990e8, 0)
 
-        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        txn = liquidation.liquidateLocalCurrency(accounts[1], 1, 0, START_TIME)
         (balanceState, incentivePaid, _, _) = txn.return_value
         newMarkets = liquidation.getMarkets(1, START_TIME)
-        portfolio = liquidation.getPortfolio(accounts[0])
+        portfolio = liquidation.getPortfolio(accounts[1])
 
         # cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
         # netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
@@ -187,18 +187,18 @@ class TestLiquidateLocalLiquidityTokens:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
         liquidation.setPortfolio(
-            accounts[0],
+            accounts[1],
             [
                 get_liquidity_token(1, notional=liquidityTokenNotional),
                 get_fcash_token(1, notional=fCashNotional),
             ],
         )
-        liquidation.setBalance(accounts[0], 1, -490e8, 0)
+        liquidation.setBalance(accounts[1], 1, -490e8, 0)
 
-        txn = liquidation.liquidateLocalCurrency(accounts[0], 1, 0, START_TIME)
+        txn = liquidation.liquidateLocalCurrency(accounts[1], 1, 0, START_TIME)
         (balanceState, incentivePaid, _, _) = txn.return_value
         newMarkets = liquidation.getMarkets(1, START_TIME)
-        portfolio = liquidation.getPortfolio(accounts[0])
+        portfolio = liquidation.getPortfolio(accounts[1])
 
         # cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
         # netCashIncrease = cashClaim * (100 - tokenHaircut) / 100
@@ -208,7 +208,7 @@ class TestLiquidateLocalLiquidityTokens:
         # all liquidity tokens have been removed
         fCashClaim = math.trunc(markets[0][2] * tokensRemoved / markets[0][4])
         cashClaimRemoved = math.trunc(markets[0][3] * tokensRemoved / markets[0][4])
-        assert liquidation.fc(accounts[0])[0] >= 0
+        assert liquidation.fc(accounts[1])[0] >= 0
 
         assert pytest.approx(portfolio[0][3], abs=2) == fCashClaim + fCashNotional
         assert pytest.approx(cashClaimRemoved, abs=2) == balanceState[3] - incentivePaid

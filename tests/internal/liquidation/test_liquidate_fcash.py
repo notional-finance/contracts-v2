@@ -307,6 +307,7 @@ class TestLiquidatefCash:
         localCashBalanceUnderlyingAfter = fCashContext[3]
         underlyingBenefitRequired = fCashContext[4]
 
+        assert localFromLiquidator < 0
         assert localCashBalanceUnderlyingAfter == localCashBalanceUnderlying + localFromLiquidator
         assert underlyingBenefitRequired > 10
         assert localCashBalanceUnderlyingAfter == 0
@@ -620,7 +621,7 @@ class TestLiquidatefCash:
         liquidation.setPortfolio(accounts[0], portfolio)
         liquidation.setBalance(accounts[0], 1, -1000e8, 0)
         (accountContext, factors, portfolioState) = liquidation.preLiquidationActions(
-            accounts[0], 1, 2
+            accounts[0], 1, 2, {"from": accounts[1]}
         ).return_value
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])

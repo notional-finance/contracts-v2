@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie import accounts
 from brownie.network.state import Chain
@@ -273,6 +274,7 @@ def move_oracle_rate(environment, marketIndex):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_local_currency(currencyLiquidation, accounts):
     # Increase oracle rate
     # marketsBefore = currencyLiquidation.notional.getActiveMarkets(2)
@@ -324,6 +326,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_collateral_currency(currencyLiquidation, accounts):
     # Decrease ETH rate
     currencyLiquidation.ethOracle["DAI"].setAnswer(0.013e18)
@@ -365,6 +368,7 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_local_fcash(fCashLiquidation, accounts):
     liquidated = accounts[8]
 
@@ -401,6 +405,7 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
 
 
+@pytest.mark.liquidation
 def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
     liquidated = accounts[9]
 
@@ -422,6 +427,12 @@ def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
 
     balanceBefore = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
 
+    with brownie.reverts("Insufficient free collateral"):
+        # Ensures that the FC check will fail due to liquidating only the negative fCash position
+        fCashLiquidation.notional.liquidatefCashLocal(
+            liquidated, 2, [maturities[1]], [0], {"from": accounts[11]}
+        )
+
     txn = fCashLiquidation.notional.liquidatefCashLocal(liquidated, 2, maturities, [0, 0])
 
     balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
@@ -438,6 +449,7 @@ def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     liquidated = accounts[7]
@@ -469,3 +481,15 @@ def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     assert pytest.approx(balanceBefore - balanceAfter, rel=1e-5) == netLocal
 
     check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
+
+
+@pytest.mark.liquidation
+def test_cannot_liquidate_self(fCashLiquidation, accounts):
+    liquidated = accounts[7]
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    with brownie.reverts():
+        fCashLiquidation.notional.liquidatefCashCrossCurrency(
+            liquidated, 2, 1, maturities, [0, 0], {"from": liquidated}
+        )

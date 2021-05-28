@@ -10,6 +10,7 @@ import "../markets/AssetRate.sol";
 import "../valuation/ExchangeRate.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
+import "../../external/FreeCollateralExternal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library LiquidatefCash {
@@ -148,6 +149,8 @@ library LiquidatefCash {
             c.fCashNotionalTransfers[i] = c
                 .underlyingBenefitRequired
                 .mul(Constants.RATE_PRECISION)
+            // NOTE: Governance should be set such that these discount factors are unlikely to be zero. It's
+            // possible that the interest rates are so low that this situation can occur.
                 .div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs());
 
             // fCashNotionalTransfers[i] is always positive at this point. The max liquidate amount is
@@ -435,17 +438,25 @@ library LiquidatefCash {
             c.localAssetCashFromLiquidator
         );
 
-        _transferAssets(
-            liquidateAccount,
-            liquidator,
-            liquidatorContext,
-            fCashCurrency,
-            fCashMaturities,
-            c
-        );
+        bool liquidatorIncursDebt =
+            _transferAssets(
+                liquidateAccount,
+                liquidator,
+                liquidatorContext,
+                fCashCurrency,
+                fCashMaturities,
+                c
+            );
 
         liquidatorContext.setAccountContext(msg.sender);
         c.accountContext.setAccountContext(liquidateAccount);
+
+        // If the liquidator takes on debt as a result of the liquidation and has debt in their portfolio
+        // then they must have a free collateral check. It's possible for the liquidator to skip this if the
+        // negative fCash incurred from the liquidation nets off against an existing fCash position.
+        if (liquidatorIncursDebt && liquidatorContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
+        }
 
         return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
@@ -457,8 +468,8 @@ library LiquidatefCash {
         uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         fCashContext memory c
-    ) private {
-        PortfolioAsset[] memory assets =
+    ) private returns (bool) {
+        (PortfolioAsset[] memory assets, bool liquidatorIncursDebt) =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
         liquidatorContext = TransferAssets.placeAssetsInAccount(
@@ -479,21 +490,25 @@ library LiquidatefCash {
         } else {
             BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
         }
+        return liquidatorIncursDebt;
     }
 
     function _makeAssetArray(
         uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         int256[] memory fCashNotionalTransfers
-    ) private pure returns (PortfolioAsset[] memory) {
+    ) private pure returns (PortfolioAsset[] memory, bool) {
         PortfolioAsset[] memory assets = new PortfolioAsset[](fCashMaturities.length);
+        bool liquidatorIncursDebt = false;
         for (uint256 i; i < assets.length; i++) {
             assets[i].currencyId = fCashCurrency;
             assets[i].assetType = Constants.FCASH_ASSET_TYPE;
             assets[i].notional = fCashNotionalTransfers[i];
             assets[i].maturity = fCashMaturities[i];
+
+            if (assets[i].notional < 0) liquidatorIncursDebt = true;
         }
 
-        return assets;
+        return (assets, liquidatorIncursDebt);
     }
 }
