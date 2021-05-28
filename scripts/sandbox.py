@@ -2,11 +2,12 @@ import json
 
 import scripts.deploy_v1
 from brownie import accounts
-from brownie.convert.datatypes import HexString
+from brownie.convert.datatypes import HexString, Wei
 from brownie.network import web3
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TestEnvironment, TokenType
 from tests.governance.test_governance import execute_proposal
+from tests.helpers import get_balance_action
 
 
 def listCurrencyCalldata(symbol, v2env, **kwargs):
@@ -114,6 +115,16 @@ def initialize_v2env(v2env, migrator):
         calldatas = enableCashGroupCallData(currencyId, symbol, v2env)
         execute_proposal(v2env, targets, values, calldatas)
 
+    # set wbtc asset rate adapter
+    targets = [v2env.notional.address]
+    values = [0]
+    calldatas = [
+        web3.eth.contract(abi=v2env.notional.abi).encodeABI(
+            fn_name="updateAssetRate", args=[5, v2env.cTokenAggregator["WBTC"].address]
+        )
+    ]
+    execute_proposal(v2env, targets, values, calldatas)
+
     # Add global transfer operator
     targets = [v2env.notional.address]
     values = [0]
@@ -123,6 +134,26 @@ def initialize_v2env(v2env, migrator):
         )
     ]
     execute_proposal(v2env, targets, values, calldatas)
+
+    # initialize liquidity and markets for DAI, USDC, USDT (not ETH)
+    for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT")]:
+        cToken = v2env.cToken[symbol]
+        v2env.token[symbol].approve(v2env.notional.address, 2 ** 255, {"from": accounts[0]})
+        v2env.token[symbol].approve(cToken.address, 2 ** 255, {"from": accounts[0]})
+        underlyingDecimals = v2env.token[symbol].decimals()
+        cToken.mint(Wei(100000000) * Wei(10 ** underlyingDecimals), {"from": accounts[0]})
+        cToken.approve(v2env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+        v2env.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000000e8
+                )
+            ],
+            {"from": accounts[0]},
+        )
+        v2env.notional.initializeMarkets(currencyId, True)
 
 
 def main():
