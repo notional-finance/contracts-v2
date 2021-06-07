@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title Note ERC20 Token
 /// Fork of Compound Comp token at commit hash
@@ -86,6 +87,7 @@ contract NoteERC20 is Initializable {
         NotionalProxy notionalProxy_
     ) public initializer {
         require(initialGrantAmount.length == initialAccounts.length);
+        require(Address.isContract(address(notionalProxy_)));
 
         notionalProxy = notionalProxy_;
         uint96 totalGrants;

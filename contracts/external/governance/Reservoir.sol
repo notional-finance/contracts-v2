@@ -38,6 +38,8 @@ contract Reservoir {
         IERC20 token_,
         address target_
     ) {
+        require(dripRate_ > 0, "Drip rate cannot be zero");
+
         DRIP_START = block.timestamp;
         DRIP_RATE = dripRate_;
         TOKEN = token_;
