@@ -156,6 +156,18 @@ def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reserv
     assert proxyBalanceAfterSecondDrip - proxyBalanceAfter == (blockTime2 - blockTime) * 1e8
 
 
+def test_reservoir_does_not_receive_eth(environment, accounts, Reservoir):
+    reservoir = Reservoir.deploy(
+        1e8,
+        environment.noteERC20.address,
+        environment.proxy.address,
+        {"from": environment.deployer},
+    )
+
+    with brownie.reverts():
+        accounts[0].transfer(reservoir.address, 1e8)
+
+
 def test_cancel_proposal_non_pending(environment, accounts):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
 

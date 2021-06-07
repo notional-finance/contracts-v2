@@ -8,7 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @notice Distributes a token to a different contract at a fixed rate. Though not entirely
 /// necessary this contract does give some measure of safety against the Notional contract's token
 /// reserves being drained by an attack. The goal should be to set up a reservoir such that the
-/// Notional contract's target reserves are maintained at some reasonable level.
+/// Notional contract's target reserves are maintained at some reasonable level. The reservoir should
+/// only ever have NOTE token balances, nothing else.
 /// @dev This contract must be poked via the `drip()` function every so often.
 /// @author Compound, modified by Notional
 contract Reservoir {
