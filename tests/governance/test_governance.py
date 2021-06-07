@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie import NoteERC20
 from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.state import Chain
@@ -64,6 +65,17 @@ def test_note_token_cannot_reinitialize(environment, accounts):
         environment.noteERC20.initialize(
             [accounts[2].address],
             [100_000_000e8],
+            accounts[2].address,
+            {"from": environment.deployer},
+        )
+
+
+def test_note_token_cannot_initialize_duplicates(accounts):
+    erc20 = NoteERC20.deploy({"from": accounts[0]})
+    with brownie.reverts("Duplicate account"):
+        erc20.initialize(
+            [accounts[2].address, accounts[2].address],
+            [50_000_000e8, 50_000_000e8],
             accounts[2].address,
             {"from": environment.deployer},
         )
