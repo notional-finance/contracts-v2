@@ -4,6 +4,8 @@ pragma experimental ABIEncoderV2;
 
 import "interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title Note ERC20 Token
 /// Fork of Compound Comp token at commit hash
@@ -86,6 +88,7 @@ contract NoteERC20 is Initializable {
         NotionalProxy notionalProxy_
     ) public initializer {
         require(initialGrantAmount.length == initialAccounts.length);
+        require(Address.isContract(address(notionalProxy_)));
 
         notionalProxy = notionalProxy_;
         uint96 totalGrants;
@@ -157,6 +160,14 @@ contract NoteERC20 is Initializable {
         address dst,
         uint256 rawAmount
     ) external returns (bool) {
+        // Short circuit transfer execution and return true. It may be the case that external
+        // logic tries to execute a zero transfer but don't emit events here.
+        if (rawAmount == 0) {
+            // Emit a zero transfer event for ERC20 token compatibility
+            emit Transfer(src, dst, 0);
+            return true;
+        }
+
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
         uint96 amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
@@ -181,7 +192,7 @@ contract NoteERC20 is Initializable {
     /// @param delegatee The address to delegate votes to
     /// @dev emit:DelegatesChanged
     function delegate(address delegatee) public {
-        return _delegate(msg.sender, delegatee);
+        _delegate(msg.sender, delegatee);
     }
 
     /// @notice Delegates votes from signatory to `delegatee`
@@ -206,11 +217,11 @@ contract NoteERC20 is Initializable {
             );
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-        address signatory = ecrecover(digest, v, r, s);
-        require(signatory != address(0), "Note::delegateBySig: invalid signature");
+        // ECDSA will check if address is zero inside
+        address signatory = ECDSA.recover(digest, v, r, s);
         require(nonce == nonces[signatory]++, "Note::delegateBySig: invalid nonce");
         require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
-        return _delegate(signatory, delegatee);
+        _delegate(signatory, delegatee);
     }
 
     /// @notice Gets the current votes balance for `account`
@@ -256,7 +267,12 @@ contract NoteERC20 is Initializable {
             uint32 center = upper - (upper - lower) / 2; // ceil, avoiding overflow
             Checkpoint memory cp = checkpoints[account][center];
             if (cp.fromBlock == blockNumber) {
-                return cp.votes;
+                return
+                    _add96(
+                        cp.votes,
+                        getUnclaimedVotes(account),
+                        "Note::getPriorVotes: uint96 overflow"
+                    );
             } else if (cp.fromBlock < blockNumber) {
                 lower = center;
             } else {
@@ -278,6 +294,7 @@ contract NoteERC20 is Initializable {
     /// @return Total number of unclaimed tokens accrued on the Notional account
     function getUnclaimedVotes(address account) public view returns (uint96) {
         // NOTE: this code has been removed for an open zeppelin audit of the governance contracts
+        // TODO: think about backdating the block time during this call to a specific block number
         // uint256 votes = notionalProxy.nTokenGetClaimableIncentives(account, block.timestamp);
         // require(votes <= type(uint96).max);
         return 0;
