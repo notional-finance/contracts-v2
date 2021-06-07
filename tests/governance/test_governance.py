@@ -29,6 +29,7 @@ def execute_proposal(environment, targets, values, calldatas):
     assert environment.governor.state(1) == 4  # success
     delay = environment.governor.getMinDelay()
     environment.governor.queueProposal(1, targets, values, calldatas)
+    assert environment.governor.state(1) == 5  # queued
     chain.mine(1, timestamp=chain.time() + delay)
     txn = environment.governor.executeProposal(1, targets, values, calldatas)
     return txn
@@ -197,6 +198,7 @@ def test_cancel_proposal_pending(environment, accounts):
 
     assert environment.governor.state(1) == 4  # success
     environment.governor.queueProposal(1, targets, values, calldatas)
+    assert environment.governor.state(1) == 5  # queued
     assert environment.governor.isOperation(environment.governor.proposals(1)[-1])
 
     environment.governor.cancelProposal(1, {"from": environment.multisig})

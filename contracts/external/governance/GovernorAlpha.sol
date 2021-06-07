@@ -366,14 +366,14 @@ contract GovernorAlpha is TimelockController {
             return ProposalState.Defeated;
         } else if (proposal.executed) {
             return ProposalState.Executed;
+        } else if (isOperationPending(proposal.operationHash)) {
+            return ProposalState.Queued;
         } else if (
             proposal.forVotes > proposal.againstVotes &&
             proposal.forVotes > quorumVotes &&
             blockNumber >= proposal.endBlock
         ) {
             return ProposalState.Succeeded;
-        } else {
-            return ProposalState.Queued;
         }
     }
 
