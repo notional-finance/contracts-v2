@@ -70,13 +70,13 @@ def test_note_token_cannot_reinitialize(environment, accounts):
         )
 
 
-def test_note_token_cannot_initialize_duplicates(accounts):
+def test_note_token_cannot_initialize_duplicates(environment, accounts):
     erc20 = NoteERC20.deploy({"from": accounts[0]})
     with brownie.reverts("Duplicate account"):
         erc20.initialize(
             [accounts[2].address, accounts[2].address],
             [50_000_000e8, 50_000_000e8],
-            accounts[2].address,
+            environment.notional.address,
             {"from": environment.deployer},
         )
 
@@ -257,9 +257,6 @@ def test_abdicate_and_transfer_guardian(environment, accounts):
         environment.governor.__abdicate({"from": accounts[2]})
 
 
-def test_note_token_reservoir_fails_on_zero(environment, accounts):
-    pass
- 
 def test_note_token_reservoir_fails_on_zero(environment, accounts, Reservoir):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
     reservoir = Reservoir.deploy(
