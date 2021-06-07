@@ -266,7 +266,12 @@ contract NoteERC20 is Initializable {
             uint32 center = upper - (upper - lower) / 2; // ceil, avoiding overflow
             Checkpoint memory cp = checkpoints[account][center];
             if (cp.fromBlock == blockNumber) {
-                return cp.votes;
+                return
+                    _add96(
+                        cp.votes,
+                        getUnclaimedVotes(account),
+                        "Note::getPriorVotes: uint96 overflow"
+                    );
             } else if (cp.fromBlock < blockNumber) {
                 lower = center;
             } else {
