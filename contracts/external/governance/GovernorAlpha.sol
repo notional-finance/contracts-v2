@@ -128,6 +128,9 @@ contract GovernorAlpha is TimelockController {
     /// @notice An event emitted when a new voting period in blocks has been set
     event UpdateVotingPeriodBlocks(uint32 newVotingPeriodBlocks);
 
+    /// @notice An event emitted when guardian is transferred
+    event TransferGuardian(address newGuardian);
+    
     /// @notice Initializes the GovernorAlpha with initial parameters
     /// @param quorumVotes_ initial quorum votes value
     /// @param proposalThreshold_ initial proposal threshold value
@@ -495,9 +498,22 @@ contract GovernorAlpha is TimelockController {
     }
 
     /// @dev Hidden public method
-    function __abdicate() public {
+    function __abdicate() external {
         require(msg.sender == guardian, "GovernorAlpha::__abdicate: sender must be gov guardian");
         guardian = address(0);
+    }
+
+    /// @notice Transfers guardian role to a new guardian
+    /// @param newGuardian address to transfer role to
+    function __transferGuardian(address newGuardian) external {
+        require(
+            msg.sender == guardian,
+            "GovernorAlpha::__transferGuardian: sender must be gov guardian"
+        );
+        require(newGuardian != address(0), "Cannot transfer to zero address");
+
+        guardian = newGuardian;
+        emit TransferGuardian(newGuardian);
     }
 
     /// @dev Overflow check for adding votes
