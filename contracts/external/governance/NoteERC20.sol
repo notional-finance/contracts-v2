@@ -207,8 +207,8 @@ contract NoteERC20 is Initializable {
             );
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        // ECDSA will check if address is zero inside
         address signatory = ECDSA.recover(digest, v, r, s);
-        require(signatory != address(0), "Note::delegateBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Note::delegateBySig: invalid nonce");
         require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
         _delegate(signatory, delegatee);

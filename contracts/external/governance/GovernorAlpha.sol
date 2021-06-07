@@ -397,8 +397,8 @@ contract GovernorAlpha is TimelockController {
             );
         bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        // ECDSA.recover will check if address is zero
         address signatory = ECDSA.recover(digest, v, r, s);
-        require(signatory != address(0), "GovernorAlpha::castVoteBySig: invalid signature");
         return _castVote(signatory, proposalId, support);
     }
 
