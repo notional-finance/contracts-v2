@@ -278,6 +278,7 @@ contract NoteERC20 is Initializable {
     /// @return Total number of unclaimed tokens accrued on the Notional account
     function getUnclaimedVotes(address account) public view returns (uint96) {
         // NOTE: this code has been removed for an open zeppelin audit of the governance contracts
+        // TODO: think about backdating the block time during this call to a specific block number
         // uint256 votes = notionalProxy.nTokenGetClaimableIncentives(account, block.timestamp);
         // require(votes <= type(uint96).max);
         return 0;
