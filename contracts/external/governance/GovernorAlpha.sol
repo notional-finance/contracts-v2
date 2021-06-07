@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "../../global/Constants.sol";
+import "interfaces/notional/INoteERC20.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
@@ -16,10 +16,10 @@ contract GovernorAlpha is TimelockController {
     string public constant name = "Notional Governor Alpha";
 
     /// @notice The address of the Notional governance token
-    NoteInterface public immutable note;
+    INoteERC20 public immutable note;
 
     /// @notice The maximum number of actions that can be included in a proposal
-    uint8 public constant proposalMaxOperations = 10;
+    uint8 public constant PROPOSAL_MAX_OPERATIONS = 10;
 
     /// @notice The minimum voting period in blocks, about 1 day assuming 13 second blocks. Ensures that proposals will always have
     /// time to be voted on.
@@ -95,8 +95,8 @@ contract GovernorAlpha is TimelockController {
 
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(
-        uint256 id,
-        address proposer,
+        uint256 indexed id,
+        address indexed proposer,
         address[] targets,
         uint256[] values,
         bytes[] calldatas,
@@ -105,16 +105,16 @@ contract GovernorAlpha is TimelockController {
     );
 
     /// @notice An event emitted when a vote has been cast on a proposal
-    event VoteCast(address voter, uint256 proposalId, bool support, uint256 votes);
+    event VoteCast(address indexed voter, uint256 indexed proposalId, bool support, uint256 votes);
 
     /// @notice An event emitted when a proposal has been canceled
-    event ProposalCanceled(uint256 id);
+    event ProposalCanceled(uint256 indexed id);
 
     /// @notice An event emitted when a proposal has been queued in the Timelock
-    event ProposalQueued(uint256 id, uint256 eta);
+    event ProposalQueued(uint256 indexed id, uint256 eta);
 
     /// @notice An event emitted when a proposal has been executed in the Timelock
-    event ProposalExecuted(uint256 id);
+    event ProposalExecuted(uint256 indexed id);
 
     /// @notice An event emitted when amount of quorum votes required is updated
     event UpdateQuorumVotes(uint96 newQuorumVotes);
@@ -145,7 +145,7 @@ contract GovernorAlpha is TimelockController {
         // Do not enforce MIN_VOTING_DELAY during constructor so that tests don't require a large number
         // of blocks for the voting period. During actual mainnet deployment this will be set to a reasonable value.
         votingPeriodBlocks = votingPeriodBlocks_;
-        note = NoteInterface(note_);
+        note = INoteERC20(note_);
         guardian = guardian_;
 
         // Only the external methods can be used to execute governance
@@ -178,7 +178,7 @@ contract GovernorAlpha is TimelockController {
         );
         require(targets.length != 0, "GovernorAlpha::propose: must provide actions");
         require(
-            targets.length <= proposalMaxOperations,
+            targets.length <= PROPOSAL_MAX_OPERATIONS,
             "GovernorAlpha::propose: too many actions"
         );
 
@@ -239,7 +239,7 @@ contract GovernorAlpha is TimelockController {
         bytes[] calldata calldatas,
         uint256 proposalId
     ) private pure returns (bytes32) {
-        return hashOperationBatch(targets, values, calldatas, "", bytes32(proposalId));
+        return hashOperationBatch(targets, values, calldatas, bytes32(0), bytes32(proposalId));
     }
 
     /// @notice Adds a proposal to the timelock queue only after its vote has passed, `targets`,
@@ -276,7 +276,14 @@ contract GovernorAlpha is TimelockController {
         uint256 proposalId
     ) private {
         // NOTE: this will also emit events
-        this.scheduleBatch(targets, values, calldatas, "", bytes32(proposalId), getMinDelay());
+        this.scheduleBatch(
+            targets,
+            values,
+            calldatas,
+            bytes32(0),
+            bytes32(proposalId),
+            getMinDelay()
+        );
     }
 
     /// @notice Executes a proposal in the timelock queue after its delay has passed, `targets`,
@@ -310,21 +317,21 @@ contract GovernorAlpha is TimelockController {
         bytes[] calldata calldatas,
         uint256 proposalId
     ) private {
-        this.executeBatch(targets, values, calldatas, "", bytes32(proposalId));
+        this.executeBatch(targets, values, calldatas, bytes32(0), bytes32(proposalId));
     }
 
     /// @notice Cancels a proposal after it has been created. Can only be done if the proposer
     /// no longer has sufficient votes (i.e. they made a proposal and then sold their tokens) or
     /// by a guardian address if it exists.
     /// @param proposalId unique identifier for the proposal
-    /// @dev emit:ProposalCanceled emit:Cancelled
+    /// @dev emit:ProposalCanceled emit:Canceled
     function cancelProposal(uint256 proposalId) public {
         ProposalState proposalState = state(proposalId);
         require(proposalState != ProposalState.Executed, "Proposal already executed");
 
         Proposal storage proposal = proposals[proposalId];
         uint256 blockNumber = block.number;
-        require(blockNumber > 0);
+        require(blockNumber > 0 && blockNumber <= type(uint32).max);
         require(
             msg.sender == guardian ||
                 note.getPriorVotes(proposal.proposer, blockNumber - 1) < proposalThreshold,
@@ -355,6 +362,7 @@ contract GovernorAlpha is TimelockController {
         );
         Proposal memory proposal = proposals[proposalId];
         uint256 blockNumber = block.number;
+        require(blockNumber > 0 && blockNumber <= type(uint32).max);
 
         if (proposal.canceled) {
             return ProposalState.Canceled;
@@ -371,7 +379,7 @@ contract GovernorAlpha is TimelockController {
         } else if (
             proposal.forVotes > proposal.againstVotes &&
             proposal.forVotes > quorumVotes &&
-            blockNumber >= proposal.endBlock
+            blockNumber > proposal.endBlock
         ) {
             return ProposalState.Succeeded;
         }
@@ -491,8 +499,4 @@ contract GovernorAlpha is TimelockController {
         }
         return chainId;
     }
-}
-
-interface NoteInterface {
-    function getPriorVotes(address account, uint256 blockNumber) external view returns (uint96);
 }
