@@ -117,7 +117,13 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint8 underlyingDecimalPlaces
     ) external {
         uint256 blockTime = block.timestamp;
-        bytes32 slot = keccak256(abi.encode(currencyId, maturity, "assetRate.settlement"));
+        bytes32 slot =
+            keccak256(
+                abi.encode(
+                    currencyId,
+                    keccak256(abi.encode(maturity, Constants.SETTLEMENT_RATE_STORAGE_OFFSET))
+                )
+            );
         bytes32 data =
             (bytes32(blockTime) |
                 (bytes32(uint256(rate)) << 40) |

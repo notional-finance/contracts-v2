@@ -9,6 +9,7 @@ import "../../math/SafeInt256.sol";
 
 contract LiquidatefCashAction {
     using AccountContextHandler for AccountContext;
+    using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
     event LiquidatefCashEvent(
@@ -192,7 +193,17 @@ contract LiquidatefCashAction {
             localCurrency,
             0
         );
+
+        // prettier-ignore
+        (
+            int256 cashBalance,
+            /* int256 nTokenBalance */,
+            /* uint256 lastClaimTime */,
+            /* uint256 lastClaimSupply*/
+        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
+        c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
+
         LiquidatefCash.liquidatefCashLocal(
             liquidateAccount,
             localCurrency,

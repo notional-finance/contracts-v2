@@ -71,13 +71,13 @@ class TestCashGroupGetters:
         with brownie.reverts():
             # invalid length
             cashGroupParameters[0] = 3
-            cashGroupParameters[8] = []
+            cashGroupParameters[9] = []
             cashGroup.setCashGroup(1, cashGroupParameters)
 
         with brownie.reverts():
             # cannot have zeros
             cashGroupParameters[0] = 3
-            cashGroupParameters[8] = [10, 9, 0]
+            cashGroupParameters[9] = [10, 9, 0]
             cashGroup.setCashGroup(1, cashGroupParameters)
 
     def test_invalid_liquidity_haircut_settings(self, cashGroup):
@@ -86,15 +86,16 @@ class TestCashGroupGetters:
         with brownie.reverts():
             # invalid length
             cashGroupParameters[0] = 3
-            cashGroupParameters[9] = []
+            cashGroupParameters[10] = []
             cashGroup.setCashGroup(1, cashGroupParameters)
 
         with brownie.reverts():
             # cannot have more than 100
             cashGroupParameters[0] = 3
-            cashGroupParameters[9] = [102, 50, 50]
+            cashGroupParameters[10] = [102, 50, 50]
             cashGroup.setCashGroup(1, cashGroupParameters)
 
+    @pytest.mark.only
     def test_build_cash_group(self, cashGroup, aggregator):
         # This is not tested, just used to ensure that it exists
         rateStorage = (aggregator.address, 18)
@@ -112,15 +113,19 @@ class TestCashGroupGetters:
                 random.randint(1, 255),  # 5 fCashHaircut5BPS,
                 random.randint(1, 255),  # 6 settlement penalty bps,
                 random.randint(1, 255),  # 7 liquidation fcash haircut
-                # 7: token haircuts (percentages)
+                random.randint(1, 255),  # 8 liquidation debt buffer
+                # 9: token haircuts (percentages)
                 tuple([100 - i for i in range(0, maxMarketIndex)]),
-                # 8: rate scalar (increments of 10)
+                # 10: rate scalar (increments of 10)
                 tuple([10 - i for i in range(0, maxMarketIndex)]),
             ]
 
             # ensure liquidation fcash is less that fcash haircut
             if cashGroupParameters[7] >= cashGroupParameters[5]:
                 cashGroupParameters[7] = cashGroupParameters[5] - 1
+
+            if cashGroupParameters[8] >= cashGroupParameters[4]:
+                cashGroupParameters[8] = cashGroupParameters[4] - 1
 
             cashGroup.setCashGroup(i, cashGroupParameters)
 
@@ -137,12 +142,18 @@ class TestCashGroupGetters:
             assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidationfCashHaircut(
                 cg
             )
+            assert cashGroupParameters[8] * 5 * BASIS_POINT == cashGroup.getLiquidationDebtBuffer(
+                cg
+            )
 
             for m in range(0, maxMarketIndex):
-                assert cashGroupParameters[8][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
-                assert cashGroupParameters[9][m] * 10 == cashGroup.getRateScalar(
+                assert cashGroupParameters[9][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
+                assert cashGroupParameters[10][m] * 10 == cashGroup.getRateScalar(
                     cg, m + 1, NORMALIZED_RATE_TIME
                 )
+
+            storage = cashGroup.deserializeCashGroupStorage(i)
+            assert storage == cashGroupParameters
 
     @given(
         maxMarketIndex=strategy("uint8", min_value=2, max_value=7),

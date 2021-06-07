@@ -292,6 +292,7 @@ class TestEnvironment:
                 config["fCashHaircut"],
                 config["settlementPenalty"],
                 config["liquidationfCashDiscount"],
+                config["liquidationDebtBuffer"],
                 config["tokenHaircut"][0 : config["maxMarketIndex"]],
                 config["rateScalar"][0 : config["maxMarketIndex"]],
             ),

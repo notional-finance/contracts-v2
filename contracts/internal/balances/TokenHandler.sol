@@ -15,10 +15,20 @@ library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
+    function _getSlot(uint256 currencyId, bool underlying) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    currencyId,
+                    keccak256(abi.encode(underlying, Constants.TOKEN_STORAGE_OFFSET))
+                )
+            );
+    }
+
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
     /// the underlying token. (These may not always exist)
     function getToken(uint256 currencyId, bool underlying) internal view returns (Token memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
+        bytes32 slot = _getSlot(currencyId, underlying);
         bytes32 data;
 
         assembly {
@@ -44,7 +54,7 @@ library TokenHandler {
         bool underlying,
         TokenStorage memory tokenStorage
     ) internal {
-        bytes32 slot = keccak256(abi.encode(currencyId, underlying, "token"));
+        bytes32 slot = _getSlot(currencyId, underlying);
 
         if (tokenStorage.tokenType == TokenType.Ether && currencyId == Constants.ETH_CURRENCY_ID) {
             // Specific storage for Ether token type

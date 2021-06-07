@@ -24,10 +24,11 @@ library CashGroup {
     uint256 private constant FCASH_HAIRCUT = 40;
     uint256 private constant SETTLEMENT_PENALTY = 48;
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT = 56;
+    uint256 private constant LIQUIDATION_DEBT_BUFFER = 64;
     // 9 bytes allocated per market on the liquidity token haircut
-    uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = 64;
+    uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = 72;
     // 9 bytes allocated per market on the rate scalar
-    uint256 private constant RATE_SCALAR = 136;
+    uint256 private constant RATE_SCALAR = 144;
 
     /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
     /// the ln() portion of the liquidity curve as an inverse so it increases with time to
@@ -116,6 +117,16 @@ library CashGroup {
     {
         return
             uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_FCASH_HAIRCUT))) *
+            (5 * Constants.BASIS_POINT);
+    }
+
+    function getLiquidationDebtBuffer(CashGroupParameters memory cashGroup)
+        internal
+        pure
+        returns (uint256)
+    {
+        return
+            uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_DEBT_BUFFER))) *
             (5 * Constants.BASIS_POINT);
     }
 
@@ -219,7 +230,7 @@ library CashGroup {
     }
 
     function _getCashGroupStorageBytes(uint256 currencyId) private view returns (bytes32) {
-        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
+        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
         bytes32 data;
 
         assembly {
@@ -239,7 +250,7 @@ library CashGroup {
     function setCashGroupStorage(uint256 currencyId, CashGroupSettings calldata cashGroup)
         internal
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, "cashgroup"));
+        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
         require(
             cashGroup.maxMarketIndex >= 0 &&
                 cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX,
@@ -257,6 +268,7 @@ library CashGroup {
         require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
         // This is required so that fCash liquidation can proceed correctly
         require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
+        require(cashGroup.liquidationDebtBuffer5BPS < cashGroup.debtBuffer5BPS);
 
         // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
         uint8 previousMaxMarketIndex = uint8(uint256(_getCashGroupStorageBytes(currencyId)));
@@ -275,7 +287,8 @@ library CashGroup {
                 (bytes32(uint256(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT) |
                 (bytes32(uint256(cashGroup.settlementPenaltyRate5BPS)) << SETTLEMENT_PENALTY) |
                 (bytes32(uint256(cashGroup.liquidationfCashHaircut5BPS)) <<
-                    LIQUIDATION_FCASH_HAIRCUT));
+                    LIQUIDATION_FCASH_HAIRCUT) |
+                (bytes32(uint256(cashGroup.liquidationDebtBuffer5BPS)) << LIQUIDATION_DEBT_BUFFER));
 
         // Per market group settings
         for (uint256 i; i < cashGroup.liquidityTokenHaircuts.length; i++) {
@@ -313,8 +326,8 @@ library CashGroup {
         uint8[] memory rateScalars = new uint8[](uint256(maxMarketIndex));
 
         for (uint8 i; i < maxMarketIndex; i++) {
-            tokenHaircuts[i] = uint8(data[23 - i]);
-            rateScalars[i] = uint8(data[14 - i]);
+            tokenHaircuts[i] = uint8(data[22 - i]);
+            rateScalars[i] = uint8(data[13 - i]);
         }
 
         return
@@ -327,6 +340,7 @@ library CashGroup {
                 fCashHaircut5BPS: uint8(data[26]),
                 settlementPenaltyRate5BPS: uint8(data[25]),
                 liquidationfCashHaircut5BPS: uint8(data[24]),
+                liquidationDebtBuffer5BPS: uint8(data[23]),
                 liquidityTokenHaircuts: tokenHaircuts,
                 rateScalars: rateScalars
             });

@@ -34,14 +34,25 @@ CurrencyDefaults = {
     "fCashHaircut": 30,
     "settlementPenalty": 40,
     "liquidationfCashDiscount": 20,
+    "liquidationDebtBuffer": 20,
     "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
     "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
     "incentiveEmissionRate": 100_000,
 }
 
 nTokenDefaults = {
-    "Deposit": [[0.4e8, 0.6e8], [0.8e9, 0.8e9]],  # Deposit shares  # Leverage thresholds
-    "Initialization": [[1.01e9, 1.021e9], [0.5e9, 0.5e9]],  # Rate anchors  # Target proportion
+    "Deposit": [
+        # Deposit shares
+        [int(0.4e8), int(0.6e8)],
+        # Leverage thresholds
+        [int(0.8e9), int(0.8e9)],
+    ],
+    "Initialization": [
+        # Rate anchors
+        [int(1.01e9), int(1.021e9)],
+        # Target proportion
+        [int(0.5e9), int(0.5e9)],
+    ],
     "Collateral": [
         30,  # residual purchase incentive bps
         90,  # pv haircut

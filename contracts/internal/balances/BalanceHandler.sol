@@ -360,6 +360,16 @@ library BalanceHandler {
         _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
     }
 
+    function _getSlot(address account, uint256 currencyId) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    currencyId,
+                    keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET))
+                )
+            );
+    }
+
     /// @notice Sets internal balance storage.
     function _setBalanceStorage(
         address account,
@@ -369,7 +379,7 @@ library BalanceHandler {
         uint256 lastClaimTime,
         uint256 lastClaimSupply
     ) private {
-        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+        bytes32 slot = _getSlot(account, currencyId);
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
@@ -401,7 +411,7 @@ library BalanceHandler {
             uint256 lastClaimSupply
         )
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
+        bytes32 slot = _getSlot(account, currencyId);
         bytes32 data;
 
         assembly {

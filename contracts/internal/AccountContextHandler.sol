@@ -14,7 +14,7 @@ library AccountContextHandler {
 
     /// @notice Returns the account context of a given account
     function getAccountContext(address account) internal view returns (AccountContext memory) {
-        bytes32 slot = keccak256(abi.encode(account, "account.context"));
+        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
         bytes32 data;
 
         assembly {
@@ -33,7 +33,7 @@ library AccountContextHandler {
 
     /// @notice Sets the account context of a given account
     function setAccountContext(AccountContext memory accountContext, address account) internal {
-        bytes32 slot = keccak256(abi.encode(account, "account.context"));
+        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
         bytes32 data =
             (bytes32(uint256(accountContext.nextSettleTime)) |
                 (bytes32(accountContext.hasDebt) >> 208) |

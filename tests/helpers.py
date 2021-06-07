@@ -67,8 +67,8 @@ def get_eth_rate_mapping(rateOracle, decimalPlaces=18, buffer=140, haircut=100, 
 def get_cash_group_with_max_markets(maxMarketIndex):
     cg = list(CASH_GROUP_PARAMETERS)
     cg[0] = maxMarketIndex
-    cg[8] = cg[8][0:maxMarketIndex]
     cg[9] = cg[9][0:maxMarketIndex]
+    cg[10] = cg[10][0:maxMarketIndex]
 
     return cg
 
@@ -395,11 +395,10 @@ def get_trade_action(**kwargs):
 
 def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
-
     env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
-
     env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
+
     env.notional.batchBalanceAction(
         accounts[0],
         [

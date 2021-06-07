@@ -2,6 +2,7 @@ import math
 import random
 
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from tests.constants import (
     CASH_GROUP_PARAMETERS,
@@ -40,20 +41,16 @@ class TestLiquidityCurve:
     def isolation(self, fn_isolation):
         pass
 
-    @given(proportion=strategy("int256", min_value=0.01 * RATE_PRECISION, max_value=RATE_PRECISION))
+    @given(proportion=strategy("int256", min_value=1, max_value=RATE_PRECISION - 1))
     def test_log_proportion(self, market, proportion):
         (lnProportion, success) = market.logProportion(proportion)
+        proportionDecimal = proportion / RATE_PRECISION
+        proportionDecimal = proportionDecimal / (1 - proportionDecimal)
 
         assert success
-        assert (
-            pytest.approx(lnProportion, rel=1e-8)
-            == math.log((proportion * RATE_PRECISION) / (RATE_PRECISION - proportion))
-            * RATE_PRECISION
+        assert pytest.approx(lnProportion, rel=1e-5) == math.trunc(
+            math.log(proportionDecimal) * RATE_PRECISION
         )
-
-    def test_log_proportion_negative(self, market):
-        (lnProportion, success) = market.logProportion(-RATE_PRECISION)
-        assert not success
 
     @given(
         proportion=strategy(
@@ -64,7 +61,7 @@ class TestLiquidityCurve:
         # Tests exchange rate proportion while holding rateAnchor and rateScalar constant
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
-        rateAnchor = 1.05 * RATE_PRECISION
+        rateAnchor = 1.10 * RATE_PRECISION
         rateScalar = 100
 
         (exchangeRate, success) = market.getExchangeRate(
@@ -182,7 +179,7 @@ class TestLiquidityCurve:
         impliedRate=impliedRateStrategy,
     )
     def test_fcash_convergence(self, marketWithCToken, marketIndex, proportion, impliedRate):
-        initialCashAmount = 1e8 * random.randint(-100000, 100000)
+        initialCashAmount = Wei(1e8 * random.randint(-100000, 100000))
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         cashGroup = marketWithCToken.buildCashGroupView(1)
@@ -202,4 +199,4 @@ class TestLiquidityCurve:
             marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
         )
 
-        assert pytest.approx(cashAmount, rel=1e-9, abs=10) == initialCashAmount
+        assert pytest.approx(cashAmount, rel=1e-9, abs=100) == initialCashAmount

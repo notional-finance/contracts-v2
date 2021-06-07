@@ -11,6 +11,7 @@ networks:
   development:
     cmd_settings:
       port: 8646
+      accounts: 20
       mnemonic: owner dignity sense
       log: ganache-out.txt
       default_balance: 100000

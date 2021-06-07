@@ -181,7 +181,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
         returns (
             int256[] memory,
             int256,
-            PortfolioState memory
+            LiquidatefCash.fCashContext memory
         )
     {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
@@ -194,7 +194,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c.portfolio);
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator, c);
     }
 
     function liquidatefCashCrossCurrency(

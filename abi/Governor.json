@@ -333,6 +333,58 @@
         "inputs": [
             {
                 "indexed": false,
+                "internalType": "uint96",
+                "name": "newProposalThreshold",
+                "type": "uint96"
+            }
+        ],
+        "name": "UpdateProposalThreshold",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint96",
+                "name": "newQuorumVotes",
+                "type": "uint96"
+            }
+        ],
+        "name": "UpdateQuorumVotes",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "newVotingDelayBlocks",
+                "type": "uint32"
+            }
+        ],
+        "name": "UpdateVotingDelayBlocks",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint32",
+                "name": "newVotingPeriodBlocks",
+                "type": "uint32"
+            }
+        ],
+        "name": "UpdateVotingPeriodBlocks",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
                 "internalType": "address",
                 "name": "voter",
                 "type": "address"

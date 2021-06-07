@@ -314,6 +314,8 @@ struct CashGroupSettings {
     uint8 settlementPenaltyRate5BPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
     uint8 liquidationfCashHaircut5BPS;
+    // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
+    uint8 liquidationDebtBuffer5BPS;
     // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
     uint8[] liquidityTokenHaircuts;
     // Rate scalar used to determine the slippage of the market

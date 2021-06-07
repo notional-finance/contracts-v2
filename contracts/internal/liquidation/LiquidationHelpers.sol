@@ -35,6 +35,8 @@ library LiquidationHelpers {
             PortfolioState memory
         )
     {
+        // Cannot liquidate yourself
+        require(msg.sender != liquidateAccount);
         require(localCurrency != 0);
         // Collateral currency must be unset or not equal to the local currency
         require(collateralCurrency == 0 || collateralCurrency != localCurrency);

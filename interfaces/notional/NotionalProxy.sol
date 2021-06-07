@@ -12,10 +12,36 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
     event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
-    event BatchTradeExecution(address account, uint16 currencyId);
-    event SettledCashDebt(address settledAccount, uint16 currencyId, int256 amountToSettleAsset);
-    event nTokenResidualPurchase(uint16 currencyId, uint40 maturity, int256 fCashAmountToPurchase);
     event MarketsInitialized(uint16 currencyId);
+    event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
+    event SettledCashDebt(
+        address settledAccount,
+        uint16 currencyId,
+        int256 amountToSettleAsset,
+        int256 fCashAmount
+    );
+    event nTokenResidualPurchase(
+        uint16 currencyId,
+        uint40 maturity,
+        int256 fCashAmountToPurchase,
+        int256 netAssetCashNToken
+    );
+    event LendBorrowTrade(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netFee
+    );
+    event AddRemoveLiquidity(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netLiquidityTokens
+    );
 
     /// @notice Emitted whenever an account context has updated
     event AccountContextUpdate(address indexed account);
@@ -54,6 +80,8 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     /** Initialize Markets Action */
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
+
+    function sweepCashIntoMarkets(uint16 currencyId) external;
 
     /** Redeem nToken Action */
     function nTokenRedeem(

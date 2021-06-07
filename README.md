@@ -91,6 +91,8 @@ contracts
 
 ## Test Coverage
 
+Ganache runs out of memory doing debug trace, enable larger heap sizes using: `export NODE_OPTIONS=--max-old-space-size=16000`
+
 TODO
 
 ## Gas Costs

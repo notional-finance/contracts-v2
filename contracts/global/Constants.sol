@@ -60,6 +60,7 @@ library Constants {
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
+    int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
 
     uint256 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
@@ -99,4 +100,21 @@ library Constants {
     uint256 internal constant ANNUAL_INCENTIVE_MULTIPLIER_PERCENT = 50;
     /// @dev Caps the max incentive multiplier to 2 years (i.e. 1 + 2 years * 0.5 == 2)
     uint256 internal constant MAX_INCENTIVE_MULTIPLIER = 2e8;
+
+    /* Internal Storage Slot Offsets */
+    // Internally used storage slots are set at 1000000 offset from the solidity provisioned storage slots to minimize
+    // the possibility of clashing.
+    uint256 internal constant ACCOUNT_CONTEXT_STORAGE_OFFSET = 1000001;
+    uint256 internal constant NTOKEN_CONTEXT_STORAGE_OFFSET = 1000002;
+    uint256 internal constant NTOKEN_ADDRESS_STORAGE_OFFSET = 1000003;
+    uint256 internal constant NTOKEN_DEPOSIT_STORAGE_OFFSET = 1000004;
+    uint256 internal constant NTOKEN_INIT_STORAGE_OFFSET = 1000005;
+    uint256 internal constant BALANCE_STORAGE_OFFSET = 1000006;
+    uint256 internal constant TOKEN_STORAGE_OFFSET = 1000007;
+    uint256 internal constant SETTLEMENT_RATE_STORAGE_OFFSET = 1000008;
+    uint256 internal constant CASH_GROUP_STORAGE_OFFSET = 1000009;
+    uint256 internal constant MARKET_STORAGE_OFFSET = 1000010;
+    uint256 internal constant ASSETS_BITMAP_STORAGE_OFFSET = 1000011;
+    uint256 internal constant IFCASH_STORAGE_OFFSET = 1000012;
+    uint256 internal constant PORTFOLIO_ARRAY_STORAGE_OFFSET = 1000013;
 }

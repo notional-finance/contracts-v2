@@ -120,8 +120,8 @@ def test_deposit_underlying_and_lend_specify_fcash(environment, accounts):
         accounts[1], [action], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
+    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -163,8 +163,8 @@ def test_deposit_asset_and_lend(environment, accounts):
         accounts[1], [action], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
+    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -231,8 +231,8 @@ def test_roll_lend_to_maturity(environment, accounts):
         accounts[1], [action], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
+    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -269,8 +269,8 @@ def test_deposit_and_lend_bitmap(environment, accounts):
         accounts[1], [action], {"from": accounts[1]}
     )
 
-    assert txn.events["BatchTradeExecution"][0]["account"] == accounts[1]
-    assert txn.events["BatchTradeExecution"][0]["currencyId"] == 2
+    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
+    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])

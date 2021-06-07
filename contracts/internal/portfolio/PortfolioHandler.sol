@@ -149,7 +149,8 @@ library PortfolioHandler {
             uint40
         )
     {
-        uint256 initialSlot = uint256(keccak256(abi.encode(account, "account.array")));
+        uint256 initialSlot =
+            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
         bool hasDebt;
         // NOTE: cannot have more than 16 assets or this byte object will overflow. Max assets is
         // set to 7 and the worst case during liquidation would be 7 liquidity tokens that generate
@@ -377,7 +378,8 @@ library PortfolioHandler {
         returns (PortfolioAsset[] memory)
     {
         PortfolioAsset[] memory assets = new PortfolioAsset[](length);
-        uint256 slot = uint256(keccak256(abi.encode(account, "account.array")));
+        uint256 slot =
+            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
 
         for (uint256 i; i < length; i++) {
             bytes32 data;

@@ -47,7 +47,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (Token memory assetToken, Token memory underlyingToken)
     {
         assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, false);
+        underlyingToken = TokenHandler.getToken(currencyId, true);
     }
 
     /// @notice Returns the ETH and Asset rates for a currency as stored, useful for viewing how they are configured

@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie import accounts
 from brownie.network.state import Chain
@@ -25,8 +26,8 @@ def env(accounts):
     cashGroup = list(environment.notional.getCashGroup(2))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(2, cashGroup)
 
     environment.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
@@ -133,7 +134,7 @@ def currencyLiquidation(env, accounts):
         2,
         "DepositUnderlyingAndMintNToken",
         [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
-        depositActionAmount=100e18,
+        depositActionAmount=110e18,
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
@@ -195,7 +196,7 @@ def fCashLiquidation(env, accounts):
         accounts[7], [collateral, borrowAction], {"from": accounts[7], "value": 2e18}
     )
 
-    # account[2]: DAI borrower with DAI fCash collateral (2x)
+    # account[8]: DAI borrower with DAI fCash collateral (2x)
     lendBorrowAction = get_balance_trade_action(
         2,
         "DepositUnderlying",
@@ -210,6 +211,19 @@ def fCashLiquidation(env, accounts):
     )
 
     env.notional.batchBalanceAndTradeAction(accounts[8], [lendBorrowAction], {"from": accounts[8]})
+
+    # account[9]: DAI borrower with DAI fCash and cash collateral (2x)
+    lendBorrowAction = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 50e8, "minSlippage": 0},
+        ],
+        depositActionAmount=5e18,
+    )
+
+    env.notional.batchBalanceAndTradeAction(accounts[9], [lendBorrowAction], {"from": accounts[9]})
 
     return env
 
@@ -260,6 +274,7 @@ def move_oracle_rate(environment, marketIndex):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_local_currency(currencyLiquidation, accounts):
     # Increase oracle rate
     # marketsBefore = currencyLiquidation.notional.getActiveMarkets(2)
@@ -274,7 +289,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     currencyLiquidation.notional.updateTokenCollateralParameters(2, *(tokenDefaults))
 
     cashGroup = list(currencyLiquidation.notional.getCashGroup(2))
-    cashGroup[8] = [80, 80, 80]
+    cashGroup[9] = [80, 80, 80]
     currencyLiquidation.notional.updateCashGroup(2, cashGroup)
 
     # liquidate account[5]
@@ -311,9 +326,10 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_collateral_currency(currencyLiquidation, accounts):
     # Decrease ETH rate
-    currencyLiquidation.ethOracle["DAI"].setAnswer(0.015e18)
+    currencyLiquidation.ethOracle["DAI"].setAnswer(0.013e18)
 
     for account in accounts[1:5]:
         fcBefore = currencyLiquidation.notional.getFreeCollateral(account)
@@ -352,12 +368,12 @@ def test_liquidate_collateral_currency(currencyLiquidation, accounts):
 
 
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_local_fcash(fCashLiquidation, accounts):
     liquidated = accounts[8]
 
     # Change the fCash Haircut
     cashGroup = list(fCashLiquidation.notional.getCashGroup(2))
-    cashGroup[4] = 200
     cashGroup[5] = 200
     fCashLiquidation.notional.updateCashGroup(2, cashGroup)
 
@@ -389,7 +405,51 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
 
 
+@pytest.mark.liquidation
+def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
+    liquidated = accounts[9]
+
+    # Change the fCash Haircut
+    cashGroup = list(fCashLiquidation.notional.getCashGroup(2))
+    cashGroup[4] = 200
+    fCashLiquidation.notional.updateCashGroup(2, cashGroup)
+
+    fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
+    # Get local currency required
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    (
+        fCashNotionalCalculated,
+        netLocalCalculated,
+    ) = fCashLiquidation.notional.calculatefCashLocalLiquidation.call(
+        liquidated, 2, maturities, [0, 0]
+    )
+
+    balanceBefore = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+
+    with brownie.reverts("Insufficient free collateral"):
+        # Ensures that the FC check will fail due to liquidating only the negative fCash position
+        fCashLiquidation.notional.liquidatefCashLocal(
+            liquidated, 2, [maturities[1]], [0], {"from": accounts[11]}
+        )
+
+    txn = fCashLiquidation.notional.liquidatefCashLocal(liquidated, 2, maturities, [0, 0])
+
+    balanceAfter = fCashLiquidation.cToken["DAI"].balanceOf(accounts[0])
+    assert txn.events["LiquidatefCashEvent"]
+    netLocal = txn.events["LiquidatefCashEvent"]["netLocalFromLiquidator"]
+    transfers = txn.events["LiquidatefCashEvent"]["fCashNotionalTransfer"]
+
+    assert pytest.approx(netLocal, rel=1e-5) == netLocalCalculated
+    assert pytest.approx(transfers[0], rel=1e-5) == fCashNotionalCalculated[0]
+    assert pytest.approx(transfers[1], rel=1e-5) == fCashNotionalCalculated[1]
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-5) == netLocal
+
+    check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
+
+
 # given different max liquidation amounts
+@pytest.mark.liquidation
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     liquidated = accounts[7]
@@ -421,3 +481,15 @@ def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     assert pytest.approx(balanceBefore - balanceAfter, rel=1e-5) == netLocal
 
     check_liquidation_invariants(fCashLiquidation, liquidated, fcBefore)
+
+
+@pytest.mark.liquidation
+def test_cannot_liquidate_self(fCashLiquidation, accounts):
+    liquidated = accounts[7]
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    with brownie.reverts():
+        fCashLiquidation.notional.liquidatefCashCrossCurrency(
+            liquidated, 2, 1, maturities, [0, 0], {"from": liquidated}
+        )

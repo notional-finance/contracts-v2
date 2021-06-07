@@ -266,8 +266,8 @@ def test_settle_and_extend(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[8] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[9] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(

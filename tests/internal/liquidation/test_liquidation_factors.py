@@ -12,7 +12,6 @@ from tests.helpers import (
 chain = Chain()
 
 
-@pytest.mark.skip_coverage
 @pytest.mark.liquidation
 class TestLiquidationFactors:
     @pytest.fixture(scope="module", autouse=True)
@@ -67,50 +66,56 @@ class TestLiquidationFactors:
     def isolation(self, fn_isolation):
         pass
 
-    def test_revert_on_sufficient_collateral(self, liquidation, accounts):
-        liquidation.setBalance(accounts[0], 1, 100e8, 0)
+    def test_cannot_liquidate_self(self, liquidation, accounts):
+        liquidation.setBalance(accounts[1], 1, -100e8, 0)
 
-        with brownie.reverts("Sufficient collateral"):
+        with brownie.reverts():
             liquidation.preLiquidationActions(accounts[0], 1, 2)
 
-        with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 2, 1)
+    def test_revert_on_sufficient_collateral(self, liquidation, accounts):
+        liquidation.setBalance(accounts[1], 1, 100e8, 0)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 3, 2)
+            liquidation.preLiquidationActions(accounts[1], 1, 2)
+
+        with brownie.reverts("Sufficient collateral"):
+            liquidation.preLiquidationActions(accounts[1], 2, 1)
+
+        with brownie.reverts("Sufficient collateral"):
+            liquidation.preLiquidationActions(accounts[1], 3, 2)
 
     def test_revert_on_sufficient_portfolio_value(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
         for m in markets:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=100e8)])
+        liquidation.setPortfolio(accounts[1], [get_fcash_token(1, notional=100e8)])
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 1, 2)
+            liquidation.preLiquidationActions(accounts[1], 1, 2)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 2, 1)
+            liquidation.preLiquidationActions(accounts[1], 2, 1)
 
         with brownie.reverts("Sufficient collateral"):
-            liquidation.preLiquidationActions(accounts[0], 3, 2)
+            liquidation.preLiquidationActions(accounts[1], 3, 2)
 
     def test_revert_on_invalid_currencies(self, liquidation, accounts):
         with brownie.reverts():
-            liquidation.preLiquidationActions(accounts[0], 1, 1)
+            liquidation.preLiquidationActions(accounts[1], 1, 1)
 
         with brownie.reverts():
-            liquidation.preLiquidationActions(accounts[0], 0, 1)
+            liquidation.preLiquidationActions(accounts[1], 0, 1)
 
     def test_asset_factors_local_and_collateral(self, liquidation, accounts):
         markets = get_market_curve(3, "flat")
         for m in markets:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
-        liquidation.setBalance(accounts[0], 3, 100e8, 0)
+        liquidation.setPortfolio(accounts[1], [get_fcash_token(1, notional=-100e8)])
+        liquidation.setBalance(accounts[1], 3, 100e8, 0)
 
-        (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 3).return_value
+        (_, factors, _) = liquidation.preLiquidationActions(accounts[1], 1, 3).return_value
 
         # Local available
         assert factors[2] > -100e8 and factors[2] < -99e8
@@ -128,10 +133,10 @@ class TestLiquidationFactors:
         for m in markets:
             liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
 
-        liquidation.setPortfolio(accounts[0], [get_fcash_token(1, notional=-100e8)])
-        liquidation.setBalance(accounts[0], 1, 10e8, 0)
+        liquidation.setPortfolio(accounts[1], [get_fcash_token(1, notional=-100e8)])
+        liquidation.setBalance(accounts[1], 1, 10e8, 0)
 
-        (_, factors, _) = liquidation.preLiquidationActions(accounts[0], 1, 0).return_value
+        (_, factors, _) = liquidation.preLiquidationActions(accounts[1], 1, 0).return_value
 
         # Local available
         assert factors[2] > -90e8 and factors[2] < -89e8

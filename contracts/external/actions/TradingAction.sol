@@ -22,9 +22,36 @@ library TradingAction {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    event BatchTradeExecution(address account, uint16 currencyId);
-    event SettledCashDebt(address settledAccount, uint16 currencyId, int256 amountToSettleAsset);
-    event nTokenResidualPurchase(uint16 currencyId, uint40 maturity, int256 fCashAmountToPurchase);
+    event LendBorrowTrade(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netFee
+    );
+    event AddRemoveLiquidity(
+        address account,
+        uint16 currencyId,
+        uint40 maturity,
+        int256 netAssetCash,
+        int256 netfCash,
+        int256 netLiquidityTokens
+    );
+
+    event SettledCashDebt(
+        address settledAccount,
+        uint16 currencyId,
+        int256 amountToSettleAsset,
+        int256 fCashAmount
+    );
+
+    event nTokenResidualPurchase(
+        uint16 currencyId,
+        uint40 maturity,
+        int256 fCashAmountToPurchase,
+        int256 netAssetCashNToken
+    );
 
     /// @dev Used internally to manage stack issues
     struct TradeContext {
@@ -54,6 +81,7 @@ library TradingAction {
         for (uint256 i; i < trades.length; i++) {
             uint256 maturity;
             (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
+                account,
                 cashGroup,
                 market,
                 trades[i],
@@ -77,7 +105,6 @@ library TradingAction {
         BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
         BalanceHandler.incrementFeeToReserve(accountContext.bitmapCurrencyId, c.totalFee);
 
-        emit BatchTradeExecution(account, uint16(accountContext.bitmapCurrencyId));
         return (c.netCash, didIncurDebt);
     }
 
@@ -102,6 +129,7 @@ library TradingAction {
             ) {
                 // Liquidity tokens can only be added by array portfolio
                 c.cash = _executeLiquidityTrade(
+                    account,
                     cashGroup,
                     market,
                     tradeType,
@@ -112,6 +140,7 @@ library TradingAction {
             } else {
                 uint256 maturity;
                 (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
+                    account,
                     cashGroup,
                     market,
                     trades[i],
@@ -125,7 +154,6 @@ library TradingAction {
             c.netCash = c.netCash.add(c.cash);
         }
 
-        emit BatchTradeExecution(account, uint16(currencyId));
         BalanceHandler.incrementFeeToReserve(currencyId, c.totalFee);
 
         return (portfolioState, c.netCash);
@@ -142,6 +170,7 @@ library TradingAction {
     }
 
     function _executeTrade(
+        address account,
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         bytes32 trade,
@@ -176,12 +205,21 @@ library TradingAction {
             // This is a little ugly but required to deal with stack issues. We know the market is loaded with the proper
             // maturity inside _executeLendBorrowTrade
             maturity = market.maturity;
+            emit LendBorrowTrade(
+                account,
+                uint16(cashGroup.currencyId),
+                uint40(maturity),
+                cashAmount,
+                fCashAmount,
+                fee
+            );
         } else {
             revert("Invalid trade type");
         }
     }
 
     function _executeLiquidityTrade(
+        address account,
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         TradeActionType tradeType,
@@ -237,6 +275,15 @@ library TradingAction {
             marketIndex + 1,
             tokens,
             false
+        );
+
+        emit AddRemoveLiquidity(
+            account,
+            uint16(cashGroup.currencyId),
+            uint40(market.maturity),
+            cashAmount,
+            fCashAmount,
+            tokens
         );
 
         return (cashAmount);
@@ -342,7 +389,12 @@ library TradingAction {
         }
         counterpartyContext.setAccountContext(counterparty);
 
-        emit SettledCashDebt(counterparty, uint16(cashGroup.currencyId), amountToSettleAsset);
+        emit SettledCashDebt(
+            counterparty,
+            uint16(cashGroup.currencyId),
+            amountToSettleAsset,
+            fCashAmount.neg()
+        );
 
         return (threeMonthMaturity, amountToSettleAsset.neg(), fCashAmount);
     }
@@ -445,7 +497,8 @@ library TradingAction {
         emit nTokenResidualPurchase(
             uint16(cashGroup.currencyId),
             uint40(maturity),
-            fCashAmountToPurchase
+            fCashAmountToPurchase,
+            netAssetCashNToken
         );
 
         return (maturity, netAssetCashNToken.neg(), fCashAmountToPurchase);

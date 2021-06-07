@@ -39,7 +39,7 @@ library nTokenHandler {
             bytes6 parameters
         )
     {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
         bytes32 data;
         assembly {
             data := sload(slot)
@@ -54,7 +54,7 @@ library nTokenHandler {
 
     /// @notice Returns the nToken token address for a given currency
     function nTokenAddress(uint256 currencyId) internal view returns (address tokenAddress) {
-        bytes32 slot = keccak256(abi.encode(currencyId, "nToken.address"));
+        bytes32 slot = keccak256(abi.encode(currencyId, Constants.NTOKEN_ADDRESS_STORAGE_OFFSET));
         assembly {
             tokenAddress := sload(slot)
         }
@@ -63,8 +63,10 @@ library nTokenHandler {
     /// @notice Called by governance to set the nToken token address and its reverse lookup. Cannot be
     /// reset once this is set.
     function setNTokenAddress(uint16 currencyId, address tokenAddress) internal {
-        bytes32 addressSlot = keccak256(abi.encode(currencyId, "nToken.address"));
-        bytes32 currencySlot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 addressSlot =
+            keccak256(abi.encode(currencyId, Constants.NTOKEN_ADDRESS_STORAGE_OFFSET));
+        bytes32 currencySlot =
+            keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
 
         uint256 data;
         assembly {
@@ -95,7 +97,7 @@ library nTokenHandler {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
         bytes32 data;
         assembly {
             data := sload(slot)
@@ -125,7 +127,7 @@ library nTokenHandler {
 
     /// @notice Updates the nToken token supply amount when minting or redeeming.
     function changeNTokenSupply(address tokenAddress, int256 netChange) internal returns (uint256) {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
         bytes32 data;
         assembly {
             data := sload(slot)
@@ -150,7 +152,7 @@ library nTokenHandler {
     }
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
 
         bytes32 data;
         assembly {
@@ -169,7 +171,7 @@ library nTokenHandler {
         uint8 arrayLength,
         uint256 lastInitializedTime
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, "nToken.context"));
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
         require(lastInitializedTime >= 0 && uint256(lastInitializedTime) < type(uint32).max); // dev: next settle time overflow
 
         bytes32 data;
@@ -191,7 +193,8 @@ library nTokenHandler {
         view
         returns (int256[] memory depositShares, int256[] memory leverageThresholds)
     {
-        uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.deposit")));
+        uint256 slot =
+            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_DEPOSIT_STORAGE_OFFSET)));
         (depositShares, leverageThresholds) = _getParameters(slot, maxMarketIndex, false);
     }
 
@@ -203,7 +206,8 @@ library nTokenHandler {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) internal {
-        uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.deposit")));
+        uint256 slot =
+            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_DEPOSIT_STORAGE_OFFSET)));
         require(
             depositShares.length <= Constants.MAX_TRADED_MARKET_INDEX,
             "PT: deposit share length"
@@ -233,7 +237,8 @@ library nTokenHandler {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) internal {
-        uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.init")));
+        uint256 slot =
+            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
         require(rateAnchors.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: rate anchors length");
 
         require(proportions.length == rateAnchors.length, "PT: proportions length");
@@ -258,7 +263,8 @@ library nTokenHandler {
         view
         returns (int256[] memory rateAnchors, int256[] memory proportions)
     {
-        uint256 slot = uint256(keccak256(abi.encode(currencyId, "nToken.init")));
+        uint256 slot =
+            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
         (rateAnchors, proportions) = _getParameters(slot, maxMarketIndex, true);
     }
 
