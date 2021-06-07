@@ -159,6 +159,14 @@ contract NoteERC20 is Initializable {
         address dst,
         uint256 rawAmount
     ) external returns (bool) {
+        // Short circuit transfer execution and return true. It may be the case that external
+        // logic tries to execute a zero transfer but don't emit events here.
+        if (rawAmount == 0) {
+            // Emit a zero transfer event for ERC20 token compatibility
+            emit Transfer(src, dst, 0);
+            return true;
+        }
+
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
         uint96 amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
