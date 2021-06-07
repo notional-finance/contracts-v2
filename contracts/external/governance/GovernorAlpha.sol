@@ -25,7 +25,7 @@ contract GovernorAlpha is TimelockController {
     /// time to be voted on.
     uint32 public constant MIN_VOTING_PERIOD_BLOCKS = 6700;
 
-    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
+    /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a proposal to succeed
     uint96 public quorumVotes;
 
     /// @notice The number of votes required in order for a voter to become a proposer
@@ -128,6 +128,14 @@ contract GovernorAlpha is TimelockController {
     /// @notice An event emitted when a new voting period in blocks has been set
     event UpdateVotingPeriodBlocks(uint32 newVotingPeriodBlocks);
 
+    /// @notice Initializes the GovernorAlpha with initial parameters
+    /// @param quorumVotes_ initial quorum votes value
+    /// @param proposalThreshold_ initial proposal threshold value
+    /// @param votingDelayBlocks_ initial voting delay blocks value
+    /// @param votingPeriodBlocks_ initial voting period blocks value
+    /// @param note_ address of the NOTE token to get voting power
+    /// @param guardian_ address of guardian
+    /// @param minDelay_ initial minimum delay for timelock in seconds
     constructor(
         uint96 quorumVotes_,
         uint96 proposalThreshold_,
@@ -348,13 +356,14 @@ contract GovernorAlpha is TimelockController {
     /// @notice Returns the voting receipt for a voter on a proposal
     /// @param proposalId unique identifier for the proposal
     /// @param voter address of the voter
+    /// @return the voting receipt for the voter and proposal
     function getReceipt(uint256 proposalId, address voter) public view returns (Receipt memory) {
         return receipts[proposalId][voter];
     }
 
     /// @notice Returns the current state of a proposal
     /// @param proposalId unique identifier for the proposal
-    /// @return ProposalState
+    /// @return ProposalState enum for the current state of the proposal
     function state(uint256 proposalId) public view returns (ProposalState) {
         require(
             proposalCount >= proposalId && proposalId > 0,
@@ -446,24 +455,36 @@ contract GovernorAlpha is TimelockController {
         emit VoteCast(voter, proposalId, support, votes);
     }
 
+    /// @notice Updates the quorum votes required, can only be executed via a proposal
+    /// @param newQuorumVotes new quorum votes required
+    /// @dev emit:UpdateQuorumVotes
     function updateQuorumVotes(uint96 newQuorumVotes) external {
         require(msg.sender == address(this), "Unauthorized caller");
         quorumVotes = newQuorumVotes;
         emit UpdateQuorumVotes(newQuorumVotes);
     }
 
+    /// @notice Updates the proposal threshold required, can only be executed via a proposal
+    /// @param newProposalThreshold new proposal threshold
+    /// @dev emit:UpdateProposalThreshold
     function updateProposalThreshold(uint96 newProposalThreshold) external {
         require(msg.sender == address(this), "Unauthorized caller");
         proposalThreshold = newProposalThreshold;
         emit UpdateProposalThreshold(newProposalThreshold);
     }
 
+    /// @notice Updates the voting delay blocks required, can only be executed via a proposal
+    /// @param newVotingDelayBlocks new voting delay blocks
+    /// @dev emit:UpdateVotingDelayBlocks
     function updateVotingDelayBlocks(uint32 newVotingDelayBlocks) external {
         require(msg.sender == address(this), "Unauthorized caller");
         votingDelayBlocks = newVotingDelayBlocks;
         emit UpdateVotingDelayBlocks(newVotingDelayBlocks);
     }
 
+    /// @notice Updates the voting period blocks required, can only be executed via a proposal
+    /// @param newVotingPeriodBlocks new voting period blocks
+    /// @dev emit:UpdateVotingPeriodBlocks
     function updateVotingPeriodBlocks(uint32 newVotingPeriodBlocks) external {
         require(msg.sender == address(this), "Unauthorized caller");
         require(newVotingPeriodBlocks >= MIN_VOTING_PERIOD_BLOCKS, "Below min voting period");

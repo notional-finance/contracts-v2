@@ -30,7 +30,7 @@ contract Reservoir {
     uint256 public dripped;
 
     /// @notice Constructs a Reservoir
-    /// @param dripRate_ Number of tokens per block to drip
+    /// @param dripRate_ Number of tokens per second to drip
     /// @param token_ The token to drip
     /// @param target_ The recipient of dripped tokens
     constructor(
