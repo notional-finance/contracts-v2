@@ -74,6 +74,7 @@ class TestEnvironment:
 
         if withGovernance:
             self.notional.transferOwnership(self.governor.address)
+            self.proxyAdmin.transferOwnership(self.governor.address)
             self.noteERC20.initialize(
                 [self.governor.address, self.multisig.address, self.notional.address],
                 [
@@ -233,6 +234,7 @@ class TestEnvironment:
             fn_name="initialize", args=[self.deployer.address]
         )
 
+        # TODO: update this to the new UUPS proxy
         self.proxy = nTransparentUpgradeableProxy.deploy(
             router.address,
             self.proxyAdmin.address,
