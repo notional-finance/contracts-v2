@@ -3,12 +3,45 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../contracts/internal/AccountContextHandler.sol";
+import "../../contracts/internal/portfolio/BitmapAssetsHandler.sol";
 
 contract AccountPortfolioMock {
     using AccountContextHandler for AccountContext;
 
-    function getAccountContext(address account) external view returns (AccountContext memory) {
-        return AccountContextHandler.getAccountContext(account);
+    function getAccountContextSlot(address account) external view returns (uint256) {
+        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
+        uint256 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        return data;
+    }
+
+    function getNextSettleTime(address account) external view returns (uint40) {
+        return AccountContextHandler.getAccountContext(account).nextSettleTime;
+    }
+
+    function getHasDebt(address account) external view returns (uint8) {
+        return uint8(AccountContextHandler.getAccountContext(account).hasDebt);
+    }
+
+    function getAssetArrayLength(address account) external view returns (uint8) {
+        return AccountContextHandler.getAccountContext(account).assetArrayLength;
+    }
+
+    function getBitmapCurrency(address account) external view returns (uint16) {
+        return AccountContextHandler.getAccountContext(account).bitmapCurrencyId;
+    }
+
+    function getActiveCurrencies(address account) external view returns (uint144) {
+        return uint144(AccountContextHandler.getAccountContext(account).activeCurrencies);
+    }
+
+    function getAssetsBitmap(address account) external view returns (bytes32) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        return BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
     }
 
     function enableBitmapForAccount(
