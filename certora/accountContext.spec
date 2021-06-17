@@ -20,123 +20,90 @@ methods {
 // definition unpackActiveCurrencies(bytes32 b) returns bytes18 = 
 //     (b & 0xffffffffffffffffffffffffffffffffffff0000000000000000000000000000) << 40;
 
-// /* Unpack each active currency */
-// definition activeCurrency1(bytes18 c) returns uint16 =
-//     (c & 0xffff00000000000000000000000000000000) >> 128;
-// definition activeCurrency2(bytes18 c) returns uint16 =
-//     (c & 0x0000ffff0000000000000000000000000000) >> 112;
-// definition activeCurrency3(bytes18 c) returns uint16 =
-//     (c & 0x00000000ffff000000000000000000000000) >> 96;
-// definition activeCurrency4(bytes18 c) returns uint16 =
-//     (c & 0x000000000000ffff00000000000000000000) >> 80;
-// definition activeCurrency5(bytes18 c) returns uint16 =
-//     (c & 0x0000000000000000ffff0000000000000000) >> 64;
-// definition activeCurrency6(bytes18 c) returns uint16 =
-//     (c & 0x00000000000000000000ffff000000000000) >> 48;
-// definition activeCurrency7(bytes18 c) returns uint16 =
-//     (c & 0x000000000000000000000000ffff00000000) >> 32;
-// definition activeCurrency8(bytes18 c) returns uint16 =
-//     (c & 0x0000000000000000000000000000ffff0000) >> 16;
-// definition activeCurrency9(bytes18 c) returns uint16 =
-//     (c & 0x00000000000000000000000000000000ffff);
+// definition currencyActiveInPortfolio(uint16 c) returns bool = (c & 0x8000) == 0x8000;
+// definition currencyActiveInBalances(uint16 c) returns bool = (c & 0x4000) == 0x4000;
 
-// /* Helper methods for active currencies */
+/* Helper methods for active currencies */
 definition unmaskCurrency(uint16 c) returns uint16 = (c & 0x3FFF);
-definition currencyActiveInPortfolio(uint16 c) returns bool = (c & 0x8000) == 0x8000;
-definition currencyActiveInBalances(uint16 c) returns bool = (c & 0x4000) == 0x4000;
+definition getActive(address account, uint144 index) returns uint144 =
+    (getActiveCurrencies(account) >> (128 - index * 16)) & 0x00000000000000000000000000000000ffff;
+
 definition MAX_CURRENCIES() returns uint256 = 0x3fff;
 definition MAX_TIMESTAMP() returns uint256 = 2^32 - 1;
+// Cannot have timestamps less than 90 days
+definition MIN_TIMESTAMP() returns uint256 = 7776000;
 
-// 200000000000000000000000000000000083b000000000000000000 
+rule getAndSetAccountContext(
+    address account,
+    uint40 nextSettleTime,
+    uint8 hasDebt,
+    uint8 assetArrayLength,
+    uint16 bitmapCurrencyId,
+    uint144 activeCurrencies
+) {
+    env e;
+    setAccountContext(e, account, nextSettleTime, hasDebt, assetArrayLength, bitmapCurrencyId, activeCurrencies);
+    assert getNextSettleTime(account) == nextSettleTime;
+    assert getHasDebt(account) == hasDebt;
+    assert getAssetArrayLength(account) == assetArrayLength;
+    assert getBitmapCurrency(account) == bitmapCurrencyId;
+    assert getActiveCurrencies(account) == activeCurrencies;
+}
 
-rule enableBitmapPortfolios(address account, uint256 currencyId) {
+/**
+ * If an account enables a bitmap portfolio it cannot strand assets behind such that the system
+ * becomes blind to them.
+ */
+rule enablingBitmapCannotLeaveBehindAssets(address account, uint256 currencyId) {
     env e;
     require currencyId <= MAX_CURRENCIES();
-    // require e.timestamp <= MAX_TIMESTAMP();
-    require getAccountContextSlot(account) == 0;
-    require getNextSettleTime(account) == 0;
-    require getActiveCurrencies(account) == 0x000000000000000000000000000000000000;
-    require getHasDebt(account) == 0x00;
-    require getAssetsBitmap(account) == 0x0000000000000000000000000000000000000000000000000000000000000000;
-    require getBitmapCurrency(account) == 0;
-    require getAssetArrayLength(account) == 0;
-    // require getBitmapCurrency(account) != 0 => getAssetArrayLength(account) == 0;
-    // requireInvariant bitmapPortfoliosCannotHaveAssetArray(account);
+    require e.block.timestamp >= MIN_TIMESTAMP();
+    require e.block.timestamp <= MAX_TIMESTAMP();
+    uint16 bitmapCurrencyId = getBitmapCurrency(account);
+    uint8 assetArrayLength = getAssetArrayLength(account);
+    bytes32 assetsBitmap = getAssetsBitmap(account);
+    require bitmapCurrencyId != 0 => assetArrayLength == 0;
+    // Cannot set bitmap currency to 0 if it is already 0, will revert
+    require bitmapCurrencyId == 0 => currencyId > 0;
+    // Prevents invalid starting state
+    require bitmapCurrencyId == 0 => assetsBitmap == 0x0000000000000000000000000000000000000000000000000000000000000000;
 
-    enableBitmapForAccount(e, account, currencyId, 1623857408);
-    assert getBitmapCurrency(account) != 0 => getAssetArrayLength(account) == 0;
+    enableBitmapForAccount@withrevert(e, account, currencyId, e.block.timestamp);
+    // In these cases the account has active assets or cash debts
+    assert (
+        assetArrayLength != 0 ||
+        assetsBitmap != 0x0000000000000000000000000000000000000000000000000000000000000000
+    ) => lastReverted;
 }
 
 /**
  * When a bitmap portfolio is active, it cannot ever have any assets in its array. If this occurs then
  * there will be assets that are not accounted for during the free collateral check.
+ */
 invariant bitmapPortfoliosCannotHaveAssetArray(address account)
     getBitmapCurrency(account) != 0 => getAssetArrayLength(account) == 0
+
+/**
+ * Active currency flags are always sorted and cannot be double counted, if this occurs then there
+ * will be currencies that are double counted during the free collateral check.
+ *
+ * This check ensures that any two indexes of the active currencies byte vector are not duplicated
+ * and sorted properly.
  */
+invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
+    0 <= i && i < j && j < 9 =>
+        getActive(account, i) == 0 ? getActive(account, j) == 0 : getActive(account, i) < getActive(account, j)
 
-// /**
-//  * Active currency flags are always sorted and cannot be double counted, if this occurs then there
-//  * will be currencies that are double counted during the free collateral check.
-//  */
-// invariant activeCurrenciesAreAlwaysSortedAndNeverDuplicated {
-//     _, _, _, uint16 bitmapCurrencyId, bytes18 activeCurrencies = getAccountContext(account);
-//     uint16 ac1 = unmaskCurrency(activeCurrency1(activeCurrencies))
-//     uint16 ac2 = unmaskCurrency(activeCurrency2(activeCurrencies))
-//     uint16 ac3 = unmaskCurrency(activeCurrency3(activeCurrencies))
-//     uint16 ac4 = unmaskCurrency(activeCurrency4(activeCurrencies))
-//     uint16 ac5 = unmaskCurrency(activeCurrency5(activeCurrencies))
-//     uint16 ac6 = unmaskCurrency(activeCurrency6(activeCurrencies))
-//     uint16 ac7 = unmaskCurrency(activeCurrency7(activeCurrencies))
-//     uint16 ac8 = unmaskCurrency(activeCurrency8(activeCurrencies))
-//     uint16 ac9 = unmaskCurrency(activeCurrency9(activeCurrencies))
-
-//     // When a currency is marked as zero it terminates the bitmap
-//     ac1 == 0 => ac2 == 0;
-//     ac2 == 0 => ac3 == 0;
-//     ac3 == 0 => ac4 == 0;
-//     ac4 == 0 => ac5 == 0;
-//     ac5 == 0 => ac6 == 0;
-//     ac6 == 0 => ac7 == 0;
-//     ac7 == 0 => ac8 == 0;
-//     ac8 == 0 => ac9 == 0;
-
-//     // Require that no two currencies are duplicated
-//     ac1 != 0 => ac1 < ac2 || ac2 == 0;
-//     ac2 != 0 => ac2 < ac3 || ac3 == 0;
-//     ac3 != 0 => ac3 < ac4 || ac4 == 0;
-//     ac4 != 0 => ac4 < ac5 || ac5 == 0;
-//     ac5 != 0 => ac5 < ac6 || ac6 == 0;
-//     ac6 != 0 => ac6 < ac7 || ac7 == 0;
-//     ac7 != 0 => ac7 < ac8 || ac8 == 0;
-//     ac8 != 0 => ac8 < ac9 || ac9 == 0;
-
-//     // A bitmap currency cannot be in the active currencies list
-//     bitmapCurrencyId != 0 => (
-//         ac1 != bitmapCurrencyId &&
-//         ac2 != bitmapCurrencyId &&
-//         ac3 != bitmapCurrencyId &&
-//         ac4 != bitmapCurrencyId &&
-//         ac5 != bitmapCurrencyId &&
-//         ac6 != bitmapCurrencyId &&
-//         ac7 != bitmapCurrencyId &&
-//         ac8 != bitmapCurrencyId &&
-//         ac9 != bitmapCurrencyId
-//     );
-// }
-
-// hook Sstore accountContext
-//     [KEY address account]
-//     bytes32 b (bytes32 b_old) STORAGE {
-
-//     uint8 assetArrayLength = unpackAccountArrayLength(b)
-//     uint8 assetArrayLength_old = unpackAccountArrayLength(b_old)
-
-//     uint16 bitmapCurrencyId = unpackAccountBitmapId(b)
-// }
-
-
+/**
+ * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
+ */
+invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
+    0 <= i && i < 9 && getBitmapCurrency(account) != 0 =>
+        getActive(account, i) != getBitmapCurrency(account)
 
 // Requires portfolio integration....
+// rule activeCurrencyAssetFlagsMatchesActual { }
+// rule activeCurrencyBalanceFlagsMatchesActual { }
 // rule assetArrayLengthAlwaysMatchesActual { }
 // rule nextSettleTimeAlwaysReferencesMinMaturity { }
 // rule hasAssetDebtFlagsAreAlwaysCorrect { }
