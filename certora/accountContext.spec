@@ -24,31 +24,16 @@ methods {
 // definition currencyActiveInBalances(uint16 c) returns bool = (c & 0x4000) == 0x4000;
 
 /* Helper methods for active currencies */
-definition unmaskCurrency(uint16 c) returns uint16 = (c & 0x3FFF);
-definition getActive(address account, uint144 index) returns uint144 =
+// definition unmaskCurrency(uint144 c) returns uint144 = (c & 0x3FFF);
+definition getActiveMasked(address account, uint144 index) returns uint144 =
     (getActiveCurrencies(account) >> (128 - index * 16)) & 0x00000000000000000000000000000000ffff;
+definition getActiveUnmasked(address account, uint144 index) returns uint144 =
+    (getActiveCurrencies(account) >> (128 - index * 16)) & 0x000000000000000000000000000000003fff;
 
 definition MAX_CURRENCIES() returns uint256 = 0x3fff;
 definition MAX_TIMESTAMP() returns uint256 = 2^32 - 1;
 // Cannot have timestamps less than 90 days
 definition MIN_TIMESTAMP() returns uint256 = 7776000;
-
-rule getAndSetAccountContext(
-    address account,
-    uint40 nextSettleTime,
-    uint8 hasDebt,
-    uint8 assetArrayLength,
-    uint16 bitmapCurrencyId,
-    uint144 activeCurrencies
-) {
-    env e;
-    setAccountContext(e, account, nextSettleTime, hasDebt, assetArrayLength, bitmapCurrencyId, activeCurrencies);
-    assert getNextSettleTime(account) == nextSettleTime;
-    assert getHasDebt(account) == hasDebt;
-    assert getAssetArrayLength(account) == assetArrayLength;
-    assert getBitmapCurrency(account) == bitmapCurrencyId;
-    assert getActiveCurrencies(account) == activeCurrencies;
-}
 
 /**
  * If an account enables a bitmap portfolio it cannot strand assets behind such that the system
@@ -92,14 +77,16 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
  */
 invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
     0 <= i && i < j && j < 9 =>
-        getActive(account, i) == 0 ? getActive(account, j) == 0 : getActive(account, i) < getActive(account, j)
+        getActiveMasked(account, i) == 0 ? 
+            getActiveMasked(account, j) == 0 :
+            getActiveUnmasked(account, i) < getActiveUnmasked(account, j)
 
 /**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
     0 <= i && i < 9 && getBitmapCurrency(account) != 0 =>
-        getActive(account, i) != getBitmapCurrency(account)
+        getActiveUnmasked(account, i) != getBitmapCurrency(account)
 
 // Requires portfolio integration....
 // rule activeCurrencyAssetFlagsMatchesActual { }
