@@ -16,10 +16,10 @@ rule getAndSetAccountContext(
 ) {
     env e;
     setAccountContext(e, account, nextSettleTime, hasDebt, assetArrayLength, bitmapCurrencyId, activeCurrencies);
-    assert getNextSettleTime(account) == nextSettleTime;
-    assert getHasDebt(account) == hasDebt;
-    assert getAssetArrayLength(account) == assetArrayLength;
-    assert getBitmapCurrency(account) == bitmapCurrencyId;
-    assert getActiveCurrencies(account) == activeCurrencies;
+    assert getNextSettleTime(account) == nextSettleTime, "next settle time does not match";
+    assert getHasDebt(account) == hasDebt, "has debt does not match";
+    assert getAssetArrayLength(account) == assetArrayLength, "asset array length does not match";
+    assert getBitmapCurrency(account) == bitmapCurrencyId, "bitmap currency id does not match";
+    assert getActiveCurrencies(account) == activeCurrencies, "active currencies does not match";
 }
 

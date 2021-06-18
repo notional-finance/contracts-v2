@@ -43,7 +43,7 @@ library DateTime {
         uint256 blockTime
     ) internal pure returns (bool) {
         require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex < 10, "CG: market index bound");
+        require(maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX, "CG: market index bound");
 
         if (maturity % Constants.QUARTER != 0) return false;
         uint256 tRef = DateTime.getReferenceTime(blockTime);
@@ -77,7 +77,7 @@ library DateTime {
         uint256 blockTime
     ) internal pure returns (uint256, bool) {
         require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex < 10, "CG: market index bound");
+        require(maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX, "CG: market index bound");
         uint256 tRef = DateTime.getReferenceTime(blockTime);
 
         for (uint256 i = 1; i <= maxMarketIndex; i++) {

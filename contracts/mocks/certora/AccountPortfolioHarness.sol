@@ -8,36 +8,6 @@ import "../../internal/portfolio/BitmapAssetsHandler.sol";
 contract AccountPortfolioHarness {
     using AccountContextHandler for AccountContext;
 
-    function setAccountContext(
-        address account,
-        uint40 nextSettleTime,
-        uint8 hasDebt,
-        uint8 assetArrayLength,
-        uint16 bitmapCurrencyId,
-        uint144 activeCurrencies
-    ) external {
-        AccountContext memory accountContext =
-            AccountContext({
-                nextSettleTime: nextSettleTime,
-                hasDebt: bytes1(hasDebt),
-                assetArrayLength: assetArrayLength,
-                bitmapCurrencyId: bitmapCurrencyId,
-                activeCurrencies: bytes18(activeCurrencies)
-            });
-        accountContext.setAccountContext(account);
-    }
-
-    function getAccountContextSlot(address account) external view returns (uint256) {
-        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
-        uint256 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        return data;
-    }
-
     function getNextSettleTime(address account) external view returns (uint40) {
         return AccountContextHandler.getAccountContext(account).nextSettleTime;
     }
