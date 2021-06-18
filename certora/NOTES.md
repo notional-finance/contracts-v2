@@ -30,7 +30,11 @@ definition MIN_TIMESTAMP() returns uint256 = 7776000;
 
 - getAndSetAccountContext: https://prover.certora.com/output/42394/6b071c18cb0a275e912e?anonymousKey=2220f5496ccde20e2aa03287e83b918af89f5881
 
-## Failing Specs:
+## TODO Specs:
 
-- dateTimeSpec: https://prover.certora.com/output/42394/08482972cf7a42af1f61/?anonymousKey=81ce112a3c6a1566f6e76f205f1f2f4b5fe58d5e
-- cashGroupSpec: cannot run with calldata
+- dateTimeSpec: https://prover.certora.com/output/42394/4145394959897cec05ac/?anonymousKey=14b782978ff254a50dff367e8dcebad2ee0f7182
+
+  - bitNumAndMaturitiesMustMatch is undecideable?
+  - validMarketMaturitesHaveAnIndex fails on a revert but this is the behavior that I want to see...
+
+- cashGroupSpec: cannot run with calldata, solidity cannot take args with memory array parameters...
