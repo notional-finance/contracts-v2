@@ -29,6 +29,8 @@ definition getActiveMasked(address account, uint144 index) returns uint144 =
     (getActiveCurrencies(account) >> (128 - index * 16)) & 0x00000000000000000000000000000000ffff;
 definition getActiveUnmasked(address account, uint144 index) returns uint144 =
     (getActiveCurrencies(account) >> (128 - index * 16)) & 0x000000000000000000000000000000003fff;
+definition hasCurrencyMask(address account, uint144 index) returns bool =
+    (getActiveMasked(account, index) & 0x000000000000000000000000000000004000 == 0x000000000000000000000000000000004000);
 definition hasValidMask(address account, uint144 index) returns bool =
     (getActiveMasked(account, index) & 0x000000000000000000000000000000008000 == 0x000000000000000000000000000000008000) ||
     (getActiveMasked(account, index) & 0x000000000000000000000000000000004000 == 0x000000000000000000000000000000004000) ||
@@ -94,7 +96,9 @@ invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, 
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
-    0 <= i && i < 9 && getBitmapCurrency(account) != 0 && hasValidMask(account, i) =>
+    0 <= i && i < 9 && getBitmapCurrency(account) != 0 &&
+        // When a bitmap is enable it can only have currency masks in the active currencies bytes
+        (hasCurrencyMask(account, i) || getActiveMasked(account, i) == 0) =>
         getActiveUnmasked(account, i) != getBitmapCurrency(account)
 
 // Requires portfolio integration....

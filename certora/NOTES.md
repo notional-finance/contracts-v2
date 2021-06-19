@@ -3,6 +3,7 @@
 ## Questions:
 
 - Is there a way to exclude a function from being included in invariant calculations?
+- Is there a way to combine invariants?
 - Is there a way to decompose what the calldataargs are in this code example?
   https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
 
@@ -23,6 +24,7 @@ rule validityOfTotalFundsWithVars(method f) {
 
 ## Feature requests:
 
+- Would be nice to have a directory of all the prover runs for reference
 - Allow handling of bytesNN
 - Allow specifying bytesNN literals (0x01 for bytes1, etc) for example: `assert getHasDebt(account) == 0x01` (this currently errors if `getHasDebt` has a return type of bytes1)
 - Confusing that methods does not need semicolons at end of line
@@ -187,12 +189,22 @@ Link: https://prover.certora.com/output/42394/4145394959897cec05ac/?anonymousKey
 
 ### accountContext.spec
 
-Link: https://prover.certora.com/output/42394/6991dd007a609a776705/?anonymousKey=a86ae5dd7486e17fd2281892280259ac127c300e#activeCurrenciesAreNotDuplicatedAndSortedResults
+Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=a8ed06029fa763740c17b857a7106906f85f9775
 
 - enablingBitmapCannotLeaveBehindAssets: Don't understand the calltrace, what is causing this to fail?
-- bitmapPortfoliosCannotHaveAssetArray: Don't understand the calltrace, what is causing this to fail?
-- bitmapCurrencyIsNotDuplicatedInActiveCurrencies: TODO: need to fix the masking
-- activeCurrenciesAreNotDuplicatedAndSorted: TODO: need to fix the masking
+- bitmapPortfoliosCannotHaveAssetArray: Don't understand the calltrace, what is causing this to fail? The method call should revert?
+- bitmapCurrencyIsNotDuplicatedInActiveCurrencies: This looks like a bug but I can't reproduce it. Also not sure why 0x4000 is being set in the active currencies...
+
+```
+    # This test passes...
+    def test_reproduce(self, AccountPortfolioHarness, accounts):
+        ac = AccountPortfolioHarness.deploy({"from": accounts[0]})
+        ac.setActiveCurrency(HexString(0, 'bytes20'), 0x2000, True, 0x4000)
+        ac.enableBitmapForAccount(HexString(0, 'bytes20'), 0x2000, 0xa7542200)
+        assert ac.getActiveCurrencies(HexString(0, 'bytes20')) == 0
+```
+
+- activeCurrenciesAreNotDuplicatedAndSorted: Don't understand how i == j in the failing condition
 
 ## TODO Specs:
 
