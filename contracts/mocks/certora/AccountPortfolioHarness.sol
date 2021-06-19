@@ -47,6 +47,7 @@ contract AccountPortfolioHarness {
         accountContext.setAccountContext(account);
     }
 
+    /*
     function setActiveCurrency(
         address account,
         uint256 currencyId,
@@ -57,6 +58,7 @@ contract AccountPortfolioHarness {
         accountContext.setActiveCurrency(currencyId, isActive, flags);
         accountContext.setAccountContext(account);
     }
+    */
 
     function storeArrayAssets(
         address account,

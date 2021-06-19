@@ -29,6 +29,10 @@ definition getActiveMasked(address account, uint144 index) returns uint144 =
     (getActiveCurrencies(account) >> (128 - index * 16)) & 0x00000000000000000000000000000000ffff;
 definition getActiveUnmasked(address account, uint144 index) returns uint144 =
     (getActiveCurrencies(account) >> (128 - index * 16)) & 0x000000000000000000000000000000003fff;
+definition hasValidMask(address account, uint144 index) returns bool =
+    (getActiveMasked(account, index) & 0x000000000000000000000000000000008000 == 0x000000000000000000000000000000008000) ||
+    (getActiveMasked(account, index) & 0x000000000000000000000000000000004000 == 0x000000000000000000000000000000004000) ||
+    (getActiveMasked(account, index) & 0x00000000000000000000000000000000c000 == 0x00000000000000000000000000000000c000);
 
 definition MAX_CURRENCIES() returns uint256 = 0x3fff;
 definition MAX_TIMESTAMP() returns uint256 = 2^32 - 1;
@@ -77,15 +81,20 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
  */
 invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
     0 <= i && i < j && j < 9 =>
-        getActiveMasked(account, i) == 0 ? 
-            getActiveMasked(account, j) == 0 :
-            getActiveUnmasked(account, i) < getActiveUnmasked(account, j)
+        // If the current slot is zero then the next slot must also be zero
+        getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
+            hasValidMask(account, i) && (
+                // The next slot may terminate
+                getActiveMasked(account, j) == 0 ||
+                // Or it may have a value which must be greater than the current value
+                (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
+            )
 
 /**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
-    0 <= i && i < 9 && getBitmapCurrency(account) != 0 =>
+    0 <= i && i < 9 && getBitmapCurrency(account) != 0 && hasValidMask(account, i) =>
         getActiveUnmasked(account, i) != getBitmapCurrency(account)
 
 // Requires portfolio integration....
