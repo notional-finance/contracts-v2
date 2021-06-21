@@ -206,18 +206,19 @@ Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=
 ```
 
 - activeCurrenciesAreNotDuplicatedAndSorted: Don't understand how i == j in the failing condition
+- OwnerGovernance.spec: cannot use bitVectorTheory and i think this causes some things to fail, need to white list methods is kind of annoying, should remove them from the report?
 
 ## TODO Specs:
 
 1. cashGroupSpec: cannot run with calldata, solidity cannot take args with memory array parameters...
-1. ntoken getter setter: todo
+1. ntoken getter setter: governance action spec...
 1. liquidity curve spec: todo, add harness, last two invariants
 1. valuation spec: todo, need to make harness and code invariants
    - asset value (fCash, liquidity token)
    - get portfolio value (nToken, bitmap, array) when oracle rates zre 0
    - exchange rate and asset rates are valid
    - free collateral when exchange rates are 1
-1. settlement spec:
+1. settlement spec: TODO: merge this into the account context spec
 1. balance / token handler spec:
 1. incentive handler spec:
 1. liquidation specs: todo
