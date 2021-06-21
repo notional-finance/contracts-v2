@@ -6,6 +6,7 @@
 - Is there a way to combine invariants?
 - Is there a way to decompose what the calldataargs are in this code example?
   https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
+- Why not allow named parameters in ghosts?
 
 ```
 rule validityOfTotalFundsWithVars(method f) {

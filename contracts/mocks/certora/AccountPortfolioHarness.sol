@@ -4,9 +4,12 @@ pragma experimental ABIEncoderV2;
 
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/BitmapAssetsHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/markets/DateTime.sol";
 
 contract AccountPortfolioHarness {
     using AccountContextHandler for AccountContext;
+    using PortfolioHandler for PortfolioState;
 
     function getNextSettleTime(address account) external view returns (uint40) {
         return AccountContextHandler.getAccountContext(account).nextSettleTime;
@@ -47,7 +50,98 @@ contract AccountPortfolioHarness {
         accountContext.setAccountContext(account);
     }
 
+    // This is just a harness for getting the settlement date
+    function getSettlementDate(uint256 assetType, uint256 maturity) public returns (uint256) {
+        return
+            AssetHandler.getSettlementDate(
+                PortfolioAsset({
+                    currencyId: 0,
+                    maturity: maturity,
+                    assetType: assetType,
+                    notional: 0,
+                    storageSlot: 0,
+                    storageState: AssetStorageState.NoChange
+                })
+            );
+    }
+
+    function getMaturityAtBitNum(address account, uint256 bitNum) public returns (uint256) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        return DateTime.getMaturityFromBitNum(accountContext.nextSettleTime, bitNum);
+    }
+
+    function getAssets(address account) public returns (PortfolioAsset[] memory portfolio) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (accountContext.bitmapCurrencyId != 0) {
+            portfolio = BitmapAssetsHandler.getifCashArray(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime
+            );
+        } else {
+            portfolio = PortfolioHandler.getSortedPortfolio(
+                account,
+                accountContext.assetArrayLength
+            );
+        }
+    }
+
+    // Adds one asset into the array portfolio at a time
+    function addArrayAsset(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        int256 notional
+    ) public {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+
+        PortfolioState memory portfolioState =
+            // TODO: need to test isNewHint somehow...
+            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        portfolioState.addAsset(currencyId, maturity, assetType, notional, false);
+
+        // TODO: disable liquidation on this, will test separately
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        accountContext.setAccountContext(account);
+    }
+
+    function addBitmapAsset(
+        address account,
+        uint256 maturity,
+        int256 notional
+    ) public {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        bytes32 ifCashBitmap =
+            BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+        int256 finalfCashAmount;
+
+        (ifCashBitmap, finalfCashAmount) = BitmapAssetsHandler.addifCashAsset(
+            account,
+            accountContext.bitmapCurrencyId,
+            maturity,
+            accountContext.nextSettleTime,
+            notional,
+            ifCashBitmap
+        );
+
+        // This is a replication of logic in trading action...
+        if (finalfCashAmount < 0) {
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
+        }
+
+        BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
+    }
+
+    // todo: add settlement methods here...
+
     /*
+    function setActiveCurrency2(address account, bytes18 activeCurrencies) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.activeCurrencies = activeCurrencies;
+        accountContext.setAccountContext(account);
+    }
+
     function setActiveCurrency(
         address account,
         uint256 currencyId,
@@ -59,19 +153,4 @@ contract AccountPortfolioHarness {
         accountContext.setAccountContext(account);
     }
     */
-
-    function storeArrayAssets(
-        address account,
-        PortfolioState memory portfolioState,
-        bool isLiquidation
-    ) public returns (AccountContext memory) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState, isLiquidation);
-        accountContext.setAccountContext(account);
-
-        return accountContext;
-    }
-
-    // todo: add bitmap mocks
-    // todo: add settlement?
 }

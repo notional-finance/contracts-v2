@@ -22,6 +22,7 @@ library BitmapAssetsHandler {
         pure
         returns (bytes32)
     {
+        require(currencyId != 0); // dev: invalid currency id for assets bitmap
         return
             keccak256(
                 abi.encode(
