@@ -43,6 +43,10 @@ contract GovernanceActionHarness is GovernanceAction {
         assetRate = assetToUnderlyingRateMapping[currencyId];
     }
 
+    function getMaxMarketIndex(uint16 currencyId) external view returns (uint256) {
+        return CashGroup.getMaxMarketIndex(currencyId);
+    }
+
     /// @notice Returns market initialization parameters for a given currency
     function getInitializationParameters(uint16 currencyId)
         external
@@ -72,6 +76,21 @@ contract GovernanceActionHarness is GovernanceAction {
     /// @notice Returns nToken address for a given currency
     function nTokenAddress(uint16 currencyId) external view returns (address) {
         return nTokenHandler.nTokenAddress(currencyId);
+    }
+
+    function getNTokenAccount(address tokenAddress)
+        external
+        view
+        returns (bytes6 nTokenParameters, uint256 incentiveAnnualEmissionRate)
+    {
+        // prettier-ignore
+        (
+            /* currencyId */,
+            /* totalSupply */,
+            incentiveAnnualEmissionRate,
+            /* lastInitializedTime */,
+            nTokenParameters
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
     }
 
     /// @notice Returns address of contract owner

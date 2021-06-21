@@ -4,6 +4,9 @@
 
 - Is there a way to exclude a function from being included in invariant calculations?
 - Is there a way to combine invariants?
+- How do you do the `forall uint256 x.` syntax?
+- How do you iterate over arrays?
+- Can you convert between integer types?
 - Is there a way to decompose what the calldataargs are in this code example?
   https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
 - Why not allow named parameters in ghosts?
@@ -211,14 +214,14 @@ Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=
 ## TODO Specs:
 
 1. cashGroupSpec: cannot run with calldata, solidity cannot take args with memory array parameters...
-1. ntoken getter setter: governance action spec...
+1. ntoken getter setter: how do i convert data types between integers sizes (uint32 => uint256, etc)
+1. settlement spec: TODO: merge this into the account context spec
 1. liquidity curve spec: todo, add harness, last two invariants
 1. valuation spec: todo, need to make harness and code invariants
    - asset value (fCash, liquidity token)
    - get portfolio value (nToken, bitmap, array) when oracle rates zre 0
    - exchange rate and asset rates are valid
    - free collateral when exchange rates are 1
-1. settlement spec: TODO: merge this into the account context spec
 1. balance / token handler spec:
 1. incentive handler spec:
 1. liquidation specs: todo
