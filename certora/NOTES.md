@@ -217,11 +217,15 @@ Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=
 1. ntoken getter setter: how do i convert data types between integers sizes (uint32 => uint256, etc)
 1. settlement spec: TODO: merge this into the account context spec
 1. balance / token handler spec: TODO: merge this with the portfolio context spec using ghosts?
-1. liquidity curve spec: todo, add harness, last two invariants
+1. liquidity curve spec: todo, last two invariants
 1. valuation spec: todo, need to make harness and code invariants
    - asset value (fCash, liquidity token)
    - get portfolio value (nToken, bitmap, array) when oracle rates zre 0
    - exchange rate and asset rates are valid
    - free collateral when exchange rates are 1
 1. incentive handler spec:
-1. liquidation specs: todo
+1. liquidation specs: todo:
+   - local net available, collateral net available, fc must increase
+   - check aggregate balances do not change
+1. nToken Mint / Redeem: todo
+1. Initialize Markets: todo
