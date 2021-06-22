@@ -2,9 +2,7 @@
  * Ensures that all portfolio assets in the portfolio arrays are tracked properly on the account
  * context object (including on both the bitmap and asset array portfolios)
  */
-
 methods {
-    getAccountContextSlot(address account) returns (uint256) envfree
     getNextSettleTime(address account) returns (uint40) envfree
     getHasDebt(address account) returns (uint8) envfree
     getAssetArrayLength(address account) returns (uint8) envfree
@@ -161,39 +159,46 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
  * and sorted properly.
  */
 invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
-    0 <= i && i < j && j < 9 =>
-        // If the current slot is zero then the next slot must also be zero
-        getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
-            hasValidMask(account, i) && (
-                // The next slot may terminate
-                getActiveMasked(account, j) == 0 ||
-                // Or it may have a value which must be greater than the current value
-                (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
-            )
+    (0 <= i && j == i + 1 && j < 9) =>
+        (
+            // If the current slot is zero then the next slot must also be zero
+            getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
+                hasValidMask(account, i) && (
+                    // The next slot may terminate
+                    getActiveMasked(account, j) == 0 ||
+                    // Or it may have a value which must be greater than the current value
+                    (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
+                )
+        )
 
 /**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
     0 <= i && i < 9 && getBitmapCurrency(account) != 0 &&
-        // When a bitmap is enable it can only have currency masks in the active currencies bytes
-        (hasCurrencyMask(account, i) || getActiveMasked(account, i) == 0) =>
-        getActiveUnmasked(account, i) != getBitmapCurrency(account)
+        (
+            // When a bitmap is enable it can only have currency masks in the active currencies bytes
+            (hasCurrencyMask(account, i) && getActiveUnmasked(account, i) == 0) || 
+                getActiveMasked(account, i) == 0
+        ) => getActiveUnmasked(account, i) != getBitmapCurrency(account)
 
 /* Asset array length in the portfolio context must always match how the storage array is set */
 invariant assetArrayLengthAlwaysMatchesActual(address account, uint256 index)
-    index >= getAssetArrayLength(account) ?
-        // If the index is past the end of the asset array length then it must be set to zero
-        assetBytesAtIndex(account, index) == 0x0000000000000000000000000000000000000000000000000000000000000000 :
-        // Otherwise it must not be set to zero (it must have a value)
-        assetBytesAtIndex(account, index) != 0x0000000000000000000000000000000000000000000000000000000000000000
+    index >= (
+        getAssetArrayLength(account) ?
+            // If the index is past the end of the asset array length then it must be set to zero
+            assetBytesAtIndex(account, index) == 0x0000000000000000000000000000000000000000000000000000000000000000 :
+            // Otherwise it must not be set to zero (it must have a value)
+            assetBytesAtIndex(account, index) != 0x0000000000000000000000000000000000000000000000000000000000000000
+    )
 
 /* Active currencies that are set to active in the portfolio must match */
 invariant activeCurrencyAssetFlagsMatchActual(address account, uint256 i)
-    0 <= i && i < 9 =>
+    (0 <= i && i < 9) => (
         hasPortfolioMask(account, i) ?
             isCurrencyActive(account, getActiveUnmasked(account, i)) == true :
             isCurrencyActive(account, getActiveUnmasked(account, i)) == false
+    )
 
 /* Minimum settlement time on the account context must match what is stored on the asset array */
 invariant minSettlementTimeMatchesActualForAssetArray(address account)
@@ -201,12 +206,13 @@ invariant minSettlementTimeMatchesActualForAssetArray(address account)
 
 /* Portfolio debt set on the account context must be set to true */
 invariant hasPortfolioDebtMatchesActual(address account)
-    getHasDebt(account) & 0x01 == 0x01) == hasPortfolioDebt(account)
+    (getHasDebt(account) & 0x01 == 0x01) == hasPortfolioDebt(account)
 
 /* Checks if a bit is set in the bitmap then the fcash asset must match */
 invariant allBitmapBitsAreValid(address account, uint256 currencyId, uint256 bitNum)
-    1 <= bitNum && bitNum <= 256 =>
+    (1 <= bitNum && bitNum <= 256) => (
         isAssetBitSet(account, bitNum) ?
             getifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) ==
                 ifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) :
             getifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) == 0
+    )
