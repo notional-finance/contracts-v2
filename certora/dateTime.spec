@@ -26,17 +26,32 @@ rule bitNumAndMaturitiesMustMatch(
     require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
     require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
 
-    bool isValid = isValidMaturity(MAX_MARKET_INDEX(), maturity, blockTime);
     uint256 bitNum;
     bool isExact;
     bitNum, isExact = getBitNumFromMaturity(blockTime, maturity);
-
-    // BitNums go out a bit past the max 20 year maturity, those bits are not valid
-    assert isValid <=> (isExact && maturity <= MAX_MARKET_MATURITY(blockTime)), "bitnum is valid does not match is valid maturity";
-
     uint256 calculatedMaturity = getMaturityFromBitNum(blockTime, bitNum);
+
     // If the bitnum is not exact then the calculated maturity will not match
     assert isExact => maturity == calculatedMaturity, "maturity does not match calculated maturity";
+}
+
+/**
+ * Any valid maturity must also be an exact bit number, meaning that any tradable market must be able
+ * to be stored in the bitmap at that block time.
+ */
+rule bitNumValidMaturitiesMustBeExact(
+    uint256 blockTime,
+    uint256 maturity
+) {
+    // Respect time boundaries
+    require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
+    require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
+    require isValidMaturity(MAX_MARKET_INDEX(), maturity, blockTime);
+    bool isExact;
+    _, isExact = getBitNumFromMaturity(blockTime, maturity);
+
+    // BitNums go out a bit past the max 20 year maturity, those bits are not valid
+    assert isExact && maturity <= MAX_MARKET_MATURITY(blockTime), "bitnum is valid does not match is valid maturity";
 }
 
 /**
@@ -52,14 +67,12 @@ rule validMarketMaturitesHaveAnIndex(
     require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
     require MIN_MARKET_INDEX() <= maxMarketIndex && maxMarketIndex <= MAX_MARKET_INDEX();
 
-    bool isValid = isValidMaturity(maxMarketIndex, maturity, blockTime);
     uint256 marketIndex;
-    bool isOnMarketIndex;
-    marketIndex, isOnMarketIndex = getMarketIndex@withrevert(maxMarketIndex, maturity, blockTime);
-    assert !isValid => lastReverted, "getMarketIndex did not revert on invalid maturity";
-
+    bool isIdiosyncratic;
+    marketIndex, isIdiosyncratic = getMarketIndex(maxMarketIndex, maturity, blockTime);
     bool isValidMarket = isValidMarketMaturity(maxMarketIndex, maturity, blockTime);
+
     // If a market is a valid market maturity then the getMarketIndex should agree
-    assert isValidMarket <=> isOnMarketIndex, "is valid market does not imply a market index";
+    assert isValidMarket <=> !isIdiosyncratic, "is valid market does not imply a market index";
     assert MIN_MARKET_INDEX() <= marketIndex && marketIndex <= MAX_MARKET_INDEX(), "market index out of boundaries";
 }

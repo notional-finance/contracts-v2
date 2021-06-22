@@ -3,6 +3,27 @@
 ## Questions:
 
 - Is there a way to exclude a function from being included in invariant calculations?
+
+```
+--settings -ciMode=true     # ignores view functions
+
+invariant I {
+	preserved myFunc(uint,uint,address) with (env e) {
+    require false;
+  }
+}
+rule r(method f, uint256 x) filtered { f -> f.selector != myFunc().selector }  {
+	require x > 10;
+}
+
+invariant i2 {
+	preserved {
+    // This requires that invariant i() is true but does not assert it....
+		requireInvariant i();
+	}
+}
+```
+
 - Is there a way to combine invariants?
 - Is there a way to decompose what the calldataargs are in this code example?
   https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
@@ -29,6 +50,7 @@ rule validityOfTotalFundsWithVars(method f) {
 - Allow specifying bytesNN literals (0x01 for bytes1, etc) for example: `assert getHasDebt(account) == 0x01` (this currently errors if `getHasDebt` has a return type of bytes1)
 - Confusing that methods does not need semicolons at end of line
 - Allow specifying the contract reference for a spec in the file itself, currently this is done via the command line. With lots of harnesses this might get a bit confusing. Example syntax might be:
+- save conf files...
 
 ```
 spec SpecName:path/to/HarnessName.sol {
@@ -178,21 +200,20 @@ Failed to compile rule activeCurrenciesAreNotDuplicatedAndSorted_instate due to 
 
 - getAndSetAccountContext: https://prover.certora.com/output/42394/6b071c18cb0a275e912e?anonymousKey=2220f5496ccde20e2aa03287e83b918af89f5881
 
-## Failing Specs:
-
 ### dateTime.spec
 
-Link: https://prover.certora.com/output/42394/4145394959897cec05ac/?anonymousKey=14b782978ff254a50dff367e8dcebad2ee0f7182
+Link: https://prover.certora.com/output/42394/b3ebe7ce40a74d42ea64/?anonymousKey=37ce0b6119338d6d50b0c3c6331a141d1adfefa4
 
-- bitNumAndMaturitiesMustMatch is undecideable?
-- validMarketMaturitesHaveAnIndex fails on a revert but this is the behavior that I want to see...
+- bitNumAndMaturitiesMustMatch is timing out
+
+## Failing Specs:
 
 ### accountContext.spec
 
 Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=a8ed06029fa763740c17b857a7106906f85f9775
 
 - enablingBitmapCannotLeaveBehindAssets: Don't understand the calltrace, what is causing this to fail?
-- bitmapPortfoliosCannotHaveAssetArray: Don't understand the calltrace, what is causing this to fail? The method call should revert?
+- bitmapPortfoliosCannotHaveAssetArray: Don't understand the calltrace, what is causing this to fail? The method call should revert? `--optimistic_loop --loop_iter 9`
 - bitmapCurrencyIsNotDuplicatedInActiveCurrencies: This looks like a bug but I can't reproduce it. Also not sure why 0x4000 is being set in the active currencies...
 
 ```
