@@ -59,19 +59,4 @@ contract AccountPortfolioHarness {
         accountContext.setAccountContext(account);
     }
     */
-
-    function storeArrayAssets(
-        address account,
-        PortfolioState memory portfolioState,
-        bool isLiquidation
-    ) public returns (AccountContext memory) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState, isLiquidation);
-        accountContext.setAccountContext(account);
-
-        return accountContext;
-    }
-
-    // todo: add bitmap mocks
-    // todo: add settlement?
 }

@@ -1,5 +1,4 @@
 methods {
-    getAccountContextSlot(address account) returns (uint256) envfree
     getNextSettleTime(address account) returns (uint40) envfree
     getHasDebt(address account) returns (uint8) envfree
     getAssetArrayLength(address account) returns (uint8) envfree
@@ -82,24 +81,28 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
  * and sorted properly.
  */
 invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
-    0 <= i && i < j && j < 9 =>
+    (0 <= i && j == i + 1 && j < 9) =>
         // If the current slot is zero then the next slot must also be zero
-        getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
-            hasValidMask(account, i) && (
-                // The next slot may terminate
-                getActiveMasked(account, j) == 0 ||
-                // Or it may have a value which must be greater than the current value
-                (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
-            )
+        (
+            getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
+                hasValidMask(account, i) && (
+                    // The next slot may terminate
+                    getActiveMasked(account, j) == 0 ||
+                    // Or it may have a value which must be greater than the current value
+                    (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
+                )
+        )
 
 /**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
     0 <= i && i < 9 && getBitmapCurrency(account) != 0 &&
-        // When a bitmap is enable it can only have currency masks in the active currencies bytes
-        (hasCurrencyMask(account, i) || getActiveMasked(account, i) == 0) =>
-        getActiveUnmasked(account, i) != getBitmapCurrency(account)
+        (
+            // When a bitmap is enable it can only have currency masks in the active currencies bytes
+            (hasCurrencyMask(account, i) && getActiveUnmasked(account, i) == 0) ||
+                getActiveMasked(account, i) == 0
+        ) => getActiveUnmasked(account, i) != getBitmapCurrency(account)
 
 // Requires portfolio integration....
 // rule activeCurrencyAssetFlagsMatchesActual { }

@@ -69,133 +69,6 @@ definition MAX_TIMESTAMP() returns uint256 = 2^32 - 1;
 definition MIN_TIMESTAMP() returns uint256 = 7776000;
 ```
 
-- This spec throws the following type error. It should be possible to do `i + 1`? Either way this does not error on the client side before submitting to the server.
-
-```
-definition getActiveMasked(address account, uint144 index) returns uint144 =
-    (getActiveCurrencies(account) >> (128 - index * 16)) & 0x00000000000000000000000000000000ffff;
-definition getActiveUnmasked(address account, uint144 index) returns uint144 =
-    (getActiveCurrencies(account) >> (128 - index * 16)) & 0x000000000000000000000000000000003fff;
-definition hasValidMask(address account, uint144 index) returns bool =
-    (getActiveMasked(account, index) & 0x000000000000000000000000000000008000 == 0x000000000000000000000000000000008000) ||
-    (getActiveMasked(account, index) & 0x000000000000000000000000000000004000 == 0x000000000000000000000000000000004000) ||
-    (getActiveMasked(account, index) & 0x00000000000000000000000000000000c000 == 0x00000000000000000000000000000000c000);
-
-invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i)
-    0 <= i && i < i + 1 && i + 1 < 9 =>
-        // If the current slot is zero then the next slot must also be zero
-        getActiveMasked(account, i) == 0 ? getActiveMasked(account, i + 1) == 0 :
-            hasValidMask(account, i) && (
-                // The next slot may terminate
-                getActiveMasked(account, i + 1) == 0 ||
-                // Or it may have a value which must be greater than the current value
-                (hasValidMask(account, i + 1) && getActiveUnmasked(account, i) < getActiveUnmasked(account, i + 1))
-            )
-Here is the job ID:
-Status page: https://prover.certora.com/jobStatus/42394/f8d4357e9661b820fdff?anonymousKey=af0c4fb5d8adb5e785b8c439c6f7d45280cc6b99
-Verification report: https://prover.certora.com/output/42394/f8d4357e9661b820fdff?anonymousKey=af0c4fb5d8adb5e785b8c439c6f7d45280cc6b99
-Full report: https://prover.certora.com/zipOutput/42394/f8d4357e9661b820fdff?anonymousKey=af0c4fb5d8adb5e785b8c439c6f7d45280cc6b99
-
-[main] ERROR TAC_TYPE_CHECKER - Argument tacTmp9887:int to the expression Mul(tacTmp9887:int tacTmp9890:bv256) is expected to be of type bv256 not Simple(type=int)
-[main] ERROR log.Logger - Got exception A type error was found in CVLExp_i+int1 when compiling rule activeCurrenciesAreNotDuplicatedAndSorted_preserve
-[main] ERROR log.Logger - analysis.TypeCheckerException: A type error was found in CVLExp_i+int1
-        at analysis.TypeChecker$Companion.checkProgram(TypeChecker.kt:185)
-        at vc.data.CoreTACProgram.<init>(TACProgram.kt:697)
-        at vc.data.CoreTACProgram.copy(TACProgram.kt)
-        at vc.data.CoreTACProgram.copy$default(TACProgram.kt)
-        at vc.data.CoreTACProgram.addSink(TACProgram.kt:1256)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:46)
-        at spec.CVLExpressionCompiler.compileMulExp(CVLExpressionCompiler.kt:123)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:822)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:44)
-        at spec.CVLExpressionCompiler.compileSubExp(CVLExpressionCompiler.kt:92)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:829)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:44)
-        at spec.CVLExpressionCompiler.compileBwRightShiftArithmeticalExp(CVLExpressionCompiler.kt:267)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:817)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:43)
-        at spec.CVLExpressionCompiler.compileBwAndExp(CVLExpressionCompiler.kt:228)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:815)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:43)
-        at spec.CVLExpressionCompiler.compileEqExp(CVLExpressionCompiler.kt:629)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:794)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileCondExp(CVLExpressionCompiler.kt:56)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:848)
-        at spec.CVLCompiler.assumeExp(CVLCompiler.kt:612)
-        at spec.CVLCompiler.assumeExp$default(CVLCompiler.kt:609)
-        at spec.CVLCompiler.compileAssumeCmd(CVLCompiler.kt:905)
-        at spec.CVLCompiler.compileCommand$EVMVerifier(CVLCompiler.kt:407)
-        at spec.CVLCompiler.compileRule(CVLCompiler.kt:1096)
-        at rules.RuleChecker.compileRuleWithCode(RuleChecker.kt:43)
-        at rules.RuleChecker.singleRuleCheck(RuleChecker.kt:69)
-        at rules.RuleChecker.check(RuleChecker.kt:441)
-        at rules.RuleChecker.handleAllSubRules(RuleChecker.kt:428)
-        at rules.RuleChecker.handleAllSubRules$default(RuleChecker.kt:427)
-        at rules.RuleChecker.groupRuleCheck(RuleChecker.kt:393)
-        at rules.RuleChecker.check(RuleChecker.kt:442)
-        at rules.SpecChecker.check(SpecChecker.kt:110)
-        at rules.SpecChecker.checkAll(SpecChecker.kt:131)
-        at verifier.IntegrativeChecker.handleCVLs(IntegrativeChecker.kt:247)
-        at verifier.IntegrativeChecker.runWithScene(IntegrativeChecker.kt:443)
-        at verifier.IntegrativeChecker.run(IntegrativeChecker.kt:270)
-        at EntryPointKt.handleCertoraScriptFlow(EntryPoint.kt:197)
-        at EntryPointKt.main(EntryPoint.kt:99)
-Failed to compile rule activeCurrenciesAreNotDuplicatedAndSorted_preserve due to analysis.TypeCheckerException: A type error was found in CVLExp_i+int1
-[main] ERROR TAC_TYPE_CHECKER - Argument tacTmp9927:int to the expression Mul(tacTmp9927:int tacTmp9930:bv256) is expected to be of type bv256 not Simple(type=int)
-[main] ERROR log.Logger - Got exception A type error was found in CVLExp_i+int1 when compiling rule activeCurrenciesAreNotDuplicatedAndSorted_instate
-[main] ERROR log.Logger - analysis.TypeCheckerException: A type error was found in CVLExp_i+int1
-        at analysis.TypeChecker$Companion.checkProgram(TypeChecker.kt:185)
-        at vc.data.CoreTACProgram.<init>(TACProgram.kt:697)
-        at vc.data.CoreTACProgram.copy(TACProgram.kt)
-        at vc.data.CoreTACProgram.copy$default(TACProgram.kt)
-        at vc.data.CoreTACProgram.addSink(TACProgram.kt:1256)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:46)
-        at spec.CVLExpressionCompiler.compileMulExp(CVLExpressionCompiler.kt:123)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:822)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:44)
-        at spec.CVLExpressionCompiler.compileSubExp(CVLExpressionCompiler.kt:92)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:829)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:44)
-        at spec.CVLExpressionCompiler.compileBwRightShiftArithmeticalExp(CVLExpressionCompiler.kt:267)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:817)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:43)
-        at spec.CVLExpressionCompiler.compileBwAndExp(CVLExpressionCompiler.kt:228)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:815)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileBinary(CVLExpressionCompiler.kt:43)
-        at spec.CVLExpressionCompiler.compileEqExp(CVLExpressionCompiler.kt:629)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:794)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:777)
-        at spec.CVLExpressionCompiler.compileCondExp(CVLExpressionCompiler.kt:56)
-        at spec.CVLExpressionCompiler.compileExp(CVLExpressionCompiler.kt:848)
-        at spec.CVLCompiler.compileAssertCmd(CVLCompiler.kt:917)
-        at spec.CVLCompiler.compileCommand$EVMVerifier(CVLCompiler.kt:410)
-        at spec.CVLCompiler.compileRule(CVLCompiler.kt:1096)
-        at rules.RuleChecker.compileRuleWithCode(RuleChecker.kt:43)
-        at rules.RuleChecker.singleRuleCheck(RuleChecker.kt:69)
-        at rules.RuleChecker.check(RuleChecker.kt:441)
-        at rules.RuleChecker.handleAllSubRules(RuleChecker.kt:428)
-        at rules.RuleChecker.handleAllSubRules$default(RuleChecker.kt:427)
-        at rules.RuleChecker.groupRuleCheck(RuleChecker.kt:393)
-        at rules.RuleChecker.check(RuleChecker.kt:442)
-        at rules.SpecChecker.check(SpecChecker.kt:110)
-        at rules.SpecChecker.checkAll(SpecChecker.kt:131)
-        at verifier.IntegrativeChecker.handleCVLs(IntegrativeChecker.kt:247)
-        at verifier.IntegrativeChecker.runWithScene(IntegrativeChecker.kt:443)
-        at verifier.IntegrativeChecker.run(IntegrativeChecker.kt:270)
-        at EntryPointKt.handleCertoraScriptFlow(EntryPoint.kt:197)
-        at EntryPointKt.main(EntryPoint.kt:99)
-Failed to compile rule activeCurrenciesAreNotDuplicatedAndSorted_instate due to analysis.TypeCheckerException: A type error was found in CVLExp_i+int1
-```
-
 ## Passing Specs:
 
 - getAndSetAccountContext: https://prover.certora.com/output/42394/6b071c18cb0a275e912e?anonymousKey=2220f5496ccde20e2aa03287e83b918af89f5881
@@ -206,26 +79,13 @@ Link: https://prover.certora.com/output/42394/b3ebe7ce40a74d42ea64/?anonymousKey
 
 - bitNumAndMaturitiesMustMatch is timing out
 
-## Failing Specs:
-
 ### accountContext.spec
 
-Link: https://prover.certora.com/output/42394/4bb4ab3dd4084e5eb8d6?anonymousKey=a8ed06029fa763740c17b857a7106906f85f9775
+Link: https://prover.certora.com/output/42394/40b57a2db954ccf6e7d0/?anonymousKey=e9d1e62a2327a30b3133dbe63a060e4eaac45486
 
-- enablingBitmapCannotLeaveBehindAssets: Don't understand the calltrace, what is causing this to fail?
-- bitmapPortfoliosCannotHaveAssetArray: Don't understand the calltrace, what is causing this to fail? The method call should revert? `--optimistic_loop --loop_iter 9`
-- bitmapCurrencyIsNotDuplicatedInActiveCurrencies: This looks like a bug but I can't reproduce it. Also not sure why 0x4000 is being set in the active currencies...
+- activeCurrenciesAreNotDuplicatedAndSorted: might be a logic bug in the spec but I don't really understand it
 
-```
-    # This test passes...
-    def test_reproduce(self, AccountPortfolioHarness, accounts):
-        ac = AccountPortfolioHarness.deploy({"from": accounts[0]})
-        ac.setActiveCurrency(HexString(0, 'bytes20'), 0x2000, True, 0x4000)
-        ac.enableBitmapForAccount(HexString(0, 'bytes20'), 0x2000, 0xa7542200)
-        assert ac.getActiveCurrencies(HexString(0, 'bytes20')) == 0
-```
-
-- activeCurrenciesAreNotDuplicatedAndSorted: Don't understand how i == j in the failing condition
+## Failing Specs:
 
 ## TODO Specs:
 
