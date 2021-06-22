@@ -25,8 +25,12 @@ invariant i2 {
 ```
 
 - Is there a way to combine invariants?
+- How do you do the `forall uint256 x.` syntax?
+- How do you iterate over arrays?
+- Can you convert between integer types?
 - Is there a way to decompose what the calldataargs are in this code example?
   https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
+- Why not allow named parameters in ghosts?
 
 ```
 rule validityOfTotalFundsWithVars(method f) {
@@ -87,17 +91,23 @@ Link: https://prover.certora.com/output/42394/40b57a2db954ccf6e7d0/?anonymousKey
 
 ## Failing Specs:
 
+- OwnerGovernance.spec: cannot use bitVectorTheory and i think this causes some things to fail, need to white list methods is kind of annoying, should remove them from the report?
+
 ## TODO Specs:
 
 1. cashGroupSpec: cannot run with calldata, solidity cannot take args with memory array parameters...
-1. ntoken getter setter: todo
-1. liquidity curve spec: todo, add harness, last two invariants
+1. ntoken getter setter: how do i convert data types between integers sizes (uint32 => uint256, etc)
+1. settlement spec: TODO: merge this into the account context spec
+1. balance / token handler spec: TODO: merge this with the portfolio context spec using ghosts?
+1. liquidity curve spec: todo, last two invariants
 1. valuation spec: todo, need to make harness and code invariants
    - asset value (fCash, liquidity token)
    - get portfolio value (nToken, bitmap, array) when oracle rates zre 0
    - exchange rate and asset rates are valid
    - free collateral when exchange rates are 1
-1. settlement spec:
-1. balance / token handler spec:
 1. incentive handler spec:
-1. liquidation specs: todo
+1. liquidation specs: todo:
+   - local net available, collateral net available, fc must increase
+   - check aggregate balances do not change
+1. nToken Mint / Redeem: todo
+1. Initialize Markets: todo

@@ -120,6 +120,10 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external override onlyOwner {
+        require(
+            depositShares.length == CashGroup.getMaxMarketIndex(currencyId),
+            "Invalid array length"
+        );
         nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
         emit UpdateDepositParameters(currencyId);
     }
@@ -138,6 +142,10 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         uint32[] calldata rateAnchors,
         uint32[] calldata proportions
     ) external override onlyOwner {
+        require(
+            rateAnchors.length == CashGroup.getMaxMarketIndex(currencyId),
+            "Invalid array length"
+        );
         nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
         emit UpdateInitializationParameters(currencyId);
     }

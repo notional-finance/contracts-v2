@@ -233,6 +233,8 @@ library AccountContextHandler {
         PortfolioState memory portfolioState,
         bool isLiquidation
     ) internal {
+        require(accountContext.bitmapCurrencyId == 0); // dev: cannot store array if bitmap currency set
+
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =
             portfolioState.storeAssets(account);
 
