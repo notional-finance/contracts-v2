@@ -28,7 +28,7 @@ source venv/bin/activate
 # 	--solc_args "['--optimize', '--optimize-runs', '200']" \
 
 certoraRun contracts/mocks/certora/AccountPortfolioHarness.sol \
-	--verify AccountPortfolioHarness:certora/AccountContext.spec \
+	--verify AccountPortfolioHarness:certora/AccountContext2.spec \
 	--rule_sanity \
 	--optimistic_loop \
 	--loop_iter 9 \
