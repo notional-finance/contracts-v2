@@ -24,32 +24,13 @@ invariant i2 {
 }
 ```
 
-- Is there a way to combine invariants?
 - How do you do the `forall uint256 x.` syntax?
 - How do you iterate over arrays?
 - Can you convert between integer types?
-- Is there a way to decompose what the calldataargs are in this code example?
-  https://github.com/Certora/CertoraProverSupplementary/blob/master/Tutorials/Lesson1/Parametric.spec
-- Why not allow named parameters in ghosts?
-
-```
-rule validityOfTotalFundsWithVars(method f) {
-	env e;
-  ...
-
-	calldataarg arg; // any argument
-  // Can I do something like this?
-  uint argSlot1, bytes32 argSlot2 = arg;
-  require argSlot1 > 0;
-	sinvoke f(e, arg); // simulate only non reverting paths
-
-  ...
-}
-```
 
 ## Feature requests:
 
-- Would be nice to have a directory of all the prover runs for reference
+- Why not allow named parameters in ghosts?
 - Allow handling of bytesNN
 - Allow specifying bytesNN literals (0x01 for bytes1, etc) for example: `assert getHasDebt(account) == 0x01` (this currently errors if `getHasDebt` has a return type of bytes1)
 - Confusing that methods does not need semicolons at end of line

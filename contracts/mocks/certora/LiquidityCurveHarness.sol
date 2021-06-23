@@ -32,6 +32,11 @@ contract LiquidityCurveHarness {
         return market;
     }
 
+    function getRateOracleTimeWindow() external view returns (uint256) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        return cashGroup.getRateOracleTimeWindow();
+    }
+
     function getStoredOracleRate() external view returns (uint256) {
         uint256 settlementDate = DateTime.getReferenceTime(block.timestamp) + Constants.QUARTER;
         bytes32 slot = Market.getSlot(CURRENCY_ID, settlementDate, MATURITY);
@@ -58,22 +63,16 @@ contract LiquidityCurveHarness {
         return _loadMarket().oracleRate;
     }
 
-    function getMarketfCash() external view returns (uint256) {
-        MarketParameters memory market = _loadMarket();
-        require(market.totalfCash >= 0);
-        return uint256(market.totalfCash);
+    function getMarketfCash() external view returns (int256) {
+        return _loadMarket().totalfCash;
     }
 
-    function getMarketAssetCash() external view returns (uint256) {
-        MarketParameters memory market = _loadMarket();
-        require(market.totalAssetCash >= 0);
-        return uint256(market.totalfCash);
+    function getMarketAssetCash() external view returns (int256) {
+        return _loadMarket().totalAssetCash;
     }
 
-    function getMarketLiquidity() external view returns (uint256) {
-        MarketParameters memory market = _loadMarket();
-        require(market.totalLiquidity >= 0);
-        return uint256(market.totalLiquidity);
+    function getMarketLiquidity() external view returns (int256) {
+        return _loadMarket().totalLiquidity;
     }
 
     function executeTrade(uint256 timeToMaturity, int256 fCashToAccount)
