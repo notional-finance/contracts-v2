@@ -70,20 +70,12 @@ contract AccountPortfolioHarness {
         return DateTime.getMaturityFromBitNum(accountContext.nextSettleTime, bitNum);
     }
 
-    function getAssets(address account) public returns (PortfolioAsset[] memory portfolio) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        if (accountContext.bitmapCurrencyId != 0) {
-            portfolio = BitmapAssetsHandler.getifCashArray(
-                account,
-                accountContext.bitmapCurrencyId,
-                accountContext.nextSettleTime
-            );
-        } else {
-            portfolio = PortfolioHandler.getSortedPortfolio(
-                account,
-                accountContext.assetArrayLength
-            );
-        }
+    function getifCashNotional(
+        address account,
+        uint256 currencyId,
+        uint256 maturity
+    ) external view returns (int256) {
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
     // Adds one asset into the array portfolio at a time

@@ -11,6 +11,7 @@ methods {
     getAssetsBitmap(address account) returns (bytes32) envfree
     getSettlementDate(uint256 assetType, uint256 maturity) returns (uint256) envfree
     getMaturityAtBitNum(address account, uint256 bitNum) returns (uint256) envfree
+    getifCashNotional(address account, uint256 currencyId, uint256 maturity) returns (int256) envfree
 }
 
 // Tracks the bytes stored at every asset array index
@@ -35,29 +36,29 @@ hook Sstore (slot 1000013)
     [INDEX uint256 index]
     bytes32 v STORAGE {
     // Update the asset bytes at the index
-    havoc assetBytesAtIndex assuming assetBytesAtIndex@new(account, index) == v &&
+    havoc assetBytesAtIndex assuming assetBytesAtIndex@new(account, index) == v && (
         forall address a.
         forall uint256 i.
-        a != account && i != index => assetBytesAtIndex@new(a, i) == assetBytesAtIndex@old(a, i);
+        a != account && i != index
+    ) => assetBytesAtIndex@new(a, i) == assetBytesAtIndex@old(a, i);
     
     uint256 currencyId = unpackAssetCurrencyId(v);
     // Set to true if the asset is set, false otherwise
-    havoc isCurrencyActive assuming isCurrencyActive@new(account, currencyId) == isAssetSet(v) &&
+    havoc isCurrencyActive assuming isCurrencyActive@new(account, currencyId) == isAssetSet(v) && (
         forall address a.
         forall uint256 c.
-        a != account && c != currencyId => isCurrencyActive@new(a, c) == isCurrencyActive@old(a, c);
+        a != account && c != currencyId
+    ) => isCurrencyActive@new(a, c) == isCurrencyActive@old(a, c);
 
     uint256 assetType = unpackAssetType(v);
     uint256 maturity = unpackAssetMaturity(v);
     uint256 settlementTime = getSettlementDate(assetType, maturity);
-    havoc minSettlementTime assuming minSettlementTime@new(account) == min(settlementTime, minSettlementTime@old(account))
-        forall address a.
-        a != account => minSettlementTime@new(a) == minSettlementTime@old(a);
+    havoc minSettlementTime assuming minSettlementTime@new(account) == min(settlementTime, minSettlementTime@old(account)) &&
+        (forall address a. a != account) => minSettlementTime@new(a) == minSettlementTime@old(a);
 
     int256 assetNotional = unpackAssetNotional(v);
-    havoc hasPortfolioDebt assuming hasPortfolioDebt@new(account) == assetNotional < 0
-        forall address a.
-        a != account => hasPortfolioDebt@new(a) == hasPortfolioDebt@old(a);
+    havoc hasPortfolioDebt assuming hasPortfolioDebt@new(account) == (assetNotional < 0) &&
+        (forall address a. a != account) => hasPortfolioDebt@new(a) == hasPortfolioDebt@old(a);
 }
 
 // ifCash asset storage offset
@@ -68,16 +69,17 @@ hook Sstore (slot 1000012)
     int256 v STORAGE {
 
     // Set new ifcash asset ghost
-    havoc ifCashAsset assuming ifCashAsset@new(account, currencyId, maturity) ==
+    havoc ifCashAsset assuming ifCashAsset@new(account, currencyId, maturity) == (
         forall address a.
         forall uint256 c.
         forall uint256 m.
-        a != account && c != currencyId && m != maturity => ifCashAsset@new(a, c, m) == ifCashAsset@old(a, c, m);
+        a != account && c != currencyId && m != maturity
+    ) => ifCashAsset@new(a, c, m) == ifCashAsset@old(a, c, m);
 
     // Set new portfolio debt ghost
-    havoc hasPortfolioDebt assuming hasPortfolioDebt@new(account) == v < 0
-        forall address a.
-        a != account => hasPortfolioDebt@new(a) == hasPortfolioDebt@old(a);
+    havoc hasPortfolioDebt assuming hasPortfolioDebt@new(account) == (v < 0) && (
+        forall address a. a != account
+    ) => hasPortfolioDebt@new(a) == hasPortfolioDebt@old(a);
 }
 
 // Unpacking asset array storage
@@ -93,11 +95,11 @@ definition unpackAssetNotional(bytes32 b) returns int256 =
 
 // Helpers for portfolio hooks
 definition isAssetSet(bytes32 v) returns bool =
-    v != 0x0000000000000000000000000000000000000000000000000000000000000000
+    v != 0x0000000000000000000000000000000000000000000000000000000000000000;
 definition min(uint256 a, uint256 b) returns uint256 = a < b ? a : b;
 definition isAssetBitSet(address account, uint256 bitNum) returns bool =
     (getAssetsBitmap(account) << (bitNum - 1)) & 0x8000000000000000000000000000000000000000000000000000000000000000 ==
-        0x8000000000000000000000000000000000000000000000000000000000000000
+        0x8000000000000000000000000000000000000000000000000000000000000000;
 
 /* Helper methods for active currencies */
 definition getActiveMasked(address account, uint144 index) returns uint144 =
@@ -202,7 +204,7 @@ invariant activeCurrencyAssetFlagsMatchActual(address account, uint256 i)
 
 /* Minimum settlement time on the account context must match what is stored on the asset array */
 invariant minSettlementTimeMatchesActualForAssetArray(address account)
-    getBitmapCurrencyId(account) == 0 => getNextSettleTime(account) == minSettlementTime(account)
+    getBitmapCurrency(account) == 0 => getNextSettleTime(account) == minSettlementTime(account)
 
 /* Portfolio debt set on the account context must be set to true */
 invariant hasPortfolioDebtMatchesActual(address account)
@@ -212,7 +214,7 @@ invariant hasPortfolioDebtMatchesActual(address account)
 invariant allBitmapBitsAreValid(address account, uint256 currencyId, uint256 bitNum)
     (1 <= bitNum && bitNum <= 256) => (
         isAssetBitSet(account, bitNum) ?
-            getifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) ==
+            getifCashNotional(account, currencyId, getMaturityAtBitNum(account, bitNum)) ==
                 ifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) :
-            getifCashAsset(account, currencyId, getMaturityAtBitNum(account, bitNum)) == 0
+            getifCashNotional(account, currencyId, getMaturityAtBitNum(account, bitNum)) == 0
     )
