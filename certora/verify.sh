@@ -29,13 +29,13 @@ source venv/bin/activate
 
 certoraRun contracts/mocks/certora/AccountPortfolioHarness.sol \
 	--verify AccountPortfolioHarness:certora/AccountContext.spec \
-	--solc ~/.solcx/solc-v0.7.5 \
 	--rule_sanity \
 	--optimistic_loop \
 	--loop_iter 9 \
 	--settings -smt_bitVectorTheory=true \
-	--packages_path '/home/jwu/.brownie/packages' \
-	--packages @openzeppelin=/home/jwu/.brownie/packages/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7 compound-finance=/home/jwu/.brownie/packages/compound-finance \
+	--solc "$HOME/.solcx/solc-v0.7.5" \
+	--packages_path "$HOME/.brownie/packages" \
+	--packages @openzeppelin="$HOME/.brownie/packages/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7" compound-finance="$HOME/.brownie/packages/compound-finance" \
 	--solc_args "['--optimize', '--optimize-runs', '200']" \
 
 # certoraRun contracts/mocks/certora/GovernanceActionHarness.sol \
