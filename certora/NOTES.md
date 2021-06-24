@@ -58,13 +58,13 @@ definition MIN_TIMESTAMP() returns uint256 = 7776000;
 
 - getAndSetAccountContext: https://prover.certora.com/output/42394/6b071c18cb0a275e912e?anonymousKey=2220f5496ccde20e2aa03287e83b918af89f5881
 
-### dateTime.spec
+### DateTime.spec
 
 Link: https://prover.certora.com/output/42394/b3ebe7ce40a74d42ea64/?anonymousKey=37ce0b6119338d6d50b0c3c6331a141d1adfefa4
 
 - bitNumAndMaturitiesMustMatch is timing out
 
-### accountContext.spec
+### AccountContext.spec
 
 Link: https://prover.certora.com/output/42394/40b57a2db954ccf6e7d0/?anonymousKey=e9d1e62a2327a30b3133dbe63a060e4eaac45486
 
