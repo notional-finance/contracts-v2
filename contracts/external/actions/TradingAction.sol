@@ -360,7 +360,7 @@ library TradingAction {
         // max amount to settle.
         amountToSettleAsset = BalanceHandler.setBalanceStorageForSettleCashDebt(
             counterparty,
-            cashGroup,
+            cashGroup.currencyId,
             amountToSettleAsset,
             counterpartyContext
         );

@@ -253,13 +253,13 @@ library BalanceHandler {
     /// @dev Use this method to avoid any nToken and transfer logic in finalize which is unnecessary.
     function setBalanceStorageForSettleCashDebt(
         address account,
-        CashGroupParameters memory cashGroup,
+        uint256 currencyId,
         int256 amountToSettleAsset,
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
         (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimSupply) =
-            getBalanceStorage(account, cashGroup.currencyId);
+            getBalanceStorage(account, currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
         if (amountToSettleAsset == 0) {
@@ -275,16 +275,12 @@ library BalanceHandler {
         // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
         // also have cash debts
         if (cashBalance == 0) {
-            accountContext.setActiveCurrency(
-                cashGroup.currencyId,
-                false,
-                Constants.ACTIVE_IN_BALANCES
-            );
+            accountContext.setActiveCurrency(currencyId, false, Constants.ACTIVE_IN_BALANCES);
         }
 
         _setBalanceStorage(
             account,
-            cashGroup.currencyId,
+            currencyId,
             cashBalance,
             nTokenBalance,
             lastClaimTime,
@@ -292,7 +288,7 @@ library BalanceHandler {
         );
 
         // Emit the event here, we do not call finalize
-        emit CashBalanceChange(account, uint16(cashGroup.currencyId), amountToSettleAsset);
+        emit CashBalanceChange(account, uint16(currencyId), amountToSettleAsset);
 
         return amountToSettleAsset;
     }

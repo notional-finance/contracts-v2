@@ -3,6 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../internal/AccountContextHandler.sol";
+import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/BitmapAssetsHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/markets/DateTime.sol";
@@ -10,6 +11,7 @@ import "../../internal/markets/DateTime.sol";
 contract AccountPortfolioHarness {
     using AccountContextHandler for AccountContext;
     using PortfolioHandler for PortfolioState;
+    using BalanceHandler for BalanceState;
 
     function getNextSettleTime(address account) external view returns (uint40) {
         return AccountContextHandler.getAccountContext(account).nextSettleTime;
@@ -79,6 +81,30 @@ contract AccountPortfolioHarness {
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
+    function getCashBalance(address account, uint256 currencyId) public returns (int256) {
+        // prettier-ignore
+        (int256 cashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(account, currencyId);
+        return cashBalance;
+    }
+
+    function getNTokenBalance(address account, uint256 currencyId) public returns (int256) {
+        // prettier-ignore
+        (/* */, int256 nTokenBalance, /* */, /* */) = BalanceHandler.getBalanceStorage(account, currencyId);
+        return nTokenBalance;
+    }
+
+    function getLastClaimTime(address account, uint256 currencyId) public returns (uint256) {
+        // prettier-ignore
+        (/* */, /* */, uint256 lastClaimTime, /* */) = BalanceHandler.getBalanceStorage(account, currencyId);
+        return lastClaimTime;
+    }
+
+    function getLastClaimSupply(address account, uint256 currencyId) public returns (uint256) {
+        // prettier-ignore
+        (/* */, /* */, /* */, uint256 lastClaimSupply) = BalanceHandler.getBalanceStorage(account, currencyId);
+        return lastClaimSupply;
+    }
+
     // Adds one asset into the array portfolio at a time
     function addArrayAsset(
         address account,
@@ -124,9 +150,43 @@ contract AccountPortfolioHarness {
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
+        accountContext.setAccountContext(account);
+    }
+
+    function finalizeCashBalance(
+        address account,
+        uint256 currencyId,
+        int256 netCashChange,
+        int256 netAssetTransferInternalPrecision,
+        bool redeemToUnderlying
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(account, currencyId, accountContext);
+        balanceState.netCashChange = netCashChange;
+        balanceState.netAssetTransferInternalPrecision = netAssetTransferInternalPrecision;
+
+        balanceState.finalize(account, accountContext, redeemToUnderlying);
+        accountContext.setAccountContext(account);
+    }
+
+    function setBalanceStorageForSettleCashDebt(
+        address account,
+        uint256 currencyId,
+        int256 amountToSettleAsset
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        BalanceHandler.setBalanceStorageForSettleCashDebt(
+            account,
+            currencyId,
+            amountToSettleAsset,
+            accountContext
+        );
+        accountContext.setAccountContext(account);
     }
 
     // todo: add settlement methods here...
+    // include finalizeSettleAmounts
 
     /*
     function setActiveCurrency2(address account, bytes18 activeCurrencies) external {

@@ -24,9 +24,8 @@ invariant i2 {
 }
 ```
 
-- How do you do the `forall uint256 x.` syntax?
-- How do you iterate over arrays?
-- Can you convert between integer types?
+- How do i iterate over arrays (GovernanceActions.spec)
+- How do i cast integers and do two's complement (Portfolio.spec)
 
 ## Feature requests:
 
