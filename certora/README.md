@@ -16,7 +16,8 @@ Notional stores information about an account in an AccountContext struct that tr
 
 ### Spec Notes
 
-- [PASSING] SetAccountContext.spec: tests getters and setters for account context
+- [FAILING] SetAccountContext.spec: tests getters and setters for account context
+  - FAILING: https://prover.certora.com/output/42394/9aee6d35f67f97133eba/?anonymousKey=6beebe65c46c34ee91f8a295e36291eab7b87260
 - [FAILING] ActiveCurrencies.spec: ensures that active currency and enable bitmap currency follow rules
   - activeCurrenciesAreNotDuplicatedAndSorted: has a logic error in the spec
   - https://prover.certora.com/output/42394/40b57a2db954ccf6e7d0/?anonymousKey=e9d1e62a2327a30b3133dbe63a060e4eaac45486

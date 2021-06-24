@@ -10,7 +10,7 @@ SOLC_ARGS="['--optimize', '--optimize-runs', '200']"
 
 HARNESS=$1
 SPEC=$2
-OPTS=$3
+OPTS=${@:3}
 
 certoraRun contracts/mocks/certora/$1.sol \
 	--verify $1:certora/$2.spec \

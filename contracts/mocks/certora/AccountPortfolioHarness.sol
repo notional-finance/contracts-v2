@@ -31,9 +31,10 @@ contract AccountPortfolioHarness {
         return uint144(AccountContextHandler.getAccountContext(account).activeCurrencies);
     }
 
-    function getAssetsBitmap(address account) external view returns (bytes32) {
+    function getAssetsBitmap(address account) external view returns (uint256) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        return BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+        return
+            uint256(BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId));
     }
 
     function getAccountContext(address account) external view returns (AccountContext memory) {

@@ -4,7 +4,7 @@ methods {
     getAssetArrayLength(address account) returns (uint8) envfree
     getBitmapCurrency(address account) returns (uint16) envfree
     getActiveCurrencies(address account) returns (uint144) envfree
-    getAssetsBitmap(address account) returns (bytes32) envfree
+    getAssetsBitmap(address account) returns (uint256) envfree
 }
 
 /* Helper methods for active currencies */
@@ -35,7 +35,7 @@ rule enablingBitmapCannotLeaveBehindAssets(address account, uint256 currencyId) 
     require e.block.timestamp <= MAX_TIMESTAMP();
     uint16 bitmapCurrencyId = getBitmapCurrency(account);
     uint8 assetArrayLength = getAssetArrayLength(account);
-    bytes32 assetsBitmap = getAssetsBitmap(account);
+    uint256 assetsBitmap = getAssetsBitmap(account);
     require bitmapCurrencyId != 0 => assetArrayLength == 0;
     // Cannot set bitmap currency to 0 if it is already 0, will revert
     require bitmapCurrencyId == 0 => currencyId > 0;
