@@ -73,29 +73,37 @@ Notional integrates with ERC20 and Ether tokens for deposit and withdraw. These 
 - `internal/balances/TokenHandler.sol`
 - `internal/balances/Incentives.sol`
 - `internal/balances/BalanceHandler.sol`
+- `external/actions/nTokenAction.sol`
 
 ### Spec Notes
 
-TODO
+- [INCOMPLETE] ExternalTransfer.spec: ensures that internal account reconciles with external ERC20 transfers
+- [INCOMPLETE] nTokenERC20.spec: ensures that nToken ERC20 implementation matches ERC20 spec
+- [INCOMPLETE] Incentives.spec: ensures that incentives issued do not exceed what is specified by governance
 
 ## nToken
 
 Notional introduces its own native ERC20 token called an nToken. An nToken is a claim on liquidity provided to the Notional protocol as an aggregate of underlying liquidity token and fCash positions. There is one nToken per currency that is traded on Notional. These contracts cover the behavior of nTokens:
 
 - `internal/nTokenHandler.sol`
-- `external/actions/nTokenAction.sol`
 - `external/actions/nTokenMintAction.sol`
 - `external/actions/nTokenRedeemAction.sol`
 - `external/actions/InitializeMarkets.sol`
 
 ### Spec Notes
 
-TODO
+- [INCOMPLETE] nTokenValuation.spec: ensures that nToken valuation matches the value of underlying cash, fCash and liquidity token assets
+- [INCOMPLETE] nTokenMint.spec: ensures that minting nTokens always results in a proportional increase in the nToken valuation to the tokens minted
+- [INCOMPLETE] nTokenRedeem.spec: ensures that redeeming nTokens always results in a proportional decrease in the nToken valuation
+- [INCOMPLETE] RollLiquidityCurve.sec: ensures that liquidity curve shifts according to specification during initialize markets
+- [INCOMPLETE] nTokenCashWithholding.spec: ensures that the nToken always withholds sufficient cash to cover negative fCash residuals after initialize markets
+- [INCOMPLETE] nTokenSweepCash.spec: ensures that nToken is able to sweep cash into markets after initialize markets
 
 ## Liquidation
 
 Liquidation is required when accounts become undercollateralized. There are four types of liquidation in Notional: local currency collateral, cross currency collateral, local currency fCash and cross currency fCash. The relevant contracts are:
 
+- `internal/valuation/FreeCollateral.sol`
 - `internal/liquidation/LiquidateCurrency.sol`
 - `internal/liquidation/LiquidatefCash.sol`
 - `internal/liquidation/LiquidationHelpers.sol`
@@ -104,7 +112,8 @@ Liquidation is required when accounts become undercollateralized. There are four
 
 ### Spec Notes
 
-TODO
+- [INCOMPLETE] PreLiquidationFactors.spec: ensure that liquidation factors like net available and free collateral are always assigned properly prior to liquidation
+- [INCOMPLETE] PostLiquidationFactors.spec: ensure that pre liquidation factors hold to certain invariants after liquidation, also ensure that pre and post liquidation cash and fCash amounts reconcile
 
 ## User Interaction
 
@@ -117,4 +126,6 @@ Notional batches up user deposit, withdraw and trading actions for user experien
 
 ### Spec Notes
 
-TODO
+- [INCOMPLETE] Undercollateralized.spec: accounts can only deposit cash if they are undercollateralized
+- [INCOMPLETE] Authorization.spec: trading can only occur on accounts with proper authorization
+- [INCOMPLETE] Context.spec: trading always results in proper updates to account context, cash balance, and portfolio
