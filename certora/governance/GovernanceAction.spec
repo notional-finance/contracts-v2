@@ -26,8 +26,8 @@ rule updateDepositParametersSetsProperly(
     require _depositShares.length == getMaxMarketIndex();
     require _depositShares.length == _leverageThresholds.length;
     updateDepositParameters(currencyId, _depositShares, _leverageThresholds);
+    // TODO: move the checking into solidity and return a bool on success.
     int256[] depositShares, int256[] leverageThresholds = getDepositParameters(currencyId)
-    // TODO: how to loop and match?
 }
 // Basically the same as above
 // rule updateInitializationParametersSetsProperly;
@@ -41,7 +41,6 @@ rule updateIncentiveEmissionRateSetsProperly(
     require nTokenAddress(currencyId) == nTokenAddress;
     updateIncentiveEmissionRate(currencyId, newEmissionRate);
     _, uint256 incentiveEmissionRate = getNTokenAccount(nTokenAddress);
-    // TODO: how to convert data types....
     assert incentiveEmissionRate == newEmissionRate;
 }
 // Basically the same as above

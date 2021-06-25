@@ -16,15 +16,16 @@ Notional stores information about an account in an AccountContext struct that tr
 
 ### Spec Notes
 
-- [FAILING] SetAccountContext.spec: tests getters and setters for account context
-  - FAILING: https://prover.certora.com/output/42394/9aee6d35f67f97133eba/?anonymousKey=6beebe65c46c34ee91f8a295e36291eab7b87260
+- [PASSING] SetAccountContext.spec: tests getters and setters for account context
 - [FAILING] ActiveCurrencies.spec: ensures that active currency and enable bitmap currency follow rules
   - activeCurrenciesAreNotDuplicatedAndSorted: has a logic error in the spec
-  - https://prover.certora.com/output/42394/40b57a2db954ccf6e7d0/?anonymousKey=e9d1e62a2327a30b3133dbe63a060e4eaac45486
+  - for addAssetArray: need to use a different mode of operation for bitVectorTheory and array hashes
+  - `--staging alex/mark-hash-values --settings smt_hashingScheme=plainInjectivity`
+  - https://prover.certora.com/output/42394/cb97439bee119a5b9305/?anonymousKey=3b518ba1aaa0585d54d3f36b9dad79a25ef5bcd8
 - [INCOMPLETE] Portfolio.spec: ensures that an account's portfolio reconciles with account context
+  - TODO: need to cast integers, Jeff to meet with signed integer implemention dev.
   - TODO: need to add settlement methods into harness
   - TODO: need to add transfer methods into harness
-- [INCOMPLETE] Balances.spec: ensures that an account's balances reconciles with account context
 
 ## Asset
 
@@ -44,6 +45,7 @@ Notional's main feature is the creation and management of fCash assets. fCash as
   - https://prover.certora.com/output/42394/b3ebe7ce40a74d42ea64/?anonymousKey=37ce0b6119338d6d50b0c3c6331a141d1adfefa4
 - [CERTORA ERROR] LiquidityCurve.spec: ensures properties of the liquidity curve on a single market
   - Error: spec is failing during runs
+  - ABDK is probably causing the spec to fail, maybe have a generic monotonic function that we use as a dummy
   - https://prover.certora.com/jobStatus/42394/4dbfc1d31a1f5398fd32/?anonymousKey=bef4a6f6cff5f658e8dfb63bed9a1ecc90cb4ab1
 - [INCOMPLETE] Valuation.spec: ensures that the valuation of assets is correct
 
@@ -60,11 +62,10 @@ Governance specs cover global settings to the protocol. Relevant contracts are:
 - [QUESTION] CashGroup.spec: tests getters and setters for CashGroup
   - TODO: requires being able to specify structs when calling methods
 - [QUESTION] GovernanceAction.spec: tests getting and setting nToken parameters and listing currencies
-  - TODO: how to convert data types between uint32 and int256 or something similar?
-  - TODO: how to iterate over arrays?
+  - TODO: passing arrays is not currently supported, will be soon
   - TODO: need to complete some list currency rules
 - [CERTORA ERROR] GovernanceOwner.spec: tests that only the owner can call governance methods
-  - TODO: enableCashGroup does not complete spec
+  - TODO: enableCashGroup does not complete spec, try with iter 2
   - https://prover.certora.com/output/42394/db5cb9ca7fb49414d1c0/?anonymousKey=beb7c2e8ff899fe21822f2c93c3c45d7885624c9#onlyOwnerCanUpdateGovernaceResults
 
 ## Incentives and ERC20
@@ -80,6 +81,7 @@ Notional integrates with ERC20 and Ether tokens for deposit and withdraw. These 
 
 - [INCOMPLETE] ExternalTransfer.spec: ensures that internal account reconciles with external ERC20 transfers
 - [INCOMPLETE] nTokenERC20.spec: ensures that nToken ERC20 implementation matches ERC20 spec
+  - TODO: get a generic ERC20 spec
 - [INCOMPLETE] Incentives.spec: ensures that incentives issued do not exceed what is specified by governance
 
 ## nToken
@@ -114,7 +116,9 @@ Liquidation is required when accounts become undercollateralized. There are four
 ### Spec Notes
 
 - [INCOMPLETE] PreLiquidationFactors.spec: ensure that liquidation factors like net available and free collateral are always assigned properly prior to liquidation
+  - TODO: this is probably part of the Valuation spec
 - [INCOMPLETE] PostLiquidationFactors.spec: ensure that pre liquidation factors hold to certain invariants after liquidation, also ensure that pre and post liquidation cash and fCash amounts reconcile
+  - see: https://github.com/notional-finance/contracts-v2/blob/certora/tests/stateful/liquidation/test_liquidation.py#L236
 
 ## User Interaction
 
@@ -130,3 +134,4 @@ Notional batches up user deposit, withdraw and trading actions for user experien
 - [INCOMPLETE] Undercollateralized.spec: accounts can only deposit cash if they are undercollateralized
 - [INCOMPLETE] Authorization.spec: trading can only occur on accounts with proper authorization
 - [INCOMPLETE] Context.spec: trading always results in proper updates to account context, cash balance, and portfolio
+- [INCOMPLETE] NonReentrant.spec: there are no opportunities for reentrancy in trading methods
