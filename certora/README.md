@@ -48,6 +48,7 @@ Notional's main feature is the creation and management of fCash assets. fCash as
   - ABDK is probably causing the spec to fail, maybe have a generic monotonic function that we use as a dummy
   - https://prover.certora.com/jobStatus/42394/4dbfc1d31a1f5398fd32/?anonymousKey=bef4a6f6cff5f658e8dfb63bed9a1ecc90cb4ab1
 - [INCOMPLETE] Valuation.spec: ensures that the valuation of assets is correct
+  - QUESTION: cash group settings should be varied, would it be advisable to use and SLOAD hook to havoc parameters?
 
 ## Governance
 
