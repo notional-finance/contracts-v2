@@ -43,16 +43,6 @@ contract AccountPortfolioHarness {
         return AccountContextHandler.getAccountContext(account);
     }
 
-    function enableBitmapForAccount(
-        address account,
-        uint256 currencyId,
-        uint256 blockTime
-    ) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.enableBitmapForAccount(account, currencyId, blockTime);
-        accountContext.setAccountContext(account);
-    }
-
     // This is just a harness for getting the settlement date
     function getSettlementDate(uint256 assetType, uint256 maturity) public returns (uint256) {
         return
@@ -103,6 +93,18 @@ contract AccountPortfolioHarness {
         // prettier-ignore
         (/* */, /* */, /* */, uint256 lastClaimSupply) = BalanceHandler.getBalanceStorage(account, currencyId);
         return lastClaimSupply;
+    }
+
+    /** State Changing Methods **/
+
+    function enableBitmapForAccount(
+        address account,
+        uint256 currencyId,
+        uint256 blockTime
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.enableBitmapForAccount(account, currencyId, blockTime);
+        accountContext.setAccountContext(account);
     }
 
     // Adds one asset into the array portfolio at a time
