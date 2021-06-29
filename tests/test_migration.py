@@ -1,3 +1,4 @@
+import brownie
 import pytest
 import scripts.deploy_v1
 from brownie.convert.datatypes import Wei
@@ -78,6 +79,54 @@ def environment(accounts):
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
+
+
+def test_migrate_v1_to_comp(environment, accounts, NotionalV1ToCompound):
+    account = accounts[3]
+    (v1env, v2env) = environment
+    v1ToComp = NotionalV1ToCompound.deploy(
+        v1env["Escrow"].address,
+        v1env["ERC1155Trade"].address,
+        v1env["uniswapFactory"].getPair(v1env["WETH"].address, v2env.token["WBTC"]),
+        v1env["WETH"].address,
+        v2env.token["WBTC"],
+        v2env.comptroller.address,
+        v2env.cToken["ETH"],
+        v2env.cToken["DAI"],
+        v2env.cToken["USDC"],
+        v2env.cToken["WBTC"],
+        {"from": accounts[3]},
+    )
+
+    # USDC w/ ETH
+    erc1155 = Contract.from_abi(
+        "ERC1155Trade", address=v1env["ERC1155Trade"].address, abi=v1env["ERC1155Trade"].abi
+    )
+    erc1155.setApprovalForAll(v1ToComp.address, True, {"from": account})
+    v2env.token["USDC"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
+    v1ToComp.migrateUSDCEther(100e6)
+    balances = v1env["Escrow"].functions.getBalances(account.address).call()
+    assert balances[0] == 0
+    assert balances[1] == 0
+    assert balances[2] == 100e6
+    assert balances[3] == 0
+    assert (v2env.cToken["USDC"].borrowBalanceCurrent(v1ToComp.address)).return_value > 0
+
+    with brownie.reverts():
+        v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[1], 100e8, {"from": accounts[1]})
+
+    v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[3], 100e8, {"from": accounts[3]})
+    balanceBefore = v2env.cToken["ETH"].balanceOf(accounts[3])
+    v2env.cToken["ETH"].transferFrom(v1ToComp.address, accounts[3], 10, {"from": accounts[3]})
+    balanceAfter = v2env.cToken["ETH"].balanceOf(accounts[3])
+    assert balanceBefore + 10 == balanceAfter
+
+    # Cannot transfer if not approved
+    balanceBefore = v2env.cToken["ETH"].balanceOf(accounts[1])
+    # This does not revert outright...
+    v2env.cToken["ETH"].transferFrom(v1ToComp.address, accounts[1], 10, {"from": accounts[1]})
+    balanceAfter = v2env.cToken["ETH"].balanceOf(accounts[1])
+    assert balanceBefore == balanceAfter
 
 
 def test_migrate_dai_eth(environment, accounts):
