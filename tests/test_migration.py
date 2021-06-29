@@ -115,7 +115,7 @@ def test_migrate_v1_to_comp(environment, accounts, NotionalV1ToCompound):
     with brownie.reverts():
         v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[1], 100e8, {"from": accounts[1]})
 
-    v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[3], 100e8, {"from": accounts[3]})
+    v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[3], 2 ** 255, {"from": accounts[3]})
     balanceBefore = v2env.cToken["ETH"].balanceOf(accounts[3])
     v2env.cToken["ETH"].transferFrom(v1ToComp.address, accounts[3], 10, {"from": accounts[3]})
     balanceAfter = v2env.cToken["ETH"].balanceOf(accounts[3])
@@ -127,6 +127,16 @@ def test_migrate_v1_to_comp(environment, accounts, NotionalV1ToCompound):
     v2env.cToken["ETH"].transferFrom(v1ToComp.address, accounts[1], 10, {"from": accounts[1]})
     balanceAfter = v2env.cToken["ETH"].balanceOf(accounts[1])
     assert balanceBefore == balanceAfter
+
+    # Assert we can repay and withdraw collateral
+    v2env.cToken["USDC"].repayBorrowBehalf(v1ToComp.address, 100e6, {"from": accounts[0]})
+    v2env.cToken["ETH"].transferFrom(
+        v1ToComp.address,
+        accounts[3],
+        v2env.cToken["ETH"].balanceOf(v1ToComp.address),
+        {"from": accounts[3]},
+    )
+    assert v2env.cToken["ETH"].balanceOf(v1ToComp.address) == 0
 
 
 def test_migrate_dai_eth(environment, accounts):
