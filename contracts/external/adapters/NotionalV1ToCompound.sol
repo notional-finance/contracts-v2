@@ -9,7 +9,6 @@ pragma experimental ABIEncoderV2;
 
 // Uses this release of OZ contracts: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v3.4-solc-0.7
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface WETH9 {
     function withdraw(uint256 wad) external;
@@ -96,7 +95,8 @@ interface ComptrollerInterface {
     function enterMarkets(address[] calldata cTokens) external returns (uint256[] memory);
 }
 
-contract NotionalV1ToCompound is Ownable {
+contract NotionalV1ToCompound {
+    address public owner;
     IEscrow public immutable Escrow;
     INotionalV1Erc1155 public immutable NotionalV1Erc1155;
     UniswapPair public immutable wETHwBTCPair;
@@ -112,6 +112,23 @@ contract NotionalV1ToCompound is Ownable {
     uint16 internal constant V1_DAI = 1;
     uint16 internal constant V1_USDC = 2;
     uint16 internal constant V1_WBTC = 3;
+
+    function initialize() external {
+        owner = msg.sender;
+    }
+
+    /// @dev Throws if called by any account other than the owner.
+    modifier onlyOwner() {
+        require(owner == msg.sender, "Ownable: caller is not the owner");
+        _;
+    }
+
+    /// @dev Transfers ownership of the contract to a new account (`newOwner`).
+    /// Can only be called by the current owner.
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        owner = newOwner;
+    }
 
     constructor(
         IEscrow escrow_,
@@ -260,10 +277,8 @@ contract NotionalV1ToCompound is Ownable {
         // Mints cToken collateral from underlying that was flash borrowed
         if (cTokenCollateralAddress == address(cETH)) {
             CEtherInterface(cTokenCollateralAddress).mint{value: swapAmount}();
-            // TODO: should we transfer to migrator?
         } else {
             CErc20Interface(cTokenCollateralAddress).mint(swapAmount);
-            // TODO: should we transfer to migrator?
         }
 
         address[] memory markets = new address[](2);

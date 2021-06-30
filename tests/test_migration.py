@@ -2,6 +2,7 @@ import brownie
 import pytest
 import scripts.deploy_v1
 from brownie.convert.datatypes import Wei
+from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from brownie.project import ContractsVProject
@@ -81,10 +82,12 @@ def isolation(fn_isolation):
     pass
 
 
-def test_migrate_v1_to_comp(environment, accounts, NotionalV1ToCompound):
+def test_migrate_v1_to_comp(
+    environment, accounts, NotionalV1ToCompound, nTransparentUpgradeableProxy
+):
     account = accounts[3]
     (v1env, v2env) = environment
-    v1ToComp = NotionalV1ToCompound.deploy(
+    v1ToCompImpl = NotionalV1ToCompound.deploy(
         v1env["Escrow"].address,
         v1env["ERC1155Trade"].address,
         v1env["uniswapFactory"].getPair(v1env["WETH"].address, v2env.token["WBTC"]),
@@ -95,7 +98,22 @@ def test_migrate_v1_to_comp(environment, accounts, NotionalV1ToCompound):
         v2env.cToken["DAI"],
         v2env.cToken["USDC"],
         v2env.cToken["WBTC"],
-        {"from": accounts[3]},
+        {"from": account},
+    )
+
+    initializeData = web3.eth.contract(abi=NotionalV1ToCompound.abi).encodeABI(
+        fn_name="initialize", args=[]
+    )
+
+    proxy = nTransparentUpgradeableProxy.deploy(
+        v1ToCompImpl.address,
+        v2env.proxyAdmin.address,
+        initializeData,  # Deployer is set to owner
+        {"from": account},
+    )
+
+    v1ToComp = Contract.from_abi(
+        "v1ToComp", proxy.address, abi=NotionalV1ToCompound.abi, owner=account
     )
 
     # USDC w/ ETH
