@@ -30,8 +30,10 @@ contract BatchAction {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         // Return any settle amounts here to reduce the number of storage writes to balances
-        (AccountContext memory accountContext, SettleAmount[] memory settleAmounts) =
-            _settleAccountIfRequiredAndStorePortfolio(account);
+        (
+            AccountContext memory accountContext,
+            SettleAmount[] memory settleAmounts
+        ) = _settleAccountIfRequiredAndStorePortfolio(account);
 
         uint256 settleAmountIndex;
         BalanceState memory balanceState;
@@ -173,7 +175,10 @@ contract BatchAction {
         // This saves a number of memory allocations
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        if (settleAmountIndex < settleAmounts.length) {
+        if (
+            settleAmountIndex < settleAmounts.length &&
+            settleAmounts[settleAmountIndex].currencyId == currencyId
+        ) {
             balanceState.netCashChange = settleAmounts[settleAmountIndex].netCashChange;
             // Set to zero so that we don't double count later
             settleAmounts[settleAmountIndex].netCashChange = 0;
@@ -244,8 +249,10 @@ contract BatchAction {
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
-            int256 tokensMinted =
-                nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
+            int256 tokensMinted = nTokenMintAction.nTokenMint(
+                balanceState.currencyId,
+                assetInternalAmount
+            );
 
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
                 tokensMinted
@@ -253,9 +260,9 @@ contract BatchAction {
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
                 balanceState
-                    .storedNTokenBalance
-                    .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
-                    .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
+                .storedNTokenBalance
+                .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
+                .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
                 "Insufficient token balance"
             );
 
@@ -263,11 +270,10 @@ contract BatchAction {
                 depositActionAmount
             );
 
-            int256 assetCash =
-                nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
-                    balanceState.currencyId,
-                    depositActionAmount
-                );
+            int256 assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
+                balanceState.currencyId,
+                depositActionAmount
+            );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
         }
@@ -297,8 +303,8 @@ contract BatchAction {
         }
 
         balanceState.netAssetTransferInternalPrecision = balanceState
-            .netAssetTransferInternalPrecision
-            .sub(withdrawAmount);
+        .netAssetTransferInternalPrecision
+        .sub(withdrawAmount);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
     }
