@@ -259,10 +259,11 @@ contract BatchAction {
             );
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
+                // prettier-ignore
                 balanceState
-                .storedNTokenBalance
-                .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
-                .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
+                    .storedNTokenBalance
+                    .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
+                    .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
                 "Insufficient token balance"
             );
 
@@ -302,9 +303,10 @@ contract BatchAction {
             if (withdrawAmount < 0) withdrawAmount = 0;
         }
 
+        // prettier-ignore
         balanceState.netAssetTransferInternalPrecision = balanceState
-        .netAssetTransferInternalPrecision
-        .sub(withdrawAmount);
+            .netAssetTransferInternalPrecision
+            .sub(withdrawAmount);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
     }
