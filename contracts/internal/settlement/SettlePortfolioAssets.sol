@@ -64,7 +64,9 @@ library SettlePortfolioAssets {
         SettlementMarket memory market =
             Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
 
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
 
         market.totalfCash = market.totalfCash.subNoNeg(fCash);

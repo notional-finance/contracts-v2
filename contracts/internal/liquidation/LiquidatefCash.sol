@@ -114,6 +114,7 @@ library LiquidatefCash {
     ) internal view {
         if (c.factors.localAssetAvailable > 0) {
             // If local available is positive then we can bring it down to zero
+            // dev: no phantom overflow
             //prettier-ignore
             c.underlyingBenefitRequired = c.factors.localETHRate
                 .convertETHTo(c.factors.netETHValue.neg())
@@ -146,6 +147,7 @@ library LiquidatefCash {
             // and the risk adjusted discount factor:
             // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
             // fCash = localCurrencyBenefit / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // dev: no phantom overflow (int88 * 1e9 / 1e9)
             c.fCashNotionalTransfers[i] = c
                 .underlyingBenefitRequired
                 .mul(Constants.RATE_PRECISION)
@@ -162,6 +164,7 @@ library LiquidatefCash {
                 int256(maxfCashLiquidateAmounts[i])
             );
 
+            // dev: no phantom overflow (int88 * 1e8) / 1e9
             int256 fCashLiquidationValueUnderlying =
                 c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
                     Constants.RATE_PRECISION
@@ -172,6 +175,7 @@ library LiquidatefCash {
                 // balance in underlying so that the liquidated account does not incur a negative cash balance.
                 if (fCashLiquidationValueUnderlying > c.localCashBalanceUnderlying) {
                     // We know that all these values are positive at this point.
+                    // dev: no phantom overflow (int88 * int88) / int88
                     c.fCashNotionalTransfers[i] = c.fCashNotionalTransfers[i]
                         .mul(c.localCashBalanceUnderlying)
                         .div(fCashLiquidationValueUnderlying);
@@ -195,6 +199,7 @@ library LiquidatefCash {
             );
 
             // Deduct the total benefit gained from liquidating this fCash position
+            // dev: no phantom overflow (int88 * 1e9  / 1e9)
             c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(
                 c.fCashNotionalTransfers[i]
                     .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs())
@@ -281,17 +286,20 @@ library LiquidatefCash {
         // ]
         int256 benefitMultiplier;
         {
+            // dev: no phantom overflow (all terms are on the order of 1e2)
             // prettier-ignore
             int256 termTwo = (
                     c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
                         c.liquidationDiscount
                     )
                 ).sub(c.factors.collateralETHRate.haircut);
+            // dev: no phantom overflow (1e9 * 1e2 / 1e2)
             termTwo = liquidationDiscountFactor.mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
             int256 termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
             benefitMultiplier = termOne.add(termTwo);
         }
 
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 fCashToLiquidate =
             c.underlyingBenefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
 
@@ -315,6 +323,7 @@ library LiquidatefCash {
         //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
         //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
         // ]
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 benefitGainedUnderlying =
             fCashToLiquidate.mul(benefitMultiplier).div(Constants.RATE_PRECISION);
 
@@ -336,9 +345,11 @@ library LiquidatefCash {
     ) private pure returns (int256, int256) {
         // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
         // this is the discounted value that the liquidator will purchase it at.
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 fCashLiquidationUnderlyingPV =
             fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
 
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 fCashRiskAdjustedUnderlyingPV =
             fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION);
 
@@ -350,6 +361,7 @@ library LiquidatefCash {
             // collateralAssetAvailable = fCashRiskAdjustedPV
             // collateralAssetAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
             // fCashToLiquidate = collateralAssetAvailable / riskAdjustedDiscountFactor
+            // dev: no phantom overflow (int88 * 1e9 / 1e9)
             fCashToLiquidate = collateralUnderlyingAvailable.mul(Constants.RATE_PRECISION).div(
                 riskAdjustedDiscountFactor
             );
@@ -357,6 +369,7 @@ library LiquidatefCash {
             fCashRiskAdjustedUnderlyingPV = collateralUnderlyingAvailable;
 
             // Recalculate the PV at the new liquidation amount
+            // dev: no phantom overflow (int88 * 1e9 / 1e9)
             fCashLiquidationUnderlyingPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(
                 Constants.RATE_PRECISION
             );
@@ -388,6 +401,7 @@ library LiquidatefCash {
         int256 fCashLiquidationUnderlyingPV,
         int256 fCashToLiquidate
     ) internal pure returns (int256, int256) {
+        // dev: no phantom overflow (int88 * 1e2 * max(1e18) / (1e18 * 1e2))
         int256 localUnderlyingFromLiquidator =
             fCashLiquidationUnderlyingPV
                 .mul(Constants.PERCENTAGE_DECIMALS)
@@ -404,6 +418,7 @@ library LiquidatefCash {
             // territory will force the liquidated account to incur more debt.
 
             // This is still in underlying terms because it is multiplied by a ratio of two values in asset terms
+            // dev: no phantom overflow (int88 * int88 / int88)
             fCashToLiquidate = fCashToLiquidate.mul(factors.localAssetAvailable.neg()).div(
                 localAssetFromLiquidator
             );

@@ -384,6 +384,7 @@ library InitializeMarketsAction {
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get an underflow here so we check for that
         if (longRate >= shortRate) {
+            // dev: no phantom overflow (uint32 * uint40) / uint40
             return
                 (longRate - shortRate)
                     .mul(newMaturity - shortMaturity)
@@ -393,6 +394,7 @@ library InitializeMarketsAction {
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
+            // dev: no phantom overflow (uint32 * uint40) / uint40
             uint256 diff =
                 (shortRate - longRate)
                     .mul(newMaturity - shortMaturity)
@@ -404,7 +406,7 @@ library InitializeMarketsAction {
         }
     }
 
-    /// @dev This is hear to clear the stack
+    /// @dev This is here to clear the stack
     function _setLiquidityAmount(
         int256 netAssetCashAvailable,
         int256 depositShare,
@@ -413,6 +415,7 @@ library InitializeMarketsAction {
         nTokenPortfolio memory nToken
     ) private pure returns (int256) {
         // The portion of the cash available that will be deposited into the market
+        // dev: no phantom overflow (int88 * 1e8 / 1e8)
         int256 assetCashToMarket =
             netAssetCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
         newMarket.totalAssetCash = assetCashToMarket;
@@ -546,6 +549,7 @@ library InitializeMarketsAction {
                 // proportion * totalCashUnderlying + proportion * totalfCash = totalfCash
                 // proportion * totalCashUnderlying = totalfCash * (1 - proportion)
                 // totalfCash = proportion * totalCashUnderlying / (1 - proportion)
+                // dev: no phantom overflow (int88 * 1e9) / 1e9
                 int256 fCashAmount =
                     underlyingCashToMarket.mul(parameters.proportions[i]).div(
                         Constants.RATE_PRECISION.sub(parameters.proportions[i])
@@ -614,6 +618,7 @@ library InitializeMarketsAction {
                 // result as well.
                 if (proportion > parameters.leverageThresholds[i]) {
                     proportion = parameters.leverageThresholds[i];
+                    // dev: no phantom overflow (int88 * 1e9) / 1e9
                     newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
                         Constants.RATE_PRECISION.sub(proportion)
                     );
@@ -628,6 +633,7 @@ library InitializeMarketsAction {
 
                     require(oracleRate != 0, "Oracle rate overflow");
                 } else {
+                    // dev: no phantom overflow (int88 * 1e9) / 1e9
                     newMarket.totalfCash = underlyingCashToMarket.mul(proportion).div(
                         Constants.RATE_PRECISION.sub(proportion)
                     );

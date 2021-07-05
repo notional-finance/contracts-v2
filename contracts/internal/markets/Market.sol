@@ -37,8 +37,10 @@ library Market {
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
         // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
 
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
@@ -59,7 +61,9 @@ library Market {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         int256 fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
@@ -198,12 +202,14 @@ library Market {
         // or divide depending on the side of the trade).
         // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
         // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 preFeeCashToAccount =
             fCashToAccount.mul(Constants.RATE_PRECISION).div(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         if (fCashToAccount > 0) {
             // Lending
+            // dev: no phantom overflow (1e9 * 1e9 / 1e9)
             int256 postFeeExchangeRate = preFeeExchangeRate.mul(Constants.RATE_PRECISION).div(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
             // when borrowing. If this happens then the trade has failed.
@@ -219,6 +225,7 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
             // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
+            // dev: no phantom overflow (1e9 * 1e9 / 1e9)
             fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(
                 Constants.RATE_PRECISION
             );
@@ -233,9 +240,11 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (1 / feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * ((1 - feeExchangeRate) / feeExchangeRate)
             // NOTE: preFeeCashToAccount is negative in this branch so we negate it to ensure that fee is a positive number
+            // dev: no phantom overflow (1e9 * 1e9 / 1e9)
             fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(fee).neg();
         }
 
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 cashToReserve =
             fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS);
 
@@ -295,6 +304,7 @@ library Market {
 
         int256 rateAnchor;
         {
+            // dev: no phantom overflow (uint80 * 1e9 / uint80)
             int256 proportion =
                 totalfCash.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
@@ -331,6 +341,7 @@ library Market {
         uint256 lnRate =
             ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, Constants.RATE_PRECISION_64x64));
 
+        // dev: no phantom overflow (uint64 * uint40 / uint40)
         uint256 impliedRate = lnRate.mul(Constants.IMPLIED_RATE_TIME).div(timeToMaturity);
 
         // Implied rates over 429% will overflow, this seems like a safe assumption
@@ -373,6 +384,7 @@ library Market {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
+        // dev: no phantom overflow (uint80 * 1e9 / uint80)
         int256 proportion =
             numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
@@ -395,6 +407,7 @@ library Market {
     function _logProportion(int256 proportion) internal pure returns (int256, bool) {
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
+        // dev: no phantom overflow (1e9 * 1e9 / 1e9)
         proportion = proportion.mul(Constants.RATE_PRECISION).div(
             Constants.RATE_PRECISION.sub(proportion)
         );
@@ -456,12 +469,14 @@ library Market {
         }
 
         // (currentTs - previousTs) / timeWindow
+        // dev: no phantom overflow (uint40 * 1e9 / uint40)
         uint256 lastTradeWeight =
             timeDiff.mul(uint256(Constants.RATE_PRECISION)).div(rateOracleTimeWindow);
 
         // 1 - (currentTs - previousTs) / timeWindow
         uint256 oracleWeight = uint256(Constants.RATE_PRECISION).sub(lastTradeWeight);
 
+        // dev: no phantom overflow
         uint256 newOracleRate =
             (lastImpliedRate.mul(lastTradeWeight).add(oracleRate.mul(oracleWeight))).div(
                 uint256(Constants.RATE_PRECISION)
@@ -750,6 +765,7 @@ library Market {
         int256 feeRate,
         uint256 maxDelta
     ) internal pure returns (int256) {
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         int256 fCashChangeToAccountGuess =
             netCashToAccount.mul(rateAnchor).div(Constants.RATE_PRECISION).neg();
         for (uint8 i; i < 250; i++) {
@@ -798,6 +814,7 @@ library Market {
         int256 derivative;
         // rateScalar * (totalfCash - fCash) * (totalCash + fCash)
         // Precision: TOKEN_PRECISION ^ 2
+        // dev: no phantom overflow (int88 * 1e9 * int88)
         int256 denominator =
             rateScalar.mul(totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess));
 
@@ -808,6 +825,7 @@ library Market {
 
             // (cashAmount / fee) * (totalfCash + totalCash)
             // Precision: TOKEN_PRECISION ^ 2
+            // dev: no phantom overflow (int88 * 1e9 * int88) / 1e9
             derivative = cashAmount
                 .mul(Constants.RATE_PRECISION)
                 .mul(totalfCash.add(totalCashUnderlying))
@@ -819,6 +837,7 @@ library Market {
 
             // (cashAmount * fee) * (totalfCash + totalCash)
             // Precision: TOKEN_PRECISION ^ 2
+            // dev: no phantom overflow (int88 * 1e9 * int88) / 1e9
             derivative = cashAmount.mul(feeRate).mul(totalfCash.add(totalCashUnderlying)).div(
                 Constants.RATE_PRECISION
             );
@@ -829,11 +848,13 @@ library Market {
 
         // f(fCash) = cashAmount * exchangeRate * fee + fCash
         // NOTE: exchangeRate at this point already has the fee taken into account
+        // dev: no phantom overflow (int88 * 1e9) / 1e9
         int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
         numerator = numerator.add(fCashGuess);
 
         // f(fCash) / f'(fCash), note that they are both denominated as cashAmount so use TOKEN_PRECISION
         // here instead of RATE_PRECISION
+        // dev: no phantom overflow (int88 * 1e8) / 1e8
         return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
     }
 }

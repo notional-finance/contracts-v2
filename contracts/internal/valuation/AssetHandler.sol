@@ -68,6 +68,7 @@ library AssetHandler {
         int256 discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
         require(discountFactor <= Constants.RATE_PRECISION); // dev: get present value invalid discount factor
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
@@ -100,6 +101,7 @@ library AssetHandler {
         }
 
         require(discountFactor <= Constants.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
     }
 
@@ -111,7 +113,9 @@ library AssetHandler {
     {
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
+        // dev: no phantom overflow (uint80 * int88 / uint80)
         fCash = market.totalfCash.mul(token.notional).div(market.totalLiquidity);
     }
 
@@ -144,6 +148,7 @@ library AssetHandler {
         int256 haircut,
         int256 liquidity
     ) private pure returns (int256) {
+        // dev: no phantom overflow ((int88 * int88 * 1e2) / (1e2 * int88))
         return numerator.mul(tokens).mul(haircut).div(Constants.PERCENTAGE_DECIMALS).div(liquidity);
     }
 

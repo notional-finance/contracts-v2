@@ -416,6 +416,7 @@ library TradingAction {
 
         // Amount to settle is positive, this returns the fCashAmount that the settler will
         // receive as a positive number
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         return
             cashGroup.assetRate.convertToUnderlying(amountToSettleAsset).mul(exchangeRate).div(
                 Constants.RATE_PRECISION
@@ -530,6 +531,7 @@ library TradingAction {
             Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
+        // dev: no phantom overflow (int88 * 1e9 / 1e9)
         return
             cashGroup.assetRate.convertFromUnderlying(
                 fCashAmount.mul(Constants.RATE_PRECISION).div(exchangeRate)

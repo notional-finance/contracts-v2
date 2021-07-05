@@ -206,11 +206,13 @@ library TokenHandler {
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
+        // dev: no phantom overflow (int88 * 1e8 / max(1e18))
         return amount.mul(Constants.INTERNAL_TOKEN_PRECISION).div(token.decimals);
     }
 
     function convertToExternal(Token memory token, int256 amount) internal pure returns (int256) {
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
+        // dev: no phantom overflow (int88 * max(1e18) / 1e8)
         return amount.mul(token.decimals).div(Constants.INTERNAL_TOKEN_PRECISION);
     }
 

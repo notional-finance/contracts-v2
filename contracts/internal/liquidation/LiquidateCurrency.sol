@@ -54,6 +54,7 @@ library LiquidateCurrency {
     ) internal view returns (int256) {
         require(factors.localAssetAvailable < 0, "No local debt");
 
+        // dev: no phantom overflow
         int256 assetBenefitRequired =
             factors.cashGroup.assetRate.convertFromUnderlying(
                 factors
@@ -94,6 +95,7 @@ library LiquidateCurrency {
                 // benefitGained = nTokensToLiquidate * (haircutTokenPV / haircutPercentage) * (liquidationHaircut - pvHaircut) / totalBalance
                 // benefitGained = nTokensToLiquidate * haircutTokenPV * (liquidationHaircut - pvHaircut) / (totalBalance * haircutPercentage)
                 // nTokensToLiquidate = (benefitGained * totalBalance * haircutPercentage) / (haircutTokenPV * (liquidationHaircut - pvHaircut))
+                // dev: no phantom overflow (int88 * uint96 * 1e2 / 1e2)
                 nTokensToLiquidate = assetBenefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
@@ -110,6 +112,7 @@ library LiquidateCurrency {
             {
                 // fullNTokenPV = haircutTokenPV / haircutPercentage
                 // localFromLiquidator = tokensToLiquidate * fullNTokenPV * liquidationHaircut / totalBalance
+                // dev: no phantom overflow (uint96 * 1e2 * uint96 / (1e2 * uint96))
                 // prettier-ignore
                 int256 localAssetCash =
                     nTokensToLiquidate
@@ -236,6 +239,7 @@ library LiquidateCurrency {
             // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = collateralToSell * (localBuffer / liquidationDiscount - collateralHaircut)
             // collateralToSell = collateralCurrencyBenefit / [(localBuffer / liquidationDiscount - collateralHaircut)]
+            // dev: no phantom overflow
             int256 denominator =
                 factors
                     .localETHRate
@@ -244,6 +248,7 @@ library LiquidateCurrency {
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
+            // dev: no phantom overflow
             requiredCollateralAssetCash = assetCashBenefitRequired
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(denominator);
@@ -289,6 +294,7 @@ library LiquidateCurrency {
             int256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]));
         int256 nTokenHaircut =
             int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
+        // dev: no phantom overflow (int88 * uint96 * 1e2 / (uint96 * 1e2))
         int256 nTokensToLiquidate =
             collateralAssetRemaining.mul(balanceState.storedNTokenBalance).mul(nTokenHaircut).div(
                 factors.nTokenHaircutAssetValue.mul(nTokenLiquidationHaircut)
@@ -308,6 +314,7 @@ library LiquidateCurrency {
         // don't put too much emphasis on this and allow it to occur.
         collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
             // collateralToRaise = (nTokenToLiquidate * nTokenPV * liquidateHaircutPercentage) / nTokenBalance
+            // dev: no phantom overflow (uint96 * uint96 * 1e2 / (1e2 * uint16))
             nTokensToLiquidate
                 .mul(factors.nTokenHaircutAssetValue)
                 .mul(nTokenLiquidationHaircut)
@@ -377,6 +384,7 @@ library LiquidateCurrency {
                     w.netCashIncrease.sub(w.incentivePaid);
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
+                // dev: no phantom overflow (int88 * int88 / int88)
                 int256 tokensToRemove =
                     asset.notional.mul(assetAmountRemaining).div(
                         w.netCashIncrease.subNoNeg(w.incentivePaid)
@@ -425,6 +433,7 @@ library LiquidateCurrency {
         // netCashIncrease = netCashToAccount + incentivePaid
         // incentivePaid = netCashIncrease * incentive
         int256 haircut = int256(factors.cashGroup.getLiquidityHaircut(assetType));
+        // dev: no phantom overflow
         w.netCashIncrease = w.assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
             Constants.PERCENTAGE_DECIMALS
         );
@@ -474,6 +483,7 @@ library LiquidateCurrency {
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // NOTE: dust can accrue when withdrawing liquidity at this point
+                // dev: no phantom overflow (int88 * int88 / int88)
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
                 (cashClaim, fCashClaim) = factors.markets[marketIndex - 1].removeLiquidity(
                     tokensToRemove

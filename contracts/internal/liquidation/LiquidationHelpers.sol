@@ -72,6 +72,7 @@ library LiquidationHelpers {
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) internal pure returns (int256) {
+        // dev: no phantom overflow
         int256 maxAllowedAmount =
             maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
@@ -104,6 +105,7 @@ library LiquidationHelpers {
     {
         // This calculation returns the amount of benefit that selling collateral for local currency will
         // be back to the account.
+        // dev: no phantom overflow
         assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
@@ -137,6 +139,7 @@ library LiquidationHelpers {
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
         int256 collateralUnderlyingPresentValue =
             factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
+        // dev: no phantom overflow ((int88 * 1e2 * 1e18) / (1e18 * 1e2))
         int256 localUnderlyingFromLiquidator =
             collateralUnderlyingPresentValue
                 .mul(Constants.PERCENTAGE_DECIMALS)
@@ -151,6 +154,7 @@ library LiquidationHelpers {
             // If the local to purchase will put the local available into negative territory we
             // have to cut the collateral purchase amount back. Putting local available into negative
             // territory will force the liquidated account to incur more debt.
+            // dev: no phantom overflow (int88 * int88) / int88
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
                 .mul(factors.localAssetAvailable.neg())
                 .div(localAssetFromLiquidator);

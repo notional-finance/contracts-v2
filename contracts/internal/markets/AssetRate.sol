@@ -28,6 +28,7 @@ library AssetRate {
 
         // Calculation here represents:
         // rateDecimals * balance * internalPrecision / rateDecimals * underlyingPrecision
+        // dev: no phantom overflow (max(1e28) * int88) / (1e10 * max(1e18))
         int256 underlyingBalance =
             ar.rate.mul(assetBalance).div(ASSET_RATE_DECIMAL_DIFFERENCE).div(ar.underlyingDecimals);
 
@@ -46,6 +47,7 @@ library AssetRate {
 
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rateDecimals * internalPrecision
+        // dev: no phantom overflow (1e10 * int88) / (max(1e28) * max(1e18))
         int256 assetBalance =
             underlyingBalance.mul(ASSET_RATE_DECIMAL_DIFFERENCE).mul(ar.underlyingDecimals).div(
                 ar.rate

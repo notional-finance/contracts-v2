@@ -157,6 +157,7 @@ contract nTokenRedeemAction {
 
         // Get asset cash share for the nToken, if it exists. It is required in balance handler that the
         // nToken can never have a negative cash asset cash balance so what we get here is always positive.
+        // dev: no phantom overflow (int88 * uint96 / uint96)
         int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
         if (assetCashShare > 0) {
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
@@ -215,6 +216,7 @@ contract nTokenRedeemAction {
 
         for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = nToken.portfolioState.storedAssets[i];
+            // dev: no phantom overflow (int88 * uint96 / uint96)
             int256 tokensToRemove = asset.notional.mul(tokensToRedeem).div(int256(totalSupply));
             asset.notional = asset.notional.sub(tokensToRemove);
             asset.storageState = AssetStorageState.Update;

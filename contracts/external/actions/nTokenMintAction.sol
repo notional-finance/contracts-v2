@@ -63,7 +63,7 @@ library nTokenMintAction {
         int256 amountToDepositInternal,
         uint256 blockTime
     ) internal view returns (int256, bytes32) {
-        require(amountToDepositInternal >= 0); // dev: deposit amount negative
+        require(amountToDepositInternal >= 0 && amountToDepositInternal <= type(int88).max); // dev: deposit amount overflow
         if (amountToDepositInternal == 0) return (0, 0x0);
 
         if (nToken.lastInitializedTime != 0) {
@@ -81,6 +81,7 @@ library nTokenMintAction {
             return (amountToDepositInternal, ifCashBitmap);
         }
 
+        // dev: no phantom overflow ((int88 * uint96) / int88)
         return (amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV), ifCashBitmap);
     }
 
@@ -120,6 +121,7 @@ library nTokenMintAction {
             if (market.totalLiquidity == 0) continue;
 
             // We know from the call into this method that assetCashDeposit is positive
+            // dev: no phantom overflow (int88 * 1e8 / 1e8)
             int256 perMarketDeposit =
                 assetCashDeposit.mul(depositShares[i]).div(Constants.DEPOSIT_PERCENT_BASIS).add(
                     residualCash
@@ -226,6 +228,7 @@ library nTokenMintAction {
         int256 leverageThreshold
     ) private pure returns (bool) {
         int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
+        // dev: no phantom overflow (uint80 * 1e9 / uint80)
         int256 proportion =
             market.totalfCash.mul(Constants.RATE_PRECISION).div(
                 market.totalfCash.add(totalCashUnderlying)
@@ -287,6 +290,7 @@ library nTokenMintAction {
         {
             int256 perMarketDepositUnderlying =
                 cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
+            // dev: no phantom overflow (int88 * 1e9) / 1e9
             fCashAmount = perMarketDepositUnderlying.mul(assumedExchangeRate).div(
                 Constants.RATE_PRECISION
             );

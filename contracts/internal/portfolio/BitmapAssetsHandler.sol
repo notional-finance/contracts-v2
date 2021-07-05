@@ -284,6 +284,7 @@ library BitmapAssetsHandler {
                     notional := sload(fCashSlot)
                 }
 
+                // dev: no phantom overflow (int88 * uint96 / uint96)
                 int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
                 notional = notional.sub(notionalToTransfer);
                 assembly {

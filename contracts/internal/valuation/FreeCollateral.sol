@@ -73,6 +73,7 @@ library FreeCollateral {
             /* ifCashBitmap */
         ) = nToken.getNTokenAssetPV(blockTime);
 
+        // dev: no phantom overflow (uint96 * uint96 * 1e2) / (1e2 * uint96)
         int256 nTokenHaircutAssetPV =
             tokenBalance
                 .mul(nTokenAssetPV)

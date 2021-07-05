@@ -41,6 +41,7 @@ library CashGroup {
         require(marketIndex >= 1); // dev: invalid market index
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
         int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
+        // dev: no phantom overflow
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
