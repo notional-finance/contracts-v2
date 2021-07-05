@@ -29,9 +29,8 @@ class TestIncentives:
             accounts[1], 1_000_000e8, START_TIME, 50_000_000, START_TIME + SECONDS_IN_YEAR
         )
 
-        # After 1 year, 1% of the avg supply returns 1.5% of the tokens minted
-        # (1% * 1.5 multiplier)
-        assert claimed == 1.5e8
+        # After 1 year, 1% of the avg supply returns 1% of the tokens minted
+        assert claimed == 1e8
 
     def test_incentives_zero_time(self, incentives, accounts):
         incentives.setNTokenParameters(1, accounts[1], 150_000_000e8, 100)
@@ -49,9 +48,8 @@ class TestIncentives:
             accounts[1], 1_000_000e8, START_TIME, 50_000_000, START_TIME + SECONDS_IN_YEAR * 2
         )
 
-        # After 2 years, 1% of the avg supply returns 4% of the tokens minted
-        # (1% * 2 * 2 multiplier)
-        assert claimed == 4e8
+        # After 2 years, 1% of the avg supply returns 2% of the tokens minted
+        assert claimed == 2e8
 
     def test_incentives_three_years(self, incentives, accounts):
         incentives.setNTokenParameters(1, accounts[1], 150_000_000e8, 100)
@@ -60,7 +58,5 @@ class TestIncentives:
             accounts[1], 1_000_000e8, START_TIME, 50_000_000, START_TIME + SECONDS_IN_YEAR * 3
         )
 
-        # After 3 years, 1% of the avg supply returns 6% of the tokens minted
-        # (1% * 3 * 2 multiplier)
-        # Tests that the multiplier does not increase to 2.5
-        assert claimed == 6e8
+        # After 3 years, 1% of the avg supply returns 3% of the tokens minted
+        assert claimed == 3e8

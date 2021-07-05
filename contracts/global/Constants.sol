@@ -96,11 +96,6 @@ library Constants {
     /// @dev Liquidation dust setting used during fCash liquidation
     int256 internal constant LIQUIDATION_DUST = 10;
 
-    /// @dev Annual incentive multiplier as a percentage
-    uint256 internal constant ANNUAL_INCENTIVE_MULTIPLIER_PERCENT = 50;
-    /// @dev Caps the max incentive multiplier to 2 years (i.e. 1 + 2 years * 0.5 == 2)
-    uint256 internal constant MAX_INCENTIVE_MULTIPLIER = 2e8;
-
     /* Internal Storage Slot Offsets */
     // Internally used storage slots are set at 1000000 offset from the solidity provisioned storage slots to minimize
     // the possibility of clashing.
