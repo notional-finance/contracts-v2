@@ -684,3 +684,79 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
         assert assetAfter[3] > assetBefore[3]
 
     check_system_invariants(environment, accounts)
+
+
+def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
+    # This unit test is here to test a bug where markets were skipped during the sellfCash portion
+    # of redeeming nTokens
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the two year markets
+    cashGroup[0] = 4
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [1.01e9, 1.021e9, 1.07e9, 1.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=10e18)
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            # This leaves a positive residual
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 1e4, "maxSlippage": 0},
+            # This leaves a negative residual
+            {"tradeActionType": "Lend", "marketIndex": 4, "notional": 1e4, "minSlippage": 0},
+        ],
+        depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Leaves some more residual
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 4, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=500e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Need to ensure that no residual assets are left behind
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
+    environment.notional.nTokenRedeem(
+        accounts[0].address, currencyId, 1e8, True, {"from": accounts[0]}
+    )
+
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
+    check_system_invariants(environment, accounts)
