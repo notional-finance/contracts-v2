@@ -5,9 +5,13 @@ pragma experimental ABIEncoderV2;
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/Market.sol";
 
+
 contract LiquidityCurveHarness {
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
+
+    CashGroupParameters symbolicCashGroup;
+    MarketParameters symbolicMarket;
 
     uint256 private constant MARKET_INDEX = 1;
     uint256 private constant CURRENCY_ID = 1;
@@ -33,7 +37,8 @@ contract LiquidityCurveHarness {
     }
 
     function getRateOracleTimeWindow() external view returns (uint256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        //CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        CashGroupParameters memory cashGroup = symbolicCashGroup;
         return cashGroup.getRateOracleTimeWindow();
     }
 
@@ -52,27 +57,33 @@ contract LiquidityCurveHarness {
     }
 
     function getLastImpliedRate() external view returns (uint256) {
-        return _loadMarket().lastImpliedRate;
+        // return _loadMarket().lastImpliedRate;
+        return symbolicMarket.lastImpliedRate;
     }
 
     function getPreviousTradeTime() external view returns (uint256) {
-        return _loadMarket().previousTradeTime;
+        // return _loadMarket().previousTradeTime;
+        return symbolicMarket.previousTradeTime;
     }
 
     function getMarketOracleRate() external view returns (uint256) {
-        return _loadMarket().oracleRate;
+        // return _loadMarket().oracleRate;
+        return symbolicMarket.oracleRate;
     }
 
     function getMarketfCash() external view returns (int256) {
-        return _loadMarket().totalfCash;
+        // return _loadMarket().totalfCash;
+        return symbolicMarket.totalfCash;
     }
 
     function getMarketAssetCash() external view returns (int256) {
-        return _loadMarket().totalAssetCash;
+        // return _loadMarket().totalAssetCash;
+        return symbolicMarket.totalAssetCash;
     }
 
     function getMarketLiquidity() external view returns (int256) {
-        return _loadMarket().totalLiquidity;
+        // return _loadMarket().totalLiquidity;
+        return symbolicMarket.totalLiquidity;
     }
 
     function executeTrade(uint256 timeToMaturity, int256 fCashToAccount)
@@ -80,7 +91,7 @@ contract LiquidityCurveHarness {
         returns (int256, int256)
     {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(CURRENCY_ID);
-        MarketParameters memory market = _loadMarket();
+        MarketParameters memory market = symbolicMarket; //_loadMarket();
         (int256 netAssetCash, int256 netAssetCashToReserve) =
             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
         market.setMarketStorage();
@@ -88,13 +99,13 @@ contract LiquidityCurveHarness {
     }
 
     function addLiquidity(int256 assetCash) external {
-        MarketParameters memory market = _loadMarket();
+        MarketParameters memory market = symbolicMarket; //_loadMarket();
         market.addLiquidity(assetCash);
         market.setMarketStorage();
     }
 
     function removeLiquidity(int256 tokensToRemove) external {
-        MarketParameters memory market = _loadMarket();
+        MarketParameters memory market = symbolicMarket; //_loadMarket();
         market.removeLiquidity(tokensToRemove);
         market.setMarketStorage();
     }
