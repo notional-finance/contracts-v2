@@ -5,12 +5,12 @@ pragma experimental ABIEncoderV2;
 import "interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
+import "../../proxy/utils/UUPSUpgradeable.sol";
 
 /// @title Note ERC20 Token
 /// Fork of Compound Comp token at commit hash
 /// https://github.com/compound-finance/compound-protocol/commit/9bcff34a5c9c76d51e51bcb0ca1139588362ef96
-contract NoteERC20 is Initializable {
+contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @notice EIP-20 token name for this token
     string public constant name = "Notional";
 
@@ -58,6 +58,12 @@ contract NoteERC20 is Initializable {
     /// @notice A record of states for signing / validating signatures
     mapping(address => uint256) public nonces;
 
+    /// @notice Owner address which can upgrade the tokens implementation
+    address public owner;
+
+    /// @notice Emitted when the ownership of the contract is transferred
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @notice An event thats emitted when an account changes its delegate
     event DelegateChanged(
         address indexed delegator,
@@ -85,7 +91,8 @@ contract NoteERC20 is Initializable {
     function initialize(
         address[] calldata initialAccounts,
         uint96[] calldata initialGrantAmount,
-        NotionalProxy notionalProxy_
+        NotionalProxy notionalProxy_,
+        address owner_
     ) public initializer {
         require(initialGrantAmount.length == initialAccounts.length);
         require(Address.isContract(address(notionalProxy_)));
@@ -101,7 +108,24 @@ contract NoteERC20 is Initializable {
         }
 
         require(totalGrants == totalSupply);
+        owner = owner_;
     }
+
+    modifier onlyOwner() {
+        require(owner == msg.sender, "Ownable: caller is not the owner");
+        _;
+    }
+
+    /// @dev Transfers ownership of the contract to a new account (`newOwner`).
+    /// Can only be called by the current owner.
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    /// @dev Only the owner may upgrade the contract
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
     /// @param account The address of the account holding the funds

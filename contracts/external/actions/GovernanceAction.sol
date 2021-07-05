@@ -7,13 +7,14 @@ import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/notional/NotionalGovernance.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
+contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -27,6 +28,9 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
+
+    /// @dev Only the owner may upgrade the contract
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
 
     /// @notice Lists a new currency along with its exchange rate to ETH
     /// @dev emit:ListCurrency emit:UpdateETHRate
