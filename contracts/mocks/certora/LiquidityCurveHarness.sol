@@ -37,8 +37,8 @@ contract LiquidityCurveHarness {
     }
 
     function getRateOracleTimeWindow() external view returns (uint256) {
-        //CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        CashGroupParameters memory cashGroup = symbolicCashGroup;
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        //CashGroupParameters memory cashGroup = symbolicCashGroup;
         return cashGroup.getRateOracleTimeWindow();
     }
 
@@ -95,22 +95,24 @@ contract LiquidityCurveHarness {
         (int256 netAssetCash, int256 netAssetCashToReserve) =
             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
         market.setMarketStorage();
+        symbolicMarket = market;
         return (netAssetCash, netAssetCashToReserve);
     }
 
-    function addLiquidity(int256 assetCash) external returns (int256, int256, uint8) {
+    function addLiquidity(int256 assetCash) external returns (int256, int256) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
-        (int256 liquidityTokens, int256 fCashToAccount) = Market.addLiquidity(market, assetCash);
-        Market.setMarketStorage(market);
+        (int256 liquidityTokens, int256 fCashToAccount) = market.addLiquidity(assetCash);
+        market.setMarketStorage();
+        symbolicMarket = market;
 
-        return (liquidityTokens, fCashToAccount, uint8(market.storageState));
+        return (liquidityTokens, fCashToAccount);
     }
 
     function removeLiquidity(int256 tokensToRemove) external returns (int256, int256) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
-        (int256 assetCash, int256 fCash) = Market.removeLiquidity(market, tokensToRemove);
-        Market.setMarketStorage(market);
-
+        (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
+        market.setMarketStorage();
+        symbolicMarket = market;
         return (assetCash, fCash);
     }
 }
