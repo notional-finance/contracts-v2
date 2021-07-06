@@ -14,7 +14,7 @@ Notional V2 can be thought of as a state machine where user accounts and nToken 
 
 These invariants ensure that account state is properly handled. Account state can be updated in the following ways:
 
-Assets can be updated via:
+#### fCash and Liquidity Tokens
 
 - Updating assets array by adding a new asset (may net off existing asset)
 - Updating bitmap portfolio by adding signed fCash (may net off existing fCash)
@@ -22,7 +22,7 @@ Assets can be updated via:
 - Transfer will transfer assets from one account to another
     - Includes liquidation and cash settlement
 
-Cash balances and nToken balances can be updated via:
+#### Cash and nToken Balances
 
 - Deposit or withdraw of cash
 - Minting or redeeming nTokens, which must mint incentives
@@ -31,7 +31,7 @@ Cash balances and nToken balances can be updated via:
 - Settling assets where assets are converted to cash balances
 - Liquidation which will result in a forced transfer of cash balances
 
-Account context must adhere to these rules:
+#### Account Context
 
 - `bitmapCurrencyId` is set to zero when asset array is being used. If it is set to any other value then the following must be true:
     - `assetArrayLength` must be zero.
