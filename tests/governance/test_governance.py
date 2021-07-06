@@ -396,7 +396,7 @@ def test_pause_and_restart_router(environment, accounts):
 
     with brownie.reverts():
         # Still cannot upgrade to arbitrary implementation
-        environment.notional.upgradeTo(zeroAddress, {"from": accounts[8]})
+        environment.notional.upgradeTo(environment.router.address, {"from": accounts[8]})
 
     # Can call a view method
     environment.notional.getAccountPortfolio(accounts[0])

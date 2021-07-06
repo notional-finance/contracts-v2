@@ -28,7 +28,7 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
 
         // Clear this storage slot so the guardian cannot upgrade back to the previous router,
         // requires governance to do so.
-        rollbackRouterImplementation == address(0);
+        rollbackRouterImplementation = address(0);
     }
 
     /// @dev Delegates the current call to `implementation`.

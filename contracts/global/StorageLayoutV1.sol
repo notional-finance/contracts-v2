@@ -28,7 +28,7 @@ contract StorageLayoutV1 {
     // This is set to an address of a router that can only call governance actions
     address public pauseGuardian;
     // On upgrades this is set in the case that the pause router is used to pass the rollback check
-    address public rollbackRouterImplementation;
+    address internal rollbackRouterImplementation;
 
     // A blanket allowance for a spender to transfer any of an account's nTokens. This would allow a user
     // to set an allowance on all nTokens for a particular integrating contract system.
