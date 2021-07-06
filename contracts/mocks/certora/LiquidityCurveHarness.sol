@@ -98,17 +98,17 @@ contract LiquidityCurveHarness {
         return (netAssetCash, netAssetCashToReserve);
     }
 
-    function addLiquidity(int256 assetCash) external returns (int256, int256) {
+    function addLiquidity(int256 assetCash) external returns (int256, int256, uint8) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
-        (int256 liquidityTokens, int256 fCashToAccount) = market.addLiquidity(assetCash);
+        (int256 liquidityTokens, int256 fCashToAccount) = Market.addLiquidity(market, assetCash);
         Market.setMarketStorage(market);
 
-        return (liquidityTokens, fCashToAccount);
+        return (liquidityTokens, fCashToAccount, uint8(market.storageState));
     }
 
     function removeLiquidity(int256 tokensToRemove) external returns (int256, int256) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
-        (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
+        (int256 assetCash, int256 fCash) = Market.removeLiquidity(market, tokensToRemove);
         Market.setMarketStorage(market);
 
         return (assetCash, fCash);

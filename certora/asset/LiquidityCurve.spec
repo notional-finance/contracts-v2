@@ -79,7 +79,10 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
 
     int256 liquidityTokens;
     int256 fCashToAccount;
-    liquidityTokens, fCashToAccount = addLiquidity(e, cashAmount);
+    uint8 storageState;
+    liquidityTokens, fCashToAccount, storageState = addLiquidity(e, cashAmount);
+
+    assert storageState == 1, "storage state is not set";
 
     int256 marketfCashAfter = getMarketfCash();
     int256 marketAssetCashAfter = getMarketAssetCash();
