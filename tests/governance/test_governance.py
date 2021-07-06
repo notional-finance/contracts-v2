@@ -287,7 +287,7 @@ def test_note_token_reservoir_fails_on_zero(environment, accounts, Reservoir):
 
 def test_non_owners_cannot_upgrade_contracts(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
-    with brownie.reverts("Ownable: caller is not the owner"):
+    with brownie.reverts("Unauthorized upgrade"):
         environment.notional.upgradeTo(zeroAddress, {"from": accounts[0]})
         environment.notional.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
 
@@ -378,3 +378,40 @@ def test_delegation(environment, accounts):
     environment.noteERC20.transfer(accounts[4], 100e8, {"from": environment.multisig})
     assert environment.noteERC20.getCurrentVotes(environment.multisig) == multisigVotes - 100e8
     assert environment.noteERC20.getCurrentVotes(accounts[4]) == 100e8
+
+
+def test_pause_and_restart_router(environment, accounts):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+    zeroAddress = HexString(0, "bytes20")
+    with brownie.reverts("Unauthorized upgrade"):
+        # Cannot upgrade to arbitrary implementation
+        environment.notional.upgradeTo(zeroAddress, {"from": accounts[8]})
+
+    # Can downgrade to paused router
+    environment.notional.upgradeTo(environment.pauseRouter.address, {"from": accounts[8]})
+
+    with brownie.reverts():
+        # Ensure that methods are not callable
+        environment.notional.settleAccount(accounts[0])
+
+    with brownie.reverts():
+        # Still cannot upgrade to arbitrary implementation
+        environment.notional.upgradeTo(zeroAddress, {"from": accounts[8]})
+
+    # Can call a view method
+    environment.notional.getAccountPortfolio(accounts[0])
+
+    # Can upgrade back to previous router via governance
+    upgradeRouter = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="upgradeTo", args=[environment.router.address]
+    )
+
+    targets = [environment.notional.address]
+    values = [0]
+    calldatas = [upgradeRouter]
+
+    execute_proposal(environment, targets, values, calldatas)
+    assert environment.notional.getImplementation() == environment.router.address
+
+    # Assert that methods are now callable
+    environment.notional.settleAccount(accounts[0])

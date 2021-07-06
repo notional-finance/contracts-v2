@@ -13,6 +13,7 @@ from brownie import (
     MockAggregator,
     MockERC20,
     NoteERC20,
+    PauseRouter,
     Router,
     SettleAssetsExternal,
     TradingAction,
@@ -91,6 +92,7 @@ class TestEnvironment:
                 [self.deployer, self.notional.address],
                 [99_000_000e8, GovernanceConfig["initialBalances"]["NOTIONAL"]],
                 self.notional.address,
+                self.deployer.address,
                 {"from": self.deployer},
             )
 
@@ -212,6 +214,9 @@ class TestEnvironment:
         liquidateCurrencyAction = LiquidateCurrencyAction.deploy({"from": self.deployer})
         liquidatefCashAction = LiquidatefCashAction.deploy({"from": self.deployer})
 
+        # Deploy Pause Router
+        self.pauseRouter = PauseRouter.deploy(views.address, {"from": self.deployer})
+
         # Deploy router
         self.router = Router.deploy(
             governance.address,
@@ -229,7 +234,8 @@ class TestEnvironment:
         )
 
         initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
-            fn_name="initialize", args=[self.deployer.address]
+            fn_name="initialize",
+            args=[self.deployer.address, self.pauseRouter.address, accounts[8].address],
         )
 
         self.proxy = nProxy.deploy(

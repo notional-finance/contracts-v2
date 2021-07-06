@@ -65,7 +65,7 @@ contract Router is StorageLayoutV1 {
         cETH = cETH_;
     }
 
-    function initialize(address owner_) public {
+    function initialize(address owner_, address pauseRouter_, address pauseGuardian_) public {
         // Cannot re-initialize once the contract has been initialized, ownership transfer does not
         // allow address to be set back to zero
         require(owner == address(0), "R: already initialized");
@@ -91,6 +91,9 @@ contract Router is StorageLayoutV1 {
         require(status);
 
         owner = owner_;
+        // The pause guardian may downgrade the router to the pauseRouter
+        pauseRouter = pauseRouter_;
+        pauseGuardian = pauseGuardian_;
     }
 
     /// @notice Returns the implementation contract for the method signature
@@ -231,6 +234,5 @@ contract Router is StorageLayoutV1 {
         _delegate(getRouterImplementation(msg.sig));
     }
 
-    // NOTE: receive() is overridden in "nTransparentUpgradeableProxy" to allow for eth transfers to succeed
-    // with limited gas so that is the contract that must be deployed, not the regular OZ proxy.
+    // NOTE: receive() is overridden in "nProxy" to allow for eth transfers to succeed
 }

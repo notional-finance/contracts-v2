@@ -29,8 +29,30 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         owner = newOwner;
     }
 
-    /// @dev Only the owner may upgrade the contract
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
+    /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
+    /// to a predetermined router contract that provides read only access to the system.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(
+            owner == msg.sender ||
+            (msg.sender == pauseGuardian && newImplementation == pauseRouter),
+            "Unauthorized upgrade"
+        );
+
+        // This is set temporarily during a downgrade to the pauseRouter so that the upgrade
+        // will pass _authorizeUpgrade on the pauseRouter during the UUPSUpgradeable rollback check
+        if (newImplementation == pauseRouter) rollbackRouterImplementation = _getImplementation();
+    }
+
+    /// @notice Sets a new pause router and guardian address.
+    function setPauseRouterAndGuardian(
+        address pauseRouter_,
+        address pauseGuardian_
+    ) external override onlyOwner {
+        pauseRouter = pauseRouter_;
+        pauseGuardian = pauseGuardian_;
+
+        emit PauseRouterAndGuardianUpdated(pauseRouter_, pauseGuardian_);
+    }
 
     /// @notice Lists a new currency along with its exchange rate to ETH
     /// @dev emit:ListCurrency emit:UpdateETHRate

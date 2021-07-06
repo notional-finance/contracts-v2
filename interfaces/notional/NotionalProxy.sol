@@ -82,6 +82,9 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     function upgradeTo(address newImplementation) external;
     function upgradeToAndCall(address newImplementation, bytes memory data) external payable;
     function getImplementation() external view returns (address);
+    function owner() external view returns (address);
+    function pauseRouter() external view returns (address);
+    function pauseGuardian() external view returns (address);
 
     /** Initialize Markets Action */
     function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
