@@ -33,14 +33,19 @@ Cash balances and nToken balances can be updated via:
 
 Account context must adhere to these rules:
 
-- Asset array length must match the actual number of assets
-- If bitmap currency id is set, then the account cannot have other assets
-- Has Debt must reconcile with the account having negative fCash assets or negative cash balances
-- Next Settle Time must point to either:
-    - If using asset arrays: the minimum settlement date of the asset array
+- `bitmapCurrencyId` is set to zero when asset array is being used. If it is set to any other value then the following must be true:
+    - `assetArrayLength` must be zero.
+    - `activeCurrencies` cannot contain the currency id set in `bitmapCurrencyId`
+- `nextSettleTime` must be one of these two values:
+    - If using asset arrays: the minimum settlement timestamp of all the assets in the asset array
     - If using bitmap portfolio: the UTC midnight take of the first bitmap reference
-- Active currencies must be sorted and never duplicated
-- Active currencies must have corresponding active in portfolio and active in cash balance set
+- `assetArrayLength` must match the actual number of assets stored in the array
+- `hasDebt` must reconcile with the account having negative fCash assets or negative cash balances
+    - `Constants.HAS_ASSET_DEBT` is set when there is a negative fCash asset
+    - `Constants.HAS_CASH_DEBT` is set where there is a negative cash balance
+- `activeCurrencies` is `bytes18` where each 2 bytes is a `uint16` currency id with the top two most significant bits set to denote if it is active in the portfolio or active in the cash balances.
+- `activeCurrencies` must be sorted and never duplicated
+- `activeCurrencies` must have corresponding `Constants.ACTIVE_IN_PORTFOLIO` and/or `Constants.ACTIVE_IN_BALANCES` flag set
 
 ### nToken Account State
 
