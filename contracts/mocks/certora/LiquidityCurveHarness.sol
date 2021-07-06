@@ -37,8 +37,8 @@ contract LiquidityCurveHarness {
     }
 
     function getRateOracleTimeWindow() external view returns (uint256) {
-        //CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        CashGroupParameters memory cashGroup = symbolicCashGroup;
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        //CashGroupParameters memory cashGroup = symbolicCashGroup;
         return cashGroup.getRateOracleTimeWindow();
     }
 
@@ -95,6 +95,7 @@ contract LiquidityCurveHarness {
         (int256 netAssetCash, int256 netAssetCashToReserve) =
             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
         market.setMarketStorage();
+        symbolicMarket = market;
         return (netAssetCash, netAssetCashToReserve);
     }
 
@@ -102,11 +103,13 @@ contract LiquidityCurveHarness {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         market.addLiquidity(assetCash);
         market.setMarketStorage();
+        symbolicMarket = market;
     }
 
     function removeLiquidity(int256 tokensToRemove) external {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         market.removeLiquidity(tokensToRemove);
         market.setMarketStorage();
+        symbolicMarket = market;
     }
 }
