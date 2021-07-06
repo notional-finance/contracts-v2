@@ -15,7 +15,6 @@ definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && 
 definition absDiff(uint256 x, uint256 y) returns uint256 = x > y ? x - y : y - x;
 definition basisPoint() returns uint256 = 100000;
 definition QUARTER() returns uint256 = 86400 * 90;
-definition getMarketProportion() returns mathint = (getMarketfCash() * 10^9) / (getMarketfCash() + getMarketAssetCash());
 
 /**
  * Oracle rates are blended into the rate window given the rate oracle time window.
@@ -27,8 +26,8 @@ invariant oracleRatesAreBlendedIntoTheRateWindow(
     (previousTradeTime + getRateOracleTimeWindow() >= blockTime) ?
         getMarketOracleRate() == getLastImpliedRate() :
         isBetween(
+            getStoredOracleRate(),
             getMarketOracleRate(),
-            getPreviousTradeTime(),
             getLastImpliedRate()
         )
 
@@ -64,16 +63,32 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
     int256 cashAmount
 ) {
     env e;
-    require getMarketProportion() > 0;
     require cashAmount > 0;
     uint256 previousTradeTime = getPreviousTradeTime();
+    uint256 oracleRate = getStoredOracleRate();
     uint256 lastImpliedRate = getLastImpliedRate();
-    mathint marketProportion = getMarketProportion();
+    int256 marketfCashBefore = getMarketfCash();
+    int256 marketAssetCashBefore = getMarketAssetCash();
+    int256 marketLiquidityBefore = getMarketLiquidity();
+    require marketfCashBefore >= 0 && marketfCashBefore <= 2^80 - 1;
+    require marketAssetCashBefore >= 0 && marketAssetCashBefore <= 2^80 - 1;
+    require marketLiquidityBefore >= 0 && marketLiquidityBefore <= 2^80 - 1;
+    require previousTradeTime >= 0 && previousTradeTime <= 2^32 - 1;
+    require lastImpliedRate >= 0 && lastImpliedRate <= 2^32 - 1;
+    require oracleRate >= 0 && oracleRate <= 2^32 - 1;
 
-    addLiquidity(e, cashAmount);
-    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
+    int256 liquidityTokens;
+    int256 fCashToAccount;
+    liquidityTokens, fCashToAccount = addLiquidity(e, cashAmount);
+
+    int256 marketfCashAfter = getMarketfCash();
+    int256 marketAssetCashAfter = getMarketAssetCash();
+    int256 marketLiquidityAfter = getMarketLiquidity();
     assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
-    assert getMarketProportion() == marketProportion, "market proportion changed on add liquidity";
+    assert marketAssetCashBefore + cashAmount == marketAssetCashAfter, "market asset cash imbalance";
+    assert fCashToAccount + marketfCashAfter == marketfCashBefore, "net fCash is not zero";
+    assert liquidityTokens + marketLiquidityBefore == marketLiquidityAfter, "liquidity token imbalance";
+    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
 }
 
 rule impliedRatesDoNotChangeOnRemoveLiquidity(
@@ -81,18 +96,33 @@ rule impliedRatesDoNotChangeOnRemoveLiquidity(
 ) {
     env e;
     require tokenAmount > 0;
-    int256 marketLiquidityBefore = getMarketLiquidity();
-    require marketLiquidityBefore >= tokenAmount;
     uint256 previousTradeTime = getPreviousTradeTime();
+    uint256 oracleRate = getStoredOracleRate();
     uint256 lastImpliedRate = getLastImpliedRate();
-    mathint marketProportion = getMarketProportion();
+    int256 marketfCashBefore = getMarketfCash();
+    int256 marketAssetCashBefore = getMarketAssetCash();
+    int256 marketLiquidityBefore = getMarketLiquidity();
+    require marketfCashBefore >= 0 && marketfCashBefore <= 2^80 - 1;
+    require marketAssetCashBefore >= 0 && marketAssetCashBefore <= 2^80 - 1;
+    require marketLiquidityBefore >= 0 && marketLiquidityBefore <= 2^80 - 1;
+    require previousTradeTime >= 0 && previousTradeTime <= 2^32 - 1;
+    require lastImpliedRate >= 0 && lastImpliedRate <= 2^32 - 1;
+    require oracleRate >= 0 && oracleRate <= 2^32 - 1;
 
-    removeLiquidity(e, tokenAmount);
+    require marketLiquidityBefore >= tokenAmount;
+
+    int256 assetCash;
+    int256 fCash;
+    assetCash, fCash = removeLiquidity(e, tokenAmount);
+
+    int256 marketfCashAfter = getMarketfCash();
+    int256 marketAssetCashAfter = getMarketAssetCash();
+    int256 marketLiquidityAfter = getMarketLiquidity();
+    assert marketAssetCashBefore - assetCash == marketAssetCashAfter, "market asset cash imbalance";
+    assert marketfCashBefore - fCash == marketfCashAfter, "fCash imbalance";
+    assert marketLiquidityBefore - tokenAmount == marketLiquidityAfter, "liquidity token imbalance";
     assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
     assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
-    // Check this or it will fail on remove down to zero
-    assert marketLiquidityBefore > tokenAmount =>
-        getMarketProportion() == marketProportion, "market proportion changed on remove liquidity";
 }
 
 // The amount of slippage for a given size of trade should not change in terms of the implied rate
