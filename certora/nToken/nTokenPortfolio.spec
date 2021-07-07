@@ -1,3 +1,7 @@
+/**
+ * These invariants should hold before and after any changes to an nToken portfolio, namely on
+ * Minting nTokens, Redeeming nTokens, Initializing Markets, and Sweep Cash Into Markets
+ */
 methods {
     getMaturityAtMarketIndex(uint256 marketIndex) returns (uint256) envfree
     getNTokenCurrency(address account) returns (uint256) envfree
