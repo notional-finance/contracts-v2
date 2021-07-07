@@ -23,7 +23,7 @@ invariant oracleRatesAreBlendedIntoTheRateWindow(
     env e,
     uint256 previousTradeTime
 )
-    (previousTradeTime + getRateOracleTimeWindow() <= e.block.timestamp) ?
+    (getPreviousTradeTime() + getRateOracleTimeWindow() <= e.block.timestamp) ?
         getMarketOracleRate() == getLastImpliedRate() :
         isBetween(
             getStoredOracleRate(),
@@ -88,8 +88,6 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
     assert marketAssetCashBefore + cashAmount == marketAssetCashAfter, "market asset cash imbalance";
     assert liquidityTokens + marketLiquidityBefore == marketLiquidityAfter, "liquidity token imbalance";
     assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
-    // TODO: this line fails, fCashToAccount should be negative but not sure if it is working properly here
-    // assert fCashToAccount + marketfCashAfter == marketfCashBefore, "net fCash is not zero";
 }
 
 rule impliedRatesDoNotChangeOnRemoveLiquidity(
