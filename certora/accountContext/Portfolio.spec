@@ -139,7 +139,7 @@ hook Sstore (slot 1000012)
     int256 v STORAGE {
 
     // Set new ifcash asset ghost
-    havoc g_ifCashAsset assuming g_ifCashAsset@new(account, currencyId, maturity) == (
+    havoc g_ifCashAsset assuming g_ifCashAsset@new(account, currencyId, maturity) == v && (
         forall address a.
         forall uint256 c.
         forall uint256 m.
