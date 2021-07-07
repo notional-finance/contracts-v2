@@ -13,34 +13,38 @@ contract AccountPortfolioHarness {
     using PortfolioHandler for PortfolioState;
     using BalanceHandler for BalanceState;
 
+
+    AccountContext  public symbolicAccountContext;
+
     function getNextSettleTime(address account) external view returns (uint40) {
-        return AccountContextHandler.getAccountContext(account).nextSettleTime;
+        //return AccountContextHandler.getAccountContext(account).nextSettleTime;
+        return symbolicAccountContext.nextSettleTime;
     }
 
     function getHasDebt(address account) external view returns (uint8) {
-        return uint8(AccountContextHandler.getAccountContext(account).hasDebt);
+        return uint8(symbolicAccountContext.hasDebt);
     }
 
     function getAssetArrayLength(address account) external view returns (uint8) {
-        return AccountContextHandler.getAccountContext(account).assetArrayLength;
+        return symbolicAccountContext.assetArrayLength;
     }
 
     function getBitmapCurrency(address account) external view returns (uint16) {
-        return AccountContextHandler.getAccountContext(account).bitmapCurrencyId;
+        return symbolicAccountContext.bitmapCurrencyId;
     }
 
     function getActiveCurrencies(address account) external view returns (uint144) {
-        return uint144(AccountContextHandler.getAccountContext(account).activeCurrencies);
+        return uint144(symbolicAccountContext.activeCurrencies);
     }
 
     function getAssetsBitmap(address account) external view returns (uint256) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         return
             uint256(BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId));
     }
 
     function getAccountContext(address account) external view returns (AccountContext memory) {
-        return AccountContextHandler.getAccountContext(account);
+        return symbolicAccountContext;
     }
 
     // This is just a harness for getting the settlement date
@@ -59,7 +63,7 @@ contract AccountPortfolioHarness {
     }
 
     function getMaturityAtBitNum(address account, uint256 bitNum) public returns (uint256) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         return DateTime.getMaturityFromBitNum(accountContext.nextSettleTime, bitNum);
     }
 
@@ -102,9 +106,9 @@ contract AccountPortfolioHarness {
         uint256 currencyId,
         uint256 blockTime
     ) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         accountContext.enableBitmapForAccount(account, currencyId, blockTime);
-        accountContext.setAccountContext(account);
+        symbolicAccountContext = accountContext;
     }
 
     // Adds one asset into the array portfolio at a time
@@ -115,7 +119,7 @@ contract AccountPortfolioHarness {
         uint256 assetType,
         int256 notional
     ) public {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
 
         PortfolioState memory portfolioState =
             // TODO: need to test isNewHint somehow...
@@ -124,7 +128,7 @@ contract AccountPortfolioHarness {
 
         // TODO: disable liquidation on this, will test separately
         accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
-        accountContext.setAccountContext(account);
+        symbolicAccountContext = accountContext;
     }
 
     function addBitmapAsset(
@@ -132,7 +136,7 @@ contract AccountPortfolioHarness {
         uint256 maturity,
         int256 notional
     ) public {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         bytes32 ifCashBitmap =
             BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
         int256 finalfCashAmount;
@@ -152,7 +156,7 @@ contract AccountPortfolioHarness {
         }
 
         BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
-        accountContext.setAccountContext(account);
+        symbolicAccountContext = accountContext;
     }
 
     function finalizeCashBalance(
@@ -162,14 +166,14 @@ contract AccountPortfolioHarness {
         int256 netAssetTransferInternalPrecision,
         bool redeemToUnderlying
     ) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
         balanceState.netCashChange = netCashChange;
         balanceState.netAssetTransferInternalPrecision = netAssetTransferInternalPrecision;
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
-        accountContext.setAccountContext(account);
+        symbolicAccountContext = accountContext;
     }
 
     function setBalanceStorageForSettleCashDebt(
@@ -177,22 +181,24 @@ contract AccountPortfolioHarness {
         uint256 currencyId,
         int256 amountToSettleAsset
     ) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         BalanceHandler.setBalanceStorageForSettleCashDebt(
             account,
             currencyId,
             amountToSettleAsset,
             accountContext
         );
-        accountContext.setAccountContext(account);
+        symbolicAccountContext = accountContext;
     }
 
+
+    // todo: add _clearPortfolioActiveFlags?
     // todo: add settlement methods here...
     // include finalizeSettleAmounts
 
     /*
     function setActiveCurrency2(address account, bytes18 activeCurrencies) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         accountContext.activeCurrencies = activeCurrencies;
         accountContext.setAccountContext(account);
     }
@@ -203,7 +209,7 @@ contract AccountPortfolioHarness {
         bool isActive,
         bytes2 flags
     ) external {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = symbolicAccountContext;
         accountContext.setActiveCurrency(currencyId, isActive, flags);
         accountContext.setAccountContext(account);
     }
