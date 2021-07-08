@@ -14,7 +14,9 @@ contract AccountPortfolioHarness {
     using BalanceHandler for BalanceState;
 
 
-    AccountContext  public symbolicAccountContext;
+    // todo : might need this as a mapping form address
+    AccountContext public symbolicAccountContext;
+    PortfolioState public symbolicPortfolioState;
 
     function getNextSettleTime(address account) external view returns (uint40) {
         //return AccountContextHandler.getAccountContext(account).nextSettleTime;
@@ -99,6 +101,10 @@ contract AccountPortfolioHarness {
         return lastClaimSupply;
     }
 
+
+    function getStoredAsset(address account, uint256 i) public view returns (uint256) {
+        return symbolicPortfolioState.storedAssets[i].currencyId;
+    }
     /** State Changing Methods **/
 
     function enableBitmapForAccount(
@@ -121,13 +127,10 @@ contract AccountPortfolioHarness {
     ) public {
         AccountContext memory accountContext = symbolicAccountContext;
 
-        PortfolioState memory portfolioState =
-            // TODO: need to test isNewHint somehow...
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        PortfolioState memory portfolioState = symbolicPortfolioState;
+            
         portfolioState.addAsset(currencyId, maturity, assetType, notional, false);
 
-        // TODO: disable liquidation on this, will test separately
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         symbolicAccountContext = accountContext;
     }
 
