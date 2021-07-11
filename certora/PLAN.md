@@ -31,21 +31,68 @@ These invariants ensure that account state is properly handled. Account state ca
 - Settling assets where assets are converted to cash balances
 - Liquidation which will result in a forced transfer of cash balances
 
-#### Account Context
+#### Account Context (struct AccountContext)
 
-- `bitmapCurrencyId` is set to zero when asset array is being used. If it is set to any other value then the following must be true:
+- `bitmapCurrencyId` is set to zero when asset array is being used. 
+    If it is set to any other value then the following must be true:
     - `assetArrayLength` must be zero.
-    - `activeCurrencies` cannot contain the currency id set in `bitmapCurrencyId`
+    - `activeCurrencies` cannot contain the currency id set in `bitmapCurrencyId` (invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies)
+
+    
+
+    ```
+    (1) AccountContext.assetArrayLength > 0 => AccountContext.bitmapCurrencyId=0 
+    (2) i < AccountContext.assetArrayLength <=>  PortfolioState.storedAssets[i] != 0
+    ```
+    
+
 - `nextSettleTime` must be one of these two values:
     - If using asset arrays: the minimum settlement timestamp of all the assets in the asset array
     - If using bitmap portfolio: the UTC midnight take of the first bitmap reference
+
+    ```
+    (3) AccountContext.nextSettleTime = min(PortfolioState.storedAssets[i].maturity) 
+            where i < AccountContext.assetArrayLength and PortfolioState.storedAssets[i] is Fcash
+            (not sure)
+         use getSettlementDate for general assets   
+    ```
+
 - `assetArrayLength` must match the actual number of assets stored in the array
+
 - `hasDebt` must reconcile with the account having negative fCash assets or negative cash balances
     - `Constants.HAS_ASSET_DEBT` is set when there is a negative fCash asset
     - `Constants.HAS_CASH_DEBT` is set where there is a negative cash balance
+
+    ```
+    AccountContext.hasDebt & HAS_ASSET_DEBT <=> exists i PortfolioState.storedAssets[i].notional < 0
+    ```
+
 - `activeCurrencies` is `bytes18` where each 2 bytes is a `uint16` currency id with the top two most significant bits set to denote if it is active in the portfolio or active in the cash balances.
 - `activeCurrencies` must be sorted and never duplicated
 - `activeCurrencies` must have corresponding `Constants.ACTIVE_IN_PORTFOLIO` and/or `Constants.ACTIVE_IN_BALANCES` flag set
+
+#### Verification outline
+
+- SetAccountContext.spec  
+    - verify the basic load/store operations AccountContextHandler:
+    `getAccountContext`,`setAccountContext`  
+    - BitmapAssetsHandler
+    - need to run with bitwise operation
+     
+
+    
+- AccountState.spec (merge Portfolio.spec, AccountPortfolio.spec )
+    - valid state of AccountContext + PortfolioState 
+    - memory structures instead of `getAccountContext`,`setAccountContext` 
+
+- ActiveCurrencies.spec 
+    - 
+    - need to run with bitwise operation  
+ 
+
+- 
+| 
+
 
 ### nToken Account State
 
@@ -102,3 +149,7 @@ At any point in time the nToken portfolio of assets must adhere to these rules:
 - Getter/Setter methods for Governance Action
 - ERC20 compliance
 - Incentive emission rate
+
+
+
+# cross reference code to spec file
