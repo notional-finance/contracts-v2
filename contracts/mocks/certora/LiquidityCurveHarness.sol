@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/Market.sol";
-
+// import "../../math/ABDKMath64x64.sol";
 
 contract LiquidityCurveHarness {
     using CashGroup for CashGroupParameters;
@@ -18,8 +18,8 @@ contract LiquidityCurveHarness {
     uint256 public constant MATURITY = 86400 * 360 * 30;
 
     function getRateScalar(uint256 timeToMaturity) external view returns (int256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        return cashGroup.getRateScalar(MARKET_INDEX, timeToMaturity);
+        // CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        return symbolicCashGroup.getRateScalar(MARKET_INDEX, timeToMaturity);
     }
 
     function _loadMarket() internal view returns (MarketParameters memory) {
@@ -37,9 +37,8 @@ contract LiquidityCurveHarness {
     }
 
     function getRateOracleTimeWindow() external view returns (uint256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        //CashGroupParameters memory cashGroup = symbolicCashGroup;
-        return cashGroup.getRateOracleTimeWindow();
+        // CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+        return symbolicCashGroup.getRateOracleTimeWindow();
     }
 
     function getStoredOracleRate() external view returns (uint256) {
@@ -90,12 +89,13 @@ contract LiquidityCurveHarness {
         external
         returns (int256, int256)
     {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(CURRENCY_ID);
+        CashGroupParameters memory cashGroup = symbolicCashGroup; //CashGroup.buildCashGroupStateful(CURRENCY_ID);
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         (int256 netAssetCash, int256 netAssetCashToReserve) =
             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
         market.setMarketStorage();
         symbolicMarket = market;
+        symbolicCashGroup = cashGroup;
         return (netAssetCash, netAssetCashToReserve);
     }
 
@@ -111,5 +111,16 @@ contract LiquidityCurveHarness {
         market.removeLiquidity(tokensToRemove);
         market.setMarketStorage();
         symbolicMarket = market;
+    }
+
+    ///////////////////////////////
+    //  general purpose functions 
+    ///////////////////////////////
+
+    function a_minus_b(int256 a, int256 b) public returns (int256) {
+        return a - b;
+    }
+    function isEqual(int256 a, int256 b) public returns (bool) {
+        return a == b;
     }
 }

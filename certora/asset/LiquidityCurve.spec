@@ -2,13 +2,17 @@ methods {
     getRateScalar(uint256 timeToMaturity) returns (int256) envfree;
     getRateOracleTimeWindow() returns (uint256) envfree;
     getLastImpliedRate() returns (uint256) envfree;
-    getStoredOracleRate() returns (uint256) envfree;
     getPreviousTradeTime() returns (uint256) envfree;
     getMarketfCash() returns (int256) envfree;
     getMarketAssetCash() returns (int256) envfree;
     getMarketLiquidity() returns (int256) envfree;
     getMarketOracleRate() returns (uint256) envfree;
     MATURITY() returns (uint256) envfree;
+    executeTrade(uint256 timeToMaturity, int256 fCashToAccount) returns (int256,int256) envfree;
+   getStoredOracleRate() returns (uint256);
+
+   a_minus_b(int256 a, int256 b) returns (int256) envfree;
+   isEqual(int256 a, int256 b) returns (bool) envfree;
 }
 
 definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && x <= z) || (z <= x && x <= y);
@@ -20,17 +24,21 @@ definition getMarketProportion() returns mathint = (getMarketfCash() * 10^9) / (
 /**
  * Oracle rates are blended into the rate window given the rate oracle time window.
  */
-invariant oracleRatesAreBlendedIntoTheRateWindow(
-    uint256 blockTime,
-    uint256 previousTradeTime
-)
-    (previousTradeTime + getRateOracleTimeWindow() >= blockTime) ?
+
+invariant oracleRatesAreBlendedIntoTheRateWindow(env e)
+    (e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow()) ?
         getMarketOracleRate() == getLastImpliedRate() :
         isBetween(
+            getStoredOracleRate(e),
             getMarketOracleRate(),
-            getPreviousTradeTime(),
             getLastImpliedRate()
         )
+
+
+// rule oracleRatesBlandedIntoRateWindow(method f){
+// env e;
+// 
+// }
 
 rule executeTradeMovesImpliedRates(
     int256 fCashToAccount,
@@ -45,19 +53,25 @@ rule executeTradeMovesImpliedRates(
     int256 assetCashToAccount;
     int256 assetCashToReserve;
 
-    assetCashToAccount, assetCashToReserve = executeTrade(e, timeToMaturity, fCashToAccount);
-    assert fCashToAccount > 0 ? 
+    assetCashToAccount, assetCashToReserve = executeTrade( timeToMaturity, fCashToAccount);
+    // require ((assetCashToAccount != 0 || assetCashToReserve != 0),"strange require failure");
+    require (fCashToAccount < 0 => lastImpliedRate > getLastImpliedRate(),"last trade rate did not move in correct direction");
+    /*assert fCashToAccount > 0 ? 
         // When fCashToAccount > 0 then lending, implied rates should decrease
         lastImpliedRate > getLastImpliedRate() :
         // When fCashToAccount < 0 then borrowing, implied rates should increase
         lastImpliedRate < getLastImpliedRate(),
         "last trade rate did not move in correct direction";
-    assert fCashToAccount > 0 ? assetCashToAccount < 0 : assetCashToAccount > 0, "incorrect asset cash for fCash";
-    assert assetCashToReserve >= 0, "asset cash to reserve cannot be negative";
-    assert getPreviousTradeTime() == e.block.timestamp, "previous trade time did not update";
-    assert getMarketfCash() - fCashToAccount == marketfCashBefore, "Market fCash does not net out";
-    assert getMarketAssetCash() - assetCashToAccount - assetCashToReserve == marketAssetCashBefore,
+        */
+    // require (fCashToAccount > 0 ? assetCashToAccount < 0 : assetCashToAccount > 0, "incorrect asset cash for fCash");
+    require (assetCashToReserve >= 0, "asset cash to reserve cannot be negative");
+    require (getPreviousTradeTime() < e.block.timestamp, "previous trade time did not update");
+    assert isEqual(a_minus_b(getMarketfCash(),fCashToAccount),marketfCashBefore), "Market fCash does not net out";
+    //assert getMarketfCash() - fCashToAccount == marketfCashBefore, "Market fCash does not net out";
+    assert isEqual(a_minus_b(a_minus_b(getMarketAssetCash(),assetCashToAccount),assetCashToReserve),marketAssetCashBefore),
         "Market asset cash does not net out";
+    // assert getMarketAssetCash() - assetCashToAccount - assetCashToReserve == marketAssetCashBefore,
+        // "Market asset cash does not net out";
 }
 
 rule impliedRatesDoNotChangeOnAddLiquidity(
@@ -113,14 +127,19 @@ rule impliedRateSlippageDoesNotChangeWithTime(
     require getRateScalar(timeToMaturity_second) > 0;
 
     storage initStorage = lastStorage;
-    executeTrade(e, timeToMaturity_first, fCashToAccount);
+    executeTrade(timeToMaturity_first, fCashToAccount);
     uint256 lastImpliedRate_first = getLastImpliedRate();
 
-    executeTrade(e, timeToMaturity_second, fCashToAccount) at initStorage;
+    executeTrade(timeToMaturity_second, fCashToAccount) at initStorage;
     uint256 lastImpliedRate_second = getLastImpliedRate();
 
     assert absDiff(lastImpliedRate_first, lastImpliedRate_second) < basisPoint(),
         "Last implied rate slippage increases with time";
 }
-
+rule sanity(method f) {
+    env e;
+    calldataarg args;
+    f(e,args);
+    assert false;
+}
 // invariant fCashAndCashAmountsConverge
