@@ -43,6 +43,12 @@
     },
     {
         "anonymous": false,
+        "inputs": [],
+        "name": "Abdicate",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
         "inputs": [
             {
                 "indexed": true,
@@ -163,7 +169,7 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "id",
                 "type": "uint256"
@@ -176,13 +182,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "id",
                 "type": "uint256"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "proposer",
                 "type": "address"
@@ -225,7 +231,7 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "id",
                 "type": "uint256"
@@ -238,7 +244,7 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "id",
                 "type": "uint256"
@@ -333,6 +339,19 @@
         "inputs": [
             {
                 "indexed": false,
+                "internalType": "address",
+                "name": "newGuardian",
+                "type": "address"
+            }
+        ],
+        "name": "TransferGuardian",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
                 "internalType": "uint96",
                 "name": "newProposalThreshold",
                 "type": "uint96"
@@ -384,13 +403,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "voter",
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "proposalId",
                 "type": "uint256"
@@ -465,6 +484,32 @@
     },
     {
         "inputs": [],
+        "name": "MIN_VOTING_PERIOD_BLOCKS",
+        "outputs": [
+            {
+                "internalType": "uint32",
+                "name": "",
+                "type": "uint32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "PROPOSAL_MAX_OPERATIONS",
+        "outputs": [
+            {
+                "internalType": "uint8",
+                "name": "",
+                "type": "uint8"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
         "name": "PROPOSER_ROLE",
         "outputs": [
             {
@@ -492,6 +537,19 @@
     {
         "inputs": [],
         "name": "__abdicate",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newGuardian",
+                "type": "address"
+            }
+        ],
+        "name": "__transferGuardian",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -1048,7 +1106,7 @@
         "name": "note",
         "outputs": [
             {
-                "internalType": "contract NoteInterface",
+                "internalType": "contract INoteERC20",
                 "name": "",
                 "type": "address"
             }
@@ -1064,19 +1122,6 @@
                 "internalType": "uint256",
                 "name": "",
                 "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "proposalMaxOperations",
-        "outputs": [
-            {
-                "internalType": "uint8",
-                "name": "",
-                "type": "uint8"
             }
         ],
         "stateMutability": "view",
