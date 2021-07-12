@@ -93,7 +93,7 @@ contract LiquidityCurveHarness {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         (int256 netAssetCash, int256 netAssetCashToReserve) =
             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
-        market.setMarketStorage();
+        // market.setMarketStorage();
         symbolicMarket = market;
         symbolicCashGroup = cashGroup;
         return (netAssetCash, netAssetCashToReserve);
@@ -103,7 +103,7 @@ contract LiquidityCurveHarness {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         int256 marketfCashBefore = market.totalfCash;
         (int256 liquidityTokens, int256 fCashToAccount) = market.addLiquidity(assetCash);
-        market.setMarketStorage();
+        // market.setMarketStorage();
         symbolicMarket = market;
 
         // Check the assertion in here because the prover does not handle negative integers
@@ -115,7 +115,7 @@ contract LiquidityCurveHarness {
     function removeLiquidity(int256 tokensToRemove) external returns (int256, int256) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
-        market.setMarketStorage();
+        // market.setMarketStorage();
         symbolicMarket = market;
         return (assetCash, fCash);
     }
@@ -126,6 +126,9 @@ contract LiquidityCurveHarness {
 
     function a_minus_b(int256 a, int256 b) public returns (int256) {
         return a - b;
+    }
+    function a_plus_b(int256 a, int256 b) public returns (int256) {
+        return a + b;
     }
     function isEqual(int256 a, int256 b) public returns (bool) {
         return a == b;

@@ -12,7 +12,12 @@ methods {
    getStoredOracleRate() returns (uint256);
 
    a_minus_b(int256 a, int256 b) returns (int256) envfree;
+   a_plus_b(int256 a, int256 b) returns (int256) envfree;
    isEqual(int256 a, int256 b) returns (bool) envfree;
+
+   // Market
+   getExchangeRateFactors((bytes32,uint256,int256,int256,int256,uint256,uint256,uint256,bytes1),(uint256,uint256,(address,int256,int256),bytes32),uint256,uint256) => NONDET
+   
 }
 
 definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && x <= z) || (z <= x && x <= y);
@@ -34,10 +39,28 @@ invariant oracleRatesAreBlendedIntoTheRateWindow(env e)
         )
 
 
-// rule oracleRatesBlandedIntoRateWindow(method f){
-// env e;
-// 
-// }
+rule oracleRatesBlandedIntoRateWindow(method f){
+env e;
+
+uint marketOracleRate_1 = getMarketOracleRate();
+uint lastImpliedRate_1 = getLastImpliedRate();
+
+require (e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow() =>
+        getMarketOracleRate() == getLastImpliedRate(), "require 1_");
+require (!(e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow()) =>
+        isBetween(getStoredOracleRate(e),getMarketOracleRate(),getLastImpliedRate()), "require 2_");
+
+calldataarg args;
+f(e,args);
+
+uint marketOracleRate_2 = getMarketOracleRate();
+uint lastImpliedRate_2 = getLastImpliedRate();
+
+assert (!(e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow()) =>
+        isBetween(getStoredOracleRate(e),getMarketOracleRate(),getLastImpliedRate()), "assert 2_");
+assert (e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow() =>
+        getMarketOracleRate() == getLastImpliedRate(), "assert 1_");
+}
 
 rule executeTradeMovesImpliedRates(
     int256 fCashToAccount,
@@ -53,7 +76,7 @@ rule executeTradeMovesImpliedRates(
     int256 assetCashToReserve;
 
     assetCashToAccount, assetCashToReserve = executeTrade( timeToMaturity, fCashToAccount);
-    // require ((assetCashToAccount != 0 || assetCashToReserve != 0),"strange require failure");
+    // require ((assetCashToAccount != 0 && assetCashToReserve != 0),"strange require failure");
     require (fCashToAccount < 0 => lastImpliedRate > getLastImpliedRate(),"last trade rate did not move in correct direction");
     /*assert fCashToAccount > 0 ? 
         // When fCashToAccount > 0 then lending, implied rates should decrease
@@ -79,7 +102,7 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
     env e;
     require cashAmount > 0;
     uint256 previousTradeTime = getPreviousTradeTime();
-    uint256 oracleRate = getStoredOracleRate();
+    uint256 oracleRate = getStoredOracleRate(e);
     uint256 lastImpliedRate = getLastImpliedRate();
     int256 marketfCashBefore = getMarketfCash();
     int256 marketAssetCashBefore = getMarketAssetCash();
@@ -110,7 +133,7 @@ rule impliedRatesDoNotChangeOnRemoveLiquidity(
     env e;
     require tokenAmount > 0;
     uint256 previousTradeTime = getPreviousTradeTime();
-    uint256 oracleRate = getStoredOracleRate();
+    uint256 oracleRate = getStoredOracleRate(e);
     uint256 lastImpliedRate = getLastImpliedRate();
     int256 marketfCashBefore = getMarketfCash();
     int256 marketAssetCashBefore = getMarketAssetCash();
