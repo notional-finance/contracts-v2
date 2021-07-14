@@ -373,8 +373,8 @@ library Market {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
-        int256 proportion =
-            numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+        int256 proportion = /*Constants.RATE_PRECISION/2;
+            //*/ numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
         (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
@@ -392,7 +392,7 @@ library Market {
     /// @dev This method calculates the log of the proportion inside the logit function which is
     /// defined as ln(proportion / (1 - proportion)). Special handling here is required to deal with
     /// fixed point precision and the ABDK library.
-    function _logProportion(int256 proportion) internal pure returns (int256, bool) {
+    /*function _logProportion(int256 proportion) internal pure returns (int256, bool) {
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
         proportion = proportion.mul(Constants.RATE_PRECISION).div(
@@ -422,8 +422,18 @@ library Market {
             );
 
         return (result, true);
+    }*/
+    //gadi
+    function _logProportion(int256 x) internal pure returns (int256, bool) {
+    if (x <= 0 || x >= Constants.RATE_PRECISION)
+        return (0,false);
+    if (x > 19*Constants.RATE_PRECISION/20)
+        return(1000 * x - 950 * Constants.RATE_PRECISION,true);
+    if (x < Constants.RATE_PRECISION/20)
+        return(1000 * x - 50 * Constants.RATE_PRECISION,true);
+    // between 0.05 and 0.95
+    return(6 * x - 3 * Constants.RATE_PRECISION,true);
     }
-
     /// @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
     /// on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
     /// a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.

@@ -15,9 +15,13 @@ methods {
    a_plus_b(int256 a, int256 b) returns (int256) envfree;
    isEqual(int256 a, int256 b) returns (bool) envfree;
 
-   // Market
-   getExchangeRateFactors((bytes32,uint256,int256,int256,int256,uint256,uint256,uint256,bytes1),(uint256,uint256,(address,int256,int256),bytes32),uint256,uint256) => NONDET
-   
+    // Market
+    ////////////////
+
+    // getExchangeRateFactors((bytes32,uint256,int256,int256,int256,uint256,uint256,uint256,bytes1),(uint256,uint256,(address,int256,int256),bytes32),uint256,uint256) => NONDET
+    // _getExchangeRate(int256,int256,int256,int256,int256) => NONDET
+    // getImpliedRate(int256,int256,int256,int256,uint256) => NONDET
+
 }
 
 definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && x <= z) || (z <= x && x <= y);
@@ -44,10 +48,11 @@ env e;
 
 uint marketOracleRate_1 = getMarketOracleRate();
 uint lastImpliedRate_1 = getLastImpliedRate();
+require e.block.timestamp > getPreviousTradeTime();
 
 require (e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow() =>
-        getMarketOracleRate() == getLastImpliedRate(), "require 1_");
-require (!(e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow()) =>
+        marketOracleRate_1 == lastImpliedRate_1, "require 1_");
+require (e.block.timestamp - getPreviousTradeTime() <= getRateOracleTimeWindow() =>
         isBetween(getStoredOracleRate(e),getMarketOracleRate(),getLastImpliedRate()), "require 2_");
 
 calldataarg args;
@@ -55,11 +60,12 @@ f(e,args);
 
 uint marketOracleRate_2 = getMarketOracleRate();
 uint lastImpliedRate_2 = getLastImpliedRate();
+require lastImpliedRate_2 != 0;
 
-assert (!(e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow()) =>
-        isBetween(getStoredOracleRate(e),getMarketOracleRate(),getLastImpliedRate()), "assert 2_");
 assert (e.block.timestamp - getPreviousTradeTime() > getRateOracleTimeWindow() =>
-        getMarketOracleRate() == getLastImpliedRate(), "assert 1_");
+        marketOracleRate_2 == lastImpliedRate_2, "assert 1_");
+assert (e.block.timestamp - getPreviousTradeTime() <= getRateOracleTimeWindow() =>
+        isBetween(getStoredOracleRate(e),getMarketOracleRate(),getLastImpliedRate()), "assert 2_");
 }
 
 rule executeTradeMovesImpliedRates(
@@ -76,7 +82,7 @@ rule executeTradeMovesImpliedRates(
     int256 assetCashToReserve;
 
     assetCashToAccount, assetCashToReserve = executeTrade( timeToMaturity, fCashToAccount);
-    // require ((assetCashToAccount != 0 && assetCashToReserve != 0),"strange require failure");
+    require (assetCashToAccount != 0 && assetCashToReserve != 0);
     require (fCashToAccount < 0 => lastImpliedRate > getLastImpliedRate(),"last trade rate did not move in correct direction");
     /*assert fCashToAccount > 0 ? 
         // When fCashToAccount > 0 then lending, implied rates should decrease
@@ -86,11 +92,17 @@ rule executeTradeMovesImpliedRates(
         "last trade rate did not move in correct direction";
         */
     // require (fCashToAccount > 0 ? assetCashToAccount < 0 : assetCashToAccount > 0, "incorrect asset cash for fCash");
+    int256 marketfCashAfter = getMarketfCash();
+    int256 marketAssetCashAfter = getMarketAssetCash();
     require (assetCashToReserve >= 0, "asset cash to reserve cannot be negative");
     require (getPreviousTradeTime() < e.block.timestamp, "previous trade time did not update");
-    assert isEqual(a_minus_b(getMarketfCash(),fCashToAccount),marketfCashBefore), "Market fCash does not net out";
+    assert isEqual(a_plus_b(marketfCashAfter,fCashToAccount),marketfCashBefore), "Market fCash does not net out";
     //assert getMarketfCash() - fCashToAccount == marketfCashBefore, "Market fCash does not net out";
-    assert isEqual(a_minus_b(a_minus_b(getMarketAssetCash(),assetCashToAccount),assetCashToReserve),marketAssetCashBefore),
+
+    // Jeff's NEW VERSION assert getMarketAssetCash() == marketAssetCashBefore - assetCashToAccount - assetCashToReserve;
+    int256 a_minus_b_minus_c = a_minus_b(a_minus_b(marketAssetCashBefore,assetCashToAccount),assetCashToReserve);
+    require a_minus_b_minus_c >= 0;
+    assert a_minus_b_minus_c == marketAssetCashBefore,
         "Market asset cash does not net out";
     // assert getMarketAssetCash() - assetCashToAccount - assetCashToReserve == marketAssetCashBefore,
         // "Market asset cash does not net out";
