@@ -121,6 +121,12 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         external
         payable;
 
+    function batchBalanceAndTradeActionWithCallback(
+        address account,
+        BalanceActionWithTrades[] calldata actions,
+        bytes calldata callbackData
+    ) external payable;
+
     /** Liquidation Action */
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
