@@ -132,13 +132,13 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256);
+    ) external returns (int256, int256);
 
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256);
+    ) external returns (int256, int256);
 
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,
