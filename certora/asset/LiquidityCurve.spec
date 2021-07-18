@@ -207,3 +207,11 @@ rule sanity(method f) {
     assert false;
 }
 // invariant fCashAndCashAmountsConverge
+
+rule testAssetCash(int256 fCashToAccount, uint256 timeToMaturity){
+    int256 marketAssetCashBefore = getMarketAssetCash();
+    _,_ = executeTrade( timeToMaturity, fCashToAccount);
+    int256 marketAssetCashAfter = getMarketAssetCash();
+    assert marketAssetCashAfter > marketAssetCashBefore;
+}
+
