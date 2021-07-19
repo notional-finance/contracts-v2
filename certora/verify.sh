@@ -2,7 +2,7 @@
 source venv/bin/activate
 
 PACKAGES_PATH=$HOME/.brownie/packages
-SOLC=$HOME/.solcx/solc-v0.7.5
+SOLC=solc7.5
 PACKAGES="@openzeppelin=${PACKAGES_PATH}/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7"
 PACKAGES="${PACKAGES} compound-finance=${PACKAGES_PATH}/compound-finance"
 PACKAGES="${PACKAGES} interfaces=${PWD}/interfaces"
@@ -12,13 +12,15 @@ HARNESS=$1
 SPEC=$2
 OPTS=${@:3}
 
+	# --rule_sanity \
 certoraRun contracts/mocks/certora/$1.sol \
 	--verify $1:certora/$2.spec \
 	--solc "$SOLC" \
-	--rule_sanity \
 	--packages_path "$PACKAGES_PATH" \
 	--packages $PACKAGES \
 	--solc_args "$SOLC_ARGS" \
+ 	--settings -smt_bitVectorTheory=true,-rule=impliedRatesDoNotChangeOnRemoveLiquidity,-deleteSMTFile=false \
+        --staging alex/bv-solver-strategy \
 	$OPTS
 
 
