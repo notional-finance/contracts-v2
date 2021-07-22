@@ -4,7 +4,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from brownie.project import ContractsVProject
-from tests.helpers import initialize_environment
+from tests.helpers import get_balance_trade_action, initialize_environment
 
 chain = Chain()
 
@@ -70,7 +70,7 @@ def environment(accounts):
         {"from": accounts[4]},
     )
 
-    v2env.notional.updateGlobalTransferOperator(v1env["Migrator"].address, True)
+    v2env.notional.updateAuthorizedCallbackContract(v1env["Migrator"].address, True)
 
     return (v1env, v2env)
 
@@ -88,7 +88,14 @@ def test_migrate_dai_eth(environment, accounts):
     )
     erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
     v2env.token["DAI"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
-    v1env["Migrator"].migrateDaiEther(1, 100e8, 0, 100e18, {"from": account})
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    v1env["Migrator"].migrateDaiEther(100e18, [borrowAction], {"from": account})
 
     balances = v1env["Escrow"].functions.getBalances(account.address).call()
     assert balances[0] == 0
@@ -110,7 +117,14 @@ def test_migrate_dai_wbtc(environment, accounts):
     )
     erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
     v2env.token["DAI"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
-    v1env["Migrator"].migrateDaiWBTC(1, 100e8, 0, 100e18, {"from": account})
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    v1env["Migrator"].migrateDaiWBTC(100e18, [borrowAction], {"from": account})
 
     balances = v1env["Escrow"].functions.getBalances(account.address).call()
     assert balances[0] == 0
@@ -132,7 +146,14 @@ def test_migrate_usdc_eth(environment, accounts):
     )
     erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
     v2env.token["USDC"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
-    v1env["Migrator"].migrateUSDCEther(1, 100e8, 0, 100e6, {"from": account})
+    borrowAction = get_balance_trade_action(
+        3,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    v1env["Migrator"].migrateUSDCEther(100e6, [borrowAction], {"from": account})
 
     balances = v1env["Escrow"].functions.getBalances(account.address).call()
     assert balances[0] == 0
@@ -154,7 +175,14 @@ def test_migrate_usdc_wbtc(environment, accounts):
     )
     erc1155.setApprovalForAll(v1env["Migrator"].address, True, {"from": account})
     v2env.token["USDC"].approve(v1env["Escrow"].address, 2 ** 255, {"from": account})
-    v1env["Migrator"].migrateUSDCWBTC(1, 100e8, 0, 100e6, {"from": account})
+    borrowAction = get_balance_trade_action(
+        3,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    v1env["Migrator"].migrateUSDCWBTC(100e6, [borrowAction], {"from": account})
 
     balances = v1env["Escrow"].functions.getBalances(account.address).call()
     assert balances[0] == 0

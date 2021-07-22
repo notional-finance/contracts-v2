@@ -154,7 +154,7 @@ contract NotionalV1ToNotionalV2 {
             uint16 v2CollateralId
         ) = abi.decode(callbackData, (uint16, uint128, uint16, uint16));
 
-        int256[] memory balances = Escrow.getBalances(msg.sender);
+        int256[] memory balances = Escrow.getBalances(account);
         int256 collateralBalance =
             (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
         require(collateralBalance > 0);
