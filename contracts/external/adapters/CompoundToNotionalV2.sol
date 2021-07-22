@@ -9,13 +9,16 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CompoundToNotionalV2 {
     NotionalProxy public immutable NotionalV2;
+    address public owner;
 
     constructor(NotionalProxy notionalV2_) {
         NotionalV2 = notionalV2_;
+        owner = msg.sender;
     }
 
-    function enableCToken(address token) external {
-        CTokenInterface(token).approve(address(NotionalV2), type(uint256).max);
+    function enableToken(address token, address spender) external {
+        require(msg.sender == owner, "Unauthorized");
+        CTokenInterface(token).approve(spender, type(uint256).max);
     }
 
     function migrateBorrowFromCompound(
@@ -34,6 +37,15 @@ contract CompoundToNotionalV2 {
         //   -> deposit cToken to notional (account needs to have set approvals)
         //   -> exit callback
         // inside original borrow, check FC
+        uint256 borrowBalance = CTokenInterface(cTokenBorrow).borrowBalanceCurrent(msg.sender);
+        if (cTokenRepayAmount == 0) {
+            // Set the entire borrow balance if it is not set
+            cTokenRepayAmount = borrowBalance;
+        } else {
+            // Check that the cToken repayment amount is not more than required
+            require(cTokenRepayAmount <= borrowBalance, "Invalid repayment amount");
+        }
+
         bytes memory encodedData = abi.encode(
             cTokenBorrow,
             cTokenRepayAmount,

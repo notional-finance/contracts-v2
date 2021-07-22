@@ -157,6 +157,64 @@ def test_migrate_v1_to_comp(
     assert v2env.cToken["ETH"].balanceOf(v1ToComp.address) == 0
 
 
+def test_migrate_comp_to_v2(environment, accounts, CompoundToNotionalV2):
+    account = accounts[5]
+    (v1env, v2env) = environment
+    compToV2 = CompoundToNotionalV2.deploy(v2env.notional.address, {"from": accounts[0]})
+    v2env.notional.updateAuthorizedCallbackContract(compToV2.address, True)
+
+    # NOTE: these approvals allow deposit of collateral
+    compToV2.enableToken(v2env.cToken["USDC"].address, v2env.notional.address)
+    compToV2.enableToken(v2env.cToken["ETH"].address, v2env.notional.address)
+
+    # NOTE: these approvals allow repayBorrowBehalf
+    compToV2.enableToken(v2env.token["USDC"].address, v2env.cToken["USDC"].address)
+
+    v2env.comptroller.enterMarkets(
+        [v2env.cToken["USDC"].address, v2env.cToken["ETH"].address], {"from": account}
+    )
+    v2env.cToken["ETH"].mint({"from": account, "value": 10e18})
+    v2env.cToken["USDC"].borrow(100e6, {"from": account})
+
+    # NOTE: these approvals need to be set by the user
+    v2env.token["USDC"].approve(compToV2.address, 2 ** 255, {"from": account})
+    v2env.cToken["ETH"].approve(compToV2.address, 2 ** 255, {"from": account})
+
+    borrowAction = get_balance_trade_action(
+        3,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 120e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+
+    assert v2env.cToken["ETH"].balanceOf(account) > 0
+    assert v2env.cToken["USDC"].borrowBalanceStored(account) > 0
+
+    # Assert that the FC check will fail on insufficient collateral
+    with brownie.reverts("Insufficient free collateral"):
+        compToV2.migrateBorrowFromCompound(
+            v2env.cToken["USDC"].address, 0, [1], [100], [borrowAction], {"from": account}
+        )
+
+    compToV2.migrateBorrowFromCompound(
+        v2env.cToken["USDC"].address,
+        0,
+        [1],
+        [v2env.cToken["ETH"].balanceOf(account)],
+        [borrowAction],
+        {"from": account},
+    )
+
+    assert v2env.cToken["ETH"].balanceOf(account) == 0
+    assert v2env.cToken["USDC"].borrowBalanceStored(account) == 0
+
+    assert v2env.notional.getAccountBalance(1, account)[0] > 0
+    portfolio = v2env.notional.getAccountPortfolio(account)
+    assert len(portfolio) == 1
+    assert portfolio[0][3] == -120e8
+
+
 def test_migrate_dai_eth(environment, accounts):
     account = accounts[1]
     (v1env, v2env) = environment
