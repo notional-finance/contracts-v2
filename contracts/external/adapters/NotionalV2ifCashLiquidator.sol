@@ -9,14 +9,14 @@ import "interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 
-// This should be behind a proxy...
 contract NotionalV2ifCashLiquidator is Initializable {
     address public owner;
     NotionalProxy public immutable NotionalV2;
-    uint16 public immutable ifCashCurrencyId;
+    uint16 public immutable IFCASH_CURRENCY_ID;
     address public immutable NOTE;
-    address public immutable underlyingToken;
-    address public immutable assetToken;
+    address public immutable UNDERLYING_TOKEN;
+    address public immutable ASSET_TOKEN;
+    address public immutable cETH;
 
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
@@ -33,27 +33,29 @@ contract NotionalV2ifCashLiquidator is Initializable {
 
     constructor(
         NotionalProxy notionalV2_,
-        uint16 ifCashCurrencyId_,
+        uint16 IFCASH_CURRENCY_ID_,
         address note_,
-        address assetToken_,
-        address underlyingToken_
+        address ASSET_TOKEN_,
+        address UNDERLYING_TOKEN_,
+        address cETH_
     ) {
         NotionalV2 = notionalV2_;
         NOTE = note_;
-        ifCashCurrencyId = ifCashCurrencyId_;
-        assetToken = assetToken_;
-        underlyingToken = underlyingToken_;
+        IFCASH_CURRENCY_ID = IFCASH_CURRENCY_ID_;
+        ASSET_TOKEN = ASSET_TOKEN_;
+        UNDERLYING_TOKEN = UNDERLYING_TOKEN_;
+        cETH = cETH_;
     }
 
     function initialize() external initializer {
         owner = msg.sender;
         // At this point the contract can only hold assets of this currency id
-        NotionalV2.enableBitmapCurrency(ifCashCurrencyId);
+        NotionalV2.enableBitmapCurrency(IFCASH_CURRENCY_ID);
         // Allow ERC1155 trades to be authorized by owner for selling ifCash OTC
         NotionalV2.setApprovalForAll(msg.sender, true);
 
-        IERC20(assetToken).approve(address(NotionalV2), type(uint256).max);
-        IERC20(underlyingToken).approve(address(NotionalV2), type(uint256).max);
+        IERC20(ASSET_TOKEN).approve(address(NotionalV2), type(uint256).max);
+        IERC20(UNDERLYING_TOKEN).approve(address(NotionalV2), type(uint256).max);
     }
 
     function approveToken(address token, address spender) external onlyOwner {
@@ -92,7 +94,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
         return
             NotionalV2.nTokenRedeem(
                 address(this),
-                ifCashCurrencyId,
+                IFCASH_CURRENCY_ID,
                 tokensToRedeem,
                 sellTokenAssets
             );
@@ -116,7 +118,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
 
         NotionalV2.liquidatefCashLocal(
             liquidateAccount,
-            ifCashCurrencyId,
+            IFCASH_CURRENCY_ID,
             fCashMaturities,
             maxfCashLiquidateAmounts
         );
@@ -129,7 +131,8 @@ contract NotionalV2ifCashLiquidator is Initializable {
         address localCurrencyAssetToken,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
-        bytes calldata dexTrade
+        bytes calldata dexTrade,
+        bool localHasTransferFee
     ) external onlyOwner {
         if (actions.length > 0) {
             // Need to borrow some amount of ifCashCurrency and trade it for local currency in the next step
@@ -138,39 +141,70 @@ contract NotionalV2ifCashLiquidator is Initializable {
 
         if (dexTrade.length > 0) {
             // Arbitrary call to any DEX to trade ifCashCurrency to local currency
-            // Approval should only be required for underlyingToken...the DEX will push local currency to this contract
-            (address tradeContract, uint256 tradeETHValue, bytes memory tradeCallData) = abi.decode(dexTrade, (address, uint256, bytes));
-            checkAllowanceOrSet(underlyingToken, tradeContract);
-            (bool success, /* return value */) = tradeContract.call{value: tradeETHValue}(tradeCallData);
+            // Approval should only be required for UNDERLYING_TOKEN...the DEX will push local currency to this contract
+            (address tradeContract, uint256 tradeETHValue, bytes memory tradeCallData) = abi.decode(
+                dexTrade,
+                (address, uint256, bytes)
+            );
+            checkAllowanceOrSet(UNDERLYING_TOKEN, tradeContract);
+            // prettier-ignore
+            (
+                bool success,
+                /* return value */
+            ) = tradeContract.call{value: tradeETHValue}(tradeCallData);
             require(success);
         }
 
         // Mint the traded local currency balance to cTokens
         if (localCurrencyId == 1) {
             uint256 underlyingToMint = address(this).balance;
-            CEtherInterface(localCurrencyAssetToken).mint{value: underlyingToMint}();
-        } else if (underlyingToken != address(0)) {
-            address localUnderlying = CTokenInterface(localCurrencyAssetToken).underlying();
-            uint256 underlyingToMint = IERC20(localUnderlying).balanceOf(address(this));
+            CEtherInterface(cETH).mint{value: underlyingToMint}();
+        } else {
+            // prettier-ignore
+            (
+                Token memory localAssetToken,
+                Token memory localUnderlyingToken
+            ) = NotionalV2.getCurrency(uint16(localCurrencyId));
 
             // Set approval for minting if not set
-            checkAllowanceOrSet(localUnderlying, localCurrencyAssetToken);
-            CErc20Interface(localCurrencyAssetToken).mint(underlyingToMint);
+            if (localAssetToken.tokenType == TokenType.cToken) {
+                uint256 underlyingToMint = IERC20(localUnderlyingToken.tokenAddress).balanceOf(
+                    address(this)
+                );
+
+                // It's possible that underlying to mint is zero if we've traded directly
+                // for cTokens in the DEX
+                if (underlyingToMint > 0) {
+                    checkAllowanceOrSet(
+                        localUnderlyingToken.tokenAddress,
+                        localAssetToken.tokenAddress
+                    );
+                    CErc20Interface(localAssetToken.tokenAddress).mint(underlyingToMint);
+                }
+            }
+
+            // Set approval for Notional V2 transfers if not set
+            checkAllowanceOrSet(localAssetToken.tokenAddress, address(NotionalV2));
+
+            if (localAssetToken.hasTransferFee) {
+                uint256 depositAmount = IERC20(localAssetToken.tokenAddress).balanceOf(
+                    address(this)
+                );
+                NotionalV2.depositAssetToken(address(this), uint16(localCurrencyId), depositAmount);
+            }
         }
 
-        // Set approval for Notional V2 transfers if not set
-        checkAllowanceOrSet(localCurrencyAssetToken, address(NotionalV2));
         NotionalV2.liquidatefCashCrossCurrency(
             liquidateAccount,
             localCurrencyId,
-            ifCashCurrencyId, // collateral currency fCash
+            IFCASH_CURRENCY_ID, // collateral currency fCash
             fCashMaturities,
             maxfCashLiquidateAmounts
         );
     }
 
     function checkAllowanceOrSet(address erc20, address spender) internal {
-        if (IERC20(erc20).allowance(address(this), spender) < 2 ** 128) {
+        if (IERC20(erc20).allowance(address(this), spender) < 2**128) {
             IERC20(erc20).approve(spender, type(uint256).max);
         }
     }
