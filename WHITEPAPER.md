@@ -8,7 +8,9 @@ In Notional V2, our focus is to further refine these concepts and optimize for g
 
 Furthermore, we will also discuss general technical architecture improvements that will make future development and upgrades to Notional V2 more robust.
 
-For a review of Notional concepts, please refer to the Notional V1 Whitepaper.
+For a review of Notional concepts, please refer to the [Notional V1 Whitepaper](https://docs.notional.finance/developers/whitepaper/whitepaper).
+
+A less technical guide to Notional V2 is available [here](https://docs.notional.finance/notional-v2).
 
 ## Liquidity Curve Changes
 
