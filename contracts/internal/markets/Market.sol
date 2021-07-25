@@ -361,7 +361,7 @@ library Market {
     /// Calculates the following exchange rate:
     ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    ///     proportion = totalfCash / (totalfCash + totalAssetCash)
+    ///     proportion = totalfCash / (totalfCash + totalUnderlyingCash)
     /// @dev has an underscore to denote as private but is marked internal for the mock
     function _getExchangeRate(
         int256 totalfCash,
