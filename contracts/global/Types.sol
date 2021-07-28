@@ -20,7 +20,7 @@ enum TradeActionType {
     Borrow,
     // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     AddLiquidity,
-    // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 tokenAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     RemoveLiquidity,
     // (uint8 TradeActionType, uint32 Maturity, int88 fCashResidualAmount, uint128 unused)
     PurchaseNTokenResidual,

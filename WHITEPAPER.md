@@ -282,7 +282,7 @@ This appendix describes how an asset bitmap is updated during settlement.
 These are the relevant data objects:
 
 - 256 bit ifCash bitmap: each bit signifies the presence of ifCash at the corresponding date
-- Next Maturity Date: set to the UTC midnight date of the first bit
+- Next Settle Date: set to the UTC midnight date of the first bit
 - mapping(maturity => int): a mapping between maturities and the notional ifCash value held at that time
 
 The bitmap is defined as follows (1-indexed, inclusive):
@@ -322,7 +322,7 @@ def getBitNumFromMaturity(nextMaturityDate, maturity):
 #### From Bit Number to Maturity
 
 ```syntax=python
-def maturityRef(t, bitNum):
+def getMaturityFromBitNum(t, bitNum):
   if bitNum <= 90:
     return t + bitNum days
   if bitNum <= 135:

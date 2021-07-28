@@ -638,7 +638,6 @@ library InitializeMarketsAction {
                 if (proportion == 0) newMarket.totalfCash = 1;
 
                 newMarket.oracleRate = oracleRate;
-                // Inherit the previous trade time from the last market
                 newMarket.previousTradeTime = blockTime;
             }
 
