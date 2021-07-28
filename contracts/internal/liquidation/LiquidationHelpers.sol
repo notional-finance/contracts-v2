@@ -148,9 +148,10 @@ library LiquidationHelpers {
             factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
 
         if (localAssetFromLiquidator > factors.localAssetAvailable.neg()) {
-            // If the local to purchase will put the local available into negative territory we
-            // have to cut the collateral purchase amount back. Putting local available into negative
-            // territory will force the liquidated account to incur more debt.
+            // If the local to purchase will flip the sign of localAssetAvailable then the calculations
+            // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
+            // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
+            // the collateralAssetValue then this may actually decrease overall free collateral.
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
                 .mul(factors.localAssetAvailable.neg())
                 .div(localAssetFromLiquidator);
