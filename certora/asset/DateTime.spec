@@ -23,17 +23,12 @@ rule bitNumAndMaturitiesMustMatch(
     uint256 maturity
 ) {
     // Respect time boundaries
-    // alex : rule is proved without these preconditions:
-    // require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP(); 
-    // require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
-
     uint256 bitNum;
     bool isExact;
     bitNum, isExact = getBitNumFromMaturity(blockTime, maturity);
     uint256 calculatedMaturity = getMaturityFromBitNum(blockTime, bitNum);
 
     // If the bitnum is not exact then the calculated maturity will not match
-    // alex: when dropping the antecedent, we get a violation --> good ; assert maturity == calculatedMaturity, "maturity does not match calculated maturity";
     assert isExact => maturity == calculatedMaturity, "maturity does not match calculated maturity";
 }
 
@@ -46,10 +41,8 @@ rule bitNumValidMaturitiesMustBeExact(
     uint256 maturity
 ) {
     // Respect time boundaries
-    // alex: these two preconditions are needed
     require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
     require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
-    // alex: this precondition is needed
     require isValidMaturity(MAX_MARKET_INDEX(), maturity, blockTime);
     bool isExact;
     _, isExact = getBitNumFromMaturity(blockTime, maturity);
@@ -67,19 +60,12 @@ rule validMarketMaturitesHaveAnIndex(
     uint256 blockTime
 ) {
     // Respect time boundaries
-    // alex : rule is proved without these three preconditions:
-    // require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
-    // require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
-    // require MIN_MARKET_INDEX() <= maxMarketIndex && maxMarketIndex <= MAX_MARKET_INDEX();
-
     uint256 marketIndex;
     bool isIdiosyncratic;
     marketIndex, isIdiosyncratic = getMarketIndex(maxMarketIndex, maturity, blockTime);
     bool isValidMarket = isValidMarketMaturity(maxMarketIndex, maturity, blockTime);
 
     // If a market is a valid market maturity then the getMarketIndex should agree
-    // alex: flipping a flag here makes the rule fail (a good sign), e.g.: assert isValidMarket <=> isIdiosyncratic, "is valid market does not imply a market index";
     assert isValidMarket <=> !isIdiosyncratic, "is valid market does not imply a market index";
-    // alex: making these intervals closed makes the rule fail (a good sign), e.g.: assert MIN_MARKET_INDEX() < marketIndex && marketIndex < MAX_MARKET_INDEX(), "market index out of boundaries";
     assert MIN_MARKET_INDEX() <= marketIndex && marketIndex <= MAX_MARKET_INDEX(), "market index out of boundaries";
 }
