@@ -172,7 +172,7 @@ library SettleBitmapAssets {
         uint256 lastSettleBit
     ) internal pure {
         // If there are no week bits set or if the method has settled through the entire week bit section (this
-        // will happen when lastSettleBit >= MONTH_BIT_OFFSET) then no need to remap. Note that MONTH_BIT_OFFSET
+        // will happen when lastSettleBit >= MONTH_BIT_OFFSET) then no need to remap. See that MONTH_BIT_OFFSET
         // also represents the last bit number in the week bit chunks.
         if (splitBitmap.weekBits != 0x00 && lastSettleBit < Constants.MONTH_BIT_OFFSET) {
             // Bit offset is the (first bit - 1) that we should be remapping from. Bits less than 
