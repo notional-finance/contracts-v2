@@ -25,9 +25,9 @@ library CashGroup {
     uint256 private constant SETTLEMENT_PENALTY = 48;
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT = 56;
     uint256 private constant LIQUIDATION_DEBT_BUFFER = 64;
-    // 9 bytes allocated per market on the liquidity token haircut
+    // 7 bytes allocated, one byte per market for the liquidity token haircut
     uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = 72;
-    // 9 bytes allocated per market on the rate scalar
+    // 7 bytes allocated, one byte per market for the rate scalar
     uint256 private constant RATE_SCALAR = 144;
 
     /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies

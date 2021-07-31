@@ -72,20 +72,24 @@ library LiquidationHelpers {
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) internal pure returns (int256) {
-        int256 maxAllowedAmount =
+        // By default, the liquidator is allowed to purchase at least to `defaultAllowedAmount`
+        // if `initialAmountToLiquidate` is less than `defaultAllowedAmount`.
+        int256 defaultAllowedAmount =
             maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
             );
 
         int256 result = initialAmountToLiquidate;
 
+        // Limit the purchase amount by the max total balance, we cannot purchase
+        // more than what is available.
         if (initialAmountToLiquidate > maxTotalBalance) {
             result = maxTotalBalance;
         }
 
-        if (initialAmountToLiquidate < maxAllowedAmount) {
-            // Allow the liquidator to go up to the max allowed amount
-            result = maxAllowedAmount;
+        if (initialAmountToLiquidate < defaultAllowedAmount) {
+            // Allow the liquidator to go up to the default allowed amount
+            result = defaultAllowedAmount;
         }
 
         if (userSpecifiedMaximum > 0 && result > userSpecifiedMaximum) {
