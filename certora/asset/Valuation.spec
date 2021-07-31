@@ -61,7 +61,7 @@ rule liquidityTokenValueMatchesClaims(
 }
 
 rule portfolioIsAlwaysSorted {
-
+    // Get portfolio from harness and test if assets are sorted
 }
 
 rule freeCollateralAccountsForAllAssetsAndBalances {
