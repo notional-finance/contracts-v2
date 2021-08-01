@@ -16,6 +16,10 @@ contract SettlementHarness {
     AccountContext symbolicAccountContext;
     PortfolioState symbolicPortfolioState;
 
+    function getBitmapCurrencyId(address account) external view returns (uint256) {
+        return symbolicAccountContext.bitmapCurrencyId;
+    }
+
     function getSettlementRate(uint256 currencyId, uint256 maturity)
         external
         view

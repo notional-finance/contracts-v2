@@ -34,6 +34,30 @@ contract ValuationHarness {
         return symbolicCashGroup.calculateOracleRate(maturity, blockTime);
     }
 
+    function getMarketValues()
+        external
+        view
+        returns (
+            uint256 totalfCash,
+            uint256 totalAssetCash,
+            uint256 totalLiquidity,
+            uint256 maturity
+        )
+    {
+        require(symbolicMarket.totalfCash >= 0);
+        require(symbolicMarket.totalAssetCash >= 0);
+        require(symbolicMarket.totalLiquidity >= 0);
+
+        totalfCash = uint256(symbolicMarket.totalfCash);
+        totalAssetCash = uint256(symbolicMarket.totalAssetCash);
+        totalLiquidity = uint256(symbolicMarket.totalLiquidity);
+        maturity = symbolicMarket.maturity;
+    }
+
+    function getLiquidityHaircut(uint256 assetType) external view returns (uint256) {
+        return symbolicCashGroup.getLiquidityHaircut(assetType);
+    }
+
     function getPresentValue(
         int256 notional,
         uint256 maturity,
@@ -61,11 +85,12 @@ contract ValuationHarness {
 
     function getLiquidityTokenValue(
         int256 fCashNotional,
-        int256 tokens,
+        uint256 tokens,
+        uint256 assetType,
         uint256 blockTime,
         bool riskAdjusted
     ) external view returns (int256, int256) {
-        require(tokens <= symbolicMarket.totalLiquidity);
+        require(tokens > 0 && tokens <= 2**255 - 1);
 
         PortfolioAsset[] memory assets;
         uint256 index;
@@ -79,9 +104,9 @@ contract ValuationHarness {
         }
 
         assets[index].currencyId = 1;
-        assets[index].assetType = Constants.MIN_LIQUIDITY_TOKEN_INDEX;
+        assets[index].assetType = assetType;
         assets[index].maturity = symbolicMarket.maturity;
-        assets[index].notional = tokens;
+        assets[index].notional = int256(tokens);
 
         return
             AssetHandler.getLiquidityTokenValue(
@@ -164,12 +189,13 @@ contract ValuationHarness {
         return pv;
     }
 
-    function getNumBitmapAssets(address account) external view returns (uint256) {
+    function getNumBitmapAssets(address account) external view returns (int256) {
         bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(
             account,
             symbolicAccountContext.bitmapCurrencyId
         );
 
-        return assetsBitmap.totalBitsSet();
+        // Return int256 for comparison
+        return int256(assetsBitmap.totalBitsSet());
     }
 }
