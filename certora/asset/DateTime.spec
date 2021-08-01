@@ -23,9 +23,6 @@ rule bitNumAndMaturitiesMustMatch(
     uint256 maturity
 ) {
     // Respect time boundaries
-    require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
-    require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
-
     uint256 bitNum;
     bool isExact;
     bitNum, isExact = getBitNumFromMaturity(blockTime, maturity);
@@ -63,10 +60,6 @@ rule validMarketMaturitesHaveAnIndex(
     uint256 blockTime
 ) {
     // Respect time boundaries
-    require MIN_TIMESTAMP() <= blockTime && blockTime <= MAX_TIMESTAMP();
-    require MIN_TIMESTAMP() <= maturity && maturity <= MAX_TIMESTAMP();
-    require MIN_MARKET_INDEX() <= maxMarketIndex && maxMarketIndex <= MAX_MARKET_INDEX();
-
     uint256 marketIndex;
     bool isIdiosyncratic;
     marketIndex, isIdiosyncratic = getMarketIndex(maxMarketIndex, maturity, blockTime);
