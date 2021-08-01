@@ -6,3 +6,6 @@ build/
 venv/
 chaindb/
 ganache-out.txt
+.certora_config/*
+.last_confs/*
+.certora*.json
