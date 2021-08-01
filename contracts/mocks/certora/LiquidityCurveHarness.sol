@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/Market.sol";
-
 // import "../../math/ABDKMath64x64.sol";
 
 contract LiquidityCurveHarness {
@@ -92,12 +91,8 @@ contract LiquidityCurveHarness {
     {
         CashGroupParameters memory cashGroup = symbolicCashGroup; //CashGroup.buildCashGroupStateful(CURRENCY_ID);
         MarketParameters memory market = symbolicMarket; //_loadMarket();
-        (int256 netAssetCash, int256 netAssetCashToReserve) = market.calculateTrade(
-            cashGroup,
-            fCashToAccount,
-            timeToMaturity,
-            MARKET_INDEX
-        );
+        (int256 netAssetCash, int256 netAssetCashToReserve) =
+            market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
         market.setMarketStorage();
         symbolicMarket = market;
         symbolicCashGroup = cashGroup;
@@ -125,69 +120,13 @@ contract LiquidityCurveHarness {
         return (assetCash, fCash);
     }
 
-    function getRateAnchor(
-        int256 totalfCash,
-        uint256 lastImpliedRate,
-        int256 totalCashUnderlying,
-        uint256 timeToMaturity
-    ) external view returns (int256) {
-        int256 rateScalar = this.getRateScalar(timeToMaturity);
-        (int256 rateAnchor, bool success) = Market._getRateAnchor(
-            totalfCash,
-            lastImpliedRate,
-            totalCashUnderlying,
-            rateScalar,
-            timeToMaturity
-        );
-        require(success);
-        return rateAnchor;
-    }
-
-    function getImpliedRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
-        int256 rateAnchor,
-        uint256 timeToMaturity
-    ) external view returns (uint256) {
-        int256 rateScalar = this.getRateScalar(timeToMaturity);
-
-        return
-            Market.getImpliedRate(
-                totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                timeToMaturity
-            );
-    }
-
-    function getExchangeRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        int256 rateAnchor,
-        int256 fCashToAccount
-    ) external view returns (int256) {
-        (int256 exchangeRate, bool success) = Market._getExchangeRate(
-            totalfCash,
-            totalCashUnderlying,
-            rateScalar,
-            rateAnchor,
-            fCashToAccount
-        );
-        require(success);
-
-        return exchangeRate;
-    }
-
     ///////////////////////////////
-    //  general purpose functions
+    //  general purpose functions 
     ///////////////////////////////
 
     function a_minus_b(int256 a, int256 b) public returns (int256) {
         return a - b;
     }
-
     function isEqual(int256 a, int256 b) public returns (bool) {
         return a == b;
     }
