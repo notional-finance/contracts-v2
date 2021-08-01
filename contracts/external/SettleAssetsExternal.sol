@@ -114,14 +114,13 @@ library SettleAssetsExternal {
         address account,
         uint256 currencyId,
         uint256 nextSettleTime
-    ) private returns (SettleAmount[] memory) {
-        (bytes32 assetsBitmap, int256 settledCash) =
-            SettleBitmapAssets.settleBitmappedCashGroup(
-                account,
-                currencyId,
-                nextSettleTime,
-                block.timestamp
-            );
+    ) internal returns (SettleAmount[] memory) {
+        (bytes32 assetsBitmap, int256 settledCash) = SettleBitmapAssets.settleBitmappedCashGroup(
+            account,
+            currencyId,
+            nextSettleTime,
+            block.timestamp
+        );
 
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
         SettleAmount[] memory settleAmounts = new SettleAmount[](1);
