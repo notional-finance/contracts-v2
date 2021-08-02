@@ -215,19 +215,19 @@ library BalanceHandler {
         int256 assetTransferAmountExternal =
             assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
-        if (redeemToUnderlying) {
+        // We only do the redeem to underlying if the asset transfer amount is less than zero. If it is greater than
+        // zero then we will do a normal transfer instead. We know in this function that the value will not be zero.
+        if (redeemToUnderlying && assetTransferAmountExternal < 0) {
             // We use the internal amount here and then scale it to the external amount so that there is
             // no loss of precision between our internal accounting and the external account. In this case
             // there will be no dust accrual since we will transfer the exact amount of underlying that was
             // received.
-            require(assetTransferAmountExternal < 0); // dev: invalid redeem balance
             Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
-            int256 underlyingAmountExternal =
-                assetToken.redeem(
-                    underlyingToken,
-                    // NOTE: dust may accrue at the lowest decimal place
-                    uint256(assetTransferAmountExternal.neg())
-                );
+            int256 underlyingAmountExternal = assetToken.redeem(
+                underlyingToken,
+                // NOTE: dust may accrue at the lowest decimal place
+                uint256(assetTransferAmountExternal.neg())
+            );
 
             // Withdraws the underlying amount out to the destination account
             actualTransferAmountExternal = underlyingToken.transfer(
