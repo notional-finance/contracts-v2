@@ -46,6 +46,13 @@ contract cTokenAggregator is AssetRateAdapter {
     function getAnnualizedSupplyRate() external view override returns (uint256) {
         uint256 supplyRatePerBlock = CTokenInterface(token).supplyRatePerBlock();
 
+        // Although the Compound documentation recommends doing a per day compounding of the supply
+        // rate to get the annualized rate (https://compound.finance/docs#protocol-math), we just do a
+        // simple linear approximation of the rate here. Since Compound rates are variable per block
+        // any rate we calculate here will be an approximation and so this is the simplest implementation
+        // that gets a pretty good answer. Supply rates are only used when valuing idiosyncratic fCash assets
+        // that are shorter dated than the 3 month fCash market.
+
         // Supply rate per block * blocks per year * notional rate precision / supply rate precision
         return supplyRatePerBlock.mul(BLOCKS_PER_YEAR).div(SCALE_RATE);
     }
