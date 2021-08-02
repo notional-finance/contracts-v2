@@ -274,7 +274,7 @@ library BalanceHandler {
 
         // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
         // also have cash debts
-        if (cashBalance == 0) {
+        if (cashBalance == 0 && nTokenBalance == 0) {
             accountContext.setActiveCurrency(
                 cashGroup.currencyId,
                 false,
