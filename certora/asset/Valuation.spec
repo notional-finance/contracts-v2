@@ -178,11 +178,11 @@ rule riskAdjustedLiquidityTokenValueMatchesClaims(int256 fCashNotional, uint256 
         true // risk adjusted
     );
 
-    mathint netfCash = (totalfCash * tokens * tokenHaircut) / (100 * totalLiquidity) + fCashNotional;
+    mathint netfCash = (totalfCash * tokens * tokenHaircut) / (100 * totalLiquidity) + to_mathint(fCashNotional);
     mathint assetCash = (totalAssetCash * tokens * tokenHaircut) / (100 * totalLiquidity);
     // TODO: need to convert to int somehow
     // assert pv == getRiskAdjustedPresentValue(netfCash, maturity, e.block.timestamp, oracleRate);
-    assert assetCashClaim == assetCash;
+    assert to_mathint(assetCashClaim) == assetCash;
 }
 
 rule liquidityTokenValueMatchesClaims(int256 fCashNotional, uint256 tokens, uint256 assetType) {
@@ -208,11 +208,11 @@ rule liquidityTokenValueMatchesClaims(int256 fCashNotional, uint256 tokens, uint
         false // non risk adjusted
     );
 
-    mathint netfCash = (totalfCash * tokens) / (totalLiquidity) + fCashNotional;
+    mathint netfCash = (totalfCash * tokens) / (totalLiquidity) + to_mathint(fCashNotional);
     mathint assetCash = (totalAssetCash * tokens) / (totalLiquidity);
     // TODO: need to convert to int somehow
     // assert pv == getPresentValue(netfCash, maturity, e.block.timestamp, oracleRate);
-    assert assetCashClaim == assetCash;
+    assert to_mathint(assetCashClaim) == assetCash;
 }
 
 // We require that the portfolio is always sorted when loaded from storage
@@ -246,7 +246,7 @@ rule netCashGroupValueAccountsForAllAssets(
     assert getPortfolioCurrencyIdAtIndex(account, newIndex) != currencyId;
     // Every asset should be valued at 1 and the asset cash to pv conversion rate should be 50:1
     // so therefore the assetPV should equal the number of assets multiplied by 50
-    assert assetPV == (newIndex - portfolioIndex) * 50;
+    assert to_mathint(assetPV) == (newIndex - portfolioIndex) * 50;
 }
 
 rule ifCashNetPresentValueAccountsForAllAssets(address account) {
