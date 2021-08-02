@@ -385,7 +385,6 @@ library nTokenHandler {
     function loadNTokenPortfolioView(uint256 currencyId, nTokenPortfolio memory nToken)
         internal
         view
-        returns (nTokenPortfolio memory)
     {
         loadNTokenPortfolioNoCashGroup(currencyId, nToken);
         nToken.cashGroup = CashGroup.buildCashGroupView(currencyId);
