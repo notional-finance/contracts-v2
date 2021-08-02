@@ -79,12 +79,12 @@ library Market {
     /// @param timeToMaturity number of seconds until maturity
     /// @return netAssetCash, netAssetCashToReserve
     function calculateTrade(
-        MarketParameters memory market,
-        CashGroupParameters memory cashGroup,
+        MarketParameters storage market,
+        CashGroupParameters storage cashGroup,
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
-    ) internal view returns (int256, int256) {
+    ) internal returns (int256, int256) {
         // We return false if there is not enough fCash to support this trade.
         if (market.totalfCash.sub(fCashToAccount) <= 0) return (0, 0);
 
@@ -141,13 +141,13 @@ library Market {
 
     /// @notice Returns factors for calculating exchange rates
     function getExchangeRateFactors(
-        MarketParameters memory market,
-        CashGroupParameters memory cashGroup,
+        MarketParameters storage market,
+        CashGroupParameters storage cashGroup,
         uint256 timeToMaturity,
         uint256 marketIndex
     )
         internal
-        pure
+        view
         returns (
             int256,
             int256,
@@ -501,7 +501,7 @@ library Market {
 
     /// @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
     /// do need to load the liquidity amount.
-    function getTotalLiquidity(MarketParameters memory market) internal view {
+    function getTotalLiquidity(MarketParameters storage market) internal {
         int256 totalLiquidity;
         bytes32 slot = bytes32(uint256(market.storageSlot) + 1);
 
@@ -548,12 +548,12 @@ library Market {
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
     /// which ensures that the rate oracle is set properly.
     function _loadMarketStorage(
-        MarketParameters memory market,
+        MarketParameters storage market,
         uint256 currencyId,
         uint256 maturity,
         bool needsLiquidity,
         uint256 settlementDate
-    ) private view {
+    ) private {
         // Market object always uses the most current reference time as the settlement date
         bytes32 slot = getSlot(currencyId, settlementDate, maturity);
         bytes32 data;
@@ -624,13 +624,13 @@ library Market {
 
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
     function loadMarket(
-        MarketParameters memory market,
+        MarketParameters storage market,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
         bool needsLiquidity,
         uint256 rateOracleTimeWindow
-    ) internal view {
+    ) internal {
         // Always reference the current settlement date
         uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         loadMarketWithSettlementDate(
@@ -647,14 +647,14 @@ library Market {
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
     /// is mainly used in the InitializeMarketAction contract.
     function loadMarketWithSettlementDate(
-        MarketParameters memory market,
+        MarketParameters storage market,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
         bool needsLiquidity,
         uint256 rateOracleTimeWindow,
         uint256 settlementDate
-    ) internal view {
+    ) internal {
         _loadMarketStorage(market, currencyId, maturity, needsLiquidity, settlementDate);
 
         market.oracleRate = _updateRateOracle(

@@ -89,9 +89,9 @@ library CashGroup {
     }
 
     /// @notice Time window factor for the rate oracle denominated in seconds
-    function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
+    function getRateOracleTimeWindow(CashGroupParameters storage cashGroup)
         internal
-        pure
+        view
         returns (uint256)
     {
         // This is denominated in minutes in storage
@@ -131,12 +131,12 @@ library CashGroup {
     }
 
     function loadMarket(
-        CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
+        CashGroupParameters storage cashGroup,
+        MarketParameters storage market,
         uint256 marketIndex,
         bool needsLiquidity,
         uint256 blockTime
-    ) internal view {
+    ) internal {
         require(marketIndex > 0 && marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
         uint256 maturity =
             DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
@@ -190,7 +190,7 @@ library CashGroup {
 
     /// @dev Gets an oracle rate without interpolation
     function calculateOracleRate(
-        CashGroupParameters memory cashGroup,
+        CashGroupParameters storage cashGroup,
         uint256 maturity,
         uint256 blockTime
     ) internal view returns (uint256) {

@@ -134,18 +134,19 @@ library ABDKMath64x64 {
 
         return int128(result);
     }
-
+/*
     /// Calculate natural logarithm of x.    Revert if x <= 0.
     /// @param x signed 64.64-bit fixed point number
     /// @return signed 64.64-bit fixed point number
-   /* function ln(int128 x) internal pure returns (int128) {
+    function ln(int128 x) internal pure returns (int128) {
         require(x > 0); // dev: abdk neg log
 
         return int128((uint256(log_2(x)) * 0xB17217F7D1CF79ABC9E3B39803F2F6AF) >> 128);
     }*/
+    int128 internal constant ONE = 2 ** 64;
     function ln(int128 x) internal pure returns (int128) {
         if(x <= 0) return 0;
-        return (x-1)/2;
+        return div((x- ONE),2);
     }
 
     /// Calculate binary exponent of x.    Revert on overflow.
@@ -252,8 +253,8 @@ library ABDKMath64x64 {
         return exp_2(int128((int256(x) * 0x171547652B82FE1777D0FFDA0D23A7D12) >> 128));
     }*/
     function exp(int128 x) internal pure returns (int128) {
-     if (x > 2) return 20*x - 40;
-     if (x > -2) return (x + 2)/2;
+     if (x > mul(2,ONE)) return mul(20,x) - mul(40,ONE);
+     if (x > mul(-2,ONE)) return div((x + mul(2,ONE)),mul(2,ONE));
      return 0;  
     }
 }
