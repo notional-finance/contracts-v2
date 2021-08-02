@@ -98,7 +98,8 @@ invariant calculateOracleRateIsBetweenOnChainRates(
     )
 
 // For any given asset and oracle rate, the absolute present value of a shorted dated asset will
-// always be less than the absolute present value of a longer dated asset.
+// always be less than the absolute present value of a longer dated asset. The formula is:
+// pv = notional * e ^ (-oracleRate * time)
 rule presentValueDecreasesForLongerMaturities(
     int256 notional,
     uint256 maturity,
@@ -110,11 +111,12 @@ rule presentValueDecreasesForLongerMaturities(
     int256 shorterPV = getPresentValue(notional, maturity, e.block.timestamp, oracleRate);
     int256 longerPV = getPresentValue(notional, maturity + maturityDelta, e.block.timestamp, oracleRate);
 
-    // PV cannot change signs as a result of this calculation
-    assert notional > 0 => shorterPV > 0 && longerPV > 0 && shorterPV < longerPV;
-    assert notional < 0 => shorterPV < 0 && longerPV < 0 && longerPV < shorterPV;
+    // Present value cannot change signs as a result of this calculation
+    assert notional > 0 => shorterPV > 0 && longerPV > 0 && shorterPV <= longerPV;
+    assert notional < 0 => shorterPV < 0 && longerPV < 0 && longerPV <= shorterPV;
 }
 
+// The same holds for risk adjusted assets.
 rule riskAdjustedPresentValueDecreasesForLongerMaturities(
     int256 notional,
     uint256 maturity,
@@ -127,10 +129,29 @@ rule riskAdjustedPresentValueDecreasesForLongerMaturities(
     int256 longerPV = getRiskAdjustedPresentValue(notional, maturity + maturityDelta, e.block.timestamp, oracleRate);
 
     // PV cannot change signs as a result of this calculation
-    assert notional > 0 => shorterPV > 0 && longerPV > 0 && shorterPV < longerPV;
-    assert notional < 0 => shorterPV < 0 && longerPV < 0 && longerPV < shorterPV;
+    assert notional > 0 => shorterPV > 0 && longerPV > 0 && shorterPV <= longerPV;
+    assert notional < 0 => shorterPV < 0 && longerPV < 0 && longerPV <= shorterPV;
 }
 
+// Whenever we do a risk adjustment to the present value, it must be that the risk adjusted value is
+// less than or equal to the non risk adjusted present value
+rule riskAdjustedPresentValueIsLessThanPresentValue(
+    int256 notional,
+    uint256 maturity,
+    uint256 oracleRate
+) {
+    require notional != 0;
+    env e;
+    int256 pv = getPresentValue(notional, maturity, e.block.timestamp, oracleRate);
+    int256 riskAdjustedPV = getRiskAdjustedPresentValue(notional, maturity, e.block.timestamp, oracleRate);
+
+    assert riskAdjustedPV <= pv;
+}
+
+// A liquidity token has a proportional claim on totalfCash and totalLiquidity in a particular market. When valuing the
+// liquidity token, there may be a negative fCash asset in the portfolio which must be net off against the positive fCash
+// claim of the liquidity token first. A percentage based risk adjustment is applied (0 <= tokenHaircut <= 100). This haircut
+// will decrease the value of both cash claim and fCash claim proportionally.
 rule riskAdjustedLiquidityTokenValueMatchesClaims(int256 fCashNotional, uint256 tokens, uint256 assetType) {
     env e;
     uint256 totalfCash;
@@ -200,6 +221,7 @@ invariant portfolioIsAlwaysSorted (address account)
     // inside a harness
     checkPortfolioSorted(account)
 
+// TODO: below here I'm not sure how we actually do this
 // Set up a portfolio such that every asset's value is equal to 1e8 and then assert
 rule netCashGroupValueAccountsForAllAssets(
     address account,
