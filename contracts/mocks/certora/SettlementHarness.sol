@@ -84,6 +84,8 @@ contract SettlementHarness {
 
     function getNumAssets(address account) external view returns (uint256) {
         PortfolioAsset[] memory assets = _getAccountAssets(account);
+        // Value of any asset should never be zero. If it is then it should not exist in the portfolio.
+        for (uint256 i; i < assets.length; i++) assert(assets[i].notional != 0);
         return assets.length;
     }
 
