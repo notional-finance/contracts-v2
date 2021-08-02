@@ -34,12 +34,11 @@ library BalanceHandler {
         address account,
         int256 assetAmountExternal,
         bool forceTransfer
-    ) internal returns (int256, int256) {
-        if (assetAmountExternal == 0) return (0, 0);
+    ) internal returns (int256) {
+        if (assetAmountExternal == 0) return 0;
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
         Token memory token = TokenHandler.getToken(balanceState.currencyId, false);
         int256 assetAmountInternal = token.convertToInternal(assetAmountExternal);
-        int256 assetAmountTransferred;
 
         // Force transfer is used to complete the transfer before going to finalize
         if (token.hasTransferFee || forceTransfer) {
@@ -49,27 +48,21 @@ library BalanceHandler {
             int256 assetAmountExternalPrecisionFinal = token.transfer(account, assetAmountExternal);
             // Convert the external precision to internal, it's possible that we lose dust amounts here but
             // this is unavoidable because we do not know how transfer fees are calculated.
-            assetAmountTransferred = token.convertToInternal(assetAmountExternalPrecisionFinal);
-            balanceState.netCashChange = balanceState.netCashChange.add(assetAmountTransferred);
+            assetAmountInternal = token.convertToInternal(assetAmountExternalPrecisionFinal);
+            balanceState.netCashChange = balanceState.netCashChange.add(assetAmountInternal);
 
-            // This is the total amount change accounting for the transfer fee.
-            assetAmountInternal = assetAmountInternal.sub(
-                token.convertToInternal(assetAmountExternal.sub(assetAmountExternalPrecisionFinal))
-            );
-
-            return (assetAmountInternal, assetAmountTransferred);
+            return assetAmountInternal;
         }
 
         // Otherwise add the asset amount here. It may be net off later and we want to only do
         // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
         // and external account remain in sync.
-        assetAmountTransferred = token.convertToInternal(assetAmountExternal);
         balanceState.netAssetTransferInternalPrecision = balanceState
             .netAssetTransferInternalPrecision
-            .add(assetAmountTransferred);
+            .add(assetAmountInternal);
 
         // Returns the converted assetAmountExternal to the internal amount
-        return (assetAmountInternal, assetAmountTransferred);
+        return assetAmountInternal;
     }
 
     /// @notice Handle deposits of the underlying token

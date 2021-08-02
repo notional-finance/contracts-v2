@@ -201,8 +201,7 @@ contract BatchAction {
             depositType == DepositActionType.DepositAsset ||
             depositType == DepositActionType.DepositAssetAndMintNToken
         ) {
-            // prettier-ignore
-            (assetInternalAmount, /* */) = balanceState.depositAssetToken(
+            assetInternalAmount = balanceState.depositAssetToken(
                 account,
                 depositActionAmount,
                 false // no force transfer
