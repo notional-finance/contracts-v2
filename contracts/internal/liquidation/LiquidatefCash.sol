@@ -69,7 +69,7 @@ library LiquidatefCash {
         uint256 maturity
     ) private view returns (int256) {
         if (context.accountContext.bitmapCurrencyId == currencyId) {
-            int256 notional =
+            return
                 BitmapAssetsHandler.getifCashNotional(liquidateAccount, currencyId, maturity);
         }
 
