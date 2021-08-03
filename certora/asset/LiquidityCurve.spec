@@ -26,7 +26,7 @@ methods {
 
 definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && x <= z) || (z <= x && x <= y);
 definition absDiff(uint256 x, uint256 y) returns uint256 = x > y ? x - y : y - x;
-definition basisPoint() returns uint256 = 100000;
+definition basisPoint() returns uint256 = 1000000000;
 definition QUARTER() returns uint256 = 86400 * 90;
 
 ///
@@ -251,19 +251,11 @@ rule impliedRateSlippageDoesNotChangeWithTime(
     assert absDiff(lastImpliedRate_first, lastImpliedRate_second) < basisPoint(),
         "Last implied rate slippage increases with time";
 }
+
+
 rule sanity(method f) {
     env e;
     calldataarg args;
     f(e,args);
     assert false;
 }
-// invariant fCashAndCashAmountsConverge
-
-/*rule testAssetCash(int256 fCashToAccount, uint256 timeToMaturity){
-    int256 marketAssetCashBefore = getMarketAssetCash();
-    _,_ = executeTrade( timeToMaturity, fCashToAccount);
-    int256 marketAssetCashAfter = getMarketAssetCash();
-    assert marketAssetCashAfter > marketAssetCashBefore;
-}
-
-*/
