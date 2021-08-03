@@ -19,7 +19,7 @@ methods {
     ////////////////
 
     // getExchangeRateFactors((bytes32,uint256,int256,int256,int256,uint256,uint256,uint256,bytes1),(uint256,uint256,(address,int256,int256),bytes32),uint256,uint256) => NONDET
-    // _getExchangeRate(int256,int256,int256,int256,int256) => NONDET
+     _getExchangeRate(int256,int256,int256,int256,int256) => NONDET
     // getImpliedRate(int256,int256,int256,int256,uint256) => NONDET
 
 }
