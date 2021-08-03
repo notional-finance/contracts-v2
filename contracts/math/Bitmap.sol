@@ -61,15 +61,14 @@ library Bitmap {
 
     /// @notice Count the total bits set
     function totalBitsSet(bytes32 bitmap) internal pure returns (uint256) {
-        uint256 totalBits;
-
-        bytes32 copy = bitmap;
-
-        while (copy != 0) {
-            if (copy & Constants.MSB == Constants.MSB) totalBits += 1;
-            copy = copy << 1;
-        }
-
-        return totalBits;
+        uint256 x = uint256(bitmap);
+        x = (x & 0x5555555555555555555555555555555555555555555555555555555555555555) + (x >> 1 & 0x5555555555555555555555555555555555555555555555555555555555555555);
+        x = (x & 0x3333333333333333333333333333333333333333333333333333333333333333) + (x >> 2 & 0x3333333333333333333333333333333333333333333333333333333333333333);
+        x = (x & 0x0707070707070707070707070707070707070707070707070707070707070707) + (x >> 4);
+        x = (x & 0x000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F) + (x >> 8 & 0x000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F);
+        x = x + (x >> 16);
+        x = x + (x >> 32);
+        x = x  + (x >> 64);
+        return (x & 0xFF) + (x >> 128 & 0xFF);
     }
 }
