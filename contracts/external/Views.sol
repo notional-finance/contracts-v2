@@ -288,7 +288,7 @@ contract Views is StorageLayoutV1, NotionalViews {
                 accountBalances[i].cashBalance,
                 accountBalances[i].nTokenBalance,
                 accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimSupplyAmount
+                accountBalances[i].lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
@@ -304,7 +304,7 @@ contract Views is StorageLayoutV1, NotionalViews {
                 accountBalances[i].cashBalance,
                 accountBalances[i].nTokenBalance,
                 accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimSupplyAmount
+                accountBalances[i].lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountBalances[i].currencyId);
             i += 1;
             currencies = currencies << 16;

@@ -83,14 +83,13 @@ library Incentives {
             tokenAddress,
             uint256(balanceState.storedNTokenBalance),
             balanceState.lastClaimTime,
-            balanceState.lastClaimSupply,
+            balanceState.lastClaimIntegralSupply,
             blockTime,
             integralTotalSupply
         );
 
         balanceState.lastClaimTime = blockTime;
-        // Trim off decimal places when storing the last claim supply for storage efficiency
-        balanceState.lastClaimSupply = integralTotalSupply.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
+        balanceState.lastClaimIntegralSupply = integralTotalSupply;
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
 

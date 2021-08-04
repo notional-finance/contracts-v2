@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 
 /**
  * Packs an uint value into a "floating point" storage slot. Used for storing
- * lastClaimSupply integral values in balance storage. For these values, we don't need
+ * lastClaimIntegralSupply values in balance storage. For these values, we don't need
  * to maintain exact precision but we don't want to be limited by storage size overflows.
  *
  * A floating point value is defined by the 48 most significant bits and an 8 bit number

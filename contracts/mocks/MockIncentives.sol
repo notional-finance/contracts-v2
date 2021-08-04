@@ -30,7 +30,7 @@ contract MockIncentives {
         address tokenAddress,
         uint256 nTokenBalance,
         uint256 lastClaimTime,
-        uint256 lastClaimSupply,
+        uint256 lastClaimIntegralSupply,
         uint256 blockTime
     ) external view returns (uint256) {
         // prettier-ignore
@@ -45,7 +45,7 @@ contract MockIncentives {
                 tokenAddress,
                 nTokenBalance,
                 lastClaimTime,
-                lastClaimSupply,
+                lastClaimIntegralSupply,
                 blockTime,
                 integralTotalSupply
             );

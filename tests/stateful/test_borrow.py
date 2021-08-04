@@ -34,7 +34,7 @@ def test_borrow_failures(environment, accounts):
             accounts[1], [action], {"from": accounts[1]}
         )
 
-    with brownie.reverts("BH: cannot withdraw negative"):
+    with brownie.reverts("Neg withdraw"):
         collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=10000e8)
 
         borrowAction = get_balance_trade_action(
