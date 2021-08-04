@@ -449,7 +449,6 @@ library TradingAction {
         // prettier-ignore
         (
             /* currencyId */,
-            /* totalSupply */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters

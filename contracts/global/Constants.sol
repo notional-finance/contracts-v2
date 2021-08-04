@@ -112,4 +112,5 @@ library Constants {
     uint256 internal constant ASSETS_BITMAP_STORAGE_OFFSET = 1000011;
     uint256 internal constant IFCASH_STORAGE_OFFSET = 1000012;
     uint256 internal constant PORTFOLIO_ARRAY_STORAGE_OFFSET = 1000013;
+    uint256 internal constant NTOKEN_TOTAL_SUPPLY_OFFSET = 1000014;
 }

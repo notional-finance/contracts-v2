@@ -213,7 +213,6 @@ contract Views is StorageLayoutV1, NotionalViews {
         // prettier-ignore
         (
             uint256 currencyId,
-            /* uint totalSupply */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -246,11 +245,17 @@ contract Views is StorageLayoutV1, NotionalViews {
     {
         (
             currencyId,
-            totalSupply,
             incentiveAnnualEmissionRate,
             lastInitializedTime,
             nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
+
+        // prettier-ignore
+        (
+            totalSupply,
+            /* integralTotalSupply */,
+            /* lastSupplyChangeTime */
+        ) = nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
 
         // prettier-ignore
         (
