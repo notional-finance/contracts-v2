@@ -9,12 +9,21 @@ contract MockIncentives {
     function setNTokenParameters(
         uint16 currencyId,
         address tokenAddress,
-        int256 tokenSupply,
-        uint32 emissionRate
-    ) external {
+        int256 totalSupply,
+        uint32 emissionRate,
+        uint32 blockTime
+    ) external returns (uint256) {
         nTokenHandler.setNTokenAddress(currencyId, tokenAddress);
-        nTokenHandler.changeNTokenSupply(tokenAddress, tokenSupply);
         nTokenHandler.setIncentiveEmissionRate(tokenAddress, emissionRate);
+        return nTokenHandler.changeNTokenSupply(tokenAddress, totalSupply, blockTime);
+    }
+
+    function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
+        external
+        view 
+        returns (uint256, uint256, uint256) 
+    {
+        return nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
     }
 
     function calculateIncentivesToClaim(
@@ -24,18 +33,21 @@ contract MockIncentives {
         uint256 lastClaimSupply,
         uint256 blockTime
     ) external view returns (uint256) {
+        // prettier-ignore
         (
-            uint256 incentives, /* */
+            /* */,
+            uint256 integralTotalSupply,
+            /* */
+        ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
 
-        ) =
+        return
             Incentives.calculateIncentivesToClaim(
                 tokenAddress,
                 nTokenBalance,
                 lastClaimTime,
                 lastClaimSupply,
-                blockTime
+                blockTime,
+                integralTotalSupply
             );
-
-        return incentives;
     }
 }

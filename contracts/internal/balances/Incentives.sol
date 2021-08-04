@@ -31,43 +31,39 @@ library Incentives {
         address tokenAddress,
         uint256 nTokenBalance,
         uint256 lastClaimTime,
-        uint256 lastClaimSupply,
-        uint256 blockTime
-    ) internal view returns (uint256, uint256) {
+        uint256 lastClaimIntegralSupply,
+        uint256 blockTime,
+        uint256 integralTotalSupply
+    ) internal view returns (uint256) {
+        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return 0;
+
         // prettier-ignore
         (
             /* currencyId */,
-            uint256 totalSupply,
             uint256 emissionRatePerYear,
             /* initializedTime */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
-        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return (0, totalSupply);
-        if (totalSupply == 0) return (0, 0);
-
+        // No overflow here, checked above
+        uint256 timeSinceLastClaim = blockTime - lastClaimTime;
         uint256 incentiveRate =
             _getIncentiveRate(
-                // No overflow here, checked above
-                blockTime - lastClaimTime,
+                timeSinceLastClaim,
                 // Convert this to the appropriate denomination
                 emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
             );
 
-        // Returns the average supply between now and the previous mint time. This is done to dampen the effect of
-        // total supply fluctuations when claiming tokens. For example, if someone minted nTokens when the supply was
-        // at 100e8 and then claimed incentives when the supply was at 100_000e8, they would be diluted out of part of
-        // their token incentives. This will ensure that they claim with an average supply of 50_050e8, which is better
-        // than not doing the average
-        uint256 avgTotalSupply =
-            totalSupply.add(lastClaimSupply.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))).div(
-                2
-            );
+        // Returns the average supply between now and the previous mint time using the integral of the total
+        // supply.
+        uint256 avgTotalSupply = integralTotalSupply.sub(lastClaimIntegralSupply).div(timeSinceLastClaim);
+        if (avgTotalSupply == 0) return 0;
 
         uint256 incentivesToClaim = nTokenBalance.mul(incentiveRate).div(avgTotalSupply);
+        // incentiveRate has a decimal basis of 1e16 so divide by token precision to reduce to 1e8
         incentivesToClaim = incentivesToClaim.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
-        return (incentivesToClaim, totalSupply);
+        return incentivesToClaim;
     }
 
     /// @notice Incentives must be claimed every time nToken balance changes
@@ -77,30 +73,26 @@ library Incentives {
     {
         uint256 blockTime = block.timestamp;
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
-        uint256 totalSupply;
-        uint256 incentivesToClaim;
+        uint256 integralTotalSupply = nTokenHandler.changeNTokenSupply(
+            tokenAddress,
+            balanceState.netNTokenSupplyChange,
+            blockTime
+        );
 
-        (incentivesToClaim, totalSupply) = calculateIncentivesToClaim(
+        uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
             uint256(balanceState.storedNTokenBalance),
             balanceState.lastClaimTime,
             balanceState.lastClaimSupply,
-            blockTime
+            blockTime,
+            integralTotalSupply
         );
+
         balanceState.lastClaimTime = blockTime;
+        // Trim off decimal places when storing the last claim supply for storage efficiency
+        balanceState.lastClaimSupply = integralTotalSupply.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
-
-        // Change the supply amount after incentives have been claimed
-        if (balanceState.netNTokenSupplyChange != 0) {
-            totalSupply = nTokenHandler.changeNTokenSupply(
-                tokenAddress,
-                balanceState.netNTokenSupplyChange
-            );
-        }
-
-        // Trim off decimal places when storing the last claim supply for storage efficiency
-        balanceState.lastClaimSupply = totalSupply.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
         return incentivesToClaim;
     }
