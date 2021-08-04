@@ -17,7 +17,7 @@ library FloatingPoint56 {
         // If the value is over the uint48 max value then we will shift it down
         // given the index of the most significant bit. We store this bit shift 
         // in the least significant byte of the 56 bit slot available.
-        if (value > type(uint48).max) bitShift = getMSB(value);
+        if (value > type(uint48).max) bitShift = (getMSB(value) - 47);
 
         uint256 shiftedValue = value >> bitShift;
         return bytes32((shiftedValue << 8) | bitShift);

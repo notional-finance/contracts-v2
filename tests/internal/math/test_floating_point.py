@@ -20,6 +20,8 @@ class TestFloatingPoint:
         (packed, unpacked) = floatingPoint.testPackingUnpacking(value)
 
         bitsShifted = int(packed.hex()[-2:], 16)
+        # This is the max bit shift
+        assert bitsShifted <= (128 - 47)
         # Assert packed is always less than 56 bits, means that the
         # top 50 values (256 - 56 = 200 bits) and 4 bits per character
         # equals 50 values
