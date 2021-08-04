@@ -9,7 +9,7 @@ methods {
     getMarketOracleRate() returns (uint256) envfree;
     MATURITY() returns (uint256) envfree;
     executeTrade(uint256 timeToMaturity, int256 fCashToAccount) returns (int256,int256) envfree;
-   getStoredOracleRate() returns (uint256);
+    getStoredOracleRate() returns (uint256);
 
    a_minus_b(int256 a, int256 b) returns (int256) envfree;
    a_plus_b(int256 a, int256 b) returns (int256) envfree;

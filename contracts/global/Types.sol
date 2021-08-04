@@ -216,35 +216,58 @@ struct PortfolioAsset {
 
 /// @dev Market object as represented in memory
 struct MarketParameters {
-    bytes32 storageSlot;
-    uint256 maturity;
+    
+    // CERTORA: We moved maturity from offset 1 to offset 8 so that
+    // MarketParameters and SettlementMarket are consistent
+    
+    // bytes32 storageSlot; // 0
+   
     // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
+    int256 totalfCash; // 1 -> 0
+    
     // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
+    int256 totalAssetCash; // 2 -> 1
+    
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
+    int256 totalLiquidity; // 3 -> 2
+    
     // This is the implied rate that we use to smooth the anchor rate between trades.
-    uint256 lastImpliedRate;
+    uint256 lastImpliedRate; // 4 -> 3
+   
     // This is the oracle rate used to value fCash and prevent flash loan attacks
-    uint256 oracleRate;
+    uint256 oracleRate; // 5 -> 4
+    
     // This is the timestamp of the previous trade
-    uint256 previousTradeTime;
+    uint256 previousTradeTime; // 6 -> 5
+   
     // Used to determine if the market has been updated
-    bytes1 storageState;
+    bytes1 storageState; // 7 -> 6
+
+    uint256 maturity; // 8 -> 7
+    
+    // CERTORA: The struct members below represent the values maintained in storage;
+    // xStorage maintains the value of x in storage, while x has the value of x in memory.
+    int256 totalfCashStorage; // 9 -> 8
+    int256 totalAssetCashStorage; // 10 -> 9
+    int256 totalLiquidityStorage; // 11 -> 10
+    uint256 lastImpliedRateStorage; // 12 -> 11
+    uint256 oracleRateStorage; // 13 -> 12
+    uint256 previousTradeTimeStorage; // 14 -> 13
 }
 
 /// @dev Simplified market object used during settlement
+// CERTORA: We ignore SettlementMarket since this type is a more compact or compressed representation of MarketParameters.
+// That is, we only work with MarketParameters (i.e., the full representation).
 struct SettlementMarket {
-    bytes32 storageSlot;
+    // bytes32 storageSlot; // 0
     // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
+    int256 totalfCash; // 1
     // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
+    int256 totalAssetCash; // 2
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
+    int256 totalLiquidity; // 3
     // Un parsed market data used for storage
-    bytes32 data;
+    bytes32 data; // 4
 }
 
 /// @dev Used during settling bitmap assets for calculating bitmap shifts

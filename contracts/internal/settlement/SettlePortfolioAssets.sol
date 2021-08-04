@@ -58,20 +58,36 @@ library SettlePortfolioAssets {
         returns (
             int256,
             int256,
-            SettlementMarket memory
+            uint256 // SettlementMarket memory // CERTORA: Returns the storage slot of the market
         )
     {
-        SettlementMarket memory market =
-            Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
+        // SettlementMarket memory market =
+        //     Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
+        
+        bytes32 marketSlot = Market.getMarketSlot(asset.currencyId, asset.maturity, asset.getSettlementDate());
+        Market.loadMarket(marketSlot);
+        // Market.totalAssetCash(marketSlot); // replaces market.totalAssetCash
+        // Market.totalfCash(marketSlot); // replaces market.totalfCash
+        
+        // int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
+        // int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
 
-        int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
-        int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
+        int256 totalAssetCashStorage = Market.totalAssetCashStorage(marketSlot);
+        int256 totalfCashStorage = Market.totalfCashStorage(marketSlot);
+        int256 totalLiquidityStorage = Market.totalLiquidityStorage(marketSlot);
 
-        market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
-        market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
+        int256 assetCash = totalAssetCashStorage.mul(asset.notional).div(totalLiquidityStorage);
+        int256 fCash = totalfCashStorage.mul(asset.notional).div(totalLiquidityStorage);
+        
+        // market.totalfCash = market.totalfCash.subNoNeg(fCash);
+        // market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
+        // market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
 
-        return (assetCash, fCash, market);
+        Market.setTotalfCash(marketSlot, totalfCashStorage.subNoNeg(fCash));
+        Market.setTotalAssetCash(marketSlot, totalAssetCashStorage.subNoNeg(assetCash));
+        Market.setTotalLiquidity(marketSlot, totalLiquidityStorage.subNoNeg(asset.notional));
+
+        return (assetCash, fCash, marketSlot);
     }
 
     /// @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
@@ -91,10 +107,10 @@ library SettlePortfolioAssets {
     function _settleLiquidityTokenTofCash(PortfolioState memory portfolioState, uint256 index)
         private
         view
-        returns (int256, SettlementMarket memory)
+        returns (int256, uint256) //SettlementMarket memory)
     {
         PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
-        (int256 assetCash, int256 fCash, SettlementMarket memory market) =
+        (int256 assetCash, int256 fCash, uint256 marketSlot) = // SettlementMarket memory market) =
             _calculateMarketStorage(liquidityToken);
 
         // If the liquidity token's maturity is still in the future then we change the entry to be
@@ -114,7 +130,7 @@ library SettlePortfolioAssets {
                 fCashAsset.storageState = AssetStorageState.Update;
 
                 portfolioState.deleteAsset(index);
-                return (assetCash, market);
+                return (assetCash, marketSlot);
             }
         }
 
@@ -122,7 +138,7 @@ library SettlePortfolioAssets {
         liquidityToken.notional = fCash;
         liquidityToken.storageState = AssetStorageState.Update;
 
-        return (assetCash, market);
+        return (assetCash, marketSlot);
     }
 
     /// @notice Settles a portfolio array
@@ -162,15 +178,16 @@ library SettlePortfolioAssets {
                 assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
-                SettlementMarket memory market;
+                // SettlementMarket memory market;
+                uint256 marketSlot;
                 if (asset.maturity > blockTime) {
-                    (assetCash, market) = _settleLiquidityTokenTofCash(portfolioState, i);
+                    (assetCash, marketSlot) = _settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
                     (assetCash, market) = _settleLiquidityToken(asset, settlementRate);
                     portfolioState.deleteAsset(i);
                 }
 
-                Market.setSettlementMarket(market);
+                Market.setMarket(marketSlot);
             }
 
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]

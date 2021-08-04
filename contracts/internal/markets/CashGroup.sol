@@ -14,7 +14,10 @@ library CashGroup {
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
-    using Market for MarketParameters;
+    
+    // using Market for MarketParameters;
+
+    using Market for mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters)));
 
     // Offsets for the bytes of the different parameters
     uint256 private constant RATE_ORACLE_TIME_WINDOW = 8;
@@ -89,9 +92,9 @@ library CashGroup {
     }
 
     /// @notice Time window factor for the rate oracle denominated in seconds
-    function getRateOracleTimeWindow(CashGroupParameters storage cashGroup)
+    function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
         internal
-        view
+        pure
         returns (uint256)
     {
         // This is denominated in minutes in storage
@@ -131,8 +134,8 @@ library CashGroup {
     }
 
     function loadMarket(
-        CashGroupParameters storage cashGroup,
-        MarketParameters storage market,
+        CashGroupParameters memory cashGroup,
+        mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets, // MarketParameters memory market,
         uint256 marketIndex,
         bool needsLiquidity,
         uint256 blockTime
@@ -141,7 +144,7 @@ library CashGroup {
         uint256 maturity =
             DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
 
-        market.loadMarket(
+        symbolicMarkets.loadMarket(
             cashGroup.currencyId,
             maturity,
             blockTime,
@@ -190,7 +193,7 @@ library CashGroup {
 
     /// @dev Gets an oracle rate without interpolation
     function calculateOracleRate(
-        CashGroupParameters storage cashGroup,
+        CashGroupParameters memory cashGroup,
         uint256 maturity,
         uint256 blockTime
     ) internal view returns (uint256) {

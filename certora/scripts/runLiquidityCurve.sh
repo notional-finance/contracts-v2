@@ -1,5 +1,5 @@
-certoraRun.py contracts/mocks/certora/LiquidityCurveHarness.sol \
- 	--verify LiquidityCurveHarness:certora/asset/LiquidityCurve.spec \
+certoraRun.py contracts/mocks/certora/LiquidityCurveHarnessOrig.sol \
+ 	--verify LiquidityCurveHarnessOrig:certora/asset/LiquidityCurve.spec \
  	--solc solc7.6 \
 	--optimistic_loop \
  	--loop_iter 1 \

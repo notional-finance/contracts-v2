@@ -28,9 +28,8 @@ library Market {
     /// @notice Add liquidity to a market, assuming that it is initialized. If not then
     /// this method will revert and the market must be initialized first.
     /// @return liquidityTokenAmount and net negative fCash
-    function addLiquidity(MarketParameters memory market, int256 assetCash)
+    function addLiquidity(MarketParameters storage market, int256 assetCash)
         internal
-        pure
         returns (int256, int256)
     {
         require(market.totalLiquidity > 0, "M: zero liquidity");
@@ -51,9 +50,8 @@ library Market {
 
     /// @notice Remove liquidity from a market, assuming that it is initialized.
     /// @return asset cash and positive fCash claim to return
-    function removeLiquidity(MarketParameters memory market, int256 tokensToRemove)
+    function removeLiquidity(MarketParameters storage market, int256 tokensToRemove)
         internal
-        pure
         returns (int256, int256)
     {
         if (tokensToRemove == 0) return (0, 0);
@@ -80,7 +78,7 @@ library Market {
     /// @return netAssetCash, netAssetCashToReserve
     function calculateTrade(
         MarketParameters storage market,
-        CashGroupParameters storage cashGroup,
+        CashGroupParameters memory cashGroup,
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
@@ -142,7 +140,7 @@ library Market {
     /// @notice Returns factors for calculating exchange rates
     function getExchangeRateFactors(
         MarketParameters storage market,
-        CashGroupParameters storage cashGroup,
+        CashGroupParameters memory cashGroup,
         uint256 timeToMaturity,
         uint256 marketIndex
     )
@@ -249,12 +247,12 @@ library Market {
     }
 
     function _setNewMarketState(
-        MarketParameters memory market,
+        MarketParameters storage market,
         AssetRateParameters memory assetRate,
         int256 netCashToAccount,
         int256 netCashToMarket,
         int256 netCashToReserve
-    ) private view returns (int256, int256) {
+    ) private returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
         market.totalAssetCash = market.totalAssetCash.add(netAssetCashToMarket);
 
@@ -361,7 +359,7 @@ library Market {
     /// Calculates the following exchange rate:
     ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    ///     proportion = totalfCash / (totalfCash + totalAssetCash)
+    ///     proportion = totalfCash / (totalfCash + totalUnderlyingCash)
     /// @dev has an underscore to denote as private but is marked internal for the mock
     function _getExchangeRate(
         int256 totalfCash,
@@ -373,8 +371,8 @@ library Market {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
-        int256 proportion = /*Constants.RATE_PRECISION/2;
-            //*/ numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+        int256 proportion =
+            numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
 
         (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
@@ -422,7 +420,8 @@ library Market {
             );
 
         return (result, true);
-    }*/
+    } */
+
     //gadi
     function _logProportion(int256 x) internal pure returns (int256, bool) {
     if (x <= 0 || x >= Constants.RATE_PRECISION)
@@ -434,6 +433,7 @@ library Market {
     // between 0.05 and 0.95
     return(6 * x - 3 * Constants.RATE_PRECISION,true);
     }
+
     /// @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
     /// on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
     /// a trader could use a flash loan to dump a large amount of cash into the market and depress interest rates.
@@ -480,35 +480,35 @@ library Market {
         return newOracleRate;
     }
 
-    function getSlot(
-        uint256 currencyId,
-        uint256 settlementDate,
-        uint256 maturity
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    maturity,
-                    keccak256(
-                        abi.encode(
-                            settlementDate,
-                            keccak256(abi.encode(currencyId, Constants.MARKET_STORAGE_OFFSET))
-                        )
-                    )
-                )
-            );
-    }
+    // function getSlot(
+    //     uint256 currencyId,
+    //     uint256 settlementDate,
+    //     uint256 maturity
+    // ) internal pure returns (bytes32) {
+    //     return
+    //         keccak256(
+    //             abi.encode(
+    //                 maturity,
+    //                 keccak256(
+    //                     abi.encode(
+    //                         settlementDate,
+    //                         keccak256(abi.encode(currencyId, Constants.MARKET_STORAGE_OFFSET))
+    //                     )
+    //                 )
+    //             )
+    //         );
+    // }
 
     /// @notice Liquidity is not required for lending and borrowing so we don't automatically read it. This method is called if we
     /// do need to load the liquidity amount.
     function getTotalLiquidity(MarketParameters storage market) internal {
-        int256 totalLiquidity;
-        bytes32 slot = bytes32(uint256(market.storageSlot) + 1);
+        // int256 totalLiquidity;
+        // bytes32 slot = bytes32(uint256(market.storageSlot) + 1);
 
-        assembly {
-            totalLiquidity := sload(slot)
-        }
-        market.totalLiquidity = totalLiquidity;
+        // assembly {
+        //     totalLiquidity := sload(slot)
+        // }
+        market.totalLiquidity = market.totalLiquidityStorage;
     }
 
     function getOracleRate(
@@ -517,32 +517,33 @@ library Market {
         uint256 rateOracleTimeWindow,
         uint256 blockTime
     ) internal view returns (uint256) {
-        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
-        bytes32 slot = getSlot(currencyId, settlementDate, maturity);
-        bytes32 data;
+        return 0;
+        // uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        // bytes32 slot = getSlot(currencyId, settlementDate, maturity);
+        // bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        // assembly {
+        //     data := sload(slot)
+        // }
 
-        uint256 lastImpliedRate = uint256(uint32(uint256(data >> 160)));
-        uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
-        uint256 previousTradeTime = uint256(uint32(uint256(data >> 224)));
+        // uint256 lastImpliedRate = uint256(uint32(uint256(data >> 160)));
+        // uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
+        // uint256 previousTradeTime = uint256(uint32(uint256(data >> 224)));
 
-        // If the oracle rate is set to zero this can only be because the markets have past their settlement
-        // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
-        // during this time, but market initialization can be called by anyone so the actual time that this condition
-        // exists for should be quite short.
-        require(oracleRate > 0, "Market not initialized");
+        // // If the oracle rate is set to zero this can only be because the markets have past their settlement
+        // // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
+        // // during this time, but market initialization can be called by anyone so the actual time that this condition
+        // // exists for should be quite short.
+        // require(oracleRate > 0, "Market not initialized");
 
-        return
-            _updateRateOracle(
-                previousTradeTime,
-                lastImpliedRate,
-                oracleRate,
-                rateOracleTimeWindow,
-                blockTime
-            );
+        // return
+        //     _updateRateOracle(
+        //         previousTradeTime,
+        //         lastImpliedRate,
+        //         oracleRate,
+        //         rateOracleTimeWindow,
+        //         blockTime
+        //     );
     }
 
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
@@ -555,20 +556,23 @@ library Market {
         uint256 settlementDate
     ) private {
         // Market object always uses the most current reference time as the settlement date
-        bytes32 slot = getSlot(currencyId, settlementDate, maturity);
-        bytes32 data;
+        // bytes32 slot = getSlot(currencyId, settlementDate, maturity);
+        // bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        // assembly {
+        //     data := sload(slot)
+        // }
 
-        market.storageSlot = slot;
+        // market.storageSlot = slot;
+
         market.maturity = maturity;
-        market.totalfCash = int256(uint80(uint256(data)));
-        market.totalAssetCash = int256(uint80(uint256(data >> 80)));
-        market.lastImpliedRate = uint256(uint32(uint256(data >> 160)));
-        market.oracleRate = uint256(uint32(uint256(data >> 192)));
-        market.previousTradeTime = uint256(uint32(uint256(data >> 224)));
+        
+        // CERTORA: Copy "storage" values into corresponding "memory" ones
+        market.totalfCash = market.totalfCashStorage; // int256(uint80(uint256(data)));
+        market.totalAssetCash = market.totalAssetCashStorage; // int256(uint80(uint256(data >> 80)));
+        market.lastImpliedRate = market.lastImpliedRateStorage;  // uint256(uint32(uint256(data >> 160)));
+        market.oracleRate =  market.oracleRateStorage; // uint256(uint32(uint256(data >> 192)));
+        market.previousTradeTime = market.previousTradeTimeStorage; // uint256(uint32(uint256(data >> 224)));
         market.storageState = STORAGE_STATE_NO_CHANGE;
 
         if (needsLiquidity) {
@@ -578,18 +582,63 @@ library Market {
         }
     }
 
-    /// @notice Writes market parameters to storage if the market is marked as updated.
-    function setMarketStorage(MarketParameters memory market) internal {
+    // /// @notice Writes market parameters to storage if the market is marked as updated.
+    // function setMarketStorage(MarketParameters memory market) internal {
+    //     if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
+    //     bytes32 slot = market.storageSlot;
+
+    //     if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
+    //         // If no trade has occurred then the oracleRate on chain should not update.
+    //         bytes32 oldData;
+    //         assembly {
+    //             oldData := sload(slot)
+    //         }
+    //         market.oracleRate = uint256(uint32(uint256(oldData >> 192)));
+    //     }
+
+    //     require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
+    //     require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: market storage totalAssetCash overflow
+    //     require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max); // dev: market storage lastImpliedRate overflow
+    //     require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
+    //     require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
+
+    //     bytes32 data =
+    //         (bytes32(market.totalfCash) |
+    //             (bytes32(market.totalAssetCash) << 80) |
+    //             (bytes32(market.lastImpliedRate) << 160) |
+    //             (bytes32(market.oracleRate) << 192) |
+    //             (bytes32(market.previousTradeTime) << 224));
+
+    //     assembly {
+    //         sstore(slot, data)
+    //     }
+
+    //     if (
+    //         market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
+    //     ) {
+    //         require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
+    //         slot = bytes32(uint256(slot) + 1);
+    //         bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+
+    //         assembly {
+    //             sstore(slot, totalLiquidity)
+    //         }
+    //     }
+    // }
+
+     /// @notice Writes market parameters to storage if the market is marked as updated.
+    function setMarketStorage(MarketParameters storage market) internal {
         if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
-        bytes32 slot = market.storageSlot;
+        // bytes32 slot = market.storageSlot;
 
         if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
             // If no trade has occurred then the oracleRate on chain should not update.
-            bytes32 oldData;
-            assembly {
-                oldData := sload(slot)
-            }
-            market.oracleRate = uint256(uint32(uint256(oldData >> 192)));
+            // bytes32 oldData;
+            // assembly {
+            //     oldData := sload(slot)
+            // }
+            // market.oracleRate = uint256(uint32(uint256(oldData >> 192)));
+            market.oracleRate = market.oracleRateStorage;
         }
 
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
@@ -598,43 +647,52 @@ library Market {
         require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
         require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
 
-        bytes32 data =
-            (bytes32(market.totalfCash) |
-                (bytes32(market.totalAssetCash) << 80) |
-                (bytes32(market.lastImpliedRate) << 160) |
-                (bytes32(market.oracleRate) << 192) |
-                (bytes32(market.previousTradeTime) << 224));
+        // only updating the "storage" fields that have a "memory" counterpart whose value may be different in some cases than the one in "storage"
+        market.totalfCashStorage = market.totalfCash;
+        market.totalAssetCashStorage = market.totalAssetCash;
+        market.lastImpliedRateStorage = market.lastImpliedRate;
+        market.oracleRateStorage = market.oracleRate;
+        market.previousTradeTimeStorage = market.previousTradeTime;
+        
+        // bytes32 data =
+        //     (bytes32(market.totalfCash) |
+        //         (bytes32(market.totalAssetCash) << 80) |
+        //         (bytes32(market.lastImpliedRate) << 160) |
+        //         (bytes32(market.oracleRate) << 192) |
+        //         (bytes32(market.previousTradeTime) << 224));
 
-        assembly {
-            sstore(slot, data)
-        }
+        // assembly {
+        //     sstore(slot, data)
+        // }
 
         if (
             market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
         ) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
-            slot = bytes32(uint256(slot) + 1);
-            bytes32 totalLiquidity = bytes32(market.totalLiquidity);
-
-            assembly {
-                sstore(slot, totalLiquidity)
-            }
+            // slot = bytes32(uint256(slot) + 1);
+            // bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+    
+            // assembly {
+            //     sstore(slot, totalLiquidity)
+            // }
+            market.totalLiquidityStorage = market.totalLiquidity;
         }
     }
 
+
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
     function loadMarket(
-        MarketParameters storage market,
+        mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
         bool needsLiquidity,
         uint256 rateOracleTimeWindow
-    ) internal {
+    ) internal returns(uint256 settlementDate) {
         // Always reference the current settlement date
-        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         loadMarketWithSettlementDate(
-            market,
+            symbolicMarkets,
             currencyId,
             maturity,
             blockTime,
@@ -647,7 +705,7 @@ library Market {
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
     /// is mainly used in the InitializeMarketAction contract.
     function loadMarketWithSettlementDate(
-        MarketParameters storage market,
+        mapping(uint256 => mapping(uint256=>mapping(uint256 => MarketParameters))) storage symbolicMarkets,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
@@ -655,8 +713,8 @@ library Market {
         uint256 rateOracleTimeWindow,
         uint256 settlementDate
     ) internal {
+        MarketParameters storage market = symbolicMarkets[currencyId][settlementDate][maturity];
         _loadMarketStorage(market, currencyId, maturity, needsLiquidity, settlementDate);
-
         market.oracleRate = _updateRateOracle(
             market.previousTradeTime,
             market.lastImpliedRate,
@@ -665,66 +723,241 @@ library Market {
             blockTime
         );
     }
+    function getMarketSlot(
+        uint256 currencyId, // 1
+        uint256 maturity, // 3
+        uint256 settlementDate  // 2
+        ) internal view returns(bytes32) {
+            bytes32 slot;
+		    assembly {
+			    mstore(0, currencyId)
+			    mstore(32, 0)
+			    slot := keccak256(0, 64)
+		    }
+            assembly {
+			    mstore(0, settlementDate)
+			    mstore(32, slot)
+			    slot := keccak256(0, 64)
+		    }
+            assembly {
+			    mstore(0, maturity)
+			    mstore(32, slot)
+			    slot := keccak256(0, 64)
+		    }
+		  return slot;
+    }
+
+    // CERTORA: Replaces getSettlementMarket 
+    function loadMarket(bytes32 marketSlot) internal {
+        setTotalfCash(marketSlot, totalfCashStorage(marketSlot));
+        setTotalAssetCash(marketSlot, totalAssetCashStorage(marketSlot));
+        setTotalLiquidity(marketSlot, totalLiquidityStorage(marketSlot));
+        setLastImpliedRate(marketSlot, lastImpliedRateStorage(marketSlot));
+        setOracleRate(marketSlot, oracleRateStorage(marketSlot));
+        setPreviousTradeTime(marketSlot, previousTradeTimeStorage(marketSlot));
+    }
 
     /// @notice When settling liquidity tokens we only need to get half of the market parameters and the settlement
     /// date must be specified.
-    function getSettlementMarket(
-        uint256 currencyId,
-        uint256 maturity,
-        uint256 settlementDate
-    ) internal view returns (SettlementMarket memory) {
-        uint256 slot = uint256(getSlot(currencyId, settlementDate, maturity));
-        int256 totalLiquidity;
-        bytes32 data;
+    // Remove this function. Replace with functions in the harness. Set functions and get functions of primitive members in struct.
+    // function getSettlementMarket(
+    //     uint256 currencyId,
+    //     uint256 maturity,
+    //     uint256 settlementDate
+    // ) internal view returns (SettlementMarket storage) {
+    //     MarketParameters storage market = symbolicMarkets[currencyId][settlementDate][maturity];
+    //     return market;
+        
+    //     // market.totalfCash = market.totalfCashStorage;
 
-        assembly {
-            data := sload(slot)
-        }
 
-        int256 totalfCash = int256(uint80(uint256(data)));
-        int256 totalAssetCash = int256(uint80(uint256(data >> 80)));
-        // Clear the lower 160 bits, this data will be combined with the new totalfCash
-        // and totalAssetCash figures.
-        data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
+        
 
-        slot = uint256(slot) + 1;
+    //     // return symbolicMarkets[currencyId][settlementDate][maturity];
+        
+    //     // uint256 slot = uint256(getSlot(currencyId, settlementDate, maturity));
+    //     // int256 totalLiquidity;
+    //     // bytes32 data;
 
-        assembly {
-            totalLiquidity := sload(slot)
-        }
+    //     // assembly {
+    //     //     data := sload(slot)
+    //     // }
 
-        return
-            SettlementMarket({
-                storageSlot: bytes32(slot - 1),
-                totalfCash: totalfCash,
-                totalAssetCash: totalAssetCash,
-                totalLiquidity: int256(totalLiquidity),
-                data: data
-            });
+    //     // int256 totalfCash = int256(uint80(uint256(data)));
+    //     // int256 totalAssetCash = int256(uint80(uint256(data >> 80)));
+    //     // // Clear the lower 160 bits, this data will be combined with the new totalfCash
+    //     // // and totalAssetCash figures.
+    //     // data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
+
+    //     // slot = uint256(slot) + 1;
+
+    //     // assembly {
+    //     //     totalLiquidity := sload(slot)
+    //     // }
+
+    //     // return
+    //     //     SettlementMarket({
+    //     //         storageSlot: bytes32(slot - 1),
+    //     //         totalfCash: totalfCash,
+    //     //         totalAssetCash: totalAssetCash,
+    //     //         totalLiquidity: int256(totalLiquidity),
+    //     //         data: data
+    //     //     });
+    // }
+
+    // function setSettlementMarket(SettlementMarket memory market) internal {
+    //     bytes32 slot = market.storageSlot;
+    //     bytes32 data;
+    //     require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
+    //     require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
+    //     require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
+
+    //     data = (bytes32(market.totalfCash) |
+    //         (bytes32(market.totalAssetCash) << 80) |
+    //         bytes32(market.data));
+
+    //     // Don't clear the storage even when all liquidity tokens have been removed because we need to use
+    //     // the oracle rates to initialize the next set of markets.
+    //     assembly {
+    //         sstore(slot, data)
+    //     }
+
+    //     slot = bytes32(uint256(slot) + 1);
+    //     bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+    //     assembly {
+    //         sstore(slot, totalLiquidity)
+    //     }
+    // }
+
+     function setMarket(bytes32 marketSlot) internal {
+        setTotalfCashStorage(marketSlot, totalfCash(marketSlot));
+        setTotalAssetCashStorage(marketSlot, totalAssetCash(marketSlot));
+        setTotalLiquidityStorage(marketSlot, totalLiquidity(marketSlot));
+        setLastImpliedRateStorage(marketSlot, lastImpliedRate(marketSlot));
+        setOracleRateStorage(marketSlot, oracleRate(marketSlot));
+        setPreviousTradeTimeStorage(marketSlot, previousTradeTime(marketSlot));
     }
 
-    function setSettlementMarket(SettlementMarket memory market) internal {
-        bytes32 slot = market.storageSlot;
-        bytes32 data;
-        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
-        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
-        require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
-
-        data = (bytes32(market.totalfCash) |
-            (bytes32(market.totalAssetCash) << 80) |
-            bytes32(market.data));
-
-        // Don't clear the storage even when all liquidity tokens have been removed because we need to use
-        // the oracle rates to initialize the next set of markets.
+     function sloadFromMarketSlotPlusK(bytes32 marketSlot, uint256 k) private view returns(bytes32) {
+        bytes32 slot = bytes32(uint256(marketSlot) + k);
+        bytes32 slotData;
         assembly {
-            sstore(slot, data)
+            slotData := sload(slot)
         }
+        return slotData;
+     }
 
-        slot = bytes32(uint256(slot) + 1);
-        bytes32 totalLiquidity = bytes32(market.totalLiquidity);
+    function sstoreAtMarketSlotPlusK(bytes32 marketSlot, uint256 k, bytes32 slotData) private {
+        bytes32 slot = bytes32(uint256(marketSlot) + k);
         assembly {
-            sstore(slot, totalLiquidity)
+            sstore(slot, slotData)
         }
+    }
+
+    ////////////////////////////////// Getters ///////////////////////////////////////////////
+    function totalfCash(bytes32 marketSlot) internal view returns (int256) { // 0 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 0));
+     }
+    function totalAssetCash(bytes32 marketSlot) internal view returns (int256) { // 1 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 1));
+    }
+    function totalLiquidity(bytes32 marketSlot) internal view returns (int256) { // 2 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 2));
+    }
+    
+    function lastImpliedRate(bytes32 marketSlot) internal view returns (uint256) { // 3 
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 3));
+    }
+    function oracleRate(bytes32 marketSlot) internal view returns (uint256) { // 4 
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 4));
+    }
+    function previousTradeTime(bytes32 marketSlot) internal view returns (uint256) { // 5 
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 5));
+    }
+    function storageState(bytes32 marketSlot) internal view returns (bytes1) { // 6 
+        return bytes1(sloadFromMarketSlotPlusK(marketSlot, 6));
+    }
+    function maturity(bytes32 marketSlot) internal view returns (uint256) { // 7 
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 7));
+    }
+    
+    function totalfCashStorage(bytes32 marketSlot) internal view returns (int256) { // 8 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 8));
+    }
+    
+    function totalAssetCashStorage(bytes32 marketSlot) internal view returns (int256) { // 9 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 9));
+    }
+
+    function totalLiquidityStorage(bytes32 marketSlot) internal view returns (int256) { // 10 
+        return int256(sloadFromMarketSlotPlusK(marketSlot, 10));
+    }
+    function lastImpliedRateStorage(bytes32 marketSlot) internal view returns (uint256) { // 11 
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 11));
+    }
+    function oracleRateStorage(bytes32 marketSlot) internal view returns (uint256) { // 12
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 12));
+    }
+    function previousTradeTimeStorage(bytes32 marketSlot) internal view returns (uint256) { // 13
+        return uint256(sloadFromMarketSlotPlusK(marketSlot, 13));
+    }
+    
+    ////////////////////////////// Setters ///////////////////////////////////////////////////
+    function setTotalfCash(bytes32 marketSlot, int256 value) internal { // 0 
+        sstoreAtMarketSlotPlusK(marketSlot, 0, bytes32(value));
+     }
+     
+    function setTotalAssetCash(bytes32 marketSlot, int256 value) internal { // 1 
+        sstoreAtMarketSlotPlusK(marketSlot, 1, bytes32(value));
+     }
+
+    function setTotalLiquidity(bytes32 marketSlot, int256 value) internal  { // 2 
+       sstoreAtMarketSlotPlusK(marketSlot, 2, bytes32(value));
+    }
+
+    function setLastImpliedRate(bytes32 marketSlot, uint256 value) internal  { // 3 
+       sstoreAtMarketSlotPlusK(marketSlot, 3, bytes32(value));
+    }
+
+    function setOracleRate(bytes32 marketSlot, uint256 value) internal  { // 4 
+       sstoreAtMarketSlotPlusK(marketSlot, 4, bytes32(value));
+    }
+
+    function setPreviousTradeTime(bytes32 marketSlot, uint256 value) internal  { // 5
+       sstoreAtMarketSlotPlusK(marketSlot, 5, bytes32(value));
+    }
+
+    function setStorageState(bytes32 marketSlot, bytes1 value) internal  { // 6 
+       sstoreAtMarketSlotPlusK(marketSlot, 6, bytes32(value));
+    }
+    function setMaturity(bytes32 marketSlot, uint256 value) internal  { // 7 
+       sstoreAtMarketSlotPlusK(marketSlot, 7, bytes32(value));
+    }
+
+    function setTotalfCashStorage(bytes32 marketSlot, int256 value) internal  { // 8 
+        require(value >= 0 && value <= type(uint80).max);
+        sstoreAtMarketSlotPlusK(marketSlot, 8, bytes32(value));
+    }
+    
+    function setTotalAssetCashStorage(bytes32 marketSlot, int256 value) internal  { // 9
+        require(value >= 0 && value <= type(uint80).max); 
+        sstoreAtMarketSlotPlusK(marketSlot, 9, bytes32(value));
+    }
+    
+    function setTotalLiquidityStorage(bytes32 marketSlot, int256 value) internal { // 10 
+       require(value >= 0 && value <= type(uint80).max);
+       sstoreAtMarketSlotPlusK(marketSlot, 10, bytes32(value));
+    }
+
+    function setLastImpliedRateStorage(bytes32 marketSlot, uint256 value) internal { // 11 
+       sstoreAtMarketSlotPlusK(marketSlot, 11, bytes32(value));
+    }
+    
+    function setOracleRateStorage(bytes32 marketSlot, uint256 value) internal { // 12 
+       sstoreAtMarketSlotPlusK(marketSlot, 12, bytes32(value));
+    }
+    function setPreviousTradeTimeStorage(bytes32 marketSlot, uint256 value) internal { // 13 
+       sstoreAtMarketSlotPlusK(marketSlot, 13, bytes32(value));
     }
 
     /// Uses Newton's method to converge on an fCash amount given the amount of
