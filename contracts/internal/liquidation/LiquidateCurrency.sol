@@ -31,7 +31,10 @@ library LiquidateCurrency {
         for (uint256 i; i < portfolio.length; i++) {
             if (
                 portfolio[i].currencyId == currencyId &&
-                AssetHandler.isLiquidityToken(portfolio[i].assetType)
+                AssetHandler.isLiquidityToken(portfolio[i].assetType) &&
+                // This should not be possible (a deleted asset) in the portfolio
+                // at this stage of liquidation but we do this check to be defensive.
+                portfolio[i].storageState != AssetStorageState.Delete
             ) {
                 return true;
             }

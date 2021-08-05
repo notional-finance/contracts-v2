@@ -715,3 +715,38 @@ class TestLiquidatefCash:
 
         assert sum(notionals) > localFromLiquidator
         assert notionals == [20e8, 20e8, 20e8]
+
+    def test_liquidate_fcash_bitmap_portfolio(self, liquidation, accounts):
+        # This test liquidates all positive fCash
+        markets = get_market_curve(3, "flat")
+        for m in markets:
+            liquidation.setMarketStorage(1, SETTLEMENT_DATE, m)
+
+        accountContext = (START_TIME, "0x01", 0, 1, "0x000000000000000000")
+        liquidation.setBitmapAsset(accounts[0], 1, START_TIME, markets[0][1], 100e8)
+        liquidation.setBitmapAsset(accounts[0], 1, START_TIME, markets[1][1], 100e8)
+        cashGroup = liquidation.buildCashGroupView(1)
+        factors = (
+            accounts[0],
+            -10.1e8,
+            1000e8,
+            1000e8,
+            0,
+            "0x5F00005A0000",  # 95 liquidation, 90 haircut
+            (1e18, 1e18, 140, 100, 106),
+            (1e18, 1e18, 140, 100, 105),
+            cashGroup[2],
+            cashGroup,
+            [],
+        )
+
+        fCashContext = (accountContext, factors, ([], [], 0, 0), 0, 0, 0, 0, [])
+        maturities = [markets[0][1], markets[1][1]]
+        maxAmounts = [0] * len(maturities)
+
+        (notionals, localFromLiquidator, _) = liquidation.liquidatefCashLocal(
+            accounts[0], 1, maturities, maxAmounts, fCashContext, START_TIME
+        )
+
+        assert sum(notionals) > localFromLiquidator
+        assert notionals == [100e8, 100e8]
