@@ -67,6 +67,7 @@ class TestBalanceHandler:
             currencyId, False, (env.cToken["DAI"].address, False, TokenType["cToken"])
         )
         env.token["DAI"].approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
+        env.cToken["DAI"].approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
 
         return env
 
@@ -124,19 +125,28 @@ class TestBalanceHandler:
             txn = balanceHandler.finalize(bsCopy, accounts[0], context, False)
             balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
 
-            context = txn.return_value
-            (bsFinal, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
+            contextSecond = txn.return_value
+            (bsFinal, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, contextSecond)
             assert bsFinal[0] == currencyId
-
-            # Assert hasDebt is set properly (storedCashBalance + netCashChange + netTransfer)
-            if bsCopy[1] + bsCopy[3] + netTransfer < 0:
-                assert context[1] == "0x02"
-            else:
-                assert context[1] == "0x00"
 
             currency = balanceHandler.getCurrencyMapping(currencyId, False)
             externalPrecision = currency[2]
             transferExternal = convert_to_external(netTransfer, externalPrecision)
+
+            # Assert hasDebt is set properly (storedCashBalance + netCashChange + netTransfer)
+            if currency[1] and netTransfer > 0:
+                fee = transferExternal // 100
+                transferWithFeeInternal = convert_to_internal(
+                    transferExternal - fee, externalPrecision
+                )
+                if bsCopy[1] + bsCopy[3] + transferWithFeeInternal < 0:
+                    assert contextSecond[1] == "0x02"
+                else:
+                    assert contextSecond[1] == "0x00"
+            elif bsCopy[1] + bsCopy[3] + netTransfer < 0:
+                assert contextSecond[1] == "0x02"
+            else:
+                assert contextSecond[1] == "0x00"
 
             # Has transfer fee
             if currency[1]:
@@ -146,7 +156,9 @@ class TestBalanceHandler:
                 )
                 if netTransfer > 0:
                     # On deposits the fee will matter
-                    assert balanceAfter - balanceBefore == transferExternal - fee
+                    assert (
+                        pytest.approx(balanceAfter - balanceBefore, abs=2) == transferExternal - fee
+                    )
                     assert (
                         pytest.approx(bsFinal[1], abs=2)
                         == bsCopy[1] + bsCopy[3] + transferWithFeeInternal
@@ -281,3 +293,25 @@ class TestBalanceHandler:
         assert underlyingBalanceBefore == underlyingBalanceAfter
         if assetTokensReceived > 0:
             assert accountUnderlyingBalanceAfter > accountUnderlyingBalanceBefore
+
+    def test_redeem_to_underlying_doesnt_fail_on_positive(
+        self, balanceHandler, accounts, cTokenEnvironment
+    ):
+        currencyId = DAI_CURRENCY_ID
+        cTokenEnvironment.token["DAI"].approve(
+            cTokenEnvironment.cToken["DAI"].address, 2 ** 255, {"from": accounts[0]}
+        )
+        cTokenEnvironment.cToken["DAI"].mint(10000e18, {"from": accounts[0]})
+        active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
+        context = (0, "0x00", 0, 0, active_currencies)
+
+        (bs, context) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
+        bsCopy = list(bs)
+        bsCopy[4] = 100e8
+
+        assetBalanceBefore = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
+        balanceHandler.finalize(bsCopy, accounts[0], context, True)
+        (bsAfter, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
+        assetBalanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
+        assert bsAfter[1] == 100e8
+        assert assetBalanceBefore - assetBalanceAfter == 100e8
