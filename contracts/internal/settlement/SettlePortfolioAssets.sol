@@ -27,10 +27,11 @@ library SettlePortfolioAssets {
         if (portfolioState.storedAssets.length == 0) return new SettleAmount[](0);
 
         // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
-        for (uint256 i = portfolioState.storedAssets.length - 1; i >= 0; i--) {
+        // NOTE: if this contract is ever upgraded to Solidity 0.8+ then this i-- will underflow and cause
+        // a revert, must wrap in an unchecked.
+        for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (asset.getSettlementDate() > blockTime) {
-                if (i == 0) break;
                 continue;
             }
 
@@ -40,9 +41,6 @@ library SettlePortfolioAssets {
                 lastCurrencyId = asset.currencyId;
                 currenciesSettled++;
             }
-
-            // i-- will overflow and end up with index out of bounds error
-            if (i == 0) break;
         }
 
         // Actual currency ids will be set in the loop

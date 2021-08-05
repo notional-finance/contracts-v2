@@ -107,11 +107,11 @@ library nTokenMintAction {
         // markets as this loop progresses.
         int256 residualCash;
         MarketParameters memory market;
-        for (uint256 i = nToken.cashGroup.maxMarketIndex - 1; i >= 0; i--) {
+        for (uint256 marketIndex = nToken.cashGroup.maxMarketIndex; marketIndex > 0; marketIndex--) {
             int256 fCashAmount;
             nToken.cashGroup.loadMarket(
                 market,
-                i + 1, // Market index is 1-indexed
+                marketIndex,
                 true, // Needs liquidity to true
                 blockTime
             );
@@ -121,7 +121,7 @@ library nTokenMintAction {
 
             // We know from the call into this method that assetCashDeposit is positive
             int256 perMarketDeposit =
-                assetCashDeposit.mul(depositShares[i]).div(Constants.DEPOSIT_PERCENT_BASIS).add(
+                assetCashDeposit.mul(depositShares[marketIndex - 1]).div(Constants.DEPOSIT_PERCENT_BASIS).add(
                     residualCash
                 );
 
@@ -129,8 +129,8 @@ library nTokenMintAction {
                 nToken,
                 market,
                 perMarketDeposit,
-                leverageThresholds[i],
-                i,
+                leverageThresholds[marketIndex - 1],
+                marketIndex,
                 blockTime
             );
 
@@ -150,8 +150,6 @@ library nTokenMintAction {
             }
 
             market.setMarketStorage();
-            // Reached end of loop
-            if (i == 0) break;
         }
 
         BitmapAssetsHandler.setAssetsBitmap(
@@ -181,7 +179,7 @@ library nTokenMintAction {
         MarketParameters memory market,
         int256 perMarketDeposit,
         int256 leverageThreshold,
-        uint256 index,
+        uint256 marketIndex,
         uint256 blockTime
     ) private returns (int256, int256) {
         int256 fCashAmount;
@@ -194,7 +192,7 @@ library nTokenMintAction {
                 market,
                 perMarketDeposit,
                 blockTime,
-                index + 1
+                marketIndex
             );
 
             // Recalculate this after lending into the market
@@ -206,8 +204,10 @@ library nTokenMintAction {
         }
 
         if (!marketOverLeveraged) {
+            // (marketIndex - 1) is the index of the nToken portfolio array where the asset
+            // is stored
             fCashAmount = fCashAmount.add(
-                _addLiquidityToMarket(nToken, market, index, perMarketDeposit)
+                _addLiquidityToMarket(nToken, market, marketIndex - 1, perMarketDeposit)
             );
             // No residual cash if we're adding liquidity
             return (fCashAmount, 0);
