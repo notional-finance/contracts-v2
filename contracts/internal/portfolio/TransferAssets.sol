@@ -70,7 +70,8 @@ library TransferAssets {
         PortfolioState memory portfolioState;
         if (accountContext.mustSettleAssets()) {
             (accountContext, portfolioState) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(
-                account
+                account,
+                accountContext
             );
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(
@@ -92,7 +93,7 @@ library TransferAssets {
         PortfolioAsset[] memory assets
     ) private returns (AccountContext memory) {
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         BitmapAssetsHandler.addMultipleifCashAssets(account, accountContext, assets);

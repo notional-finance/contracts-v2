@@ -63,7 +63,7 @@ library FreeCollateralExternal {
         accountContext = AccountContextHandler.getAccountContext(account);
 
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         (factors, portfolio) = FreeCollateral.getLiquidationFactors(

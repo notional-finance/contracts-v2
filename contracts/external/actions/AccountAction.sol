@@ -36,7 +36,9 @@ contract AccountAction {
     function settleAccount(address account) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+            // Don't use the internal method here to avoid setting the account context if it does
+            // not require settlement
             accountContext.setAccountContext(account);
         }
     }
@@ -161,7 +163,7 @@ contract AccountAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndFinalize(account);
+            return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         return accountContext;

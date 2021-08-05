@@ -16,69 +16,67 @@ library SettleAssetsExternal {
     using AccountContextHandler for AccountContext;
     event AccountSettled(address indexed account);
 
-    function settleAssetsAndFinalize(address account) external returns (AccountContext memory) {
-        // prettier-ignore
-        (
-            AccountContext memory accountContext,
-            /* SettleAmount[] memory settleAmounts */,
-            /* PortfolioState memory portfolioState */
-        ) = _settleAccount(account, true, true);
-
+    function settleAssetsAndFinalize(
+        address account,
+        AccountContext memory accountContext
+    ) external returns (AccountContext memory) {
+        _settleAccount(account, accountContext, true, true);
         return accountContext;
     }
 
-    function settleAssetsAndStorePortfolio(address account)
-        external
-        returns (AccountContext memory, SettleAmount[] memory)
-    {
+    function settleAssetsAndStorePortfolio(
+        address account,
+        AccountContext memory accountContext
+    ) external returns (AccountContext memory, SettleAmount[] memory) {
         // prettier-ignore
         (
-            AccountContext memory accountContext,
             SettleAmount[] memory settleAmounts,
             /* PortfolioState memory portfolioState */
-        ) = _settleAccount(account, false, true);
+        ) = _settleAccount(account, accountContext, false, true);
 
         return (accountContext, settleAmounts);
     }
 
-    function settleAssetsAndReturnPortfolio(address account)
-        external
-        returns (AccountContext memory, PortfolioState memory)
-    {
+    function settleAssetsAndReturnPortfolio(
+        address account,
+        AccountContext memory accountContext
+    ) external returns (AccountContext memory, PortfolioState memory) {
         // prettier-ignore
         (
-            AccountContext memory accountContext,
             /* SettleAmount[] memory settleAmounts */,
             PortfolioState memory portfolioState
-        ) = _settleAccount(account, true, false);
+        ) = _settleAccount(account, accountContext, true, false);
 
         return (accountContext, portfolioState);
     }
 
-    function settleAssetsAndReturnAll(address account)
-        external
-        returns (
-            AccountContext memory,
-            SettleAmount[] memory,
-            PortfolioState memory
-        )
-    {
-        return _settleAccount(account, false, false);
+    function settleAssetsAndReturnAll(
+        address account,
+        AccountContext memory accountContext
+    ) external returns (
+        AccountContext memory,
+        SettleAmount[] memory,
+        PortfolioState memory
+    ) {
+        (
+            SettleAmount[] memory settleAmounts,
+            PortfolioState memory portfolioState
+        ) = _settleAccount(account, accountContext, true, true);
+        return (accountContext, settleAmounts, portfolioState);
     }
 
     function _settleAccount(
         address account,
+        AccountContext memory accountContext,
         bool finalizeAmounts,
         bool finalizePortfolio
     )
         private
         returns (
-            AccountContext memory,
             SettleAmount[] memory,
             PortfolioState memory
         )
     {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         SettleAmount[] memory settleAmounts;
         PortfolioState memory portfolioState;
 
@@ -103,7 +101,7 @@ library SettleAssetsExternal {
 
         emit AccountSettled(account);
 
-        return (accountContext, settleAmounts, portfolioState);
+        return (settleAmounts, portfolioState);
     }
 
     function _settleBitmappedAccountStateful(

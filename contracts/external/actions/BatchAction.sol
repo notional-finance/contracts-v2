@@ -340,7 +340,7 @@ contract BatchAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndReturnAll(account);
+            return SettleAssetsExternal.settleAssetsAndReturnAll(account, accountContext);
         }
 
         return (
@@ -358,7 +358,7 @@ contract BatchAction {
         SettleAmount[] memory settleAmounts;
 
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
+            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account, accountContext);
         }
 
         return (accountContext, settleAmounts);

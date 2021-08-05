@@ -352,7 +352,7 @@ library TradingAction {
             AccountContextHandler.getAccountContext(counterparty);
 
         if (counterpartyContext.mustSettleAssets()) {
-            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty);
+            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty, counterpartyContext);
         }
 
         // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive
