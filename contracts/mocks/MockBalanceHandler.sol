@@ -36,22 +36,17 @@ contract MockBalanceHandler is StorageLayoutV1 {
         int256 cashBalance,
         int256 nTokenBalance
     ) external {
-        bytes32 slot =
-            keccak256(
-                abi.encode(
-                    currencyId,
-                    keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET))
-                )
-            );
+        bytes32 slot = keccak256(
+            abi.encode(currencyId, keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET)))
+        );
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
 
-        bytes32 data =
-            ((bytes32(uint256(nTokenBalance))) |
-                (bytes32(0) << 80) |
-                (bytes32(0) << 112) |
-                (bytes32(cashBalance) << 168));
+        bytes32 data = ((bytes32(uint256(nTokenBalance))) |
+            (bytes32(0) << 80) |
+            (bytes32(0) << 112) |
+            (bytes32(cashBalance) << 168));
 
         assembly {
             sstore(slot, data)
@@ -95,18 +90,14 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         int256 assetAmountExternal,
         bool forceTransfer
-    )
-        external
-        returns (
-            BalanceState memory,
-            int256,
-            int256
-        )
-    {
-        (int256 assetAmountInternal, int256 assetAmountTransferred) =
-            balanceState.depositAssetToken(account, assetAmountExternal, forceTransfer);
+    ) external returns (BalanceState memory, int256) {
+        int256 assetAmountInternal = balanceState.depositAssetToken(
+            account,
+            assetAmountExternal,
+            forceTransfer
+        );
 
-        return (balanceState, assetAmountInternal, assetAmountTransferred);
+        return (balanceState, assetAmountInternal);
     }
 
     function depositUnderlyingToken(
@@ -114,8 +105,10 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         int256 underlyingAmountExternal
     ) external returns (BalanceState memory, int256) {
-        int256 assetTokensReceivedInternal =
-            balanceState.depositUnderlyingToken(account, underlyingAmountExternal);
+        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+            account,
+            underlyingAmountExternal
+        );
 
         return (balanceState, assetTokensReceivedInternal);
     }

@@ -63,8 +63,10 @@ contract AccountAction {
         // Int conversion overflow check done inside this method call
         // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
         // be useful for on-demand collateral top ups from a third party
-        int256 assetTokensReceivedInternal =
-            balanceState.depositUnderlyingToken(msg.sender, int256(amountExternalPrecision));
+        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+            msg.sender,
+            int256(amountExternalPrecision)
+        );
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
@@ -95,13 +97,10 @@ contract AccountAction {
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        // prettier-ignore
-        // Int conversion overflow check done inside this method call, useCashBalance is set to false. msg.sender
-        // is used as the account in deposit to allow for other accounts to deposit on behalf of the given account.
-        (
-            int256 assetTokensReceivedInternal,
-            /* assetAmountTransferred */
-        ) = balanceState.depositAssetToken(
+        // Int conversion overflow check done inside this method call. msg.sender
+        // is used as the account in deposit to allow for other accounts to deposit
+        // on behalf of the given account.
+        int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
             int256(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account

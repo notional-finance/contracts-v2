@@ -211,7 +211,7 @@ class TestBalanceHandler:
         balanceBefore = tokens[currencyId - 1].balanceOf(balanceHandler.address)
         txn = balanceHandler.depositAssetToken(bs, accounts[0], assetDepositExternal, False)
         balanceAfter = tokens[currencyId - 1].balanceOf(balanceHandler.address)
-        (newBalanceState, assetAmountInternal, assetAmountTransferred) = txn.return_value
+        (newBalanceState, assetAmountInternal) = txn.return_value
 
         # Need to truncate precision difference
         assert pytest.approx(
@@ -239,8 +239,6 @@ class TestBalanceHandler:
             ) == netTransfer + convert_to_internal(assetDepositExternal, externalPrecision)
 
         assert pytest.approx(assetAmountInternal, abs=tolerance) == assetDeposit
-        assert pytest.approx(assetAmountTransferred, abs=tolerance) == assetDeposit
-        # TODO: test with force transfer
 
     @given(underlyingAmount=strategy("int88", min_value=0, max_value=10e18))
     @settings(max_examples=10)
