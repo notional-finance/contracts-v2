@@ -61,7 +61,7 @@ library SettleAssetsExternal {
         (
             SettleAmount[] memory settleAmounts,
             PortfolioState memory portfolioState
-        ) = _settleAccount(account, accountContext, true, true);
+        ) = _settleAccount(account, accountContext, false, false);
         return (accountContext, settleAmounts, portfolioState);
     }
 

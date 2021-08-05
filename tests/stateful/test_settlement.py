@@ -51,9 +51,11 @@ def test_settle_bitmap_to_cash(environment, accounts):
     )
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     context = environment.notional.getAccountContext(accounts[1])
+    balance = environment.notional.getAccountBalance(currencyId, accounts[1])
     assert len(portfolio) == 0
     assert context[1] == HAS_CASH_DEBT
     assert context[0] == get_tref(txn.timestamp)
+    assert balance[0] == -5000e8
 
     check_system_invariants(environment, accounts)
 
@@ -135,7 +137,10 @@ def test_settle_array_to_cash(environment, accounts):
     )
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     context = environment.notional.getAccountContext(accounts[1])
+    balance = environment.notional.getAccountBalance(currencyId, accounts[1])
     assert len(portfolio) == 0
     assert context[1] == HAS_CASH_DEBT
+    assert balance[0] == -5000e8
+    assert context[0] == 0
 
     check_system_invariants(environment, accounts)
