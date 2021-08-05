@@ -65,8 +65,6 @@ def compute_settled_fcash(currencyId, symbol, env, accounts):
             if asset[0] == currencyId:
                 settledCash += computed_settled_asset_cash(env, asset, currencyId, symbol)
 
-        # TODO: check for ifCash assets here too
-
     # Check nToken portfolios
     (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(env.nToken[currencyId].address)
 
@@ -165,8 +163,8 @@ def check_portfolio_invariants(env, accounts):
     liquidityToken = defaultdict(dict)
 
     for account in accounts:
-        portfolio = env.notional.getAccountPortfolio(account.address)
         env.notional.settleAccount(account.address)
+        portfolio = env.notional.getAccountPortfolio(account.address)
         for asset in portfolio:
             if asset[2] == 1:
                 if (asset[0], asset[1]) in fCash:
@@ -181,8 +179,6 @@ def check_portfolio_invariants(env, accounts):
                     liquidityToken[(asset[0], asset[1], asset[2])] += asset[3]
                 else:
                     liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
-
-        # TODO: check for ifCash assets here too
 
     # Check nToken portfolios
     for (currencyId, nToken) in env.nToken.items():
@@ -193,21 +189,15 @@ def check_portfolio_invariants(env, accounts):
         (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(nToken.address)
 
         for asset in portfolio:
-            # Perp token cannot have any other currencies in its portfolio
+            # nToken cannot have any other currencies or fCash in its portfolio
             assert asset[0] == currencyId
-            if asset[2] == 1:
-                if (asset[0], asset[1]) in fCash:
-                    # Is fCash asset type, fCash[currencyId][maturity]
-                    fCash[(asset[0], asset[1])] += asset[3]
-                else:
-                    fCash[(asset[0], asset[1])] = asset[3]
+            assert asset[2] != 1
+            if (asset[0], asset[1], asset[2]) in liquidityToken:
+                # Is liquidity token, liquidityToken[currencyId][maturity][assetType]
+                # Each liquidity token is indexed by its type and settlement date
+                liquidityToken[(asset[0], asset[1], asset[2])] += asset[3]
             else:
-                if (asset[0], asset[1], asset[2]) in liquidityToken:
-                    # Is liquidity token, liquidityToken[currencyId][maturity][assetType]
-                    # Each liquidity token is indexed by its type and settlement date
-                    liquidityToken[(asset[0], asset[1], asset[2])] += asset[3]
-                else:
-                    liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
+                liquidityToken[(asset[0], asset[1], asset[2])] = asset[3]
 
         for asset in ifCashAssets:
             assert asset[0] == currencyId
