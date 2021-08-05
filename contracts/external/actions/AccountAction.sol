@@ -27,14 +27,18 @@ contract AccountAction {
     }
 
     /// @notice Method for manually settling an account, generally should not be called because other
-    /// methods will check if an account needs to be settled automatically.
+    /// methods will check if an account needs to be settled automatically. If a bitmap account has debt
+    /// and is settled via this method, the hasDebt flag will not be cleared until a free collateral check
+    /// is performed on the account.
     /// @param account the account to settle
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:none
     function settleAccount(address account) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+            // Don't use the internal method here to avoid setting the account context if it does
+            // not require settlement
             accountContext.setAccountContext(account);
         }
     }
@@ -158,7 +162,7 @@ contract AccountAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndFinalize(account);
+            return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         return accountContext;

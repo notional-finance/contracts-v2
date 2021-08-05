@@ -290,9 +290,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
 
-        TransferAssets.placeAssetsInAccount(to, toContext, assets);
+        toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
         TransferAssets.invertNotionalAmountsInPlace(assets);
-        TransferAssets.placeAssetsInAccount(from, fromContext, assets);
+        fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
 
         toContext.setAccountContext(to);
         fromContext.setAccountContext(from);

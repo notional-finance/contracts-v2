@@ -57,7 +57,7 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 nextSettleTime,
         uint256 blockTime
-    ) internal returns (bytes32, int256) {
+    ) internal returns (bytes32, int256, uint256) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
         int256 totalAssetCash;
@@ -70,7 +70,7 @@ library SettleBitmapAssets {
             uint256 lastSettleBit,
             /* isValid */
         ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
-        if (lastSettleBit == 0) return (bitmap, totalAssetCash);
+        if (lastSettleBit == 0) return (bitmap, totalAssetCash, blockTimeUTC0);
 
         // NOTE: bitNum is 1-indexed
         for (uint256 bitNum = 1; bitNum <= lastSettleBit; bitNum++) {
@@ -158,7 +158,7 @@ library SettleBitmapAssets {
         _remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
         bitmap = Bitmap.combineAssetBitmap(splitBitmap);
 
-        return (bitmap, totalAssetCash);
+        return (bitmap, totalAssetCash, blockTimeUTC0);
     }
 
     /// @notice Remaps bitmap bits from higher time chunks to lower time chunks. When we have settled

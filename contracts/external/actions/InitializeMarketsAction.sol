@@ -84,7 +84,7 @@ library InitializeMarketsAction {
             nToken.cashBalance = nToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
-        (bytes32 ifCashBitmap, int256 settledAssetCash) =
+        (bytes32 ifCashBitmap, int256 settledAssetCash, /* blockTimeUTC0 */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,

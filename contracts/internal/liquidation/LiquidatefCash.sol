@@ -237,8 +237,8 @@ library LiquidatefCash {
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
-            require(notional > 0); // dev: invalid fcash asset
             if (notional == 0) continue;
+            require(notional > 0); // dev: invalid fcash asset
 
             c.fCashNotionalTransfers[i] = _calculateCrossCurrencyfCashToLiquidate(
                 c,
@@ -438,7 +438,8 @@ library LiquidatefCash {
             c.localAssetCashFromLiquidator
         );
 
-        bool liquidatorIncursDebt =
+        bool liquidatorIncursDebt;
+        (liquidatorIncursDebt, liquidatorContext) =
             _transferAssets(
                 liquidateAccount,
                 liquidator,
@@ -448,14 +449,14 @@ library LiquidatefCash {
                 c
             );
 
-        liquidatorContext.setAccountContext(msg.sender);
+        liquidatorContext.setAccountContext(liquidator);
         c.accountContext.setAccountContext(liquidateAccount);
 
         // If the liquidator takes on debt as a result of the liquidation and has debt in their portfolio
         // then they must have a free collateral check. It's possible for the liquidator to skip this if the
         // negative fCash incurred from the liquidation nets off against an existing fCash position.
         if (liquidatorIncursDebt && liquidatorContext.hasDebt != 0x00) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(liquidator);
         }
 
         return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
@@ -468,10 +469,13 @@ library LiquidatefCash {
         uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         fCashContext memory c
-    ) private returns (bool) {
+    ) private returns (bool, AccountContext memory) {
         (PortfolioAsset[] memory assets, bool liquidatorIncursDebt) =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
+        // NOTE: when this method returns liquidatorContext may not point to the same
+        // memory location as before so we need to ensure that the liquidator context
+        // is returned from this method and set properly
         liquidatorContext = TransferAssets.placeAssetsInAccount(
             liquidator,
             liquidatorContext,
@@ -490,7 +494,8 @@ library LiquidatefCash {
         } else {
             BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
         }
-        return liquidatorIncursDebt;
+
+        return (liquidatorIncursDebt, liquidatorContext);
     }
 
     function _makeAssetArray(

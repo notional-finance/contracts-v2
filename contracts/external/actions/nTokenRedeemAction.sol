@@ -8,6 +8,7 @@ import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
+import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -77,12 +78,14 @@ contract nTokenRedeemAction {
         (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
         balance.netCashChange = totalAssetCash;
+        balance.finalize(redeemer, context, false);
 
         if (hasResidual) {
+            // If the account has assets that need to be settled it will occur inside
+            // this method call. We ensure that balances are finalized before this so
+            // that settled balances don't overwrite existing balances.
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
-
-        balance.finalize(redeemer, context, false);
         context.setAccountContext(redeemer);
 
         emit nTokenSupplyChange(redeemer, currencyId, tokensToRedeem.neg());
