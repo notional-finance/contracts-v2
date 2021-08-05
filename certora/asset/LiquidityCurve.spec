@@ -26,7 +26,7 @@ methods {
 
 definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && x <= z) || (z <= x && x <= y);
 definition absDiff(uint256 x, uint256 y) returns uint256 = x > y ? x - y : y - x;
-definition basisPoint() returns uint256 = 1000000000;
+definition basisPoint() returns uint256 = 100000;
 definition QUARTER() returns uint256 = 86400 * 90;
 
 ///
@@ -247,6 +247,8 @@ rule impliedRateSlippageDoesNotChangeWithTime(
 
     executeTrade(timeToMaturity_second, fCashToAccount) at initStorage;
     uint256 lastImpliedRate_second = getLastImpliedRate();
+
+    require lastImpliedRate_first < 1000000 && lastImpliedRate_second < 1000000;
 
     assert absDiff(lastImpliedRate_first, lastImpliedRate_second) < basisPoint(),
         "Last implied rate slippage increases with time";

@@ -15,9 +15,9 @@ library CashGroup {
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
     
-    // using Market for MarketParameters;
+    using Market for MarketParameters;
 
-    using Market for mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters)));
+    // using Market for mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters)));
 
     // Offsets for the bytes of the different parameters
     uint256 private constant RATE_ORACLE_TIME_WINDOW = 8;
@@ -41,6 +41,22 @@ library CashGroup {
         uint256 marketIndex,
         uint256 timeToMaturity
     ) internal pure returns (int256) {
+        require(marketIndex >= 1); // dev: invalid market index
+        uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
+        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
+        int256 rateScalar =
+            scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
+
+        // At large time to maturities it's possible for the rate scalar to round down to zero
+        require(rateScalar > 0, "CG: rate scalar underflow");
+        return rateScalar;
+    }
+
+    function getRateScalarStorage(
+        CashGroupParameters storage cashGroup,
+        uint256 marketIndex,
+        uint256 timeToMaturity
+    ) internal view returns (int256) {
         require(marketIndex >= 1); // dev: invalid market index
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
         int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
@@ -101,6 +117,15 @@ library CashGroup {
         return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
     }
 
+        function getRateOracleTimeWindowStorage(CashGroupParameters storage cashGroup)
+        internal
+        view
+        returns (uint256)
+    {
+        // This is denominated in minutes in storage
+        return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
+    }
+
     /// @notice Penalty rate for settling cash debts denominated in basis points
     function getSettlementPenalty(CashGroupParameters memory cashGroup)
         internal
@@ -134,8 +159,9 @@ library CashGroup {
     }
 
     function loadMarket(
-        CashGroupParameters memory cashGroup,
-        mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets, // MarketParameters memory market,
+        CashGroupParameters storage cashGroup,
+        // mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets, // MarketParameters memory market,
+        MarketParameters storage market,
         uint256 marketIndex,
         bool needsLiquidity,
         uint256 blockTime
@@ -144,7 +170,7 @@ library CashGroup {
         uint256 maturity =
             DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
 
-        symbolicMarkets.loadMarket(
+        market.loadMarket(
             cashGroup.currencyId,
             maturity,
             blockTime,
@@ -364,6 +390,23 @@ library CashGroup {
                 assetRate: assetRate,
                 data: data
             });
+    }
+
+    // CERTORA
+    function _buildCashGroupView(CashGroupParameters storage cashGroup, uint256 currencyId) internal {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
+        cashGroup.assetRate.rateOracle = assetRate.rateOracle;
+        cashGroup.assetRate.rate = assetRate.rate;
+        cashGroup.assetRate.underlyingDecimals = assetRate.underlyingDecimals;
+        cashGroup.currencyId = currencyId;
+    }
+    // CERTORA
+    function _buildCashGroupStateful(CashGroupParameters storage cashGroup, uint256 currencyId) internal {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
+        cashGroup.assetRate.rateOracle = assetRate.rateOracle;
+        cashGroup.assetRate.rate = assetRate.rate;
+        cashGroup.assetRate.underlyingDecimals = assetRate.underlyingDecimals;
+        cashGroup.currencyId = currencyId;
     }
 
     /// @notice Builds a cash group using a view version of the asset rate

@@ -1,169 +1,102 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+ pragma solidity >0.7.0;
+ pragma experimental ABIEncoderV2;
 
-import "../../internal/markets/CashGroup.sol";
-import "../../internal/markets/Market.sol";
-// import "../../math/ABDKMath64x64.sol";
+ import "../../internal/markets/CashGroup.sol";
+ import "../../internal/markets/Market.sol";
 
-contract LiquidityCurveHarnessOrig {
-    using CashGroup for CashGroupParameters;
-    // using Market for MarketParameters;
+ contract LiquidityCurveHarnessOrig {
+     using CashGroup for CashGroupParameters;
+     using Market for MarketParameters;
 
-    using Market for mapping(uint256=>mapping(uint256=>mapping(uint256 => MarketParameters)));
+     uint256 private constant MARKET_INDEX = 1;
+     uint256 private constant CURRENCY_ID = 1;
+     uint256 public constant MATURITY = 86400 * 360 * 30;
 
-    mapping(uint256=>mapping(uint256=>mapping(uint256 => MarketParameters))) public symbolicMarkets;
+     function getRateScalar(uint256 timeToMaturity) external view returns (int256) {
+         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+         return cashGroup.getRateScalar(MARKET_INDEX, timeToMaturity);
+     }
 
-    // CashGroupParameters symbolicCashGroup;
-    // MarketParameters symbolicMarket;
+     function _loadMarket() internal view returns (MarketParameters memory) {
+         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
+         MarketParameters memory market;
+         market.loadMarket(
+             CURRENCY_ID,
+             MATURITY,
+             block.timestamp,
+             true,
+             cashGroup.getRateOracleTimeWindow()
+         );
 
-    uint256 private constant MARKET_INDEX = 1;
-    uint256 private constant CURRENCY_ID = 1;
-    uint256 public constant MATURITY = 86400 * 360 * 30;
+         return market;
+     }
 
-    function getRateScalar(uint256 timeToMaturity) external view returns (int256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        // CashGroupParameters memory cashGroup = symbolicCashGroup; //CashGroup.buildCashGroupView(CURRENCY_ID);
-        // return symbolicCashGroup.getRateScalar(MARKET_INDEX, timeToMaturity);
-        return cashGroup.getRateScalar(MARKET_INDEX, timeToMaturity);
-    }
+     function getStoredOracleRate() external view returns (uint256) {
+         uint256 settlementDate = DateTime.getReferenceTime(block.timestamp) + Constants.QUARTER;
+         bytes32 slot = Market.getSlot(CURRENCY_ID, settlementDate, MATURITY);
+         bytes32 data;
 
-    function _loadMarket() internal returns(uint256 settlementDate) { // CERTORA: now returning the settlementDate // returns (MarketParameters memory) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        // MarketParameters memory market;
-        settlementDate = symbolicMarkets.loadMarket(
-            CURRENCY_ID,
-            MATURITY,
-            block.timestamp,
-            true,
-            cashGroup.getRateOracleTimeWindow()
-        );
+         assembly {
+             data := sload(slot)
+         }
 
-       // return market;
-    }
+         uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
 
-    function getRateOracleTimeWindow() external view returns (uint256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(CURRENCY_ID);
-        // CashGroupParameters memory cashGroup = symbolicCashGroup;
-        return cashGroup.getRateOracleTimeWindow();
-        // return symbolicCashGroup.getRateOracleTimeWindow();
-    }
+         return oracleRate;
+     }
 
-    function getStoredOracleRate() external view returns (uint256) {
-        uint256 settlementDate = DateTime.getReferenceTime(block.timestamp) + Constants.QUARTER;
-        bytes32 marketSlot = Market.getMarketSlot(CURRENCY_ID, settlementDate, MATURITY);
-        return Market.oracleRateStorage(marketSlot);
-        
-        // Instead we could write:
-        // return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].oracleRateStorage;
+     function getLastImpliedRate() external view returns (uint256) {
+         return _loadMarket().lastImpliedRate;
+     }
 
+     function getPreviousTradeTime() external view returns (uint256) {
+         return _loadMarket().previousTradeTime;
+     }
 
-        // bytes32 slot = Market.getSlot(CURRENCY_ID, settlementDate, MATURITY);
-        // bytes32 data;
+     function getMarketOracleRate() external view returns (uint256) {
+         return _loadMarket().oracleRate;
+     }
 
-        // assembly {
-        //     data := sload(slot)
-        // }
+     function getMarketfCash() external view returns (uint256) {
+         MarketParameters memory market = _loadMarket();
+         require(market.totalfCash >= 0);
+         return uint256(market.totalfCash);
+     }
 
-        // uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
+     function getMarketAssetCash() external view returns (uint256) {
+         MarketParameters memory market = _loadMarket();
+         require(market.totalAssetCash >= 0);
+         return uint256(market.totalfCash);
+     }
 
-        // return oracleRate;
-    }
+     function getMarketLiquidity() external view returns (uint256) {
+         MarketParameters memory market = _loadMarket();
+         require(market.totalLiquidity >= 0);
+         return uint256(market.totalLiquidity);
+     }
 
-    function getLastImpliedRate() external returns (uint256) {
-        uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].lastImpliedRate;
-        // return _loadMarket().lastImpliedRate;
-        // return symbolicMarket.lastImpliedRate;
-    }
+     function executeTrade(uint256 timeToMaturity, int256 fCashToAccount)
+         external
+         returns (int256, int256)
+     {
+         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(CURRENCY_ID);
+         MarketParameters memory market = _loadMarket();
+         (int256 netAssetCash, int256 netAssetCashToReserve) =
+             market.calculateTrade(cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
+         market.setMarketStorage();
+         return (netAssetCash, netAssetCashToReserve);
+     }
 
-    function getPreviousTradeTime() external returns (uint256) {
-        uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].previousTradeTime;
-        // return symbolicMarket.previousTradeTime;
-    }
+     function addLiquidity(int256 assetCash) external {
+         MarketParameters memory market = _loadMarket();
+         market.addLiquidity(assetCash);
+         market.setMarketStorage();
+     }
 
-    function getMarketOracleRate() external returns (uint256) {
-        uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].oracleRate;
-        // return _loadMarket().oracleRate;
-        // return symbolicMarket.oracleRate;
-    }
-
-    function getMarketfCash() external returns (int256) {
-        uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].totalfCash;
-        // return _loadMarket().totalfCash;
-        // return symbolicMarket.totalfCash;
-    }
-
-    function getMarketAssetCash() external returns (int256) {
-        uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].totalAssetCash;
-        // return _loadMarket().totalAssetCash;
-        // return symbolicMarket.totalAssetCash;
-    }
-
-    function getMarketLiquidity() external returns (int256) {
-         uint256 settlementDate = _loadMarket();
-        return symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY].totalLiquidity;
-        // return _loadMarket().totalLiquidity;
-        // return symbolicMarket.totalLiquidity;
-    }
-
-    function executeTrade(uint256 timeToMaturity, int256 fCashToAccount)
-        external
-        returns (int256, int256)
-    {
-        // CashGroupParameters memory cashGroup = symbolicCashGroup; //CashGroup.buildCashGroupStateful(CURRENCY_ID);
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(CURRENCY_ID);
-        // MarketParameters memory market = symbolicMarket; //_loadMarket();
-        //MarketParameters memory market = _loadMarket();
-         uint256 settlementDate = _loadMarket();
-         MarketParameters storage market = symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY];
-        (int256 netAssetCash, int256 netAssetCashToReserve) =
-            Market.calculateTrade(market, cashGroup, fCashToAccount, timeToMaturity, MARKET_INDEX);
-        Market.setMarketStorage(market);
-        // symbolicMarket = market;
-        // symbolicCashGroup = cashGroup;
-        return (netAssetCash, netAssetCashToReserve);
-    }
-
-    function addLiquidity(int256 assetCash) external returns (int256, int256) {
-        // MarketParameters memory market = symbolicMarket; //_loadMarket();
-        // MarketParameters memory market = _loadMarket();
-         uint256 settlementDate = _loadMarket();
-         MarketParameters storage market = symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY];
-        int256 marketfCashBefore = market.totalfCash;
-        (int256 liquidityTokens, int256 fCashToAccount) = Market.addLiquidity(market, assetCash);
-        Market.setMarketStorage(market);
-        // symbolicMarket = market;
-
-        return (liquidityTokens, fCashToAccount);
-    }
-
-    function removeLiquidity(int256 tokensToRemove) external returns (int256, int256) {
-        // MarketParameters memory market = symbolicMarket; //_loadMarket();
-        // MarketParameters memory market = _loadMarket();
-         uint256 settlementDate = _loadMarket();
-         MarketParameters storage market = symbolicMarkets[CURRENCY_ID][settlementDate][MATURITY];
-        (int256 assetCash, int256 fCash) = Market.removeLiquidity(market, tokensToRemove);
-        Market.setMarketStorage(market);
-        // symbolicMarket = market;
-        return (assetCash, fCash);
-    }
-
-    ///////////////////////////////
-    //  general purpose functions 
-    ///////////////////////////////
-
-    function a_minus_b(int256 a, int256 b) public returns (int256) {
-        return a - b;
-    }
-    function a_plus_b(int256 a, int256 b) public returns (int256) {
-        return a + b;
-    }
-    function isEqual(int256 a, int256 b) public returns (bool) {
-        return a == b;
-    }
-}
+     function removeLiquidity(int256 tokensToRemove) external {
+         MarketParameters memory market = _loadMarket();
+         market.removeLiquidity(tokensToRemove);
+         market.setMarketStorage();
+     }
+ }

@@ -78,7 +78,7 @@ library Market {
     /// @return netAssetCash, netAssetCashToReserve
     function calculateTrade(
         MarketParameters storage market,
-        CashGroupParameters memory cashGroup,
+        CashGroupParameters storage cashGroup,
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
@@ -517,7 +517,13 @@ library Market {
         uint256 rateOracleTimeWindow,
         uint256 blockTime
     ) internal view returns (uint256) {
-        return 0;
+        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        bytes32 marketSlot = getMarketSlot(currencyId, maturity, settlementDate);
+        
+        uint256 lastImpliedRate = lastImpliedRateStorage(marketSlot);
+        uint256 oracleRate = oracleRateStorage(marketSlot);
+        uint256 previousTradeTime = previousTradeTimeStorage(marketSlot);
+        
         // uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         // bytes32 slot = getSlot(currencyId, settlementDate, maturity);
         // bytes32 data;
@@ -534,16 +540,16 @@ library Market {
         // // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
         // // during this time, but market initialization can be called by anyone so the actual time that this condition
         // // exists for should be quite short.
-        // require(oracleRate > 0, "Market not initialized");
+        require(oracleRate > 0, "Market not initialized");
 
-        // return
-        //     _updateRateOracle(
-        //         previousTradeTime,
-        //         lastImpliedRate,
-        //         oracleRate,
-        //         rateOracleTimeWindow,
-        //         blockTime
-        //     );
+        return
+            _updateRateOracle(
+                previousTradeTime,
+                lastImpliedRate,
+                oracleRate,
+                rateOracleTimeWindow,
+                blockTime
+            );
     }
 
     /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
@@ -682,7 +688,8 @@ library Market {
 
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately.
     function loadMarket(
-        mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets,
+        // mapping(uint256 => mapping(uint256 => mapping(uint256 => MarketParameters))) storage symbolicMarkets,
+        MarketParameters storage market,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
@@ -692,7 +699,7 @@ library Market {
         // Always reference the current settlement date
         settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         loadMarketWithSettlementDate(
-            symbolicMarkets,
+            market,
             currencyId,
             maturity,
             blockTime,
@@ -705,7 +712,8 @@ library Market {
     /// @notice Creates a market object and ensures that the rate oracle time window is updated appropriately, this
     /// is mainly used in the InitializeMarketAction contract.
     function loadMarketWithSettlementDate(
-        mapping(uint256 => mapping(uint256=>mapping(uint256 => MarketParameters))) storage symbolicMarkets,
+        // mapping(uint256 => mapping(uint256=>mapping(uint256 => MarketParameters))) storage symbolicMarkets,
+        MarketParameters storage market, 
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
@@ -713,7 +721,7 @@ library Market {
         uint256 rateOracleTimeWindow,
         uint256 settlementDate
     ) internal {
-        MarketParameters storage market = symbolicMarkets[currencyId][settlementDate][maturity];
+        // MarketParameters storage market = symbolicMarkets[currencyId][settlementDate][maturity];
         _loadMarketStorage(market, currencyId, maturity, needsLiquidity, settlementDate);
         market.oracleRate = _updateRateOracle(
             market.previousTradeTime,
