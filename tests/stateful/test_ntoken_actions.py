@@ -684,3 +684,8 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
         assert assetAfter[3] > assetBefore[3]
 
     check_system_invariants(environment, accounts)
+
+
+def test_can_reduce_erc20_approval(environment, accounts):
+    environment.nToken[2].approve(accounts[1], 200e8, {"from": accounts[0]})
+    environment.nToken[2].approve(accounts[1], 100e8, {"from": accounts[0]})
