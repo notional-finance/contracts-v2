@@ -61,7 +61,7 @@ library AssetRate {
         if (ar.rateOracle == address(0)) return 0;
 
         uint256 rate = AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
-        require(rate > 0, "AR: invalid supply rate");
+        require(rate >= 0); // dev: invalid supply rate
 
         return rate;
     }
@@ -102,7 +102,7 @@ library AssetRate {
             underlyingDecimalPlaces = 0;
         } else {
             rate = AssetRateAdapter(rateOracle).getExchangeRateView();
-            require(rate > 0, "AR: invalid rate");
+            require(rate > 0); // dev: invalid exchange rate
         }
 
         return (rate, rateOracle, underlyingDecimalPlaces);
@@ -127,7 +127,7 @@ library AssetRate {
             underlyingDecimalPlaces = 0;
         } else {
             rate = AssetRateAdapter(rateOracle).getExchangeRateStateful();
-            require(rate > 0, "AR: invalid rate");
+            require(rate > 0); // dev: invalid exchange rate
         }
 
         return (rate, rateOracle, underlyingDecimalPlaces);
