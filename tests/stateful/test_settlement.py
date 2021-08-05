@@ -144,3 +144,38 @@ def test_settle_array_to_cash(environment, accounts):
     assert context[0] == 0
 
     check_system_invariants(environment, accounts)
+
+
+def test_transfer_fcash_requires_settlement(environment, accounts):
+    lend = get_balance_trade_action(
+        1,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 1e8, "minSlippage": 0}],
+        depositActionAmount=1e18,
+    )
+
+    environment.notional.enableBitmapCurrency(1, {"from": accounts[0]})
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[0], [lend], {"from": accounts[0], "value": 1e18}
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [lend], {"from": accounts[1], "value": 1e18}
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(1, False)
+
+    markets = environment.notional.getActiveMarkets(1)
+    erc1155id = environment.notional.encodeToId(1, markets[0][1], 1)
+
+    txn = environment.notional.safeTransferFrom(
+        accounts[1], accounts[0], erc1155id, 0.1e8, bytes(), {"from": accounts[1]}
+    )
+
+    assert txn.events["AccountSettled"][0]["account"] == accounts[0]
+    assert txn.events["AccountSettled"][1]["account"] == accounts[1]
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 1
+    assert len(environment.notional.getAccountPortfolio(accounts[1])) == 1
+
+    check_system_invariants(environment, accounts)
