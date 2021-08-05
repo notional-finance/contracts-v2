@@ -213,7 +213,6 @@ contract Views is StorageLayoutV1, NotionalViews {
         // prettier-ignore
         (
             uint256 currencyId,
-            /* uint totalSupply */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -241,16 +240,24 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 nTokenParameters,
-            int256 cashBalance
+            int256 cashBalance,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
         )
     {
         (
             currencyId,
-            totalSupply,
             incentiveAnnualEmissionRate,
             lastInitializedTime,
             nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
+
+        // prettier-ignore
+        (
+            totalSupply,
+            integralTotalSupply,
+            lastSupplyChangeTime
+        ) = nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
 
         // prettier-ignore
         (
@@ -283,7 +290,7 @@ contract Views is StorageLayoutV1, NotionalViews {
                 accountBalances[i].cashBalance,
                 accountBalances[i].nTokenBalance,
                 accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimSupplyAmount
+                accountBalances[i].lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
@@ -299,7 +306,7 @@ contract Views is StorageLayoutV1, NotionalViews {
                 accountBalances[i].cashBalance,
                 accountBalances[i].nTokenBalance,
                 accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimSupplyAmount
+                accountBalances[i].lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountBalances[i].currencyId);
             i += 1;
             currencies = currencies << 16;

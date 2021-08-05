@@ -14,7 +14,6 @@ contract LiquidatefCashAction {
 
     event LiquidatefCashEvent(
         address indexed liquidated,
-        address indexed liquidator,
         uint16 localCurrencyId,
         uint16 fCashCurrency,
         int256 netLocalFromLiquidator,
@@ -87,7 +86,6 @@ contract LiquidatefCashAction {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
-            msg.sender,
             uint16(localCurrency),
             uint16(localCurrency),
             c.localAssetCashFromLiquidator,
@@ -169,7 +167,6 @@ contract LiquidatefCashAction {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
-            msg.sender,
             uint16(localCurrency),
             uint16(fCashCurrency),
             c.localAssetCashFromLiquidator,
@@ -199,7 +196,7 @@ contract LiquidatefCashAction {
             int256 cashBalance,
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
-            /* uint256 lastClaimSupply*/
+            /* uint256 lastClaimIntegralSupply*/
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
         c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);

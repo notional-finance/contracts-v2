@@ -78,7 +78,9 @@ interface NotionalViews {
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 nTokenParameters,
-            int256 cashBalance
+            int256 cashBalance,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
         );
 
     function getAccount(address account)

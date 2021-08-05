@@ -30,12 +30,10 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     {
         // prettier-ignore
         (
-            /* incentiveRate */,
-            /* currencyId */
             totalSupply,
-            /* lastInitialized */,
-            /* parameters */ ,
-        ) = nTokenHandler.getNTokenContext(nTokenAddress);
+            /* integralTotalSupply */,
+            /* lastSupplyChangeTime */
+        ) = nTokenHandler.getStoredNTokenSupplyFactors(nTokenAddress);
     }
 
     /// @notice Get the number of tokens held by the `account`
@@ -52,7 +50,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             /* int cashBalance */,
             int256 nTokenBalance,
             /* uint lastClaimTime */,
-            /* uint lastClaimSupply */
+            /* uint lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance
@@ -222,16 +220,22 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         if (accountContext.bitmapCurrencyId != 0) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
+                address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+
                 // prettier-ignore
                 (
-                    uint256 incentivesToClaim,
-                    /* totalSupply */
-                ) = Incentives.calculateIncentivesToClaim(
-                    nTokenHandler.nTokenAddress(balanceState.currencyId),
+                    /* totalSupply */,
+                    uint256 integralTotalSupply,
+                    /* lastSupplyChangeTime */
+                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+                uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
+                    tokenAddress,
                     uint256(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
-                    balanceState.lastClaimSupply,
-                    blockTime
+                    balanceState.lastClaimIntegralSupply,
+                    blockTime,
+                    integralTotalSupply
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
@@ -243,16 +247,21 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             balanceState.loadBalanceState(account, currencyId, accountContext);
 
             if (balanceState.storedNTokenBalance > 0) {
-                // prettier-ignore
+                address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+
                 (
-                    uint256 incentivesToClaim,
-                    /* totalSupply */
-                ) = Incentives.calculateIncentivesToClaim(
+                    /* totalSupply */,
+                    uint256 integralTotalSupply,
+                    /* lastSupplyChangeTime */
+                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+                uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     nTokenHandler.nTokenAddress(balanceState.currencyId),
                     uint256(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
-                    balanceState.lastClaimSupply,
-                    blockTime
+                    balanceState.lastClaimIntegralSupply,
+                    blockTime,
+                    integralTotalSupply
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
@@ -320,7 +329,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             // prettier-ignore
             (
                 uint256 isNToken,
-                /* totalSupply */,
                 /* incentiveAnnualEmissionRate */,
                 /* lastInitializedTime */,
                 /* parameters */

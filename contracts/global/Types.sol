@@ -177,8 +177,8 @@ struct BalanceState {
     int256 netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
     uint256 lastClaimTime;
-    // The last supply amount when tokens were claimed
-    uint256 lastClaimSupply;
+    // The last integral supply amount when tokens were claimed
+    uint256 lastClaimIntegralSupply;
 }
 
 /// @dev Asset rate used to convert between underlying cash and asset cash
@@ -343,5 +343,5 @@ struct AccountBalance {
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
-    uint256 lastClaimSupplyAmount;
+    uint256 lastClaimIntegralSupply;
 }

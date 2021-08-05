@@ -9,14 +9,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 library Incentives {
     using SafeMath for uint256;
 
-    /// @dev Notional incentivizes long term holding of nTokens by adding a multiplier to the tokens
-    /// accrued over time. The formula is:
-    ///     incentivesToClaim = (tokenBalance / totalSupply) * emissionRatePerYear * proRataYears * multiplier
-    ///     where multiplier is:
-    ///         1 + (proRataYears * multiplierConstant)
-    ///     and proRataYears is (timeSinceLastClaim / YEAR) * INTERNAL_TOKEN_PRECISION
-    /// @return (emissionRatePerYear * proRataYears * multiplier), decimal basis is (1e8 * 1e8 * 1e8 = 1e24)
-    function _getIncentiveMultiplier(uint256 timeSinceLastClaim, uint256 emissionRatePerYear)
+    /// @dev Notional incentivizes nTokens using the formula:
+    ///     incentivesToClaim = (tokenBalance / totalSupply) * emissionRatePerYear * proRataYears
+    ///     where proRataYears is:
+    ///         (timeSinceLastClaim / YEAR) * INTERNAL_TOKEN_PRECISION
+    /// @return (emissionRatePerYear * proRataYears), decimal basis is (1e8 * 1e8 = 1e16)
+    function _getIncentiveRate(uint256 timeSinceLastClaim, uint256 emissionRatePerYear)
         private
         pure
         returns (uint256)
@@ -25,19 +23,7 @@ library Incentives {
         uint256 proRataYears =
             timeSinceLastClaim.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)).div(Constants.YEAR);
 
-        // INTERNAL_TOKEN_PRECISION + (proRataYears * multiplierConstant)
-        uint256 multiplier =
-            proRataYears
-                .mul(Constants.ANNUAL_INCENTIVE_MULTIPLIER_PERCENT)
-                .div(uint256(Constants.PERCENTAGE_DECIMALS))
-                .add(uint256(Constants.INTERNAL_TOKEN_PRECISION));
-
-        // Cap the multiplier to some number of years so it does not accrue too aggressively
-        if (multiplier > Constants.MAX_INCENTIVE_MULTIPLIER) {
-            multiplier = Constants.MAX_INCENTIVE_MULTIPLIER;
-        }
-
-        return proRataYears.mul(multiplier).mul(emissionRatePerYear);
+        return proRataYears.mul(emissionRatePerYear);
     }
 
     /// @notice Calculates the claimable incentives for a particular nToken and account
@@ -45,46 +31,39 @@ library Incentives {
         address tokenAddress,
         uint256 nTokenBalance,
         uint256 lastClaimTime,
-        uint256 lastClaimSupply,
-        uint256 blockTime
-    ) internal view returns (uint256, uint256) {
+        uint256 lastClaimIntegralSupply,
+        uint256 blockTime,
+        uint256 integralTotalSupply
+    ) internal view returns (uint256) {
+        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return 0;
+
         // prettier-ignore
         (
             /* currencyId */,
-            uint256 totalSupply,
             uint256 emissionRatePerYear,
             /* initializedTime */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
-        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return (0, totalSupply);
-        if (totalSupply == 0) return (0, 0);
-
-        uint256 incentiveMultiplier =
-            _getIncentiveMultiplier(
-                // No overflow here, checked above
-                blockTime - lastClaimTime,
+        // No overflow here, checked above
+        uint256 timeSinceLastClaim = blockTime - lastClaimTime;
+        uint256 incentiveRate =
+            _getIncentiveRate(
+                timeSinceLastClaim,
                 // Convert this to the appropriate denomination
                 emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
             );
 
-        // Returns the average supply between now and the previous mint time. This is done to dampen the effect of
-        // total supply fluctuations when claiming tokens. For example, if someone minted nTokens when the supply was
-        // at 100e8 and then claimed incentives when the supply was at 100_000e8, they would be diluted out of part of
-        // their token incentives. This will ensure that they claim with an average supply of 50050e8, which is better
-        // than not doing the average
-        uint256 avgTotalSupply =
-            totalSupply.add(lastClaimSupply.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))).div(
-                2
-            );
+        // Returns the average supply between now and the previous mint time using the integral of the total
+        // supply.
+        uint256 avgTotalSupply = integralTotalSupply.sub(lastClaimIntegralSupply).div(timeSinceLastClaim);
+        if (avgTotalSupply == 0) return 0;
 
-        uint256 incentivesToClaim = nTokenBalance.mul(incentiveMultiplier).div(avgTotalSupply);
+        uint256 incentivesToClaim = nTokenBalance.mul(incentiveRate).div(avgTotalSupply);
+        // incentiveRate has a decimal basis of 1e16 so divide by token precision to reduce to 1e8
+        incentivesToClaim = incentivesToClaim.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
-        incentivesToClaim = incentivesToClaim.div(
-            uint256(Constants.INTERNAL_TOKEN_PRECISION * Constants.INTERNAL_TOKEN_PRECISION)
-        );
-
-        return (incentivesToClaim, totalSupply);
+        return incentivesToClaim;
     }
 
     /// @notice Incentives must be claimed every time nToken balance changes
@@ -94,30 +73,25 @@ library Incentives {
     {
         uint256 blockTime = block.timestamp;
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
-        uint256 totalSupply;
-        uint256 incentivesToClaim;
+        uint256 integralTotalSupply = nTokenHandler.changeNTokenSupply(
+            tokenAddress,
+            balanceState.netNTokenSupplyChange,
+            blockTime
+        );
 
-        (incentivesToClaim, totalSupply) = calculateIncentivesToClaim(
+        uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
             uint256(balanceState.storedNTokenBalance),
             balanceState.lastClaimTime,
-            balanceState.lastClaimSupply,
-            blockTime
+            balanceState.lastClaimIntegralSupply,
+            blockTime,
+            integralTotalSupply
         );
+
         balanceState.lastClaimTime = blockTime;
+        balanceState.lastClaimIntegralSupply = integralTotalSupply;
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
-
-        // Change the supply amount after incentives have been claimed
-        if (balanceState.netNTokenSupplyChange != 0) {
-            totalSupply = nTokenHandler.changeNTokenSupply(
-                tokenAddress,
-                balanceState.netNTokenSupplyChange
-            );
-        }
-
-        // Trim off decimal places when storing the last claim supply for storage efficiency
-        balanceState.lastClaimSupply = totalSupply.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
         return incentivesToClaim;
     }

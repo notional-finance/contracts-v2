@@ -114,10 +114,10 @@ class TestBalanceHandler:
         # These scenarios should fail
         if netTransfer < 0 and assetBalance + netCashChange + netTransfer < 0:
             # Cannot withdraw to a negative balance
-            with brownie.reverts("BH: cannot withdraw negative"):
+            with brownie.reverts("Neg withdraw"):
                 context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
         elif perpetualTokenBalance + netNTokenTransfer < 0:
-            with brownie.reverts("BH: cannot withdraw negative"):
+            with brownie.reverts("Neg withdraw"):
                 context = balanceHandler.finalize(bsCopy, accounts[0], context, False)
         else:
             # check that the balances match on the token balances and on the the storage

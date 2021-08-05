@@ -33,7 +33,6 @@ library nTokenHandler {
         view
         returns (
             uint256 currencyId,
-            uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -46,7 +45,6 @@ library nTokenHandler {
         }
 
         currencyId = uint256(uint16(uint256(data)));
-        totalSupply = uint256(uint96(uint256(data >> 16)));
         incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 112)));
         lastInitializedTime = uint256(uint32(uint256(data >> 144)));
         parameters = bytes6(data << 32);
@@ -125,30 +123,95 @@ library nTokenHandler {
         }
     }
 
-    /// @notice Updates the nToken token supply amount when minting or redeeming.
-    function changeNTokenSupply(address tokenAddress, int256 netChange) internal returns (uint256) {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
+    /// @notice Retrieves the nToken supply factors without any updates or calculations
+    function getStoredNTokenSupplyFactors(address tokenAddress)
+        internal
+        view
+        returns (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
+        )
+    {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
         bytes32 data;
+
         assembly {
             data := sload(slot)
         }
-        int256 totalSupply = int256(uint96(uint256(data >> 16)));
-        int256 newSupply = totalSupply.add(netChange);
 
-        require(
-            newSupply >= 0 && uint256(newSupply) < type(uint96).max,
-            "PT: total supply overflow"
-        );
+        totalSupply = uint256(uint96(uint256(data)));
+        // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The integral total supply
+        // must be updated given the block time. Use `calculateIntegralTotalSupply` instead
+        integralTotalSupply = uint256(uint128(uint256(data >> 96)));
+        lastSupplyChangeTime = uint256(data >> 224);
+    }
 
-        // Clear the 12 bytes where stored supply will go and OR it in
-        data = data & NTOKEN_SUPPLY_MASK;
-        data = data | (bytes32(uint256(newSupply)) << 16);
-        assembly {
-            sstore(slot, data)
+    /// @notice Retrieves stored total supply factors and 
+    function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
+        internal
+        view 
+        returns (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
+        )
+    {
+        (
+            totalSupply,
+            integralTotalSupply,
+            lastSupplyChangeTime
+        ) = getStoredNTokenSupplyFactors(tokenAddress);
+
+        // Initialize last supply change time if it has not been set.
+        if (lastSupplyChangeTime == 0) lastSupplyChangeTime = blockTime;
+
+        require(blockTime >= lastSupplyChangeTime); // dev: invalid block time
+
+        // Add to the integral total supply the total supply of tokens multiplied by the time that the total supply
+        // has been the value. This will part of the numerator for the average total supply calculation during
+        // minting incentives.
+        integralTotalSupply = uint256(int256(integralTotalSupply).add(
+            int256(totalSupply).mul(int256(blockTime - lastSupplyChangeTime))
+        ));
+
+        require(integralTotalSupply >= 0 && integralTotalSupply < type(uint128).max); // dev: integral total supply overflow
+        require(blockTime < type(uint32).max); // dev: last supply change supply overflow
+    }
+
+
+    /// @notice Updates the nToken token supply amount when minting or redeeming.
+    function changeNTokenSupply(
+        address tokenAddress,
+        int256 netChange,
+        uint256 blockTime
+    ) internal returns (uint256) {
+        (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
+        ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+        if (netChange != 0) {
+            bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
+            // If the totalSupply will change then we store the new total supply, the integral total supply and the
+            // current block time. We know that this int256 conversion will not overflow because totalSupply is stored
+            // as a uint96 and checked in the next line.
+            int256 newTotalSupply = int256(totalSupply).add(netChange);
+            require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
+
+            bytes32 newData = (
+                (bytes32(uint256(newTotalSupply))) |
+                (bytes32(integralTotalSupply << 96)) |
+                (bytes32(blockTime << 224))
+            );
+
+            assembly {
+                sstore(slot, newData)
+            }
         }
 
-        // Overflow check done above
-        return uint256(newSupply);
+        return integralTotalSupply;
     }
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
@@ -348,11 +411,17 @@ library nTokenHandler {
         // prettier-ignore
         (
             /* currencyId */,
-            uint256 totalSupply,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
         ) = getNTokenContext(nToken.tokenAddress);
+
+        // prettier-ignore
+        (
+            uint256 totalSupply,
+            /* integralTotalSupply */,
+            /* lastSupplyChangeTime */
+        ) = getStoredNTokenSupplyFactors(nToken.tokenAddress);
 
         nToken.lastInitializedTime = lastInitializedTime;
         nToken.totalSupply = int256(totalSupply);
@@ -369,7 +438,7 @@ library nTokenHandler {
             nToken.cashBalance,
             /* nTokenBalance */,
             /* lastClaimTime */,
-            /* lastClaimSupply */
+            /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
     }
 

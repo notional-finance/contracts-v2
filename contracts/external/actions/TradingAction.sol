@@ -449,7 +449,6 @@ library TradingAction {
         // prettier-ignore
         (
             /* currencyId */,
-            /* totalSupply */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -564,7 +563,7 @@ library TradingAction {
             int256 nTokenCashBalance,
             /* storedNTokenBalance */,
             /* lastClaimTime */,
-            /* lastClaimSupply */
+            /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(nTokenAddress, currencyId);
         nTokenCashBalance = nTokenCashBalance.add(netAssetCashNToken);
 
