@@ -7,13 +7,14 @@ import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/notional/NotionalGovernance.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
+contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -26,6 +27,31 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
+    }
+
+    /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
+    /// to a predetermined router contract that provides read only access to the system.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(
+            owner == msg.sender ||
+            (msg.sender == pauseGuardian && newImplementation == pauseRouter),
+            "Unauthorized upgrade"
+        );
+
+        // This is set temporarily during a downgrade to the pauseRouter so that the upgrade
+        // will pass _authorizeUpgrade on the pauseRouter during the UUPSUpgradeable rollback check
+        if (newImplementation == pauseRouter) rollbackRouterImplementation = _getImplementation();
+    }
+
+    /// @notice Sets a new pause router and guardian address.
+    function setPauseRouterAndGuardian(
+        address pauseRouter_,
+        address pauseGuardian_
+    ) external override onlyOwner {
+        pauseRouter = pauseRouter_;
+        pauseGuardian = pauseGuardian_;
+
+        emit PauseRouterAndGuardianUpdated(pauseRouter_, pauseGuardian_);
     }
 
     /// @notice Lists a new currency along with its exchange rate to ETH

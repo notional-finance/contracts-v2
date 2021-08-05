@@ -66,6 +66,7 @@ def test_note_token_cannot_reinitialize(environment, accounts):
             [accounts[2].address],
             [100_000_000e8],
             accounts[2].address,
+            accounts[2].address,
             {"from": environment.deployer},
         )
 
@@ -77,6 +78,7 @@ def test_note_token_cannot_initialize_duplicates(environment, accounts):
             [accounts[2].address, accounts[2].address],
             [50_000_000e8, 50_000_000e8],
             environment.notional.address,
+            environment.governor.address,
             {"from": environment.deployer},
         )
 
@@ -283,11 +285,38 @@ def test_note_token_reservoir_fails_on_zero(environment, accounts, Reservoir):
         reservoir.drip()
 
 
+def test_non_owners_cannot_upgrade_contracts(environment, accounts):
+    zeroAddress = HexString(0, "bytes20")
+    with brownie.reverts("Unauthorized upgrade"):
+        environment.notional.upgradeTo(zeroAddress, {"from": accounts[0]})
+        environment.notional.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
+
+        environment.noteERC20.upgradeTo(zeroAddress, {"from": accounts[0]})
+        environment.noteERC20.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
+
+
+def test_upgrade_note_token(environment, accounts, NoteERC20):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+    newToken = NoteERC20.deploy({"from": environment.deployer})
+    upgradeToken = web3.eth.contract(abi=environment.noteERC20.abi).encodeABI(
+        fn_name="upgradeTo", args=[newToken.address]
+    )
+    targets = [environment.noteERC20.address]
+    values = [0]
+    calldatas = [upgradeToken]
+
+    prevImplementation = environment.noteERC20Proxy.getImplementation()
+    execute_proposal(environment, targets, values, calldatas)
+
+    assert environment.noteERC20Proxy.getImplementation() == newToken.address
+    assert environment.noteERC20Proxy.getImplementation() != prevImplementation
+
+
 def test_upgrade_router_contract(environment, accounts, Router):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
     zeroAddress = HexString(0, "bytes20")
     newRouter = Router.deploy(
-        zeroAddress,
+        environment.router.GOVERNANCE(),
         zeroAddress,
         zeroAddress,
         zeroAddress,
@@ -301,24 +330,18 @@ def test_upgrade_router_contract(environment, accounts, Router):
         {"from": environment.deployer},
     )
 
-    upgradeRouter = web3.eth.contract(abi=environment.proxyAdmin.abi).encodeABI(
-        fn_name="upgrade", args=[environment.proxy.address, newRouter.address]
+    upgradeRouter = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="upgradeTo", args=[newRouter.address]
     )
 
-    targets = [environment.proxyAdmin.address]
+    targets = [environment.notional.address]
     values = [0]
     calldatas = [upgradeRouter]
 
-    prevImplementation = environment.proxyAdmin.getProxyImplementation(environment.proxy.address)
+    prevImplementation = environment.notional.getImplementation()
     execute_proposal(environment, targets, values, calldatas)
-    assert (
-        environment.proxyAdmin.getProxyImplementation(environment.proxy.address)
-        == newRouter.address
-    )
-    assert (
-        environment.proxyAdmin.getProxyImplementation(environment.proxy.address)
-        != prevImplementation
-    )
+    assert environment.notional.getImplementation() == newRouter.address
+    assert environment.notional.getImplementation() != prevImplementation
 
 
 def test_upgrade_governance_contract(environment, accounts, GovernorAlpha):
@@ -355,3 +378,40 @@ def test_delegation(environment, accounts):
     environment.noteERC20.transfer(accounts[4], 100e8, {"from": environment.multisig})
     assert environment.noteERC20.getCurrentVotes(environment.multisig) == multisigVotes - 100e8
     assert environment.noteERC20.getCurrentVotes(accounts[4]) == 100e8
+
+
+def test_pause_and_restart_router(environment, accounts):
+    environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
+    zeroAddress = HexString(0, "bytes20")
+    with brownie.reverts("Unauthorized upgrade"):
+        # Cannot upgrade to arbitrary implementation
+        environment.notional.upgradeTo(zeroAddress, {"from": accounts[8]})
+
+    # Can downgrade to paused router
+    environment.notional.upgradeTo(environment.pauseRouter.address, {"from": accounts[8]})
+
+    with brownie.reverts():
+        # Ensure that methods are not callable
+        environment.notional.settleAccount(accounts[0])
+
+    with brownie.reverts():
+        # Still cannot upgrade to arbitrary implementation
+        environment.notional.upgradeTo(environment.router.address, {"from": accounts[8]})
+
+    # Can call a view method
+    environment.notional.getAccountPortfolio(accounts[0])
+
+    # Can upgrade back to previous router via governance
+    upgradeRouter = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="upgradeTo", args=[environment.router.address]
+    )
+
+    targets = [environment.notional.address]
+    values = [0]
+    calldatas = [upgradeRouter]
+
+    execute_proposal(environment, targets, values, calldatas)
+    assert environment.notional.getImplementation() == environment.router.address
+
+    # Assert that methods are now callable
+    environment.notional.settleAccount(accounts[0])

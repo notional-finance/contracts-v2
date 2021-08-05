@@ -16,8 +16,11 @@ interface NotionalGovernance {
     event UpdateTokenCollateralParameters(uint16 currencyId);
     event UpdateGlobalTransferOperator(address operator, bool approved);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
 
     function transferOwnership(address newOwner) external;
+
+    function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
     function listCurrency(
         TokenStorage calldata assetToken,

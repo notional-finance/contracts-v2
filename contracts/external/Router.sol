@@ -14,7 +14,7 @@ import "./actions/LiquidatefCashAction.sol";
 import "./actions/LiquidateCurrencyAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
-import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
+import "../proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -65,7 +65,7 @@ contract Router is StorageLayoutV1 {
         cETH = cETH_;
     }
 
-    function initialize(address owner_) public {
+    function initialize(address owner_, address pauseRouter_, address pauseGuardian_) public {
         // Cannot re-initialize once the contract has been initialized, ownership transfer does not
         // allow address to be set back to zero
         require(owner == address(0), "R: already initialized");
@@ -91,6 +91,9 @@ contract Router is StorageLayoutV1 {
         require(status);
 
         owner = owner_;
+        // The pause guardian may downgrade the router to the pauseRouter
+        pauseRouter = pauseRouter_;
+        pauseGuardian = pauseGuardian_;
     }
 
     /// @notice Returns the implementation contract for the method signature
@@ -187,7 +190,9 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateDepositParameters.selector ||
             sig == GovernanceAction.updateInitializationParameters.selector ||
             sig == GovernanceAction.updateTokenCollateralParameters.selector ||
-            sig == GovernanceAction.updateGlobalTransferOperator.selector
+            sig == GovernanceAction.updateGlobalTransferOperator.selector ||
+            sig == UUPSUpgradeable.upgradeTo.selector ||
+            sig == UUPSUpgradeable.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
         }
@@ -229,16 +234,5 @@ contract Router is StorageLayoutV1 {
         _delegate(getRouterImplementation(msg.sig));
     }
 
-    // NOTE: receive() is overridden in "nTransparentUpgradeableProxy" to allow for eth transfers to succeed
-    // with limited gas so that is the contract that must be deployed, not the regular OZ proxy.
-}
-
-contract nTransparentUpgradeableProxy is TransparentUpgradeableProxy {
-    constructor(
-        address _logic,
-        address admin_,
-        bytes memory _data
-    ) TransparentUpgradeableProxy(_logic, admin_, _data) {}
-
-    receive() external payable override {}
+    // NOTE: receive() is overridden in "nProxy" to allow for eth transfers to succeed
 }

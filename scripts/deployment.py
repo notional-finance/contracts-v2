@@ -13,6 +13,7 @@ from brownie import (
     MockAggregator,
     MockERC20,
     NoteERC20,
+    PauseRouter,
     Router,
     SettleAssetsExternal,
     TradingAction,
@@ -24,12 +25,12 @@ from brownie import (
     nComptroller,
     nJumpRateModel,
     nPriceOracle,
+    nProxy,
     nProxyAdmin,
     nTokenAction,
     nTokenERC20Proxy,
     nTokenMintAction,
     nTokenRedeemAction,
-    nTransparentUpgradeableProxy,
     nWhitePaperInterestRateModel,
 )
 from brownie.convert.datatypes import HexString
@@ -83,6 +84,7 @@ class TestEnvironment:
                     GovernanceConfig["initialBalances"]["NOTIONAL"],
                 ],
                 self.notional.address,
+                self.governor.address,
                 {"from": self.deployer},
             )
         else:
@@ -90,6 +92,7 @@ class TestEnvironment:
                 [self.deployer, self.notional.address],
                 [99_000_000e8, GovernanceConfig["initialBalances"]["NOTIONAL"]],
                 self.notional.address,
+                self.deployer.address,
                 {"from": self.deployer},
             )
 
@@ -99,11 +102,8 @@ class TestEnvironment:
         # Deploy governance contracts
         noteERC20Implementation = NoteERC20.deploy({"from": self.deployer})
         # This is a proxied ERC20
-        self.noteERC20Proxy = nTransparentUpgradeableProxy.deploy(
-            noteERC20Implementation.address,
-            self.proxyAdmin.address,
-            bytes(),
-            {"from": self.deployer},
+        self.noteERC20Proxy = nProxy.deploy(
+            noteERC20Implementation.address, bytes(), {"from": self.deployer}
         )
 
         self.noteERC20 = Contract.from_abi(
@@ -214,8 +214,11 @@ class TestEnvironment:
         liquidateCurrencyAction = LiquidateCurrencyAction.deploy({"from": self.deployer})
         liquidatefCashAction = LiquidatefCashAction.deploy({"from": self.deployer})
 
+        # Deploy Pause Router
+        self.pauseRouter = PauseRouter.deploy(views.address, {"from": self.deployer})
+
         # Deploy router
-        router = Router.deploy(
+        self.router = Router.deploy(
             governance.address,
             views.address,
             initializeMarkets.address,
@@ -231,15 +234,12 @@ class TestEnvironment:
         )
 
         initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
-            fn_name="initialize", args=[self.deployer.address]
+            fn_name="initialize",
+            args=[self.deployer.address, self.pauseRouter.address, accounts[8].address],
         )
 
-        # TODO: update this to the new UUPS proxy
-        self.proxy = nTransparentUpgradeableProxy.deploy(
-            router.address,
-            self.proxyAdmin.address,
-            initializeData,  # Deployer is set to owner
-            {"from": self.deployer},
+        self.proxy = nProxy.deploy(
+            self.router.address, initializeData, {"from": self.deployer}  # Deployer is set to owner
         )
 
         notionalInterfaceABI = ContractsVProject._build.get("NotionalProxy")["abi"]
