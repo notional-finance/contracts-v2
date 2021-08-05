@@ -183,7 +183,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes32 newBitmap, int256 newAssetCash) =
+        (bytes32 newBitmap, int256 newAssetCash, /* */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,

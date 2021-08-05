@@ -83,11 +83,7 @@ library SettleAssetsExternal {
         PortfolioState memory portfolioState;
 
         if (accountContext.bitmapCurrencyId != 0) {
-            settleAmounts = _settleBitmappedAccountStateful(
-                account,
-                accountContext.bitmapCurrencyId,
-                accountContext.nextSettleTime
-            );
+            settleAmounts = _settleBitmappedAccountStateful(account, accountContext);
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(
                 account,
@@ -112,20 +108,21 @@ library SettleAssetsExternal {
 
     function _settleBitmappedAccountStateful(
         address account,
-        uint256 currencyId,
-        uint256 nextSettleTime
+        AccountContext memory accountContext
     ) private returns (SettleAmount[] memory) {
-        (bytes32 assetsBitmap, int256 settledCash) =
+        (bytes32 assetsBitmap, int256 settledCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
-                currencyId,
-                nextSettleTime,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
                 block.timestamp
             );
+        require(blockTimeUTC0 < type(uint40).max); // dev: block time utc0 overflow
+        accountContext.nextSettleTime = uint40(blockTimeUTC0);
 
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
+        BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, assetsBitmap);
         SettleAmount[] memory settleAmounts = new SettleAmount[](1);
-        settleAmounts[0].currencyId = currencyId;
+        settleAmounts[0].currencyId = accountContext.bitmapCurrencyId;
         settleAmounts[0].netCashChange = settledCash;
         return settleAmounts;
     }
