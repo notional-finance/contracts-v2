@@ -257,36 +257,37 @@ contract nTokenRedeemAction {
         bool hasResidual;
 
         for (uint256 i; i < markets.length; i++) {
-            if (fCashAssets[fCashIndex].notional == 0) {
-                fCashIndex += 1;
-                continue;
-            }
-
             while (fCashAssets[fCashIndex].maturity < markets[i].maturity) {
                 // Skip an idiosyncratic fCash asset, if this happens then we know there is a residual
                 // fCash asset
                 fCashIndex += 1;
                 hasResidual = true;
             }
-            // It's not clear that this is idiosyncratic at this point
+            // It's not clear that this is idiosyncratic at this point but we know that this asset cannot trade
+            // on this particular market.
             if (fCashAssets[fCashIndex].maturity > markets[i].maturity) continue;
 
-            (int256 netAssetCash, int256 fee) =
-                markets[i].calculateTrade(
-                    cashGroup,
-                    // Use the negative of fCash notional here since we want to net it out
-                    fCashAssets[fCashIndex].notional.neg(),
-                    fCashAssets[fCashIndex].maturity.sub(blockTime),
-                    i + 1
-                );
+            // Safety check to ensure that we only ever trade on matching markets
+            require(fCashAssets[fCashIndex].maturity == markets[i].maturity); // dev: invalid maturity during trading
 
-            if (netAssetCash == 0) {
-                // In this case the trade has failed and there will be some residual fCash
-                hasResidual = true;
-            } else {
-                values[0] = values[0].add(netAssetCash);
-                values[1] = values[1].add(fee);
-                fCashAssets[fCashIndex].notional = 0;
+            if (fCashAssets[fCashIndex].notional != 0) {
+                // If the notional amount is not zero then attempt to execute a trade on the asset
+                (int256 netAssetCash, int256 fee) =
+                    markets[i].calculateTrade(
+                        cashGroup,
+                        // Use the negative of fCash notional here since we want to net it out
+                        fCashAssets[fCashIndex].notional.neg(),
+                        fCashAssets[fCashIndex].maturity.sub(blockTime),
+                        i + 1
+                    );
+
+                if (netAssetCash == 0) {
+                    hasResidual = true;
+                } else {
+                    values[0] = values[0].add(netAssetCash);
+                    values[1] = values[1].add(fee);
+                    fCashAssets[fCashIndex].notional = 0;
+                }
             }
 
             fCashIndex += 1;
