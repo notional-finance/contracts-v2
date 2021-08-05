@@ -204,7 +204,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    # nTokenAddress = environment.notional.nTokenAddress(currencyId)
     totalSupplyBefore = environment.nToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
@@ -232,7 +231,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
     totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
-    # Assert that no assets in portfolio
     portfolio = environment.notional.getAccountPortfolio(accounts[0])
     for asset in portfolio:
         # Should be a net borrower because of lending
@@ -252,9 +250,78 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+def test_redeem_tokens_and_save_assets_settle(environment, accounts):
+    currencyId = 2
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 10e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=300e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+    environment.nToken[currencyId].transfer(accounts[1], 10e8, {"from": accounts[0]})
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    # This account has a matured borrow fCash
+    txn = environment.notional.nTokenRedeem(
+        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+    )
+    assert txn.events["AccountSettled"]
+    context = environment.notional.getAccountContext(accounts[1])
+    assert context[1] == "0x02"
+
+    check_system_invariants(environment, accounts)
+
+
 def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
-    # TODO: activate bitmap portfolio
-    pass
+    currencyId = 2
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 10e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=300e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.enableBitmapCurrency(currencyId, {"from": accounts[1]})
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+    portfolioBefore = environment.notional.getAccountPortfolio(accounts[1])
+
+    environment.nToken[currencyId].transfer(accounts[1], 10e8, {"from": accounts[0]})
+
+    # This account has a matured borrow fCash
+    environment.notional.nTokenRedeem(
+        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+    )
+    portfolio = environment.notional.getAccountPortfolio(accounts[1])
+    assert len(portfolio) == 2
+    assert portfolio[0][1] == portfolioBefore[0][1]
+    assert portfolio[0][3] > portfolioBefore[0][3]
+    assert portfolio[1][1] == portfolioBefore[1][1]
+    assert portfolio[1][3] < portfolioBefore[1][3]
+
+    check_system_invariants(environment, accounts)
 
 
 def test_purchase_perp_token_residual_negative(environment, accounts):
