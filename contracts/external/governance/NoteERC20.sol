@@ -87,17 +87,13 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @notice Initialize note token with initial grants
     /// @param initialAccounts initial address to grant tokens to
     /// @param initialGrantAmount amount to grant address initially
-    /// @param notionalProxy_ address of notional proxy
     function initialize(
         address[] calldata initialAccounts,
         uint96[] calldata initialGrantAmount,
-        NotionalProxy notionalProxy_,
         address owner_
     ) public initializer {
         require(initialGrantAmount.length == initialAccounts.length);
-        require(Address.isContract(address(notionalProxy_)));
 
-        notionalProxy = notionalProxy_;
         uint96 totalGrants = 0;
         for (uint256 i = 0; i < initialGrantAmount.length; i++) {
             totalGrants = _add96(totalGrants, initialGrantAmount[i], "");
@@ -114,6 +110,12 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
         _;
+    }
+
+    function activateNotional(NotionalProxy notionalProxy_) external onlyOwner {
+        require(address(notionalProxy) == address(0), "Notional Proxy already initialized");
+        Address.isContract(address(notionalProxy_));
+        notionalProxy = notionalProxy_;
     }
 
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).

@@ -45,6 +45,30 @@ chain = Chain()
 TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
 
 
+def deployNoteERC20(deployer):
+    # Deploy governance contracts
+    noteERC20Implementation = NoteERC20.deploy({"from": deployer})
+    # This is a proxied ERC20
+    noteERC20Proxy = nProxy.deploy(noteERC20Implementation.address, bytes(), {"from": deployer})
+
+    noteERC20 = Contract.from_abi("NoteERC20", noteERC20Proxy.address, abi=NoteERC20.abi)
+
+    return (noteERC20Proxy, noteERC20)
+
+
+def deployGovernance(deployer, noteERC20, guardian, governorConfig):
+    return GovernorAlpha.deploy(
+        governorConfig["quorumVotes"],
+        governorConfig["proposalThreshold"],
+        governorConfig["votingDelayBlocks"],
+        governorConfig["votingPeriodBlocks"],
+        noteERC20.address,
+        guardian,
+        governorConfig["minDelay"],
+        {"from": deployer},
+    )
+
+
 class TestEnvironment:
     def __init__(self, deployer, withGovernance=False, multisig=None):
         self.deployer = deployer
@@ -83,46 +107,31 @@ class TestEnvironment:
                     GovernanceConfig["initialBalances"]["MULTISIG"],
                     GovernanceConfig["initialBalances"]["NOTIONAL"],
                 ],
-                self.notional.address,
-                self.governor.address,
+                self.deployer.address,
                 {"from": self.deployer},
             )
+            self.noteERC20.activeNotional(self.notional.address, {"from": self.deployer})
+            self.noteERC20.transferOwnership(self.governor.address, {"from": self.deployer})
         else:
             self.noteERC20.initialize(
                 [self.deployer, self.notional.address],
                 [99_000_000e8, GovernanceConfig["initialBalances"]["NOTIONAL"]],
-                self.notional.address,
                 self.deployer.address,
                 {"from": self.deployer},
             )
+            self.noteERC20.activeNotional(self.notional.address, {"from": self.deployer})
 
         self.startTime = chain.time()
 
     def _deployNoteERC20(self):
-        # Deploy governance contracts
-        noteERC20Implementation = NoteERC20.deploy({"from": self.deployer})
-        # This is a proxied ERC20
-        self.noteERC20Proxy = nProxy.deploy(
-            noteERC20Implementation.address, bytes(), {"from": self.deployer}
-        )
-
-        self.noteERC20 = Contract.from_abi(
-            "NoteERC20", self.noteERC20Proxy.address, abi=NoteERC20.abi
-        )
+        (self.noteERC20Proxy, self.noteERC20) = deployNoteERC20(self.deployer)
 
     def _deployGovernance(self):
         self._deployNoteERC20()
 
         # This is not a proxy but can be upgraded by deploying a new contract and changing ownership
-        self.governor = GovernorAlpha.deploy(
-            GovernanceConfig["governorConfig"]["quorumVotes"],
-            GovernanceConfig["governorConfig"]["proposalThreshold"],
-            GovernanceConfig["governorConfig"]["votingDelayBlocks"],
-            GovernanceConfig["governorConfig"]["votingPeriodBlocks"],
-            self.noteERC20.address,
-            self.multisig,
-            GovernanceConfig["governorConfig"]["minDelay"],
-            {"from": self.deployer},
+        self.governor = deployGovernance(
+            self.deployer, self.noteERC20, self.multisig, GovernanceConfig["governorConfig"]
         )
 
     def _deployCToken(self, symbol, underlyingToken, rate):

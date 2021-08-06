@@ -66,7 +66,6 @@ def test_note_token_cannot_reinitialize(environment, accounts):
             [accounts[2].address],
             [100_000_000e8],
             accounts[2].address,
-            accounts[2].address,
             {"from": environment.deployer},
         )
 
@@ -77,7 +76,6 @@ def test_note_token_cannot_initialize_duplicates(environment, accounts):
         erc20.initialize(
             [accounts[2].address, accounts[2].address],
             [50_000_000e8, 50_000_000e8],
-            environment.notional.address,
             environment.governor.address,
             {"from": environment.deployer},
         )
@@ -292,6 +290,11 @@ def test_non_owners_cannot_upgrade_contracts(environment, accounts):
 
         environment.noteERC20.upgradeTo(zeroAddress, {"from": accounts[0]})
         environment.noteERC20.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
+
+
+def test_cannot_change_notional_proxy(environment, accounts, NoteERC20):
+    with brownie.reverts():
+        environment.noteERC20.activateNotional(accounts[1], {"from": accounts[1]})
 
 
 def test_upgrade_note_token(environment, accounts, NoteERC20):
