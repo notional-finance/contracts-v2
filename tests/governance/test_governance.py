@@ -136,7 +136,6 @@ def test_update_governance_parameters(environment, accounts):
 
 
 def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reservoir):
-    # TODO: where should this go?
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
 
     reservoir = Reservoir.deploy(
@@ -159,15 +158,15 @@ def test_note_token_transfer_to_reservoir_and_drip(environment, accounts, Reserv
     assert environment.noteERC20.balanceOf(reservoir.address) == 1_000_000e8
 
     proxyBalanceBefore = environment.noteERC20.balanceOf(environment.proxy.address)
-    blockTime = chain.time()
-    reservoir.drip()
+    txn1 = reservoir.drip()
     proxyBalanceAfter = environment.noteERC20.balanceOf(environment.proxy.address)
-    assert proxyBalanceAfter - proxyBalanceBefore == (blockTime - reservoir.DRIP_START()) * 1e8
+    assert proxyBalanceAfter - proxyBalanceBefore == (txn1.timestamp - reservoir.DRIP_START()) * 1e8
 
-    blockTime2 = chain.time()
-    reservoir.drip()
+    txn2 = reservoir.drip()
     proxyBalanceAfterSecondDrip = environment.noteERC20.balanceOf(environment.proxy.address)
-    assert proxyBalanceAfterSecondDrip - proxyBalanceAfter == (blockTime2 - blockTime) * 1e8
+    assert (
+        proxyBalanceAfterSecondDrip - proxyBalanceAfter == (txn2.timestamp - txn1.timestamp) * 1e8
+    )
 
 
 def test_reservoir_does_not_receive_eth(environment, accounts, Reservoir):

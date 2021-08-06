@@ -94,10 +94,7 @@ library AccountContextHandler {
         returns (bool)
     {
         bytes18 currencies = accountContext.activeCurrencies;
-        require(
-            currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES,
-            "AC: invalid currency id"
-        );
+        require(currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
 
         if (accountContext.bitmapCurrencyId == currencyId) return true;
 
@@ -125,10 +122,7 @@ library AccountContextHandler {
         bool isActive,
         bytes2 flags
     ) internal pure {
-        require(
-            currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES,
-            "AC: invalid currency id"
-        );
+        require(currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
 
         // If the bitmapped currency is already set then return here. Turning off the bitmap currency
         // id requires other logical handling so we will do it elsewhere.

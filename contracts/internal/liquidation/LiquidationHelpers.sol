@@ -186,9 +186,8 @@ library LiquidationHelpers {
             // does not have debt so that we do not have to run a free collateral check here
             require(
                 liquidatorLocalBalance.storedCashBalance >= netLocalFromLiquidator &&
-                    liquidatorContext.hasDebt == 0x00
-                // Had to remove the revert message to get contracts under deployment size limit,
-                // sorry to anyone who runs into this :(
+                    liquidatorContext.hasDebt == 0x00,
+                "No cash"
             ); // dev: token has transfer fee, no liquidator balance
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {

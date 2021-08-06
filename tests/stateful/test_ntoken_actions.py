@@ -324,7 +324,7 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_purchase_perp_token_residual_negative(environment, accounts):
+def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
@@ -616,7 +616,9 @@ def test_mint_bitmap_incentives(environment, accounts):
 
     assert balanceAfter - balanceBefore == incentivesClaimed
     assert pytest.approx(incentivesClaimed, rel=1e-4) == 100000e8 * 3
-    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
+    assert (
+        environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
+    )
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
@@ -734,12 +736,19 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
         accounts[0], [residualPurchaseAction], {"from": accounts[0]}
     )
 
-    (_, totalSupplyBefore, _, _, _, cashBalanceBefore) = environment.notional.getNTokenAccount(
-        nTokenAddress
-    )
+    (
+        _,
+        totalSupplyBefore,
+        _,
+        _,
+        _,
+        cashBalanceBefore,
+        _,
+        _,
+    ) = environment.notional.getNTokenAccount(nTokenAddress)
     txn = environment.notional.sweepCashIntoMarkets(2)
     (portfolioAfter, _) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (_, totalSupplyAfter, _, _, _, cashBalanceAfter) = environment.notional.getNTokenAccount(
+    (_, totalSupplyAfter, _, _, _, cashBalanceAfter, _, _) = environment.notional.getNTokenAccount(
         nTokenAddress
     )
     cashIntoMarkets = txn.events["SweepCashIntoMarkets"]["cashIntoMarkets"]
