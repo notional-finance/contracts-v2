@@ -22,43 +22,43 @@ TokenConfig = {
 }
 
 CurrencyDefaults = {
-    "buffer": 140,
-    "haircut": 100,
+    "buffer": 130,  # Stablecoins will be 105
+    "haircut": 70,  # Stablecoins will be 95
     "liquidationDiscount": 105,
     # Cash group settings
     "maxMarketIndex": 2,
     "rateOracleTimeWindow": 20,
     "totalFee": 30,
     "reserveFeeShare": 50,
-    "debtBuffer": 30,
-    "fCashHaircut": 30,
+    "debtBuffer": 150,
+    "fCashHaircut": 150,
     "settlementPenalty": 40,
-    "liquidationfCashDiscount": 20,
-    "liquidationDebtBuffer": 20,
-    "tokenHaircut": (99, 98, 97, 96, 95, 94, 93, 92, 91),
-    "rateScalar": (30, 25, 20, 17, 16, 15, 14, 13, 12),
+    "liquidationfCashDiscount": 50,
+    "liquidationDebtBuffer": 50,
+    "tokenHaircut": (95, 90, 87, 80, 75, 70, 65),
+    "rateScalar": (21, 21, 21, 21, 21, 21, 21),
     "incentiveEmissionRate": 100_000,
 }
 
 nTokenDefaults = {
     "Deposit": [
         # Deposit shares
-        [int(0.4e8), int(0.6e8)],
+        [int(0.5e8), int(0.5e8)],
         # Leverage thresholds
         [int(0.8e9), int(0.8e9)],
     ],
     "Initialization": [
         # Rate anchors
-        [int(1.01e9), int(1.021e9)],
+        [int(1.02e9), int(1.02e9)],
         # Target proportion
         [int(0.5e9), int(0.5e9)],
     ],
     "Collateral": [
-        30,  # residual purchase incentive bps
-        90,  # pv haircut
-        96,  # time buffer hours
-        50,  # cash withholding
-        95,  # liquidation haircut percentage
+        20,  # residual purchase incentive bps
+        85,  # pv haircut
+        24,  # time buffer hours
+        80,  # cash withholding
+        92,  # liquidation haircut percentage
     ],
 }
 
