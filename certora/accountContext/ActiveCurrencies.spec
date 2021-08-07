@@ -87,5 +87,3 @@ invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint1
             (hasCurrencyMask(account, i) && getActiveUnmasked(account, i) == 0) ||
                 getActiveMasked(account, i) == 0
         ) => getActiveUnmasked(account, i) != getBitmapCurrency(account)
-
-// rule activeCurrencyBalanceFlagsMatchesActual { }
