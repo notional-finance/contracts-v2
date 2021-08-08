@@ -14,18 +14,15 @@ library nTokenHandler {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
-    /// @dev Stores (uint96)
-    bytes32 private constant NTOKEN_SUPPLY_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
     /// @dev Stores (uint32)
     bytes32 private constant INCENTIVE_RATE_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFF;
     /// @dev Stores (uint8, uint32)
     bytes32 private constant ARRAY_TIME_MASK =
-        0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFF;
     /// @dev Stores (uint8, uint8, uint8, uint8, uint8)
     bytes32 private constant COLLATERAL_MASK =
-        0xFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFF;
 
     /// @notice Returns an account context object that is specific to nTokens.
     function getNTokenContext(address tokenAddress)
@@ -45,9 +42,9 @@ library nTokenHandler {
         }
 
         currencyId = uint256(uint16(uint256(data)));
-        incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 112)));
-        lastInitializedTime = uint256(uint32(uint256(data >> 144)));
-        parameters = bytes6(data << 32);
+        incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 16)));
+        lastInitializedTime = uint256(uint32(uint256(data >> 48)));
+        parameters = bytes6(data << 128);
     }
 
     /// @notice Returns the nToken token address for a given currency
@@ -117,7 +114,7 @@ library nTokenHandler {
                 (bytes32(uint256(residualPurchaseTimeBufferHours)) << 16) |
                 (bytes32(uint256(cashWithholdingBuffer10BPS)) << 24) |
                 (bytes32(uint256(liquidationHaircutPercentage)) << 32));
-        data = data | (bytes32(parameters) << 184);
+        data = data | (bytes32(parameters) << 88);
         assembly {
             sstore(slot, data)
         }
@@ -223,7 +220,7 @@ library nTokenHandler {
         }
         // Clear the 4 bytes where emissions rate will go and OR it in
         data = data & INCENTIVE_RATE_MASK;
-        data = data | (bytes32(uint256(newEmissionsRate)) << 112);
+        data = data | (bytes32(uint256(newEmissionsRate)) << 16);
         assembly {
             sstore(slot, data)
         }
@@ -243,8 +240,8 @@ library nTokenHandler {
         }
         // Clear the 6 bytes where array length and settle time will go
         data = data & ARRAY_TIME_MASK;
-        data = data | (bytes32(uint256(lastInitializedTime)) << 144);
-        data = data | (bytes32(uint256(arrayLength)) << 176);
+        data = data | (bytes32(uint256(lastInitializedTime)) << 48);
+        data = data | (bytes32(uint256(arrayLength)) << 80);
         assembly {
             sstore(slot, data)
         }
