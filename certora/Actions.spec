@@ -45,6 +45,17 @@ rule accountsRequiringSettlementAreSettled(address account, method f)
     assert shouldAccountBeSettled(account)) == false;
 }
 
+rule accountsCannotEndWithNegativeFreeCollateral(address account, method f)
+    filtered (f -> f.name != "depositUnderlyingToken" && f.name != "depositAssetToken" && f.name != "enableBitmapCurrency") {
+    env e;
+
+    // FIXME: maybe create a function summary that fc is negative
+    calldataarg args;
+    f(e, args);
+
+    require f.reverted;
+}
+
 /**
  * Trading Action Harness for testing net fCash is zero and net cash is zero
  */
