@@ -585,7 +585,7 @@ library Market {
         market.lastImpliedRate = market.lastImpliedRateStorage;  // uint256(uint32(uint256(data >> 160)));
         market.oracleRate =  market.oracleRateStorage; // uint256(uint32(uint256(data >> 192)));
         market.previousTradeTime = market.previousTradeTimeStorage; // uint256(uint32(uint256(data >> 224)));
-        market.storageState = STORAGE_STATE_NO_CHANGE;
+        // market.storageState = STORAGE_STATE_NO_CHANGE;
 
         if (needsLiquidity) {
             getTotalLiquidity(market);
@@ -643,7 +643,9 @@ library Market {
         if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
         // bytes32 slot = market.storageSlot;
 
-        if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
+        // if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) 
+        // if (!getTrade(market.storageState))
+        {
             // If no trade has occurred then the oracleRate on chain should not update.
             // bytes32 oldData;
             // assembly {
@@ -679,7 +681,7 @@ library Market {
 
         if (
             // market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
-            true
+            getLiquidity(market.storageState)
         ) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
             // slot = bytes32(uint256(slot) + 1);
@@ -1097,13 +1099,23 @@ library Market {
     }
     
     function updateLiquidity(bytes1 storage_state) private returns (bytes1) {
-        if (storage_state == bytes1(bytes32((uint(2))))) return bytes1(bytes32((uint(3))));
-        if (storage_state == 0) return bytes1(bytes32((uint(1))));
+        if (storage_state == bytes1(bytes32((uint(2)))<<248)) return bytes1(bytes32((uint(3)))<<248);
+        if (storage_state == 0) return bytes1(bytes32((uint(1)))<<248);
         return storage_state;
     }
    function updateTrade(bytes1 storage_state) private returns (bytes1) {
-        if (storage_state == bytes1(bytes32((uint(1))))) return bytes1(bytes32((uint(3))));
-        if (storage_state == 0) return bytes1(bytes32((uint(2))));
+        if (storage_state == bytes1(bytes32((uint(1)))<<248)) return bytes1(bytes32((uint(3)))<<248);
+        if (storage_state == 0) return bytes1(bytes32((uint(2)))<<248);
         return storage_state;
+    }
+    function getLiquidity(bytes1 storage_state) private returns (bool) {
+        if (storage_state == bytes1(bytes32((uint(1)))<<248))  return true;
+        if (storage_state == bytes1(bytes32((uint(3)))<<248))  return true;
+        return false;
+    }
+   function getTrade(bytes1 storage_state) private returns (bool) {
+        if (storage_state == bytes1(bytes32((uint(2)))<<248))  return true;
+        if (storage_state == bytes1(bytes32((uint(3)))<<248))  return true;
+        return false;
     }
 }
