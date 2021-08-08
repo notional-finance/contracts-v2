@@ -348,7 +348,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
 
-        // Check free collatearal if the `to` account has taken on a negative fCash amount
+        // Check free collateral if the `to` account has taken on a negative fCash amount
         if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(to);
         }
