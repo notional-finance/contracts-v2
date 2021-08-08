@@ -96,6 +96,3 @@ def main():
 
     with open("kovan.json", "w") as f:
         json.dump(addresses, f, sort_keys=True, indent=4)
-
-
-37.81646934912
