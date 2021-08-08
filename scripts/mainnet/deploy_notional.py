@@ -30,7 +30,7 @@ TokenConfig = {
                 False,
                 TokenType["UnderlyingToken"],
             ),
-            "ethOracle": "",
+            "ethOracle": "0x39315F1990CA0E61C84169b29f88350aEfF5443e",
             "ethOracleMustInvert": False,
         },
         "USDC": {
@@ -44,13 +44,22 @@ TokenConfig = {
                 False,
                 TokenType["UnderlyingToken"],
             ),
-            "ethOracle": "",
+            "ethOracle": "0x7F27F5c26a16bcaC8BddAF1d79e1F66CB41b25C2",
             "ethOracleMustInvert": False,
         },
         "USDT": {
-            "assetToken": ("", False, TokenType["cToken"]),
-            "underlyingToken": ("", False, TokenType["UnderlyingToken"]),
-            "ethOracle": "",
+            "assetToken": (
+                "0xBE2720C0064BF3A0E8F5f83f5B9FaC266c5Ce99E",
+                False,
+                TokenType["cToken"],
+            ),
+            # USDT potentially has a transfer fee
+            "underlyingToken": (
+                "0x52EDEb260f0cb805d9224d00741a576752F045b7",
+                True,
+                TokenType["UnderlyingToken"],
+            ),
+            "ethOracle": "0x65F07dAF0ECa95285f80D252bfdDF5443cB67B6E",
             "ethOracleMustInvert": False,
         },
         "WBTC": {
@@ -64,7 +73,7 @@ TokenConfig = {
                 False,
                 TokenType["UnderlyingToken"],
             ),
-            "ethOracle": "",
+            "ethOracle": "0x438241503f595376500EE471C716F678Bb354Ce6",
             "ethOracleMustInvert": False,
         },
     },
@@ -104,9 +113,10 @@ TokenConfig = {
                 False,
                 TokenType["cToken"],
             ),
+            # USDT potentially has a transfer fee
             "underlyingToken": (
                 "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-                False,
+                True,
                 TokenType["UnderlyingToken"],
             ),
             "ethOracle": "0xEe9F2375b4bdF6387aa8265dD4FB8F16512A1d46",
