@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 contract cTokenAggregator is AssetRateAdapter {
     using SafeMath for uint256;
 
-    address public override token;
+    address public immutable override token;
     uint8 public override decimals = 18;
     uint256 public override version = 1;
     string public override description;
