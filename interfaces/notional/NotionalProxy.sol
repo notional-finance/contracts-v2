@@ -96,7 +96,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets
-    ) external;
+    ) external returns (int256);
 
     /** Account Action */
     function enableBitmapCurrency(uint16 currencyId) external;
@@ -128,18 +128,24 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         external
         payable;
 
+    function batchBalanceAndTradeActionWithCallback(
+        address account,
+        BalanceActionWithTrades[] calldata actions,
+        bytes calldata callbackData
+    ) external payable;
+
     /** Liquidation Action */
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256);
+    ) external returns (int256, int256);
 
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256);
+    ) external returns (int256, int256);
 
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,

@@ -56,12 +56,13 @@ contract nTokenRedeemAction {
     /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
     /// residual fCash assets will be placed into the portfolio
     /// @dev auth:msg.sender auth:ERC1155
+    /// @return total amount of asset cash redeemed
     function nTokenRedeem(
         address redeemer,
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets
-    ) external {
+    ) external returns (int256) {
         // ERC1155 can call this method during a post transfer event
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
@@ -93,6 +94,8 @@ contract nTokenRedeemAction {
         if (context.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
+
+        return totalAssetCash;
     }
 
     function _redeem(

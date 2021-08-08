@@ -8,11 +8,13 @@ import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
+import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
+import "interfaces/notional/NotionalCallback.sol";
 
-contract BatchAction {
+contract BatchAction is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
@@ -48,7 +50,12 @@ contract BatchAction {
                 actions[i].currencyId,
                 settleAmounts,
                 balanceState,
-                accountContext,
+                accountContext
+            );
+
+            _executeDepositAction(
+                account,
+                balanceState,
                 actions[i].actionType,
                 actions[i].depositActionAmount
             );
@@ -78,7 +85,30 @@ contract BatchAction {
         payable
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        _finalizeAccountContext(account, accountContext);
+    }
 
+    function batchBalanceAndTradeActionWithCallback(
+        address account,
+        BalanceActionWithTrades[] calldata actions,
+        bytes calldata callbackData
+    ) external payable {
+        require(authorizedCallbackContract[msg.sender], "Unauthorized");
+        AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        accountContext.setAccountContext(account);
+        // Be sure to set the account context before initiating the callback
+        NotionalCallback(msg.sender).notionalCallback(msg.sender, account, callbackData);
+
+        if (accountContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+        }
+    }
+
+    function _batchBalanceAndTradeAction(
+        address account,
+        BalanceActionWithTrades[] calldata actions
+    ) internal returns (AccountContext memory) {
         (
             AccountContext memory accountContext,
             SettleAmount[] memory settleAmounts,
@@ -97,7 +127,12 @@ contract BatchAction {
                 actions[i].currencyId,
                 settleAmounts,
                 balanceState,
-                accountContext,
+                accountContext
+            );
+
+            _executeDepositAction(
+                account,
+                balanceState,
                 actions[i].actionType,
                 actions[i].depositActionAmount
             );
@@ -150,7 +185,7 @@ contract BatchAction {
 
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
-        _finalizeAccountContext(account, accountContext);
+        return accountContext;
     }
 
     /// @dev Loads balances, nets off settle amounts and then executes deposit actions
@@ -160,9 +195,7 @@ contract BatchAction {
         uint256 currencyId,
         SettleAmount[] memory settleAmounts,
         BalanceState memory balanceState,
-        AccountContext memory accountContext,
-        DepositActionType depositType,
-        uint256 depositActionAmount
+        AccountContext memory accountContext
     ) private returns (uint256) {
         while (
             settleAmountIndex < settleAmounts.length &&
@@ -183,8 +216,6 @@ contract BatchAction {
             // Set to zero so that we don't double count later
             settleAmounts[settleAmountIndex].netCashChange = 0;
         }
-
-        _executeDepositAction(account, balanceState, depositType, depositActionAmount);
 
         return settleAmountIndex;
     }

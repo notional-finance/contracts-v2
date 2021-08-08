@@ -129,6 +129,7 @@ class TestEnvironment:
         self.proxyAdmin = nProxyAdmin.deploy({"from": self.deployer})
         self.compPriceOracle = nPriceOracle.deploy({"from": deployer})
         self.comptroller = nComptroller.deploy({"from": deployer})
+        self.comptroller._setMaxAssets(20)
         self.comptroller._setPriceOracle(self.compPriceOracle.address)
         self.currencyId = {}
         self.token = {}
@@ -233,6 +234,9 @@ class TestEnvironment:
             )
 
         self.comptroller._supportMarket(cToken.address, {"from": self.deployer})
+        self.comptroller._setCollateralFactor(
+            cToken.address, 750000000000000000, {"from": self.deployer}
+        )
         if symbol != "ETH":
             self.compPriceOracle.setUnderlyingPrice(cToken.address, rate)
 

@@ -35,34 +35,41 @@ contract LiquidateCurrencyAction {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency id of the local currency
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @return the net amount of local currency required from the liquidator
+    /// @return currency transfer amounts:
+    ///   - local currency required from liquidator (positive or negative)
+    ///   - local nTokens paid to liquidator (positive)
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256) {
+    ) external returns (int256, int256) {
         // prettier-ignore
         (
             int256 localAssetCashFromLiquidator,
-            /* BalanceState memory localBalanceState */,
+            BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */,
             /* MarketParameters[] memory markets */
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
-        return localAssetCashFromLiquidator;
+        return (
+            localAssetCashFromLiquidator,
+            localBalanceState.netNTokenTransfer.neg()
+        );
     }
 
     /// @notice Liquidates an account using local currency only
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency id of the local currency
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @return the net amount of local currency transferred to or from the liquidator
+    /// @return currency transfer amounts:
+    ///   - local currency required from liquidator (positive or negative)
+    ///   - local nTokens paid to liquidator (positive)
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint256 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256) {
+    ) external returns (int256, int256) {
         (
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
@@ -97,7 +104,10 @@ contract LiquidateCurrencyAction {
             localAssetCashFromLiquidator
         );
 
-        return localAssetCashFromLiquidator;
+        return (
+            localAssetCashFromLiquidator,
+            localBalanceState.netNTokenTransfer.neg()
+        );
     }
 
     /// @notice Calculates local and collateral currency transfers for a liquidation. This is a stateful method

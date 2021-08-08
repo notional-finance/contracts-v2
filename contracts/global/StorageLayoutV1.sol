@@ -41,6 +41,7 @@ contract StorageLayoutV1 {
     // Transfer operators
     mapping(address => bool) internal globalTransferOperator;
     mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
+    mapping(address => bool) internal authorizedCallbackContract;
 
     // Reverse mapping from token addresses to currency ids, only used for referencing in views
     // and checking for duplicate token listings.

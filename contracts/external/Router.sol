@@ -102,7 +102,8 @@ contract Router is StorageLayoutV1 {
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         if (
             sig == BatchAction.batchBalanceAction.selector ||
-            sig == BatchAction.batchBalanceAndTradeAction.selector
+            sig == BatchAction.batchBalanceAndTradeAction.selector ||
+            sig == BatchAction.batchBalanceAndTradeActionWithCallback.selector
         ) {
             return BATCH_ACTION;
         }
@@ -191,6 +192,7 @@ contract Router is StorageLayoutV1 {
             sig == GovernanceAction.updateInitializationParameters.selector ||
             sig == GovernanceAction.updateTokenCollateralParameters.selector ||
             sig == GovernanceAction.updateGlobalTransferOperator.selector ||
+            sig == GovernanceAction.updateAuthorizedCallbackContract.selector ||
             sig == UUPSUpgradeable.upgradeTo.selector ||
             sig == UUPSUpgradeable.upgradeToAndCall.selector
         ) {
