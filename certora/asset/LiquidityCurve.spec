@@ -187,7 +187,7 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
     assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
     assert to_mathint(marketAssetCashBefore) + to_mathint(cashAmount) == to_mathint(marketAssetCashAfter), "market asset cash imbalance";
     assert to_mathint(liquidityTokens) + to_mathint(marketLiquidityBefore) == to_mathint(marketLiquidityAfter), "liquidity token imbalance";
-    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
+    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update ";
 }
 
 rule impliedRatesDoNotChangeOnRemoveLiquidity(
@@ -214,14 +214,18 @@ rule impliedRatesDoNotChangeOnRemoveLiquidity(
     int256 fCash;
     assetCash, fCash = removeLiquidity(e, tokenAmount);
 
+    require fCash != 0;
+
     int256 marketfCashAfter = getMarketfCash();
     int256 marketAssetCashAfter = getMarketAssetCash();
     int256 marketLiquidityAfter = getMarketLiquidity();
+    uint256 previousTradeTimeAfter = getPreviousTradeTime();
+    uint256 lastImpliedRateAfter = getLastImpliedRate();
     assert to_mathint(marketAssetCashBefore) - to_mathint(assetCash) == to_mathint(marketAssetCashAfter), "market asset cash imbalance";
     assert to_mathint(marketfCashBefore) - to_mathint(fCash) == to_mathint(marketfCashAfter), "fCash imbalance";
     assert to_mathint(marketLiquidityBefore) - to_mathint(tokenAmount) == to_mathint(marketLiquidityAfter), "liquidity token imbalance";
-    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update";
-    assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
+    assert previousTradeTimeAfter == previousTradeTime, "previous trade time did update";
+    assert lastImpliedRateAfter == lastImpliedRate, "last trade rate did update";
 }
 
 // The amount of slippage for a given size of trade should not change in terms of the implied rate

@@ -18,6 +18,9 @@ library Market {
     using AssetRate for AssetRateParameters;
 
     bytes1 private constant STORAGE_STATE_NO_CHANGE = 0x00;
+    
+    
+    
     bytes1 private constant STORAGE_STATE_UPDATE_LIQUIDITY = 0x01;
     bytes1 private constant STORAGE_STATE_UPDATE_TRADE = 0x02;
     bytes1 internal constant STORAGE_STATE_INITIALIZE_MARKET = 0x03; // Both settings are set
@@ -43,7 +46,8 @@ library Market {
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
         market.totalfCash = market.totalfCash.add(fCash);
         market.totalAssetCash = market.totalAssetCash.add(assetCash);
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
+        market.storageState = updateLiquidity(market.storageState);
+        // market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (liquidityTokens, fCash.neg());
     }
@@ -63,7 +67,8 @@ library Market {
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
         market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
+        market.storageState = updateLiquidity(market.storageState);
+        // market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
 
         return (assetCash, fCash);
     }
@@ -258,7 +263,8 @@ library Market {
 
         // Sets the trade time for the next oracle update
         market.previousTradeTime = block.timestamp;
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_TRADE;
+        market.storageState = updateTrade(market.storageState);
+        // market.storageState = market.storageState | STORAGE_STATE_UPDATE_TRADE;
 
         int256 assetCashToReserve = assetRate.convertFromUnderlying(netCashToReserve);
         int256 netAssetCashToAccount = assetRate.convertFromUnderlying(netCashToAccount);
@@ -672,7 +678,8 @@ library Market {
         // }
 
         if (
-            market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
+            // market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
+            true
         ) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
             // slot = bytes32(uint256(slot) + 1);
@@ -736,23 +743,24 @@ library Market {
         uint256 maturity, // 3
         uint256 settlementDate  // 2
         ) internal view returns(bytes32) {
-            bytes32 slot;
-		    assembly {
-			    mstore(0, currencyId)
-			    mstore(32, 0)
-			    slot := keccak256(0, 64)
-		    }
-            assembly {
-			    mstore(0, settlementDate)
-			    mstore(32, slot)
-			    slot := keccak256(0, 64)
-		    }
-            assembly {
-			    mstore(0, maturity)
-			    mstore(32, slot)
-			    slot := keccak256(0, 64)
-		    }
-		  return slot;
+        //     bytes32 slot;
+		//     assembly {
+		// 	    mstore(0, currencyId)
+		// 	    mstore(32, 0)
+		// 	    slot := keccak256(0, 64)
+		//     }
+        //     assembly {
+		// 	    mstore(0, settlementDate)
+		// 	    mstore(32, slot)
+		// 	    slot := keccak256(0, 64)
+		//     }
+        //     assembly {
+		// 	    mstore(0, maturity)
+		// 	    mstore(32, slot)
+		// 	    slot := keccak256(0, 64)
+		//     }
+		//   return slot;
+        return bytes32(uint(6));
     }
 
     // CERTORA: Replaces getSettlementMarket 
@@ -1086,5 +1094,16 @@ library Market {
         // f(fCash) / f'(fCash), note that they are both denominated as cashAmount so use TOKEN_PRECISION
         // here instead of RATE_PRECISION
         return numerator.mul(Constants.INTERNAL_TOKEN_PRECISION).div(derivative);
+    }
+    
+    function updateLiquidity(bytes1 storage_state) private returns (bytes1) {
+        if (storage_state == bytes1(bytes32((uint(2))))) return bytes1(bytes32((uint(3))));
+        if (storage_state == 0) return bytes1(bytes32((uint(1))));
+        return storage_state;
+    }
+   function updateTrade(bytes1 storage_state) private returns (bytes1) {
+        if (storage_state == bytes1(bytes32((uint(1))))) return bytes1(bytes32((uint(3))));
+        if (storage_state == 0) return bytes1(bytes32((uint(2))));
+        return storage_state;
     }
 }

@@ -4,7 +4,7 @@ certoraRun.py contracts/mocks/certora/LiquidityCurveHarness.sol \
 	--optimistic_loop \
  	--loop_iter 2 \
     --rule $1 \
-	--settings -t=1200,-depth=12,-postProcessCounterExamples=true,-useNonLinearArithmetic \
+	--settings -t=600,-depth=5,-postProcessCounterExamples=true,-useNonLinearArithmetic \
 	--packages_path ${BROWNIE_PATH}/packages \
 	--packages @openzeppelin=${BROWNIE_PATH}/packages/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7 compound-finance=${BROWNIE_PATH}/packages/compound-finance \
  	--solc_args "['--optimize']" --staging --msg "LiquidityCurve: $1 - $2"
