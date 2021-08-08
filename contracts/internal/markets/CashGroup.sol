@@ -30,6 +30,8 @@ library CashGroup {
     // 9 bytes allocated per market on the rate scalar
     uint256 private constant RATE_SCALAR = 144;
 
+    int256 private constant RATE_SCALAR_DECIMALS = 10;
+
     /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
     /// the ln() portion of the liquidity curve as an inverse so it increases with time to
     /// maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
@@ -40,13 +42,28 @@ library CashGroup {
     ) internal pure returns (int256) {
         require(marketIndex >= 1); // dev: invalid market index
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
-        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
+        // TODO: add a rate scalar multiplier here
+        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * RATE_SCALAR_DECIMALS;
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
         // At large time to maturities it's possible for the rate scalar to round down to zero
         require(rateScalar > 0, "CG: rate scalar underflow");
         return rateScalar;
+    }
+
+    function divByRateScalar(
+        int256 value,
+        int256 rateScalar
+    ) internal pure returns (int256) {
+        return value * RATE_SCALAR_DECIMALS / rateScalar;
+    }
+
+    function mulByRateScalar(
+        int256 value,
+        int256 rateScalar
+    ) internal pure returns (int256) {
+        return value * rateScalar / RATE_SCALAR_DECIMALS;
     }
 
     /// @notice Haircut on liquidity tokens to account for the risk associated with changes in the

@@ -301,7 +301,7 @@ library Market {
             (int256 lnProportion, bool success) = _logProportion(proportion);
             if (!success) return (0, false);
 
-            rateAnchor = exchangeRate.sub(lnProportion.div(rateScalar));
+            rateAnchor = exchangeRate.sub(CashGroup.divByRateScalar(lnProportion, rateScalar));
         }
 
         return (rateAnchor, true);
@@ -380,7 +380,7 @@ library Market {
         if (!success) return (0, false);
 
         // Division will not overflow here because we know rateScalar > 0
-        int256 rate = (lnProportion / rateScalar).add(rateAnchor);
+        int256 rate = CashGroup.divByRateScalar(lnProportion, rateScalar).add(rateAnchor);
         // Do not succeed if interest rates fall below 1
         if (rate < Constants.RATE_PRECISION) {
             return (0, false);
@@ -799,7 +799,10 @@ library Market {
         // rateScalar * (totalfCash - fCash) * (totalCash + fCash)
         // Precision: TOKEN_PRECISION ^ 2
         int256 denominator =
-            rateScalar.mul(totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess));
+            CashGroup.mulByRateScalar(
+                (totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess)),
+                rateScalar
+            );
 
         if (fCashGuess > 0) {
             // Lending

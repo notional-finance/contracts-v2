@@ -352,7 +352,9 @@ library InitializeMarketsAction {
             exchangeRate = Constants.RATE_PRECISION;
         }
 
-        int128 expValue = ABDKMath64x64.fromInt(exchangeRate.sub(rateAnchor).mul(rateScalar));
+        int128 expValue = ABDKMath64x64.fromInt(
+            CashGroup.mulByRateScalar(exchangeRate.sub(rateAnchor), rateScalar)
+        );
         // Scale this back to a decimal in abdk
         expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         // Take the exponent
