@@ -1,6 +1,6 @@
 import json
 
-from brownie import NotionalV1Migrator, accounts, nTransparentUpgradeableProxy
+from brownie import NotionalV1ToNotionalV2, accounts, nTransparentUpgradeableProxy
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
@@ -280,11 +280,10 @@ def deploy_v1(v2env):
 
     deploy_uniswap(v2env.token, artifacts, deployer, contracts)
 
-    contracts["Migrator"] = NotionalV1Migrator.deploy(
+    contracts["Migrator"] = NotionalV1ToNotionalV2.deploy(
         contracts["Escrow"].address,
         v2env.notional.address,
         contracts["ERC1155Trade"].address,
-        contracts["uniswapFactory"].getPair(contracts["WETH"].address, v2env.token["WBTC"]),
         contracts["WETH"].address,
         v2env.token["WBTC"],
         2,

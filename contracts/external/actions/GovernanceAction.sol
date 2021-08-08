@@ -265,6 +265,29 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         emit UpdateGlobalTransferOperator(operator, approved);
     }
 
+    /// @notice Approves contracts that can call `batchTradeActionWithCallback`. These contracts can
+    /// "flash loan" from Notional V2 and receive a callback before the free collateral check. Flash loans
+    /// via the Notional V2 liquidity pool are not very gas efficient so this is not generally available,
+    /// it can be used for migrating borrows into Notional V2 from other platforms.
+    /// @dev emit:UpdateAuthorizedCallbackContract
+    /// @param operator address of the contract
+    /// @param approved true if the contract is authorized
+    function updateAuthorizedCallbackContract(address operator, bool approved)
+        external
+        override
+        onlyOwner
+    {
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(operator)
+        }
+        // Sanity check to ensure that operator is a contract, not an EOA
+        require(codeSize > 0, "Operator must be a contract");
+
+        authorizedCallbackContract[operator] = approved;
+        emit UpdateAuthorizedCallbackContract(operator, approved);
+    }
+
     function _updateCashGroup(uint256 currencyId, CashGroupSettings calldata cashGroup) internal {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
