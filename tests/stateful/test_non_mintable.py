@@ -71,7 +71,7 @@ def test_deposit_withdraw_asset_non_mintable(environment, accounts):
     assert balances[2] == 0
 
     (fc, netLocal) = environment.notional.getFreeCollateral(accounts[1])
-    assert fc == 100e8
+    assert fc == 70e8
     assert netLocal[0] == 100e8
 
     check_system_invariants(environment, accounts)

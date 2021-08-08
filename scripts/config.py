@@ -1,14 +1,10 @@
 GovernanceConfig = {
-    "initialBalances": {
-        "DAO": 55_000_000e8,
-        "MULTISIG": 44_000_000e8,  # TODO: update this to account for airdrop
-        "NOTIONAL": 1_000_000e8,  # TODO: update this to account for airdrop
-    },
+    "initialBalances": {"DAO": 55_000_000e8, "MULTISIG": 44_000_000e8, "NOTIONAL": 1_000_000e8},
     "governorConfig": {
         "quorumVotes": 4_000_000e8,
         "proposalThreshold": 1_000_000e8,
         "votingDelayBlocks": 1,
-        "votingPeriodBlocks": 10,  # TODO: override ths for real
+        "votingPeriodBlocks": 10,
         "minDelay": 86400,
     },
 }
