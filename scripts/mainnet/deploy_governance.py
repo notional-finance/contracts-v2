@@ -9,8 +9,8 @@ from scripts.deployment import deployGovernance, deployNoteERC20
 EnvironmentConfig = {
     "development": {
         "AirdropClaimTime": 0,
-        "NotionalFoundation": accounts[1].address,
-        "GuardianMultisig": accounts[0].address,
+        "NotionalFoundation": "0x57903069f1406808e83018b498de7fa2E54f451f",
+        "GuardianMultisig": "0x628029b5b7574296365EEF243f240aF83ffA7111",
     },
     "kovan": {
         "AirdropClaimTime": 1629097200,  # August 16, 2021 UTC 0
@@ -74,7 +74,7 @@ def main():
     print("Deploying to {}".format(network.show_active()))
 
     # Deploying NOTE token
-    (noteERC20Proxy, noteERC20) = deployNoteERC20(deployer)
+    (noteERC20Proxy, noteERC20) = deployNoteERC20(deployer, publish_source=True)
     print("Deployed NOTE token to {}".format(noteERC20.address))
 
     # Deploying airdrop contract
@@ -86,6 +86,7 @@ def main():
         noteERC20,
         EnvironmentConfig[networkName]["GuardianMultisig"],
         GovernanceConfig["governorConfig"],
+        publish_source=True,
     )
     print("Deployed Governor to {}".format(governor.address))
 
@@ -138,3 +139,16 @@ def main():
             sort_keys=True,
             indent=4,
         )
+
+
+# Total Gas Used:
+# NoteERC20 Implementation: 2,302,762
+# nProxy Deployment: 279,996
+# Airdrop Contract: 404,638
+# GovernorAlpha Contract: 4,028,419
+# Initialize ERC20: 152,218
+
+# To Verify Sources (not working...):
+# GovernorAlpha.publish_source(TokenContract)
+# NOTEErc20.publish_source(TokenContract)
+# NOTEErc20.publish_source(TokenContract)

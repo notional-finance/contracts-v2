@@ -45,18 +45,20 @@ chain = Chain()
 TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
 
 
-def deployNoteERC20(deployer):
+def deployNoteERC20(deployer, publish_source=False):
     # Deploy governance contracts
-    noteERC20Implementation = NoteERC20.deploy({"from": deployer})
+    noteERC20Implementation = NoteERC20.deploy({"from": deployer}, publish_source=publish_source)
     # This is a proxied ERC20
-    noteERC20Proxy = nProxy.deploy(noteERC20Implementation.address, bytes(), {"from": deployer})
+    noteERC20Proxy = nProxy.deploy(
+        noteERC20Implementation.address, bytes(), {"from": deployer}, publish_source=publish_source
+    )
 
     noteERC20 = Contract.from_abi("NoteERC20", noteERC20Proxy.address, abi=NoteERC20.abi)
 
     return (noteERC20Proxy, noteERC20)
 
 
-def deployGovernance(deployer, noteERC20, guardian, governorConfig):
+def deployGovernance(deployer, noteERC20, guardian, governorConfig, publish_source=False):
     return GovernorAlpha.deploy(
         governorConfig["quorumVotes"],
         governorConfig["proposalThreshold"],
@@ -66,6 +68,7 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
         guardian,
         governorConfig["minDelay"],
         {"from": deployer},
+        publish_source=publish_source,
     )
 
 
