@@ -7,6 +7,7 @@ from tests.constants import (
     BASIS_POINT,
     CASH_GROUP_PARAMETERS,
     NORMALIZED_RATE_TIME,
+    RATE_PRECISION,
     SECONDS_IN_DAY,
     START_TIME,
 )
@@ -95,7 +96,6 @@ class TestCashGroupGetters:
             cashGroupParameters[10] = [102, 50, 50]
             cashGroup.setCashGroup(1, cashGroupParameters)
 
-    @pytest.mark.only
     def test_build_cash_group(self, cashGroup, aggregator):
         # This is not tested, just used to ensure that it exists
         rateStorage = (aggregator.address, 18)
@@ -148,7 +148,7 @@ class TestCashGroupGetters:
 
             for m in range(0, maxMarketIndex):
                 assert cashGroupParameters[9][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
-                assert cashGroupParameters[10][m] * 10 == cashGroup.getRateScalar(
+                assert cashGroupParameters[10][m] * RATE_PRECISION == cashGroup.getRateScalar(
                     cg, m + 1, NORMALIZED_RATE_TIME
                 )
 
