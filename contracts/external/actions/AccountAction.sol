@@ -75,6 +75,9 @@ contract AccountAction {
         return uint256(assetTokensReceivedInternal);
     }
 
+    mapping(address => AccountContext) accountContexts;
+    BalanceState balanceState;
+
     /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
     /// make deposit as gas efficient as possible during potential liquidation events.
     /// @param account the account to deposit into
@@ -91,8 +94,9 @@ contract AccountAction {
     ) external returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
 
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState;
+        // AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = accountContexts[account];
+        // BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
         // prettier-ignore

@@ -1,4 +1,7 @@
-certoraRun contracts/mocks/certora/BalanceStateHarness.sol contracts/mocks/certora/DummyERC20A.sol contracts/mocks/certora/DummyERC20B.sol \
+certoraRun contracts/external/actions/AccountAction.sol \
+	contracts/mocks/certora/BalanceStateHarness.sol \
+	contracts/mocks/certora/DummyERC20A.sol \
+	contracts/mocks/certora/DummyERC20B.sol \
  	--verify BalanceStateHarness:certora/asset/BalanceState.spec \
  	--solc solc7.6 \
 	--optimistic_loop \

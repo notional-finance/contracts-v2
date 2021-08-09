@@ -1,4 +1,5 @@
 using DummyERC20A as token
+using AccountAction as accountAction
 
 methods {
     // harnessed
@@ -27,11 +28,21 @@ methods {
     transferFrom(address,address,uint) => DISPATCHER(true)
 }
 
-rule integrity_depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) {
+rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
     require account != currentContract;
     uint _balance = token.balanceOf(account);
 
     depositAssetToken(account, assetAmountExternal, forceTransfer);
+
+    uint balance_ = token.balanceOf(account);
+
+    assert balance_ == _balance + to_mathint(assetAmountExternal);
+}
+
+rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
+    uint _balance = token.balanceOf(account);
+
+    accountAction.depositAssetToken(account, currencyId, assetAmountExternal);
 
     uint balance_ = token.balanceOf(account);
 
