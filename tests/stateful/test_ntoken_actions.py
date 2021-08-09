@@ -324,6 +324,7 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
 def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -416,9 +417,11 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
             accounts[2], [action], {"from": accounts[2]}
         )
 
+    environment.cToken["DAI"].transfer(accounts[2], 5000e8, {"from": accounts[0]})
+    environment.cToken["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[2]})
     action = get_balance_trade_action(
         2,
-        "None",
+        "DepositAsset",
         [
             {
                 "tradeActionType": "PurchaseNTokenResidual",
@@ -426,6 +429,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
                 "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
             }
         ],
+        depositActionAmount=5000e8,
     )
     environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
 
@@ -435,7 +439,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
     accountPortfolio = environment.notional.getAccountPortfolio(accounts[2])
 
     assert portfolioAfter == portfolioBefore
-    assert accountCashBalance == cashBalanceBefore - cashBalanceAfter
+    assert accountCashBalance == cashBalanceBefore - cashBalanceAfter + 5000e8
     assert accountPortfolio[0][0:3] == ifCashAssetsBefore[2][0:3]
     assert len(ifCashAssetsAfter) == 3
 
@@ -602,6 +606,7 @@ def test_mint_incentives(environment, accounts):
 
 
 def test_mint_bitmap_incentives(environment, accounts):
+    # NOTE: this test is a little flaky when running with the entire test suite
     currencyId = 2
     environment.notional.enableBitmapCurrency(2, {"from": accounts[0]})
 
