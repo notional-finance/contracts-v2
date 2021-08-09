@@ -1,5 +1,7 @@
 // definition SIGNED_INT_TO_MATHINT(uint256 x) returns mathint = x >= 2^255 ? x - 2^256 : x;
 
+// contract cannot hold underlying assets (e.g. DAI instead of cDAI)
+
 rule depositsMustIncreaseCashBalance(address account, uint256 depositAmount) {
     env e;
     int256 cashBalance = getCashBalance(account);
