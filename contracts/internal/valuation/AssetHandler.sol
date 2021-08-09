@@ -68,7 +68,7 @@ library AssetHandler {
         int256 discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
         require(discountFactor <= Constants.RATE_PRECISION); // dev: get present value invalid discount factor
-        return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
+        return notional.mulInRatePrecision(discountFactor);
     }
 
     /// @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
@@ -100,7 +100,7 @@ library AssetHandler {
         }
 
         require(discountFactor <= Constants.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
-        return notional.mul(discountFactor).div(Constants.RATE_PRECISION);
+        return notional.mulInRatePrecision(discountFactor);
     }
 
     /// @notice Returns the non haircut claims on cash and fCash by the liquidity token.
