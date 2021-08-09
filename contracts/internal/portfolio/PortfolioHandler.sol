@@ -321,7 +321,7 @@ library PortfolioHandler {
         // No sorting required for length of 1
         if (assets.length <= 1) return assets;
 
-        _quickSortInPlace(assets, 0, int256(assets.length) - 1);
+        //_quickSortInPlace(assets, 0, int256(assets.length) - 1);
         return assets;
     }
 

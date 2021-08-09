@@ -26,6 +26,9 @@ methods {
     transfer(address,uint) => DISPATCHER(true)
     balanceOf(address) => DISPATCHER(true)
     transferFrom(address,address,uint) => DISPATCHER(true)
+
+    // accountAction
+    accountAction.depositAssetToken(address,uint16,uint256)
 }
 
 rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
@@ -42,7 +45,8 @@ rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal
 rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
     uint _balance = token.balanceOf(account);
 
-    accountAction.depositAssetToken(account, currencyId, assetAmountExternal);
+    env e;
+    accountAction.depositAssetToken(e, account, currencyId, assetAmountExternal);
 
     uint balance_ = token.balanceOf(account);
 
