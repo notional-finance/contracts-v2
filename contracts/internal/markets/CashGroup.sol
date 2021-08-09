@@ -39,7 +39,7 @@ library CashGroup {
         uint256 timeToMaturity
     ) internal pure returns (int256) {
         require(marketIndex >= 1); // dev: invalid market index
-        require(timeToMaturity <= type(int256).max); // dev: time to maturity overflow
+        require(timeToMaturity <= uint256(type(int256).max)); // dev: time to maturity overflow
 
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
         int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
