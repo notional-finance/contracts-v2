@@ -39,13 +39,16 @@ library CashGroup {
         uint256 timeToMaturity
     ) internal pure returns (int256) {
         require(marketIndex >= 1); // dev: invalid market index
+        require(timeToMaturity <= uint256(type(int256).max)); // dev: time to maturity overflow
+
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
-        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
+        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
-        // At large time to maturities it's possible for the rate scalar to round down to zero
-        require(rateScalar > 0, "CG: rate scalar underflow");
+        // Rate scalar is denominated in RATE_PRECISION, it is unlikely to underflow in the
+        // division above.
+        require(rateScalar > 0); // dev: rate scalar underflow
         return rateScalar;
     }
 

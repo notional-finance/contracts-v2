@@ -227,9 +227,7 @@ library nTokenMintAction {
     ) private pure returns (bool) {
         int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
         int256 proportion =
-            market.totalfCash.mul(Constants.RATE_PRECISION).div(
-                market.totalfCash.add(totalCashUnderlying)
-            );
+            market.totalfCash.divInRatePrecision(market.totalfCash.add(totalCashUnderlying));
 
         // If proportion is over the threshold, the market is over leveraged
         return proportion > leverageThreshold;
@@ -287,9 +285,7 @@ library nTokenMintAction {
         {
             int256 perMarketDepositUnderlying =
                 cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
-            fCashAmount = perMarketDepositUnderlying.mul(assumedExchangeRate).div(
-                Constants.RATE_PRECISION
-            );
+            fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
         (int256 netAssetCash, int256 fee) =
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);

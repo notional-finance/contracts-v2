@@ -530,9 +530,7 @@ library TradingAction {
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
         return
-            cashGroup.assetRate.convertFromUnderlying(
-                fCashAmount.mul(Constants.RATE_PRECISION).div(exchangeRate)
-            );
+            cashGroup.assetRate.convertFromUnderlying(fCashAmount.divInRatePrecision(exchangeRate));
     }
 
     function _updateNTokenPortfolio(

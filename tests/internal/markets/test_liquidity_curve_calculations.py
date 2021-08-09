@@ -62,7 +62,7 @@ class TestLiquidityCurve:
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         rateAnchor = 1.10 * RATE_PRECISION
-        rateScalar = 100
+        rateScalar = 100 * RATE_PRECISION
 
         (exchangeRate, success) = market.getExchangeRate(
             totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0
@@ -72,7 +72,10 @@ class TestLiquidityCurve:
         (logP, success) = market.logProportion(proportion)
         assert success
 
-        assert pytest.approx(math.trunc(logP / rateScalar + rateAnchor), rel=1e-7) == exchangeRate
+        assert (
+            pytest.approx(math.trunc((logP * RATE_PRECISION) / rateScalar + rateAnchor), rel=1e-7)
+            == exchangeRate
+        )
 
     @given(initRate=impliedRateStrategy, timeToMaturity=timeToMaturityStrategy)
     @pytest.mark.skip_coverage

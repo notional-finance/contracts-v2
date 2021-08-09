@@ -291,8 +291,8 @@ struct AssetRateStorage {
     uint8 underlyingDecimalPlaces;
 }
 
-/// @dev Governance parameters for a cash group, total storage is 7 bytes + 9 bytes for liquidity token haircuts
-/// and 9 bytes for rate scalars, total of 25 bytes. Note that this is stored packed in the storage slot so there
+/// @dev Governance parameters for a cash group, total storage is 9 bytes + 7 bytes for liquidity token haircuts
+/// and 7 bytes for rate scalars, total of 23 bytes. Note that this is stored packed in the storage slot so there
 /// are no indexes stored for liquidityTokenHaircuts or rateScalars, maxMarketIndex is used instead to determine the
 /// length.
 struct CashGroupSettings {
