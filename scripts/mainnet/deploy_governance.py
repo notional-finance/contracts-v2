@@ -26,13 +26,14 @@ GovernanceConfig = {
         "Airdrop": Wei(749_990e8),
         "NotionalFoundation": Wei(49_250_010e8),
     },
-    # Governance config values mirror current Compound governance parameters
+    # Governance config values will favor shorter voting windows initially and then
+    # can be updated to have longer voting windows as governance gets more mature
     "governorConfig": {
         "quorumVotes": Wei(4_000_000e8),  # 4% of total supply
-        "proposalThreshold": Wei(650_000e8),  # 0.65% of total supply
-        "votingDelayBlocks": 13140,  # ~2 days
-        "votingPeriodBlocks": 19710,  # ~3 days
-        "minDelay": 86400 * 2,  # 2 Days
+        "proposalThreshold": Wei(1_000_000e8),  # 1% of total supply
+        "votingDelayBlocks": 1,  # ~13 seconds
+        "votingPeriodBlocks": 13292,  # ~2 days
+        "minDelay": 43200,  # 12 hours in seconds
     },
 }
 
