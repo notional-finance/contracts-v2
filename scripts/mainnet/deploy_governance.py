@@ -6,11 +6,25 @@ from brownie.convert.datatypes import Wei
 from brownie.network.contract import Contract
 from scripts.deployment import deployGovernance, deployNoteERC20
 
+EnvironmentConfig = {
+    "development": {
+        "AirdropClaimTime": 0,
+        "NotionalFoundation": accounts[1].address,
+        "GuardianMultisig": accounts[0].address,
+    },
+    "kovan": {
+        "AirdropClaimTime": 1629097200,  # August 16, 2021 UTC 0
+        "NotionalFoundation": "0x4ba1d028e053A53842Ce31b0357C5864B40Ef909",
+        "GuardianMultisig": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
+    },
+    "mainnet": {},
+}
+
 GovernanceConfig = {
     "initialBalances": {
         "GovernorAlpha": Wei(50_000_000e8),
         "Airdrop": Wei(749_990e8),
-        "NotionalInc": Wei(49_250_010e8),
+        "NotionalFoundation": Wei(49_250_010e8),
     },
     # Governance config values mirror current Compound governance parameters
     "governorConfig": {
@@ -23,7 +37,7 @@ GovernanceConfig = {
 }
 
 
-def deployAirdropContract(deployer, token):
+def deployAirdropContract(deployer, token, networkName):
     MerkleDistributor = json.load(
         open(os.path.join(os.path.dirname(__file__), "MerkleDistributor.json"), "r")
     )
@@ -35,7 +49,9 @@ def deployAirdropContract(deployer, token):
         abi=MerkleDistributor["abi"], bytecode=MerkleDistributor["bytecode"]
     )
     txn = AirdropContract.constructor(
-        token.address, AirdropMerkleTree["merkleRoot"], int(os.environ["AIRDROP_CLAIM_TIME"])
+        token.address,
+        AirdropMerkleTree["merkleRoot"],
+        EnvironmentConfig[networkName]["AirdropClaimTime"],
     ).buildTransaction({"from": deployer.address, "nonce": deployer.nonce})
     signed_txn = network.web3.eth.account.sign_transaction(txn, deployer.private_key)
     sent_txn = network.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
@@ -49,7 +65,8 @@ def main():
     # Load the deployment address
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     startBlock = network.chain.height
-    if network.show_active() == "development":
+    networkName = network.show_active()
+    if networkName == "development":
         accounts[0].transfer(deployer, 100e18)
 
     print("Loaded deployment account at {}".format(deployer.address))
@@ -60,30 +77,34 @@ def main():
     print("Deployed NOTE token to {}".format(noteERC20.address))
 
     # Deploying airdrop contract
-    airdrop = deployAirdropContract(deployer, noteERC20)
+    airdrop = deployAirdropContract(deployer, noteERC20, networkName)
 
     # Deploying governance
     governor = deployGovernance(
         deployer,
         noteERC20,
-        os.environ["GUARDIAN_MULTISIG_ADDRESS"],
+        EnvironmentConfig[networkName]["GuardianMultisig"],
         GovernanceConfig["governorConfig"],
     )
     print("Deployed Governor to {}".format(governor.address))
 
     # Initialize NOTE token balances
-    initialAddresses = [governor.address, airdrop.address, os.environ["NOTIONAL_INC_ADDRESS"]]
+    initialAddresses = [
+        governor.address,
+        airdrop.address,
+        EnvironmentConfig[networkName]["NotionalFoundation"],
+    ]
     initialBalances = [
         GovernanceConfig["initialBalances"]["GovernorAlpha"],
         GovernanceConfig["initialBalances"]["Airdrop"],
-        GovernanceConfig["initialBalances"]["NotionalInc"],
+        GovernanceConfig["initialBalances"]["NotionalFoundation"],
     ]
 
     txn = noteERC20.initialize(
         initialAddresses,
         initialBalances,
         # The owner of the token will be set to the multisig initially
-        os.environ["GUARDIAN_MULTISIG_ADDRESS"],
+        EnvironmentConfig[networkName]["GuardianMultisig"],
         {"from": deployer},
     )
     print("NOTE token initialized with balances to accounts:")
@@ -107,7 +128,7 @@ def main():
                 "networkName": network.show_active(),
                 "airdrop": airdrop.address,
                 "deployer": deployer.address,
-                "guardian": os.environ["GUARDIAN_MULTISIG_ADDRESS"],
+                "guardian": EnvironmentConfig[networkName]["GuardianMultisig"],
                 "governor": governor.address,
                 "note": noteERC20.address,
                 "startBlock": startBlock,

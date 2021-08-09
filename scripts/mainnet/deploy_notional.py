@@ -1,5 +1,4 @@
 import json
-import os
 import re
 
 import scripts.mainnet.deploy_governance as deploy_governance
@@ -15,6 +14,7 @@ from brownie import (
 from brownie.network.contract import Contract
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TokenType, deployNotional
+from scripts.mainnet.deploy_governance import EnvironmentConfig
 
 TokenConfig = {
     "kovan": {
@@ -355,7 +355,7 @@ def main():
     (pauseRouter, router, proxy, notional) = deployNotional(
         deployer,
         TokenConfig[network.show_active()]["cETH"],
-        os.environ["GUARDIAN_MULTISIG_ADDRESS"],
+        EnvironmentConfig[network.show_active()]["GuardianMultisig"],
     )
 
     # At this point Notional is owned by the deployer. Now will go ahead
