@@ -41,7 +41,7 @@ chain = Chain()
 TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
 
 
-def deployNoteERC20(deployer, publish_source=False):
+def deployNoteERC20(deployer):
     # Deploy governance contracts
     noteERC20Implementation = NoteERC20.deploy({"from": deployer})
     # This is a proxied ERC20

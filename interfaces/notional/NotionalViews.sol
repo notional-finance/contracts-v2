@@ -133,4 +133,10 @@ interface NotionalViews {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256, int256);
+
+    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
+        external
+        view
+        returns (uint256);
+
 }

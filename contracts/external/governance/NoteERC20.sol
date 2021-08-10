@@ -280,7 +280,11 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
 
         // First check most recent balance
         if (checkpoints[account][nCheckpoints - 1].fromBlock <= blockNumber) {
-            return checkpoints[account][nCheckpoints - 1].votes;
+            return _add96(
+                checkpoints[account][nCheckpoints - 1].votes,
+                getUnclaimedVotes(account),
+                "Note::getPriorVotes: uint96 overflow"
+            );
         }
 
         // Next check implicit zero balance
@@ -320,6 +324,9 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @param account the address of the Notional account to check
     /// @return Total number of unclaimed tokens accrued on the Notional account
     function getUnclaimedVotes(address account) public view returns (uint96) {
+        // If the notional proxy is not set then there are no unclaimed votes
+        if (address(notionalProxy) == address(0)) return 0;
+
         uint256 votes = notionalProxy.nTokenGetClaimableIncentives(account, block.timestamp);
         require(votes <= type(uint96).max);
         return uint96(votes);

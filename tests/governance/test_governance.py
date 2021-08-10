@@ -5,7 +5,7 @@ from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.state import Chain
 from scripts.config import GovernanceConfig
-from scripts.deployment import TestEnvironment
+from scripts.deployment import TestEnvironment, deployNoteERC20
 
 chain = Chain()
 
@@ -417,3 +417,15 @@ def test_pause_and_restart_router(environment, accounts):
 
     # Assert that methods are now callable
     environment.notional.settleAccount(accounts[0])
+
+
+def test_can_delegate_if_notional_not_active(accounts):
+    (_, noteERC20) = deployNoteERC20(accounts[0])
+    noteERC20.initialize(
+        [accounts[2].address], [100_000_000e8], accounts[2].address, {"from": accounts[0]}
+    )
+
+    noteERC20.delegate(accounts[4], {"from": accounts[2]})
+    noteERC20.delegate(accounts[4], {"from": accounts[4]})
+    assert noteERC20.notionalProxy() == "0x0000000000000000000000000000000000000000"
+    assert noteERC20.getCurrentVotes(accounts[4]) == 100_000_000e8
