@@ -207,64 +207,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return totalIncentivesClaimed;
     }
 
-    /// @notice Returns the claimable incentives for all nToken balances
-    /// @param account The address of the account which holds the tokens
-    /// @param blockTime The block time when incentives will be minted
-    /// @return Incentives an account is eligible to claim
-    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState;
-        uint256 totalIncentivesClaimable;
-
-        if (accountContext.bitmapCurrencyId != 0) {
-            balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
-            if (balanceState.storedNTokenBalance > 0) {
-                // prettier-ignore
-                (
-                    uint256 incentivesToClaim,
-                    /* totalSupply */
-                ) = Incentives.calculateIncentivesToClaim(
-                    nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    uint256(balanceState.storedNTokenBalance),
-                    balanceState.lastClaimTime,
-                    balanceState.lastClaimSupply,
-                    blockTime
-                );
-                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
-            }
-        }
-
-        bytes18 currencies = accountContext.activeCurrencies;
-        while (currencies != 0) {
-            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
-            balanceState.loadBalanceState(account, currencyId, accountContext);
-
-            if (balanceState.storedNTokenBalance > 0) {
-                // prettier-ignore
-                (
-                    uint256 incentivesToClaim,
-                    /* totalSupply */
-                ) = Incentives.calculateIncentivesToClaim(
-                    nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    uint256(balanceState.storedNTokenBalance),
-                    balanceState.lastClaimTime,
-                    balanceState.lastClaimSupply,
-                    blockTime
-                );
-                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
-            }
-
-            currencies = currencies << 16;
-        }
-
-        return totalIncentivesClaimable;
-    }
-
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
     function nTokenPresentValueAssetDenominated(uint16 currencyId)
         external

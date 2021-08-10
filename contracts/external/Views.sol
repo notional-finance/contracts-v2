@@ -13,6 +13,7 @@ import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/notional/NotionalViews.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract Views is StorageLayoutV1, NotionalViews {
     using CashGroup for CashGroupParameters;
@@ -20,6 +21,8 @@ contract Views is StorageLayoutV1, NotionalViews {
     using Market for MarketParameters;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
+    using SafeMath for uint256;
+    using BalanceHandler for BalanceState;
 
     /** Governance Parameter Getters **/
 
@@ -477,6 +480,75 @@ contract Views is StorageLayoutV1, NotionalViews {
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));
+    }
+
+    /// @notice Returns the claimable incentives for all nToken balances
+    /// @param account The address of the account which holds the tokens
+    /// @param blockTime The block time when incentives will be minted
+    /// @return Incentives an account is eligible to claim
+    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        BalanceState memory balanceState;
+        uint256 totalIncentivesClaimable;
+
+        if (accountContext.bitmapCurrencyId != 0) {
+            balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
+            if (balanceState.storedNTokenBalance > 0) {
+                address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+
+                // prettier-ignore
+                (
+                    /* totalSupply */,
+                    uint256 integralTotalSupply,
+                    /* lastSupplyChangeTime */
+                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+                uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
+                    tokenAddress,
+                    uint256(balanceState.storedNTokenBalance),
+                    balanceState.lastClaimTime,
+                    balanceState.lastClaimIntegralSupply,
+                    blockTime,
+                    integralTotalSupply
+                );
+                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
+            }
+        }
+
+        bytes18 currencies = accountContext.activeCurrencies;
+        while (currencies != 0) {
+            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            balanceState.loadBalanceState(account, currencyId, accountContext);
+
+            if (balanceState.storedNTokenBalance > 0) {
+                address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+
+                (
+                    /* totalSupply */,
+                    uint256 integralTotalSupply,
+                    /* lastSupplyChangeTime */
+                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+                uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
+                    nTokenHandler.nTokenAddress(balanceState.currencyId),
+                    uint256(balanceState.storedNTokenBalance),
+                    balanceState.lastClaimTime,
+                    balanceState.lastClaimIntegralSupply,
+                    blockTime,
+                    integralTotalSupply
+                );
+                totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
+            }
+
+            currencies = currencies << 16;
+        }
+
+        return totalIncentivesClaimable;
     }
 
     fallback() external {
