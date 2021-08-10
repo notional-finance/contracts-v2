@@ -18,7 +18,7 @@ library Constants {
     // Address of the reserve account
     address internal constant RESERVE = address(0);
     // NOTE: this address is hardcoded in the library, must update this on deployment
-    address constant NOTE_TOKEN_ADDRESS = 0x7EaEceb29Fb4eB4277E2761cE3607DF3e73f2d3e;
+    address constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
 
     // Most significant bit
     bytes32 internal constant MSB =
