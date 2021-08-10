@@ -142,7 +142,13 @@ def main():
 # GovernorAlpha Contract: 4,028,419
 # Initialize ERC20: 152,218
 
-# To Verify Sources (not working...):
-# GovernorAlpha.publish_source(TokenContract)
-# NOTEErc20.publish_source(TokenContract)
-# NOTEErc20.publish_source(TokenContract)
+# To Verify Sources via Hardhat:
+# NoteERC20 Impl:
+# npx hardhat verify --network kovan 0x90c3c405716B8fF965dc905C91eee82A0b41A4fF
+# TODO: nProxy verifies via brownie but not hardhat :(
+# nProxy:
+# npx hardhat verify --constructor-args scripts/mainnet/note-proxy-args.js \
+# --network kovan 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5
+# GovernorAlpha:
+# npx hardhat verify --constructor-args scripts/mainnet/governor-args.js \
+# --network kovan 0x72Ec9dE3eFD22552b6dc17142EAd505A48940D4E
