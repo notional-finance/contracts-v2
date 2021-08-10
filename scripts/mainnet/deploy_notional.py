@@ -366,7 +366,6 @@ def main():
     if network.show_active() != "development":
         listCurrency(notional, deployer, "USDC")
         listCurrency(notional, deployer, "WBTC")
-        listCurrency(notional, deployer, "USDT")
 
     if network.show_active() == "development":
         # NOTE: Activate notional needs to be called via the guardian
