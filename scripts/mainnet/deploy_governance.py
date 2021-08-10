@@ -3,8 +3,7 @@ import os
 
 from brownie import accounts, network
 from brownie.convert.datatypes import Wei
-from brownie.network.contract import Contract
-from scripts.deployment import deployGovernance, deployNoteERC20
+from scripts.deployment import deployArtifact, deployGovernance, deployNoteERC20
 
 EnvironmentConfig = {
     "development": {
@@ -39,27 +38,23 @@ GovernanceConfig = {
 
 
 def deployAirdropContract(deployer, token, networkName):
-    MerkleDistributor = json.load(
-        open(os.path.join(os.path.dirname(__file__), "MerkleDistributor.json"), "r")
-    )
     AirdropMerkleTree = json.load(
         open(os.path.join(os.path.dirname(__file__), "AirdropMerkleTree.json"), "r")
     )
 
-    AirdropContract = network.web3.eth.contract(
-        abi=MerkleDistributor["abi"], bytecode=MerkleDistributor["bytecode"]
+    airdrop = deployArtifact(
+        os.path.join(os.path.dirname(__file__), "MerkleDistributor.json"),
+        [
+            token.address,
+            AirdropMerkleTree["merkleRoot"],
+            EnvironmentConfig[networkName]["AirdropClaimTime"],
+        ],
+        deployer,
+        "AirdropContract",
     )
-    txn = AirdropContract.constructor(
-        token.address,
-        AirdropMerkleTree["merkleRoot"],
-        EnvironmentConfig[networkName]["AirdropClaimTime"],
-    ).buildTransaction({"from": deployer.address, "nonce": deployer.nonce})
-    signed_txn = network.web3.eth.account.sign_transaction(txn, deployer.private_key)
-    sent_txn = network.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-    tx_receipt = network.web3.eth.wait_for_transaction_receipt(sent_txn)
-    print("Deployed airdrop contract to {}".format(tx_receipt.contractAddress))
+    print("Deployed airdrop contract to {}".format(airdrop.address))
 
-    return Contract.from_abi("Airdrop", tx_receipt.contractAddress, abi=MerkleDistributor["abi"])
+    return airdrop
 
 
 def main():
@@ -74,7 +69,7 @@ def main():
     print("Deploying to {}".format(network.show_active()))
 
     # Deploying NOTE token
-    (noteERC20Proxy, noteERC20) = deployNoteERC20(deployer, publish_source=True)
+    (noteERC20Proxy, noteERC20) = deployNoteERC20(deployer)
     print("Deployed NOTE token to {}".format(noteERC20.address))
 
     # Deploying airdrop contract
@@ -86,7 +81,6 @@ def main():
         noteERC20,
         EnvironmentConfig[networkName]["GuardianMultisig"],
         GovernanceConfig["governorConfig"],
-        publish_source=True,
     )
     print("Deployed Governor to {}".format(governor.address))
 

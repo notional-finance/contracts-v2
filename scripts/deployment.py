@@ -1,3 +1,4 @@
+import json
 from copy import copy
 
 from brownie import (
@@ -20,18 +21,13 @@ from brownie import (
     Views,
     accounts,
     cTokenAggregator,
-    nCErc20,
-    nCEther,
-    nComptroller,
-    nJumpRateModel,
-    nPriceOracle,
+    network,
     nProxy,
     nProxyAdmin,
     nTokenAction,
     nTokenERC20Proxy,
     nTokenMintAction,
     nTokenRedeemAction,
-    nWhitePaperInterestRateModel,
 )
 from brownie.convert.datatypes import HexString
 from brownie.network import web3
@@ -47,18 +43,16 @@ TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMinta
 
 def deployNoteERC20(deployer, publish_source=False):
     # Deploy governance contracts
-    noteERC20Implementation = NoteERC20.deploy({"from": deployer}, publish_source=publish_source)
+    noteERC20Implementation = NoteERC20.deploy({"from": deployer})
     # This is a proxied ERC20
-    noteERC20Proxy = nProxy.deploy(
-        noteERC20Implementation.address, bytes(), {"from": deployer}, publish_source=publish_source
-    )
+    noteERC20Proxy = nProxy.deploy(noteERC20Implementation.address, bytes(), {"from": deployer})
 
     noteERC20 = Contract.from_abi("NoteERC20", noteERC20Proxy.address, abi=NoteERC20.abi)
 
     return (noteERC20Proxy, noteERC20)
 
 
-def deployGovernance(deployer, noteERC20, guardian, governorConfig, publish_source=False):
+def deployGovernance(deployer, noteERC20, guardian, governorConfig):
     return GovernorAlpha.deploy(
         governorConfig["quorumVotes"],
         governorConfig["proposalThreshold"],
@@ -68,7 +62,6 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig, publish_sour
         guardian,
         governorConfig["minDelay"],
         {"from": deployer},
-        publish_source=publish_source,
     )
 
 
@@ -126,12 +119,32 @@ def deployNotional(deployer, cETHAddress, guardianAddress):
     return (pauseRouter, router, proxy, notional)
 
 
+def deployArtifact(path, constructorArgs, deployer, name):
+    with open(path, "r") as a:
+        artifact = json.load(a)
+
+    createdContract = network.web3.eth.contract(abi=artifact["abi"], bytecode=artifact["bytecode"])
+    txn = createdContract.constructor(*constructorArgs).buildTransaction(
+        {"from": deployer.address, "nonce": deployer.nonce}
+    )
+    # This does a manual deployment of a contract
+    tx_receipt = deployer.transfer(data=txn["data"])
+
+    return Contract.from_abi(name, tx_receipt.contract_address, abi=artifact["abi"], owner=deployer)
+
+
 class TestEnvironment:
     def __init__(self, deployer, withGovernance=False, multisig=None):
         self.deployer = deployer
+        # Proxy Admin is just used for testing V1 contracts
         self.proxyAdmin = nProxyAdmin.deploy({"from": self.deployer})
-        self.compPriceOracle = nPriceOracle.deploy({"from": deployer})
-        self.comptroller = nComptroller.deploy({"from": deployer})
+
+        self.compPriceOracle = deployArtifact(
+            "scripts/compound_artifacts/nPriceOracle.json", [], self.deployer, "nPriceOracle"
+        )
+        self.comptroller = deployArtifact(
+            "scripts/compound_artifacts/nComptroller.json", [], self.deployer, "nComptroller"
+        )
         self.comptroller._setMaxAssets(20)
         self.comptroller._setPriceOracle(self.compPriceOracle.address)
         self.currencyId = {}
@@ -198,42 +211,58 @@ class TestEnvironment:
         # Deploy interest rate model
         interestRateModel = None
         if config["interestRateModel"]["name"] == "whitepaper":
-            interestRateModel = nWhitePaperInterestRateModel.deploy(
-                config["interestRateModel"]["baseRate"],
-                config["interestRateModel"]["multiplier"],
-                {"from": self.deployer},
+            interestRateModel = deployArtifact(
+                "scripts/compound_artifacts/nWhitePaperInterestRateModel.json",
+                [
+                    config["interestRateModel"]["baseRate"],
+                    config["interestRateModel"]["multiplier"],
+                ],
+                self.deployer,
+                "InterestRateModel",
             )
         elif config["interestRateModel"]["name"] == "jump":
-            interestRateModel = nJumpRateModel.deploy(
-                config["interestRateModel"]["baseRate"],
-                config["interestRateModel"]["multiplier"],
-                config["interestRateModel"]["jumpMultiplierPerYear"],
-                config["interestRateModel"]["kink"],
-                {"from": self.deployer},
+            interestRateModel = deployArtifact(
+                "scripts/compound_artifacts/nJumpRateModel.json",
+                [
+                    config["interestRateModel"]["baseRate"],
+                    config["interestRateModel"]["multiplier"],
+                    config["interestRateModel"]["jumpMultiplierPerYear"],
+                    config["interestRateModel"]["kink"],
+                ],
+                self.deployer,
+                "JumpRateModel",
             )
 
         if symbol == "ETH":
-            cToken = nCEther.deploy(
-                self.comptroller.address,
-                interestRateModel.address,
-                config["initialExchangeRate"],
-                "Compound Ether",
+            cToken = deployArtifact(
+                "scripts/compound_artifacts/nCEther.json",
+                [
+                    self.comptroller.address,
+                    interestRateModel.address,
+                    config["initialExchangeRate"],
+                    "Compound Ether",
+                    "cETH",
+                    8,
+                    self.deployer.address,
+                ],
+                self.deployer,
                 "cETH",
-                8,
-                self.deployer.address,
-                {"from": self.deployer},
             )
         else:
-            cToken = nCErc20.deploy(
-                underlyingToken.address,
-                self.comptroller.address,
-                interestRateModel.address,
-                config["initialExchangeRate"],
-                "Compound " + symbol,  # This is not exactly correct but whatever
-                "c" + symbol,
-                8,
-                self.deployer.address,
-                {"from": self.deployer},
+            cToken = deployArtifact(
+                "scripts/compound_artifacts/nCErc20.json",
+                [
+                    underlyingToken.address,
+                    self.comptroller.address,
+                    interestRateModel.address,
+                    config["initialExchangeRate"],
+                    "Compound " + symbol,  # This is not exactly correct but whatever
+                    "c" + symbol,
+                    8,
+                    self.deployer.address,
+                ],
+                self.deployer,
+                "cErc20",
             )
 
         self.comptroller._supportMarket(cToken.address, {"from": self.deployer})
