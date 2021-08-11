@@ -324,7 +324,6 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))

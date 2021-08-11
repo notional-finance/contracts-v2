@@ -128,7 +128,7 @@ def test_migrate_v1_to_comp(
     assert balances[1] == 0
     assert balances[2] == 100e6
     assert balances[3] == 0
-    assert (v2env.cToken["USDC"].borrowBalanceCurrent(v1ToComp.address)).return_value > 0
+    assert v2env.cToken["USDC"].borrowBalanceStored(v1ToComp.address) > 0
 
     with brownie.reverts():
         v1ToComp.approveAllowance(v2env.cToken["ETH"], accounts[1], 100e8, {"from": accounts[1]})
