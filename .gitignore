@@ -9,3 +9,7 @@ ganache-out.txt
 .certora/
 .last_confs/
 .certora_*
+node_modules
+artifacts
+cache
+hardhat.config.js
