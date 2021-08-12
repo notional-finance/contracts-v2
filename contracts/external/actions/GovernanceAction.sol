@@ -153,18 +153,19 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @notice Updates the market initialization parameters for an nToken
     /// @dev emit:UpdateInitializationParameters
     /// @param currencyId the currency id that the nToken references
-    /// @param rateAnchors sets the offset from the x-axis where the liquidity curve will be
-    /// initialized. This is used in combination with previous market rates to determine the
-    /// initial proportion where markets will be initialized every quarter. Denominated in
-    /// RATE_PRECISION as an exchange rate (i.e. must be > RATE_PRECISION)
-    /// @param proportions used to combination with rateAnchors set the initial proportion when
+    /// @param initialAnnualRates is a target interest rate that will be used to calculate a 
+    /// rate anchor during initialize markets. This rate anchor will set the offset from the
+    /// x-axis where the liquidity curve will be initialized. This is used in combination with
+    /// previous market rates to determine the initial proportion where markets will be initialized
+    /// every quarter.
+    /// @param proportions used to combination with initialAnnualRate set the initial proportion when
     /// a market is first initialized. This is required since there is no previous rate to reference.
     function updateInitializationParameters(
         uint16 currencyId,
-        uint32[] calldata rateAnchors,
+        uint32[] calldata initialAnnualRates,
         uint32[] calldata proportions
     ) external override onlyOwner {
-        nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, initialAnnualRates, proportions);
         emit UpdateInitializationParameters(currencyId);
     }
 
