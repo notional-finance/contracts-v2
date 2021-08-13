@@ -102,7 +102,7 @@ gasLog = {
     "liquidateCollateralCurrency.transferCash": None,
     "liquidateCollateralCurrency.withdrawTokens": None,
     "liquidateCollateralCurrency.transferNTokens": None,
-    # "liquidatefCashLocal": {"fCashAssets": range(1, 5),},
+    "liquidatefCashLocal.fCashAssets": None,
     # "liquidatefCashCrossCurrency": {"fCashAssets": range(1, 5)},
     # "freeCollateral": {
     #     "assetArrayLength": range(1, 7),
@@ -780,13 +780,18 @@ def fcashLocalLiquidate(env):
         [
             {"tradeActionType": "Lend", "marketIndex": 1, "notional": 50e8, "minSlippage": 0},
             {"tradeActionType": "Lend", "marketIndex": 2, "notional": 50e8, "minSlippage": 0},
-            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 8e8, "maxSlippage": 0},
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 95e8, "maxSlippage": 0},
         ],
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
-        depositActionAmount=100e18,
+        depositActionAmount=80e18,
     )
     env.notional.batchBalanceAndTradeAction(accounts[1], [lendBorrowAction], {"from": accounts[1]})
+    cashGroup = list(env.notional.getCashGroup(2))
+    cashGroup[5] = 200
+    env.notional.updateCashGroup(2, cashGroup)
+    txn = env.notional.liquidatefCashLocal(accounts[1], 2, [1], [0, 0], {"from": accounts[2]})
+    log_gas("liquidatefCashLocal.fCashAssets", txn, txn)
 
 def cashLiquidateSetup(env):
     env.notional.batchBalanceAction(
@@ -926,10 +931,10 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     
     chain.snapshot()
-    localLiquidate(env)
-    chain.revert()
-    collateralLiquidate(env)
-    chain.revert()
+    #localLiquidate(env)
+    #chain.revert()
+    #collateralLiquidate(env)
+    #chain.revert()
     fcashLocalLiquidate(env)
 
     with open("gas_stats.json", "w") as f:
