@@ -186,7 +186,7 @@ library nTokenHandler {
         (
             uint256 totalSupply,
             uint256 integralTotalSupply,
-            uint256 lastSupplyChangeTime
+            /* uint256 lastSupplyChangeTime */
         ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
 
         if (netChange != 0) {
