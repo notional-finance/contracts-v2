@@ -1,304 +1,326 @@
 {
     "batch.deposit.asset": {
-        "cold": 162790,
-        "warm": 115013
+        "cold": 161381,
+        "warm": 113680
     },
     "batch.deposit.asset.hasTransferFee": {
-        "cold": 166932,
-        "warm": 119155
+        "cold": 165469,
+        "warm": 117768
     },
     "batch.deposit.underlying": {
-        "cold": 240343,
-        "warm": 192567
+        "cold": 239035,
+        "warm": 191334
     },
     "batch.deposit.underlying.hasTransferFee": {
-        "cold": 247953,
-        "warm": 200176
+        "cold": 246644,
+        "warm": 198944
     },
     "batch.withdraw.asset.entireBalance": {
-        "cold": 65965,
-        "warm": 65965
+        "cold": 64894,
+        "warm": 64894
     },
     "batch.withdraw.asset.partialBalance": {
-        "cold": 106432,
-        "warm": 106432
+        "cold": 105361,
+        "warm": 105361
     },
     "batch.withdraw.underlying.entireBalance": {
-        "cold": 130776,
-        "warm": 130776
+        "cold": 129540,
+        "warm": 129540
     },
     "batch.withdraw.underlying.partialBalance": {
-        "cold": 171243,
-        "warm": 171243
+        "cold": 170007,
+        "warm": 170007
     },
     "batchAction.borrow.RollToMaturity": null,
     "batchAction.borrowNoWithdraw.DepositAssetCollateral": {
-        "cold": 438271,
-        "warm": 365661
+        "cold": 436586,
+        "warm": 364095
     },
     "batchAction.borrowNoWithdraw.DepositETHCollateral": {
-        "cold": 515771,
-        "warm": 414378
+        "cold": 513132,
+        "warm": 412168
     },
     "batchAction.borrowNoWithdraw.DepositNTokenCollateral": {
-        "cold": 680839,
-        "warm": 648024
+        "cold": 671747,
+        "warm": 638921
     },
     "batchAction.borrowNoWithdraw.DepositUnderlyingCollateral": {
-        "cold": 491053,
-        "warm": 418359
+        "cold": 489301,
+        "warm": 416754
     },
     "batchAction.borrowNoWithdraw.NoDeposit": {
-        "cold": 323599,
-        "warm": 279132
+        "cold": 321957,
+        "warm": 277774
     },
     "batchAction.borrowWithdrawAsset.DepositAssetCollateral": {
-        "cold": 479664,
-        "warm": 421780
+        "cold": 477725,
+        "warm": 419984
     },
     "batchAction.borrowWithdrawAsset.DepositETHCollateral": {
-        "cold": 557656,
-        "warm": 470486
+        "cold": 554621,
+        "warm": 467875
     },
     "batchAction.borrowWithdrawAsset.DepositNTokenCollateral": {
-        "cold": 722244,
-        "warm": 703990
+        "cold": 713098,
+        "warm": 695345
     },
     "batchAction.borrowWithdrawAsset.DepositUnderlyingCollateral": {
-        "cold": 532376,
-        "warm": 474451
+        "cold": 530425,
+        "warm": 472853
     },
     "batchAction.borrowWithdrawAsset.NoDeposit": {
-        "cold": 365397,
-        "warm": 335182
+        "cold": 363670,
+        "warm": 333620
     },
     "batchAction.borrowWithdrawUnderlying.DepositAssetCollateral": {
-        "cold": 519693,
-        "warm": 461754
+        "cold": 517448,
+        "warm": 459918
     },
     "batchAction.borrowWithdrawUnderlying.DepositETHCollateral": {
-        "cold": 597642,
-        "warm": 510544
+        "cold": 594694,
+        "warm": 507711
     },
     "batchAction.borrowWithdrawUnderlying.DepositNTokenCollateral": {
-        "cold": 761643,
-        "warm": 744370
+        "cold": 752402,
+        "warm": 734566
     },
     "batchAction.borrowWithdrawUnderlying.DepositUnderlyingCollateral": {
-        "cold": 572433,
-        "warm": 514509
+        "cold": 570205,
+        "warm": 512479
     },
     "batchAction.borrowWithdrawUnderlying.NoDeposit": {
-        "cold": 405520,
-        "warm": 375306
+        "cold": 403447,
+        "warm": 373440
     },
     "batchAction.lend.DepositAsset": {
-        "cold": 292163,
-        "warm": 247221
+        "cold": 292396,
+        "warm": 247644
     },
     "batchAction.lend.DepositUnderlying": {
-        "cold": 397050,
-        "warm": 352106
+        "cold": 397192,
+        "warm": 352497
     },
     "batchAction.lend.NoDeposit": {
-        "cold": 211961,
-        "warm": 181344
+        "cold": 212374,
+        "warm": 182104
     },
     "batchAction.lend.RollToMaturity": {
-        "cold": 305965,
-        "warm": 305965
+        "cold": 310372,
+        "warm": 310372
     },
     "batchAction.lend.WithdrawToAsset": {
-        "cold": 211514,
-        "warm": 211514
+        "cold": 211908,
+        "warm": 211908
     },
     "batchAction.lend.WithdrawToUnderlying": {
-        "cold": 251458,
-        "warm": 251458
+        "cold": 251756,
+        "warm": 251756
     },
     "batchAction.liquidity.DepositAsset": {
-        "cold": 310225,
-        "warm": 267818
+        "cold": 307197,
+        "warm": 264859
     },
     "batchAction.liquidity.DepositUnderlying": {
-        "cold": 359016,
-        "warm": 316609
+        "cold": 356028,
+        "warm": 313620
     },
     "batchAction.liquidity.NoDeposit": {
-        "cold": 231309,
-        "warm": 231309
+        "cold": 228859,
+        "warm": 228859
     },
     "batchAction.liquidity.RollToMaturity": {
-        "cold": 255787,
-        "warm": 255787
+        "cold": 250658,
+        "warm": 250658
     },
     "batchAction.liquidity.WithdrawToAsset": {
-        "cold": 193858,
-        "warm": 193858
+        "cold": 192521,
+        "warm": 192521
     },
     "batchAction.liquidity.WithdrawToUnderlying": {
-        "cold": 233815,
-        "warm": 233815
+        "cold": 232314,
+        "warm": 232314
     },
     "deposit.asset": {
-        "cold": 158296,
-        "warm": 110513
+        "cold": 156907,
+        "warm": 109201
     },
     "deposit.underlying": {
-        "cold": 237590,
-        "warm": 189808
+        "cold": 236364,
+        "warm": 188658
     },
     "deposit.underlying.hasTransferFee": {
-        "cold": 245200,
-        "warm": 197418
+        "cold": 243973,
+        "warm": 196268
+    },
+    "fcashCrossCurrencyLiquidate.fCashAssets": {
+        "cold": 426277,
+        "warm": 426277
+    },
+    "liquidateCollateralCurrency.transferCash": {
+        "cold": 329511,
+        "warm": 329511
+    },
+    "liquidateCollateralCurrency.transferNTokens": null,
+    "liquidateCollateralCurrency.withdrawTokens": {
+        "cold": 368316,
+        "warm": 368316
+    },
+    "liquidateLocalCurrency.transferCash": {
+        "cold": 361778,
+        "warm": 361778
+    },
+    "liquidatefCashCrossCurrency.fCashAssets": null,
+    "liquidatefCashLocal.fCashAssets": {
+        "cold": 329523,
+        "warm": 329523
     },
     "nToken.ConvertCashToNToken.0": {
-        "cold": 131866,
-        "warm": 131866
+        "cold": 145590,
+        "warm": 145590
     },
     "nToken.ConvertCashToNToken.2": {
-        "cold": 246052,
-        "warm": 246052
+        "cold": 236734,
+        "warm": 236734
     },
     "nToken.ConvertCashToNToken.3": {
-        "cold": 308264,
-        "warm": 308264
+        "cold": 296127,
+        "warm": 296127
     },
     "nToken.ConvertCashToNToken.4": {
-        "cold": 370362,
-        "warm": 370362
+        "cold": 356802,
+        "warm": 356802
     },
     "nToken.ConvertCashToNToken.5": {
-        "cold": 436955,
-        "warm": 436955
+        "cold": 420472,
+        "warm": 420472
     },
     "nToken.ConvertCashToNToken.6": {
-        "cold": 501911,
-        "warm": 501911
+        "cold": 482676,
+        "warm": 482676
     },
     "nToken.ConvertCashToNToken.7": {
-        "cold": 569808,
-        "warm": 569808
+        "cold": 546688,
+        "warm": 546688
     },
     "nToken.DepositAssetAndMintNToken.0": {
-        "cold": 250038,
-        "warm": 187609
+        "cold": 263304,
+        "warm": 210774
     },
     "nToken.DepositAssetAndMintNToken.2": {
-        "cold": 349540,
-        "warm": 316781
+        "cold": 339120,
+        "warm": 331199
     },
     "nToken.DepositAssetAndMintNToken.3": {
-        "cold": 411668,
-        "warm": 403941
+        "cold": 398765,
+        "warm": 390928
     },
     "nToken.DepositAssetAndMintNToken.4": {
-        "cold": 473738,
-        "warm": 440979
+        "cold": 459692,
+        "warm": 451687
     },
     "nToken.DepositAssetAndMintNToken.5": {
-        "cold": 540359,
-        "warm": 532380
+        "cold": 522774,
+        "warm": 515021
     },
     "nToken.DepositAssetAndMintNToken.6": {
-        "cold": 605203,
-        "warm": 597028
+        "cold": 585062,
+        "warm": 577309
     },
     "nToken.DepositAssetAndMintNToken.7": {
-        "cold": 673072,
-        "warm": 640313
+        "cold": 649550,
+        "warm": 641657
     },
     "nToken.DepositUnderlyingAndMintNToken.0": {
-        "cold": 300709,
-        "warm": 238268
+        "cold": 314076,
+        "warm": 261827
     },
     "nToken.DepositUnderlyingAndMintNToken.2": {
-        "cold": 399987,
-        "warm": 367216
+        "cold": 390116,
+        "warm": 382336
     },
     "nToken.DepositUnderlyingAndMintNToken.3": {
-        "cold": 462423,
-        "warm": 454236
+        "cold": 449677,
+        "warm": 441958
     },
     "nToken.DepositUnderlyingAndMintNToken.4": {
-        "cold": 524689,
-        "warm": 491918
+        "cold": 510408,
+        "warm": 502829
     },
     "nToken.DepositUnderlyingAndMintNToken.5": {
-        "cold": 591030,
-        "warm": 558259
+        "cold": 573882,
+        "warm": 566107
     },
     "nToken.DepositUnderlyingAndMintNToken.6": {
-        "cold": 655874,
-        "warm": 623103
+        "cold": 636170,
+        "warm": 628395
     },
     "nToken.DepositUnderlyingAndMintNToken.7": {
-        "cold": 723659,
-        "warm": 715556
+        "cold": 700238,
+        "warm": 692575
     },
     "nToken.RedeemNToken.0": null,
     "nToken.RedeemNToken.2": {
-        "cold": 208466,
-        "warm": 296107
+        "cold": 223565,
+        "warm": 286385
     },
     "nToken.RedeemNToken.3": {
-        "cold": 273659,
-        "warm": 336325
+        "cold": 261567,
+        "warm": 324387
     },
     "nToken.RedeemNToken.4": {
-        "cold": 287663,
-        "warm": 375304
+        "cold": 299676,
+        "warm": 362496
     },
     "nToken.RedeemNToken.5": {
-        "cold": 330731,
-        "warm": 418372
+        "cold": 340070,
+        "warm": 402890
     },
     "nToken.RedeemNToken.6": {
-        "cold": 396498,
-        "warm": 459164
+        "cold": 378784,
+        "warm": 441604
     },
     "nToken.RedeemNToken.7": {
-        "cold": 414461,
-        "warm": 502102
+        "cold": 418738,
+        "warm": 481563
     },
     "nToken.initializeMarkets.2": {
-        "cold": 324178,
-        "warm": 324178
+        "cold": 316480,
+        "warm": 316480
     },
     "nToken.initializeMarkets.3": {
-        "cold": 435059,
-        "warm": 435059
+        "cold": 425450,
+        "warm": 425450
     },
     "nToken.initializeMarkets.4": {
-        "cold": 546859,
-        "warm": 546859
+        "cold": 536685,
+        "warm": 536685
     },
     "nToken.initializeMarkets.5": {
-        "cold": 659422,
-        "warm": 659422
+        "cold": 646879,
+        "warm": 646879
     },
     "nToken.initializeMarkets.6": {
-        "cold": 772035,
-        "warm": 772035
+        "cold": 757705,
+        "warm": 757705
     },
     "nToken.initializeMarkets.7": {
-        "cold": 886167,
-        "warm": 886167
+        "cold": 869146,
+        "warm": 869146
     },
     "withdraw.asset.entireBalance": {
-        "cold": 64319,
-        "warm": 64319
+        "cold": 63149,
+        "warm": 63149
     },
     "withdraw.asset.partialBalance": {
-        "cold": 105002,
-        "warm": 105002
+        "cold": 103832,
+        "warm": 103832
     },
     "withdraw.underlying.entireBalance": {
-        "cold": 129093,
-        "warm": 129093
+        "cold": 127778,
+        "warm": 127778
     },
     "withdraw.underlying.partialBalance": {
-        "cold": 169776,
-        "warm": 169776
+        "cold": 168461,
+        "warm": 168461
     }
 }

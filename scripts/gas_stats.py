@@ -103,7 +103,7 @@ gasLog = {
     "liquidateCollateralCurrency.withdrawTokens": None,
     "liquidateCollateralCurrency.transferNTokens": None,
     "liquidatefCashLocal.fCashAssets": None,
-    # "liquidatefCashCrossCurrency": {"fCashAssets": range(1, 5)},
+    "liquidatefCashCrossCurrency.fCashAssets": None,
     # "freeCollateral": {
     #     "assetArrayLength": range(1, 7),
     #     "assetsBitmapSize": range(1, 20),
@@ -675,7 +675,7 @@ def borrowActions(env, withdrawCash, redeem):
     borrowAction = get_balance_trade_action(
         2,
         "None",
-        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 80e8, "maxSlippage": 0}],
         withdrawEntireCashBalance=withdrawCash,
         redeemToUnderlying=redeem,
     )
@@ -740,7 +740,29 @@ def borrowActions(env, withdrawCash, redeem):
     )
     log_gas("batchAction.{}.DepositETHCollateral".format(key), txnCold, txnWarm)
 
+def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
+    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
+    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
+    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
+    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
+
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=initialCash
+            )
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(currencyId, True)
+
 def fcashLiquidateSetup(env):
+    cToken = env.cToken["ETH"]
+    cToken.mint({"from": accounts[0], "value": 10000e18})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+    _enable_cash_group(1, env, accounts, initialCash=40000e8)
     cashGroup = list(env.notional.getCashGroup(2))
     # Enable the one year market
     cashGroup[0] = 3
@@ -757,9 +779,10 @@ def fcashLiquidateSetup(env):
     env.notional.batchBalanceAction(
         accounts[0],
         [
+            get_balance_action(1, "DepositUnderlyingAndMintNToken", depositActionAmount=5e18),
             get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
         ],
-        {"from": accounts[0]},
+        {"from": accounts[0], "value": 5e18},
     )
 
     env.notional.initializeMarkets(2, True)
@@ -767,9 +790,10 @@ def fcashLiquidateSetup(env):
     env.notional.batchBalanceAction(
         accounts[0],
         [
+            get_balance_action(1, "DepositUnderlyingAndMintNToken", depositActionAmount=5e18),
             get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000000e8),
         ],
-        {"from": accounts[0]},
+        {"from": accounts[0], "value": 5e18},
     )
 
 def fcashLocalLiquidate(env):
@@ -790,8 +814,43 @@ def fcashLocalLiquidate(env):
     cashGroup = list(env.notional.getCashGroup(2))
     cashGroup[5] = 200
     env.notional.updateCashGroup(2, cashGroup)
-    txn = env.notional.liquidatefCashLocal(accounts[1], 2, [1], [0, 0], {"from": accounts[2]})
+    liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    txn = env.notional.liquidatefCashLocal(accounts[1], 2, maturities, [0, 0], {"from": accounts[2]})
     log_gas("liquidatefCashLocal.fCashAssets", txn, txn)
+
+def fcashCrossCurrencyLiquidate(env):
+    fcashLiquidateSetup(env)
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    collateral = get_balance_trade_action(
+        1,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 1e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 1e8, "minSlippage": 0},
+        ],
+        depositActionAmount=2e18,
+    )
+    env.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 2e18})
+
+    # Drop ETH price
+    answer = env.ethOracle["DAI"].latestAnswer()
+    env.ethOracle["DAI"].setAnswer(0.017e18)
+
+    liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    txn = env.notional.liquidatefCashCrossCurrency(accounts[1], 2, 1, maturities, [0, 0], {"from": accounts[2]})
+    log_gas("fcashCrossCurrencyLiquidate.fCashAssets", txn, txn)
+
+    # Restore previous price
+    env.ethOracle["DAI"].setAnswer(answer)
 
 def cashLiquidateSetup(env):
     env.notional.batchBalanceAction(
@@ -802,11 +861,11 @@ def cashLiquidateSetup(env):
         ],
         {"from": accounts[0]},
     )
+    env.notional.initializeMarkets(2, True)
+    env.notional.initializeMarkets(4, True)
 
 def localLiquidate(env):
     cashLiquidateSetup(env)
-    env.notional.initializeMarkets(2, True)
-    env.notional.initializeMarkets(4, True)
     batch = get_balance_trade_action(
         2,
         "DepositAssetAndMintNToken",
@@ -826,8 +885,6 @@ def localLiquidate(env):
 
 def collateralLiquidate(env):
     cashLiquidateSetup(env)
-    env.notional.initializeMarkets(2, True)
-    env.notional.initializeMarkets(4, True)
     borrowAction = get_balance_trade_action(
         2,
         "None",
@@ -839,12 +896,29 @@ def collateralLiquidate(env):
     env.notional.batchBalanceAndTradeAction(
         accounts[1], [ethCollateral, borrowAction], {"from": accounts[1], "value": 3e18}
     )
+
+    # Drop ETH price
+    answer = env.ethOracle["DAI"].latestAnswer()
     env.ethOracle["DAI"].setAnswer(0.025e18)
     txn = env.notional.liquidateCollateralCurrency(accounts[1], 2, 1, 0, 0, False, False, {"from": accounts[2]})
     log_gas("liquidateCollateralCurrency.transferCash", txn, txn)
     chain.undo(1)
     txn = env.notional.liquidateCollateralCurrency(accounts[1], 2, 1, 0, 0, True, False, {"from": accounts[2]})
     log_gas("liquidateCollateralCurrency.withdrawTokens", txn, txn)
+
+    #Restore previous price
+    env.ethOracle["DAI"].setAnswer(answer)
+
+def liquidate(env):
+    chain.snapshot()
+    localLiquidate(env)
+    chain.revert()
+    collateralLiquidate(env)
+    chain.revert()
+    fcashLocalLiquidate(env)
+    chain.revert()
+    fcashCrossCurrencyLiquidate(env)
+    chain.revert()
 
 DEPOSIT_PARAMETERS = {
     2: [[int(0.4e8), int(0.6e8)], [int(0.8e9)] * 2],
@@ -931,11 +1005,66 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
     
     chain.snapshot()
-    #localLiquidate(env)
-    #chain.revert()
-    #collateralLiquidate(env)
-    #chain.revert()
-    fcashLocalLiquidate(env)
 
+    deposits(env)
+    chain.revert()
+
+    withdraws(env)
+    chain.revert()
+
+    liquidate(env)
+    chain.revert()
+
+    ntoken(env, 0)
+    currencyId = 2
+    for maxMarkets in range(2, 8):
+        chain.revert()
+
+        cashGroup = list(env.notional.getCashGroup(currencyId))
+        cashGroup[0] = maxMarkets
+        cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:maxMarkets]
+        cashGroup[10] = CurrencyDefaults["rateScalar"][0:maxMarkets]
+        env.notional.updateCashGroup(currencyId, cashGroup)
+        env.notional.updateDepositParameters(currencyId, *(DEPOSIT_PARAMETERS[maxMarkets]))
+        env.notional.updateInitializationParameters(currencyId, *(INIT_PARAMETERS[maxMarkets]))
+
+        # initialize markets
+        env.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(
+                    currencyId, "DepositAssetAndMintNToken", depositActionAmount=100e8
+                )
+            ],
+            {"from": accounts[1]},
+        )
+        txn = env.notional.initializeMarkets(currencyId, True)
+        log_gas("nToken.initializeMarkets.{}".format(maxMarkets), txn, txn)
+
+        ntoken(env, maxMarkets)
+
+    chain.revert()
+
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000000e8),
+            get_balance_action(4, "DepositAssetAndMintNToken", depositActionAmount=5000000e8),
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(2, True)
+    env.notional.initializeMarkets(4, True)
+    chain.snapshot()
+
+    lend(env)
+    chain.revert()
+
+    liquidity(env)
+    chain.revert()
+
+    borrow(env)
+    chain.revert()
+    
     with open("gas_stats.json", "w") as f:
         json.dump(gasLog, f, sort_keys=True, indent=4)
