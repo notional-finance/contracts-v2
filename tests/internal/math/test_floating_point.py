@@ -11,10 +11,6 @@ class TestFloatingPoint:
     def isolation(self, fn_isolation):
         pass
 
-    def test_msb(self, floatingPoint):
-        for x in range(0, 255):
-            assert x == floatingPoint.getMSB(1 << x)
-
     @given(value=strategy("uint128"))
     def test_floating_point(self, floatingPoint, value):
         (packed, unpacked) = floatingPoint.testPackingUnpacking(value)

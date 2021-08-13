@@ -41,6 +41,20 @@ class TestBitmap:
 
         assert total == computedTotal
 
+    @given(bitmap=strategy("bytes32"))
+    def test_msb_and_bit_num(self, mockBitmap, bitmap):
+        msb = mockBitmap.getMSB(bitmap)
+        bitNum = mockBitmap.getNextBitNum(bitmap)
+
+        bitstring = "{:0256b}".format(int(bitmap.hex(), 16))
+        indexes = [i for (i, b) in enumerate(list(bitstring)) if b == "1"]
+        if len(indexes) == 0:
+            assert msb == 0
+            assert bitNum == 0
+        else:
+            assert msb == (255 - min(indexes))
+            assert bitNum == (min(indexes) + 1)
+
     def test_fcash_bitmap_max_range(self, mockBitmap):
         zeroBits = hex(int("".ljust(256, "0"), 2))
         dayBits = hex(int("".join(["1" for i in range(0, 90)]).ljust(256, "0"), 2))

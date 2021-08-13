@@ -71,4 +71,47 @@ library Bitmap {
         x = x  + (x >> 64);
         return (x & 0xFF) + (x >> 128 & 0xFF);
     }
+
+    // Does a binary search over x to get the position of the most significant bit
+    function getMSB(uint256 x) internal pure returns (uint256 msb) {
+        if (x >= 0x100000000000000000000000000000000) {
+            x >>= 128;
+            msb += 128;
+        }
+        if (x >= 0x10000000000000000) {
+            x >>= 64;
+            msb += 64;
+        }
+        if (x >= 0x100000000) {
+            x >>= 32;
+            msb += 32;
+        }
+        if (x >= 0x10000) {
+            x >>= 16;
+            msb += 16;
+        }
+        if (x >= 0x100) {
+            x >>= 8;
+            msb += 8;
+        }
+        if (x >= 0x10) {
+            x >>= 4;
+            msb += 4;
+        }
+        if (x >= 0x4) {
+            x >>= 2;
+            msb += 2;
+        }
+        if (x >= 0x2) msb += 1; // No need to shift xc anymore
+    }
+
+    /// @dev getMSB returns a zero indexed bit number where zero is the first bit counting
+    /// from the right (little endian). Asset Bitmaps are counted from the left (big endian)
+    /// and one indexed.
+    function getNextBitNum(bytes32 bitmap) internal pure returns (uint256 bitNum) {
+        // Short circuit the search if bitmap is all zeros
+        if (bitmap == 0x00) return 0;
+
+        return 255 - getMSB(uint256(bitmap)) + 1;
+    }
 }
