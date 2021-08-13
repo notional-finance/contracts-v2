@@ -98,7 +98,7 @@ def test_initialize_markets_non_mintable(environment, accounts):
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
+        currencyId, [0.02e9, 0.02e9], [0.5e9, 0.5e9]
     )
 
     environment.notional.batchBalanceAction(

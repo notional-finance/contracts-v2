@@ -60,7 +60,7 @@ def test_non_callable_methods(environment, accounts):
             currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9], {"from": accounts[1]}
         )
         environment.notional.updateInitializationParameters(
-            currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9], {"from": accounts[1]}
+            currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9], {"from": accounts[1]}
         )
         environment.notional.updateIncentiveEmissionRate(
             currencyId, CurrencyDefaults["incentiveEmissionRate"], {"from": accounts[1]}

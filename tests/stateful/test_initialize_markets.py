@@ -6,7 +6,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
-from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
+from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
 from tests.helpers import get_balance_action, get_tref
 from tests.stateful.invariants import check_system_invariants
 
@@ -25,7 +25,7 @@ def environment(accounts):
     cToken.mint(10000000e18, {"from": accounts[0]})
     cToken.approve(env.proxy.address, 2 ** 255, {"from": accounts[0]})
 
-    # Set the blocktime to the begnning of the next tRef otherwise the rates will blow up
+    # Set the blocktime to the beginning of the next tRef otherwise the rates will blow up
     blockTime = chain.time()
     newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
     chain.mine(1, timestamp=newTime)
@@ -43,7 +43,7 @@ def initialize_markets(environment, accounts):
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9], [0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9], [0.5e9, 0.5e9]
     )
 
     environment.notional.batchBalanceAction(
@@ -126,7 +126,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
     (cashGroup, assetRate) = environment.notional.getCashGroupAndAssetRate(currencyId)
     (portfolio, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
     (depositShares, leverageThresholds) = environment.notional.getDepositParameters(currencyId)
-    (rateAnchors, proportions) = environment.notional.getInitializationParameters(currencyId)
+    (_, proportions) = environment.notional.getInitializationParameters(currencyId)
     maturity = get_maturities(cashGroup[0])
     markets = environment.notional.getActiveMarkets(currencyId)
     previousMarkets = environment.notional.getActiveMarketsAtBlockTime(
@@ -208,7 +208,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
                 assert pytest.approx(proportion, abs=2) == proportions[i]
         else:
             # In this scenario the market is interpolated against the previous two rates
-            computedOracleRate = interpolate_market_rate(previousMarkets[i - 1], previousMarkets[i])
+            computedOracleRate = interpolate_market_rate(markets[i - 1], previousMarkets[i])
             assert pytest.approx(market[5], abs=2) == computedOracleRate
             assert pytest.approx(market[6], abs=2) == computedOracleRate
 
@@ -228,7 +228,7 @@ def test_first_initialization(environment, accounts):
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
+        currencyId, [0.02e9, 0.02e9], [0.5e9, 0.5e9]
     )
 
     with brownie.reverts("IM: insufficient cash"):
@@ -275,7 +275,7 @@ def test_settle_and_extend(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -398,3 +398,85 @@ def test_failing_initialize_time(environment, accounts):
         environment.notional.nTokenRedeem(
             accounts[0].address, currencyId, 100e8, True, {"from": accounts[0]}
         )
+
+
+def test_constant_oracle_rates_across_initialize_time(environment, accounts):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the two year markets
+    cashGroup[0] = 4
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [0.01e9, 0.021e9, 0.02e9, 0.02e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+    )
+
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
+
+    # Assert that market rates will be the same no matter when we do the first initialization
+    blockHeight = chain.height
+    environment.notional.initializeMarkets(currencyId, True)
+    ntoken_asserts(environment, currencyId, True, accounts)
+    marketsBefore = environment.notional.getActiveMarkets(currencyId)
+
+    chain.undo(chain.height - blockHeight)
+    chain.mine(1, timestamp=(chain.time() + 45 * SECONDS_IN_DAY))
+    environment.notional.initializeMarkets(currencyId, True)
+    ntoken_asserts(environment, currencyId, True, accounts)
+    marketsAfter = environment.notional.getActiveMarkets(currencyId)
+
+    # Check that oracle rates are invariant relative to the two initialization times
+    assert len(marketsBefore) == len(marketsAfter)
+    for i in range(0, len(marketsBefore)):
+        assert pytest.approx(marketsAfter[i][5], abs=10) == marketsBefore[i][5]
+        assert pytest.approx(marketsAfter[i][6], abs=10) == marketsBefore[i][6]
+
+
+def test_delayed_second_initialize_markets(environment, accounts):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the two year markets
+    cashGroup[0] = 4
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [0.01e9, 0.021e9, 0.02e9, 0.02e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+    )
+
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=INITIAL_CASH_AMOUNT
+            )
+        ],
+        {"from": accounts[0]},
+    )
+
+    environment.notional.initializeMarkets(currencyId, True)
+    ntoken_asserts(environment, currencyId, True, accounts)
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER + SECONDS_IN_DAY * 65))
+    environment.notional.initializeMarkets(currencyId, False)
+    ntoken_asserts(environment, currencyId, False, accounts)
