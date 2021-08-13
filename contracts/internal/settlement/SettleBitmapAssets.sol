@@ -191,7 +191,8 @@ library SettleBitmapAssets {
                 bitOffset,
                 Constants.WEEK,
                 splitBitmap,
-                splitBitmap.weekBits
+                splitBitmap.weekBits,
+                bitOffset - Constants.WEEK_BIT_OFFSET
             );
         }
 
@@ -206,7 +207,8 @@ library SettleBitmapAssets {
                 bitOffset,
                 Constants.MONTH,
                 splitBitmap,
-                splitBitmap.monthBits
+                splitBitmap.monthBits,
+                bitOffset - Constants.MONTH_BIT_OFFSET
             );
         }
 
@@ -221,7 +223,8 @@ library SettleBitmapAssets {
                 bitOffset,
                 Constants.QUARTER,
                 splitBitmap,
-                splitBitmap.quarterBits
+                splitBitmap.quarterBits,
+                bitOffset - Constants.QUARTER_BIT_OFFSET
             );
         }
     }
@@ -236,7 +239,8 @@ library SettleBitmapAssets {
         uint256 bitOffset,
         uint256 timeChunkTimeLength,
         SplitBitmap memory splitBitmap,
-        bytes32 bits
+        bytes32 bits,
+        uint256 numBitsShifted
     ) private pure returns (bytes32) {
         // The first bit of the section is just above the bitOffset. When bitOffset is set to one of the
         // constants WEEK_BIT_OFFSET, MONTH_BIT_OFFSET, QUARTER_BIT_OFFSET, this is still true.
@@ -246,7 +250,7 @@ library SettleBitmapAssets {
         // that need to be remapped down to a lower time section. These bits are defined by the number of
         // bits that will shift to the left as a result of the time lapsed between the last time the account
         // was settled and the current time.
-        uint256 bitsToRemap = (newFirstBitMaturity - firstBitMaturity) / timeChunkTimeLength;
+        uint256 bitsToRemap = (newFirstBitMaturity - firstBitMaturity) / timeChunkTimeLength - numBitsShifted;
 
         for (uint256 i; i < bitsToRemap; i++) {
             if (bits == 0x00) break;

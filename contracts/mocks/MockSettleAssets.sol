@@ -183,7 +183,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes32 newBitmap, int256 newAssetCash, /* */) =
+        (bytes32 newBitmap, int256 newAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -193,6 +193,7 @@ contract MockSettleAssets is StorageLayoutV1 {
 
         newBitmapStorage = newBitmap;
         totalAssetCash = newAssetCash;
+        require(blockTimeUTC0 == blockTime, "block time error");
     }
 
     function _splitBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
@@ -217,5 +218,29 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function _combineBitmap(SplitBitmap memory bitmap) public pure returns (bytes32) {
         return Bitmap.combineAssetBitmap(bitmap);
+    }
+
+    function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {
+        return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    }
+
+    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external {
+        // prettier-ignore
+        (bytes32 newBitmap, /* int256 newAssetCash */, /* uint256 blockTimeUTC0 */) =
+            SettleBitmapAssets.settleBitmappedCashGroup(
+                account,
+                currencyId,
+                nextSettleTime,
+                blockTime
+            );
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
+    }
+
+    function getifCashArray(
+        address account,
+        uint256 currencyId,
+        uint256 nextSettleTime
+    ) external view returns (PortfolioAsset[] memory) {
+        return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
     }
 }
