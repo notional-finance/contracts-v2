@@ -201,7 +201,7 @@ class TestNTokenSettings:
         assert storedLeverageThresholds == leverageThresholds
 
     def test_init_parameters_failures(self, nToken):
-        with brownie.reverts("PT: initial annual rates length"):
+        with brownie.reverts("PT: annualized anchor rates length"):
             nToken.setInitializationParameters(1, [1] * 10, [1] * 10)
 
         with brownie.reverts("PT: proportions length"):
