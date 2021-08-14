@@ -294,14 +294,14 @@ library nTokenHandler {
     /// are initialized
     function setInitializationParameters(
         uint256 currencyId,
-        uint32[] calldata initialAnnualRates,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) internal {
         uint256 slot =
             uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
-        require(initialAnnualRates.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: initial annual rates length");
+        require(annualizedAnchorRates.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: annualized anchor rates length");
 
-        require(proportions.length == initialAnnualRates.length, "PT: proportions length");
+        require(proportions.length == annualizedAnchorRates.length, "PT: proportions length");
 
         for (uint256 i; i < proportions.length; i++) {
             // Proportions must be between zero and the rate precision
@@ -311,18 +311,18 @@ library nTokenHandler {
             );
         }
 
-        _setParameters(slot, initialAnnualRates, proportions);
+        _setParameters(slot, annualizedAnchorRates, proportions);
     }
 
     /// @notice Returns the array of initialization parameters for a given currency.
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
-        returns (int256[] memory initialAnnualRates, int256[] memory proportions)
+        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
     {
         uint256 slot =
             uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
-        (initialAnnualRates, proportions) = _getParameters(slot, maxMarketIndex, true);
+        (annualizedAnchorRates, proportions) = _getParameters(slot, maxMarketIndex, true);
     }
 
     function _getParameters(
