@@ -111,10 +111,10 @@ contract MockNTokenHandler is StorageLayoutV1 {
 
     function setInitializationParameters(
         uint256 currencyId,
-        uint32[] calldata initialAnnualRates,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external {
-        nTokenHandler.setInitializationParameters(currencyId, initialAnnualRates, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
     }
 
     function getNTokenAssetPV(uint256 currencyId, uint256 blockTime)

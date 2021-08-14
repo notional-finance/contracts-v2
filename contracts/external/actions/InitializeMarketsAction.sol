@@ -43,7 +43,7 @@ library InitializeMarketsAction {
     struct GovernanceParameters {
         int256[] depositShares;
         int256[] leverageThresholds;
-        int256[] initialAnnualRates;
+        int256[] annualizedAnchorRates;
         int256[] proportions;
     }
 
@@ -58,7 +58,7 @@ library InitializeMarketsAction {
             maxMarketIndex
         );
 
-        (params.initialAnnualRates, params.proportions) = nTokenHandler.getInitializationParameters(
+        (params.annualizedAnchorRates, params.proportions) = nTokenHandler.getInitializationParameters(
             currencyId,
             maxMarketIndex
         );
@@ -342,9 +342,9 @@ library InitializeMarketsAction {
         uint256 oracleRate,
         uint256 timeToMaturity,
         int256 rateScalar,
-        uint256 initialAnnualRate
+        uint256 annualizedAnchorRate
     ) private pure returns (int256) {
-        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(initialAnnualRate, timeToMaturity);
+        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
         int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
         // If exchange rate is less than 1 then we set it to 1 so that this can continue
         if (exchangeRate < Constants.RATE_PRECISION) {
@@ -370,8 +370,8 @@ library InitializeMarketsAction {
         return ABDKMath64x64.toInt(proportion);
     }
 
-    /// @dev Returns the oracle rate given the market ratios of fCash to cash. The initialAnnualRate
-    /// is used to calculate a rate anchor. Since a rate anchor varies with timeToMaturity and initialAnnualRate
+    /// @dev Returns the oracle rate given the market ratios of fCash to cash. The annualizedAnchorRate
+    /// is used to calculate a rate anchor. Since a rate anchor varies with timeToMaturity and annualizedAnchorRate
     /// does not, this method will return consistent values regardless of the timeToMaturity of when initialize
     /// markets is called. This can be helpful if a currency needs to be initialized mid quarter when it is
     /// newly launched.
@@ -379,18 +379,10 @@ library InitializeMarketsAction {
         int256 fCashAmount,
         int256 underlyingCashToMarket,
         int256 rateScalar,
-        uint256 initialAnnualRate,
+        uint256 annualizedAnchorRate,
         uint256 timeToMaturity
     ) internal pure returns (uint256) {
-        (int256 rateAnchor, bool success) = Market._getRateAnchor(
-            fCashAmount,
-            initialAnnualRate,
-            underlyingCashToMarket,
-            rateScalar,
-            timeToMaturity
-        );
-        require(success, "Rate anchor failed");
-
+        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
         uint256 oracleRate = Market.getImpliedRate(
             fCashAmount,
             underlyingCashToMarket,
@@ -591,7 +583,7 @@ library InitializeMarketsAction {
                     fCashAmount,
                     underlyingCashToMarket,
                     rateScalar,
-                    uint256(parameters.initialAnnualRates[i]), // No overflow, uint32 when set
+                    uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
                     timeToMaturity
                 );
 
@@ -639,7 +631,7 @@ library InitializeMarketsAction {
                         oracleRate,
                         timeToMaturity,
                         rateScalar,
-                        uint256(parameters.initialAnnualRates[i]) // No overflow, uint32 when set
+                        uint256(parameters.annualizedAnchorRates[i]) // No overflow, uint32 when set
                     );
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
@@ -657,7 +649,7 @@ library InitializeMarketsAction {
                         newMarket.totalfCash,
                         underlyingCashToMarket,
                         rateScalar,
-                        uint256(parameters.initialAnnualRates[i]), // No overflow, uint32 when set
+                        uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
                         timeToMaturity
                     );
 

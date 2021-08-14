@@ -49,7 +49,7 @@ interface NotionalGovernance {
 
     function updateInitializationParameters(
         uint16 currencyId,
-        uint32[] calldata initialAnnualRates,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external;
 
