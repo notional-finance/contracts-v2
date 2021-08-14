@@ -195,30 +195,6 @@ contract MockSettleAssets is StorageLayoutV1 {
         totalAssetCash = newAssetCash;
     }
 
-    function _splitBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
-        return Bitmap.splitAssetBitmap(bitmap);
-    }
-
-    // function _remapBitmap(
-    //     SplitBitmap memory splitBitmap,
-    //     uint256 nextSettleTime,
-    //     uint256 blockTimeUTC0
-    // ) public pure returns (SplitBitmap memory) {
-    //     // prettier-ignore
-    //     (
-    //         uint256 lastSettleBit,
-    //         /* isValid */
-    //     ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
-
-    //     SettleBitmapAssets._remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
-
-    //     return splitBitmap;
-    // }
-
-    function _combineBitmap(SplitBitmap memory bitmap) public pure returns (bytes32) {
-        return Bitmap.combineAssetBitmap(bitmap);
-    }
-
     function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
@@ -247,16 +223,4 @@ contract MockSettleAssets is StorageLayoutV1 {
         return Bitmap.getNextBitNum(bitmap);
     }
 
-    function remap(
-        bytes32 fromBits,
-        bytes32 toBits,
-        uint256 toOffset,
-        uint256 stepSize,
-        uint256 count
-    ) external pure returns (bytes32, bytes32) {
-        return SettleBitmapAssets._remap(fromBits, toBits, toOffset, stepSize, count);
-    }
-    event Test(uint256 a, uint256 b, uint256 c, uint256 d);
-    event Test2(SplitBitmap splitBitmap);
-    event Test3(uint256 a);
 }

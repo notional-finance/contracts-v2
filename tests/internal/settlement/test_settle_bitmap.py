@@ -1,11 +1,10 @@
 import random
 
 import pytest
-from brownie.convert.datatypes import HexString
 from brownie.test import given, strategy
 from hypothesis import settings
 from tests.constants import MARKETS, SECONDS_IN_DAY, SECONDS_IN_YEAR, SETTLEMENT_DATE, START_TIME
-from tests.helpers import get_bitstring_from_bitmap, get_market_state
+from tests.helpers import get_market_state
 from tests.internal.settlement.test_settle_assets import (
     NUM_CURRENCIES,
     SETTLEMENT_RATE,
@@ -126,60 +125,3 @@ class TestSettleBitmap:
                 assert ifCash != 0
             else:
                 assert ifCash == 0
-
-    @given(daysOffset=strategy("uint", min_value=1, max_value=89))
-    @pytest.mark.skip_coverage
-    def test_settle_and_remap(self, mockSettleAssets, accounts, daysOffset):
-        nextSettleTime = START_TIME - START_TIME % SECONDS_IN_DAY
-        blockTime = nextSettleTime + daysOffset * SECONDS_IN_DAY
-
-        # TODO: this test only works for the first 90 days because otherwise it requires subsequent
-        # bits to get shifted down
-        dayBits = HexString(int("".ljust(256, "0"), 2), "bytes32")
-        weekBits = HexString(
-            int("".join([str(random.randint(0, 1)) for i in range(0, 45)]).ljust(256, "0"), 2),
-            "bytes32",
-        )
-        monthBits = HexString(
-            int("".join([str(random.randint(0, 1)) for i in range(0, 60)]).ljust(256, "0"), 2),
-            "bytes32",
-        )
-        quarterBits = HexString(
-            int("".join([str(random.randint(0, 1)) for i in range(0, 61)]).ljust(256, "0"), 2),
-            "bytes32",
-        )
-        splitBitmap = (dayBits, weekBits, monthBits, quarterBits)
-
-        newSplitBitmap = mockSettleAssets._remapBitmap(splitBitmap, nextSettleTime, blockTime)
-
-        prevCombinedBitmap = mockSettleAssets._combineBitmap(splitBitmap)
-        newCombinedBitmap = mockSettleAssets._combineBitmap(newSplitBitmap)
-
-        # test that all the bits in the newSplitBitmap correspond to maturities in the
-        # previous split bitmap
-        prevSetBits = list(
-            filter(
-                lambda x: x[1] == "1",
-                enumerate(list(get_bitstring_from_bitmap(prevCombinedBitmap))),
-            )
-        )
-        newSetBits = list(
-            filter(
-                lambda x: x[1] == "1", enumerate(list(get_bitstring_from_bitmap(newCombinedBitmap)))
-            )
-        )
-
-        prevMaturities = [
-            mockSettleAssets.getMaturityFromBitNum(nextSettleTime, i + 1) for (i, _) in prevSetBits
-        ]
-        newMaturities = [
-            mockSettleAssets.getMaturityFromBitNum(blockTime, i + 1) for (i, _) in newSetBits
-        ]
-
-        count = 0
-        for m in prevMaturities:
-            if m > blockTime:
-                assert m in newMaturities
-                count += 1
-
-        assert len(newMaturities) == count
