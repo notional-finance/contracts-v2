@@ -34,14 +34,35 @@ def isolation(fn_isolation):
     pass
 
 
+def get_indexes(value):
+    bitsList = list("{:0256b}".format(int(value.hex(), 16)))
+    return [i for (i, b) in enumerate(bitsList) if b == "1"]
+
+
+# @pytest.mark.only
+# def test_remap(mockSettleAssets, accounts):
+#     fromBits = to_bytes(3 << (256 - 92), "bytes32")
+#     fromBitsList = get_indexes(fromBits)
+#     toBits = to_bytes(0, "bytes32")
+#     toBitsList = get_indexes(toBits)
+#     fromOffset = 90
+#     toOffset = 0
+#     stepSize = 6
+
+#     (newFrom, newTo) = mockSettleAssets.remap(fromBits, toBits, fromOffset, toOffset, stepSize, 2)
+
+#     newFromList = get_indexes(newFrom)
+#     newToList = get_indexes(newTo)
+#     assert False
+
+
 @given(days=strategy("uint", min_value=1, max_value=90))
 def test_shift_under_90_days(mockSettleAssets, accounts, days):
     maturity = nextSettleTime + days * SECONDS_IN_DAY
 
     mockSettleAssets.setifCash(accounts[0], currencyId, maturity, 100e8, nextSettleTime)
     # Ensure that no settlement actually occurs
-    daysOffset = random.randint(0, days - 1)
-    blockTime = nextSettleTime + daysOffset * SECONDS_IN_DAY
+    blockTime = random.randint(nextSettleTime, maturity - SECONDS_IN_DAY)
 
     before = mockSettleAssets.getifCashArray(accounts[0], currencyId, nextSettleTime)
     mockSettleAssets.settleAccount(accounts[0], currencyId, nextSettleTime, blockTime)
