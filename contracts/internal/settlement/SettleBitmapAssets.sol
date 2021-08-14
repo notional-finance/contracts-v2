@@ -59,9 +59,6 @@ library SettleBitmapAssets {
             nextBitNum = bitmap.getNextBitNum();
         }
 
-        // If there are no more bits in the bitmap then we can skip remapping
-        if (nextBitNum == 0) return (bitmap, totalAssetCash, newSettleTime);
-
         bytes32 newBitmap;
         while (nextBitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
