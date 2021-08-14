@@ -12,6 +12,7 @@ import "../../internal/settlement/SettlePortfolioAssets.sol";
 import "../../internal/settlement/SettleBitmapAssets.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/Bitmap.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /// @notice Initialize markets is called once every quarter to setup the new markets. Only the nToken account
@@ -28,6 +29,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 ///     - percent of cash to deposit into the market set by governance
 ///  - Set new markets and add liquidity tokens to portfolio
 library InitializeMarketsAction {
+    using Bitmap for bytes32;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
@@ -179,7 +181,6 @@ library InitializeMarketsAction {
         bytes32 assetsBitmap
     ) internal view returns (int256) {
         int256 totalCashWithholding;
-        uint256 bitNum = 1;
         // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
         // that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
@@ -187,61 +188,60 @@ library InitializeMarketsAction {
                 10 *
                 Constants.BASIS_POINT;
 
-        while (assetsBitmap != 0) {
-            if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity =
-                    DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
 
-                // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
-                // want to apply withholding for idiosyncratic fCash.
-                if (
-                    previousMarkets.length == 0 &&
-                    DateTime.isValidMarketMaturity(
-                        nToken.cashGroup.maxMarketIndex,
-                        maturity,
-                        blockTime
-                    )
-                ) {
-                    assetsBitmap = assetsBitmap << 1;
-                    bitNum += 1;
-                    continue;
-                }
-
-                int256 notional =
-                    BitmapAssetsHandler.getifCashNotional(
-                        nToken.tokenAddress,
-                        nToken.cashGroup.currencyId,
-                        maturity
-                    );
-
-                // Withholding only applies for negative cash balances
-                if (notional < 0) {
-                    uint256 oracleRate;
-                    if (previousMarkets.length > 0) {
-                        oracleRate = _getPreviousWithholdingRate(
-                            nToken.cashGroup,
-                            previousMarkets,
-                            maturity,
-                            blockTime
-                        );
-                    } else {
-                        oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
-                    }
-
-                    if (oracleRateBuffer > oracleRate) {
-                        oracleRate = 0;
-                    } else {
-                        oracleRate = oracleRate.sub(oracleRateBuffer);
-                    }
-
-                    totalCashWithholding = totalCashWithholding.sub(
-                        AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
-                    );
-                }
+            // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
+            // want to apply withholding for idiosyncratic fCash.
+            if (
+                previousMarkets.length == 0 &&
+                DateTime.isValidMarketMaturity(
+                    nToken.cashGroup.maxMarketIndex,
+                    maturity,
+                    blockTime
+                )
+            ) {
+                assetsBitmap = assetsBitmap << 1;
+                bitNum += 1;
+                continue;
             }
 
-            assetsBitmap = assetsBitmap << 1;
-            bitNum += 1;
+            int256 notional =
+                BitmapAssetsHandler.getifCashNotional(
+                    nToken.tokenAddress,
+                    nToken.cashGroup.currencyId,
+                    maturity
+                );
+
+            // Withholding only applies for negative cash balances
+            if (notional < 0) {
+                uint256 oracleRate;
+                if (previousMarkets.length > 0) {
+                    oracleRate = _getPreviousWithholdingRate(
+                        nToken.cashGroup,
+                        previousMarkets,
+                        maturity,
+                        blockTime
+                    );
+                } else {
+                    oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
+                }
+
+                if (oracleRateBuffer > oracleRate) {
+                    oracleRate = 0;
+                } else {
+                    oracleRate = oracleRate.sub(oracleRateBuffer);
+                }
+
+                totalCashWithholding = totalCashWithholding.sub(
+                    AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
+                );
+            }
+
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
         }
 
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
