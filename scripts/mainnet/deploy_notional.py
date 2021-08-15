@@ -210,8 +210,8 @@ nTokenCryptoAssetConfig = {
         [int(0.75e9), int(0.75e9)],
     ],
     "Initialization": [
-        # Rate anchors
-        [int(1.01e9), int(1.01e9)],
+        # Annualized anchor rate
+        [int(0.01e9), int(0.01e9)],
         # Target proportion
         [int(0.5e9), int(0.5e9)],
     ],
@@ -232,8 +232,8 @@ nTokenStablecoinConfig = {
         [int(0.78e9), int(0.79e9), int(0.79e9)],
     ],
     "Initialization": [
-        # Rate anchors
-        [int(1.02e9), int(1.02e9), int(1.02e9)],
+        # Annualized anchor rate
+        [int(0.02e9), int(0.02e9), int(0.02e9)],
         # Target proportion
         [int(0.5e9), int(0.5e9), int(0.5e9)],
     ],
