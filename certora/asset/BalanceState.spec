@@ -29,10 +29,16 @@ methods {
 
     // accountAction
     accountAction.depositAssetToken(address,uint16,uint256)
+
+    // summaries
+    getToken(uint256,bool) => chosenToken()
 }
+
+ghost chosenToken() returns address;
 
 rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
     require account != currentContract;
+    require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
     depositAssetToken(account, assetAmountExternal, forceTransfer);
@@ -43,6 +49,7 @@ rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal
 }
 
 rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
+    require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
     env e;
