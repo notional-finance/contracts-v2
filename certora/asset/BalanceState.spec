@@ -1,5 +1,6 @@
 using DummyERC20A as token
 using AccountAction as accountAction
+// todo: use SymbolicCERC20 
 
 methods {
     // harnessed
