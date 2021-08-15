@@ -2327,7 +2327,7 @@
         "outputs": [
             {
                 "internalType": "int256[]",
-                "name": "rateAnchors",
+                "name": "annualizedAnchorRates",
                 "type": "int256[]"
             },
             {
@@ -3745,7 +3745,7 @@
             },
             {
                 "internalType": "uint32[]",
-                "name": "rateAnchors",
+                "name": "annualizedAnchorRates",
                 "type": "uint32[]"
             },
             {
