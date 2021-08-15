@@ -73,43 +73,50 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
     )
 
 
-def deployNotional(deployer, cETHAddress, guardianAddress):
+def deployNotionalContracts(deployer, cETHAddress):
+    contracts = {}
     # Deploy Libraries
-    SettleAssetsExternal.deploy({"from": deployer})
-    FreeCollateralExternal.deploy({"from": deployer})
-    TradingAction.deploy({"from": deployer})
-    nTokenMintAction.deploy({"from": deployer})
+    contracts["SettleAssetsExternal"] = SettleAssetsExternal.deploy({"from": deployer})
+    contracts["FreeCollateralExternal"] = FreeCollateralExternal.deploy({"from": deployer})
+    contracts["TradingAction"] = TradingAction.deploy({"from": deployer})
+    contracts["nTokenMintAction"] = nTokenMintAction.deploy({"from": deployer})
 
     # Deploy logic contracts
-    governance = GovernanceAction.deploy({"from": deployer})
-    views = Views.deploy({"from": deployer})
-    initializeMarkets = InitializeMarketsAction.deploy({"from": deployer})
-    nTokenRedeem = nTokenRedeemAction.deploy({"from": deployer})
-    nTokenAction_ = nTokenAction.deploy({"from": deployer})
-    batchAction = BatchAction.deploy({"from": deployer})
-    accountAction = AccountAction.deploy({"from": deployer})
-    erc1155Action = ERC1155Action.deploy({"from": deployer})
-    liquidateCurrencyAction = LiquidateCurrencyAction.deploy({"from": deployer})
-    liquidatefCashAction = LiquidatefCashAction.deploy({"from": deployer})
+    contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
+    contracts["Views"] = Views.deploy({"from": deployer})
+    contracts["InitializeMarketsAction"] = InitializeMarketsAction.deploy({"from": deployer})
+    contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
+    contracts["nTokenAction"] = nTokenAction.deploy({"from": deployer})
+    contracts["BatchAction"] = BatchAction.deploy({"from": deployer})
+    contracts["AccountAction"] = AccountAction.deploy({"from": deployer})
+    contracts["ERC1155Action"] = ERC1155Action.deploy({"from": deployer})
+    contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
+    contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
 
     # Deploy Pause Router
-    pauseRouter = PauseRouter.deploy(views.address, {"from": deployer})
+    pauseRouter = PauseRouter.deploy(contracts["Views"].address, {"from": deployer})
 
     # Deploy router
     router = Router.deploy(
-        governance.address,
-        views.address,
-        initializeMarkets.address,
-        nTokenAction_.address,
-        nTokenRedeem.address,
-        batchAction.address,
-        accountAction.address,
-        erc1155Action.address,
-        liquidateCurrencyAction.address,
-        liquidatefCashAction.address,
+        contracts["Governance"].address,
+        contracts["Views"].address,
+        contracts["InitializeMarketsAction"].address,
+        contracts["nTokenAction"].address,
+        contracts["nTokenRedeemAction"].address,
+        contracts["BatchAction"].address,
+        contracts["AccountAction"].address,
+        contracts["ERC1155Action"].address,
+        contracts["LiquidateCurrencyAction"].address,
+        contracts["LiquidatefCashAction"].address,
         cETHAddress,
         {"from": deployer},
     )
+
+    return (router, pauseRouter, contracts)
+
+
+def deployNotional(deployer, cETHAddress, guardianAddress):
+    (router, pauseRouter, contracts) = deployNotionalContracts(deployer, cETHAddress)
 
     initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
         fn_name="initialize", args=[deployer.address, pauseRouter.address, guardianAddress]
@@ -124,7 +131,7 @@ def deployNotional(deployer, cETHAddress, guardianAddress):
         "Notional", proxy.address, abi=notionalInterfaceABI, owner=deployer
     )
 
-    return (pauseRouter, router, proxy, notional)
+    return (pauseRouter, router, proxy, notional, contracts)
 
 
 def deployArtifact(path, constructorArgs, deployer, name):
@@ -303,7 +310,7 @@ class TestEnvironment:
             self.token[symbol] = token
 
     def _deployNotional(self):
-        (self.pauseRouter, self.router, self.proxy, self.notional) = deployNotional(
+        (self.pauseRouter, self.router, self.proxy, self.notional, _) = deployNotional(
             self.deployer, self.cToken["ETH"].address, accounts[8].address
         )
         self.enableCurrency("ETH", CurrencyDefaults)
