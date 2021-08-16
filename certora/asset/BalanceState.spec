@@ -42,11 +42,13 @@ rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal
     require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
+    require forceTransfer; // otherwise no transfer will occur and will await finalize
     depositAssetToken(account, assetAmountExternal, forceTransfer);
 
     uint balance_ = token.balanceOf(account);
 
     assert balance_ == _balance + to_mathint(assetAmountExternal);
+    // if !forceTransfer, check netAssetTransferInternalPrecision
 }
 
 rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {

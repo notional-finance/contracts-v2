@@ -97,7 +97,7 @@ contract AccountAction {
         // AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         AccountContext memory accountContext = accountContexts[account];
         // BalanceState memory balanceState;
-        balanceState.loadBalanceState(account, currencyId, accountContext);
+        //balanceState.loadBalanceState(account, currencyId, accountContext);
 
         // prettier-ignore
         // Int conversion overflow check done inside this method call, useCashBalance is set to false. msg.sender
