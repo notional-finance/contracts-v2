@@ -203,28 +203,27 @@ library BitmapAssetsHandler {
         bool riskAdjusted
     ) internal view returns (int256, bool) {
         int256 totalValueUnderlying;
-        uint256 bitNum = 1;
         bool hasDebt;
 
-        while (assetsBitmap != 0) {
-            if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-                int256 pv =
-                    getPresentValue(
-                        account,
-                        currencyId,
-                        maturity,
-                        blockTime,
-                        cashGroup,
-                        riskAdjusted
-                    );
-                totalValueUnderlying = totalValueUnderlying.add(pv);
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
+            int256 pv =
+                getPresentValue(
+                    account,
+                    currencyId,
+                    maturity,
+                    blockTime,
+                    cashGroup,
+                    riskAdjusted
+                );
+            totalValueUnderlying = totalValueUnderlying.add(pv);
 
-                if (pv < 0) hasDebt = true;
-            }
+            if (pv < 0) hasDebt = true;
 
-            assetsBitmap = assetsBitmap << 1;
-            bitNum += 1;
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
         }
 
         return (totalValueUnderlying, hasDebt);
@@ -239,23 +238,22 @@ library BitmapAssetsHandler {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
-        uint256 bitNum = 1;
         index = 0;
 
-        while (assetsBitmap != 0) {
-            if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-                int256 notional = getifCashNotional(account, currencyId, maturity);
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
+            int256 notional = getifCashNotional(account, currencyId, maturity);
 
-                assets[index].currencyId = currencyId;
-                assets[index].maturity = maturity;
-                assets[index].assetType = Constants.FCASH_ASSET_TYPE;
-                assets[index].notional = notional;
-                index += 1;
-            }
+            assets[index].currencyId = currencyId;
+            assets[index].maturity = maturity;
+            assets[index].assetType = Constants.FCASH_ASSET_TYPE;
+            assets[index].notional = notional;
+            index += 1;
 
-            assetsBitmap = assetsBitmap << 1;
-            bitNum += 1;
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
         }
 
         return assets;
@@ -273,33 +271,32 @@ library BitmapAssetsHandler {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
-        uint256 bitNum = 1;
         index = 0;
 
-        while (assetsBitmap != 0) {
-            if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-                bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-                int256 notional;
-                assembly {
-                    notional := sload(fCashSlot)
-                }
-
-                int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
-                notional = notional.sub(notionalToTransfer);
-                assembly {
-                    sstore(fCashSlot, notional)
-                }
-
-                assets[index].currencyId = currencyId;
-                assets[index].maturity = maturity;
-                assets[index].assetType = Constants.FCASH_ASSET_TYPE;
-                assets[index].notional = notionalToTransfer;
-                index += 1;
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
+            bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+            int256 notional;
+            assembly {
+                notional := sload(fCashSlot)
             }
 
-            assetsBitmap = assetsBitmap << 1;
-            bitNum += 1;
+            int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+            notional = notional.sub(notionalToTransfer);
+            assembly {
+                sstore(fCashSlot, notional)
+            }
+
+            assets[index].currencyId = currencyId;
+            assets[index].maturity = maturity;
+            assets[index].assetType = Constants.FCASH_ASSET_TYPE;
+            assets[index].notional = notionalToTransfer;
+            index += 1;
+
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
         }
 
         // If the entire token supply is redeemed then the assets bitmap will have been reduced to zero.

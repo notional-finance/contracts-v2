@@ -183,7 +183,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes32 newBitmap, int256 newAssetCash) =
+        (bytes32 newBitmap, int256 newAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -195,27 +195,32 @@ contract MockSettleAssets is StorageLayoutV1 {
         totalAssetCash = newAssetCash;
     }
 
-    function _splitBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
-        return Bitmap.splitAssetBitmap(bitmap);
+    function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {
+        return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function _remapBitmap(
-        SplitBitmap memory splitBitmap,
-        uint256 nextSettleTime,
-        uint256 blockTimeUTC0
-    ) public pure returns (SplitBitmap memory) {
+    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external {
         // prettier-ignore
-        (
-            uint256 lastSettleBit,
-            /* isValid */
-        ) = DateTime.getBitNumFromMaturity(nextSettleTime, blockTimeUTC0);
-
-        SettleBitmapAssets._remapBitmap(splitBitmap, nextSettleTime, blockTimeUTC0, lastSettleBit);
-
-        return splitBitmap;
+        (bytes32 newBitmap, /* int256 newAssetCash */, /* uint256 blockTimeUTC0 */) =
+            SettleBitmapAssets.settleBitmappedCashGroup(
+                account,
+                currencyId,
+                nextSettleTime,
+                blockTime
+            );
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
     }
 
-    function _combineBitmap(SplitBitmap memory bitmap) public pure returns (bytes32) {
-        return Bitmap.combineAssetBitmap(bitmap);
+    function getifCashArray(
+        address account,
+        uint256 currencyId,
+        uint256 nextSettleTime
+    ) external view returns (PortfolioAsset[] memory) {
+        return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
     }
+
+    function getNextBitNum(bytes32 bitmap) external pure returns (uint256) {
+        return Bitmap.getNextBitNum(bitmap);
+    }
+
 }

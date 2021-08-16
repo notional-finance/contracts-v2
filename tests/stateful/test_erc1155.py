@@ -1,6 +1,7 @@
 import brownie
 import pytest
 from brownie.convert import to_bytes
+from brownie.convert.datatypes import Wei
 from brownie.network import web3
 from brownie.network.state import Chain
 from tests.constants import RATE_PRECISION, SECONDS_IN_DAY
@@ -575,4 +576,102 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
     assert cashBalance == 5000e8
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
+    check_system_invariants(environment, accounts)
+
+
+def test_bidirectional_fcash_transfer_authorization(environment, accounts):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
+    amount = (Wei(2) ** 256) - Wei(50e8)
+
+    # Account 0 is not authorized to do the transfer
+    with brownie.reverts("Unauthorized"):
+        environment.notional.safeBatchTransferFrom(
+            accounts[0], accounts[1], [erc1155id], [amount], "", {"from": accounts[0]}
+        )
+
+
+def test_bidirectional_fcash_transfer_free_collateral(environment, accounts):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
+    amount = (Wei(2) ** 256) - Wei(50e8)
+
+    environment.notional.setApprovalForAll(accounts[0], True, {"from": accounts[1]})
+    # Account 1 does not have sufficient free collateral to take the debt
+    with brownie.reverts("Insufficient free collateral"):
+        environment.notional.safeBatchTransferFrom(
+            accounts[0], accounts[1], [erc1155id], [amount], "", {"from": accounts[0]}
+        )
+
+
+def test_bidirectional_fcash_transfer(environment, accounts):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155ids = [
+        environment.notional.encodeToId(2, markets[0][1], 1),
+        environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1),
+    ]
+    amounts = [50e8, (Wei(2) ** 256) - Wei(50e8)]
+
+    environment.notional.setApprovalForAll(accounts[0], True, {"from": accounts[1]})
+    environment.notional.depositUnderlyingToken(
+        accounts[1], 1, 1e18, {"from": accounts[1], "value": 1e18}
+    )
+    environment.notional.safeBatchTransferFrom(
+        accounts[0], accounts[1], erc1155ids, amounts, "", {"from": accounts[0]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[0])
+    toAssets = environment.notional.getAccountPortfolio(accounts[1])
+    assert len(toAssets) == 2
+    assert len(fromAssets) == 2
+    assert toAssets[0][0] == fromAssets[0][0]
+    assert toAssets[0][1] == fromAssets[0][1]
+    assert toAssets[0][2] == fromAssets[0][2]
+    assert toAssets[0][3] == -fromAssets[0][3]
+
+    assert toAssets[1][0] == fromAssets[1][0]
+    assert toAssets[1][1] == fromAssets[1][1]
+    assert toAssets[1][2] == fromAssets[1][2]
+    assert toAssets[1][3] == -fromAssets[1][3]
+    check_system_invariants(environment, accounts)
+
+
+def test_bidirectional_fcash_transfer_to_account_will_trade(
+    environment, accounts, MockTransferOperator
+):
+    transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
+    environment.notional.updateGlobalTransferOperator(
+        transferOp.address, True, {"from": accounts[0]}
+    )
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155ids = [
+        environment.notional.encodeToId(2, markets[0][1], 1),
+        environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1),
+    ]
+    amounts = [50e8, (Wei(2) ** 256) - Wei(50e8)]
+    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
+        fn_name="batchBalanceAction",
+        args=[
+            accounts[1].address,  # Using "to" address
+            [get_balance_action(2, "DepositAsset", depositActionAmount=5000e8)],
+        ],
+    )
+
+    transferOp.initiateBatchTransfer(
+        accounts[0], accounts[1], erc1155ids, amounts, data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[0])
+    toAssets = environment.notional.getAccountPortfolio(accounts[1])
+    assert len(toAssets) == 2
+    assert len(fromAssets) == 2
+    assert toAssets[0][0] == fromAssets[0][0]
+    assert toAssets[0][1] == fromAssets[0][1]
+    assert toAssets[0][2] == fromAssets[0][2]
+    assert toAssets[0][3] == -fromAssets[0][3]
+
+    assert toAssets[1][0] == fromAssets[1][0]
+    assert toAssets[1][1] == fromAssets[1][1]
+    assert toAssets[1][2] == fromAssets[1][2]
+    assert toAssets[1][3] == -fromAssets[1][3]
     check_system_invariants(environment, accounts)

@@ -25,9 +25,9 @@ library CashGroup {
     uint256 private constant SETTLEMENT_PENALTY = 48;
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT = 56;
     uint256 private constant LIQUIDATION_DEBT_BUFFER = 64;
-    // 9 bytes allocated per market on the liquidity token haircut
+    // 7 bytes allocated, one byte per market for the liquidity token haircut
     uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = 72;
-    // 9 bytes allocated per market on the rate scalar
+    // 7 bytes allocated, one byte per market for the rate scalar
     uint256 private constant RATE_SCALAR = 144;
 
     /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
@@ -39,13 +39,16 @@ library CashGroup {
         uint256 timeToMaturity
     ) internal pure returns (int256) {
         require(marketIndex >= 1); // dev: invalid market index
+        require(timeToMaturity <= uint256(type(int256).max)); // dev: time to maturity overflow
+
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
-        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * 10;
+        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(int256(timeToMaturity));
 
-        // At large time to maturities it's possible for the rate scalar to round down to zero
-        require(rateScalar > 0, "CG: rate scalar underflow");
+        // Rate scalar is denominated in RATE_PRECISION, it is unlikely to underflow in the
+        // division above.
+        require(rateScalar > 0); // dev: rate scalar underflow
         return rateScalar;
     }
 

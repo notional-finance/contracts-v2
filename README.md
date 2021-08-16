@@ -4,6 +4,11 @@ Notional is a fixed rate lending and borrowing platform, built on Ethereum. **Fi
 
 ## Codebase
 
+A full protocol description can be found in [the whitepaper](WHITEPAPER.md). Detailed code walkthroughs can be found at:
+
+- Videos: https://www.youtube.com/watch?v=-8a5kY0QeYY&list=PLnKdM8f8QEJ2lJ59ZjhVCcJvrT056X0Ga
+- Blogs: https://blog.notional.finance/tag/deep-dive/ 
+
 The codebase is broken down into the following modules, each directory has a `_README.md` file that describes the module. A full protocol description can be found in WHITEPAPER.md.
 
 ```
@@ -39,62 +44,78 @@ contracts
 
 ## Code Size
 
-| Module      | File                        | Code | Comments | Total Lines | Complexity / Line |
-| :---------- | :-------------------------- | ---: | -------: | ----------: | ----------------: |
-| Actions     | AccountAction.sol           |   92 |       51 |         167 |              10.9 |
-| Actions     | BatchAction.sol             |  289 |       35 |         366 |              17.6 |
-| Actions     | ERC1155Action.sol           |  228 |       73 |         343 |              17.1 |
-| Actions     | GovernanceAction.sol        |  213 |      102 |         349 |              10.3 |
-| Actions     | InitializeMarketsAction.sol |  408 |      144 |         618 |              11.5 |
-| Actions     | LiquidateCurrencyAction.sol |  310 |       48 |         389 |               1.0 |
-| Actions     | LiquidatefCashAction.sol    |  174 |       40 |         235 |               1.1 |
-| Actions     | TradingAction.sol           |  423 |       42 |         521 |              12.5 |
-| Actions     | nTokenAction.sol            |  245 |       65 |         355 |              10.6 |
-| Actions     | nTokenMintAction.sol        |  220 |       52 |         307 |              15.5 |
-| Actions     | nTokenRedeemAction.sol      |  211 |       51 |         301 |              14.2 |
-| Adapters    | NotionalV1Migrator.sol      |  300 |       19 |         358 |               6.7 |
-| Adapters    | cTokenAggregator.sol        |   35 |        6 |          52 |               2.9 |
-| Adapters    | nTokenERC20Proxy.sol        |   74 |       43 |         136 |               0.0 |
-| Balances    | BalanceHandler.sol          |  336 |       72 |         466 |              17.0 |
-| Balances    | Incentives.sol              |   81 |       24 |         124 |              12.3 |
-| Balances    | TokenHandler.sol            |  190 |       25 |         250 |              22.6 |
-| External    | FreeCollateralExternal.sol  |   50 |       17 |          77 |               6.0 |
-| External    | Router.sol                  |  183 |       34 |         241 |              32.8 |
-| External    | SettleAssetsExternal.sol    |  106 |        9 |         132 |               6.6 |
-| External    | Views.sol                   |  388 |       46 |         485 |               4.6 |
-| Global      | Constants.sol               |   54 |       31 |         102 |               0.0 |
-| Global      | StorageLayoutV1.sol         |   15 |       20 |          42 |               0.0 |
-| Global      | Types.sol                   |  180 |      138 |         345 |               0.0 |
-| Governance  | GovernorAlpha.sol           |  314 |       94 |         472 |              12.4 |
-| Governance  | NoteERC20.sol               |  260 |       88 |         407 |              13.5 |
-| Governance  | Reservoir.sol               |   32 |       23 |          66 |               6.2 |
-| Internal    | AccountContextHandler.sol   |  180 |       47 |         268 |              29.4 |
-| Internal    | nTokenHandler.sol           |  348 |       64 |         467 |               7.8 |
-| Liquidation | LiquidateCurrency.sol       |  387 |       89 |         536 |              12.7 |
-| Liquidation | LiquidatefCash.sol          |  332 |       68 |         455 |               9.3 |
-| Liquidation | LiquidationHelpers.sol      |  175 |       27 |         229 |              13.1 |
-| Markets     | AssetRate.sol               |  184 |       36 |         258 |              12.0 |
-| Markets     | CashGroup.sol               |  284 |       45 |         370 |               6.3 |
-| Markets     | DateTime.sol                |  139 |       19 |         189 |              28.8 |
-| Markets     | Market.sol                  |  538 |      177 |         817 |              10.0 |
-| Math        | ABDKMath64x64.sol           |  168 |       52 |         244 |              47.0 |
-| Math        | Bitmap.sol                  |   56 |        7 |          75 |              16.1 |
-| Math        | SafeInt256.sol              |   37 |       16 |          75 |              37.8 |
-| Portfolio   | BitmapAssetsHandler.sol     |  232 |       16 |         288 |              15.1 |
-| Portfolio   | PortfolioHandler.sol        |  301 |       46 |         398 |              20.3 |
-| Portfolio   | TransferAssets.sol          |   84 |        6 |         102 |              11.9 |
-| Settlement  | SettleBitmapAssets.sol      |  210 |       26 |         264 |              19.0 |
-| Settlement  | SettlePortfolioAssets.sol   |  137 |       19 |         183 |              26.3 |
-| Valuation   | AssetHandler.sol            |  203 |       33 |         275 |              16.7 |
-| Valuation   | ExchangeRate.sol            |   70 |       23 |         108 |              14.3 |
-| Valuation   | FreeCollateral.sol          |  391 |       45 |         495 |              15.9 |
+| Module      | File                           | Code | Comments | Total Lines | Complexity / Line |
+| :---------- | :----------------------------- | ---: | -------: | ----------: | ----------------: |
+| Actions     | AccountAction.sol              |   92 |       54 |         170 |              10.9 |
+| Actions     | BatchAction.sol                |  322 |       37 |         404 |              16.8 |
+| Actions     | ERC1155Action.sol              |  250 |       86 |         381 |              18.0 |
+| Actions     | GovernanceAction.sol           |  243 |      116 |         399 |              11.5 |
+| Actions     | InitializeMarketsAction.sol    |  488 |      159 |         725 |              10.2 |
+| Actions     | LiquidateCurrencyAction.sol    |  316 |       52 |         399 |               0.9 |
+| Actions     | LiquidatefCashAction.sol       |  178 |       42 |         243 |               1.7 |
+| Actions     | TradingAction.sol              |  470 |       42 |         571 |              11.3 |
+| Actions     | nTokenAction.sol               |  194 |       57 |         290 |               9.3 |
+| Actions     | nTokenMintAction.sol           |  215 |       53 |         303 |              14.9 |
+| Actions     | nTokenRedeemAction.sol         |  212 |       57 |         308 |              14.6 |
+| Adapters    | CompoundToNotionalV2.sol       |   66 |       19 |          99 |              10.6 |
+| Adapters    | NotionalV1ToNotionalV2.sol     |  149 |       27 |         203 |               3.4 |
+| Adapters    | NotionalV2FlashLiquidator.sol  |  369 |       46 |         473 |              18.4 |
+| Adapters    | NotionalV2ifCashLiquidator.sol |  169 |       19 |         213 |               7.7 |
+| Adapters    | cTokenAggregator.sol           |   35 |       12 |          59 |               2.9 |
+| Adapters    | nTokenERC20Proxy.sol           |   74 |       43 |         136 |               0.0 |
+| Balances    | BalanceHandler.sol             |  339 |       73 |         470 |              17.4 |
+| Balances    | Incentives.sol                 |   67 |       16 |          98 |              10.4 |
+| Balances    | TokenHandler.sol               |  199 |       25 |         260 |              21.6 |
+| External    | FreeCollateralExternal.sol     |   50 |       17 |          77 |               6.0 |
+| External    | PausedRouter.sol               |   36 |       18 |          65 |              22.2 |
+| External    | Router.sol                     |  183 |       34 |         239 |              35.0 |
+| External    | SettleAssetsExternal.sol       |  104 |        7 |         127 |               6.7 |
+| External    | Views.sol                      |  448 |       54 |         564 |               5.8 |
+| Global      | Constants.sol                  |   67 |       32 |         116 |               0.0 |
+| Global      | StorageLayoutV1.sol            |   19 |       23 |          49 |               0.0 |
+| Global      | Types.sol                      |  181 |      139 |         347 |               0.0 |
+| Governance  | GovernorAlpha.sol              |  344 |      129 |         546 |              13.1 |
+| Governance  | NoteERC20.sol                  |  295 |       94 |         456 |              14.2 |
+| Governance  | Reservoir.sol                  |   35 |       25 |          73 |               5.7 |
+| Internal    | AccountContextHandler.sol      |  174 |       47 |         262 |              30.5 |
+| Internal    | nTokenHandler.sol              |  396 |       73 |         535 |               8.1 |
+| Liquidation | LiquidateCurrency.sol          |  388 |       91 |         539 |              12.9 |
+| Liquidation | LiquidatefCash.sol             |  357 |       88 |         506 |              11.2 |
+| Liquidation | LiquidationHelpers.sol         |  176 |       33 |         236 |              13.6 |
+| Markets     | AssetRate.sol                  |  189 |       36 |         263 |              11.6 |
+| Markets     | CashGroup.sol                  |  298 |       46 |         387 |               6.0 |
+| Markets     | DateTime.sol                   |  139 |       20 |         190 |              28.8 |
+| Markets     | Market.sol                     |  553 |      180 |         835 |              10.1 |
+| Math        | ABDKMath64x64.sol              |  173 |       52 |         250 |              46.2 |
+| Math        | Bitmap.sol                     |   68 |       10 |          87 |              22.1 |
+| Math        | FloatingPoint56.sol            |   14 |       14 |          34 |               7.1 |
+| Math        | SafeInt256.sol                 |   44 |       18 |          87 |              31.8 |
+| Portfolio   | BitmapAssetsHandler.sol        |  250 |       19 |         310 |              11.6 |
+| Portfolio   | PortfolioHandler.sol           |  303 |       46 |         400 |              20.1 |
+| Portfolio   | TransferAssets.sol             |   85 |        9 |         106 |              11.8 |
+| Settlement  | SettleBitmapAssets.sol         |   64 |       28 |         106 |              15.6 |
+| Settlement  | SettlePortfolioAssets.sol      |  135 |       20 |         181 |              23.7 |
+| Valuation   | AssetHandler.sol               |  203 |       33 |         275 |              16.7 |
+| Valuation   | ExchangeRate.sol               |   70 |       23 |         108 |              14.3 |
+| Valuation   | FreeCollateral.sol             |  391 |       45 |         495 |              15.9 |
+
+These are ported from OpenZeppelin Contracts and do not require audit:
+
+| Module  | File                | Code | Comments | Total Lines | Complexity / Line |
+| :------ | :------------------ | ---: | -------: | ----------: | ----------------: |
+| Proxy   | Proxy.sol           |   29 |       46 |          85 |               3.4 |
+| Proxy   | nProxy.sol          |   12 |        1 |          18 |               0.0 |
+| Utils   | StorageSlot.sol     |   35 |       39 |          83 |               0.0 |
+| Utils   | UUPSUpgradeable.sol |   13 |       38 |          56 |               0.0 |
+| Erc1967 | ERC1967Proxy.sol    |   12 |       16 |          32 |               8.3 |
+| Erc1967 | ERC1967Upgrade.sol  |   51 |       43 |         107 |              11.8 |
 
 ## Test Coverage
 
-Ganache runs out of memory doing debug trace, enable larger heap sizes using: `export NODE_OPTIONS=--max-old-space-size=16000`
-
-TODO
+- Running tests using Ganache can run out of memory, use `export NODE_OPTIONS=--max-old-space-size=16000`
+- `debug_traceTransaction` can also fail due to string length errors. You will see an error from brownie saying that the environment has crashed. This error is unavoidable, the plan is to test if Hardhat also has this issue.
+- Coverage reports are incomplete due to the above string length issue in Ganache.
 
 ## Gas Costs
 
-TODO
+Gas costs for various scenarios are in `gas_stats.json`. This report can be regenerated by running `brownie run scripts/gas_stats.py`

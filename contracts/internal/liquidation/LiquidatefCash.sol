@@ -69,7 +69,7 @@ library LiquidatefCash {
         uint256 maturity
     ) private view returns (int256) {
         if (context.accountContext.bitmapCurrencyId == currencyId) {
-            int256 notional =
+            return
                 BitmapAssetsHandler.getifCashNotional(liquidateAccount, currencyId, maturity);
         }
 
@@ -146,12 +146,10 @@ library LiquidatefCash {
             // and the risk adjusted discount factor:
             // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
             // fCash = localCurrencyBenefit / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            c.fCashNotionalTransfers[i] = c
-                .underlyingBenefitRequired
-                .mul(Constants.RATE_PRECISION)
+            c.fCashNotionalTransfers[i] = c.underlyingBenefitRequired
             // NOTE: Governance should be set such that these discount factors are unlikely to be zero. It's
             // possible that the interest rates are so low that this situation can occur.
-                .div(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs());
+                .divInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs());
 
             // fCashNotionalTransfers[i] is always positive at this point. The max liquidate amount is
             // calculated using the absolute value of the notional amount to ensure that the inequalities
@@ -163,9 +161,7 @@ library LiquidatefCash {
             );
 
             int256 fCashLiquidationValueUnderlying =
-                c.fCashNotionalTransfers[i].mul(liquidationDiscountFactor).div(
-                    Constants.RATE_PRECISION
-                );
+                c.fCashNotionalTransfers[i].mulInRatePrecision(liquidationDiscountFactor);
 
             if (notional < 0) {
                 // In the case of negative notional amounts, limit the amount of liquidation to the local cash
@@ -197,8 +193,7 @@ library LiquidatefCash {
             // Deduct the total benefit gained from liquidating this fCash position
             c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(
                 c.fCashNotionalTransfers[i]
-                    .mul(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs())
-                    .div(Constants.RATE_PRECISION)
+                    .mulInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs())
                     .abs()
             );
 
@@ -237,8 +232,8 @@ library LiquidatefCash {
         for (uint256 i; i < fCashMaturities.length; i++) {
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
-            require(notional > 0); // dev: invalid fcash asset
             if (notional == 0) continue;
+            require(notional > 0); // dev: invalid fcash asset
 
             c.fCashNotionalTransfers[i] = _calculateCrossCurrencyfCashToLiquidate(
                 c,
@@ -293,7 +288,7 @@ library LiquidatefCash {
         }
 
         int256 fCashToLiquidate =
-            c.underlyingBenefitRequired.mul(Constants.RATE_PRECISION).div(benefitMultiplier);
+            c.underlyingBenefitRequired.divInRatePrecision(benefitMultiplier);
 
         fCashToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
             fCashToLiquidate,
@@ -315,8 +310,7 @@ library LiquidatefCash {
         //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
         //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
         // ]
-        int256 benefitGainedUnderlying =
-            fCashToLiquidate.mul(benefitMultiplier).div(Constants.RATE_PRECISION);
+        int256 benefitGainedUnderlying = fCashToLiquidate.mulInRatePrecision(benefitMultiplier);
 
         c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(benefitGainedUnderlying);
         c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.add(
@@ -336,11 +330,8 @@ library LiquidatefCash {
     ) private pure returns (int256, int256) {
         // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
         // this is the discounted value that the liquidator will purchase it at.
-        int256 fCashLiquidationUnderlyingPV =
-            fCashToLiquidate.mul(liquidationDiscountFactor).div(Constants.RATE_PRECISION);
-
-        int256 fCashRiskAdjustedUnderlyingPV =
-            fCashToLiquidate.mul(riskAdjustedDiscountFactor).div(Constants.RATE_PRECISION);
+        int256 fCashLiquidationUnderlyingPV = fCashToLiquidate.mulInRatePrecision(liquidationDiscountFactor);
+        int256 fCashRiskAdjustedUnderlyingPV = fCashToLiquidate.mulInRatePrecision(riskAdjustedDiscountFactor);
 
         // Ensures that collateralAssetAvailable does not go below zero
         int256 collateralUnderlyingAvailable =
@@ -350,16 +341,12 @@ library LiquidatefCash {
             // collateralAssetAvailable = fCashRiskAdjustedPV
             // collateralAssetAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
             // fCashToLiquidate = collateralAssetAvailable / riskAdjustedDiscountFactor
-            fCashToLiquidate = collateralUnderlyingAvailable.mul(Constants.RATE_PRECISION).div(
-                riskAdjustedDiscountFactor
-            );
+            fCashToLiquidate = collateralUnderlyingAvailable.divInRatePrecision(riskAdjustedDiscountFactor);
 
             fCashRiskAdjustedUnderlyingPV = collateralUnderlyingAvailable;
 
             // Recalculate the PV at the new liquidation amount
-            fCashLiquidationUnderlyingPV = fCashToLiquidate.mul(liquidationDiscountFactor).div(
-                Constants.RATE_PRECISION
-            );
+            fCashLiquidationUnderlyingPV = fCashToLiquidate.mulInRatePrecision(liquidationDiscountFactor);
         }
 
         int256 localAssetCashFromLiquidator;
@@ -438,7 +425,8 @@ library LiquidatefCash {
             c.localAssetCashFromLiquidator
         );
 
-        bool liquidatorIncursDebt =
+        bool liquidatorIncursDebt;
+        (liquidatorIncursDebt, liquidatorContext) =
             _transferAssets(
                 liquidateAccount,
                 liquidator,
@@ -448,14 +436,14 @@ library LiquidatefCash {
                 c
             );
 
-        liquidatorContext.setAccountContext(msg.sender);
+        liquidatorContext.setAccountContext(liquidator);
         c.accountContext.setAccountContext(liquidateAccount);
 
         // If the liquidator takes on debt as a result of the liquidation and has debt in their portfolio
         // then they must have a free collateral check. It's possible for the liquidator to skip this if the
         // negative fCash incurred from the liquidation nets off against an existing fCash position.
         if (liquidatorIncursDebt && liquidatorContext.hasDebt != 0x00) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(liquidator);
         }
 
         return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
@@ -468,10 +456,13 @@ library LiquidatefCash {
         uint256 fCashCurrency,
         uint256[] calldata fCashMaturities,
         fCashContext memory c
-    ) private returns (bool) {
+    ) private returns (bool, AccountContext memory) {
         (PortfolioAsset[] memory assets, bool liquidatorIncursDebt) =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
+        // NOTE: when this method returns liquidatorContext may not point to the same
+        // memory location as before so we need to ensure that the liquidator context
+        // is returned from this method and set properly
         liquidatorContext = TransferAssets.placeAssetsInAccount(
             liquidator,
             liquidatorContext,
@@ -490,7 +481,8 @@ library LiquidatefCash {
         } else {
             BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
         }
-        return liquidatorIncursDebt;
+
+        return (liquidatorIncursDebt, liquidatorContext);
     }
 
     function _makeAssetArray(

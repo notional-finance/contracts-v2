@@ -7,13 +7,14 @@ import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/notional/NotionalGovernance.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
+contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -26,6 +27,32 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
+    }
+
+    /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
+    /// to a predetermined router contract that provides read only access to the system.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(
+            owner == msg.sender ||
+                (msg.sender == pauseGuardian && newImplementation == pauseRouter),
+            "Unauthorized upgrade"
+        );
+
+        // This is set temporarily during a downgrade to the pauseRouter so that the upgrade
+        // will pass _authorizeUpgrade on the pauseRouter during the UUPSUpgradeable rollback check
+        if (newImplementation == pauseRouter) rollbackRouterImplementation = _getImplementation();
+    }
+
+    /// @notice Sets a new pause router and guardian address.
+    function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_)
+        external
+        override
+        onlyOwner
+    {
+        pauseRouter = pauseRouter_;
+        pauseGuardian = pauseGuardian_;
+
+        emit PauseRouterAndGuardianUpdated(pauseRouter_, pauseGuardian_);
     }
 
     /// @notice Lists a new currency along with its exchange rate to ETH
@@ -91,15 +118,14 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        address nTokenAddress =
-            Create2.deploy(
-                0,
-                bytes32(uint256(currencyId)),
-                abi.encodePacked(
-                    type(nTokenERC20Proxy).creationCode,
-                    abi.encode(address(this), currencyId, underlyingName, underlyingSymbol)
-                )
-            );
+        address nTokenAddress = Create2.deploy(
+            0,
+            bytes32(uint256(currencyId)),
+            abi.encodePacked(
+                type(nTokenERC20Proxy).creationCode,
+                abi.encode(address(this), currencyId, underlyingName, underlyingSymbol)
+            )
+        );
 
         nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
         emit DeployNToken(currencyId, nTokenAddress);
@@ -131,22 +157,19 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
     /// @notice Updates the market initialization parameters for an nToken
     /// @dev emit:UpdateInitializationParameters
     /// @param currencyId the currency id that the nToken references
-    /// @param rateAnchors sets the offset from the x-axis where the liquidity curve will be
-    /// initialized. This is used in combination with previous market rates to determine the
-    /// initial proportion where markets will be initialized every quarter. Denominated in
-    /// RATE_PRECISION as an exchange rate (i.e. must be > RATE_PRECISION)
-    /// @param proportions used to combination with rateAnchors set the initial proportion when
+    /// @param annualizedAnchorRates is a target interest rate that will be used to calculate a
+    /// rate anchor during initialize markets. This rate anchor will set the offset from the
+    /// x-axis where the liquidity curve will be initialized. This is used in combination with
+    /// previous market rates to determine the initial proportion where markets will be initialized
+    /// every quarter.
+    /// @param proportions used to combination with annualizedAnchorRate set the initial proportion when
     /// a market is first initialized. This is required since there is no previous rate to reference.
     function updateInitializationParameters(
         uint16 currencyId,
-        uint32[] calldata rateAnchors,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external override onlyOwner {
-        require(
-            rateAnchors.length == CashGroup.getMaxMarketIndex(currencyId),
-            "Invalid array length"
-        );
-        nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
         emit UpdateInitializationParameters(currencyId);
     }
 
@@ -271,6 +294,29 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance {
 
         globalTransferOperator[operator] = approved;
         emit UpdateGlobalTransferOperator(operator, approved);
+    }
+
+    /// @notice Approves contracts that can call `batchTradeActionWithCallback`. These contracts can
+    /// "flash loan" from Notional V2 and receive a callback before the free collateral check. Flash loans
+    /// via the Notional V2 liquidity pool are not very gas efficient so this is not generally available,
+    /// it can be used for migrating borrows into Notional V2 from other platforms.
+    /// @dev emit:UpdateAuthorizedCallbackContract
+    /// @param operator address of the contract
+    /// @param approved true if the contract is authorized
+    function updateAuthorizedCallbackContract(address operator, bool approved)
+        external
+        override
+        onlyOwner
+    {
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(operator)
+        }
+        // Sanity check to ensure that operator is a contract, not an EOA
+        require(codeSize > 0, "Operator must be a contract");
+
+        authorizedCallbackContract[operator] = approved;
+        emit UpdateAuthorizedCallbackContract(operator, approved);
     }
 
     function _updateCashGroup(uint256 currencyId, CashGroupSettings calldata cashGroup) internal {

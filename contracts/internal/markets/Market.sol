@@ -199,12 +199,12 @@ library Market {
         // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
         // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
         int256 preFeeCashToAccount =
-            fCashToAccount.mul(Constants.RATE_PRECISION).div(preFeeExchangeRate).neg();
+            fCashToAccount.divInRatePrecision(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         if (fCashToAccount > 0) {
             // Lending
-            int256 postFeeExchangeRate = preFeeExchangeRate.mul(Constants.RATE_PRECISION).div(fee);
+            int256 postFeeExchangeRate = preFeeExchangeRate.divInRatePrecision(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
             // when borrowing. If this happens then the trade has failed.
             if (postFeeExchangeRate < Constants.RATE_PRECISION) return (0, 0, 0);
@@ -219,9 +219,7 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
             // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
-            fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(
-                Constants.RATE_PRECISION
-            );
+            fee = preFeeCashToAccount.mulInRatePrecision(Constants.RATE_PRECISION.sub(fee));
         } else {
             // Borrowing
             // cashToAccount = -(fCashToAccount / exchangeRate)
@@ -296,12 +294,12 @@ library Market {
         int256 rateAnchor;
         {
             int256 proportion =
-                totalfCash.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+                totalfCash.divInRatePrecision(totalfCash.add(totalCashUnderlying));
 
             (int256 lnProportion, bool success) = _logProportion(proportion);
             if (!success) return (0, false);
 
-            rateAnchor = exchangeRate.sub(lnProportion.div(rateScalar));
+            rateAnchor = exchangeRate.sub(lnProportion.divInRatePrecision(rateScalar));
         }
 
         return (rateAnchor, true);
@@ -361,7 +359,7 @@ library Market {
     /// Calculates the following exchange rate:
     ///     (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
     /// where:
-    ///     proportion = totalfCash / (totalfCash + totalAssetCash)
+    ///     proportion = totalfCash / (totalfCash + totalUnderlyingCash)
     /// @dev has an underscore to denote as private but is marked internal for the mock
     function _getExchangeRate(
         int256 totalfCash,
@@ -374,13 +372,12 @@ library Market {
 
         // This is the proportion scaled by Constants.RATE_PRECISION
         int256 proportion =
-            numerator.mul(Constants.RATE_PRECISION).div(totalfCash.add(totalCashUnderlying));
+            numerator.divInRatePrecision(totalfCash.add(totalCashUnderlying));
 
         (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
 
-        // Division will not overflow here because we know rateScalar > 0
-        int256 rate = (lnProportion / rateScalar).add(rateAnchor);
+        int256 rate = lnProportion.divInRatePrecision(rateScalar).add(rateAnchor);
         // Do not succeed if interest rates fall below 1
         if (rate < Constants.RATE_PRECISION) {
             return (0, false);
@@ -395,9 +392,7 @@ library Market {
     function _logProportion(int256 proportion) internal pure returns (int256, bool) {
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
-        proportion = proportion.mul(Constants.RATE_PRECISION).div(
-            Constants.RATE_PRECISION.sub(proportion)
-        );
+        proportion = proportion.divInRatePrecision(Constants.RATE_PRECISION.sub(proportion));
 
         // This is the max 64 bit integer for ABDKMath. This is unlikely to trip because the
         // value is 9.2e18 and the proportion is scaled by 1e9. We can hit very high levels of
@@ -799,28 +794,29 @@ library Market {
         // rateScalar * (totalfCash - fCash) * (totalCash + fCash)
         // Precision: TOKEN_PRECISION ^ 2
         int256 denominator =
-            rateScalar.mul(totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess));
+            rateScalar.mulInRatePrecision(
+                (totalfCash.sub(fCashGuess)).mul(totalCashUnderlying.add(fCashGuess))
+            );
 
         if (fCashGuess > 0) {
             // Lending
-            exchangeRate = exchangeRate.mul(Constants.RATE_PRECISION).div(feeRate);
+            exchangeRate = exchangeRate.divInRatePrecision(feeRate);
             require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
             // (cashAmount / fee) * (totalfCash + totalCash)
             // Precision: TOKEN_PRECISION ^ 2
             derivative = cashAmount
-                .mul(Constants.RATE_PRECISION)
                 .mul(totalfCash.add(totalCashUnderlying))
-                .div(feeRate);
+                .divInRatePrecision(feeRate);
         } else {
             // Borrowing
-            exchangeRate = exchangeRate.mul(feeRate).div(Constants.RATE_PRECISION);
+            exchangeRate = exchangeRate.mulInRatePrecision(feeRate);
             require(exchangeRate >= Constants.RATE_PRECISION); // dev: rate underflow
 
             // (cashAmount * fee) * (totalfCash + totalCash)
             // Precision: TOKEN_PRECISION ^ 2
-            derivative = cashAmount.mul(feeRate).mul(totalfCash.add(totalCashUnderlying)).div(
-                Constants.RATE_PRECISION
+            derivative = cashAmount.mulInRatePrecision(
+                feeRate.mul(totalfCash.add(totalCashUnderlying))
             );
         }
         // 1 - numerator / denominator
@@ -829,7 +825,7 @@ library Market {
 
         // f(fCash) = cashAmount * exchangeRate * fee + fCash
         // NOTE: exchangeRate at this point already has the fee taken into account
-        int256 numerator = cashAmount.mul(exchangeRate).div(Constants.RATE_PRECISION);
+        int256 numerator = cashAmount.mulInRatePrecision(exchangeRate);
         numerator = numerator.add(fCashGuess);
 
         // f(fCash) / f'(fCash), note that they are both denominated as cashAmount so use TOKEN_PRECISION

@@ -8,11 +8,13 @@ import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
+import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
+import "interfaces/notional/NotionalCallback.sol";
 
-contract BatchAction {
+contract BatchAction is StorageLayoutV1 {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
@@ -30,8 +32,10 @@ contract BatchAction {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         // Return any settle amounts here to reduce the number of storage writes to balances
-        (AccountContext memory accountContext, SettleAmount[] memory settleAmounts) =
-            _settleAccountIfRequiredAndStorePortfolio(account);
+        (
+            AccountContext memory accountContext,
+            SettleAmount[] memory settleAmounts
+        ) = _settleAccountIfRequiredAndStorePortfolio(account);
 
         uint256 settleAmountIndex;
         BalanceState memory balanceState;
@@ -46,7 +50,12 @@ contract BatchAction {
                 actions[i].currencyId,
                 settleAmounts,
                 balanceState,
-                accountContext,
+                accountContext
+            );
+
+            _executeDepositAction(
+                account,
+                balanceState,
                 actions[i].actionType,
                 actions[i].depositActionAmount
             );
@@ -76,7 +85,30 @@ contract BatchAction {
         payable
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        _finalizeAccountContext(account, accountContext);
+    }
 
+    function batchBalanceAndTradeActionWithCallback(
+        address account,
+        BalanceActionWithTrades[] calldata actions,
+        bytes calldata callbackData
+    ) external payable {
+        require(authorizedCallbackContract[msg.sender], "Unauthorized");
+        AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        accountContext.setAccountContext(account);
+        // Be sure to set the account context before initiating the callback
+        NotionalCallback(msg.sender).notionalCallback(msg.sender, account, callbackData);
+
+        if (accountContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+        }
+    }
+
+    function _batchBalanceAndTradeAction(
+        address account,
+        BalanceActionWithTrades[] calldata actions
+    ) internal returns (AccountContext memory) {
         (
             AccountContext memory accountContext,
             SettleAmount[] memory settleAmounts,
@@ -95,7 +127,12 @@ contract BatchAction {
                 actions[i].currencyId,
                 settleAmounts,
                 balanceState,
-                accountContext,
+                accountContext
+            );
+
+            _executeDepositAction(
+                account,
+                balanceState,
                 actions[i].actionType,
                 actions[i].depositActionAmount
             );
@@ -148,7 +185,7 @@ contract BatchAction {
 
         // Finalize remaining settle amounts
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
-        _finalizeAccountContext(account, accountContext);
+        return accountContext;
     }
 
     /// @dev Loads balances, nets off settle amounts and then executes deposit actions
@@ -158,9 +195,7 @@ contract BatchAction {
         uint256 currencyId,
         SettleAmount[] memory settleAmounts,
         BalanceState memory balanceState,
-        AccountContext memory accountContext,
-        DepositActionType depositType,
-        uint256 depositActionAmount
+        AccountContext memory accountContext
     ) private returns (uint256) {
         while (
             settleAmountIndex < settleAmounts.length &&
@@ -173,13 +208,14 @@ contract BatchAction {
         // This saves a number of memory allocations
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        if (settleAmountIndex < settleAmounts.length) {
+        if (
+            settleAmountIndex < settleAmounts.length &&
+            settleAmounts[settleAmountIndex].currencyId == currencyId
+        ) {
             balanceState.netCashChange = settleAmounts[settleAmountIndex].netCashChange;
             // Set to zero so that we don't double count later
             settleAmounts[settleAmountIndex].netCashChange = 0;
         }
-
-        _executeDepositAction(account, balanceState, depositType, depositActionAmount);
 
         return settleAmountIndex;
     }
@@ -201,8 +237,7 @@ contract BatchAction {
             depositType == DepositActionType.DepositAsset ||
             depositType == DepositActionType.DepositAssetAndMintNToken
         ) {
-            // prettier-ignore
-            (assetInternalAmount, /* */) = balanceState.depositAssetToken(
+            assetInternalAmount = balanceState.depositAssetToken(
                 account,
                 depositActionAmount,
                 false // no force transfer
@@ -244,14 +279,17 @@ contract BatchAction {
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
-            int256 tokensMinted =
-                nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
+            int256 tokensMinted = nTokenMintAction.nTokenMint(
+                balanceState.currencyId,
+                assetInternalAmount
+            );
 
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
                 tokensMinted
             );
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
+                // prettier-ignore
                 balanceState
                     .storedNTokenBalance
                     .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
@@ -263,11 +301,10 @@ contract BatchAction {
                 depositActionAmount
             );
 
-            int256 assetCash =
-                nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
-                    balanceState.currencyId,
-                    depositActionAmount
-                );
+            int256 assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
+                balanceState.currencyId,
+                depositActionAmount
+            );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
         }
@@ -296,6 +333,7 @@ contract BatchAction {
             if (withdrawAmount < 0) withdrawAmount = 0;
         }
 
+        // prettier-ignore
         balanceState.netAssetTransferInternalPrecision = balanceState
             .netAssetTransferInternalPrecision
             .sub(withdrawAmount);
@@ -340,7 +378,7 @@ contract BatchAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndReturnAll(account);
+            return SettleAssetsExternal.settleAssetsAndReturnAll(account, accountContext);
         }
 
         return (
@@ -358,7 +396,7 @@ contract BatchAction {
         SettleAmount[] memory settleAmounts;
 
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account);
+            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account, accountContext);
         }
 
         return (accountContext, settleAmounts);

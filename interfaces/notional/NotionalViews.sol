@@ -39,7 +39,7 @@ interface NotionalViews {
     function getInitializationParameters(uint16 currencyId)
         external
         view
-        returns (int256[] memory rateAnchors, int256[] memory proportions);
+        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions);
 
     function getDepositParameters(uint16 currencyId)
         external
@@ -78,7 +78,9 @@ interface NotionalViews {
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 nTokenParameters,
-            int256 cashBalance
+            int256 cashBalance,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
         );
 
     function getAccount(address account)
@@ -131,4 +133,10 @@ interface NotionalViews {
         uint256 marketIndex,
         uint256 blockTime
     ) external view returns (int256, int256);
+
+    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
+        external
+        view
+        returns (uint256);
+
 }

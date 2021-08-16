@@ -116,4 +116,28 @@ contract BaseMockLiquidation is StorageLayoutV1 {
             sstore(slot, data)
         }
     }
+
+    function setBitmapAsset(
+        address account,
+        uint16 currencyId,
+        uint40 nextSettleTime,
+        uint256 maturity,
+        int256 notional
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.bitmapCurrencyId = currencyId;
+        accountContext.nextSettleTime = nextSettleTime;
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        BitmapAssetsHandler.addifCashAsset(
+            account,
+            currencyId,
+            maturity,
+            accountContext.nextSettleTime,
+            notional,
+            assetsBitmap
+        );
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
+        accountContext.setAccountContext(account);
+    }
+
 }

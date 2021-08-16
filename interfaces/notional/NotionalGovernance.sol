@@ -15,9 +15,13 @@ interface NotionalGovernance {
     event UpdateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate);
     event UpdateTokenCollateralParameters(uint16 currencyId);
     event UpdateGlobalTransferOperator(address operator, bool approved);
+    event UpdateAuthorizedCallbackContract(address operator, bool approved);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
 
     function transferOwnership(address newOwner) external;
+
+    function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
     function listCurrency(
         TokenStorage calldata assetToken,
@@ -45,7 +49,7 @@ interface NotionalGovernance {
 
     function updateInitializationParameters(
         uint16 currencyId,
-        uint32[] calldata rateAnchors,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external;
 
@@ -74,4 +78,6 @@ interface NotionalGovernance {
     ) external;
 
     function updateGlobalTransferOperator(address operator, bool approved) external;
+
+    function updateAuthorizedCallbackContract(address operator, bool approved) external;
 }

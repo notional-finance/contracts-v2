@@ -18,7 +18,7 @@ library Constants {
     // Address of the reserve account
     address internal constant RESERVE = address(0);
     // NOTE: this address is hardcoded in the library, must update this on deployment
-    address constant NOTE_TOKEN_ADDRESS = 0x46B2efE8BE4a97F05826264E88148fc083D595BD;
+    address constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
 
     // Most significant bit
     bytes32 internal constant MSB =
@@ -96,11 +96,6 @@ library Constants {
     /// @dev Liquidation dust setting used during fCash liquidation
     int256 internal constant LIQUIDATION_DUST = 10;
 
-    /// @dev Annual incentive multiplier as a percentage
-    uint256 internal constant ANNUAL_INCENTIVE_MULTIPLIER_PERCENT = 50;
-    /// @dev Caps the max incentive multiplier to 2 years (i.e. 1 + 2 years * 0.5 == 2)
-    uint256 internal constant MAX_INCENTIVE_MULTIPLIER = 2e8;
-
     /* Internal Storage Slot Offsets */
     // Internally used storage slots are set at 1000000 offset from the solidity provisioned storage slots to minimize
     // the possibility of clashing.
@@ -117,4 +112,5 @@ library Constants {
     uint256 internal constant ASSETS_BITMAP_STORAGE_OFFSET = 1000011;
     uint256 internal constant IFCASH_STORAGE_OFFSET = 1000012;
     uint256 internal constant PORTFOLIO_ARRAY_STORAGE_OFFSET = 1000013;
+    uint256 internal constant NTOKEN_TOTAL_SUPPLY_OFFSET = 1000014;
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >0.7.0;
 
+import "../global/Constants.sol";
+
 library SafeInt256 {
     int256 private constant _INT256_MIN = -2**255;
 
@@ -71,5 +73,15 @@ library SafeInt256 {
         require(z >= 0); // dev: int256 sub to negative
 
         return z;
+    }
+
+    /// @dev Calculates x * RATE_PRECISION / y while checking overflows
+    function divInRatePrecision(int256 x, int256 y) internal pure returns (int256) {
+        return div(mul(x, Constants.RATE_PRECISION), y);
+    }
+
+    /// @dev Calculates x * y / RATE_PRECISION while checking overflows
+    function mulInRatePrecision(int256 x, int256 y) internal pure returns (int256) {
+        return div(mul(x, y), Constants.RATE_PRECISION);
     }
 }

@@ -17,30 +17,29 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256,
             uint256,
             uint256,
-            uint256,
             bytes6
         )
     {
         (
             uint256 currencyId,
-            uint256 totalSupply,
             uint256 incentiveRate,
             uint256 lastInitializedTime,
             bytes6 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
         assert(nTokenHandler.nTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, totalSupply, incentiveRate, lastInitializedTime, parameters);
+        return (currencyId, incentiveRate, lastInitializedTime, parameters);
     }
 
     function nTokenAddress(uint256 currencyId) external view returns (address) {
         address tokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        (uint256 currencyIdStored, , , , ) =
-            /* uint totalSupply */
-            /* incentiveRate */
-            /* lastInitializedTime */
+        // prettier-ignore
+        (
+            uint256 currencyIdStored,
+            /* incentiveRate */,
+            /* lastInitializedTime */,
             /* parameters */
-            nTokenHandler.getNTokenContext(tokenAddress);
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
 
         return tokenAddress;
@@ -58,8 +57,24 @@ contract MockNTokenHandler is StorageLayoutV1 {
         );
     }
 
-    function changeNTokenSupply(address tokenAddress, int256 netChange) external {
-        nTokenHandler.changeNTokenSupply(tokenAddress, netChange);
+    function changeNTokenSupply(
+        address tokenAddress,
+        int256 netChange,
+        uint256 blockTime
+    ) external returns (uint256) {
+        return nTokenHandler.changeNTokenSupply(tokenAddress, netChange, blockTime);
+    }
+
+    function getStoredNTokenSupplyFactors(address tokenAddress)
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        return nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
     }
 
     function setNTokenAddress(uint16 currencyId, address tokenAddress) external {
@@ -96,10 +111,10 @@ contract MockNTokenHandler is StorageLayoutV1 {
 
     function setInitializationParameters(
         uint256 currencyId,
-        uint32[] calldata rateAnchors,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external {
-        nTokenHandler.setInitializationParameters(currencyId, rateAnchors, proportions);
+        nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
     }
 
     function getNTokenAssetPV(uint256 currencyId, uint256 blockTime)

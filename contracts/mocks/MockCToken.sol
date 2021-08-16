@@ -5,11 +5,16 @@ contract MockCToken {
     uint private _answer;
     uint private _supplyRate;
     uint8 public decimals;
+    address public underlying;
     string public symbol = "cMock";
     event AccrueInterest(uint cashPrior, uint interestAccumulated, uint borrowIndex, uint totalBorrows);
 
     constructor(uint8 _decimals) {
         decimals = _decimals;
+    }
+
+    function setUnderlying(address underlying_) external {
+        underlying = underlying_;
     }
 
     function setAnswer(uint a) external {

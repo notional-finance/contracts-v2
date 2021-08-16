@@ -20,9 +20,15 @@ contract StorageLayoutV1 {
 
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions
-    address internal owner;
+    address public owner;
     // This is set to the governance token address
     address internal token;
+    // This is set to an address of a router that can only call governance actions
+    address public pauseRouter;
+    // This is set to an address of a router that can only call governance actions
+    address public pauseGuardian;
+    // On upgrades this is set in the case that the pause router is used to pass the rollback check
+    address internal rollbackRouterImplementation;
 
     // A blanket allowance for a spender to transfer any of an account's nTokens. This would allow a user
     // to set an allowance on all nTokens for a particular integrating contract system.
@@ -35,6 +41,7 @@ contract StorageLayoutV1 {
     // Transfer operators
     mapping(address => bool) internal globalTransferOperator;
     mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
+    mapping(address => bool) internal authorizedCallbackContract;
 
     // Reverse mapping from token addresses to currency ids, only used for referencing in views
     // and checking for duplicate token listings.

@@ -49,7 +49,9 @@ library TransferAssets {
         }
     }
 
-    /// @dev Useful method for hiding the logic of updating an account
+    /// @dev Useful method for hiding the logic of updating an account. WARNING: the account
+    /// context returned from this method may not be the same memory location as the account
+    /// context provided if the account is settled.
     function placeAssetsInAccount(
         address account,
         AccountContext memory accountContext,
@@ -69,8 +71,10 @@ library TransferAssets {
     ) private returns (AccountContext memory) {
         PortfolioState memory portfolioState;
         if (accountContext.mustSettleAssets()) {
+            // accountContext may change memory locations after this returns
             (accountContext, portfolioState) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(
-                account
+                account,
+                accountContext
             );
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(
@@ -92,7 +96,7 @@ library TransferAssets {
         PortfolioAsset[] memory assets
     ) private returns (AccountContext memory) {
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         BitmapAssetsHandler.addMultipleifCashAssets(account, accountContext, assets);

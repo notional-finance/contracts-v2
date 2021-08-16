@@ -27,14 +27,18 @@ contract AccountAction {
     }
 
     /// @notice Method for manually settling an account, generally should not be called because other
-    /// methods will check if an account needs to be settled automatically.
+    /// methods will check if an account needs to be settled automatically. If a bitmap account has debt
+    /// and is settled via this method, the hasDebt flag will not be cleared until a free collateral check
+    /// is performed on the account.
     /// @param account the account to settle
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:none
     function settleAccount(address account) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account);
+            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+            // Don't use the internal method here to avoid setting the account context if it does
+            // not require settlement
             accountContext.setAccountContext(account);
         }
     }
@@ -63,8 +67,10 @@ contract AccountAction {
         // Int conversion overflow check done inside this method call
         // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
         // be useful for on-demand collateral top ups from a third party
-        int256 assetTokensReceivedInternal =
-            balanceState.depositUnderlyingToken(msg.sender, int256(amountExternalPrecision));
+        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+            msg.sender,
+            int256(amountExternalPrecision)
+        );
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
@@ -95,13 +101,10 @@ contract AccountAction {
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        // prettier-ignore
-        // Int conversion overflow check done inside this method call, useCashBalance is set to false. msg.sender
-        // is used as the account in deposit to allow for other accounts to deposit on behalf of the given account.
-        (
-            int256 assetTokensReceivedInternal,
-            /* assetAmountTransferred */
-        ) = balanceState.depositAssetToken(
+        // Int conversion overflow check done inside this method call. msg.sender
+        // is used as the account in deposit to allow for other accounts to deposit
+        // on behalf of the given account.
+        int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
             int256(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
@@ -159,7 +162,7 @@ contract AccountAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            return SettleAssetsExternal.settleAssetsAndFinalize(account);
+            return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         }
 
         return accountContext;

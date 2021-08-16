@@ -20,7 +20,7 @@ enum TradeActionType {
     Borrow,
     // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     AddLiquidity,
-    // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 tokenAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     RemoveLiquidity,
     // (uint8 TradeActionType, uint32 Maturity, int88 fCashResidualAmount, uint128 unused)
     PurchaseNTokenResidual,
@@ -177,8 +177,8 @@ struct BalanceState {
     int256 netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
     uint256 lastClaimTime;
-    // The last supply amount when tokens were claimed
-    uint256 lastClaimSupply;
+    // The last integral supply amount when tokens were claimed
+    uint256 lastClaimIntegralSupply;
 }
 
 /// @dev Asset rate used to convert between underlying cash and asset cash
@@ -291,8 +291,8 @@ struct AssetRateStorage {
     uint8 underlyingDecimalPlaces;
 }
 
-/// @dev Governance parameters for a cash group, total storage is 7 bytes + 9 bytes for liquidity token haircuts
-/// and 9 bytes for rate scalars, total of 25 bytes. Note that this is stored packed in the storage slot so there
+/// @dev Governance parameters for a cash group, total storage is 9 bytes + 7 bytes for liquidity token haircuts
+/// and 7 bytes for rate scalars, total of 23 bytes. Note that this is stored packed in the storage slot so there
 /// are no indexes stored for liquidityTokenHaircuts or rateScalars, maxMarketIndex is used instead to determine the
 /// length.
 struct CashGroupSettings {
@@ -343,5 +343,5 @@ struct AccountBalance {
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
-    uint256 lastClaimSupplyAmount;
+    uint256 lastClaimIntegralSupply;
 }

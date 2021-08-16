@@ -204,7 +204,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
-    # nTokenAddress = environment.notional.nTokenAddress(currencyId)
     totalSupplyBefore = environment.nToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
@@ -232,7 +231,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
     totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
-    # Assert that no assets in portfolio
     portfolio = environment.notional.getAccountPortfolio(accounts[0])
     for asset in portfolio:
         # Should be a net borrower because of lending
@@ -252,12 +250,81 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+def test_redeem_tokens_and_save_assets_settle(environment, accounts):
+    currencyId = 2
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 10e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=300e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+    environment.nToken[currencyId].transfer(accounts[1], 10e8, {"from": accounts[0]})
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    # This account has a matured borrow fCash
+    txn = environment.notional.nTokenRedeem(
+        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+    )
+    assert txn.events["AccountSettled"]
+    context = environment.notional.getAccountContext(accounts[1])
+    assert context[1] == "0x02"
+
+    check_system_invariants(environment, accounts)
+
+
 def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
-    # TODO: activate bitmap portfolio
-    pass
+    currencyId = 2
+    (
+        cashBalanceBefore,
+        perpTokenBalanceBefore,
+        lastMintTimeBefore,
+    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 10e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=300e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.enableBitmapCurrency(currencyId, {"from": accounts[1]})
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+    portfolioBefore = environment.notional.getAccountPortfolio(accounts[1])
+
+    environment.nToken[currencyId].transfer(accounts[1], 10e8, {"from": accounts[0]})
+
+    # This account has a matured borrow fCash
+    environment.notional.nTokenRedeem(
+        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+    )
+    portfolio = environment.notional.getAccountPortfolio(accounts[1])
+    assert len(portfolio) == 2
+    assert portfolio[0][1] == portfolioBefore[0][1]
+    assert portfolio[0][3] > portfolioBefore[0][3]
+    assert portfolio[1][1] == portfolioBefore[1][1]
+    assert portfolio[1][3] < portfolioBefore[1][3]
+
+    check_system_invariants(environment, accounts)
 
 
-def test_purchase_perp_token_residual_negative(environment, accounts):
+def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
@@ -271,7 +338,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -349,9 +416,11 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
             accounts[2], [action], {"from": accounts[2]}
         )
 
+    environment.cToken["DAI"].transfer(accounts[2], 5000e8, {"from": accounts[0]})
+    environment.cToken["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[2]})
     action = get_balance_trade_action(
         2,
-        "None",
+        "DepositAsset",
         [
             {
                 "tradeActionType": "PurchaseNTokenResidual",
@@ -359,6 +428,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
                 "fCashAmountToPurchase": ifCashAssetsBefore[2][3],
             }
         ],
+        depositActionAmount=5000e8,
     )
     environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
 
@@ -368,7 +438,7 @@ def test_purchase_perp_token_residual_negative(environment, accounts):
     accountPortfolio = environment.notional.getAccountPortfolio(accounts[2])
 
     assert portfolioAfter == portfolioBefore
-    assert accountCashBalance == cashBalanceBefore - cashBalanceAfter
+    assert accountCashBalance == cashBalanceBefore - cashBalanceAfter + 5000e8
     assert accountPortfolio[0][0:3] == ifCashAssetsBefore[2][0:3]
     assert len(ifCashAssetsAfter) == 3
 
@@ -389,7 +459,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -523,7 +593,7 @@ def test_mint_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed, rel=1e-4) == 150000e8 * 3
+    assert pytest.approx(incentivesClaimed, rel=1e-4) == 100000e8 * 3
     assert (
         environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
     )
@@ -535,6 +605,7 @@ def test_mint_incentives(environment, accounts):
 
 
 def test_mint_bitmap_incentives(environment, accounts):
+    # NOTE: this test is a little flaky when running with the entire test suite
     currencyId = 2
     environment.notional.enableBitmapCurrency(2, {"from": accounts[0]})
 
@@ -548,8 +619,10 @@ def test_mint_bitmap_incentives(environment, accounts):
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
     assert balanceAfter - balanceBefore == incentivesClaimed
-    assert pytest.approx(incentivesClaimed, rel=1e-4) == 150000e8 * 3
-    assert environment.notional.nTokenGetClaimableIncentives(accounts[0].address, chain.time()) == 0
+    assert pytest.approx(incentivesClaimed, rel=1e-4) == 100000e8 * 3
+    assert (
+        environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
+    )
 
     (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
     assert mintTimeAfterZero == txn.timestamp
@@ -614,7 +687,7 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9, 1.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9, 0.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -667,12 +740,19 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
         accounts[0], [residualPurchaseAction], {"from": accounts[0]}
     )
 
-    (_, totalSupplyBefore, _, _, _, cashBalanceBefore) = environment.notional.getNTokenAccount(
-        nTokenAddress
-    )
+    (
+        _,
+        totalSupplyBefore,
+        _,
+        _,
+        _,
+        cashBalanceBefore,
+        _,
+        _,
+    ) = environment.notional.getNTokenAccount(nTokenAddress)
     txn = environment.notional.sweepCashIntoMarkets(2)
     (portfolioAfter, _) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (_, totalSupplyAfter, _, _, _, cashBalanceAfter) = environment.notional.getNTokenAccount(
+    (_, totalSupplyAfter, _, _, _, cashBalanceAfter, _, _) = environment.notional.getNTokenAccount(
         nTokenAddress
     )
     cashIntoMarkets = txn.events["SweepCashIntoMarkets"]["cashIntoMarkets"]
@@ -683,4 +763,85 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
     for (assetBefore, assetAfter) in zip(portfolioBefore, portfolioAfter):
         assert assetAfter[3] > assetBefore[3]
 
+    check_system_invariants(environment, accounts)
+
+
+def test_can_reduce_erc20_approval(environment, accounts):
+    environment.nToken[2].approve(accounts[1], 200e8, {"from": accounts[0]})
+    environment.nToken[2].approve(accounts[1], 100e8, {"from": accounts[0]})
+
+
+def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
+    # This unit test is here to test a bug where markets were skipped during the sellfCash portion
+    # of redeeming nTokens
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the two year markets
+    cashGroup[0] = 4
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [0.01e9, 0.021e9, 0.07e9, 0.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=10e18)
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            # This leaves a positive residual
+            {"tradeActionType": "Borrow", "marketIndex": 3, "notional": 1e4, "maxSlippage": 0},
+            # This leaves a negative residual
+            {"tradeActionType": "Lend", "marketIndex": 4, "notional": 1e4, "minSlippage": 0},
+        ],
+        depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Leaves some more residual
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 4, "notional": 100e8, "minSlippage": 0},
+        ],
+        depositActionAmount=500e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, action], {"from": accounts[1], "value": 10e18}
+    )
+
+    # Need to ensure that no residual assets are left behind
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
+    environment.notional.nTokenRedeem(
+        accounts[0].address, currencyId, 1e8, True, {"from": accounts[0]}
+    )
+
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
     check_system_invariants(environment, accounts)

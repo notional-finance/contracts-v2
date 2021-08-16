@@ -8,6 +8,7 @@ import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
+import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -55,12 +56,13 @@ contract nTokenRedeemAction {
     /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
     /// residual fCash assets will be placed into the portfolio
     /// @dev auth:msg.sender auth:ERC1155
+    /// @return total amount of asset cash redeemed
     function nTokenRedeem(
         address redeemer,
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets
-    ) external {
+    ) external returns (int256) {
         // ERC1155 can call this method during a post transfer event
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
@@ -77,12 +79,14 @@ contract nTokenRedeemAction {
         (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
         balance.netCashChange = totalAssetCash;
+        balance.finalize(redeemer, context, false);
 
         if (hasResidual) {
+            // If the account has assets that need to be settled it will occur inside
+            // this method call. We ensure that balances are finalized before this so
+            // that settled balances don't overwrite existing balances.
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
-
-        balance.finalize(redeemer, context, false);
         context.setAccountContext(redeemer);
 
         emit nTokenSupplyChange(redeemer, currencyId, tokensToRedeem.neg());
@@ -90,6 +94,8 @@ contract nTokenRedeemAction {
         if (context.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
+
+        return totalAssetCash;
     }
 
     function _redeem(
@@ -257,36 +263,37 @@ contract nTokenRedeemAction {
         bool hasResidual;
 
         for (uint256 i; i < markets.length; i++) {
-            if (fCashAssets[fCashIndex].notional == 0) {
-                fCashIndex += 1;
-                continue;
-            }
-
             while (fCashAssets[fCashIndex].maturity < markets[i].maturity) {
                 // Skip an idiosyncratic fCash asset, if this happens then we know there is a residual
                 // fCash asset
                 fCashIndex += 1;
                 hasResidual = true;
             }
-            // It's not clear that this is idiosyncratic at this point
+            // It's not clear that this is idiosyncratic at this point but we know that this asset cannot trade
+            // on this particular market.
             if (fCashAssets[fCashIndex].maturity > markets[i].maturity) continue;
 
-            (int256 netAssetCash, int256 fee) =
-                markets[i].calculateTrade(
-                    cashGroup,
-                    // Use the negative of fCash notional here since we want to net it out
-                    fCashAssets[fCashIndex].notional.neg(),
-                    fCashAssets[fCashIndex].maturity.sub(blockTime),
-                    i + 1
-                );
+            // Safety check to ensure that we only ever trade on matching markets
+            require(fCashAssets[fCashIndex].maturity == markets[i].maturity); // dev: invalid maturity during trading
 
-            if (netAssetCash == 0) {
-                // In this case the trade has failed and there will be some residual fCash
-                hasResidual = true;
-            } else {
-                values[0] = values[0].add(netAssetCash);
-                values[1] = values[1].add(fee);
-                fCashAssets[fCashIndex].notional = 0;
+            if (fCashAssets[fCashIndex].notional != 0) {
+                // If the notional amount is not zero then attempt to execute a trade on the asset
+                (int256 netAssetCash, int256 fee) =
+                    markets[i].calculateTrade(
+                        cashGroup,
+                        // Use the negative of fCash notional here since we want to net it out
+                        fCashAssets[fCashIndex].notional.neg(),
+                        fCashAssets[fCashIndex].maturity.sub(blockTime),
+                        i + 1
+                    );
+
+                if (netAssetCash == 0) {
+                    hasResidual = true;
+                } else {
+                    values[0] = values[0].add(netAssetCash);
+                    values[1] = values[1].add(fee);
+                    fCashAssets[fCashIndex].notional = 0;
+                }
             }
 
             fCashIndex += 1;

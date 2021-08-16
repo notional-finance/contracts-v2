@@ -14,18 +14,15 @@ library nTokenHandler {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
-    /// @dev Stores (uint96)
-    bytes32 private constant NTOKEN_SUPPLY_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000000FFFF;
     /// @dev Stores (uint32)
     bytes32 private constant INCENTIVE_RATE_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFF;
     /// @dev Stores (uint8, uint32)
     bytes32 private constant ARRAY_TIME_MASK =
-        0xFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFF;
     /// @dev Stores (uint8, uint8, uint8, uint8, uint8)
     bytes32 private constant COLLATERAL_MASK =
-        0xFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFF;
 
     /// @notice Returns an account context object that is specific to nTokens.
     function getNTokenContext(address tokenAddress)
@@ -33,7 +30,6 @@ library nTokenHandler {
         view
         returns (
             uint256 currencyId,
-            uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -46,10 +42,9 @@ library nTokenHandler {
         }
 
         currencyId = uint256(uint16(uint256(data)));
-        totalSupply = uint256(uint96(uint256(data >> 16)));
-        incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 112)));
-        lastInitializedTime = uint256(uint32(uint256(data >> 144)));
-        parameters = bytes6(data << 32);
+        incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 16)));
+        lastInitializedTime = uint256(uint32(uint256(data >> 48)));
+        parameters = bytes6(data << 128);
     }
 
     /// @notice Returns the nToken token address for a given currency
@@ -119,36 +114,101 @@ library nTokenHandler {
                 (bytes32(uint256(residualPurchaseTimeBufferHours)) << 16) |
                 (bytes32(uint256(cashWithholdingBuffer10BPS)) << 24) |
                 (bytes32(uint256(liquidationHaircutPercentage)) << 32));
-        data = data | (bytes32(parameters) << 184);
+        data = data | (bytes32(parameters) << 88);
         assembly {
             sstore(slot, data)
         }
     }
 
-    /// @notice Updates the nToken token supply amount when minting or redeeming.
-    function changeNTokenSupply(address tokenAddress, int256 netChange) internal returns (uint256) {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
+    /// @notice Retrieves the nToken supply factors without any updates or calculations
+    function getStoredNTokenSupplyFactors(address tokenAddress)
+        internal
+        view
+        returns (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
+        )
+    {
+        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
         bytes32 data;
+
         assembly {
             data := sload(slot)
         }
-        int256 totalSupply = int256(uint96(uint256(data >> 16)));
-        int256 newSupply = totalSupply.add(netChange);
 
-        require(
-            newSupply >= 0 && uint256(newSupply) < type(uint96).max,
-            "PT: total supply overflow"
-        );
+        totalSupply = uint256(uint96(uint256(data)));
+        // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The integral total supply
+        // must be updated given the block time. Use `calculateIntegralTotalSupply` instead
+        integralTotalSupply = uint256(uint128(uint256(data >> 96)));
+        lastSupplyChangeTime = uint256(data >> 224);
+    }
 
-        // Clear the 12 bytes where stored supply will go and OR it in
-        data = data & NTOKEN_SUPPLY_MASK;
-        data = data | (bytes32(uint256(newSupply)) << 16);
-        assembly {
-            sstore(slot, data)
+    /// @notice Retrieves stored total supply factors and 
+    function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
+        internal
+        view 
+        returns (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            uint256 lastSupplyChangeTime
+        )
+    {
+        (
+            totalSupply,
+            integralTotalSupply,
+            lastSupplyChangeTime
+        ) = getStoredNTokenSupplyFactors(tokenAddress);
+
+        // Initialize last supply change time if it has not been set.
+        if (lastSupplyChangeTime == 0) lastSupplyChangeTime = blockTime;
+
+        require(blockTime >= lastSupplyChangeTime); // dev: invalid block time
+
+        // Add to the integral total supply the total supply of tokens multiplied by the time that the total supply
+        // has been the value. This will part of the numerator for the average total supply calculation during
+        // minting incentives.
+        integralTotalSupply = uint256(int256(integralTotalSupply).add(
+            int256(totalSupply).mul(int256(blockTime - lastSupplyChangeTime))
+        ));
+
+        require(integralTotalSupply >= 0 && integralTotalSupply < type(uint128).max); // dev: integral total supply overflow
+        require(blockTime < type(uint32).max); // dev: last supply change supply overflow
+    }
+
+
+    /// @notice Updates the nToken token supply amount when minting or redeeming.
+    function changeNTokenSupply(
+        address tokenAddress,
+        int256 netChange,
+        uint256 blockTime
+    ) internal returns (uint256) {
+        (
+            uint256 totalSupply,
+            uint256 integralTotalSupply,
+            /* uint256 lastSupplyChangeTime */
+        ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
+
+        if (netChange != 0) {
+            bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
+            // If the totalSupply will change then we store the new total supply, the integral total supply and the
+            // current block time. We know that this int256 conversion will not overflow because totalSupply is stored
+            // as a uint96 and checked in the next line.
+            int256 newTotalSupply = int256(totalSupply).add(netChange);
+            require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
+
+            bytes32 newData = (
+                (bytes32(uint256(newTotalSupply))) |
+                (bytes32(integralTotalSupply << 96)) |
+                (bytes32(blockTime << 224))
+            );
+
+            assembly {
+                sstore(slot, newData)
+            }
         }
 
-        // Overflow check done above
-        return uint256(newSupply);
+        return integralTotalSupply;
     }
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
@@ -160,7 +220,7 @@ library nTokenHandler {
         }
         // Clear the 4 bytes where emissions rate will go and OR it in
         data = data & INCENTIVE_RATE_MASK;
-        data = data | (bytes32(uint256(newEmissionsRate)) << 112);
+        data = data | (bytes32(uint256(newEmissionsRate)) << 16);
         assembly {
             sstore(slot, data)
         }
@@ -180,8 +240,8 @@ library nTokenHandler {
         }
         // Clear the 6 bytes where array length and settle time will go
         data = data & ARRAY_TIME_MASK;
-        data = data | (bytes32(uint256(lastInitializedTime)) << 144);
-        data = data | (bytes32(uint256(arrayLength)) << 176);
+        data = data | (bytes32(uint256(lastInitializedTime)) << 48);
+        data = data | (bytes32(uint256(arrayLength)) << 80);
         assembly {
             sstore(slot, data)
         }
@@ -234,19 +294,16 @@ library nTokenHandler {
     /// are initialized
     function setInitializationParameters(
         uint256 currencyId,
-        uint32[] calldata rateAnchors,
+        uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) internal {
         uint256 slot =
             uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
-        require(rateAnchors.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: rate anchors length");
+        require(annualizedAnchorRates.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: annualized anchor rates length");
 
-        require(proportions.length == rateAnchors.length, "PT: proportions length");
+        require(proportions.length == annualizedAnchorRates.length, "PT: proportions length");
 
-        for (uint256 i; i < rateAnchors.length; i++) {
-            // Rate anchors are exchange rates and therefore must be greater than RATE_PRECISION
-            // or we will end up with negative interest rates
-            require(rateAnchors[i] > Constants.RATE_PRECISION, "PT: invalid rate anchor");
+        for (uint256 i; i < proportions.length; i++) {
             // Proportions must be between zero and the rate precision
             require(
                 proportions[i] > 0 && proportions[i] < Constants.RATE_PRECISION,
@@ -254,18 +311,18 @@ library nTokenHandler {
             );
         }
 
-        _setParameters(slot, rateAnchors, proportions);
+        _setParameters(slot, annualizedAnchorRates, proportions);
     }
 
     /// @notice Returns the array of initialization parameters for a given currency.
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
-        returns (int256[] memory rateAnchors, int256[] memory proportions)
+        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
     {
         uint256 slot =
             uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
-        (rateAnchors, proportions) = _getParameters(slot, maxMarketIndex, true);
+        (annualizedAnchorRates, proportions) = _getParameters(slot, maxMarketIndex, true);
     }
 
     function _getParameters(
@@ -348,11 +405,17 @@ library nTokenHandler {
         // prettier-ignore
         (
             /* currencyId */,
-            uint256 totalSupply,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
         ) = getNTokenContext(nToken.tokenAddress);
+
+        // prettier-ignore
+        (
+            uint256 totalSupply,
+            /* integralTotalSupply */,
+            /* lastSupplyChangeTime */
+        ) = getStoredNTokenSupplyFactors(nToken.tokenAddress);
 
         nToken.lastInitializedTime = lastInitializedTime;
         nToken.totalSupply = int256(totalSupply);
@@ -369,7 +432,7 @@ library nTokenHandler {
             nToken.cashBalance,
             /* nTokenBalance */,
             /* lastClaimTime */,
-            /* lastClaimSupply */
+            /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
     }
 

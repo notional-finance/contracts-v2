@@ -118,10 +118,10 @@ library TokenHandler {
             // Reverts on error
             CEtherInterface(token.tokenAddress).mint{value: msg.value}();
         } else {
-            revert("Non mintable");
+            revert(); // dev: non mintable token
         }
 
-        require(success == 0, "TH: mint failure");
+        require(success == 0, "Mint fail");
         uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         // This is the starting and ending balance in external precision
@@ -139,11 +139,11 @@ library TokenHandler {
         } else if (assetToken.tokenType == TokenType.cToken) {
             startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         } else {
-            revert("Non redeemable token");
+            revert(); // dev: non redeemable failure
         }
 
         uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
-        require(success == 0, "Redeem failure");
+        require(success == 0, "Redeem fail");
 
         uint256 endingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
@@ -255,6 +255,6 @@ library TokenHandler {
                 }
         }
 
-        require(success, "TH: Transfer Failed");
+        require(success, "Transfer Failed");
     }
 }

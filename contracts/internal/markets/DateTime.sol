@@ -71,6 +71,7 @@ library DateTime {
     }
 
     /// @notice Returns the market index for a given maturity
+    /// @return uint marketIndex, bool isIdiosyncratic
     function getMarketIndex(
         uint256 maxMarketIndex,
         uint256 maturity,

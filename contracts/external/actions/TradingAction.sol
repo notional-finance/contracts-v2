@@ -352,7 +352,7 @@ library TradingAction {
             AccountContextHandler.getAccountContext(counterparty);
 
         if (counterpartyContext.mustSettleAssets()) {
-            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty);
+            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty, counterpartyContext);
         }
 
         // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive
@@ -449,7 +449,6 @@ library TradingAction {
         // prettier-ignore
         (
             /* currencyId */,
-            /* totalSupply */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -531,9 +530,7 @@ library TradingAction {
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
         return
-            cashGroup.assetRate.convertFromUnderlying(
-                fCashAmount.mul(Constants.RATE_PRECISION).div(exchangeRate)
-            );
+            cashGroup.assetRate.convertFromUnderlying(fCashAmount.divInRatePrecision(exchangeRate));
     }
 
     function _updateNTokenPortfolio(
@@ -564,7 +561,7 @@ library TradingAction {
             int256 nTokenCashBalance,
             /* storedNTokenBalance */,
             /* lastClaimTime */,
-            /* lastClaimSupply */
+            /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(nTokenAddress, currencyId);
         nTokenCashBalance = nTokenCashBalance.add(netAssetCashNToken);
 

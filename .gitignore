@@ -6,10 +6,10 @@ build/
 venv/
 chaindb/
 ganache-out.txt
-.certora/
-.last_confs/
-.certora_*
-node_modules
-artifacts
-cache
+.certora_config/*
+.last_confs/*
+.certora*.json
+node_modules/*
 hardhat.config.js
+artifacts/*
+cache/*

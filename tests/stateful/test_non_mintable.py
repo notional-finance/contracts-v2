@@ -71,7 +71,7 @@ def test_deposit_withdraw_asset_non_mintable(environment, accounts):
     assert balances[2] == 0
 
     (fc, netLocal) = environment.notional.getFreeCollateral(accounts[1])
-    assert fc == 100e8
+    assert fc == 70e8
     assert netLocal[0] == 100e8
 
     check_system_invariants(environment, accounts)
@@ -98,7 +98,7 @@ def test_initialize_markets_non_mintable(environment, accounts):
     environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.8e9, 0.8e9])
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.02e9, 1.02e9], [0.5e9, 0.5e9]
+        currencyId, [0.02e9, 0.02e9], [0.5e9, 0.5e9]
     )
 
     environment.notional.batchBalanceAction(

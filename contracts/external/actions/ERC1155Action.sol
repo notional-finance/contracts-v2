@@ -73,8 +73,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 bitmapCurrencyId,
         uint256 id
     ) internal view returns (int256) {
-        (uint256 currencyId, uint256 maturity, uint256 assetType) =
-            TransferAssets.decodeAssetId(id);
+        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(
+            id
+        );
         if (currencyId != bitmapCurrencyId) return 0;
         if (assetType != Constants.FCASH_ASSET_TYPE) return 0;
 
@@ -117,22 +118,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
-        // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
-        AccountContext memory fromContext;
-        if (amount > 0) {
-            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-            (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
-                .decodeAssetId(id);
-            assets[0].notional = int256(amount);
-            _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
-
-            fromContext = _transfer(from, to, assets);
-
-            emit TransferSingle(msg.sender, from, to, id, amount);
-        } else {
-            fromContext = AccountContextHandler.getAccountContext(from);
-        }
-
         // If code size > 0 call onERC1155received
         uint256 codeSize;
         // solium-disable-next-line security/no-inline-assembly
@@ -147,7 +132,26 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
         }
 
-        _checkPostTransferEvent(from, to, fromContext, data);
+        // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
+        AccountContext memory fromContext;
+        if (amount > 0) {
+            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
+            (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
+                .decodeAssetId(id);
+            assets[0].notional = int256(amount);
+            _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
+
+            // prettier-ignore
+            (fromContext, /* toContext */) = _transfer(from, to, assets);
+
+            emit TransferSingle(msg.sender, from, to, id, amount);
+        } else {
+            fromContext = AccountContextHandler.getAccountContext(from);
+        }
+
+        // toContext is always empty here because we cannot have bidirectional transfers in `safeTransferFrom`
+        AccountContext memory toContext;
+        _checkPostTransferEvent(from, to, fromContext, toContext, data, false);
     }
 
     /// @notice Transfer of a batch of fCash or liquidity token assets between accounts. Allows `from` account to transfer more fCash
@@ -168,11 +172,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     ) external override {
         _validateAccounts(from, to);
 
-        PortfolioAsset[] memory assets = decodeToAssets(ids, amounts);
-        AccountContext memory fromContext = _transfer(from, to, assets);
-
-        emit TransferBatch(msg.sender, from, to, ids, amounts);
-
         // If code size > 0 call onERC1155received
         uint256 codeSize;
         // solium-disable-next-line security/no-inline-assembly
@@ -192,7 +191,20 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             );
         }
 
-        _checkPostTransferEvent(from, to, fromContext, data);
+        (PortfolioAsset[] memory assets, bool toTransferNegative) = _decodeToAssets(ids, amounts);
+        // When doing a bidirectional transfer must ensure that the `to` account has given approval
+        // to msg.sender as well.
+        if (toTransferNegative) require(isApprovedForAll(to, msg.sender), "Unauthorized");
+
+        (AccountContext memory fromContext, AccountContext memory toContext) = _transfer(
+            from,
+            to,
+            assets
+        );
+
+        _checkPostTransferEvent(from, to, fromContext, toContext, data, toTransferNegative);
+
+        emit TransferBatch(msg.sender, from, to, ids, amounts);
     }
 
     /// @dev Validates accounts on transfer
@@ -206,23 +218,41 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param amounts amounts to transfer
     /// @return array of portfolio asset objects
     function decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
-        public
+        external
         view
         override
         returns (PortfolioAsset[] memory)
     {
+        // prettier-ignore
+        (PortfolioAsset[] memory assets, /* */) = _decodeToAssets(ids, amounts);
+        return assets;
+    }
+
+    function _decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
+        internal
+        view
+        returns (PortfolioAsset[] memory, bool)
+    {
         uint256 blockTime = block.timestamp;
+        bool toTransferNegative = false;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
+
         for (uint256 i; i < ids.length; i++) {
             (assets[i].currencyId, assets[i].maturity, assets[i].assetType) = TransferAssets
                 .decodeAssetId(ids[i]);
 
-            require(amounts[i] <= uint256(type(int256).max)); // dev: int overflow
             _assertValidMaturity(assets[i].currencyId, assets[i].maturity, blockTime);
+            // Although amounts is encoded as uint256 we allow it to be negative here. This will
+            // allow for bidirectional transfers of fCash. Internally fCash assets are always stored
+            // as int128 (for bitmap portfolio) or int88 (for array portfolio) so there is no potential
+            // that a uint256 value that is greater than type(int256).max would actually valid.
             assets[i].notional = int256(amounts[i]);
+            // If there is a negative transfer we mark it as such, this will force us to do a free collateral
+            // check on the `to` address as well.
+            if (assets[i].notional < 0) toTransferNegative = true;
         }
 
-        return assets;
+        return (assets, toTransferNegative);
     }
 
     /// @notice Encodes parameters into an ERC1155 id
@@ -256,18 +286,18 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         address from,
         address to,
         PortfolioAsset[] memory assets
-    ) internal returns (AccountContext memory) {
+    ) internal returns (AccountContext memory, AccountContext memory) {
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
 
-        TransferAssets.placeAssetsInAccount(to, toContext, assets);
+        toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
         TransferAssets.invertNotionalAmountsInPlace(assets);
-        TransferAssets.placeAssetsInAccount(from, fromContext, assets);
+        fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
 
         toContext.setAccountContext(to);
         fromContext.setAccountContext(from);
 
-        return fromContext;
+        return (fromContext, toContext);
     }
 
     /// @dev Checks post transfer events which will either be initiating one of the batch trading events or a free collateral
@@ -276,9 +306,12 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         address from,
         address to,
         AccountContext memory fromContext,
-        bytes calldata data
+        AccountContext memory toContext,
+        bytes calldata data,
+        bool toTransferNegative
     ) internal {
         bytes4 sig;
+        address transactedAccount;
         if (data.length >= 32) {
             // Method signature is not abi encoded so decode to bytes32 first and take the first 4 bytes. This works
             // because all the methods we want to call below require more than 32 bytes in the calldata
@@ -294,25 +327,30 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             sig == BatchAction.batchBalanceAction.selector ||
             sig == BatchAction.batchBalanceAndTradeAction.selector
         ) {
-            address account = abi.decode(data[4:36], (address));
-            // Ensure that the "account" parameter of the call is set to the from address or the
+            transactedAccount = abi.decode(data[4:36], (address));
+            // Ensure that the "transactedAccount" parameter of the call is set to the from address or the
             // to address. If it is the "to" address then ensure that the msg.sender has approval to
             // execute operations
             require(
-                account == from || (account == to && isApprovedForAll(to, msg.sender)),
+                transactedAccount == from ||
+                    (transactedAccount == to && isApprovedForAll(to, msg.sender)),
                 "Unauthorized call"
             );
 
             (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
             // TODO: retrieve revert string
             require(status, "Call failed");
-
-            // If the account is `from` then we can return, the call would have checked free collateral.
-            if (account == from) return;
         }
 
-        if (fromContext.hasDebt != 0x00) {
+        // The transacted account will have its free collateral checked above so there is
+        // no need to recheck here.
+        if (transactedAccount != from && fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
+        }
+
+        // Check free collateral if the `to` account has taken on a negative fCash amount
+        if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(to);
         }
     }
 

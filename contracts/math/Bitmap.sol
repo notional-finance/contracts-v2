@@ -7,36 +7,6 @@ import "../global/Constants.sol";
 
 /// @notice Helper methods for bitmaps, they are big-endian and 1-indexed.
 library Bitmap {
-    bytes32 private constant DAY_BITMASK =
-        0xffffffffffffffffffffffc00000000000000000000000000000000000000000;
-    bytes32 private constant WEEK_BITMASK =
-        0x00000000000000000000003ffffffffffe000000000000000000000000000000;
-    bytes32 private constant MONTH_BITMASK =
-        0x0000000000000000000000000000000001ffffffffffffffe000000000000000;
-    bytes32 private constant QUARTER_BITMASK =
-        0x0000000000000000000000000000000000000000000000001fffffffffffffff;
-
-    /// @notice Splits an asset bitmap into its constituent time chunks
-    function splitAssetBitmap(bytes32 bitmap) internal pure returns (SplitBitmap memory) {
-        return
-            SplitBitmap(
-                bitmap & DAY_BITMASK,
-                (bitmap & WEEK_BITMASK) << Constants.WEEK_BIT_OFFSET,
-                (bitmap & MONTH_BITMASK) << Constants.MONTH_BIT_OFFSET,
-                (bitmap & QUARTER_BITMASK) << Constants.QUARTER_BIT_OFFSET
-            );
-    }
-
-    /// @notice Recombine a split asset bitmap
-    function combineAssetBitmap(SplitBitmap memory splitBitmap) internal pure returns (bytes32) {
-        bytes32 bitmapCombined =
-            (splitBitmap.dayBits |
-                (splitBitmap.weekBits >> Constants.WEEK_BIT_OFFSET) |
-                (splitBitmap.monthBits >> Constants.MONTH_BIT_OFFSET) |
-                (splitBitmap.quarterBits >> Constants.QUARTER_BIT_OFFSET));
-
-        return bitmapCombined;
-    }
 
     /// @notice Set a bit on or off in a bitmap, index is 1-indexed
     function setBit(
@@ -61,15 +31,57 @@ library Bitmap {
 
     /// @notice Count the total bits set
     function totalBitsSet(bytes32 bitmap) internal pure returns (uint256) {
-        uint256 totalBits;
+        uint256 x = uint256(bitmap);
+        x = (x & 0x5555555555555555555555555555555555555555555555555555555555555555) + (x >> 1 & 0x5555555555555555555555555555555555555555555555555555555555555555);
+        x = (x & 0x3333333333333333333333333333333333333333333333333333333333333333) + (x >> 2 & 0x3333333333333333333333333333333333333333333333333333333333333333);
+        x = (x & 0x0707070707070707070707070707070707070707070707070707070707070707) + (x >> 4);
+        x = (x & 0x000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F) + (x >> 8 & 0x000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F);
+        x = x + (x >> 16);
+        x = x + (x >> 32);
+        x = x  + (x >> 64);
+        return (x & 0xFF) + (x >> 128 & 0xFF);
+    }
 
-        bytes32 copy = bitmap;
-
-        while (copy != 0) {
-            if (copy & Constants.MSB == Constants.MSB) totalBits += 1;
-            copy = copy << 1;
+    // Does a binary search over x to get the position of the most significant bit
+    function getMSB(uint256 x) internal pure returns (uint256 msb) {
+        if (x >= 0x100000000000000000000000000000000) {
+            x >>= 128;
+            msb += 128;
         }
+        if (x >= 0x10000000000000000) {
+            x >>= 64;
+            msb += 64;
+        }
+        if (x >= 0x100000000) {
+            x >>= 32;
+            msb += 32;
+        }
+        if (x >= 0x10000) {
+            x >>= 16;
+            msb += 16;
+        }
+        if (x >= 0x100) {
+            x >>= 8;
+            msb += 8;
+        }
+        if (x >= 0x10) {
+            x >>= 4;
+            msb += 4;
+        }
+        if (x >= 0x4) {
+            x >>= 2;
+            msb += 2;
+        }
+        if (x >= 0x2) msb += 1; // No need to shift xc anymore
+    }
 
-        return totalBits;
+    /// @dev getMSB returns a zero indexed bit number where zero is the first bit counting
+    /// from the right (little endian). Asset Bitmaps are counted from the left (big endian)
+    /// and one indexed.
+    function getNextBitNum(bytes32 bitmap) internal pure returns (uint256 bitNum) {
+        // Short circuit the search if bitmap is all zeros
+        if (bitmap == 0x00) return 0;
+
+        return 255 - getMSB(uint256(bitmap)) + 1;
     }
 }
