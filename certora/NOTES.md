@@ -1,5 +1,36 @@
 # Certora Verification Notes
 
+AccountPortfolio.spec
+
+- `--optimistic-loop` is no longer a valid argument?
+
+## Verify all Math Specs:
+
+- DateTime.sol
+- SafeInt256.sol
+- Bitmap.sol
+  - Two issues in here
+- FloatingPoint56.sol
+- AssetRate.sol
+- ExchangeRate.sol
+  - Rates are zeroing out balances
+- Incentives.sol
+
+## Verify all Setter Getters:
+
+- TokenHandler.sol
+- CashGroup.sol
+- AssetRate.sol
+- Market.sol
+- BalanceHandler.sol
+- BitmapAssetsHandler.sol
+- ExchangeRate.sol
+- AccountContextHandler.sol
+- nTokenHandler.sol
+- GovernanceAction.sol
+
+# Governance and ERC20?
+
 ## Questions:
 
 - Is there a way to exclude a function from being included in invariant calculations?

@@ -260,7 +260,7 @@ library BalanceHandler {
             int256 nTokenBalance,
             uint256 lastClaimTime,
             uint256 lastClaimIntegralSupply
-        ) = getBalanceStorage(account, cashGroup.currencyId);
+        ) = getBalanceStorage(account, currencyId);
 
         require(cashBalance < 0, "Invalid settle balance");
         if (amountToSettleAsset == 0) {
@@ -276,11 +276,7 @@ library BalanceHandler {
         // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
         // also have cash debts
         if (cashBalance == 0 && nTokenBalance == 0) {
-            accountContext.setActiveCurrency(
-                cashGroup.currencyId,
-                false,
-                Constants.ACTIVE_IN_BALANCES
-            );
+            accountContext.setActiveCurrency(currencyId, false, Constants.ACTIVE_IN_BALANCES);
         }
 
         _setBalanceStorage(
