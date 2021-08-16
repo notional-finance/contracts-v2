@@ -39,7 +39,7 @@ interface NotionalViews {
     function getInitializationParameters(uint16 currencyId)
         external
         view
-        returns (int256[] memory rateAnchors, int256[] memory proportions);
+        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions);
 
     function getDepositParameters(uint16 currencyId)
         external

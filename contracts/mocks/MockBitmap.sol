@@ -23,11 +23,11 @@ contract MockBitmap {
         return bitmap.totalBitsSet();
     }
 
-    function splitAssetBitmap(bytes32 bitmap) public pure returns (SplitBitmap memory) {
-        return bitmap.splitAssetBitmap();
+    function getMSB(uint256 x) external pure returns (uint256) {
+        return Bitmap.getMSB(x);
     }
 
-    function combineAssetBitmap(SplitBitmap memory splitBitmap) public pure returns (bytes32) {
-        return Bitmap.combineAssetBitmap(splitBitmap);
+    function getNextBitNum(bytes32 x) external pure returns (uint256) {
+        return Bitmap.getNextBitNum(x);
     }
 }

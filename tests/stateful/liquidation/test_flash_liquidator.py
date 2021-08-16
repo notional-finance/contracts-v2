@@ -90,7 +90,7 @@ def env(accounts):
     environment.notional.updateCashGroup(2, cashGroup)
     environment.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
     environment.notional.updateInitializationParameters(
-        2, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        2, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -108,7 +108,7 @@ def env(accounts):
     environment.notional.updateDepositParameters(5, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
     environment.notional.updateTokenCollateralParameters(5, *(nTokenDefaults["Collateral"]))
     environment.notional.updateInitializationParameters(
-        5, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        5, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
     environment.notional.batchBalanceAction(
         accounts[0],

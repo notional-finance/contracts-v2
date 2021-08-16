@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >0.7.0;
 
+import "./Bitmap.sol";
+
 /**
  * Packs an uint value into a "floating point" storage slot. Used for storing
  * lastClaimIntegralSupply values in balance storage. For these values, we don't need
@@ -17,7 +19,7 @@ library FloatingPoint56 {
         // If the value is over the uint48 max value then we will shift it down
         // given the index of the most significant bit. We store this bit shift 
         // in the least significant byte of the 56 bit slot available.
-        if (value > type(uint48).max) bitShift = (getMSB(value) - 47);
+        if (value > type(uint48).max) bitShift = (Bitmap.getMSB(value) - 47);
 
         uint256 shiftedValue = value >> bitShift;
         return bytes32((shiftedValue << 8) | bitShift);
@@ -29,36 +31,4 @@ library FloatingPoint56 {
         return uint256((value >> 8) << bitShift);
     }
 
-    // Does a binary search over x to get the position of the most significant bit
-    function getMSB(uint256 x) internal pure returns (uint256 msb) {
-        if (x >= 0x100000000000000000000000000000000) {
-            x >>= 128;
-            msb += 128;
-        }
-        if (x >= 0x10000000000000000) {
-            x >>= 64;
-            msb += 64;
-        }
-        if (x >= 0x100000000) {
-            x >>= 32;
-            msb += 32;
-        }
-        if (x >= 0x10000) {
-            x >>= 16;
-            msb += 16;
-        }
-        if (x >= 0x100) {
-            x >>= 8;
-            msb += 8;
-        }
-        if (x >= 0x10) {
-            x >>= 4;
-            msb += 4;
-        }
-        if (x >= 0x4) {
-            x >>= 2;
-            msb += 2;
-        }
-        if (x >= 0x2) msb += 1; // No need to shift xc anymore
-    }
 }

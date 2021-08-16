@@ -221,7 +221,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            /* int256 localAssetCashFromLiquidator */,
             int256 netNTokens
         ) = NotionalV2.liquidateLocalCurrency(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
@@ -253,7 +253,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            /* int256 localAssetCashFromLiquidator */,
             /* int256 collateralAssetCash */,
             int256 collateralNTokens
         ) = NotionalV2.liquidateCollateralCurrency(
@@ -363,7 +363,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         // NOTE: no withdraw if _hasTransferFees, _sellfCashAssets with withdraw everything
     }
 
-    function _hasTransferFees(LiquidationAction action) private returns (bool) {
+    function _hasTransferFees(LiquidationAction action) private pure returns (bool) {
         return (action == LiquidationAction.LocalCurrency_WithTransferFee ||
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
             action == LiquidationAction.LocalfCash_WithTransferFee ||

@@ -12,6 +12,7 @@ import "../../internal/settlement/SettlePortfolioAssets.sol";
 import "../../internal/settlement/SettleBitmapAssets.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/Bitmap.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /// @notice Initialize markets is called once every quarter to setup the new markets. Only the nToken account
@@ -28,6 +29,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 ///     - percent of cash to deposit into the market set by governance
 ///  - Set new markets and add liquidity tokens to portfolio
 library InitializeMarketsAction {
+    using Bitmap for bytes32;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
@@ -43,7 +45,7 @@ library InitializeMarketsAction {
     struct GovernanceParameters {
         int256[] depositShares;
         int256[] leverageThresholds;
-        int256[] rateAnchors;
+        int256[] annualizedAnchorRates;
         int256[] proportions;
     }
 
@@ -58,7 +60,7 @@ library InitializeMarketsAction {
             maxMarketIndex
         );
 
-        (params.rateAnchors, params.proportions) = nTokenHandler.getInitializationParameters(
+        (params.annualizedAnchorRates, params.proportions) = nTokenHandler.getInitializationParameters(
             currencyId,
             maxMarketIndex
         );
@@ -84,7 +86,7 @@ library InitializeMarketsAction {
             nToken.cashBalance = nToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
-        (bytes32 ifCashBitmap, int256 settledAssetCash, /* blockTimeUTC0 */) =
+        (bytes32 ifCashBitmap, int256 settledAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
@@ -94,7 +96,7 @@ library InitializeMarketsAction {
         nToken.cashBalance = nToken.cashBalance.add(settledAssetCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
-        nToken.lastInitializedTime = uint40(DateTime.getTimeUTC0(blockTime));
+        nToken.lastInitializedTime = uint40(blockTimeUTC0);
 
         return ifCashBitmap;
     }
@@ -179,7 +181,6 @@ library InitializeMarketsAction {
         bytes32 assetsBitmap
     ) internal view returns (int256) {
         int256 totalCashWithholding;
-        uint256 bitNum = 1;
         // This buffer is denominated in 10 basis point increments. It is used to shift the withholding rate to ensure
         // that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
@@ -187,61 +188,60 @@ library InitializeMarketsAction {
                 10 *
                 Constants.BASIS_POINT;
 
-        while (assetsBitmap != 0) {
-            if (assetsBitmap & Constants.MSB == Constants.MSB) {
-                uint256 maturity =
-                    DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
 
-                // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
-                // want to apply withholding for idiosyncratic fCash.
-                if (
-                    previousMarkets.length == 0 &&
-                    DateTime.isValidMarketMaturity(
-                        nToken.cashGroup.maxMarketIndex,
-                        maturity,
-                        blockTime
-                    )
-                ) {
-                    assetsBitmap = assetsBitmap << 1;
-                    bitNum += 1;
-                    continue;
-                }
-
-                int256 notional =
-                    BitmapAssetsHandler.getifCashNotional(
-                        nToken.tokenAddress,
-                        nToken.cashGroup.currencyId,
-                        maturity
-                    );
-
-                // Withholding only applies for negative cash balances
-                if (notional < 0) {
-                    uint256 oracleRate;
-                    if (previousMarkets.length > 0) {
-                        oracleRate = _getPreviousWithholdingRate(
-                            nToken.cashGroup,
-                            previousMarkets,
-                            maturity,
-                            blockTime
-                        );
-                    } else {
-                        oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
-                    }
-
-                    if (oracleRateBuffer > oracleRate) {
-                        oracleRate = 0;
-                    } else {
-                        oracleRate = oracleRate.sub(oracleRateBuffer);
-                    }
-
-                    totalCashWithholding = totalCashWithholding.sub(
-                        AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
-                    );
-                }
+            // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
+            // want to apply withholding for idiosyncratic fCash.
+            if (
+                previousMarkets.length == 0 &&
+                DateTime.isValidMarketMaturity(
+                    nToken.cashGroup.maxMarketIndex,
+                    maturity,
+                    blockTime
+                )
+            ) {
+                assetsBitmap = assetsBitmap << 1;
+                bitNum += 1;
+                continue;
             }
 
-            assetsBitmap = assetsBitmap << 1;
-            bitNum += 1;
+            int256 notional =
+                BitmapAssetsHandler.getifCashNotional(
+                    nToken.tokenAddress,
+                    nToken.cashGroup.currencyId,
+                    maturity
+                );
+
+            // Withholding only applies for negative cash balances
+            if (notional < 0) {
+                uint256 oracleRate;
+                if (previousMarkets.length > 0) {
+                    oracleRate = _getPreviousWithholdingRate(
+                        nToken.cashGroup,
+                        previousMarkets,
+                        maturity,
+                        blockTime
+                    );
+                } else {
+                    oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
+                }
+
+                if (oracleRateBuffer > oracleRate) {
+                    oracleRate = 0;
+                } else {
+                    oracleRate = oracleRate.sub(oracleRateBuffer);
+                }
+
+                totalCashWithholding = totalCashWithholding.sub(
+                    AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
+                );
+            }
+
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
         }
 
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
@@ -342,8 +342,9 @@ library InitializeMarketsAction {
         uint256 oracleRate,
         uint256 timeToMaturity,
         int256 rateScalar,
-        int256 rateAnchor
+        uint256 annualizedAnchorRate
     ) private pure returns (int256) {
+        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
         int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
         // If exchange rate is less than 1 then we set it to 1 so that this can continue
         if (exchangeRate < Constants.RATE_PRECISION) {
@@ -367,6 +368,30 @@ library InitializeMarketsAction {
         proportion = ABDKMath64x64.mul(proportion, Constants.RATE_PRECISION_64x64);
 
         return ABDKMath64x64.toInt(proportion);
+    }
+
+    /// @dev Returns the oracle rate given the market ratios of fCash to cash. The annualizedAnchorRate
+    /// is used to calculate a rate anchor. Since a rate anchor varies with timeToMaturity and annualizedAnchorRate
+    /// does not, this method will return consistent values regardless of the timeToMaturity of when initialize
+    /// markets is called. This can be helpful if a currency needs to be initialized mid quarter when it is
+    /// newly launched.
+    function _calculateOracleRate(
+        int256 fCashAmount,
+        int256 underlyingCashToMarket,
+        int256 rateScalar,
+        uint256 annualizedAnchorRate,
+        uint256 timeToMaturity
+    ) internal pure returns (uint256) {
+        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
+        uint256 oracleRate = Market.getImpliedRate(
+            fCashAmount,
+            underlyingCashToMarket,
+            rateScalar,
+            rateAnchor,
+            timeToMaturity
+        );
+
+        return oracleRate;
     }
 
     /// @notice Returns the linear interpolation between two market rates. The formula is
@@ -554,11 +579,11 @@ library InitializeMarketsAction {
                     );
 
                 newMarket.totalfCash = fCashAmount;
-                newMarket.oracleRate = Market.getImpliedRate(
+                newMarket.oracleRate = _calculateOracleRate(
                     fCashAmount,
                     underlyingCashToMarket,
                     rateScalar,
-                    int256(parameters.rateAnchors[i]), // Will revert on out of bounds error here
+                    uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
                     timeToMaturity
                 );
 
@@ -606,7 +631,7 @@ library InitializeMarketsAction {
                         oracleRate,
                         timeToMaturity,
                         rateScalar,
-                        parameters.rateAnchors[i]
+                        uint256(parameters.annualizedAnchorRates[i]) // No overflow, uint32 when set
                     );
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
@@ -620,11 +645,11 @@ library InitializeMarketsAction {
                         Constants.RATE_PRECISION.sub(proportion)
                     );
 
-                    oracleRate = Market.getImpliedRate(
+                    oracleRate = _calculateOracleRate(
                         newMarket.totalfCash,
                         underlyingCashToMarket,
                         rateScalar,
-                        parameters.rateAnchors[i],
+                        uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
                         timeToMaturity
                     );
 
@@ -644,7 +669,7 @@ library InitializeMarketsAction {
             }
 
             newMarket.lastImpliedRate = newMarket.oracleRate;
-            ifCashBitmap = finalizeMarket(newMarket, currencyId, nToken.tokenAddress, ifCashBitmap);
+            ifCashBitmap = finalizeMarket(newMarket, currencyId, nToken, ifCashBitmap);
         }
 
         // prettier-ignore
@@ -672,7 +697,7 @@ library InitializeMarketsAction {
     function finalizeMarket(
         MarketParameters memory market,
         uint256 currencyId,
-        address tokenAddress,
+        nTokenPortfolio memory nToken,
         bytes32 ifCashBitmap
     ) internal returns (bytes32) {
         uint256 blockTime = block.timestamp;
@@ -687,10 +712,10 @@ library InitializeMarketsAction {
             bytes32 bitmap,
             /* notional */
         ) = BitmapAssetsHandler.addifCashAsset(
-                tokenAddress,
+                nToken.tokenAddress,
                 currencyId,
                 market.maturity,
-                DateTime.getTimeUTC0(blockTime),
+                nToken.lastInitializedTime,
                 market.totalfCash.neg(),
                 ifCashBitmap
             );

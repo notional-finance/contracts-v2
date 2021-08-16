@@ -15,6 +15,6 @@ contract MockFloatingPoint56 {
     }
 
     function getMSB(uint256 x) external pure returns (uint256) {
-        return FloatingPoint56.getMSB(x);
+        return Bitmap.getMSB(x);
     }
 }

@@ -338,7 +338,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -459,7 +459,7 @@ def test_purchase_perp_token_residual_positive(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -687,7 +687,7 @@ def test_purchase_perp_token_residual_and_sweep_cash(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9, 1.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9, 0.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
@@ -787,7 +787,7 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     )
 
     environment.notional.updateInitializationParameters(
-        currencyId, [1.01e9, 1.021e9, 1.07e9, 1.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0.01e9, 0.021e9, 0.07e9, 0.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()

@@ -87,7 +87,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
 
-        uint256 allowance = nTokenAllowance[owner][spender][currencyId];
         nTokenAllowance[owner][spender][currencyId] = amount;
 
         return true;
@@ -159,7 +158,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         override
         returns (bool)
     {
-        uint256 allowance = nTokenWhitelist[msg.sender][spender];
         nTokenWhitelist[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);

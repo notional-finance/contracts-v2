@@ -44,8 +44,8 @@ nTokenDefaults = {
         [int(0.8e9), int(0.8e9)],
     ],
     "Initialization": [
-        # Rate anchors
-        [int(1.02e9), int(1.02e9)],
+        # Annualized Anchor Rates
+        [int(0.02e9), int(0.02e9)],
         # Target proportion
         [int(0.5e9), int(0.5e9)],
     ],

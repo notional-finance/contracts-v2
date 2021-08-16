@@ -109,10 +109,10 @@ contract Views is StorageLayoutV1, NotionalViews {
         external
         view
         override
-        returns (int256[] memory rateAnchors, int256[] memory proportions)
+        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
     {
         uint256 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
-        (rateAnchors, proportions) = nTokenHandler.getInitializationParameters(
+        (annualizedAnchorRates, proportions) = nTokenHandler.getInitializationParameters(
             currencyId,
             maxMarketIndex
         );

@@ -201,14 +201,11 @@ class TestNTokenSettings:
         assert storedLeverageThresholds == leverageThresholds
 
     def test_init_parameters_failures(self, nToken):
-        with brownie.reverts("PT: rate anchors length"):
+        with brownie.reverts("PT: annualized anchor rates length"):
             nToken.setInitializationParameters(1, [1] * 10, [1] * 10)
 
         with brownie.reverts("PT: proportions length"):
             nToken.setInitializationParameters(1, [1] * 2, [1] * 10)
-
-        with brownie.reverts("PT: invalid rate anchor"):
-            nToken.setInitializationParameters(1, [1] * 2, [0] * 2)
 
         with brownie.reverts("PT: invalid proportion"):
             nToken.setInitializationParameters(1, [1.1e9], [0])
@@ -219,13 +216,13 @@ class TestNTokenSettings:
     @given(maxMarketIndex=strategy("uint", min_value=0, max_value=7))
     def test_init_parameters_values(self, nToken, maxMarketIndex):
         currencyId = 1
-        rateAnchors = [random.randint(1.01e9, 1.2e9) for i in range(0, maxMarketIndex)]
+        initialAnnualRates = [random.randint(0, 0.4e9) for i in range(0, maxMarketIndex)]
         proportions = [random.randint(0.75e9, 0.999e9) for i in range(0, maxMarketIndex)]
 
-        nToken.setInitializationParameters(currencyId, rateAnchors, proportions)
+        nToken.setInitializationParameters(currencyId, initialAnnualRates, proportions)
 
         (storedRateAnchors, storedProportions) = nToken.getInitializationParameters(
             currencyId, maxMarketIndex
         )
-        assert storedRateAnchors == rateAnchors
+        assert storedRateAnchors == initialAnnualRates
         assert storedProportions == proportions
