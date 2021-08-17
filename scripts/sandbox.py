@@ -115,6 +115,12 @@ def initialize_v2env(v2env, migrator):
         calldatas = enableCashGroupCallData(currencyId, symbol, v2env)
         execute_proposal(v2env, targets, values, calldatas)
 
+    # ETH cash group already enabled, just setup other parameters
+    targets = [v2env.notional.address] * 4
+    values = [0] * 4
+    calldatas = enableCashGroupCallData(1, "ETH", v2env)[1:]
+    execute_proposal(v2env, targets, values, calldatas)
+
     # set wbtc asset rate adapter
     targets = [v2env.notional.address]
     values = [0]
@@ -134,6 +140,17 @@ def initialize_v2env(v2env, migrator):
         )
     ]
     execute_proposal(v2env, targets, values, calldatas)
+
+    # initialize eth markets
+    cToken = v2env.cToken["ETH"]
+    cToken.mint({"from": accounts[0], "value": Wei(1000e18)})
+    cToken.approve(v2env.notional.address, 2 ** 255, {"from": accounts[0]})
+    v2env.notional.batchBalanceAction(
+        accounts[0],
+        [get_balance_action(1, "DepositAssetAndMintNToken", depositActionAmount=500e8)],
+        {"from": accounts[0]},
+    )
+    v2env.notional.initializeMarkets(1, True)
 
     # initialize liquidity and markets for DAI, USDC, USDT (not ETH)
     for (currencyId, symbol) in [(2, "DAI"), (3, "USDC"), (4, "USDT")]:
