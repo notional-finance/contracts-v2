@@ -15,13 +15,14 @@ AccountPortfolio.spec
 - ExchangeRate.sol
   - Rates are zeroing out balances
 - Incentives.sol
+  - TODO: need to look a bit more
 
 ## Verify all Setter Getters:
 
 ```
 - GovernanceAction.sol
-  - x CashGroup.sol
-  - Get AssetRate.sol
+  - x CashGroup.sol (not working)
+  - Get AssetRate.sol (need to simulate rates)
   - Get ExchangeRate.sol
 - TODO: TokenHandler.sol
 
@@ -31,11 +32,26 @@ AccountPortfolio.spec
   - check these do not clobber collateral settings
   - nToken Supply
   - array length and initialized time
-- Market.sol
-- BalanceHandler.sol
+- TODO: Market.sol
+- TODO: BalanceHandler.sol
+- TODO: PortfolioHandler.sol
 ```
 
-# Governance and ERC20?
+## Other Verifications
+
+- ERC20 spec
+- GovernorAlpha
+- Settlement
+- Actions
+  - Deposit, Withdraw, ERC1155, Batch Action
+
+## Won't Do:
+
+- Valuation
+- Mint nToken
+- Redeem nToken
+- Initialize Markets
+- Liquidation
 
 ## Questions:
 

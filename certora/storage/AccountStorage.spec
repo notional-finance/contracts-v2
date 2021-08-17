@@ -1,6 +1,6 @@
 methods {
     getAssetsBitmap(address account, uint256 currencyId) returns (bytes32) envfree;
-    getifCashNotional(address account, uint256 currencyId, uint256 maturity) returns (int256) envfree;
+    verifyfCashNotional(address account, uint256 currencyId, uint256 maturity, int256 notional) returns (bool) envfree;
 }
 
 // PASSES
@@ -30,8 +30,10 @@ rule setsBitmapfCashProperly(
     int256 notional
 ) {
     env e;
+    require maturity > nextSettleTime;
+
     int256 setNotional;
     setNotional = setifCashAsset(e, account, currencyId, maturity, nextSettleTime, notional);
 
-    assert setNotional == getifCashNotional(account, currencyId, maturity);
+    assert verifyfCashNotional(account, currencyId, maturity, setNotional);
 }

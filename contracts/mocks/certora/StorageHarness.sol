@@ -246,11 +246,12 @@ contract StorageHarness is GovernanceAction {
         return finalNotional;
     }
 
-    function getifCashNotional(
+    function verifyfCashNotional(
         address account,
         uint256 currencyId,
-        uint256 maturity
-    ) external view returns (int256) {
-        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+        uint256 maturity,
+        int256 notional
+    ) external view returns (bool) {
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity) == notional;
     }
 }
