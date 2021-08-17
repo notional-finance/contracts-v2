@@ -18,16 +18,22 @@ AccountPortfolio.spec
 
 ## Verify all Setter Getters:
 
-- TokenHandler.sol
-- CashGroup.sol
-- AssetRate.sol
+```
+- GovernanceAction.sol
+  - x CashGroup.sol
+  - Get AssetRate.sol
+  - Get ExchangeRate.sol
+- TODO: TokenHandler.sol
+
+- x AccountContextHandler.sol
+- x BitmapAssetsHandler.sol
+- nTokenHandler.sol
+  - check these do not clobber collateral settings
+  - nToken Supply
+  - array length and initialized time
 - Market.sol
 - BalanceHandler.sol
-- BitmapAssetsHandler.sol
-- ExchangeRate.sol
-- AccountContextHandler.sol
-- nTokenHandler.sol
-- GovernanceAction.sol
+```
 
 # Governance and ERC20?
 
