@@ -49,6 +49,7 @@ rule floatingPoint56Under48Bits(uint256 value) {
 //         at report.CallTraceExceptionKt.callTraceConstructionFailure(CallTraceException.kt:17)
 // Verification report:
 // https://vaas-stg.certora.com/output/42394/cc617658a5722f08f12a?anonymousKey=773257aef776230538dbeda791e55607d09f572b
+// Run script: certora/scripts/runBitmap floatingPoint56Over48Bits
 rule floatingPoint56Over48Bits(uint256 value) {
     require value > (2 ^ 48) - 1;
     uint256 packedUint = bytesToUint(packTo56Bits(value));

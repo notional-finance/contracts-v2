@@ -1,4 +1,4 @@
-// using MockAggregator as rateOracle;
+using MockAggregator as rateOracle;
 
 methods {
     nTokenAddress(uint16 currencyId) returns (address) envfree;
@@ -39,8 +39,8 @@ methods {
         uint8 liquidationDiscount
     ) envfree;
 
-    // latestRoundData() => CONSTANT(0, 1, 0, 0, 0);
-    // decimals() => CONSTANT(1);
+    latestRoundData() => CONSTANT;
+    decimals() => ALWAYS(1);
 }
 
 // PASSES: 1753 seconds
@@ -119,6 +119,8 @@ rule updateCollateralParametersSetsProperly(
     assert p5 == liquidationHaircutPercentage;
 }
 
+// TODO: TIMEOUT
+// https://vaas-stg.certora.com/output/42394/276bc7b0fd2b78b21847/?anonymousKey=e9a5f00c29157e36c1fa7b4d66e45dceaa3a9f88
 rule cashGroupSetsProperly(
     uint16 currencyId,
     uint8 maxMarketIndex,
@@ -135,8 +137,7 @@ rule cashGroupSetsProperly(
 ) {
     env e;
     // Allow the method below to call itself to use calldata.
-    // TODO: syntax error here
-    // require getOwner() == e.msg.address;
+    require getOwner() == currentContract;
 
     bool didVerify;
     didVerify = setCashGroupStorageAndVerify(
@@ -158,44 +159,44 @@ rule cashGroupSetsProperly(
     assert didVerify;
 }
 
-// TODO
-rule updateETHRateSetsProperly(
-    uint16 currencyId,
-    address rateOracle,
-    bool mustInvert,
-    uint8 buffer,
-    uint8 haircut,
-    uint8 liquidationDiscount
-) {
-    env e;
-    updateETHRate(
-        e,
-        currencyId,
-        rateOracle,
-        mustInvert,
-        buffer,
-        haircut,
-        liquidationDiscount
-    );
+// // TODO
+// rule updateETHRateSetsProperly(
+//     uint16 currencyId,
+//     address rateOracle,
+//     bool mustInvert,
+//     uint8 buffer,
+//     uint8 haircut,
+//     uint8 liquidationDiscount
+// ) {
+//     env e;
+//     updateETHRate(
+//         e,
+//         currencyId,
+//         rateOracle,
+//         mustInvert,
+//         buffer,
+//         haircut,
+//         liquidationDiscount
+//     );
 
-    int256 _rateDecimals;
-    int256 _rate;
-    uint8 _buffer;
-    uint8 _haircut;
-    uint8 _liquidationDiscount;
+//     int256 _rateDecimals;
+//     int256 _rate;
+//     uint8 _buffer;
+//     uint8 _haircut;
+//     uint8 _liquidationDiscount;
 
-    // TODO: need to set up rate and rate decimals
-    _rateDecimals, _rate, _buffer, _haircut, _liquidationDiscount = getETHRate(currencyId);
-    // Special case for ETH
-    assert currencyId == 1 ? _rateDecimals == 10 ^ 18 : _rateDecimals == 10;
-    assert currencyId == 1 => _rate == 10 ^ 18;
-    assert currencyId != 1 && mustInvert => _rate == 100;
-    assert currencyId != 1 && !mustInvert => _rate == 1;
+//     // TODO: need to set up rate and rate decimals
+//     _rateDecimals, _rate, _buffer, _haircut, _liquidationDiscount = getETHRate(currencyId);
+//     // Special case for ETH
+//     assert currencyId == 1 ? _rateDecimals == 10 ^ 18 : _rateDecimals == 10;
+//     assert currencyId == 1 => _rate == 10 ^ 18;
+//     assert currencyId != 1 && mustInvert => _rate == 100;
+//     assert currencyId != 1 && !mustInvert => _rate == 1;
 
-    assert buffer == _buffer;
-    assert haircut == _haircut;
-    assert liquidationDiscount == _liquidationDiscount;
-}
+//     assert buffer == _buffer;
+//     assert haircut == _haircut;
+//     assert liquidationDiscount == _liquidationDiscount;
+// }
 
 // TODO
 rule updateAssetRateSetsProperly(
@@ -203,7 +204,7 @@ rule updateAssetRateSetsProperly(
     address rateOracle
 ) {
     env e;
-    updateAssetRate(currencyId, rateOracle);
+    updateAssetRate(e, currencyId, rateOracle);
     address _rateOracle;
     int256 rate;
     int256 underlyingDecimalPlaces;
@@ -211,10 +212,35 @@ rule updateAssetRateSetsProperly(
     _rateOracle, rate, underlyingDecimalPlaces = getAssetRate(e, currencyId);
 
     assert _rateOracle == rateOracle;
-    assert rateOracle == address(0) => underlyingDecimalPlaces == 0 && rate == 10 ^ 10;
+    assert rateOracle == 0 => underlyingDecimalPlaces == 0 && rate == 10 ^ 10;
 }
 
 // TODO: setToken
-// rule cannotListDuplicateCurrencies;
-// rule cannotOverrideListedCurrency;
-// rule listingCurrenciesSetsTokenProperly;
+rule listingCurrencySetsProperly(
+    address assetToken,
+    address underlyingToken,
+    address rateOracle,
+    bool mustInvert,
+    uint8 buffer,
+    uint8 haircut,
+    uint8 liquidationDiscount
+) {
+    env e;
+    require getMaxCurrencyId() >= 1;
+    require assetToken != 0;
+    require underlyingToken != 0;
+
+    // TODO: need to put a harness here
+    listCurrency(
+        e,
+        (assetToken, false, 1),
+        (underlyingToken, false, 1),
+        rateOracle,
+        mustInvert,
+        buffer,
+        haircut,
+        liquidationDiscount
+    );
+
+    assert false;
+}
