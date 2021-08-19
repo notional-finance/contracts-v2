@@ -152,6 +152,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         ) {
             (tradeContract, tradeETHValue) = abi.decode(params[192:], (address, uint256));
             tradeCallData = new bytes(params.length - 256);
+            // TODO: this is very inefficient
             for (uint256 i; i < tradeCallData.length; i++) tradeCallData[i] = params[256 + i];
         } else {
             // prettier-ignore
@@ -248,6 +249,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
+            checkAllowanceOrSet(assets[0], address(NotionalV2));
             NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
         }
 
@@ -274,7 +276,6 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         // Will withdraw all cash balance, no need to redeem local currency, it will be
         // redeemed later
         if (_hasTransferFees(action)) _redeemAndWithdraw(localCurrency, 0, false);
-
     }
 
     function _liquidateLocalfCash(
@@ -294,6 +295,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
+            checkAllowanceOrSet(assets[0], address(NotionalV2));
             NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
         }
 
@@ -341,6 +343,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
+            checkAllowanceOrSet(assets[0], address(NotionalV2));
             NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
         }
 

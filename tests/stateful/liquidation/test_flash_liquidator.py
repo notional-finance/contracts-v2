@@ -77,6 +77,11 @@ def mockFlashLender(MockFlashLender, weth, env, accounts):
     return mockLender
 
 
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
+
+
 @pytest.fixture(scope="module", autouse=True)
 def env(accounts):
     environment = initialize_environment(accounts)
@@ -127,14 +132,14 @@ def setup_local_currency_liquidate(currencyId, env, account):
         currencyId,
         "DepositAssetAndMintNToken",
         [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
-        depositActionAmount=5500e8,
+        depositActionAmount=5900e8,
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
     env.notional.batchBalanceAndTradeAction(account, [collateral], {"from": account})
 
     tokenDefaults = nTokenDefaults["Collateral"]
-    tokenDefaults[1] = 85
+    tokenDefaults[1] = 75
     env.notional.updateTokenCollateralParameters(currencyId, *(tokenDefaults))
 
 
@@ -173,14 +178,14 @@ def test_local_currency_eth(env, weth, mockFlashLender, flashLiquidator, account
         currencyId,
         "DepositAssetAndMintNToken",
         [{"tradeActionType": "Borrow", "marketIndex": 2, "notional": 1e8, "maxSlippage": 0}],
-        depositActionAmount=55e8,
+        depositActionAmount=59e8,
         withdrawEntireCashBalance=True,
         redeemToUnderlying=False,  # TODO: this is failing because there is nothing to redeem
     )
     env.notional.batchBalanceAndTradeAction(account, [collateral], {"from": account})
 
     tokenDefaults = nTokenDefaults["Collateral"]
-    tokenDefaults[1] = 85
+    tokenDefaults[1] = 75
     env.notional.updateTokenCollateralParameters(currencyId, *(tokenDefaults))
 
     params = eth_abi.encode_abi(
@@ -193,16 +198,65 @@ def test_local_currency_eth(env, weth, mockFlashLender, flashLiquidator, account
     )
 
 
-# def test_collateral_currency_with_transfer_fee():
+def test_collateral_currency_with_transfer_fee(
+    env, weth, mockFlashLender, flashLiquidator, mockExchange, accounts
+):
+    account = accounts[2]
+    collateral = get_balance_trade_action(
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.75e18
+    )
+
+    borrowAction = get_balance_trade_action(
+        5,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+
+    env.notional.batchBalanceAndTradeAction(
+        account, [collateral, borrowAction], {"from": account, "value": 1.75e18}
+    )
+    env.ethOracle["USDT"].setAnswer(0.013e18)
+    mockExchange.setExchangeRate(101e6)
+
+    (
+        _,
+        collateralAsset,
+        collateralNTokens,
+    ) = env.notional.calculateCollateralCurrencyLiquidation.call(account.address, 5, 1, 0, 0)
+    # TODO: we can have some loss of precision here, trading out of a position is not exact
+    ethAmount = Wei((collateralAsset + collateralNTokens) / Wei(50e8) * Wei(1e18)) - Wei(1e11)
+
+    tradeCalldata = to_bytes(
+        web3.eth.contract(abi=MockExchange.abi).encodeABI(
+            fn_name="exchange", args=[weth.address, env.token["USDT"].address, ethAmount]
+        ),
+        "bytes",
+    )
+
+    params = eth_abi.encode_abi(
+        ["uint8", "address", "uint256", "uint256", "uint128", "uint96", "address", "uint256"],
+        [CollateralCurrency_WithTransferFee, account.address, 5, 1, 0, 0, mockExchange.address, 0],
+    )
+    calldata = b"".join([params, tradeCalldata])
+
+    flashLiquidator.approveToken(weth.address, mockExchange.address)
+    mockFlashLender.executeFlashLoan(
+        [env.token["USDT"].address],
+        [100e6],
+        flashLiquidator.address,
+        calldata,
+        {"from": accounts[1]},
+    )
 
 
-@pytest.mark.only
 def test_collateral_currency_no_transfer_fee(
     env, weth, mockFlashLender, flashLiquidator, mockExchange, accounts
 ):
     account = accounts[2]
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.5e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.75e18
     )
 
     borrowAction = get_balance_trade_action(
@@ -214,10 +268,10 @@ def test_collateral_currency_no_transfer_fee(
     )
 
     env.notional.batchBalanceAndTradeAction(
-        account, [collateral, borrowAction], {"from": account, "value": 1.5e18}
+        account, [collateral, borrowAction], {"from": account, "value": 1.75e18}
     )
     env.ethOracle["DAI"].setAnswer(0.013e18)
-    mockExchange.setExchangeRate(100e18)
+    mockExchange.setExchangeRate(101e18)
 
     # Static call to get predicted amount of collateral
     (
@@ -225,7 +279,8 @@ def test_collateral_currency_no_transfer_fee(
         collateralAsset,
         collateralNTokens,
     ) = env.notional.calculateCollateralCurrencyLiquidation.call(account.address, 2, 1, 0, 0)
-    ethAmount = Wei((collateralAsset + collateralNTokens) / Wei(50e8) * Wei(1e18))
+    # TODO: we can have some loss of precision here, trading out of a position is not exact
+    ethAmount = Wei((collateralAsset + collateralNTokens) / Wei(50e8) * Wei(1e18)) - Wei(1e11)
 
     tradeCalldata = to_bytes(
         web3.eth.contract(abi=MockExchange.abi).encodeABI(
@@ -250,11 +305,9 @@ def test_collateral_currency_no_transfer_fee(
     )
 
 
-# def test_collateral_currency_eth():
-
 # def test_local_fcash_with_transfer_fee():
 # def test_local_fcash_no_transfer_fee():
-# def t`est_local_fcash_eth():
+# def test_local_fcash_eth():
 
 # def test_cross_currency_fcash_with_transfer_fee():
 # def test_cross_currency_fcash_no_transfer_fee():
