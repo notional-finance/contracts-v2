@@ -25,4 +25,18 @@ contract MockExchange {
         IERC20(assetIn).transferFrom(msg.sender, address(this), amountIn);
         IERC20(assetOut).transfer(msg.sender, amountOut);
     }
+
+    function exchangeOut(
+        address assetIn,
+        address assetOut,
+        uint256 amountOut
+    ) external {
+        uint256 amountIn = (amountOut * 1e18) / exchangeRate;
+        if (IERC20(assetIn).balanceOf(msg.sender) < amountIn) {
+            revert("Insufficient balance of assetIn");
+        }
+
+        IERC20(assetIn).transferFrom(msg.sender, address(this), amountIn);
+        IERC20(assetOut).transfer(msg.sender, amountOut);
+    }
 }

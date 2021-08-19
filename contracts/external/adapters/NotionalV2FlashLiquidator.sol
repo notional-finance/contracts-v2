@@ -126,7 +126,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             _liquidateCrossCurrencyfCash(action, params, assets);
         }
 
-        _redeemCTokens(assets, amounts, premiums, _hasTransferFees(action));
+        _redeemCTokens(assets);
 
         if (
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
@@ -150,26 +150,37 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
             action == LiquidationAction.CollateralCurrency_NoTransferFee
         ) {
-            (tradeContract, tradeETHValue) = abi.decode(params[192:], (address, uint256));
-            tradeCallData = new bytes(params.length - 256);
-            // TODO: this is very inefficient
-            for (uint256 i; i < tradeCallData.length; i++) tradeCallData[i] = params[256 + i];
+            // prettier-ignore
+            (
+                /* uint8 action */,
+                /* address liquidateAccount */,
+                /* uint256 localCurrency */,
+                /* uint256 collateralCurrency */,
+                /* uint128 maxCollateralLiquidation */,
+                /* uint96 maxNTokenLiquidation */,
+                tradeContract,
+                tradeETHValue,
+                tradeCallData
+            ) = abi.decode(params, (uint8, address, uint256, uint256, uint128, uint96, address, uint256, bytes));
         } else {
             // prettier-ignore
             (
-                /* uint256[] memory fCashMaturities */,
-                /* uint256[] memory maxfCashLiquidateAmounts */,
+                /* uint8 action */,
+                /* address liquidateAccount */,
+                /* uint256 localCurrency*/,
+                /* uint256 fCashCurrency*/,
+                /* fCashMaturities */,
+                /* maxfCashLiquidateAmounts */,
                 tradeContract,
-                tradeETHValue
-            ) = abi.decode(params[128:], (uint256[], uint256[], address, uint256));
+                tradeETHValue,
+                tradeCallData
+            ) = abi.decode(params, (uint8, address, uint256, uint256, uint256[], uint256[], address, uint256, bytes));
         }
 
         // Arbitrary call to any DEX to trade back to local currency
-        // prettier-ignore
-        (
-            bool success,
-            bytes memory retVal
-        ) = tradeContract.call{value: tradeETHValue}(tradeCallData);
+        (bool success, bytes memory retVal) = tradeContract.call{value: tradeETHValue}(
+            tradeCallData
+        );
         require(success, _getRevertMsg(retVal));
     }
 
@@ -317,7 +328,8 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             localCurrency,
             fCashMaturities,
             fCashNotionalTransfers,
-            localAssetCashFromLiquidator < 0 ? uint256(localAssetCashFromLiquidator.abs()) : 0
+            localAssetCashFromLiquidator < 0 ? uint256(localAssetCashFromLiquidator.abs()) : 0,
+            false // No need to redeem to underlying here
         );
 
         // NOTE: no withdraw if _hasTransferFees, _sellfCashAssets with withdraw everything
@@ -359,7 +371,8 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             maxfCashLiquidateAmounts
         );
 
-        _sellfCashAssets(fCashCurrency, fCashMaturities, fCashNotionalTransfers, 0);
+        // Redeem to underlying here, collateral is not specified as an input asset
+        _sellfCashAssets(fCashCurrency, fCashMaturities, fCashNotionalTransfers, 0, true);
         // Wrap everything to WETH for trading
         if (fCashCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
 
@@ -373,28 +386,15 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CrossCurrencyfCash_WithTransferFee);
     }
 
-    function _redeemCTokens(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        bool hasTransferFee
-    ) internal {
+    function _redeemCTokens(address[] calldata assets) internal {
         // Redeem cTokens to underlying to repay the flash loan
         for (uint256 i; i < assets.length; i++) {
             address cToken = assets[i] == WETH ? cETH : underlyingToCToken[assets[i]];
             if (cToken == address(0)) continue;
 
-            if (hasTransferFee) {
-                // If there is a transfer fee then redeem everything
-                CErc20Interface(cToken).redeem(IERC20(cToken).balanceOf(address(this)));
-            } else {
-                uint256 repayAmount = amounts[i].add(premiums[i]);
-                // Redeem the repayment required amount
-                CErc20Interface(cToken).redeemUnderlying(repayAmount);
-
-                // Wrap the ETH amount to WETH for repayment
-                if (assets[i] == WETH) WETH9(WETH).deposit{value: repayAmount}();
-            }
+            CErc20Interface(cToken).redeem(IERC20(cToken).balanceOf(address(this)));
+            // Wrap ETH into WETH for repayment
+            if (assets[i] == WETH) WETH9(WETH).deposit{value: address(this).balance}();
         }
     }
 
@@ -419,7 +419,8 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         uint256 fCashCurrency,
         uint256[] memory fCashMaturities,
         int256[] memory fCashNotional,
-        uint256 depositActionAmount
+        uint256 depositActionAmount,
+        bool redeemToUnderlying
     ) internal {
         uint256 blockTime = block.timestamp;
         BalanceActionWithTrades[] memory action = new BalanceActionWithTrades[](1);
@@ -429,7 +430,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         action[0].depositActionAmount = depositActionAmount;
         action[0].currencyId = uint16(fCashCurrency);
         action[0].withdrawEntireCashBalance = true;
-        action[0].redeemToUnderlying = false; // Don't redeem to underlying, this will happen later
+        action[0].redeemToUnderlying = redeemToUnderlying;
 
         uint256 numTrades;
         bytes32[] memory trades = new bytes32[](fCashMaturities.length);
