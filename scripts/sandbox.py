@@ -6,6 +6,7 @@ from brownie.convert.datatypes import HexString, Wei
 from brownie.network import web3
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TestEnvironment, TokenType
+from scripts.mainnet.deploy_governance import deployAirdropContract
 from tests.governance.test_governance import execute_proposal
 from tests.helpers import get_balance_action
 
@@ -178,6 +179,9 @@ def main():
     v1env = scripts.deploy_v1.deploy_v1(v2env)
     initialize_v2env(v2env, v1env["Migrator"])
 
+    airdrop = deployAirdropContract(accounts[0], v2env.noteERC20, "development")
+    v2env.noteERC20.transfer(airdrop.address, Wei(749_990e8), {"from": v2env.multisig})
+
     v1contractsFile = {
         "chainId": 1337,
         "networkName": "unknown",
@@ -193,6 +197,7 @@ def main():
     v2contractsFile = {
         "chainId": 1337,
         "networkName": "unknown",
+        "airdrop": airdrop.address,
         "deployer": v2env.deployer.address,
         "notional": v2env.notional.address,
         "note": v2env.noteERC20.address,

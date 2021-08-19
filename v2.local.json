@@ -1,4 +1,5 @@
 {
+    "airdrop": "0x32D18d16AF534a66741fF8FAa33a97E3f8eF8179",
     "chainId": 1337,
     "comptroller": "0xfD2228687374b500664f9706a24FcF2402EF6BA0",
     "deployer": "0x628029b5b7574296365EEF243f240aF83ffA7111",
