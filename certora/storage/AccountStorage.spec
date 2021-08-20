@@ -1,6 +1,12 @@
 methods {
     getAssetsBitmap(address account, uint256 currencyId) returns (bytes32) envfree;
     verifyfCashNotional(address account, uint256 currencyId, uint256 maturity, int256 notional) returns (bool) envfree;
+    requireMaturityAndBitAlign(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 nextSettleTime
+    ) returns (bool) envfree;
 }
 
 // PASSES
@@ -21,7 +27,7 @@ rule setsAssetBitmapProperly(
     assert getAssetsBitmap(account, currencyId) == bitmap;
 }
 
-// TODO: not working
+// PASSES
 rule setsBitmapfCashProperly(
     address account,
     uint256 currencyId,
@@ -31,6 +37,7 @@ rule setsBitmapfCashProperly(
 ) {
     env e;
     require maturity > nextSettleTime;
+    require requireMaturityAndBitAlign(account, currencyId, maturity, nextSettleTime) == true;
 
     int256 setNotional;
     setNotional = setifCashAsset(e, account, currencyId, maturity, nextSettleTime, notional);

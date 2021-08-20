@@ -8,6 +8,7 @@ import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/Bitmap.sol";
 
 contract StorageHarness is GovernanceAction {
     using SafeInt256 for int256;
@@ -305,6 +306,24 @@ contract StorageHarness is GovernanceAction {
 
     function getAssetsBitmap(address account, uint256 currencyId) external view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    }
+
+    function requireMaturityAndBitAlign(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 nextSettleTime
+    ) external view returns (bool) {
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        (uint256 bitNum, bool isExact) = DateTime.getBitNumFromMaturity(nextSettleTime, maturity);
+        require(isExact); // dev: invalid maturity in set ifcash asset
+
+        // Enforces the starting condition that the bitmap is correct
+        if (Bitmap.isBitSet(assetsBitmap, bitNum)) {
+            return (BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity) != 0);
+        } else {
+            return (BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity) == 0);
+        }
     }
 
     function setifCashAsset(

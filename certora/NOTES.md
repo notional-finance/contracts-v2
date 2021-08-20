@@ -23,7 +23,7 @@ AccountPortfolio.spec
 - GovernanceAction.sol
   - Review failing specs
 - [ok] AccountContextHandler.sol
-- x BitmapAssetsHandler.sol
+- [ok] BitmapAssetsHandler.sol
 - [ok] nTokenHandler.sol
   - Don't understand integral supply results
 
