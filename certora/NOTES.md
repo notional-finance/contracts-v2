@@ -24,10 +24,9 @@ AccountPortfolio.spec
   - Review failing specs
 - [ok] AccountContextHandler.sol
 - x BitmapAssetsHandler.sol
-- nTokenHandler.sol
-  - check these do not clobber collateral settings
-  - nToken Supply
-  - array length and initialized time
+- [ok] nTokenHandler.sol
+  - Don't understand integral supply results
+
 - TODO: Market.sol
 - TODO: BalanceHandler.sol
 - TODO: PortfolioHandler.sol

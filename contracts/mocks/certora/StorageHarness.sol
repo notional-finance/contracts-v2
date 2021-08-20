@@ -7,8 +7,11 @@ import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/AccountContextHandler.sol";
+import "../../math/SafeInt256.sol";
 
 contract StorageHarness is GovernanceAction {
+    using SafeInt256 for int256;
+
     function getMaxCurrencyId() external view returns (uint16) {
         return maxCurrencyId;
     }
@@ -121,6 +124,37 @@ contract StorageHarness is GovernanceAction {
             incentiveAnnualEmissionRate,
             lastInitializedTime
         );
+    }
+
+    function setArrayLengthAndInitializedTime(
+        address tokenAddress,
+        uint8 arrayLength,
+        uint256 lastInitializedTime
+    ) public {
+        nTokenHandler.setArrayLengthAndInitializedTime(
+            tokenAddress,
+            arrayLength,
+            lastInitializedTime
+        );
+    }
+
+    function changeNTokenSupply(
+        address tokenAddress,
+        int256 netChange,
+        uint256 blockTime
+    ) public returns (uint256) {
+        return nTokenHandler.changeNTokenSupply(tokenAddress, netChange, blockTime);
+    }
+
+    function addIsEqual(
+        uint256 totalSupply,
+        int256 netChange,
+        uint256 totalSupplyAfter
+    ) public view returns (bool) {
+        require(totalSupply < uint256(type(int256).max));
+        require(totalSupplyAfter < uint256(type(int256).max));
+        int256 newTotalSupply = int256(totalSupply).add(netChange);
+        return int256(totalSupplyAfter) == newTotalSupply;
     }
 
     function verifyDepositParameters(

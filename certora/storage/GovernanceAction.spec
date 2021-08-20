@@ -47,9 +47,10 @@ methods {
             int256 decimals,
             uint8 tokenType
         ) envfree;
+    addIsEqual(uint256 totalSupply, int256 netChange, uint256 totalSupplyAfter) returns (bool) envfree;
 
     decimals() => ALWAYS(6);
-    approve() => DISPATCHER(true);
+    approve(address, uint256) => DISPATCHER(true);
 }
 
 // PASSES: 1753 seconds
@@ -86,10 +87,102 @@ rule updateIncentiveEmissionRateSetsProperly(
 ) {
     env e;
     require nTokenAddress(currencyId) == tokenAddress;
+    uint256 _currencyId;
+    uint256 _lastInitializedTime;
+    bytes6 _nTokenParameters;
+    _currencyId, _, _, _lastInitializedTime, _nTokenParameters, _, _ = getNTokenAccount(tokenAddress);
+
     updateIncentiveEmissionRate(e, currencyId, newEmissionRate);
     uint256 incentiveEmissionRate;
-    _, _, incentiveEmissionRate, _, _, _, _ = getNTokenAccount(tokenAddress);
+    uint256 currencyId_;
+    uint256 lastInitializedTime_;
+    bytes6 nTokenParameters_;
+    currencyId_, _, incentiveEmissionRate, lastInitializedTime_, nTokenParameters_, _, _ = getNTokenAccount(tokenAddress);
     assert incentiveEmissionRate == newEmissionRate;
+    assert _currencyId == currencyId_;
+    assert _lastInitializedTime == lastInitializedTime_;
+    assert _nTokenParameters == nTokenParameters_;
+}
+
+// PASSES
+rule updateArrayLengthAndTimeSetsProperly(
+    uint16 currencyId,
+    uint8 arrayLength,
+    uint256 lastInitializedTime,
+    address tokenAddress 
+) {
+    env e;
+    require nTokenAddress(currencyId) == tokenAddress;
+    uint8 _p1;
+    uint8 _p2;
+    uint8 _p3;
+    uint8 _p4;
+    uint8 _p5;
+    uint256 _currencyId;
+    uint256 _incentiveEmissionRate;
+    _p1, _p2, _p3, _p4, _p5, _, _currencyId, _incentiveEmissionRate, _ = getNTokenParameters(tokenAddress);
+
+    setArrayLengthAndInitializedTime(e, tokenAddress, arrayLength, lastInitializedTime);
+    uint8 p1_;
+    uint8 p2_;
+    uint8 p3_;
+    uint8 p4_;
+    uint8 p5_;
+    uint8 arrayLength_;
+    uint256 lastInitializedTime_;
+    uint256 currencyId_;
+    uint256 incentiveEmissionRate_;
+
+    p1_, p2_, p3_, p4_, p5_, arrayLength_, currencyId_, incentiveEmissionRate_, lastInitializedTime_ = getNTokenParameters(tokenAddress);
+
+    assert _p1 == p1_;
+    assert _p2 == p2_;
+    assert _p3 == p3_;
+    assert _p4 == p4_;
+    assert _p5 == p5_;
+
+    assert arrayLength == arrayLength_;
+    assert _currencyId == currencyId_;
+    assert _incentiveEmissionRate == incentiveEmissionRate_;
+    assert lastInitializedTime == lastInitializedTime_;
+}
+
+
+// Failure: Don't understand these results
+// https://vaas-stg.certora.com/output/42394/52325cd1c2af0e39d6a6/?anonymousKey=20bbb8db83b6062261daf49a8e79e133e6881c3c
+rule updateNTokenSupplySetsProperly(
+    uint16 currencyId,
+    int256 netChange,
+    address tokenAddress 
+) {
+    env e;
+    require nTokenAddress(currencyId) == tokenAddress;
+    uint256 _totalSupply;
+    uint256 _integralTotalSupply;
+    uint256 _lastSupplyChangeTime;
+
+    _, _totalSupply, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
+    require _lastSupplyChangeTime < e.block.timestamp;
+
+    uint256 calculatedIntegralTotalSupply = changeNTokenSupply(e, tokenAddress, netChange, e.block.timestamp);
+    uint256 totalSupply_;
+    uint256 integralTotalSupply_;
+    uint256 lastSupplyChangeTime_;
+    _, totalSupply_, _, _, _, integralTotalSupply_, lastSupplyChangeTime_ = getNTokenAccount(tokenAddress);
+
+    // TODO: don't understand why this is returning zero
+    assert calculatedIntegralTotalSupply == (
+        _integralTotalSupply + _totalSupply * (e.block.timestamp - _lastSupplyChangeTime)
+    );
+
+    assert netChange != 0 => addIsEqual(_totalSupply, netChange, totalSupply_);
+    assert netChange != 0 => lastSupplyChangeTime_ == e.block.timestamp;
+    assert netChange != 0 => integralTotalSupply_ == calculatedIntegralTotalSupply;
+
+    // If net change is zero then nothing will change in storage
+    assert netChange == 0 => _totalSupply == totalSupply_;
+    assert netChange == 0 => _lastSupplyChangeTime == lastSupplyChangeTime_;
+    assert netChange == 0 => _integralTotalSupply == integralTotalSupply_;
 }
 
 // PASSES
@@ -249,8 +342,8 @@ rule updateAssetRateSetsProperly(
 // [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown "timeout"), sat].
 // [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
 // [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
-// Results don't make sense:
-// https://vaas-stg.certora.com/output/42394/151bf0412d041ae63b69/?anonymousKey=3c41043af4a9d3ad088b08c557102d4a38e0deb1
+// Results don't make sense, now getting a sanity check failed
+// https://vaas-stg.certora.com/output/42394/906efcd49e8d7ebab1cf?anonymousKey=aa0fbfb87b1294221ee1fb27e6dcc2b6dfd758de
 // Storage value looks correct but does not return the correct value for decimals.
 rule listingCurrencySetsProperly(
     address assetToken,
