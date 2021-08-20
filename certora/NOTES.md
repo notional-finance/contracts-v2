@@ -21,12 +21,8 @@ AccountPortfolio.spec
 
 ```
 - GovernanceAction.sol
-  - x CashGroup.sol (not working)
-  - Get AssetRate.sol (need to simulate rates)
-  - Get ExchangeRate.sol
-- TODO: TokenHandler.sol
-
-- x AccountContextHandler.sol
+  - Review failing specs
+- [ok] AccountContextHandler.sol
 - x BitmapAssetsHandler.sol
 - nTokenHandler.sol
   - check these do not clobber collateral settings
@@ -44,6 +40,9 @@ AccountPortfolio.spec
 - Settlement
 - Actions
   - Deposit, Withdraw, ERC1155, Batch Action
+  - Harness for FreeCollateralExternal
+  - Ghost for get/set account context
+  - What to do for Settlement?
 
 ## Won't Do:
 

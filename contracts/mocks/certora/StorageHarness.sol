@@ -9,6 +9,48 @@ import "../../internal/nTokenHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 
 contract StorageHarness is GovernanceAction {
+    function getMaxCurrencyId() external view returns (uint16) {
+        return maxCurrencyId;
+    }
+
+    function listCurrencyHarness(
+        address assetToken,
+        bool assetTokenHasFee,
+        TokenType assetTokenType,
+        address underlyingToken,
+        bool underlyingTokenHasFee,
+        TokenType underlyingTokenType,
+        address rateOracle,
+        bool mustInvert,
+        uint8 buffer,
+        uint8 haircut,
+        uint8 liquidationDiscount
+    ) external {
+        this.listCurrency(
+            TokenStorage(assetToken, assetTokenHasFee, assetTokenType),
+            TokenStorage(underlyingToken, underlyingTokenHasFee, underlyingTokenType),
+            rateOracle,
+            mustInvert,
+            buffer,
+            haircut,
+            liquidationDiscount
+        );
+    }
+
+    function getToken(uint16 currencyId, bool isUnderlying)
+        external
+        view
+        returns (
+            address tokenAddress,
+            bool hasTransferFee,
+            int256 decimals,
+            uint8 tokenType
+        )
+    {
+        Token memory t = TokenHandler.getToken(currencyId, isUnderlying);
+        return (t.tokenAddress, t.hasTransferFee, t.decimals, uint8(t.tokenType));
+    }
+
     function getOwner() external view returns (address) {
         return owner;
     }
@@ -54,14 +96,17 @@ contract StorageHarness is GovernanceAction {
             uint8,
             uint8,
             uint8,
-            bytes6
+            uint8,
+            uint256,
+            uint256,
+            uint256
         )
     {
         // prettier-ignore
         (
-            /* currencyId */,
-            /* incentiveAnnualEmissionRate */,
-            /* lastInitializedTime */,
+            uint256 currencyId,
+            uint256 incentiveAnnualEmissionRate,
+            uint256 lastInitializedTime,
             bytes6 nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
@@ -71,7 +116,10 @@ contract StorageHarness is GovernanceAction {
             uint8(nTokenParameters[Constants.RESIDUAL_PURCHASE_TIME_BUFFER]),
             uint8(nTokenParameters[Constants.CASH_WITHHOLDING_BUFFER]),
             uint8(nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]),
-            nTokenParameters
+            uint8(nTokenParameters[Constants.ASSET_ARRAY_LENGTH]),
+            currencyId,
+            incentiveAnnualEmissionRate,
+            lastInitializedTime
         );
     }
 

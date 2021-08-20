@@ -1,5 +1,3 @@
-using MockAggregator as rateOracle;
-
 methods {
     nTokenAddress(uint16 currencyId) returns (address) envfree;
     getNTokenAccount(address tokenAddress) returns (
@@ -17,7 +15,10 @@ methods {
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage,
-        bytes6 x
+        uint8 arrayLen,
+        uint256 currencyId,
+        uint256 incentiveAnnualEmissionRate,
+        uint256 lastInitializedTime
     ) envfree;
     verifyDepositParameters(
         uint16 currencyId,
@@ -38,9 +39,17 @@ methods {
         uint8 haircut,
         uint8 liquidationDiscount
     ) envfree;
+    getMaxCurrencyId() returns (uint16) envfree;
+    getToken(uint16 currencyId, bool isUnderlying)
+        returns (
+            address tokenAddress,
+            bool hasTransferFee,
+            int256 decimals,
+            uint8 tokenType
+        ) envfree;
 
-    latestRoundData() => CONSTANT;
-    decimals() => ALWAYS(1);
+    decimals() => ALWAYS(6);
+    approve() => DISPATCHER(true);
 }
 
 // PASSES: 1753 seconds
@@ -83,6 +92,7 @@ rule updateIncentiveEmissionRateSetsProperly(
     assert incentiveEmissionRate == newEmissionRate;
 }
 
+// PASSES
 rule updateCollateralParametersSetsProperly(
     uint16 currencyId,
     uint8 residualPurchaseIncentive10BPS,
@@ -94,6 +104,12 @@ rule updateCollateralParametersSetsProperly(
 ) {
     env e;
     require nTokenAddress(currencyId) == tokenAddress;
+    uint8 _arrayLen;
+    uint256 _currencyId;
+    uint256 _incentiveEmissionRate;
+    uint256 _lastInitializedTime;
+    _, _, _, _, _, _arrayLen, _currencyId, _incentiveEmissionRate, _lastInitializedTime = getNTokenParameters(tokenAddress);
+
     updateTokenCollateralParameters(
         e,
         currencyId,
@@ -109,14 +125,22 @@ rule updateCollateralParametersSetsProperly(
     uint8 p3;
     uint8 p4;
     uint8 p5;
-    bytes6 x;
-    // TODO: is the tool grabbing the right byte from the array?
-    p1, p2, p3, p4, p5, x = getNTokenParameters(tokenAddress);
+    uint8 arrayLen_;
+    uint256 currencyId_;
+    uint256 incentiveEmissionRate_;
+    uint256 lastInitializedTime_;
+
+    p1, p2, p3, p4, p5, arrayLen_, currencyId_, incentiveEmissionRate_, lastInitializedTime_ = getNTokenParameters(tokenAddress);
     assert p1 == residualPurchaseIncentive10BPS;
     assert p2 == pvHaircutPercentage;
     assert p3 == residualPurchaseTimeBufferHours;
     assert p4 == cashWithholdingBuffer10BPS;
     assert p5 == liquidationHaircutPercentage;
+
+    assert _arrayLen == arrayLen_;
+    assert _currencyId == currencyId_;
+    assert _incentiveEmissionRate == incentiveEmissionRate_;
+    assert _lastInitializedTime == lastInitializedTime_;
 }
 
 // TODO: TIMEOUT
@@ -159,46 +183,47 @@ rule cashGroupSetsProperly(
     assert didVerify;
 }
 
-// // TODO
-// rule updateETHRateSetsProperly(
-//     uint16 currencyId,
-//     address rateOracle,
-//     bool mustInvert,
-//     uint8 buffer,
-//     uint8 haircut,
-//     uint8 liquidationDiscount
-// ) {
-//     env e;
-//     updateETHRate(
-//         e,
-//         currencyId,
-//         rateOracle,
-//         mustInvert,
-//         buffer,
-//         haircut,
-//         liquidationDiscount
-//     );
+// FAILS VERIFICATION: Don't understand the results here:
+// https://vaas-stg.certora.com/output/42394/b346a20fccf3161bd2e4/?anonymousKey=14f6dc1b5fe2c24e852ffadc82182619a4438eb2
+rule updateETHRateGetsProperly(
+    uint16 currencyId,
+    address rateOracle,
+    bool mustInvert,
+    uint8 buffer,
+    uint8 haircut,
+    uint8 liquidationDiscount
+) {
+    env e;
+    updateETHRate(
+        e,
+        currencyId,
+        rateOracle,
+        mustInvert,
+        buffer,
+        haircut,
+        liquidationDiscount
+    );
 
-//     int256 _rateDecimals;
-//     int256 _rate;
-//     uint8 _buffer;
-//     uint8 _haircut;
-//     uint8 _liquidationDiscount;
+    int256 _rateDecimals;
+    int256 _rate;
+    uint8 _buffer;
+    uint8 _haircut;
+    uint8 _liquidationDiscount;
 
-//     // TODO: need to set up rate and rate decimals
-//     _rateDecimals, _rate, _buffer, _haircut, _liquidationDiscount = getETHRate(currencyId);
-//     // Special case for ETH
-//     assert currencyId == 1 ? _rateDecimals == 10 ^ 18 : _rateDecimals == 10;
-//     assert currencyId == 1 => _rate == 10 ^ 18;
-//     assert currencyId != 1 && mustInvert => _rate == 100;
-//     assert currencyId != 1 && !mustInvert => _rate == 1;
+    _rateDecimals, _rate, _buffer, _haircut, _liquidationDiscount = getETHRate(currencyId);
+    // Special case for ETH
+    assert currencyId == 1 ? _rateDecimals == 10 ^ 18 : _rateDecimals == 10;
+    assert currencyId == 1 => _rate == 10 ^ 18;
+    // assert currencyId != 1 && mustInvert => _rate == 100;
+    // assert currencyId != 1 && !mustInvert => _rate == 1;
 
-//     assert buffer == _buffer;
-//     assert haircut == _haircut;
-//     assert liquidationDiscount == _liquidationDiscount;
-// }
+    assert buffer == _buffer;
+    assert haircut == _haircut;
+    assert liquidationDiscount == _liquidationDiscount;
+}
 
-// TODO
+// TODO: don't understand the results here:
+// https://vaas-stg.certora.com/output/42394/ef51ca3fc3207b7b1475/?anonymousKey=40154ad311dd2e6cded9eb80b8a49302d01811f6
 rule updateAssetRateSetsProperly(
     uint16 currencyId,
     address rateOracle
@@ -209,13 +234,24 @@ rule updateAssetRateSetsProperly(
     int256 rate;
     int256 underlyingDecimalPlaces;
 
+    // Appears that underlying decimal places is not returned properly
     _rateOracle, rate, underlyingDecimalPlaces = getAssetRate(e, currencyId);
 
     assert _rateOracle == rateOracle;
     assert rateOracle == 0 => underlyingDecimalPlaces == 0 && rate == 10 ^ 10;
 }
 
-// TODO: setToken
+// ERRORS:
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), unknown].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown "timeout"), sat].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
+// [pool-1-thread-13] ERROR smtlibutils.satresult - Got more than one answer to a check-sat query: [(:reason-unknown ""), sat].
+// Results don't make sense:
+// https://vaas-stg.certora.com/output/42394/151bf0412d041ae63b69/?anonymousKey=3c41043af4a9d3ad088b08c557102d4a38e0deb1
+// Storage value looks correct but does not return the correct value for decimals.
 rule listingCurrencySetsProperly(
     address assetToken,
     address underlyingToken,
@@ -226,15 +262,16 @@ rule listingCurrencySetsProperly(
     uint8 liquidationDiscount
 ) {
     env e;
-    require getMaxCurrencyId() >= 1;
+    uint16 maxCurrencyId = getMaxCurrencyId();
+    require getOwner() == currentContract;
+    require maxCurrencyId >= 1;
     require assetToken != 0;
     require underlyingToken != 0;
 
-    // TODO: need to put a harness here
-    listCurrency(
+    listCurrencyHarness(
         e,
-        (assetToken, false, 1),
-        (underlyingToken, false, 1),
+        assetToken, false, 1,
+        underlyingToken, false, 0,
         rateOracle,
         mustInvert,
         buffer,
@@ -242,5 +279,21 @@ rule listingCurrencySetsProperly(
         liquidationDiscount
     );
 
-    assert false;
+    address assetToken_;
+    bool assetTokenHasFee_;
+    int256 assetTokenDecimals_;
+    assetToken_, assetTokenHasFee_, assetTokenDecimals_, _ = getToken(maxCurrencyId + 1, false);
+
+    assert assetToken_ == assetToken;
+    assert assetTokenHasFee_ == false;
+    assert assetTokenDecimals_ == 1;
+
+    address underlyingToken_;
+    bool underlyingTokenHasFee_;
+    int256 underlyingTokenDecimals_;
+    underlyingToken_, underlyingTokenHasFee_, underlyingTokenDecimals_, _ = getToken(maxCurrencyId + 1, true);
+
+    assert underlyingToken_ == underlyingToken;
+    assert underlyingTokenHasFee_ == false;
+    assert underlyingTokenDecimals_ == 1;
 }
