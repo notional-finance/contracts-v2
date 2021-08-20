@@ -96,11 +96,10 @@ gasLog = {
     # },
     # "nTokenTransfer": None,
     # "nTokenClaimIncentives": {"nTokenBalances": range(1, 10)},
-    "liquidateLocalCurrency.transferCash": None,
-    #"liquidateLocalCurrency.withdrawTokens": None,
-    #"liquidateLocalCurrency.transferNTokens": None,
+    "liquidateLocalCurrency.transferNTokens": None,
     "liquidateCollateralCurrency.transferCash": None,
-    "liquidateCollateralCurrency.withdrawTokens": None,
+    "liquidateCollateralCurrency.transferAndWithdrawTokens": None,
+    "liquidateCollateralCurrency.transferWithdrawRedeemCash": None,
     "liquidateCollateralCurrency.transferNTokens": None,
     "liquidatefCashLocal.fCashAssets": None,
     "liquidatefCashCrossCurrency.fCashAssets": None,
@@ -773,7 +772,7 @@ def fcashLiquidateSetup(env):
     env.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
 
     env.notional.updateInitializationParameters(
-        2, [1.01e9, 1.021e9, 1.07e9], [0.5e9, 0.5e9, 0.5e9]
+        2, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
     )
 
     env.notional.batchBalanceAction(
@@ -812,7 +811,7 @@ def fcashLocalLiquidate(env):
     )
     env.notional.batchBalanceAndTradeAction(accounts[1], [lendBorrowAction], {"from": accounts[1]})
     cashGroup = list(env.notional.getCashGroup(2))
-    cashGroup[5] = 200
+    cashGroup[5] = 255
     env.notional.updateCashGroup(2, cashGroup)
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
     maturities = [asset[1] for asset in liquidatedPortfolioBefore]
@@ -847,7 +846,7 @@ def fcashCrossCurrencyLiquidate(env):
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
     maturities = [asset[1] for asset in liquidatedPortfolioBefore]
     txn = env.notional.liquidatefCashCrossCurrency(accounts[1], 2, 1, maturities, [0, 0], {"from": accounts[2]})
-    log_gas("fcashCrossCurrencyLiquidate.fCashAssets", txn, txn)
+    log_gas("liquidatefCashCrossCurrency.fCashAssets", txn, txn)
 
     # Restore previous price
     env.ethOracle["DAI"].setAnswer(answer)
@@ -881,7 +880,7 @@ def localLiquidate(env):
     tokenDefaults[1] = 70
     env.notional.updateTokenCollateralParameters(2, *(tokenDefaults))
     txn = env.notional.liquidateLocalCurrency(accounts[1].address, 2, 0, {"from": accounts[2]})
-    log_gas("liquidateLocalCurrency.transferCash", txn, txn)
+    log_gas("liquidateLocalCurrency.transferNTokens", txn, txn)
 
 def collateralLiquidate(env):
     cashLiquidateSetup(env)
@@ -904,7 +903,32 @@ def collateralLiquidate(env):
     log_gas("liquidateCollateralCurrency.transferCash", txn, txn)
     chain.undo(1)
     txn = env.notional.liquidateCollateralCurrency(accounts[1], 2, 1, 0, 0, True, False, {"from": accounts[2]})
-    log_gas("liquidateCollateralCurrency.withdrawTokens", txn, txn)
+    log_gas("liquidateCollateralCurrency.transferAndWithdrawTokens", txn, txn)
+    chain.undo(1)
+    txn = env.notional.liquidateCollateralCurrency(accounts[1], 2, 1, 0, 0, True, True, {"from": accounts[2]})
+    log_gas("liquidateCollateralCurrency.transferWithdrawRedeemCash", txn, txn)
+    chain.undo(3)
+
+    cToken = env.cToken["ETH"]
+    cToken.mint({"from": accounts[0], "value": 10000e18})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+    _enable_cash_group(1, env, accounts, initialCash=40000e8)
+    ethCollateral = get_balance_trade_action(1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=3e18)
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    env.notional.batchBalanceAndTradeAction(
+        accounts[1], [ethCollateral, borrowAction], {"from": accounts[1], "value": 3e18}
+    )
+
+    env.ethOracle["DAI"].setAnswer(0.025e18)
+
+    txn = env.notional.liquidateCollateralCurrency(accounts[1], 2, 1, 0, 0, True, True, {"from": accounts[2]})
+    log_gas("liquidateCollateralCurrency.transferNTokens", txn, txn)
 
     #Restore previous price
     env.ethOracle["DAI"].setAnswer(answer)
