@@ -143,8 +143,16 @@ contract MathHarness {
     }
 
     ///////////// Asset Rate //////////////////
-    function getDecimals(uint8 decimals) public pure returns (int256) {
-        return int256(10**decimals);
+    function getMinRate(uint8 decimals) public pure returns (int256) {
+        return int256(10**decimals * 10 ** 10);
+    }
+
+    function isGTE(int256 x, int256 y) public pure returns (bool) {
+        return x >= y;
+    }
+
+    function isLT(int256 x, int256 y) public pure returns (bool) {
+        return x < y;
     }
 
     function convertToUnderlying(
