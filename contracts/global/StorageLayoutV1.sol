@@ -29,6 +29,9 @@ contract StorageLayoutV1 {
     address public pauseGuardian;
     // On upgrades this is set in the case that the pause router is used to pass the rollback check
     address internal rollbackRouterImplementation;
+    // Sets the state of liquidations being enabled during a paused state. Each of the four lower
+    // bits can be turned on to represent one of the liquidation types being enabled.
+    bytes1 internal liquidationEnabledState;
 
     // A blanket allowance for a spender to transfer any of an account's nTokens. This would allow a user
     // to set an allowance on all nTokens for a particular integrating contract system.

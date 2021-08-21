@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import NoteERC20
+from brownie import Contract, NoteERC20
 from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.state import Chain
@@ -417,6 +417,62 @@ def test_pause_and_restart_router(environment, accounts):
 
     # Assert that methods are now callable
     environment.notional.settleAccount(accounts[0])
+
+
+@pytest.mark.only
+def test_pause_router_and_enable_liquidations(environment, accounts, PauseRouter):
+    # Downgrade to pause router
+    environment.notional.upgradeTo(environment.pauseRouter.address, {"from": accounts[8]})
+
+    with brownie.reverts("Method not found"):
+        # Ensure that liquidation methods are not callable
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
+
+    pr = Contract.from_abi(
+        "PauseRouter", environment.notional.address, abi=PauseRouter.abi, owner=accounts[8]
+    )
+    pr.setLiquidationEnabledState("0x01")
+
+    with brownie.reverts(""):
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+    with brownie.reverts("Method not found"):
+        # Ensure that liquidation methods are not callable
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
+
+    pr.setLiquidationEnabledState("0x03")
+
+    with brownie.reverts(""):
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+    with brownie.reverts("Method not found"):
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
 
 
 def test_can_delegate_if_notional_not_active(accounts):
