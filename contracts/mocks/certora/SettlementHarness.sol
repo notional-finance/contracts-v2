@@ -96,8 +96,7 @@ contract SettlementHarness {
         if (symbolicAccountContext.bitmapCurrencyId != 0) {
             settleAmounts = SettleAssetsExternal._settleBitmappedAccountStateful(
                 account,
-                symbolicAccountContext.bitmapCurrencyId,
-                symbolicAccountContext.nextSettleTime
+                symbolicAccountContext
             );
         } else {
             settleAmounts = SettlePortfolioAssets.settlePortfolio(

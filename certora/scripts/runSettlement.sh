@@ -1,6 +1,6 @@
 certoraRun contracts/mocks/certora/SettlementHarness.sol \
  	--verify SettlementHarness:certora/asset/Settlement.spec \
- 	--solc $SOLC/solc7.5 \
+ 	--solc solc7.6 \
 	--optimistic_loop \
  	--loop_iter 1 \
 	--settings -smt_bitVectorTheory=true,-smt_hashingScheme=plainInjectivity \

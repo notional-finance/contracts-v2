@@ -99,7 +99,7 @@ library SettleAssetsExternal {
     }
 
     function _settleBitmappedAccountStateful(address account, AccountContext memory accountContext)
-        private
+        internal
         returns (SettleAmount[] memory)
     {
         (bytes32 assetsBitmap, int256 settledCash, uint256 blockTimeUTC0) = SettleBitmapAssets

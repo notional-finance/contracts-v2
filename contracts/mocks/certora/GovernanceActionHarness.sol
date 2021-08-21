@@ -78,21 +78,6 @@ contract GovernanceActionHarness is GovernanceAction {
         return nTokenHandler.nTokenAddress(currencyId);
     }
 
-    function getNTokenAccount(address tokenAddress)
-        external
-        view
-        returns (bytes6 nTokenParameters, uint256 incentiveAnnualEmissionRate)
-    {
-        // prettier-ignore
-        (
-            /* currencyId */,
-            /* totalSupply */,
-            incentiveAnnualEmissionRate,
-            /* lastInitializedTime */,
-            nTokenParameters
-        ) = nTokenHandler.getNTokenContext(tokenAddress);
-    }
-
     /// @notice Returns address of contract owner
     function getOwner() external view returns (address) {
         return owner;

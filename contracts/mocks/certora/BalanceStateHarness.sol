@@ -9,7 +9,7 @@ contract BalanceStateHarness {
 
     BalanceState symbolicBalanceState;
 
-    function depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) external returns (int256, int256) {
+    function depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) external returns (int256)  {
         return symbolicBalanceState.depositAssetToken(account, assetAmountExternal, forceTransfer);
     }
 
@@ -29,5 +29,5 @@ contract BalanceStateHarness {
     function getNetNTokenTransfer() external returns (int256) { return symbolicBalanceState.netNTokenTransfer; }
     function getNetNTokenSupplyChange() external returns (int256) { return symbolicBalanceState.netNTokenSupplyChange; }
     function getLastClaimTime() external returns (uint256) { return symbolicBalanceState.lastClaimTime; }
-    function getLastClaimSupply() external returns (uint256) { return symbolicBalanceState.lastClaimSupply; }
+    function getLastClaimSupply() external returns (uint256) { return symbolicBalanceState.lastClaimIntegralSupply; }
 }
