@@ -203,7 +203,7 @@ def test_collateral_currency_with_transfer_fee(
 ):
     account = accounts[2]
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.75e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=2.5e18
     )
 
     borrowAction = get_balance_trade_action(
@@ -215,7 +215,7 @@ def test_collateral_currency_with_transfer_fee(
     )
 
     env.notional.batchBalanceAndTradeAction(
-        account, [collateral, borrowAction], {"from": account, "value": 1.75e18}
+        account, [collateral, borrowAction], {"from": account, "value": 2.5e18}
     )
     env.ethOracle["USDT"].setAnswer(0.013e18)
     mockExchange.setExchangeRate(101e6)
@@ -275,7 +275,7 @@ def test_collateral_currency_no_transfer_fee(
 ):
     account = accounts[2]
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.75e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=2.5e18
     )
 
     borrowAction = get_balance_trade_action(
@@ -287,7 +287,7 @@ def test_collateral_currency_no_transfer_fee(
     )
 
     env.notional.batchBalanceAndTradeAction(
-        account, [collateral, borrowAction], {"from": account, "value": 1.75e18}
+        account, [collateral, borrowAction], {"from": account, "value": 2.5e18}
     )
     env.ethOracle["DAI"].setAnswer(0.013e18)
     mockExchange.setExchangeRate(101e18)

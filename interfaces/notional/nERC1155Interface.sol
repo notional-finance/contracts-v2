@@ -3,9 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "../../contracts/global/Types.sol";
-import "@openzeppelin/contracts/introspection/IERC165.sol";
 
-interface nERC1155Interface is IERC165 {
+interface nERC1155Interface {
     event TransferSingle(
         address indexed operator,
         address indexed from,
@@ -22,6 +21,8 @@ interface nERC1155Interface is IERC165 {
     );
     event ApprovalForAll(address indexed account, address indexed operator, bool approved);
     event URI(string value, uint256 indexed id);
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool);
 
     /// @dev Return value is overridden to be int256 here
     function balanceOf(address account, uint256 id) external view returns (int256);

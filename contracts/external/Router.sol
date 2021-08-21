@@ -2,19 +2,14 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "./actions/AccountAction.sol";
-import "./actions/BatchAction.sol";
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "./actions/nTokenRedeemAction.sol";
-import "./actions/GovernanceAction.sol";
-import "./actions/InitializeMarketsAction.sol";
-import "./actions/ERC1155Action.sol";
-import "./actions/LiquidatefCashAction.sol";
-import "./actions/LiquidateCurrencyAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
-import "../proxy/utils/UUPSUpgradeable.sol";
+import "interfaces/notional/NotionalProxy.sol";
+import "interfaces/notional/nERC1155Interface.sol";
+import "interfaces/notional/NotionalGovernance.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -77,15 +72,15 @@ contract Router is StorageLayoutV1 {
         (bool status, ) =
             address(GOVERNANCE).delegatecall(
                 abi.encodeWithSelector(
-                    GovernanceAction.listCurrency.selector,
+                    NotionalGovernance.listCurrency.selector,
                     TokenStorage(cETH, false, TokenType.cETH),
                     // No underlying set for cETH
                     TokenStorage(address(0), false, TokenType.Ether),
                     address(0),
                     false,
-                    140,
-                    100,
-                    106
+                    130, // Initial settings of 130 buffer
+                    70,  // 70% haircut
+                    105  // 105 liquidation discount
                 )
             );
         require(status);
@@ -101,9 +96,9 @@ contract Router is StorageLayoutV1 {
     /// @return implementation address
     function getRouterImplementation(bytes4 sig) public view returns (address) {
         if (
-            sig == BatchAction.batchBalanceAction.selector ||
-            sig == BatchAction.batchBalanceAndTradeAction.selector ||
-            sig == BatchAction.batchBalanceAndTradeActionWithCallback.selector
+            sig == NotionalProxy.batchBalanceAction.selector ||
+            sig == NotionalProxy.batchBalanceAndTradeAction.selector ||
+            sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector
         ) {
             return BATCH_ACTION;
         }
@@ -124,11 +119,11 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == AccountAction.depositUnderlyingToken.selector ||
-            sig == AccountAction.depositAssetToken.selector ||
-            sig == AccountAction.withdraw.selector ||
-            sig == AccountAction.settleAccount.selector ||
-            sig == AccountAction.enableBitmapCurrency.selector
+            sig == NotionalProxy.depositUnderlyingToken.selector ||
+            sig == NotionalProxy.depositAssetToken.selector ||
+            sig == NotionalProxy.withdraw.selector ||
+            sig == NotionalProxy.settleAccount.selector ||
+            sig == NotionalProxy.enableBitmapCurrency.selector
         ) {
             return ACCOUNT_ACTION;
         }
@@ -141,59 +136,59 @@ contract Router is StorageLayoutV1 {
         }
 
         if (
-            sig == ERC1155Action.supportsInterface.selector ||
-            sig == ERC1155Action.balanceOf.selector ||
-            sig == ERC1155Action.balanceOfBatch.selector ||
-            sig == ERC1155Action.safeTransferFrom.selector ||
-            sig == ERC1155Action.safeBatchTransferFrom.selector ||
-            sig == ERC1155Action.decodeToAssets.selector ||
-            sig == ERC1155Action.encodeToId.selector ||
-            sig == ERC1155Action.setApprovalForAll.selector ||
-            sig == ERC1155Action.isApprovedForAll.selector
+            sig == nERC1155Interface.supportsInterface.selector ||
+            sig == nERC1155Interface.balanceOf.selector ||
+            sig == nERC1155Interface.balanceOfBatch.selector ||
+            sig == nERC1155Interface.safeTransferFrom.selector ||
+            sig == nERC1155Interface.safeBatchTransferFrom.selector ||
+            sig == nERC1155Interface.decodeToAssets.selector ||
+            sig == nERC1155Interface.encodeToId.selector ||
+            sig == nERC1155Interface.setApprovalForAll.selector ||
+            sig == nERC1155Interface.isApprovedForAll.selector
         ) {
             return ERC1155;
         }
 
         if (
-            sig == LiquidateCurrencyAction.liquidateLocalCurrency.selector ||
-            sig == LiquidateCurrencyAction.liquidateCollateralCurrency.selector ||
-            sig == LiquidateCurrencyAction.calculateLocalCurrencyLiquidation.selector ||
-            sig == LiquidateCurrencyAction.calculateCollateralCurrencyLiquidation.selector
+            sig == NotionalProxy.liquidateLocalCurrency.selector ||
+            sig == NotionalProxy.liquidateCollateralCurrency.selector ||
+            sig == NotionalProxy.calculateLocalCurrencyLiquidation.selector ||
+            sig == NotionalProxy.calculateCollateralCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_CURRENCY;
         }
 
         if (
-            sig == LiquidatefCashAction.liquidatefCashLocal.selector ||
-            sig == LiquidatefCashAction.liquidatefCashCrossCurrency.selector ||
-            sig == LiquidatefCashAction.calculatefCashLocalLiquidation.selector ||
-            sig == LiquidatefCashAction.calculatefCashCrossCurrencyLiquidation.selector
+            sig == NotionalProxy.liquidatefCashLocal.selector ||
+            sig == NotionalProxy.liquidatefCashCrossCurrency.selector ||
+            sig == NotionalProxy.calculatefCashLocalLiquidation.selector ||
+            sig == NotionalProxy.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
         }
 
         if (
-            sig == InitializeMarketsAction.initializeMarkets.selector ||
-            sig == InitializeMarketsAction.sweepCashIntoMarkets.selector
+            sig == NotionalProxy.initializeMarkets.selector ||
+            sig == NotionalProxy.sweepCashIntoMarkets.selector
         ) {
             return INITIALIZE_MARKET;
         }
 
         if (
-            sig == GovernanceAction.listCurrency.selector ||
-            sig == GovernanceAction.enableCashGroup.selector ||
-            sig == GovernanceAction.updateCashGroup.selector ||
-            sig == GovernanceAction.updateAssetRate.selector ||
-            sig == GovernanceAction.updateETHRate.selector ||
-            sig == GovernanceAction.transferOwnership.selector ||
-            sig == GovernanceAction.updateIncentiveEmissionRate.selector ||
-            sig == GovernanceAction.updateDepositParameters.selector ||
-            sig == GovernanceAction.updateInitializationParameters.selector ||
-            sig == GovernanceAction.updateTokenCollateralParameters.selector ||
-            sig == GovernanceAction.updateGlobalTransferOperator.selector ||
-            sig == GovernanceAction.updateAuthorizedCallbackContract.selector ||
-            sig == UUPSUpgradeable.upgradeTo.selector ||
-            sig == UUPSUpgradeable.upgradeToAndCall.selector
+            sig == NotionalGovernance.listCurrency.selector ||
+            sig == NotionalGovernance.enableCashGroup.selector ||
+            sig == NotionalGovernance.updateCashGroup.selector ||
+            sig == NotionalGovernance.updateAssetRate.selector ||
+            sig == NotionalGovernance.updateETHRate.selector ||
+            sig == NotionalGovernance.transferOwnership.selector ||
+            sig == NotionalGovernance.updateIncentiveEmissionRate.selector ||
+            sig == NotionalGovernance.updateDepositParameters.selector ||
+            sig == NotionalGovernance.updateInitializationParameters.selector ||
+            sig == NotionalGovernance.updateTokenCollateralParameters.selector ||
+            sig == NotionalGovernance.updateGlobalTransferOperator.selector ||
+            sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
+            sig == NotionalProxy.upgradeTo.selector ||
+            sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
         }

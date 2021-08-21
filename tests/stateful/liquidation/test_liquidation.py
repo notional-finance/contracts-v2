@@ -57,9 +57,9 @@ def currencyLiquidation(env, accounts):
         redeemToUnderlying=True,
     )
     # account[1]: DAI borrower with ETH cash
-    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=1.75e18)
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=2.5e18)
     env.notional.batchBalanceAndTradeAction(
-        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 1.75e18}
+        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 2.5e18}
     )
 
     # account[2]: DAI borrower with ETH liquidity token collateral (2x)
@@ -82,18 +82,18 @@ def currencyLiquidation(env, accounts):
                 "maxSlippage": 0.40 * RATE_PRECISION,
             },
         ],
-        depositActionAmount=1.75e18,
+        depositActionAmount=2.5e18,
     )
     env.notional.batchBalanceAndTradeAction(
-        accounts[2], [collateral, borrowAction], {"from": accounts[2], "value": 1.75e18}
+        accounts[2], [collateral, borrowAction], {"from": accounts[2], "value": 2.5e18}
     )
 
     # account[3]: DAI borrower with ETH ntoken
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.75e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=2.5e18
     )
     env.notional.batchBalanceAndTradeAction(
-        accounts[3], [collateral, borrowAction], {"from": accounts[3], "value": 1.75e18}
+        accounts[3], [collateral, borrowAction], {"from": accounts[3], "value": 2.5e18}
     )
 
     # account[4]: DAI borrower with ETH cash, liquidity token, nToken
@@ -123,10 +123,10 @@ def currencyLiquidation(env, accounts):
     )
 
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=0.75e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=1.5e18
     )
     env.notional.batchBalanceAndTradeAction(
-        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 0.75e18}
+        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 1.5e18}
     )
 
     # account[5]: DAI borrower with DAI ntoken
@@ -511,7 +511,7 @@ def test_liquidator_settle_array_assets(fCashLiquidation, accounts):
         accounts[0], [collateral], {"from": accounts[0], "value": 1e18}
     )
     # Decrease ETH rate
-    fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.014e18)
     # This will fail if there are matured assets.
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
 
@@ -551,7 +551,7 @@ def test_liquidator_settle_bitmap_assets(fCashLiquidation, accounts):
         accounts[0], [collateral], {"from": accounts[0], "value": 1e18}
     )
     # Decrease ETH rate
-    fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.014e18)
     # This will fail if there are matured assets.
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
 
