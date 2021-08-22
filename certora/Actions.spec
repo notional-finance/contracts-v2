@@ -33,28 +33,6 @@
 
 /** IMPORTANT: Account context invariants (see Portfolio.spec) must hold for all these actions */
 
-// If an account has assets that must be settled, they must be settled for all methods except those
-// that are filtered below. We can provide a method that tells us if the account should be settled.
-rule accountsRequiringSettlementAreSettled(address account, method f)
-    filtered (f -> f.name != "depositUnderlyingToken" && f.name != "depositAssetToken" && f.name != "enableBitmapCurrency") {
-    require shouldAccountBeSettled(account) == true;
-    env e;
-    /// FIXME: can we even parse out account from calldata args?
-    calldataarg args;
-    f(e, args);
-    assert shouldAccountBeSettled(account)) == false;
-}
-
-rule accountsCannotEndWithNegativeFreeCollateral(address account, method f)
-    filtered (f -> f.name != "depositUnderlyingToken" && f.name != "depositAssetToken" && f.name != "enableBitmapCurrency") {
-    env e;
-
-    // FIXME: maybe create a function summary that fc is negative
-    calldataarg args;
-    f(e, args);
-
-    require f.reverted;
-}
 
 /**
  * Trading Action Harness for testing net fCash is zero and net cash is zero
