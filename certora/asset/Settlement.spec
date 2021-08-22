@@ -5,6 +5,11 @@ methods {
     getNumSettleableAssets(address account, uint256 blockTime) returns (uint256) envfree;
     getAmountToSettle(uint256 currencyId, address account, uint256 blockTime) returns (int256) envfree;
     getNumAssets(address account) returns (uint256) envfree;
+    validateAssetExists(address account, uint256 maturity, int256 notional) returns (bool) envfree;
+    getBitNumFromMaturity(uint256 blockTime, uint256 maturity) returns (uint256, bool) envfree;
+
+    getExchangeRateStateful() => CONSTANT;
+    getExchangeRateView() => CONSTANT;
 }
 
 // `getNumSettleableAssets` will return the number of assets that are eligible for settlement on an account.
@@ -54,17 +59,25 @@ rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 m
 // fCash assets. The bitmap is structured relative to the `nextSettleTime` on an account context such that
 // the first 90 bits refer to 1 day offsets, then 6 day offsets, etc. When we settle such a portfolio we
 // must ensure that all the assets referred to by the bitmap continue to be tracked properly.
-rule settlingBitmapAssetsDoesNotLoseTrack(address account) {
+rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uint256 nextSettleTime) {
     env e;
-    // This is only true for bitmap currencies, it's mostly true for array portfolios but there
-    // is an edge case where liquidity tokens net off against fCash exactly.
-    require getBitmapCurrencyId(account) != 0;
-    uint256 numAssets;
-    uint256 numSettleAssets;
-    numAssets = getNumAssets(account);
-    numSettleAssets = getNumSettleableAssets(account, e.block.timestamp);
+    uint256 currencyId = getBitmapCurrencyId(account);
+    require currencyId != 0;
+    require nextSettleTime % 86400 == 0;
+    require nextSettleTime < e.block.timestamp;
+    require maturity > nextSettleTime;
+    bool isValid;
+    _, isValid = getBitNumFromMaturity(nextSettleTime, maturity);
+    require isValid;
 
+    setifCashAsset(e, account, currencyId, maturity, nextSettleTime, 1);
     settleAccount(e, account);
-    assert getNumAssets(account) == numAssets - numSettleAssets;
+
+    assert e.block.timestamp > maturity => getNumAssets(account) == 0;
+    assert e.block.timestamp < maturity => (
+        validateAssetExists(account, maturity, 1) &&
+        getNumAssets(account) == 1
+    );
+
     assert getNumSettleableAssets(account, e.block.timestamp) == 0;
 }

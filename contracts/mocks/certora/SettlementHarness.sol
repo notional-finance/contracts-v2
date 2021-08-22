@@ -20,6 +20,22 @@ contract SettlementHarness {
         return symbolicAccountContext.bitmapCurrencyId;
     }
 
+    function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
+        public
+        pure
+        returns (uint256, bool)
+    {
+        return DateTime.getBitNumFromMaturity(blockTime, maturity);
+    }
+
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
+        public
+        pure
+        returns (uint256)
+    {
+        return DateTime.getMaturityFromBitNum(blockTime, bitNum);
+    }
+
     function getSettlementRate(uint256 currencyId, uint256 maturity)
         external
         view
@@ -71,7 +87,6 @@ contract SettlementHarness {
     ) external view returns (int256) {
         int256 amountToSettle;
         PortfolioAsset[] memory assets = _getAccountAssets(account);
-
         for (uint256 i; i < assets.length; i++) {
             // TODO: incomplete, but is this even the right approach?
             if (assets[i].getSettlementDate() <= blockTime && assets[i].currencyId == currencyId) {
@@ -112,5 +127,39 @@ contract SettlementHarness {
         }
 
         BalanceHandler.finalizeSettleAmounts(account, symbolicAccountContext, settleAmounts);
+    }
+
+    function setifCashAsset(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 nextSettleTime,
+        int256 notional
+    ) external returns (int256) {
+        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        (bytes32 newBitmap, int256 finalNotional) = BitmapAssetsHandler.addifCashAsset(
+            account,
+            currencyId,
+            maturity,
+            nextSettleTime,
+            notional,
+            bitmap
+        );
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
+
+        return finalNotional;
+    }
+
+    function validateAssetExists(
+        address account,
+        uint256 maturity,
+        int256 notional
+    ) public view returns (bool) {
+        PortfolioAsset[] memory assets = _getAccountAssets(account);
+        for (uint256 i; i < assets.length; i++) {
+            if (assets[i].maturity == maturity && assets[i].notional == notional) return true;
+        }
+
+        return false;
     }
 }
