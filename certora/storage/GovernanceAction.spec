@@ -148,8 +148,8 @@ rule updateArrayLengthAndTimeSetsProperly(
 }
 
 
-// Failure: Don't understand these results
-// https://vaas-stg.certora.com/output/42394/52325cd1c2af0e39d6a6/?anonymousKey=20bbb8db83b6062261daf49a8e79e133e6881c3c
+// TIMING OUT:
+// https://vaas-stg.certora.com/output/42394/d8169a7ba67b892ea89b?anonymousKey=66de06ec230098e95ace88c9549cf5c1b0f188b0
 rule updateNTokenSupplySetsProperly(
     uint16 currencyId,
     int256 netChange,
@@ -163,6 +163,8 @@ rule updateNTokenSupplySetsProperly(
 
     _, _totalSupply, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
     require _lastSupplyChangeTime < e.block.timestamp;
+    // It cannot be that there is an integral total supply value if last supply change time is zero.
+    require _lastSupplyChangeTime == 0 => _integralTotalSupply == 0;
 
     uint256 calculatedIntegralTotalSupply = changeNTokenSupply(e, tokenAddress, netChange, e.block.timestamp);
     uint256 totalSupply_;
@@ -170,10 +172,13 @@ rule updateNTokenSupplySetsProperly(
     uint256 lastSupplyChangeTime_;
     _, totalSupply_, _, _, _, integralTotalSupply_, lastSupplyChangeTime_ = getNTokenAccount(tokenAddress);
 
-    // TODO: don't understand why this is returning zero
-    assert calculatedIntegralTotalSupply == (
-        _integralTotalSupply + _totalSupply * (e.block.timestamp - _lastSupplyChangeTime)
-    );
+    assert _lastSupplyChangeTime == 0 ? 
+        // The integral total supply is zero when initialized
+        calculatedIntegralTotalSupply == 0 :
+        // In any other case it will increase
+        calculatedIntegralTotalSupply == (
+            _integralTotalSupply + _totalSupply * (e.block.timestamp - _lastSupplyChangeTime)
+        );
 
     assert netChange != 0 => addIsEqual(_totalSupply, netChange, totalSupply_);
     assert netChange != 0 => lastSupplyChangeTime_ == e.block.timestamp;

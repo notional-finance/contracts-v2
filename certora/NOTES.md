@@ -9,19 +9,20 @@ AccountPortfolio.spec
 - DateTime.sol
 - SafeInt256.sol
 - Bitmap.sol
-  - Two issues in here
+  - Two issues in here: how to prove total bits, certora failure on floating
 - FloatingPoint56.sol
 - AssetRate.sol
 - ExchangeRate.sol
-  - Rates are zeroing out balances
+  - Rates are zeroing out balances, update decimals
 - Incentives.sol
-  - TODO: need to look a bit more
+  - Certora investigating issue
 
 ## Verify all Setter Getters:
 
 ```
 - GovernanceAction.sol
-  - Review failing specs
+  - TODO: Update decimals
+  - Timeouts
 - [ok] AccountContextHandler.sol
 - [ok] BitmapAssetsHandler.sol
 - [ok] nTokenHandler.sol
@@ -34,14 +35,15 @@ AccountPortfolio.spec
 
 ## Other Verifications
 
-- ERC20 spec
+- TODO: ERC20 spec
+- AccountContext Logic: is this all verifying?
 - GovernorAlpha
 - Settlement
-- Actions
-  - Deposit, Withdraw, ERC1155, Batch Action
-  - Harness for FreeCollateralExternal
-  - Ghost for get/set account context
   - What to do for Settlement?
+- TODO: Actions2.spec:
+  - Deposit, Withdraw, ERC1155, Batch Action
+  - Harness for FreeCollateralExternal and SettleAssetsExternal
+  - Ghost for get/set account context
 
 ## Won't Do:
 
