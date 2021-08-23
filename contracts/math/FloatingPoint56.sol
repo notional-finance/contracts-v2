@@ -27,8 +27,8 @@ library FloatingPoint56 {
 
     function unpackFrom56Bits(uint256 value) internal pure returns (uint256) {
         // The least significant 8 bits will be the amount to bit shift
-        uint256 bitShift = uint256(uint8(uint256(value)));
-        return uint256((value >> 8) << bitShift);
+        uint256 bitShift = uint256(uint8(value));
+        return ((value >> 8) << bitShift);
     }
 
 }

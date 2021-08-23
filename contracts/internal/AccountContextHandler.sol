@@ -100,10 +100,11 @@ library AccountContextHandler {
 
         while (currencies != 0x00) {
             uint256 cid = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
-            bool isActive =
-                bytes2(currencies) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES;
+            if (cid == currencyId) {
+                // Currency found, return if it is active in balances or not
+                return bytes2(currencies) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES;
+            }
 
-            if (cid == currencyId && isActive) return true;
             currencies = currencies << 16;
         }
 
@@ -168,10 +169,10 @@ library AccountContextHandler {
             // if greater than and isActive then insert into prefix
             if (cid > currencyId && isActive) {
                 prefix = prefix | (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
-                // check that the total length is not greater than 9
+                // check that the total length is not greater than 9, meaning that the last
+                // two bytes of the active currencies array should be zero
                 require(
-                    accountContext.activeCurrencies[16] == 0x00 &&
-                        accountContext.activeCurrencies[17] == 0x00,
+                    (accountContext.activeCurrencies << 128) == 0x00,
                     "AC: too many currencies"
                 );
 
@@ -192,11 +193,7 @@ library AccountContextHandler {
         if (!isActive) return;
 
         // if end and isActive then insert into suffix, check max length
-        require(
-            accountContext.activeCurrencies[16] == 0x00 &&
-                accountContext.activeCurrencies[17] == 0x00,
-            "AC: too many currencies"
-        );
+        require(shifts < 9, "AC: too many currencies");
         accountContext.activeCurrencies =
             prefix |
             (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));

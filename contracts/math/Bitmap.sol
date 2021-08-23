@@ -44,6 +44,10 @@ library Bitmap {
 
     // Does a binary search over x to get the position of the most significant bit
     function getMSB(uint256 x) internal pure returns (uint256 msb) {
+        // If x == 0 then there is no MSB and this method will return zero. That would
+        // be the same as the return value when x == 1 (MSB is zero indexed), so instead
+        // we have this require here to ensure that the values don't get mixed up.
+        require(x != 0); // dev: get msb zero value
         if (x >= 0x100000000000000000000000000000000) {
             x >>= 128;
             msb += 128;
