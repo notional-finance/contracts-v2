@@ -40,8 +40,8 @@ class TestPortfolioHandler:
 
     def test_add_repeated_new_asset(self, portfolioHandler, accounts):
         state = portfolioHandler.buildPortfolioState(accounts[1], 0)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
         assert len(state[1]) == 1
         assert state[1][0][3] == 200e8
 
@@ -87,7 +87,6 @@ class TestPortfolioHandler:
                     newAsset[1],  # maturity
                     newAsset[2],  # asset type
                     newAsset[3],  # notional
-                    False,
                 )
 
                 assert state[1][-1] == newAsset
@@ -108,7 +107,6 @@ class TestPortfolioHandler:
                     asset[1],  # maturity
                     asset[2],  # asset type
                     notional,
-                    False,
                 )
 
                 assert state[0][index][5] == 1
@@ -129,7 +127,6 @@ class TestPortfolioHandler:
                     asset[1],  # maturity
                     asset[2],  # asset type
                     notional,
-                    False,
                 )
 
                 assert state[0][index][5] == 1

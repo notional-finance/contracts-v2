@@ -20,10 +20,9 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity,
         uint256 assetType,
-        int256 notional,
-        bool isNewHint
+        int256 notional
     ) public pure returns (PortfolioState memory) {
-        portfolioState.addAsset(currencyId, maturity, assetType, notional, isNewHint);
+        portfolioState.addAsset(currencyId, maturity, assetType, notional);
 
         return portfolioState;
     }
