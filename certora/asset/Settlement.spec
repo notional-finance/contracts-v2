@@ -7,6 +7,7 @@ methods {
     getNumAssets(address account) returns (uint256) envfree;
     validateAssetExists(address account, uint256 maturity, int256 notional) returns (bool) envfree;
     getBitNumFromMaturity(uint256 blockTime, uint256 maturity) returns (uint256, bool) envfree;
+    getTotalBitmapAssets(address account, uint256 currencyId) returns (uint256) envfree;
 
     getExchangeRateStateful() => CONSTANT;
     getExchangeRateView() => CONSTANT;
@@ -59,6 +60,7 @@ rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 m
 // fCash assets. The bitmap is structured relative to the `nextSettleTime` on an account context such that
 // the first 90 bits refer to 1 day offsets, then 6 day offsets, etc. When we settle such a portfolio we
 // must ensure that all the assets referred to by the bitmap continue to be tracked properly.
+// SANITY FAILED: https://vaas-stg.certora.com/output/42394/d8169a7ba67b892ea89b/?anonymousKey=66de06ec230098e95ace88c9549cf5c1b0f188b0
 rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uint256 nextSettleTime) {
     env e;
     uint256 currencyId = getBitmapCurrencyId(account);
@@ -71,7 +73,10 @@ rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uin
     require isValid;
 
     setifCashAsset(e, account, currencyId, maturity, nextSettleTime, 1);
+    require getTotalBitmapAssets(account, currencyId) == 1;
+
     settleAccount(e, account);
+    assert false; // this should fail
 
     assert e.block.timestamp > maturity => getNumAssets(account) == 0;
     assert e.block.timestamp < maturity => (

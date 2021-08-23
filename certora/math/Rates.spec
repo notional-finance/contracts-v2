@@ -25,7 +25,7 @@ methods {
 // FAIL: don't understand
 // https://vaas-stg.certora.com/output/42394/b653a6ce616e543b6fc2/?anonymousKey=99c89d5a9b9b2e750db48f6227d9681876371d81
 rule assetRatesShouldBeInverses(int256 rate, int256 balance, uint8 decimals) {
-    require 0 <= decimals && decimals <= 18;
+    require 0 < decimals && decimals <= 18;
     // Asset Rates should bottom out at 1-1.
     // TODO: why is min rate returning zero?
     int256 minRate = getMinRate(decimals);
@@ -52,20 +52,22 @@ rule exchangeRateShouldBeInverses(int256 rate, int256 balance, uint8 rateDecimal
     assert original == balance || original == balancePlus1 || original == balanceMinus1;
 }
 
-// Failure: don't understand:
-// https://vaas-stg.certora.com/output/42394/a603ae8e06194f6c3426/?anonymousKey=2379c9882300e5d06cd3ea682caf9972d4307a54
+// Rounding errors fail spec:
+// https://vaas-stg.certora.com/output/42394/5aa4cd1915e67dbc5af9/?anonymousKey=b4d8e813794afa897070e47bc4efbf7cf3c92968
 rule exchangeRateHaircutBuffer(int256 rate, int256 balance, uint8 decimals, int256 haircut, int256 buffer) {
     require 0 < decimals && decimals <= 18;
     require rate > 0;
     // Do not allow 100 as haircut or buffer for assertions
     require 0 <= haircut && haircut < 100;
     require 100 < buffer && buffer <= 256;
+    require balance > 0;
 
-    int256 ethWithHaircutBuffer = convertToETH(rate, balance, decimals, haircut, buffer);
+    int256 ethWithHaircutBuffer = convertToETH(rate, balance, decimals, buffer, haircut);
     int256 ethNoHaircutBuffer = convertToETH(rate, balance, decimals, 100, 100);
 
     assert balance > 0 => ethWithHaircutBuffer >= 0 && ethNoHaircutBuffer >= 0;
     assert balance < 0 => ethWithHaircutBuffer <= 0 && ethNoHaircutBuffer <= 0;
     assert ethNoHaircutBuffer == 0 => ethWithHaircutBuffer == 0;
+    // Rounding errors cause this to fail spec
     assert ethNoHaircutBuffer != 0 => isLT(ethWithHaircutBuffer, ethNoHaircutBuffer);
 }

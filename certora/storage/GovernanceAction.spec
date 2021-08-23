@@ -148,8 +148,7 @@ rule updateArrayLengthAndTimeSetsProperly(
 }
 
 
-// TIMING OUT:
-// https://vaas-stg.certora.com/output/42394/d8169a7ba67b892ea89b?anonymousKey=66de06ec230098e95ace88c9549cf5c1b0f188b0
+// PASSES
 rule updateNTokenSupplySetsProperly(
     uint16 currencyId,
     int256 netChange,
@@ -182,6 +181,7 @@ rule updateNTokenSupplySetsProperly(
     assert netChange == 0 => _integralTotalSupply == integralTotalSupply_;
 }
 
+// PASSES
 rule updateNTokenIntegralSupplyCalculatesProperly(
     uint16 currencyId,
     int256 netChange,
@@ -261,21 +261,8 @@ rule updateCollateralParametersSetsProperly(
 }
 
 // TODO: TIMEOUT
-// https://vaas-stg.certora.com/output/42394/276bc7b0fd2b78b21847/?anonymousKey=e9a5f00c29157e36c1fa7b4d66e45dceaa3a9f88
-rule cashGroupSetsProperly(
-    uint16 currencyId,
-    uint8 maxMarketIndex,
-    uint8 rateOracleTimeWindowMin,
-    uint8 totalFeeBPS,
-    uint8 reserveFeeShare,
-    uint8 debtBuffer5BPS,
-    uint8 fCashHaircut5BPS,
-    uint8 settlementPenaltyRate5BPS,
-    uint8 liquidationfCashHaircut5BPS,
-    uint8 liquidationDebtBuffer5BPS,
-    uint8[] liquidityTokenHaircuts,
-    uint8[] rateScalars
-) {
+// https://vaas-stg.certora.com/output/42394/0ce55b2dd5e7919ae790/?anonymousKey=1e8823b19fffc4f56d375fcb505400cd31253930
+rule cashGroupSetsProperly() {
     env e;
     // Allow the method below to call itself to use calldata.
     require getOwner() == currentContract;

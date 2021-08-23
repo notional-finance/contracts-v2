@@ -8,6 +8,7 @@ import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/BitmapAssetsHandler.sol";
 import "../../internal/settlement/SettlePortfolioAssets.sol";
 import "../../external/SettleAssetsExternal.sol";
+import "../../math/Bitmap.sol";
 
 contract SettlementHarness {
     using AssetHandler for PortfolioAsset;
@@ -18,6 +19,15 @@ contract SettlementHarness {
 
     function getBitmapCurrencyId(address account) external view returns (uint256) {
         return symbolicAccountContext.bitmapCurrencyId;
+    }
+
+    function getTotalBitmapAssets(address account, uint256 currencyId)
+        external
+        view
+        returns (uint256)
+    {
+        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        return Bitmap.totalBitsSet(bitmap);
     }
 
     function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)

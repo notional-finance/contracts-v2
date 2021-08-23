@@ -5,7 +5,8 @@
 - DateTime.sol
 - SafeInt256.sol
 - Bitmap.sol
-  - Two issues in here: how to prove total bits, certora failure on floating (certora investigating)
+  - how to prove total bits?
+  - certora failure on floating (certora investigating)
 - FloatingPoint56.sol
 - AssetRate.sol
 - ExchangeRate.sol

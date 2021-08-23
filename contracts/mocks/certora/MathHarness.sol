@@ -144,7 +144,7 @@ contract MathHarness {
 
     ///////////// Asset Rate //////////////////
     function getMinRate(uint8 decimals) public pure returns (int256) {
-        return int256(10**decimals * 10 ** 10);
+        return int256(10**decimals * 10**10);
     }
 
     function isGTE(int256 x, int256 y) public pure returns (bool) {
@@ -181,7 +181,7 @@ contract MathHarness {
         int256 buffer,
         int256 haircut
     ) public pure returns (int256) {
-        ETHRate memory er = ETHRate(int256(10**decimals), rate, buffer, haircut, 0);
+        ETHRate memory er = ETHRate(int256(10**18), rate, buffer, haircut, 0);
 
         return ExchangeRate.convertToETH(er, balance);
     }
@@ -193,7 +193,7 @@ contract MathHarness {
         int256 buffer,
         int256 haircut
     ) public pure returns (int256) {
-        ETHRate memory er = ETHRate(int256(10**decimals), rate, buffer, haircut, 0);
+        ETHRate memory er = ETHRate(int256(10**18), rate, buffer, haircut, 0);
 
         return ExchangeRate.convertETHTo(er, balance);
     }
