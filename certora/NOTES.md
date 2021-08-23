@@ -1,19 +1,15 @@
 # Certora Verification Notes
 
-AccountPortfolio.spec
-
-- `--optimistic-loop` is no longer a valid argument?
-
 ## Verify all Math Specs:
 
 - DateTime.sol
 - SafeInt256.sol
 - Bitmap.sol
-  - Two issues in here: how to prove total bits, certora failure on floating
+  - Two issues in here: how to prove total bits, certora failure on floating (certora investigating)
 - FloatingPoint56.sol
 - AssetRate.sol
 - ExchangeRate.sol
-  - Rates are zeroing out balances, update decimals
+  - jwu -- investigate Rates are zeroing out balances, update decimals
 - Incentives.sol
   - Certora investigating issue
 
@@ -21,25 +17,24 @@ AccountPortfolio.spec
 
 ```
 - GovernanceAction.sol
-  - TODO: Update decimals
-  - Timeouts
+  - AssetRate / ETH Rate: certora investigating
+  - Change call data args on cash groups
 - [ok] AccountContextHandler.sol
 - [ok] BitmapAssetsHandler.sol
 - [ok] nTokenHandler.sol
-  - Don't understand integral supply results
 
-- TODO: Market.sol
-- TODO: BalanceHandler.sol
+- TODO: Market.sol (jeff take a look at liquidity curve spec -- branch: `certora-liquidity-curve`)
+- TODO: BalanceHandler.sol (update on wed)
 - TODO: PortfolioHandler.sol
 ```
 
 ## Other Verifications
 
-- TODO: ERC20 spec
-- AccountContext Logic: is this all verifying?
-- GovernorAlpha
+- ERC20 spec (wip)
+- AccountContext Logic: (jwu - will review is this all verifying)
+- GovernorAlpha (no update)
 - Settlement
-  - What to do for Settlement?
+  - Remapping results in timeout, sanity check failed
 - TODO: Actions2.spec:
   - Deposit, Withdraw, ERC1155, Batch Action
   - Harness for FreeCollateralExternal and SettleAssetsExternal

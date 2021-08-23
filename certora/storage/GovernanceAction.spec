@@ -172,14 +172,6 @@ rule updateNTokenSupplySetsProperly(
     uint256 lastSupplyChangeTime_;
     _, totalSupply_, _, _, _, integralTotalSupply_, lastSupplyChangeTime_ = getNTokenAccount(tokenAddress);
 
-    assert _lastSupplyChangeTime == 0 ? 
-        // The integral total supply is zero when initialized
-        calculatedIntegralTotalSupply == 0 :
-        // In any other case it will increase
-        calculatedIntegralTotalSupply == (
-            _integralTotalSupply + _totalSupply * (e.block.timestamp - _lastSupplyChangeTime)
-        );
-
     assert netChange != 0 => addIsEqual(_totalSupply, netChange, totalSupply_);
     assert netChange != 0 => lastSupplyChangeTime_ == e.block.timestamp;
     assert netChange != 0 => integralTotalSupply_ == calculatedIntegralTotalSupply;
@@ -188,6 +180,33 @@ rule updateNTokenSupplySetsProperly(
     assert netChange == 0 => _totalSupply == totalSupply_;
     assert netChange == 0 => _lastSupplyChangeTime == lastSupplyChangeTime_;
     assert netChange == 0 => _integralTotalSupply == integralTotalSupply_;
+}
+
+rule updateNTokenIntegralSupplyCalculatesProperly(
+    uint16 currencyId,
+    int256 netChange,
+    address tokenAddress 
+) {
+    env e;
+    require nTokenAddress(currencyId) == tokenAddress;
+    uint256 _totalSupply;
+    uint256 _integralTotalSupply;
+    uint256 _lastSupplyChangeTime;
+
+    _, _totalSupply, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
+    require _lastSupplyChangeTime < e.block.timestamp;
+    // It cannot be that there is an integral total supply value if last supply change time is zero.
+    require _lastSupplyChangeTime == 0 => _integralTotalSupply == 0;
+
+    uint256 calculatedIntegralTotalSupply = changeNTokenSupply(e, tokenAddress, netChange, e.block.timestamp);
+
+    assert _lastSupplyChangeTime == 0 ? 
+        // The integral total supply is zero when initialized
+        calculatedIntegralTotalSupply == 0 :
+        // In any other case it will increase
+        calculatedIntegralTotalSupply == (
+            _integralTotalSupply + _totalSupply * (e.block.timestamp - _lastSupplyChangeTime)
+        );
 }
 
 // PASSES
@@ -262,21 +281,9 @@ rule cashGroupSetsProperly(
     require getOwner() == currentContract;
 
     bool didVerify;
-    didVerify = setCashGroupStorageAndVerify(
-        e,
-        currencyId,
-        maxMarketIndex,
-        rateOracleTimeWindowMin,
-        totalFeeBPS,
-        reserveFeeShare,
-        debtBuffer5BPS,
-        fCashHaircut5BPS,
-        settlementPenaltyRate5BPS,
-        liquidationfCashHaircut5BPS,
-        liquidationDebtBuffer5BPS,
-        liquidityTokenHaircuts,
-        rateScalars
-    );
+    calldataarg args;
+    // try callargs here
+    didVerify = setCashGroupStorageAndVerify(e, args);
 
     assert didVerify;
 }
