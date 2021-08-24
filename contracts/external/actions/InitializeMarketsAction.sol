@@ -450,8 +450,7 @@ library InitializeMarketsAction {
             nToken.cashGroup.currencyId,
             newMarket.maturity,
             assetType, // This is liquidity token asset type
-            assetCashToMarket,
-            true // Is new hint
+            assetCashToMarket
         );
 
         // fCashAmount is calculated using the underlying amount

@@ -166,7 +166,7 @@ library TradingAction {
         uint256 maturity,
         int256 notional
     ) private pure {
-        portfolioState.addAsset(currencyId, maturity, Constants.FCASH_ASSET_TYPE, notional, false);
+        portfolioState.addAsset(currencyId, maturity, Constants.FCASH_ASSET_TYPE, notional);
     }
 
     function _executeTrade(
@@ -266,15 +266,13 @@ library TradingAction {
             cashGroup.currencyId,
             market.maturity,
             Constants.FCASH_ASSET_TYPE,
-            fCashAmount,
-            false
+            fCashAmount
         );
         portfolioState.addAsset(
             cashGroup.currencyId,
             market.maturity,
             marketIndex + 1,
-            tokens,
-            false
+            tokens
         );
 
         emit AddRemoveLiquidity(
