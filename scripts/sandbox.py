@@ -4,21 +4,31 @@ import scripts.deploy_v1
 from brownie import accounts
 from brownie.convert.datatypes import HexString, Wei
 from brownie.network import web3
-from scripts.config import CurrencyDefaults, nTokenDefaults
+from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment, TokenType
 from scripts.mainnet.deploy_governance import deployAirdropContract
+from scripts.mainnet.deploy_notional import (
+    CurrencyConfig,
+    nTokenCryptoAssetConfig,
+    nTokenStablecoinConfig,
+)
 from tests.governance.test_governance import execute_proposal
 from tests.helpers import get_balance_action
 
 
 def listCurrencyCalldata(symbol, v2env, **kwargs):
-    buffer = kwargs["buffer"] if "buffer" in kwargs else CurrencyDefaults["buffer"]
-    haircut = kwargs["haircut"] if "haircut" in kwargs else CurrencyDefaults["haircut"]
-    liquidationDiscount = (
-        kwargs["liquidationDiscount"]
-        if "liquidationDiscount" in kwargs
-        else CurrencyDefaults["liquidationDiscount"]
-    )
+    if symbol in CurrencyConfig:
+        buffer = CurrencyConfig[symbol]["buffer"]
+        haircut = CurrencyConfig[symbol]["haircut"]
+        liquidationDiscount = CurrencyConfig[symbol]["liquidationDiscount"]
+    else:
+        buffer = kwargs["buffer"] if "buffer" in kwargs else CurrencyDefaults["buffer"]
+        haircut = kwargs["haircut"] if "haircut" in kwargs else CurrencyDefaults["haircut"]
+        liquidationDiscount = (
+            kwargs["liquidationDiscount"]
+            if "liquidationDiscount" in kwargs
+            else CurrencyDefaults["liquidationDiscount"]
+        )
 
     if symbol == "NOMINT":
         zeroAddress = HexString(0, "bytes20")
@@ -50,41 +60,50 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
 
 
 def enableCashGroupCallData(currencyId, symbol, v2env, **kwargs):
+    if symbol in CurrencyConfig:
+        config = CurrencyConfig[symbol]
+    else:
+        config = CurrencyDefaults
+
     enable = web3.eth.contract(abi=v2env.notional.abi).encodeABI(
         fn_name="enableCashGroup",
         args=[
             currencyId,
             v2env.cTokenAggregator[symbol].address,
             (
-                CurrencyDefaults["maxMarketIndex"],
-                CurrencyDefaults["rateOracleTimeWindow"],
-                CurrencyDefaults["totalFee"],
-                CurrencyDefaults["reserveFeeShare"],
-                CurrencyDefaults["debtBuffer"],
-                CurrencyDefaults["fCashHaircut"],
-                CurrencyDefaults["settlementPenalty"],
-                CurrencyDefaults["liquidationfCashDiscount"],
-                CurrencyDefaults["liquidationDebtBuffer"],
-                CurrencyDefaults["tokenHaircut"][0 : CurrencyDefaults["maxMarketIndex"]],
-                CurrencyDefaults["rateScalar"][0 : CurrencyDefaults["maxMarketIndex"]],
+                config["maxMarketIndex"],
+                config["rateOracleTimeWindow"],
+                config["totalFee"],
+                config["reserveFeeShare"],
+                config["debtBuffer"],
+                config["fCashHaircut"],
+                config["settlementPenalty"],
+                config["liquidationfCashDiscount"],
+                config["liquidationDebtBuffer"],
+                config["tokenHaircut"][0 : config["maxMarketIndex"]],
+                config["rateScalar"][0 : config["maxMarketIndex"]],
             ),
             v2env.token[symbol].name() if symbol != "ETH" else "Ether",
             symbol,
         ],
     )
 
+    if symbol in ["DAI", "USDC", "USDT"]:
+        nTokenConfig = nTokenStablecoinConfig
+    else:
+        nTokenConfig = nTokenCryptoAssetConfig
+
     deposit = web3.eth.contract(abi=v2env.notional.abi).encodeABI(
-        fn_name="updateDepositParameters", args=[currencyId, *(nTokenDefaults["Deposit"])]
+        fn_name="updateDepositParameters", args=[currencyId, *(nTokenConfig["Deposit"])]
     )
 
     init = web3.eth.contract(abi=v2env.notional.abi).encodeABI(
         fn_name="updateInitializationParameters",
-        args=[currencyId, *(nTokenDefaults["Initialization"])],
+        args=[currencyId, *(nTokenConfig["Initialization"])],
     )
 
     token = web3.eth.contract(abi=v2env.notional.abi).encodeABI(
-        fn_name="updateTokenCollateralParameters",
-        args=[currencyId, *(nTokenDefaults["Collateral"])],
+        fn_name="updateTokenCollateralParameters", args=[currencyId, *(nTokenConfig["Collateral"])]
     )
 
     incentiveRate = web3.eth.contract(abi=v2env.notional.abi).encodeABI(

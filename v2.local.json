@@ -1,11 +1,11 @@
 {
-    "airdrop": "0x32D18d16AF534a66741fF8FAa33a97E3f8eF8179",
+    "airdrop": "0x3447aEE09A5c1Bd54c2Ff242D86F368Bf791DBe8",
     "chainId": 1337,
     "comptroller": "0xfD2228687374b500664f9706a24FcF2402EF6BA0",
     "deployer": "0x628029b5b7574296365EEF243f240aF83ffA7111",
-    "governor": "0x7EaEceb29Fb4eB4277E2761cE3607DF3e73f2d3e",
+    "governor": "0x7999f62D05CfFD451561a69C88F064A8AC46f1f8",
     "networkName": "unknown",
-    "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
-    "notional": "0x6F95F0571463a9edC165135B6F3bCB258aebfcdE",
+    "note": "0x7EaEceb29Fb4eB4277E2761cE3607DF3e73f2d3e",
+    "notional": "0xfa5f002555eb670019bD938604802f901208aE71",
     "startBlock": 1
 }

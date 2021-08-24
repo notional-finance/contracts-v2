@@ -5,7 +5,7 @@ GovernanceConfig = {
         "proposalThreshold": 1_000_000e8,
         "votingDelayBlocks": 1,
         "votingPeriodBlocks": 10,
-        "minDelay": 86400,
+        "minDelay": 3600,
     },
 }
 

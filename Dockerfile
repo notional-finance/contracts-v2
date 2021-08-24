@@ -8,5 +8,4 @@ ENTRYPOINT [ "node", \
              "/app/ganache-core.docker.cli.js", \
              "--db", "/tmp/chaindb", \
              "--networkId", "1337", \
-             "--verbose", \
              "--mnemonic", "owner dignity sense" ]

@@ -44,10 +44,7 @@ TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMinta
 def deployNoteERC20(deployer):
     # These two lines ensure that the note token is deployed to the correct address
     # every time.
-    if network.show_active() == "sandbox":
-        deployer = accounts.load("DEVELOPMENT_DEPLOYER")
-        accounts[0].transfer(deployer, 100e18)
-    elif network.show_active() == "development":
+    if network.show_active() == "development":
         deployer = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
 
     # Deploy governance contracts
