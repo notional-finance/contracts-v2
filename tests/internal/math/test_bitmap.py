@@ -1,6 +1,8 @@
 import random
 
+import brownie
 import pytest
+from brownie.convert import to_bytes
 from brownie.test import given, strategy
 
 
@@ -43,6 +45,11 @@ class TestBitmap:
 
     @given(bitmap=strategy("bytes32"))
     def test_msb_and_bit_num(self, mockBitmap, bitmap):
+        if bitmap == to_bytes(0, "bytes32"):
+            with brownie.reverts():
+                msb = mockBitmap.getMSB(bitmap)
+            return
+
         msb = mockBitmap.getMSB(bitmap)
         bitNum = mockBitmap.getNextBitNum(bitmap)
 
