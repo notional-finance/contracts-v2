@@ -96,6 +96,12 @@ library Constants {
     /// @dev Liquidation dust setting used during fCash liquidation
     int256 internal constant LIQUIDATION_DUST = 10;
 
+    // Pause Router liquidation enabled states
+    bytes1 internal constant LOCAL_CURRENCY_ENABLED = 0x01;
+    bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
+    bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
+    bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
+
     /* Internal Storage Slot Offsets */
     // Internally used storage slots are set at 1000000 offset from the solidity provisioned storage slots to minimize
     // the possibility of clashing.
