@@ -5,7 +5,7 @@ certoraRun contracts/mocks/certora/StorageHarness.sol \
 	--optimistic_loop \
  	--loop_iter 7 \
 	--settings -smt_bitVectorTheory=true \
- 	--packages_path $HOME'/.brownie/packages' \
- 	--packages interfaces=$HOME'/code/notional-finance/contracts-v2/interfaces' @openzeppelin=$HOME/.brownie/packages/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7 compound-finance=$HOME/.brownie/packages/compound-finance \
+ 	--packages_path ${BROWNIE_PATH}'/packages' \
+ 	--packages interfaces=${PWD}/interfaces @openzeppelin=${BROWNIE_PATH}/packages/OpenZeppelin/openzeppelin-contracts@3.4.0-solc-0.7 compound-finance=${BROWNIE_PATH}/packages/compound-finance \
  	--solc_args "['--optimize', '--optimize-runs', '200']"  --staging --msg $1 \
 	--rule $1

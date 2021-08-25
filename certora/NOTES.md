@@ -19,12 +19,12 @@
 ```
 - GovernanceAction.sol
   - AssetRate / ETH Rate: certora investigating
-  - Change call data args on cash groups (TIMEOUT)
+  - Change call data args on cash groups (certora investigating, try a different branch)
 - [ok] AccountContextHandler.sol
 - [ok] BitmapAssetsHandler.sol
 - [ok] nTokenHandler.sol
 
-- TODO: Market.sol (jeff take a look at liquidity curve spec -- branch: `certora-liquidity-curve`)
+- TODO: Market.sol (jeff take a look at liquidity curve spec -- branch: `certora-liquidityCurve`)
 - TODO: BalanceHandler.sol (update on wed)
 - TODO: PortfolioHandler.sol
 ```
@@ -35,6 +35,15 @@
 - AccountContext Logic
   - Most passing, one spec failing.
   - TODO: Not sure how to interpret the results...invariant looks incorrect
+  - add preserved code
+```
+invariant INV(...) INV_DEF {
+  preserved {
+    requireInvariant INV(args);
+  }
+}
+```
+
 - GovernorAlpha (no update)
 - Settlement
   - FAIL: Remapping results in timeout, sanity check failed

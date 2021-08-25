@@ -26,6 +26,7 @@ rule settleAssetsDeletesSettleableAssets(address account) {
 // maturity will have a settlement rate set for it by the first account to settle an asset at that maturity.
 // Once a settlement rate is set then it can never be reset to another value. If a settlement rate is zero
 // before an asset is settled then it must be some non-zero value afterwards.
+// PASSES
 rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 maturity) {
     env e;
     require maturity < e.block.timestamp;
@@ -64,19 +65,18 @@ rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 m
 rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uint256 nextSettleTime) {
     env e;
     uint256 currencyId = getBitmapCurrencyId(account);
-    require currencyId != 0;
-    require nextSettleTime % 86400 == 0;
-    require nextSettleTime < e.block.timestamp;
-    require maturity > nextSettleTime;
-    bool isValid;
-    _, isValid = getBitNumFromMaturity(nextSettleTime, maturity);
-    require isValid;
+    // require currencyId != 0;
+    // require nextSettleTime % 86400 == 0;
+    // require nextSettleTime < e.block.timestamp;
+    // require maturity > nextSettleTime;
+    // bool isValid;
+    // _, isValid = getBitNumFromMaturity(nextSettleTime, maturity);
+    // require isValid;
 
     setifCashAsset(e, account, currencyId, maturity, nextSettleTime, 1);
-    require getTotalBitmapAssets(account, currencyId) == 1;
+    // require getTotalBitmapAssets(account, currencyId) == 1;
 
     settleAccount(e, account);
-    assert false; // this should fail
 
     assert e.block.timestamp > maturity => getNumAssets(account) == 0;
     assert e.block.timestamp < maturity => (
@@ -85,4 +85,5 @@ rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uin
     );
 
     assert getNumSettleableAssets(account, e.block.timestamp) == 0;
+    // assert false; // this should fail
 }
