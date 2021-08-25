@@ -19,7 +19,7 @@
 ```
 - GovernanceAction.sol
   - AssetRate / ETH Rate: certora investigating
-  - Change call data args on cash groups
+  - Change call data args on cash groups (TIMEOUT)
 - [ok] AccountContextHandler.sol
 - [ok] BitmapAssetsHandler.sol
 - [ok] nTokenHandler.sol
@@ -32,10 +32,11 @@
 ## Other Verifications
 
 - ERC20 spec (wip)
-- AccountContext Logic: (jwu - will review is this all verifying)
+- AccountContext Logic
+  - Most passing, one spec failing.
 - GovernorAlpha (no update)
 - Settlement
-  - Remapping results in timeout, sanity check failed
+  - FAIL: Remapping results in timeout, sanity check failed
 - TODO: Actions2.spec:
   - Deposit, Withdraw, ERC1155, Batch Action
   - Harness for FreeCollateralExternal and SettleAssetsExternal
