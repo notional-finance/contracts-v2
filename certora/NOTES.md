@@ -34,6 +34,7 @@
 - ERC20 spec (wip)
 - AccountContext Logic
   - Most passing, one spec failing.
+  - TODO: Not sure how to interpret the results...invariant looks incorrect
 - GovernorAlpha (no update)
 - Settlement
   - FAIL: Remapping results in timeout, sanity check failed
