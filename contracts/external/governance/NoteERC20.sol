@@ -84,7 +84,7 @@ contract NoteERC20 is Initializable {
     /// @param notionalProxy_ address of notional proxy
     function initialize(
         address[] calldata initialAccounts,
-        uint96[] calldata initialGrantAmount,
+        uint96[] calldata initialGrantAmount, // @audit why uint96 while the totalSupply is at most 10**16 (10**8.10**8)?
         NotionalProxy notionalProxy_
     ) public initializer {
         require(initialGrantAmount.length == initialAccounts.length);
@@ -92,14 +92,17 @@ contract NoteERC20 is Initializable {
 
         notionalProxy = notionalProxy_;
         uint96 totalGrants = 0;
+//@audit a huge .length might cause denial of service. also there is a gas limit 
         for (uint256 i = 0; i < initialGrantAmount.length; i++) {
             totalGrants = _add96(totalGrants, initialGrantAmount[i], "");
+//@audit is this require necessary? and if so - handle this case 
+//@audit We can optimize by short circut when totalGrants > totalSupply
             require(balances[initialAccounts[i]] == 0, "Duplicate account");
             balances[initialAccounts[i]] = initialGrantAmount[i];
 
             emit Transfer(address(0), initialAccounts[i], initialGrantAmount[i]);
         }
-
+//@audit could totalGrants be less than totalSupply?
         require(totalGrants == totalSupply);
     }
 
@@ -111,13 +114,15 @@ contract NoteERC20 is Initializable {
         return allowances[account][spender];
     }
 
-    /// @notice Approve `spender` to transfer up to `amount` from `src`
+    /// @notice Approve `spender` to transfer up to `amount` from `src` //@audit from 'msg.sender'
     /// @dev This will overwrite the approval amount for `spender`
     ///  and is subject to issues noted [here](https://eips.ethereum.org/EIPS/eip-20#approve)
     ///  emit:Approval
     /// @param spender The address of the account which may transfer tokens
     /// @param rawAmount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
+//@audit require spender != 0;
+//@audit require spender != msg.sender : there's no meaning to self-allowance   
     function approve(address spender, uint256 rawAmount) external returns (bool) {
         uint96 amount;
         if (rawAmount == uint256(-1)) {
@@ -135,7 +140,7 @@ contract NoteERC20 is Initializable {
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
-    function balanceOf(address account) external view returns (uint256) {
+    function balanceOf(address account) public view returns (uint256) {
         return balances[account];
     }
 
@@ -172,7 +177,7 @@ contract NoteERC20 is Initializable {
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
         uint96 amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
-
+//@audit require spender != 0 && src != 0 && dst != 0
         if (spender != src && spenderAllowance != uint96(-1)) {
             uint96 newAllowance =
                 _sub96(
@@ -228,7 +233,7 @@ contract NoteERC20 is Initializable {
     /// @notice Gets the current votes balance for `account`
     /// @param account The address to get votes balance
     /// @return The number of current votes for `account`
-    function getCurrentVotes(address account) external view returns (uint96) {
+    function getCurrentVotes(address account) public view returns (uint96) {
         uint32 nCheckpoints = numCheckpoints[account];
         uint96 currentVotes = nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
         return
@@ -300,7 +305,8 @@ contract NoteERC20 is Initializable {
     }
 
     /// @dev Changes delegates from one address to another
-    function _delegate(address delegator, address delegatee) internal {
+    function _delegate(address delegator, address delegatee) public {
+//@audit currentDelegate should be currentDelegatee ?
         address currentDelegate = delegates[delegator];
         uint96 delegatorBalance = balances[delegator];
         delegates[delegator] = delegatee;
@@ -318,7 +324,7 @@ contract NoteERC20 is Initializable {
     ) internal {
         require(src != address(0), "Note::_transferTokens: cannot transfer from the zero address");
         require(dst != address(0), "Note::_transferTokens: cannot transfer to the zero address");
-
+        //@audit if src == dst, we can simply emit the Transfer event, return, and save gas
         balances[src] = _sub96(
             balances[src],
             amount,
@@ -343,6 +349,7 @@ contract NoteERC20 is Initializable {
         if (srcRep != dstRep && amount > 0) {
             if (srcRep != address(0)) {
                 uint32 srcRepNum = numCheckpoints[srcRep];
+                require(srcRepNum > 0);
                 uint96 srcRepOld = srcRepNum > 0 ? checkpoints[srcRep][srcRepNum - 1].votes : 0;
                 uint96 srcRepNew =
                     _sub96(srcRepOld, amount, "Note::_moveVotes: vote amount underflow");
@@ -351,6 +358,7 @@ contract NoteERC20 is Initializable {
 
             if (dstRep != address(0)) {
                 uint32 dstRepNum = numCheckpoints[dstRep];
+                require(dstRepNum > 0);
                 uint96 dstRepOld = dstRepNum > 0 ? checkpoints[dstRep][dstRepNum - 1].votes : 0;
                 uint96 dstRepNew =
                     _add96(dstRepOld, amount, "Note::_moveVotes: vote amount overflows");
@@ -378,7 +386,7 @@ contract NoteERC20 is Initializable {
             checkpoints[delegatee][nCheckpoints - 1].votes = newVotes;
         } else {
             checkpoints[delegatee][nCheckpoints] = Checkpoint(blockNumber, newVotes);
-            numCheckpoints[delegatee] = nCheckpoints + 1;
+            numCheckpoints[delegatee] = _add32(nCheckpoints,1,"");
         }
 
         emit DelegateVotesChanged(delegatee, oldVotes, newVotes);
@@ -404,6 +412,16 @@ contract NoteERC20 is Initializable {
         return c;
     }
 
+        function _add32(
+        uint32 a,
+        uint32 b,
+        string memory errorMessage
+    ) private pure returns (uint32) {
+        uint32 c = a + b;
+        require(c >= a, errorMessage);
+        return c;
+    }
+
     function _sub96(
         uint96 a,
         uint96 b,
@@ -412,7 +430,7 @@ contract NoteERC20 is Initializable {
         require(b <= a, errorMessage);
         return a - b;
     }
-
+// @audit since Solidity 8.0, you can block.chainid;
     function _getChainId() private pure returns (uint256) {
         uint256 chainId;
         assembly {

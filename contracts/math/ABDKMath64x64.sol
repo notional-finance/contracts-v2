@@ -101,7 +101,7 @@ library ABDKMath64x64 {
     //  if (x > mul(2,ONE)) return mul(20,x) - mul(40,ONE);
     //  if (x > mul(-2,ONE)) return div((x + mul(2,ONE)),mul(2,ONE));
      if (x > 2**65) return mul(20,x) - 2**66 * 10;
-     if (x > -2**65) return div((x + 2**65), 2**65);
+     if (x > -2**65) return ((x + 2**65) / (2**65));
      return 0;
         // return x;
     }

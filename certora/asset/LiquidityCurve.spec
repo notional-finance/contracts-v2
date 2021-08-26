@@ -121,14 +121,13 @@ rule executeTradeMovesImpliedRates(
     //     lastImpliedRate < getLastImpliedRate(),
     //     "last trade rate did not move in correct direction";
 
-    // require (fCashToAccount > 0 ? assetCashToAccount < 0 : assetCashToAccount > 0, "incorrect asset cash for fCash");
+    require (fCashToAccount > 0 ? assetCashToAccount < 0 : assetCashToAccount > 0, "incorrect asset cash for fCash");
     int256 marketfCashAfter = getMarketfCash();
     int256 marketAssetCashAfter = getMarketAssetCash();
     require (assetCashToReserve >= 0, "asset cash to reserve cannot be negative");
     require (getPreviousTradeTime() < e.block.timestamp, "previous trade time did not update");
-    //assert isEqual(a_plus_b(marketfCashAfter,fCashToAccount),marketfCashBefore), "Market fCash does not net out";
-    assert  to_mathint(marketfCashBefore) ==  to_mathint(fCashToAccount) + to_mathint(marketfCashAfter), "Market fCash does not net out";
-    //assert getMarketfCash() - fCashToAccount == marketfCashBefore, "Market fCash does not net out";
+    // assert  to_mathint(marketfCashBefore) ==  to_mathint(fCashToAccount) + to_mathint(marketfCashAfter), "Market fCash does not net out";
+   
 
     // require marketfCashBefore < 1000 &&
     //         marketAssetCashBefore < 1000 &&
@@ -138,23 +137,26 @@ rule executeTradeMovesImpliedRates(
     //         marketAssetCashAfter < 1000;
             
     // Jeff's NEW VERSION assert getMarketAssetCash() == marketAssetCashBefore - assetCashToAccount - assetCashToReserve;
-    // int256 a_minus_b_minus_c = a_minus_b(a_minus_b(marketAssetCashBefore,assetCashToAccount),assetCashToReserve);
-    int256 a_minus_b_minus_c = to_int256(marketAssetCashBefore - assetCashToAccount - assetCashToReserve);
-    require a_minus_b_minus_c >= 0;
-    assert a_minus_b_minus_c == marketAssetCashAfter, //marketAssetCashBefore,
+    // int256 a_minus_b_minus_c = to_int256(marketAssetCashBefore - assetCashToAccount - assetCashToReserve);
+    // int256 a_minus_b_minus_c = to_int256(to_mathint(marketAssetCashBefore) - to_mathint(assetCashToAccount) - to_mathint(assetCashToReserve));
+    // require a_minus_b_minus_c >= 0;
+    // assert a_minus_b_minus_c == marketAssetCashAfter, //marketAssetCashBefore,
+    //     "Market asset cash does not net out";
+    assert to_mathint(marketAssetCashAfter) == to_mathint(marketAssetCashBefore) - to_mathint(assetCashToAccount) - to_mathint(assetCashToReserve), //marketAssetCashBefore,
         "Market asset cash does not net out";
-    // assert getMarketAssetCash() - assetCashToAccount - assetCashToReserve == marketAssetCashBefore,
-        // "Market asset cash does not net out";
 }
 
 rule testAssetCash(int256 fCashToAccount, uint256 timeToMaturity){
-    require timeToMaturity <= 2^255-1;
-    require timeToMaturity > 0;
-    require fCashToAccount != 0;
+    // require timeToMaturity <= 2^255-1;
+    // require timeToMaturity > 0;
+    // require fCashToAccount != 0;
     int256 marketAssetCashBefore = getMarketAssetCash();
-    _,_ = executeTrade(timeToMaturity, fCashToAccount);
+    int256 assetCashToAccount;
+    int256 assetCashToReserve;
+    assetCashToAccount, assetCashToReserve = executeTrade(timeToMaturity, fCashToAccount);
+    // require (assetCashToReserve > 0, "asset cash to reserve cannot be negative");
     int256 marketAssetCashAfter = getMarketAssetCash();
-    assert marketAssetCashAfter >= marketAssetCashBefore;
+    assert marketAssetCashAfter > marketAssetCashBefore;
 }
 
 rule impliedRatesDoNotChangeOnAddLiquidity(
@@ -183,11 +185,11 @@ rule impliedRatesDoNotChangeOnAddLiquidity(
     int256 marketfCashAfter = getMarketfCash();
     int256 marketAssetCashAfter = getMarketAssetCash();
     int256 marketLiquidityAfter = getMarketLiquidity();
-    // assert a_plus_b(marketfCashAfter, fCashToAccount) == marketfCashBefore; // from harness
-    assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
-    assert to_mathint(marketAssetCashBefore) + to_mathint(cashAmount) == to_mathint(marketAssetCashAfter), "market asset cash imbalance";
-    assert to_mathint(liquidityTokens) + to_mathint(marketLiquidityBefore) == to_mathint(marketLiquidityAfter), "liquidity token imbalance";
-    assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update ";
+   assert to_mathint(marketfCashBefore) - to_mathint(fCashToAccount) == to_mathint(marketfCashAfter), "fCash imbalance";
+    // assert getLastImpliedRate() == lastImpliedRate, "last trade rate did update";
+    // assert to_mathint(marketAssetCashBefore) + to_mathint(cashAmount) == to_mathint(marketAssetCashAfter), "market asset cash imbalance";
+    // assert to_mathint(liquidityTokens) + to_mathint(marketLiquidityBefore) == to_mathint(marketLiquidityAfter), "liquidity token imbalance";
+    // assert getPreviousTradeTime() == previousTradeTime, "previous trade time did update ";
 }
 
 rule impliedRatesDoNotChangeOnRemoveLiquidity(
@@ -211,10 +213,10 @@ rule impliedRatesDoNotChangeOnRemoveLiquidity(
     require marketLiquidityBefore >= tokenAmount;
 
     int256 assetCash;
-    int256 fCash;
-    assetCash, fCash = removeLiquidity(e, tokenAmount);
+    int256 fCashToAccount;
+    assetCash, fCashToAccount = removeLiquidity(e, tokenAmount);
 
-    require fCash != 0;
+    require fCashToAccount != 0;
 
     int256 marketfCashAfter = getMarketfCash();
     int256 marketAssetCashAfter = getMarketAssetCash();
@@ -222,7 +224,7 @@ rule impliedRatesDoNotChangeOnRemoveLiquidity(
     uint256 previousTradeTimeAfter = getPreviousTradeTime();
     uint256 lastImpliedRateAfter = getLastImpliedRate();
     assert to_mathint(marketAssetCashBefore) - to_mathint(assetCash) == to_mathint(marketAssetCashAfter), "market asset cash imbalance";
-    assert to_mathint(marketfCashBefore) - to_mathint(fCash) == to_mathint(marketfCashAfter), "fCash imbalance";
+    assert to_mathint(marketfCashBefore) - to_mathint(fCashToAccount) == to_mathint(marketfCashAfter), "fCash imbalance";
     assert to_mathint(marketLiquidityBefore) - to_mathint(tokenAmount) == to_mathint(marketLiquidityAfter), "liquidity token imbalance";
     assert previousTradeTimeAfter == previousTradeTime, "previous trade time did update";
     assert lastImpliedRateAfter == lastImpliedRate, "last trade rate did update";

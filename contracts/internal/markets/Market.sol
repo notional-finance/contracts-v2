@@ -439,6 +439,10 @@ library Market {
     // between 0.05 and 0.95
     return(6 * x - 3 * Constants.RATE_PRECISION,true);
     }
+    // even more simplified
+    // function _logProportion(int256 x) internal pure returns (int256, bool) {
+    // return (x,true);
+    // }
 
     /// @notice Oracle rate protects against short term price manipulation. Time window will be set to a value
     /// on the order of minutes to hours. This is to protect fCash valuations from market manipulation. For example,
@@ -640,7 +644,7 @@ library Market {
 
      /// @notice Writes market parameters to storage if the market is marked as updated.
     function setMarketStorage(MarketParameters storage market) internal {
-        if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
+        // if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
         // bytes32 slot = market.storageSlot;
 
         // if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) 
@@ -680,8 +684,9 @@ library Market {
         // }
 
         if (
-            // market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
-            getLiquidity(market.storageState)
+            // market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY // Waiting for Or's fix
+            // getLiquidity(market.storageState)
+            true
         ) {
             require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
             // slot = bytes32(uint256(slot) + 1);
@@ -952,7 +957,7 @@ library Market {
        sstoreAtMarketSlotPlusK(marketSlot, 7, bytes32(value));
     }
 
-    function setTotalfCashStorage(bytes32 marketSlot, int256 value) internal  { // 8 
+    function setTotalfCashStorage(bytes32 marketSlot, int256 value) internal  { // 8 // ask Or
         require(value >= 0 && value <= type(uint80).max);
         sstoreAtMarketSlotPlusK(marketSlot, 8, bytes32(value));
     }
@@ -1002,7 +1007,7 @@ library Market {
     ///                 rateScalar * (totalfCash - fCash) * (totalCash + fCash)
     ///
     /// NOTE: each iteration costs about 11.3k so this is only done via a view function.
-    function getfCashGivenCashAmount(
+    function getfCashGivenCashAmount(// discuss with Noam
         int256 totalfCash,
         int256 netCashToAccount,
         int256 totalCashUnderlying,
