@@ -70,14 +70,12 @@ delegate_AtoBtoC(){
 	_delegate(e1,A, B);
 	_delegate(e2,B, C);
 
-	uint96 votes_A_After = getCurrentVotes(e2,A); 
-	uint96 votes_B_After = getCurrentVotes(e2,B); 
 	uint96 votes_C_After = getCurrentVotes(e2,C); 
 
-assert (ADelegatee != C && BDelegatee == C) => votes_C_After == votes_C;
 assert (ADelegatee == C && BDelegatee == C) => votes_C_After == votes_C - balance_A;
-assert (ADelegatee != C && BDelegatee != C) => votes_C_After == balance_B + votes_C;
-assert (ADelegatee == C && BDelegatee != C) => votes_C_After == balance_B + votes_C - balance_A;
+assert (ADelegatee != C && BDelegatee == C) => votes_C_After == votes_C;
+assert (ADelegatee == C && BDelegatee != C) => votes_C_After == votes_C + balance_B - balance_A;
+assert (ADelegatee != C && BDelegatee != C) => votes_C_After == votes_C + balance_B;
 	
 }
 // Preconditions checked - no pause
