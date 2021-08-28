@@ -321,7 +321,7 @@ contract NoteERC20 is Initializable {
         address src,
         address dst,
         uint96 amount
-    ) internal {
+    ) public {
         require(src != address(0), "Note::_transferTokens: cannot transfer from the zero address");
         require(dst != address(0), "Note::_transferTokens: cannot transfer to the zero address");
         //@audit if src == dst, we can simply emit the Transfer event, return, and save gas

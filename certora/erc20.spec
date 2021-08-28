@@ -14,7 +14,7 @@ methods {
 	numCheckpoints(address) returns(uint32) envfree
 	delegates(address) returns(address) envfree
 	checkpoints(address, uint32) returns(uint32, uint96) envfree
-
+	_transferTokens(address, address, uint96) 
 	nTokenGetClaimableIncentives(address, uint256) => ALWAYS(0) //CONSTANT 
 }
 
@@ -49,16 +49,16 @@ delegate_AtoBtoC(){
 
 	require ADelegatee != 0 && BDelegatee != 0 && CDelegatee != 0;
 
-	uint96 numCheckpointsA = numCheckpoints(A);
-	uint96 numCheckpointsB = numCheckpoints(B);
-	uint96 numCheckpointsC = numCheckpoints(C);
-	/* 
-	 Assume a valid state: it's impossible that an account has a (non-zero) delegatee
-	 with zero checkpoints.
-	*/
-	require numCheckpoints(ADelegatee) > 0 || ADelegatee == 0;
-	require numCheckpoints(BDelegatee) > 0 || BDelegatee == 0;
-	require numCheckpoints(CDelegatee) > 0 || CDelegatee == 0;
+	// uint96 numCheckpointsA = numCheckpoints(A);
+	// uint96 numCheckpointsB = numCheckpoints(B);
+	// uint96 numCheckpointsC = numCheckpoints(C);
+	//  
+	// // Assume a valid state: it's impossible that an account has a (non-zero) delegatee
+	// // with zero checkpoints.
+	// 
+	// require numCheckpoints(ADelegatee) > 0 || ADelegatee == 0;
+	// require numCheckpoints(BDelegatee) > 0 || BDelegatee == 0;
+	// require numCheckpoints(CDelegatee) > 0 || CDelegatee == 0;
 	
 	uint96 votes_A = getCurrentVotes(e1,A); 
 	uint96 votes_B = getCurrentVotes(e1,B);
@@ -78,6 +78,47 @@ assert (ADelegatee == C && BDelegatee != C) => votes_C_After == votes_C + balanc
 assert (ADelegatee != C && BDelegatee != C) => votes_C_After == votes_C + balance_B;
 	
 }
+
+transferAndDelegate_AtoBtoC(){
+	address A;
+	address B;
+	address C;
+	require A != B && A != C && B != C;
+	require A != 0 && B != 0 && C != 0;
+	env e1;
+	require e1.msg.sender == A;
+	env e2;
+	require e2.msg.sender == B;
+	require e2.block.timestamp >= e1.block.timestamp && e2.block.number >= e1.block.number;
+	
+	address ADelegatee = delegates(A);
+	address BDelegatee = delegates(B);
+	address CDelegatee = delegates(C); 
+
+	require ADelegatee != 0 && BDelegatee != 0 && CDelegatee != 0;
+
+	
+	uint96 votes_A = getCurrentVotes(e1,A); 
+	uint96 votes_B = getCurrentVotes(e1,B);
+	uint96 votes_C = getCurrentVotes(e1,C);
+	uint256 balance_A = balanceOf(e1,A);
+	uint256 balance_B = balanceOf(e1,B);
+	uint256 balance_C = balanceOf(e1,C);
+
+	uint96 amount;
+
+	_transferTokens(e1,A, B, amount);
+	_delegate(e2,B, C);
+
+	uint96 votes_C_After = getCurrentVotes(e2,C); 
+
+assert (ADelegatee == C && BDelegatee == C) => votes_C_After == votes_C;
+assert (ADelegatee != C && BDelegatee == C) => votes_C_After == votes_C + amount;
+assert (ADelegatee == C && BDelegatee != C) => votes_C_After == votes_C + balance_B;
+assert (ADelegatee != C && BDelegatee != C) => votes_C_After == votes_C + balance_B + amount;
+	
+}
+
 // Preconditions checked - no pause
 transferStandardPrecondition(env e, address to, uint256 value)
 description "Transfer failed even though to != 0, value > 0, balances match"
@@ -969,3 +1010,9 @@ description "If compiles, then checked implementation implements all standard ER
 // 	invoke owner(e);
 // 	assert true;
 // }
+rule sanity(method f) {
+    env e;
+    calldataarg args;
+    f(e,args);
+    assert false;
+}
