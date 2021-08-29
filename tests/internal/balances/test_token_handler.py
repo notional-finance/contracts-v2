@@ -16,6 +16,48 @@ class TestTokenHandler:
     def isolation(self, fn_isolation):
         pass
 
+    def test_token_returns_false(self, tokenHandler, MockERC20, accounts):
+        decimals = 18
+        fee = 0
+        erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
+        tokenHandler.setMaxCurrencyId(1)
+        tokenHandler.setCurrencyMapping(1, True, (erc20.address, fee, TokenType["UnderlyingToken"]))
+
+        erc20.approve(tokenHandler.address, 1000e18, {"from": accounts[0]})
+        # Deposit a bit for the withdraw
+        tokenHandler.transfer(1, accounts[0].address, True, 100)
+
+        erc20.setTransferReturnValue(False)
+        with brownie.reverts():
+            tokenHandler.transfer(1, accounts[0].address, True, 100)
+            tokenHandler.transfer(1, accounts[0].address, True, -100)
+
+    def test_non_compliant_token(self, tokenHandler, MockNonCompliantERC20, accounts):
+        decimals = 18
+        fee = 0
+        erc20 = MockNonCompliantERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
+        tokenHandler.setMaxCurrencyId(1)
+        tokenHandler.setCurrencyMapping(1, True, (erc20.address, fee, TokenType["UnderlyingToken"]))
+
+        amount = 10 ** decimals
+        feePaid = amount * fee / 1e18
+        erc20.approve(tokenHandler.address, 1000e18, {"from": accounts[0]})
+
+        # This is a deposit
+        txn = tokenHandler.transfer(1, accounts[0].address, True, amount)
+
+        # Fees are paid by the sender
+        assert erc20.balanceOf(tokenHandler.address) == amount - feePaid
+        assert txn.return_value == (amount - feePaid)
+
+        # This is a withdraw
+        withdrawAmt = amount / 2
+        balanceBefore = erc20.balanceOf(tokenHandler.address)
+        txn = tokenHandler.transfer(1, accounts[0].address, True, -withdrawAmt)
+
+        assert erc20.balanceOf(tokenHandler.address) == balanceBefore - withdrawAmt
+        assert txn.return_value == -int(withdrawAmt)
+
     @pytest.mark.parametrize("decimals,fee", list(product([6, 8, 18], [0, 0.01e18])))
     def test_token_transfers(self, tokenHandler, MockERC20, accounts, decimals, fee):
         erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})

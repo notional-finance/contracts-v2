@@ -7,6 +7,7 @@ import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
+import "interfaces/IEIP20NonStandard.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -174,7 +175,7 @@ library TokenHandler {
             accountPayable.transfer(uint256(netTransferExternal.neg()));
         } else {
             safeTransferOut(
-                IERC20(token.tokenAddress),
+                token.tokenAddress,
                 account,
                 uint256(netTransferExternal.neg())
             );
@@ -194,13 +195,13 @@ library TokenHandler {
         if (token.hasTransferFee) {
             // Must deposit from the token and calculate the net transfer
             uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-            safeTransferIn(IERC20(token.tokenAddress), account, amount);
+            safeTransferIn(token.tokenAddress, account, amount);
             uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
             return int256(endingBalance.sub(startingBalance));
         }
 
-        safeTransferIn(IERC20(token.tokenAddress), account, amount);
+        safeTransferIn(token.tokenAddress, account, amount);
         return int256(amount);
     }
 
@@ -215,24 +216,24 @@ library TokenHandler {
     }
 
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
-        safeTransferOut(IERC20(Constants.NOTE_TOKEN_ADDRESS), account, tokensToTransfer);
+        safeTransferOut(Constants.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
     }
 
     function safeTransferOut(
-        IERC20 token,
+        address token,
         address account,
         uint256 amount
     ) private {
-        token.transfer(account, amount);
+        IEIP20NonStandard(token).transfer(account, amount);
         checkReturnCode();
     }
 
     function safeTransferIn(
-        IERC20 token,
+        address token,
         address account,
         uint256 amount
     ) private {
-        token.transferFrom(account, address(this), amount);
+        IEIP20NonStandard(token).transferFrom(account, address(this), amount);
         checkReturnCode();
     }
 
