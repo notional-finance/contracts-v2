@@ -20,7 +20,9 @@ contract MockTokenHandler is StorageLayoutV1 {
         return TokenHandler.setToken(id, underlying, ts);
     }
 
-    /// @dev This method does not update internal balances...must use currency handler.
+    function setMaxCollateralBalance(uint256 currencyId, uint72 maxCollateralBalance) external {
+        TokenHandler.setMaxCollateralBalance(currencyId, maxCollateralBalance);
+    }
 
     function transfer(
         uint256 currencyId,
@@ -32,7 +34,7 @@ contract MockTokenHandler is StorageLayoutV1 {
         return token.transfer(account, netTransfer);
     }
 
-    function mint(uint256 currencyId, uint256 underlyingAmount) external returns (int256) {
+    function mint(uint256 currencyId, uint256 underlyingAmount) external payable returns (int256) {
         Token memory token = TokenHandler.getToken(currencyId, false);
         return token.mint(underlyingAmount);
     }
@@ -46,4 +48,6 @@ contract MockTokenHandler is StorageLayoutV1 {
     function getToken(uint256 currencyId, bool underlying) external view returns (Token memory) {
         return TokenHandler.getToken(currencyId, underlying);
     }
+
+    receive() external payable { }
 }

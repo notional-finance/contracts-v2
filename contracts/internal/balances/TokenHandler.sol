@@ -36,7 +36,7 @@ library TokenHandler {
 
         // Clear the top 72 bits for the max collateral balance
         data = data & 0x000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        data = data | bytes32(uint256(maxCollateralBalance << 184));
+        data = data | bytes32(uint256(maxCollateralBalance) << 184);
 
         assembly {
             sstore(slot, data)
@@ -92,7 +92,14 @@ library TokenHandler {
         }
         require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
-        if (underlying) require(tokenStorage.maxCollateralBalance == 0); // dev: underlying cannot have max collateral balance
+        if (underlying) {
+            // Underlying tokens cannot have max collateral balances, the contract only has a balance temporarily
+            // during mint and redeem actions.
+            require(tokenStorage.maxCollateralBalance == 0); // dev: underlying cannot have max collateral balance
+            require(tokenStorage.tokenType == TokenType.UnderlyingToken); // dev: underlying token inconsistent
+        } else {
+            require(tokenStorage.tokenType != TokenType.UnderlyingToken); // dev: underlying token inconsistent
+        }
 
         uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
         require(decimalPlaces != 0, "TH: decimals is zero");
@@ -122,7 +129,8 @@ library TokenHandler {
                 (bytes32(bytes1(transferFee)) >> 88) |
                 bytes32(uint256(decimalPlaces) << 168) |
                 bytes32(uint256(tokenStorage.tokenType) << 176) |
-                bytes32(uint256(tokenStorage.maxCollateralBalance << 184)));
+                bytes32(uint256(tokenStorage.maxCollateralBalance) << 184)
+            );
 
         assembly {
             sstore(slot, data)
@@ -230,7 +238,7 @@ library TokenHandler {
         if (token.maxCollateralBalance > 0) {
             uint256 contractBalance = ERC20(token.tokenAddress).balanceOf(address(this));
             int256 internalPrecision = convertToInternal(token, int256(contractBalance));
-            require(internalPrecision <= int256(token.maxCollateralBalance));
+            require(internalPrecision <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
         }
 
         return int256(amount);
