@@ -97,6 +97,26 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         emit ListCurrency(currencyId);
     }
 
+    /// @notice Sets a maximum balance on a given currency. Max collateral balance cannot be set on a
+    /// currency that is actively used in trading, this may cause issues with liquidation. Also, max
+    /// collateral balance is only set on asset tokens (not underlying tokens) because underlying tokens
+    /// are not held as contract balances.
+    /// @dev emit:UpdateMaxCollateralBalance
+    /// @param currencyId id of the currency to set the max collateral balance on
+    /// @param maxCollateralBalanceInternalPrecision amount of collateral balance that can be held
+    /// in this currency denominated in internal token precision
+    function updateMaxCollateralBalance(
+        uint16 currencyId,
+        uint72 maxCollateralBalanceInternalPrecision
+    ) external override onlyOwner {
+        require(currencyId != 0, "G: invalid currency id");
+        require(currencyId <= maxCurrencyId, "G: invalid currency id");
+        // Cannot turn on max collateral balance for a currency that is trading
+        if (maxCollateralBalanceInternalPrecision > 0) require(CashGroup.getMaxMarketIndex(currencyId) == 0);
+        TokenHandler.setMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
+        emit UpdateMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
+    }
+
     /// @notice Enables a cash group on a given currency so that it can have lend and borrow markets. Will
     /// also deploy an nToken contract so that markets can be initialized.
     /// @dev emit:UpdateCashGroup emit:UpdateAssetRate emit:DeployNToken
@@ -113,6 +133,13 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         string calldata underlyingName,
         string calldata underlyingSymbol
     ) external override onlyOwner {
+        {
+            // Cannot enable fCash trading on a token with a max collateral balance
+            Token memory assetToken = TokenHandler.getToken(currencyId, false);
+            Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
+            require(assetToken.maxCollateralBalance == 0 && underlyingToken.maxCollateralBalance == 0);
+        }
+
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 

@@ -325,8 +325,8 @@ class TestEnvironment:
         if symbol == "NOMINT":
             zeroAddress = HexString(0, "bytes20")
             txn = self.notional.listCurrency(
-                (self.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
-                (zeroAddress, False, 0),
+                (self.token[symbol].address, symbol == "USDT", TokenType["NonMintable"], 0),
+                (zeroAddress, False, 0, 0),
                 self.ethOracle[symbol].address,
                 False,
                 config["buffer"],
@@ -337,8 +337,8 @@ class TestEnvironment:
 
         elif symbol != "ETH":
             txn = self.notional.listCurrency(
-                (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
-                (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+                (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"], 0),
+                (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"], 0),
                 self.ethOracle[symbol].address,
                 False,
                 config["buffer"],

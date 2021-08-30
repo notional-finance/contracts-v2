@@ -73,9 +73,9 @@ contract Router is StorageLayoutV1 {
             address(GOVERNANCE).delegatecall(
                 abi.encodeWithSelector(
                     NotionalGovernance.listCurrency.selector,
-                    TokenStorage(cETH, false, TokenType.cETH),
+                    TokenStorage(cETH, false, TokenType.cETH, 0),
                     // No underlying set for cETH
-                    TokenStorage(address(0), false, TokenType.Ether),
+                    TokenStorage(address(0), false, TokenType.Ether, 0),
                     address(0),
                     false,
                     130, // Initial settings of 130 buffer

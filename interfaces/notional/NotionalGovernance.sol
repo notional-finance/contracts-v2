@@ -16,6 +16,7 @@ interface NotionalGovernance {
     event UpdateTokenCollateralParameters(uint16 currencyId);
     event UpdateGlobalTransferOperator(address operator, bool approved);
     event UpdateAuthorizedCallbackContract(address operator, bool approved);
+    event UpdateMaxCollateralBalance(uint16 currencyId, uint72 maxCollateralBalance);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
 
@@ -31,6 +32,11 @@ interface NotionalGovernance {
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
+    ) external;
+
+    function updateMaxCollateralBalance(
+        uint16 currencyId,
+        uint72 maxCollateralBalanceInternalPrecision
     ) external;
 
     function enableCashGroup(

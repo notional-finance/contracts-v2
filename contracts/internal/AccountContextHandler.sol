@@ -171,10 +171,7 @@ library AccountContextHandler {
                 prefix = prefix | (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));
                 // check that the total length is not greater than 9, meaning that the last
                 // two bytes of the active currencies array should be zero
-                require(
-                    (accountContext.activeCurrencies << 128) == 0x00,
-                    "AC: too many currencies"
-                );
+                require((accountContext.activeCurrencies << 128) == 0x00); // dev: AC: too many currencies
 
                 // append the suffix
                 accountContext.activeCurrencies = prefix | (suffix >> ((shifts + 1) * 16));
@@ -193,7 +190,7 @@ library AccountContextHandler {
         if (!isActive) return;
 
         // if end and isActive then insert into suffix, check max length
-        require(shifts < 9, "AC: too many currencies");
+        require(shifts < 9); // dev: AC: too many currencies
         accountContext.activeCurrencies =
             prefix |
             (bytes18(bytes2(uint16(currencyId)) | flags) >> (shifts * 16));

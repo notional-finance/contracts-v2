@@ -25,8 +25,8 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
         return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
             fn_name="listCurrency",
             args=[
-                (v2env.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
-                (zeroAddress, False, 0),
+                (v2env.token[symbol].address, symbol == "USDT", TokenType["NonMintable"], 0),
+                (zeroAddress, False, 0, 0),
                 v2env.ethOracle[symbol].address,
                 False,
                 buffer,
@@ -38,8 +38,8 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
         return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
             fn_name="listCurrency",
             args=[
-                (v2env.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
-                (v2env.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+                (v2env.cToken[symbol].address, symbol == "USDT", TokenType["cToken"], 0),
+                (v2env.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"], 0),
                 v2env.ethOracle[symbol].address,
                 False,
                 buffer,

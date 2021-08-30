@@ -26,6 +26,23 @@ library TokenHandler {
             );
     }
 
+    function setMaxCollateralBalance(uint256 currencyId, uint72 maxCollateralBalance) internal {
+        bytes32 slot = _getSlot(currencyId, false);
+        bytes32 data;
+
+        assembly {
+            data := sload(slot)
+        }
+
+        // Clear the top 72 bits for the max collateral balance
+        data = data & 0x000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        data = data | bytes32(uint256(maxCollateralBalance << 184));
+
+        assembly {
+            sstore(slot, data)
+        }
+    } 
+
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
     /// the underlying token. (These may not always exist)
     function getToken(uint256 currencyId, bool underlying) internal view returns (Token memory) {
@@ -39,13 +56,15 @@ library TokenHandler {
         bool tokenHasTransferFee = bytes1(data << 88) != Constants.BOOL_FALSE;
         uint8 tokenDecimalPlaces = uint8(bytes1(data << 80));
         TokenType tokenType = TokenType(uint8(bytes1(data << 72)));
+        uint256 maxCollateralBalance = uint256(data >> 184);
 
         return
             Token({
                 tokenAddress: tokenAddress,
                 hasTransferFee: tokenHasTransferFee,
                 decimals: int256(10**tokenDecimalPlaces),
-                tokenType: tokenType
+                tokenType: tokenType,
+                maxCollateralBalance: maxCollateralBalance
             });
     }
 
@@ -73,6 +92,7 @@ library TokenHandler {
         }
         require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
+        if (underlying) require(tokenStorage.maxCollateralBalance == 0); // dev: underlying cannot have max collateral balance
 
         uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
         require(decimalPlaces != 0, "TH: decimals is zero");
@@ -101,7 +121,8 @@ library TokenHandler {
             ((bytes32(bytes20(tokenStorage.tokenAddress)) >> 96) |
                 (bytes32(bytes1(transferFee)) >> 88) |
                 bytes32(uint256(decimalPlaces) << 168) |
-                bytes32(uint256(tokenStorage.tokenType) << 176));
+                bytes32(uint256(tokenStorage.tokenType) << 176) |
+                bytes32(uint256(tokenStorage.maxCollateralBalance << 184)));
 
         assembly {
             sstore(slot, data)
@@ -122,7 +143,7 @@ library TokenHandler {
             revert(); // dev: non mintable token
         }
 
-        require(success == 0, "Mint fail");
+        require(success == 0, "Mint");
         uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         // This is the starting and ending balance in external precision
@@ -144,7 +165,7 @@ library TokenHandler {
         }
 
         uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
-        require(success == 0, "Redeem fail");
+        require(success == 0, "Redeem");
 
         uint256 endingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
@@ -198,10 +219,20 @@ library TokenHandler {
             safeTransferIn(token.tokenAddress, account, amount);
             uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
+            if (token.maxCollateralBalance > 0) {
+                require(convertToInternal(token, int256(endingBalance)) <= int256(token.maxCollateralBalance));
+            }
+
             return int256(endingBalance.sub(startingBalance));
         }
 
         safeTransferIn(token.tokenAddress, account, amount);
+        if (token.maxCollateralBalance > 0) {
+            uint256 contractBalance = ERC20(token.tokenAddress).balanceOf(address(this));
+            int256 internalPrecision = convertToInternal(token, int256(contractBalance));
+            require(internalPrecision <= int256(token.maxCollateralBalance));
+        }
+
         return int256(amount);
     }
 
@@ -256,6 +287,6 @@ library TokenHandler {
                 }
         }
 
-        require(success, "Transfer Failed");
+        require(success, "ERC20");
     }
 }

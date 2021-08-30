@@ -96,6 +96,7 @@ struct Token {
     bool hasTransferFee;
     int256 decimals;
     TokenType tokenType;
+    uint256 maxCollateralBalance;
 }
 
 /// @notice Internal object that represents an nToken portfolio
@@ -257,13 +258,20 @@ struct SplitBitmap {
 
 /****** Storage objects ******/
 
-/// @dev Token object in storage
+/// @dev Token object in storage:
+///  20 bytes for token address
+///  1 byte for hasTransferFee
+///  1 byte for tokenType
+///  1 byte for tokenDecimals
+///  9 bytes for maxCollateralBalance (may not always be set)
 struct TokenStorage {
     // Address of the token
     address tokenAddress;
     // Transfer fees will change token deposit behavior
     bool hasTransferFee;
     TokenType tokenType;
+    // Upper limit on how much of this token the contract can hold at any time
+    uint72 maxCollateralBalance;
 }
 
 /// @dev Exchange rate object as it is represented in storage, total storage is 25 bytes.

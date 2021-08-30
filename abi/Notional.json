@@ -715,6 +715,25 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint72",
+                "name": "maxCollateralBalance",
+                "type": "uint72"
+            }
+        ],
+        "name": "UpdateMaxCollateralBalance",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
             }
         ],
         "name": "UpdateTokenCollateralParameters",
@@ -2076,6 +2095,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maxCollateralBalance",
+                        "type": "uint256"
                     }
                 ],
                 "internalType": "struct Token",
@@ -2103,6 +2127,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maxCollateralBalance",
+                        "type": "uint256"
                     }
                 ],
                 "internalType": "struct Token",
@@ -2144,6 +2173,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maxCollateralBalance",
+                        "type": "uint256"
                     }
                 ],
                 "internalType": "struct Token",
@@ -2171,6 +2205,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maxCollateralBalance",
+                        "type": "uint256"
                     }
                 ],
                 "internalType": "struct Token",
@@ -2934,6 +2973,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint72",
+                        "name": "maxCollateralBalance",
+                        "type": "uint72"
                     }
                 ],
                 "internalType": "struct TokenStorage",
@@ -2956,6 +3000,11 @@
                         "internalType": "enum TokenType",
                         "name": "tokenType",
                         "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint72",
+                        "name": "maxCollateralBalance",
+                        "type": "uint72"
                     }
                 ],
                 "internalType": "struct TokenStorage",
@@ -3499,7 +3548,7 @@
                 "type": "bool"
             }
         ],
-        "stateMutability": "view",
+        "stateMutability": "pure",
         "type": "function"
     },
     {
@@ -3755,6 +3804,24 @@
             }
         ],
         "name": "updateInitializationParameters",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "uint72",
+                "name": "maxCollateralBalanceInternalPrecision",
+                "type": "uint72"
+            }
+        ],
+        "name": "updateMaxCollateralBalance",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

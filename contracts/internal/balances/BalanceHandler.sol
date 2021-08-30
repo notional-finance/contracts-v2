@@ -80,7 +80,7 @@ library BalanceHandler {
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
-            require(underlyingAmountExternal == int256(msg.value), "Invalid ETH balance");
+            require(underlyingAmountExternal == int256(msg.value), "ETH Balance");
         } else {
             underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
         }
@@ -115,7 +115,7 @@ library BalanceHandler {
             require(
                 balanceState.storedNTokenBalance.add(balanceState.netNTokenSupplyChange) >=
                     balanceState.netNTokenTransfer.neg(),
-                "Neg withdraw"
+                "NegBal"
             );
         }
 
@@ -124,7 +124,7 @@ library BalanceHandler {
                 balanceState.storedCashBalance.add(balanceState.netCashChange).add(
                     balanceState.netAssetTransferInternalPrecision
                 ) >= 0,
-                "Neg withdraw"
+                "NegBal"
             );
         }
 
