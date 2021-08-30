@@ -221,36 +221,58 @@ library TokenHandler {
         address account,
         uint256 amount
     ) private returns (int256) {
+        uint256 startingBalance;
+        uint256 endingBalance;
+        uint256 finalAmountAdjustment;
+
         if (token.hasTransferFee) {
-            // Must deposit from the token and calculate the net transfer
-            uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-            safeTransferIn(token.tokenAddress, account, amount);
-            uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-
-            if (token.maxCollateralBalance > 0) {
-                require(convertToInternal(token, int256(endingBalance)) <= int256(token.maxCollateralBalance));
-            }
-
-            return int256(endingBalance.sub(startingBalance));
+            startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
         }
 
         safeTransferIn(token.tokenAddress, account, amount);
-        if (token.maxCollateralBalance > 0) {
-            uint256 contractBalance = ERC20(token.tokenAddress).balanceOf(address(this));
-            int256 internalPrecision = convertToInternal(token, int256(contractBalance));
-            require(internalPrecision <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
+
+        if (token.hasTransferFee || token.maxCollateralBalance > 0) {
+            endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
         }
 
-        return int256(amount);
+        if (token.maxCollateralBalance > 0) {
+            int256 internalPrecisionBalance = convertToInternal(token, int256(endingBalance));
+            require(internalPrecisionBalance <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
+        }
+
+        if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
+            // If decimals is less than internal token precision, we change how much the the user is credited
+            // during this deposit so that the protocol accrues the dust (not the user's cash balance)
+            finalAmountAdjustment = 1;
+        }
+
+        if (token.hasTransferFee) {
+            return int256(endingBalance.sub(startingBalance).sub(finalAmountAdjustment));
+        } else {
+            return int256(amount.sub(finalAmountAdjustment));
+        }
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {
+        // If token decimals is greater than INTERNAL_TOKEN_PRECISION then this will truncate
+        // down to the internal precision. If token decimals is less than INTERNAL_TOKEN_PRECISION
+        // then this will add zeros to the end of amount and will not result in dust.
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
         return amount.mul(Constants.INTERNAL_TOKEN_PRECISION).div(token.decimals);
     }
 
     function convertToExternal(Token memory token, int256 amount) internal pure returns (int256) {
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
+        // If token decimals is greater than INTERNAL_TOKEN_PRECISION then this will increase amount
+        // by adding a number of zeros to the end. If token decimals is less than INTERNAL_TOKEN_PRECISION
+        // then we will end up truncating off the lower portion of the amount. This can result in the
+        // internal cash balances being different from the actual cash balances. This can result in dust
+        // amounts accruing in the protocol.
+        // For this case, when withdrawing out of the protocol we want to round down such that the
+        // protocol will retain more balance than the user. This already happens in the conversion below. When
+        // depositing, we want to decrease the amount of cash balance we credit to the user by a dust amount
+        // so that the protocol accrues the dust (rather than the user's balance). This is implemented in _deposit
+        // above.
         return amount.mul(token.decimals).div(Constants.INTERNAL_TOKEN_PRECISION);
     }
 

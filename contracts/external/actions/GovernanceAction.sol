@@ -137,7 +137,10 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             // Cannot enable fCash trading on a token with a max collateral balance
             Token memory assetToken = TokenHandler.getToken(currencyId, false);
             Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
-            require(assetToken.maxCollateralBalance == 0 && underlyingToken.maxCollateralBalance == 0);
+            require(
+                assetToken.maxCollateralBalance == 0 &&
+                underlyingToken.maxCollateralBalance == 0
+            ); // dev: cannot enable trading, collateral cap
         }
 
         _updateCashGroup(currencyId, cashGroup);
