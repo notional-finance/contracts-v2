@@ -1,6 +1,6 @@
 // Specification for core ERC20 tokens
 methods {
-	balanceOf(address) returns uint256 
+	balanceOf(address) returns uint256
 	transfer(address,uint256) returns bool
 	transferFrom(address, address, uint256) returns bool
 	approve(address, uint256) returns bool
@@ -36,7 +36,7 @@ delegate_AtoBtoC(){
 	address B;
 	address C;
 	require A != B && A != C && B != C;
-	require A != 0 && B != 0 && C != 0;
+	// require A != 0 && B != 0 && C != 0;
 	env e1;
 	require e1.msg.sender == A;
 	env e2;
@@ -45,27 +45,10 @@ delegate_AtoBtoC(){
 	
 	address ADelegatee = delegates(A);
 	address BDelegatee = delegates(B);
-	address CDelegatee = delegates(C); 
-
-	require ADelegatee != 0 && BDelegatee != 0 && CDelegatee != 0;
-
-	// uint96 numCheckpointsA = numCheckpoints(A);
-	// uint96 numCheckpointsB = numCheckpoints(B);
-	// uint96 numCheckpointsC = numCheckpoints(C);
-	//  
-	// // Assume a valid state: it's impossible that an account has a (non-zero) delegatee
-	// // with zero checkpoints.
-	// 
-	// require numCheckpoints(ADelegatee) > 0 || ADelegatee == 0;
-	// require numCheckpoints(BDelegatee) > 0 || BDelegatee == 0;
-	// require numCheckpoints(CDelegatee) > 0 || CDelegatee == 0;
 	
-	uint96 votes_A = getCurrentVotes(e1,A); 
-	uint96 votes_B = getCurrentVotes(e1,B);
 	uint96 votes_C = getCurrentVotes(e1,C);
 	uint256 balance_A = balanceOf(e1,A);
 	uint256 balance_B = balanceOf(e1,B);
-	uint256 balance_C = balanceOf(e1,C);
 
 	_delegate(e1,A, B);
 	_delegate(e2,B, C);
@@ -84,7 +67,7 @@ transferAndDelegate_AtoBtoC(){
 	address B;
 	address C;
 	require A != B && A != C && B != C;
-	require A != 0 && B != 0 && C != 0;
+	// require A != 0 && B != 0 && C != 0;
 	env e1;
 	require e1.msg.sender == A;
 	env e2;
@@ -95,15 +78,9 @@ transferAndDelegate_AtoBtoC(){
 	address BDelegatee = delegates(B);
 	address CDelegatee = delegates(C); 
 
-	require ADelegatee != 0 && BDelegatee != 0 && CDelegatee != 0;
-
 	
-	uint96 votes_A = getCurrentVotes(e1,A); 
-	uint96 votes_B = getCurrentVotes(e1,B);
 	uint96 votes_C = getCurrentVotes(e1,C);
-	uint256 balance_A = balanceOf(e1,A);
 	uint256 balance_B = balanceOf(e1,B);
-	uint256 balance_C = balanceOf(e1,C);
 
 	uint96 amount;
 
@@ -117,6 +94,59 @@ assert (ADelegatee != C && BDelegatee == C) => votes_C_After == votes_C + amount
 assert (ADelegatee == C && BDelegatee != C) => votes_C_After == votes_C + balance_B;
 assert (ADelegatee != C && BDelegatee != C) => votes_C_After == votes_C + balance_B + amount;
 	
+}
+
+rule delegate_AtoB(){
+	address A;
+	address B;
+	env e;
+	require e.msg.sender == A;
+
+	address ADelegatee = delegates(A);
+	address BDelegatee = delegates(B);
+
+	uint96 amount;
+	
+	uint96 votes_ADelegatee_Before = getCurrentVotes(e,ADelegatee);
+	uint96 votes_BDelegatee_Before = getCurrentVotes(e,BDelegatee);
+	uint256 balance_A_Before = balanceOf(e,A);
+	uint256 balance_B_Before = balanceOf(e,B);
+
+	_transferTokens(e,A, B, amount);
+	// _delegate(e,A, B);
+
+
+	uint96 votes_ADelegatee_After = getCurrentVotes(e,ADelegatee);
+	uint96 votes_BDelegatee_After = getCurrentVotes(e,BDelegatee);
+	uint256 balance_A_After = balanceOf(e,A);
+	uint256 balance_B_After = balanceOf(e,B);
+
+
+	require ADelegatee != 0 && BDelegatee != 0 && ADelegatee != BDelegatee;
+	require A != B;
+
+assert votes_ADelegatee_After == votes_ADelegatee_Before - amount ;
+assert votes_BDelegatee_After == votes_BDelegatee_Before + amount ;
+assert balance_A_After == balance_A_Before - amount ;
+assert balance_B_After == balance_B_Before + amount ;
+	
+}
+
+rule votesADelegateeGreaterABalance( address A, method f){
+	env e;
+
+	uint96 votes_before = getCurrentVotes(e,delegates(A));
+	uint256 balance_before = balanceOf(e,A);
+
+	require votes_before >= balance_before;
+
+	calldataarg arg;
+	f(e, arg);
+
+	uint96 votes_after = getCurrentVotes(e,delegates(A));
+	uint256 balance_after = balanceOf(e,A);
+
+	assert votes_after >= balance_after;
 }
 
 // Preconditions checked - no pause
