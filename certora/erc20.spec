@@ -96,7 +96,7 @@ assert (ADelegatee != C && BDelegatee != C) => votes_C_After == votes_C + balanc
 	
 }
 
-rule delegate_AtoB(){
+rule transfer_AtoB(){
 	address A;
 	address B;
 	env e;
@@ -132,23 +132,45 @@ assert balance_B_After == balance_B_Before + amount ;
 	
 }
 
-rule votesADelegateeGreaterABalance( address A, method f){
-	env e;
+// rule votesADelegateeGreaterABalance( address A, method f){
+//     env e;
+// 	require e.msg.sender != 0;
 
-	uint96 votes_before = getCurrentVotes(e,delegates(A));
-	uint256 balance_before = balanceOf(e,A);
+//     address A_delegatee = delegates(A);
+//     uint96 votes_before = getCurrentVotes(e,A_delegatee);
+//     uint256 balance_before = balanceOf(e,A);
 
-	require votes_before >= balance_before;
+//     require A != 0;
+// 	require A_delegatee != 0;
+// 	require A_delegatee != delegates(A_delegatee);
 
-	calldataarg arg;
-	f(e, arg);
+// 	require votes_before >= balance_before;
 
-	uint96 votes_after = getCurrentVotes(e,delegates(A));
-	uint256 balance_after = balanceOf(e,A);
+//     calldataarg arg;
+//     f(e, arg);
 
-	assert votes_after >= balance_after;
+//     address A_delegatee_after = delegates(A);
+// 	require A_delegatee_after != 0;
+
+//     uint96 votes_after = getCurrentVotes(e,A_delegatee_after);
+//     uint256 balance_after = balanceOf(e,A);
+
+//     assert votes_after >= balance_after;
+// }
+
+rule testZeroEatsVotes( address A){
+    env e;
+	require e.msg.sender != 0;
+
+	uint96 votesBefore = getCurrentVotes(e,A);
+	require votesBefore > 0;
+
+    _delegate(e,0, 0);
+
+	uint96 votesAfter = getCurrentVotes(e,A);
+
+    assert votesAfter > 0;
 }
-
 // Preconditions checked - no pause
 transferStandardPrecondition(env e, address to, uint256 value)
 description "Transfer failed even though to != 0, value > 0, balances match"
