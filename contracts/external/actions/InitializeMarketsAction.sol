@@ -345,13 +345,8 @@ library InitializeMarketsAction {
         uint256 annualizedAnchorRate
     ) private pure returns (int256) {
         int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
+        // Exchange rate value here will be floored at Constants.RATE_PRECISION when the oracleRate is zero
         int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
-        // If exchange rate is less than 1 then we set it to 1 so that this can continue
-        if (exchangeRate < Constants.RATE_PRECISION) {
-            // This can happen if the result of interpolation results in a negative interest rate.
-            // This would be a bad result but in this case we floor the exchange rate at a 0% interest rate.
-            exchangeRate = Constants.RATE_PRECISION;
-        }
 
         int128 expValue = ABDKMath64x64.fromInt(
             (exchangeRate.sub(rateAnchor)).mulInRatePrecision(rateScalar)
