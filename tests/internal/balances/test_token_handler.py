@@ -167,7 +167,7 @@ class TestTokenHandler:
         erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
         tokenHandler.setMaxCurrencyId(1)
         tokenHandler.setCurrencyMapping(
-            1, True, (erc20.address, fee != 0, TokenType["UnderlyingToken"], 0)
+            1, False, (erc20.address, fee != 0, TokenType["NonMintable"], 0)
         )
 
         amount = 10 ** decimals
@@ -175,7 +175,7 @@ class TestTokenHandler:
         erc20.approve(tokenHandler.address, 1000e18, {"from": accounts[0]})
 
         # This is a deposit
-        txn = tokenHandler.transfer(1, accounts[0].address, True, amount)
+        txn = tokenHandler.transfer(1, accounts[0].address, False, amount)
 
         # Fees are paid by the sender
         assert erc20.balanceOf(tokenHandler.address) == amount - feePaid
@@ -185,7 +185,7 @@ class TestTokenHandler:
         # This is a withdraw
         withdrawAmt = amount / 2
         balanceBefore = erc20.balanceOf(tokenHandler.address)
-        txn = tokenHandler.transfer(1, accounts[0].address, True, -withdrawAmt)
+        txn = tokenHandler.transfer(1, accounts[0].address, False, -withdrawAmt)
 
         assert erc20.balanceOf(tokenHandler.address) == balanceBefore - withdrawAmt
         assert txn.return_value == -int(withdrawAmt)

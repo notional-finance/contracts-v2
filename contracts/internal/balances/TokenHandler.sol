@@ -240,7 +240,7 @@ library TokenHandler {
             require(internalPrecisionBalance <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
         }
 
-        if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
+        if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION && token.tokenType != TokenType.UnderlyingToken) {
             // If decimals is less than internal token precision, we change how much the the user is credited
             // during this deposit so that the protocol accrues the dust (not the user's cash balance)
             finalAmountAdjustment = 1;

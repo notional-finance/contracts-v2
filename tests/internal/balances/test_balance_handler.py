@@ -14,7 +14,9 @@ DAI_CURRENCY_ID = 7
 
 
 def convert_to_external(internalValue, externalPrecision):
-    if externalPrecision > 1e8:
+    if externalPrecision == 1e8:
+        return internalValue
+    elif externalPrecision > 1e8:
         # floating point weirdness with python
         return math.trunc(Wei(externalPrecision) / Wei(1e8)) * Wei(internalValue)
     else:
@@ -22,7 +24,9 @@ def convert_to_external(internalValue, externalPrecision):
 
 
 def convert_to_internal(externalValue, externalPrecision):
-    if externalPrecision < 1e8:
+    if externalPrecision == 1e8:
+        return externalValue
+    elif externalPrecision < 1e8:
         # floating point weirdness with python
         return math.trunc(Wei(1e8) / Wei(externalPrecision)) * Wei(externalValue)
     else:
@@ -219,20 +223,31 @@ class TestBalanceHandler:
 
         currency = balanceHandler.getCurrencyMapping(currencyId, False)
         if currency[2] < 1e8 and bsCopy[4] > 0:
-            # TODO: potential failures on rounding down to zero
-            # Dust can accrue in the lower part with 6 decimal precision due to truncation so we
-            # modify the cash balances credited to users by 1 here
-            assert bs_[1] == bsCopy[1] + convert_to_internal(
-                convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
-            )
-            assert balanceAfter - balanceBefore == transferAmountExternal + 1
-            assert transferAmountExternal + 1 == convert_to_external(bsCopy[4], currency[2])
+            if bsCopy[4] < 100:
+                assert bs_[1] == bsCopy[1]
+                assert transferAmountExternal == 0
+                assert balanceBefore == balanceAfter
+            else:
+                # Dust can accrue in the lower part with 6 decimal precision due to truncation so we
+                # modify the cash balances credited to users by 1 here
+                # TODO: python wei has off by one issues in calculation of large division
+                # https://github.com/eth-brownie/brownie/issues/1224
+                assert bs_[1] == bsCopy[1] + convert_to_internal(
+                    convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
+                )
+                assert balanceAfter - balanceBefore == transferAmountExternal + 1
+                assert transferAmountExternal + 1 == convert_to_external(bsCopy[4], currency[2])
         elif currency[2] < 1e8:
-            assert bs_[1] == bsCopy[1] + convert_to_internal(
-                convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
-            )
-            assert balanceAfter - balanceBefore == transferAmountExternal
-            assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2]) - 1
+            if bsCopy[4] > -100:
+                assert bs_[1] == bsCopy[1]
+                assert transferAmountExternal == 0
+                assert balanceBefore == balanceAfter
+            else:
+                assert bs_[1] == bsCopy[1] + convert_to_internal(
+                    convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
+                )
+                assert balanceAfter - balanceBefore == transferAmountExternal
+                assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2]) - 1
         else:
             assert bs_[1] == bsCopy[1] + bsCopy[4]
             assert balanceAfter - balanceBefore == transferAmountExternal
