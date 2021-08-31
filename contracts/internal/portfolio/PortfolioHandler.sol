@@ -25,8 +25,7 @@ library PortfolioHandler {
                 assets[i].currencyId,
                 assets[i].maturity,
                 assets[i].assetType,
-                assets[i].notional,
-                false
+                assets[i].notional
             );
         }
     }
@@ -72,30 +71,27 @@ library PortfolioHandler {
         uint256 currencyId,
         uint256 maturity,
         uint256 assetType,
-        int256 notional,
-        bool isNewHint
+        int256 notional
     ) internal pure {
-        if (!isNewHint) {
-            bool merged =
-                _mergeAssetIntoArray(
-                    portfolioState.storedAssets,
-                    currencyId,
-                    maturity,
-                    assetType,
-                    notional
-                );
-            if (merged) return;
-        }
+        if (
+            // Will return true if merged
+            _mergeAssetIntoArray(
+                portfolioState.storedAssets,
+                currencyId,
+                maturity,
+                assetType,
+                notional
+            )
+        ) return;
 
-        if (portfolioState.newAssets.length > 0) {
-            bool merged =
-                _mergeAssetIntoArray(
-                    portfolioState.newAssets,
-                    currencyId,
-                    maturity,
-                    assetType,
-                    notional
-                );
+        if (portfolioState.lastNewAssetIndex > 0) {
+            bool merged = _mergeAssetIntoArray(
+                portfolioState.newAssets,
+                currencyId,
+                maturity,
+                assetType,
+                notional
+            );
             if (merged) return;
         }
 
@@ -149,8 +145,9 @@ library PortfolioHandler {
             uint40
         )
     {
-        uint256 initialSlot =
-            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
+        uint256 initialSlot = uint256(
+            keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET))
+        );
         bool hasDebt;
         // NOTE: cannot have more than 16 assets or this byte object will overflow. Max assets is
         // set to 7 and the worst case during liquidation would be 7 liquidity tokens that generate
@@ -275,6 +272,7 @@ library PortfolioHandler {
     function deleteAsset(PortfolioState memory portfolioState, uint256 index) internal pure {
         require(index < portfolioState.storedAssets.length); // dev: stored assets bounds
         require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
+        require(portfolioState.storedAssets[index].storageState != AssetStorageState.Delete); // dev: cannot re-delete asset
 
         portfolioState.storedAssetLength -= 1;
 
@@ -378,8 +376,9 @@ library PortfolioHandler {
         returns (PortfolioAsset[] memory)
     {
         PortfolioAsset[] memory assets = new PortfolioAsset[](length);
-        uint256 slot =
-            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
+        uint256 slot = uint256(
+            keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET))
+        );
 
         for (uint256 i; i < length; i++) {
             bytes32 data;

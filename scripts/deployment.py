@@ -91,7 +91,12 @@ def deployNotionalContracts(deployer, cETHAddress):
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
 
     # Deploy Pause Router
-    pauseRouter = PauseRouter.deploy(contracts["Views"].address, {"from": deployer})
+    pauseRouter = PauseRouter.deploy(
+        contracts["Views"].address,
+        contracts["LiquidateCurrencyAction"].address,
+        contracts["LiquidatefCashAction"].address,
+        {"from": deployer},
+    )
 
     # Deploy router
     router = Router.deploy(

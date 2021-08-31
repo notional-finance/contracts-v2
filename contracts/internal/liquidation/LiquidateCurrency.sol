@@ -406,8 +406,7 @@ library LiquidateCurrency {
                 factors.cashGroup.currencyId,
                 asset.maturity,
                 Constants.FCASH_ASSET_TYPE,
-                w.fCash,
-                false
+                w.fCash
             );
 
             if (assetAmountRemaining == 0) break;
@@ -493,8 +492,7 @@ library LiquidateCurrency {
                 factors.cashGroup.currencyId,
                 asset.maturity,
                 Constants.FCASH_ASSET_TYPE,
-                fCashClaim,
-                false
+                fCashClaim
             );
 
             if (collateralToWithdraw == 0) return 0;
