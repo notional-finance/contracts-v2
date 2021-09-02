@@ -48,7 +48,7 @@ interface NotionalViews {
 
     function nTokenAddress(uint16 currencyId) external view returns (address);
 
-    function getOwner() external view returns (address);
+    function getNoteToken() external view returns (address);
 
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
@@ -107,11 +107,11 @@ interface NotionalViews {
 
     function getfCashNotional(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity
     ) external view returns (int256);
 
-    function getAssetsBitmap(address account, uint256 currencyId) external view returns (bytes32);
+    function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory);
 
