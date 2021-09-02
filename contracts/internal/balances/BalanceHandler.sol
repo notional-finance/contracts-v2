@@ -38,6 +38,7 @@ library BalanceHandler {
     ) internal returns (int256) {
         if (assetAmountExternal == 0) return 0;
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
+        // @audit-ok gets asset token, change this call
         Token memory token = TokenHandler.getToken(balanceState.currencyId, false);
         int256 assetAmountInternal = token.convertToInternal(assetAmountExternal);
 
@@ -77,14 +78,18 @@ library BalanceHandler {
         if (underlyingAmountExternal == 0) return 0;
         require(underlyingAmountExternal > 0); // dev: deposit underlying token negative
 
+        // @audit change getter to getUnderlyingToken or getAssetToken
+        // @audit-ok gets the underlying token
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
-            require(underlyingAmountExternal == int256(msg.value), "ETH Balance");
+            // @audit-ok adding overflow check here
+            require(msg.value <= uint256(type(int256).max) && underlyingAmountExternal == int256(msg.value), "ETH Balance");
         } else {
             underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
         }
 
+        // @audit-ok gets the asset token
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
         // Tokens that are not mintable like cTokens will be deposited as assetTokens
         require(assetToken.tokenType == TokenType.cToken || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type

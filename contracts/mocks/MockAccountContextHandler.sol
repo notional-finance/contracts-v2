@@ -17,7 +17,7 @@ contract MockAccountContextHandler {
 
     function enableBitmapForAccount(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);

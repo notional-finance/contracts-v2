@@ -56,13 +56,18 @@ library AccountContextHandler {
     function enableBitmapForAccount(
         AccountContext memory accountContext,
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 blockTime
     ) internal view {
         // Allow setting the currency id to zero to turn off bitmap
         require(currencyId <= Constants.MAX_CURRENCIES, "AC: invalid currency id");
 
-        if (accountContext.bitmapCurrencyId == 0) {
+        if (isBitmapEnabled(accountContext)) {
+            // Account cannot change their bitmap if they have assets set
+            bytes32 ifCashBitmap =
+                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            require(ifCashBitmap == 0, "AC: cannot have assets");
+        } else {
             require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
             // Account context also cannot have negative cash debts
             require(accountContext.hasDebt == 0x00, "AC: cannot have debt");
@@ -70,15 +75,12 @@ library AccountContextHandler {
             // Ensure that the active currency is set to false in the array so that there is no double
             // counting during FreeCollateral
             setActiveCurrency(accountContext, currencyId, false, Constants.ACTIVE_IN_BALANCES);
-        } else {
-            bytes32 ifCashBitmap =
-                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-            require(ifCashBitmap == 0, "AC: cannot have assets");
         }
 
-        accountContext.bitmapCurrencyId = uint16(currencyId);
+        accountContext.bitmapCurrencyId = currencyId;
 
         // Setting this is required to initialize the assets bitmap
+        // @audit-ok we can only enter this point if there are no assets
         uint256 nextSettleTime = DateTime.getTimeUTC0(blockTime);
         require(nextSettleTime < type(uint40).max); // dev: blockTime overflow
         accountContext.nextSettleTime = uint40(nextSettleTime);
@@ -86,8 +88,18 @@ library AccountContextHandler {
 
     /// @notice Returns true if the context needs to settle
     function mustSettleAssets(AccountContext memory accountContext) internal view returns (bool) {
-        return (accountContext.nextSettleTime != 0 &&
-            accountContext.nextSettleTime <= block.timestamp);
+        uint256 blockTime = block.timestamp;
+
+        if (isBitmapEnabled(accountContext)) {
+            // @audit-ok next settle time will be set to utc0 after settlement so we
+            // settle if this is strictly less than utc0
+            return accountContext.nextSettleTime < DateTime.getTimeUTC0(blockTime);
+        } else {
+            // @audit-ok 0 value occurs on an uninitialized account
+            // @audit-ok assets mature exactly on the blockTime (not one second past) so in this
+            // case we settle on the block timestamp
+            return 0 < accountContext.nextSettleTime && accountContext.nextSettleTime <= blockTime;
+        }
     }
 
     /// @notice Checks if a currency id (uint16 max) is in the 9 slots in the account

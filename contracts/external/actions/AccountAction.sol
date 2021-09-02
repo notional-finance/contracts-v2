@@ -19,9 +19,12 @@ contract AccountAction {
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:msg.sender
     function enableBitmapCurrency(uint16 currencyId) external {
+        // @audit-ok authentication, msg.sender
+        // @audit-ok address(0) cannot occur
         require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
         address account = msg.sender;
         AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(account);
+        // @audit-ok currency id will be checked inside here
         accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
         accountContext.setAccountContext(account);
     }
@@ -33,13 +36,18 @@ contract AccountAction {
     /// @param account the account to settle
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:none
-    function settleAccount(address account) external {
+    /// @return returns true if account has been settled
+    function settleAccount(address account) external returns (bool) {
+        // @audit-ok no authentication required
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
             // Don't use the internal method here to avoid setting the account context if it does
             // not require settlement
             accountContext.setAccountContext(account);
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -58,24 +66,31 @@ contract AccountAction {
         uint256 amountExternalPrecision
     ) external payable returns (uint256) {
         // No other authorization required on depositing
+        // @audit-ok authentication uses msg.sender
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
+        // @audit-ok depositing to address zero may mess up reserve account
+        require(account != address(0)); // dev: cannot deposit to address zero
+        // Int conversion overflow check done inside this method call
+        require(0 < amountExternalPrecision && amountExternalPrecision < uint256(type(int256).max)); // dev: amount out of bounds
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        // Int conversion overflow check done inside this method call
-        // NOTE: using msg.sender here allows for a different sender to deposit tokens into the specified account. This may
-        // be useful for on-demand collateral top ups from a third party
+        // NOTE: using msg.sender here allows for a different sender to deposit tokens into
+        // the specified account. This may be useful for on-demand collateral top ups from a
+        // third party. If called with currencyId == 1 then `depositAssetToken` will access
+        // msg.value to mint cETH from ETH.
         int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             msg.sender,
+            // @audit-ok checked overflow above
             int256(amountExternalPrecision)
         );
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
+        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -96,6 +111,8 @@ contract AccountAction {
         uint256 amountExternalPrecision
     ) external returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
+        require(account != address(0)); // dev: cannot deposit to address zero
+        require(0 < amountExternalPrecision && amountExternalPrecision < uint256(type(int256).max)); // dev: amount out of bounds
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
@@ -106,6 +123,7 @@ contract AccountAction {
         // on behalf of the given account.
         int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
+            // @audit-ok checked overflow above
             int256(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
@@ -113,7 +131,7 @@ contract AccountAction {
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
+        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -135,6 +153,7 @@ contract AccountAction {
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
     ) external returns (uint256) {
+        // @audit-ok authentication
         address account = msg.sender;
 
         // This happens before reading the balance state to get the most up to date cash balance
@@ -143,6 +162,7 @@ contract AccountAction {
         BalanceState memory balanceState;
         balanceState.loadBalanceState(account, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
+        // @audit-ok overflow is not possible due to uint88
         balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 
         int256 amountWithdrawn = balanceState.finalize(account, accountContext, redeemToUnderlying);
@@ -153,6 +173,8 @@ contract AccountAction {
         }
 
         require(amountWithdrawn <= 0);
+        // @audit add a safe convert method for uint and int
+        // @audit-ok convert to uint checked above
         return uint256(amountWithdrawn.neg());
     }
 
@@ -163,8 +185,8 @@ contract AccountAction {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
             return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+        } else {
+            return accountContext;
         }
-
-        return accountContext;
     }
 }

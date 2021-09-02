@@ -213,7 +213,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             currencies = currencies << 16;
         }
 
-        // NOTE: no need to set account context after claiming incentives
+        // NOTE: no need to set account context after claiming incentives. No currencies
+        // or fCash assets have been added or changed.
         return totalIncentivesClaimed;
     }
 
