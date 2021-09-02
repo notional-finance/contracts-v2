@@ -2,8 +2,8 @@
 from brownie import (
     accounts,
     MockWETH,
-    NotionalV2FlashLiquidator,
-    MockFlashLender,
+    NotionalV2UniV3FlashLiquidator,
+    MockAaveFlashLender,
     MockUniV3SwapRouter
 )
 from brownie.convert.datatypes import HexString
@@ -72,8 +72,17 @@ def main():
 
     env.uniV3Router = MockUniV3SwapRouter.deploy({"from": deployer})
     env.weth = MockWETH.deploy({"from": deployer})
-    env.flashLender = MockFlashLender.deploy({"from": deployer})
-    env.flashLiquidator = NotionalV2FlashLiquidator.deploy(
+    
+    # Create flash lender
+    env.flashLender = MockAaveFlashLender.deploy({"from": deployer})
+    # Give flash lender assets
+    env.weth.deposit({"from": accounts[0], "value": 5000e18})
+    env.weth.transfer(env.flashLender.address, 100e18, {"from": accounts[0]})
+    env.token["DAI"].transfer(env.flashLender.address, 100000e18, {"from": accounts[0]})
+    env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": accounts[0]})    
+
+    env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy(
+        env.uniV3Router.address,
         env.notional.address,
         env.flashLender.address,
         zeroAddress,

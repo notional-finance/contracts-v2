@@ -33,7 +33,7 @@ interface WETH9 {
     function transfer(address dst, uint256 wad) external returns (bool);
 }
 
-contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
+abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -134,14 +134,16 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CrossCurrencyfCash_WithTransferFee ||
             action == LiquidationAction.CrossCurrencyfCash_NoTransferFee
         ) {
-            _executeDexTrade(action, params);
+            executeDexTrade(assets[0], assets[0], 0);
         }
 
         // The lending pool should have enough approval to pull the required amount from the contract
         return true;
     }
 
-    function _executeDexTrade(LiquidationAction action, bytes calldata params) internal {
+    function executeDexTrade(address from, address to, uint256 amountOut) internal virtual;
+
+    function _executeDexTrade(LiquidationAction action, bytes calldata params) internal virtual {
         address tradeContract;
         bytes memory tradeCallData;
         uint256 tradeETHValue;

@@ -2,6 +2,10 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+
+
 contract MockUniV3SwapRouter {
     struct ExactOutputSingleParams {
         address tokenIn;
@@ -15,6 +19,8 @@ contract MockUniV3SwapRouter {
     }
 
     function exactOutputSingle(ExactOutputSingleParams calldata params) external payable returns (uint256 amountIn) {
+        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountInMaximum);
+        IERC20(params.tokenOut).transfer(msg.sender, params.amountOut);
         return params.amountInMaximum;
     }
 }
