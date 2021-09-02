@@ -155,6 +155,8 @@ contract NotionalV1ToNotionalV2 {
         ) = abi.decode(callbackData, (uint16, uint128, uint16, uint16));
 
         int256[] memory balances = Escrow.getBalances(account);
+        // Notional V1 returns an array of balances for all listed currencies. We do not allow
+        // collateral to be USDC or DAI during migration.
         int256 collateralBalance =
             (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
         require(0 < collateralBalance && collateralBalance <= type(uint128).max);
