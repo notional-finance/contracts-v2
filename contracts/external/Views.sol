@@ -332,30 +332,30 @@ contract Views is StorageLayoutV1, NotionalViews {
         accountContext = AccountContextHandler.getAccountContext(account);
         accountBalances = new AccountBalance[](10);
 
-        uint256 i;
+        uint256 i = 0;
         if (accountContext.isBitmapEnabled()) {
+            AccountBalance memory b = accountBalances[0];
             (
-                accountBalances[i].cashBalance,
-                accountBalances[i].nTokenBalance,
-                accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimIntegralSupply
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
 
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
-            accountBalances[i].currencyId = uint256(
-                uint16(bytes2(currencies) & Constants.UNMASK_FLAGS)
-            );
-            if (accountBalances[i].currencyId == 0) break;
+            AccountBalance memory b = accountBalances[i];
+            b.currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
+            if (b.currencyId == 0) break;
 
             (
-                accountBalances[i].cashBalance,
-                accountBalances[i].nTokenBalance,
-                accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimIntegralSupply
-            ) = BalanceHandler.getBalanceStorage(account, accountBalances[i].currencyId);
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
+            ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
             i += 1;
             currencies = currencies << 16;
         }

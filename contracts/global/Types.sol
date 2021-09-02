@@ -345,7 +345,7 @@ struct AccountContext {
 
 /// @dev Used in view methods to return account balances in a developer friendly manner
 struct AccountBalance {
-    uint256 currencyId;
+    uint16 currencyId;
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
