@@ -171,6 +171,32 @@ contract Views is StorageLayoutV1, NotionalViews {
         return AssetRate.buildSettlementRateView(currencyId, maturity);
     }
 
+    /// @notice Returns a single market
+    function getMarket(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 settlementDate
+    )
+        external
+        view
+        override
+        returns (MarketParameters memory)
+    {
+        _checkValidCurrency(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters memory market;
+        market.loadMarketWithSettlementDate(
+            currencyId,
+            maturity,
+            block.timestamp,
+            true,
+            cashGroup.getRateOracleTimeWindow(),
+            settlementDate
+        );
+
+        return market;
+    }
+
     /// @notice Returns all currently active markets for a currency
     function getActiveMarkets(uint16 currencyId)
         external

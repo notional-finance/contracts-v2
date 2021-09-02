@@ -55,6 +55,9 @@ interface NotionalViews {
         view
         returns (AssetRateParameters memory);
 
+    function getMarket(uint16 currencyId, uint256 maturity, uint256 settlementDate)
+        external view returns (MarketParameters memory);
+
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
 
     function getActiveMarketsAtBlockTime(uint16 currencyId, uint32 blockTime)
