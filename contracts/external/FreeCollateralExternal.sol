@@ -23,14 +23,19 @@ library FreeCollateralExternal {
         returns (int256, int256[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        // The internal free collateral function does not account for settled assets. The Notional SDK
+        // can calculate the free collateral off chain if required at this point.
+        require(!accountContext.mustSettleAssets(), "Assets not settled");
         return FreeCollateral.getFreeCollateralView(account, accountContext, block.timestamp);
     }
 
     /// @notice Calculates free collateral and will revert if it falls below zero. If the account context
-    /// must be updated due to changes in debt settings, will update
+    /// must be updated due to changes in debt settings, will update. Cannot check free collateral if assets
+    /// need to be settled first.
     /// @param account account to calculate free collateral for
     function checkFreeCollateralAndRevert(address account) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        require(!accountContext.mustSettleAssets(), "Assets not settled");
 
         (int256 ethDenominatedFC, bool updateContext) =
             FreeCollateral.getFreeCollateralStateful(account, accountContext, block.timestamp);
