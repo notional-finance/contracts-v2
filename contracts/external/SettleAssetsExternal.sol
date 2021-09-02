@@ -120,8 +120,7 @@ library SettleAssetsExternal {
 
         BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, assetsBitmap);
         SettleAmount[] memory settleAmounts = new SettleAmount[](1);
-        settleAmounts[0].currencyId = accountContext.bitmapCurrencyId;
-        settleAmounts[0].netCashChange = settledCash;
+        settleAmounts[0] = SettleAmount(accountContext.bitmapCurrencyId, settledCash);
         return settleAmounts;
     }
 }

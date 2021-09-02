@@ -22,20 +22,18 @@ library FreeCollateralExternal {
         view
         returns (int256, int256[] memory)
     {
-        uint256 blockTime = block.timestamp;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
+        return FreeCollateral.getFreeCollateralView(account, accountContext, block.timestamp);
     }
 
     /// @notice Calculates free collateral and will revert if it falls below zero. If the account context
     /// must be updated due to changes in debt settings, will update
     /// @param account account to calculate free collateral for
     function checkFreeCollateralAndRevert(address account) external {
-        uint256 blockTime = block.timestamp;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
 
         (int256 ethDenominatedFC, bool updateContext) =
-            FreeCollateral.getFreeCollateralStateful(account, accountContext, blockTime);
+            FreeCollateral.getFreeCollateralStateful(account, accountContext, block.timestamp);
 
         if (updateContext) {
             accountContext.setAccountContext(account);
