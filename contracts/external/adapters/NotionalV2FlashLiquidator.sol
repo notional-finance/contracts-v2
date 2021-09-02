@@ -394,7 +394,9 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
             CErc20Interface(cToken).redeem(IERC20(cToken).balanceOf(address(this)));
             // Wrap ETH into WETH for repayment
-            if (assets[i] == WETH) WETH9(WETH).deposit{value: address(this).balance}();
+            if (assets[i] == WETH && address(this).balance > 0) {
+                WETH9(WETH).deposit{value: address(this).balance}();
+            }
         }
     }
 
