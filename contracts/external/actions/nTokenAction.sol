@@ -138,6 +138,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
+        // @audit-ok address zero
         require(to != address(0), "Cannot transfer to zero");
 
         uint256 allowance = nTokenWhitelist[from][spender];
@@ -191,6 +192,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
+                // @audit-ok balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = totalIncentivesClaimed
                     .add(balanceState.claimIncentivesManual(account));
             }
@@ -202,6 +204,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
 
             balanceState.loadBalanceState(account, currencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
+                // @audit-ok balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = totalIncentivesClaimed
                     .add(balanceState.claimIncentivesManual(account));
             }
@@ -277,25 +280,27 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             // nTokens cannot hold nToken balances
             require(isNToken == 0, "Cannot transfer to nToken");
         }
+        int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
+        senderBalance.netNTokenTransfer = amountInt.neg();
+        senderBalance.finalize(sender, senderContext, false);
+        senderContext.setAccountContext(sender);
 
         AccountContext memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance;
         recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
-
-        int256 amountInt = SafeCast.toInt256(amount);
-        senderBalance.netNTokenTransfer = amountInt.neg();
         recipientBalance.netNTokenTransfer = amountInt;
-
-        senderBalance.finalize(sender, senderContext, false);
         recipientBalance.finalize(recipient, recipientContext, false);
-        senderContext.setAccountContext(sender);
         recipientContext.setAccountContext(recipient);
 
-        emit Transfer(sender, recipient, amount);
+        // nTokens are used as collateral so we have to check the free collateral when we transfer. Only the
+        // sender needs a free collateral check, the receiver's net free collateral position will only increase
+        if (senderContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(sender);
+        }
 
         return true;
     }
