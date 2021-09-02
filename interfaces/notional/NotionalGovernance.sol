@@ -3,6 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
+import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "interfaces/notional/NotionalGovernance.sol";
 
 interface NotionalGovernance {
     event ListCurrency(uint16 newCurrencyId);
@@ -27,7 +29,7 @@ interface NotionalGovernance {
     function listCurrency(
         TokenStorage calldata assetToken,
         TokenStorage calldata underlyingToken,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
@@ -41,7 +43,7 @@ interface NotionalGovernance {
 
     function enableCashGroup(
         uint16 currencyId,
-        address assetRateOracle,
+        AssetRateAdapter assetRateOracle,
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
@@ -72,11 +74,11 @@ interface NotionalGovernance {
 
     function updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) external;
 
-    function updateAssetRate(uint16 currencyId, address rateOracle) external;
+    function updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) external;
 
     function updateETHRate(
         uint16 currencyId,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,

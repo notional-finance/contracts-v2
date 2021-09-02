@@ -10,6 +10,7 @@ import "../../global/StorageLayoutV1.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
+import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "interfaces/notional/NotionalGovernance.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
@@ -66,7 +67,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     function listCurrency(
         TokenStorage calldata assetToken,
         TokenStorage calldata underlyingToken,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
@@ -128,7 +129,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @param underlyingSymbol underlying token symbol for seeding nToken symbol (i.e. nDAI)
     function enableCashGroup(
         uint16 currencyId,
-        address assetRateOracle,
+        AssetRateAdapter assetRateOracle,
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
@@ -277,7 +278,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @dev emit:UpdateAssetRate
     /// @param currencyId id of the currency
     /// @param rateOracle new rate oracle for the asset
-    function updateAssetRate(uint16 currencyId, address rateOracle) external override onlyOwner {
+    function updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) external override onlyOwner {
         _updateAssetRate(currencyId, rateOracle);
     }
 
@@ -292,7 +293,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @param liquidationDiscount multiplier (>= 100) for exchange rate when liquidating
     function updateETHRate(
         uint16 currencyId,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
@@ -354,14 +355,14 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         emit UpdateCashGroup(uint16(currencyId));
     }
 
-    function _updateAssetRate(uint256 currencyId, address rateOracle) internal {
+    function _updateAssetRate(uint256 currencyId, AssetRateAdapter rateOracle) internal {
         require(currencyId != 0, "G: invalid currency id");
         require(currencyId <= maxCurrencyId, "G: invalid currency id");
 
         // If rate oracle refers to address zero then do not apply any updates here, this means
         // that a token is non mintable.
         Token memory assetToken = TokenHandler.getToken(currencyId, false);
-        if (rateOracle == address(0)) {
+        if (address(rateOracle) == address(0)) {
             // Sanity check that unset rate oracles are only for non mintable tokens
             require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");
             return;
@@ -390,7 +391,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
 
     function _updateETHRate(
         uint256 currencyId,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
@@ -402,11 +403,11 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint8 rateDecimalPlaces;
         if (currencyId == Constants.ETH_CURRENCY_ID) {
             // ETH to ETH exchange rate is fixed at 1 and has no rate oracle
-            rateOracle = address(0);
+            rateOracle = AggregatorV2V3Interface(address(0));
             rateDecimalPlaces = 18;
         } else {
-            require(rateOracle != address(0), "G: zero rate oracle address");
-            rateDecimalPlaces = AggregatorV2V3Interface(rateOracle).decimals();
+            require(address(rateOracle) != address(0), "G: zero rate oracle address");
+            rateDecimalPlaces = rateOracle.decimals();
         }
         require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
         require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");

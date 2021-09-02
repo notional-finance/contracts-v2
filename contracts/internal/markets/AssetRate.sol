@@ -58,9 +58,9 @@ library AssetRate {
     /// for idiosyncratic fCash with a shorter duration than the 3 month maturity.
     function getSupplyRate(AssetRateParameters memory ar) internal view returns (uint256) {
         // If the rate oracle is not set, the asset is not interest bearing and has an oracle rate of zero.
-        if (ar.rateOracle == address(0)) return 0;
+        if (address(ar.rateOracle) == address(0)) return 0;
 
-        uint256 rate = AssetRateAdapter(ar.rateOracle).getAnnualizedSupplyRate();
+        uint256 rate = ar.rateOracle.getAnnualizedSupplyRate();
         require(rate >= 0); // dev: invalid supply rate
 
         return rate;
@@ -69,7 +69,7 @@ library AssetRate {
     function _getAssetRateStorage(uint256 currencyId)
         private
         view
-        returns (address rateOracle, uint8 underlyingDecimalPlaces)
+        returns (AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces)
     {
         bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
         bytes32 data;
@@ -78,7 +78,7 @@ library AssetRate {
             data := sload(slot)
         }
 
-        rateOracle = address(bytes20(data << 96));
+        rateOracle = AssetRateAdapter(address(bytes20(data << 96)));
         underlyingDecimalPlaces = uint8(uint256(data >> 160));
     }
 
@@ -89,19 +89,19 @@ library AssetRate {
         view
         returns (
             int256,
-            address,
+            AssetRateAdapter,
             uint8
         )
     {
-        (address rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
+        (AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
 
         int256 rate;
-        if (rateOracle == address(0)) {
+        if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
             underlyingDecimalPlaces = 0;
         } else {
-            rate = AssetRateAdapter(rateOracle).getExchangeRateView();
+            rate = rateOracle.getExchangeRateView();
             require(rate > 0); // dev: invalid exchange rate
         }
 
@@ -114,19 +114,19 @@ library AssetRate {
         private
         returns (
             int256,
-            address,
+            AssetRateAdapter,
             uint8
         )
     {
-        (address rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
+        (AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces) = _getAssetRateStorage(currencyId);
 
         int256 rate;
-        if (rateOracle == address(0)) {
+        if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
             underlyingDecimalPlaces = 0;
         } else {
-            rate = AssetRateAdapter(rateOracle).getExchangeRateStateful();
+            rate = rateOracle.getExchangeRateStateful();
             require(rate > 0); // dev: invalid exchange rate
         }
 
@@ -139,7 +139,7 @@ library AssetRate {
         view
         returns (AssetRateParameters memory)
     {
-        (int256 rate, address rateOracle, uint8 underlyingDecimalPlaces) =
+        (int256 rate, AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces) =
             _getAssetRateView(currencyId);
 
         return
@@ -155,7 +155,7 @@ library AssetRate {
         internal
         returns (AssetRateParameters memory)
     {
-        (int256 rate, address rateOracle, uint8 underlyingDecimalPlaces) =
+        (int256 rate, AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces) =
             _getAssetRateStateful(currencyId);
 
         return
@@ -215,7 +215,11 @@ library AssetRate {
             ) = _getAssetRateView(currencyId);
         }
 
-        return AssetRateParameters(address(0), settlementRate, int256(10**underlyingDecimalPlaces));
+        return AssetRateParameters(
+            AssetRateAdapter(address(0)),
+            settlementRate,
+            int256(10**underlyingDecimalPlaces)
+        );
     }
 
     /// @notice Returns a settlement rate object and sets the rate if it has not been set yet
@@ -229,7 +233,7 @@ library AssetRate {
 
         if (settlementRate == 0) {
             // Settlement rate has not yet been set, set it in this branch
-            address rateOracle;
+            AssetRateAdapter rateOracle;
             // prettier-ignore
             (
                 settlementRate,
@@ -237,7 +241,7 @@ library AssetRate {
                 underlyingDecimalPlaces
             ) = _getAssetRateStateful(currencyId);
 
-            if (rateOracle != address(0)) {
+            if (address(rateOracle) != address(0)) {
                 // Only need to set settlement rates when the rate oracle is set (meaning the asset token has
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
@@ -258,6 +262,10 @@ library AssetRate {
             }
         }
 
-        return AssetRateParameters(address(0), settlementRate, int256(10**underlyingDecimalPlaces));
+        return AssetRateParameters(
+            AssetRateAdapter(address(0)),
+            settlementRate,
+            int256(10**underlyingDecimalPlaces)
+        );
     }
 }
