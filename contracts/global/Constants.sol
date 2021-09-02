@@ -9,11 +9,10 @@ library Constants {
 
     // ETH will be initialized as the first currency
     uint256 internal constant ETH_CURRENCY_ID = 1;
-    int256 internal constant ETH_DECIMAL_PLACES = 18;
     int256 internal constant ETH_DECIMALS = 1e18;
 
     // Used to when calculating the amount to deleverage of a market when minting nTokens
-    uint256 internal constant DELEVERAGE_BUFFER = 30000000; // 300 * Constants.BASIS_POINT
+    uint256 internal constant DELEVERAGE_BUFFER = 300 * BASIS_POINT;
 
     // Address of the reserve account
     address internal constant RESERVE = address(0);
@@ -36,8 +35,8 @@ library Constants {
     uint256 internal constant DAY = 86400;
     // We use six day weeks to ensure that all time references divide evenly
     uint256 internal constant WEEK = DAY * 6;
-    uint256 internal constant MONTH = DAY * 30;
-    uint256 internal constant QUARTER = DAY * 90;
+    uint256 internal constant MONTH = WEEK * 5;
+    uint256 internal constant QUARTER = MONTH * 3;
     uint256 internal constant YEAR = QUARTER * 4;
 
     // Offsets for each time chunk denominated in days
@@ -52,9 +51,10 @@ library Constants {
     uint256 internal constant QUARTER_BIT_OFFSET = 195;
 
     // This is a constant that represents the time period that all rates are normalized by, 360 days
-    uint256 internal constant IMPLIED_RATE_TIME = 31104000;
+    uint256 internal constant IMPLIED_RATE_TIME = 360 * DAY;
     // Number of decimal places that rates are stored in, equals 100%
     int256 internal constant RATE_PRECISION = 1e9;
+    // One basis point in RATE_PRECISION terms
     uint256 internal constant BASIS_POINT = uint256(RATE_PRECISION / 10000);
 
     // This is the ABDK64x64 representation of RATE_PRECISION
@@ -67,6 +67,8 @@ library Constants {
     uint256 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
     uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
 
+    // Used for converting bool to bytes1, solidity does not have a native conversion
+    // method for this
     bytes1 internal constant BOOL_FALSE = 0x00;
     bytes1 internal constant BOOL_TRUE = 0x01;
 
@@ -78,8 +80,11 @@ library Constants {
     bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
     uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
 
-    // nToken Parameters
+    // Equal to 100% of all deposit amounts for nToken liquidity across fCash markets.
     int256 internal constant DEPOSIT_PERCENT_BASIS = 1e8;
+
+    // nToken Parameters: there are offsets in the nTokenParameters bytes6 variable returned
+    // in nTokenHandler. Each constant represents a position in the byte array.
     uint8 internal constant LIQUIDATION_HAIRCUT_PERCENTAGE = 0;
     uint8 internal constant CASH_WITHHOLDING_BUFFER = 1;
     uint8 internal constant RESIDUAL_PURCHASE_TIME_BUFFER = 2;
@@ -88,12 +93,13 @@ library Constants {
     uint8 internal constant ASSET_ARRAY_LENGTH = 5;
 
     // Liquidation parameters
-    /// @dev Default portion of collateral that a liquidator is allowed to liquidate, will be higher if the account
-    /// requires more collateral to be liquidated
+    // Default percentage of collateral that a liquidator is allowed to liquidate, will be higher if the account
+    // requires more collateral to be liquidated
     int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
-    /// @dev Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
+    // Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
     int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
-    /// @dev Liquidation dust setting used during fCash liquidation
+    // Denominated in units of fCash, any value lower than this will terminate the fCash liquidation loop. Because
+    // the discount to present value is asymptotic (it uses exp), it's unlikely that we will get down to exactly zero.
     int256 internal constant LIQUIDATION_DUST = 10;
 
     // Pause Router liquidation enabled states
