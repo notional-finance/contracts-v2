@@ -23,6 +23,7 @@ contract Views is StorageLayoutV1, NotionalViews {
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using BalanceHandler for BalanceState;
+    using AccountContextHandler for AccountContext;
 
     /** Governance Parameter Getters **/
 
@@ -288,7 +289,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         accountBalances = new AccountBalance[](10);
 
         uint256 i;
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             (
                 accountBalances[i].cashBalance,
                 accountBalances[i].nTokenBalance,
@@ -315,7 +316,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             currencies = currencies << 16;
         }
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             portfolio = BitmapAssetsHandler.getifCashArray(
                 account,
                 accountContext.bitmapCurrencyId,
@@ -367,7 +368,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (PortfolioAsset[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             return
                 BitmapAssetsHandler.getifCashArray(
                     account,
@@ -503,7 +504,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         BalanceState memory balanceState;
         uint256 totalIncentivesClaimable;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);

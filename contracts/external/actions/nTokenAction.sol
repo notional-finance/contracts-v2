@@ -174,7 +174,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 totalIncentivesClaimed;
         BalanceState memory balanceState;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 totalIncentivesClaimed = totalIncentivesClaimed.add(

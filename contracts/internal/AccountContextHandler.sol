@@ -48,6 +48,10 @@ library AccountContextHandler {
         emit AccountContextUpdate(account);
     }
 
+    function isBitmapEnabled(AccountContext memory accountContext) internal pure returns (bool) {
+        return accountContext.bitmapCurrencyId != 0;
+    }
+
     /// @notice Sets the account context of a given account
     function enableBitmapForAccount(
         AccountContext memory accountContext,

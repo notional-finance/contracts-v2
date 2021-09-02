@@ -139,7 +139,7 @@ contract BatchAction is StorageLayoutV1 {
 
             if (actions[i].trades.length > 0) {
                 int256 netCash;
-                if (accountContext.bitmapCurrencyId != 0) {
+                if (accountContext.isBitmapEnabled()) {
                     require(
                         accountContext.bitmapCurrencyId == actions[i].currencyId,
                         "Invalid trades for account"

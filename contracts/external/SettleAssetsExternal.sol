@@ -80,7 +80,7 @@ library SettleAssetsExternal {
         SettleAmount[] memory settleAmounts;
         PortfolioState memory portfolioState;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             settleAmounts = _settleBitmappedAccountStateful(account, accountContext);
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(

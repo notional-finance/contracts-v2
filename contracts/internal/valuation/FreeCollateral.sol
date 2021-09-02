@@ -214,7 +214,7 @@ library FreeCollateral {
         FreeCollateralFactors memory factors;
         bool hasCashDebt;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
 
             // prettier-ignore
@@ -295,7 +295,7 @@ library FreeCollateral {
         uint256 netLocalIndex;
         int256[] memory netLocalAssetValues = new int256[](10);
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             factors.cashGroup = CashGroup.buildCashGroupView(accountContext.bitmapCurrencyId);
 
             // prettier-ignore
@@ -407,7 +407,7 @@ library FreeCollateral {
         // This is only set to reduce the stack size
         liquidationFactors.account = account;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
             (int256 netCashBalance, int256 nTokenHaircutAssetValue, bytes6 nTokenParameters) =
                 _getBitmapBalanceValue(account, blockTime, accountContext, factors);

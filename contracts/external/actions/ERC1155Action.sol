@@ -33,7 +33,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         int256 notional;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, id);
         } else {
             notional = _balanceInArray(
