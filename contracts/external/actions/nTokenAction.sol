@@ -70,9 +70,11 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     ) external view override returns (uint256) {
         // This whitelist allowance supersedes any specific allowances
         uint256 allowance = nTokenWhitelist[tokenHolder][spender];
-        if (allowance > 0) return allowance;
-
-        return nTokenAllowance[tokenHolder][spender][currencyId];
+        if (allowance > 0) {
+            return allowance;
+        } else {
+            return nTokenAllowance[tokenHolder][spender][currencyId];
+        }
     }
 
     /// @notice Approve `spender` to transfer up to `amount` from `src`
@@ -186,15 +188,14 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     function nTokenClaimIncentives() external override returns (uint256) {
         address account = msg.sender;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        uint256 totalIncentivesClaimed;
+        uint256 totalIncentivesClaimed = 0;
         BalanceState memory balanceState;
 
         if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 // @audit-ok balance state is updated inside claim incentives manual
-                totalIncentivesClaimed = totalIncentivesClaimed
-                    .add(balanceState.claimIncentivesManual(account));
+                totalIncentivesClaimed = balanceState.claimIncentivesManual(account);
             }
         }
 
@@ -270,6 +271,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         uint256 amount
     ) internal returns (bool) {
         {
+            // Prevent stack too deep error
             // prettier-ignore
             (
                 uint256 isNToken,
