@@ -21,8 +21,8 @@ contract StorageLayoutV1 {
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions
     address public owner;
-    // This is set to the governance token address
-    address internal token;
+    // NOTE: this slot is unused but we cannot remove due to the testnet deployment
+    address internal _unused_slot;
     // This is set to an address of a router that can only call governance actions
     address public pauseRouter;
     // This is set to an address of a router that can only call governance actions
@@ -42,8 +42,13 @@ contract StorageLayoutV1 {
     mapping(address => mapping(address => mapping(uint16 => uint256))) internal nTokenAllowance;
 
     // Transfer operators
+    // Mapping from a global ERC1155 transfer operator contract to an approval value for it
     mapping(address => bool) internal globalTransferOperator;
+    // Mapping from an account => operator => approval status for that operator. This is a specific
+    // approval between two addresses for ERC1155 transfers.
     mapping(address => mapping(address => bool)) internal accountAuthorizedTransferOperator;
+    // Approval for a specific contract to use the `batchBalanceAndTradeActionWithCallback` method in
+    // BatchAction.sol, can only be set by governance
     mapping(address => bool) internal authorizedCallbackContract;
 
     // Reverse mapping from token addresses to currency ids, only used for referencing in views
