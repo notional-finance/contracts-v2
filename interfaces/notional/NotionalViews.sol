@@ -76,7 +76,7 @@ interface NotionalViews {
         external
         view
         returns (
-            uint256 currencyId,
+            uint16 currencyId,
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,

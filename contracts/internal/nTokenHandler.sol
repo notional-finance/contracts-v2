@@ -29,7 +29,7 @@ library nTokenHandler {
         internal
         view
         returns (
-            uint256 currencyId,
+            uint16 currencyId,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -41,7 +41,7 @@ library nTokenHandler {
             data := sload(slot)
         }
 
-        currencyId = uint256(uint16(uint256(data)));
+        currencyId = uint16(uint256(data));
         incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 16)));
         lastInitializedTime = uint256(uint32(uint256(data >> 48)));
         parameters = bytes6(data << 128);

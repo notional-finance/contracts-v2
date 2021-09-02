@@ -220,7 +220,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         return _getActiveMarketsAtBlockTime(currencyId, blockTime);
     }
 
-    function _getActiveMarketsAtBlockTime(uint256 currencyId, uint256 blockTime)
+    function _getActiveMarketsAtBlockTime(uint16 currencyId, uint256 blockTime)
         internal
         view
         returns (MarketParameters[] memory)
@@ -260,7 +260,7 @@ contract Views is StorageLayoutV1, NotionalViews {
     {
         // prettier-ignore
         (
-            uint256 currencyId,
+            uint16 currencyId,
             /* incentiveRate */,
             uint256 lastInitializedTime,
             bytes6 parameters
@@ -283,7 +283,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         view
         override
         returns (
-            uint256 currencyId,
+            uint16 currencyId,
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
@@ -580,7 +580,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
-            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
             balanceState.loadBalanceState(account, currencyId, accountContext);
 
             if (balanceState.storedNTokenBalance > 0) {
