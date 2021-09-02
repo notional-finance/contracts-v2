@@ -101,9 +101,7 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector
         ) {
             return BATCH_ACTION;
-        }
-
-        if (
+        } else if (
             sig == nTokenAction.nTokenTotalSupply.selector ||
             sig == nTokenAction.nTokenBalanceOf.selector ||
             sig == nTokenAction.nTokenTransferAllowance.selector ||
@@ -116,9 +114,7 @@ contract Router is StorageLayoutV1 {
             sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
         ) {
             return NTOKEN_ACTIONS;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.depositUnderlyingToken.selector ||
             sig == NotionalProxy.depositAssetToken.selector ||
             sig == NotionalProxy.withdraw.selector ||
@@ -126,16 +122,12 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.enableBitmapCurrency.selector
         ) {
             return ACCOUNT_ACTION;
-        }
-
-        if (
+        } else if (
             sig == nTokenRedeemAction.nTokenRedeem.selector ||
             sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
         ) {
             return NTOKEN_REDEEM;
-        }
-
-        if (
+        } else if (
             sig == nERC1155Interface.supportsInterface.selector ||
             sig == nERC1155Interface.balanceOf.selector ||
             sig == nERC1155Interface.balanceOfBatch.selector ||
@@ -147,34 +139,26 @@ contract Router is StorageLayoutV1 {
             sig == nERC1155Interface.isApprovedForAll.selector
         ) {
             return ERC1155;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.liquidateLocalCurrency.selector ||
             sig == NotionalProxy.liquidateCollateralCurrency.selector ||
             sig == NotionalProxy.calculateLocalCurrencyLiquidation.selector ||
             sig == NotionalProxy.calculateCollateralCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_CURRENCY;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.liquidatefCashLocal.selector ||
             sig == NotionalProxy.liquidatefCashCrossCurrency.selector ||
             sig == NotionalProxy.calculatefCashLocalLiquidation.selector ||
             sig == NotionalProxy.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.initializeMarkets.selector ||
             sig == NotionalProxy.sweepCashIntoMarkets.selector
         ) {
             return INITIALIZE_MARKET;
-        }
-
-        if (
+        } else if (
             sig == NotionalGovernance.listCurrency.selector ||
             sig == NotionalGovernance.enableCashGroup.selector ||
             sig == NotionalGovernance.updateCashGroup.selector ||
@@ -192,11 +176,11 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
+        } else {
+            // If not found then delegate to views. This will revert if there is no method on
+            // the view contract
+            return VIEWS;
         }
-
-        // If not found then delegate to views. This will revert if there is no method on
-        // the view contract
-        return VIEWS;
     }
 
     /// @dev Delegates the current call to `implementation`.
