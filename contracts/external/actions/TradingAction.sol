@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../FreeCollateralExternal.sol";
 import "../SettleAssetsExternal.sol";
@@ -363,9 +363,8 @@ library TradingAction {
             counterpartyContext
         );
 
-        // Settled account must borrow from the 3 month market at a penalty rate. Even if the market is
-        // not initialized we can still settle cash debts because we reference the previous 3 month market's oracle
-        // rate which is where the new 3 month market's oracle rate will be initialized to.
+        // Settled account must borrow from the 3 month market at a penalty rate. This will fail if the market
+        // is not initialized.
         uint256 threeMonthMaturity = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         int256 fCashAmount =
             _getfCashSettleAmount(cashGroup, threeMonthMaturity, blockTime, amountToSettleAsset);

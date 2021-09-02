@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../valuation/AssetHandler.sol";
 import "../markets/Market.sol";
