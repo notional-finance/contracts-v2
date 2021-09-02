@@ -157,7 +157,7 @@ contract NotionalV1ToNotionalV2 {
         int256[] memory balances = Escrow.getBalances(account);
         int256 collateralBalance =
             (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
-        require(collateralBalance > 0);
+        require(0 < collateralBalance && collateralBalance <= type(uint128).max);
 
         {
             INotionalV1Erc1155.Deposit[] memory deposits = new INotionalV1Erc1155.Deposit[](1);
@@ -165,13 +165,15 @@ contract NotionalV1ToNotionalV2 {
             INotionalV1Erc1155.Withdraw[] memory withdraws = new INotionalV1Erc1155.Withdraw[](1);
 
             // This will deposit what was borrowed from the account's wallet
-            deposits[0].currencyId = v1DebtCurrencyId;
-            deposits[0].amount = v1RepayAmount;
+            deposits[0] = INotionalV1Erc1155.Deposit(v1DebtCurrencyId, v1RepayAmount);
 
-            // This will withdraw to the current contract the collateral to repay the flash loan
-            withdraws[0].currencyId = v1CollateralId;
-            withdraws[0].to = address(this);
-            withdraws[0].amount = uint128(collateralBalance);
+            // This will withdraw to the current contract the collateral to repay the flash loan,
+            // overflow checked above
+            withdraws[0] = INotionalV1Erc1155.Withdraw(
+                address(this), // Will withdraw collateral to this contract, to be deposited below
+                v1CollateralId,
+                uint128(collateralBalance)
+            );
 
             NotionalV1Erc1155.batchOperationWithdraw(
                 account,
@@ -199,5 +201,7 @@ contract NotionalV1ToNotionalV2 {
         // When this exits it will do a free collateral check
     }
 
-    receive() external payable {}
+    receive() external payable {
+        // Allows contract to receive ETH during WETH withdraw
+    }
 }
