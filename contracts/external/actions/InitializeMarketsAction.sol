@@ -235,7 +235,7 @@ library InitializeMarketsAction {
                 }
 
                 totalCashWithholding = totalCashWithholding.sub(
-                    AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate)
+                    AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
                 );
             }
 

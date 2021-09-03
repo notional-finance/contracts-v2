@@ -57,13 +57,12 @@ library CashGroup {
     function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 assetType)
         internal
         pure
-        returns (uint256)
+        returns (uint8)
     {
         require(assetType > 1); // dev: liquidity haircut invalid asset type
         uint256 offset =
             LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - Constants.MIN_LIQUIDITY_TOKEN_INDEX);
-        uint256 liquidityTokenHaircut = uint256(uint8(uint256(cashGroup.data >> offset)));
-        return liquidityTokenHaircut;
+        return uint8(uint256(cashGroup.data >> offset));
     }
 
     /// @notice Total trading fee denominated in basis points

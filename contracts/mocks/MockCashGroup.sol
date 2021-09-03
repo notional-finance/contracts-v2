@@ -109,7 +109,7 @@ contract MockCashGroup is StorageLayoutV1 {
     function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 timeToMaturity)
         public
         pure
-        returns (uint256)
+        returns (uint8)
     {
         return cashGroup.getLiquidityHaircut(timeToMaturity);
     }

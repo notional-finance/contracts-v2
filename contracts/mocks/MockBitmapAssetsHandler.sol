@@ -126,7 +126,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     ) public view returns (int256) {
         uint256 oracleRate = CashGroup.calculateOracleRate(cashGroup, maturity, blockTime);
 
-        return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        return AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
     }
 
     function getRiskAdjustedPresentValue(
@@ -138,7 +138,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 oracleRate = CashGroup.calculateOracleRate(cashGroup, maturity, blockTime);
 
         return
-            AssetHandler.getRiskAdjustedPresentValue(
+            AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
                 maturity,

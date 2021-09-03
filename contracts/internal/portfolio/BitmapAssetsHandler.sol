@@ -179,7 +179,7 @@ library BitmapAssetsHandler {
         uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
         if (riskAdjusted) {
             return
-                AssetHandler.getRiskAdjustedPresentValue(
+                AssetHandler.getRiskAdjustedPresentfCashValue(
                     cashGroup,
                     notional,
                     maturity,
@@ -188,7 +188,7 @@ library BitmapAssetsHandler {
                 );
         }
 
-        return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        return AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
     }
 
     /// @notice Get the net present value of all the ifCash assets

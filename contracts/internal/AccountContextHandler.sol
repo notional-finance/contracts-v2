@@ -104,18 +104,21 @@ library AccountContextHandler {
 
     /// @notice Checks if a currency id (uint16 max) is in the 9 slots in the account
     /// context active currencies list.
+    /// @dev NOTE: this may be more efficient as a binary search since we know that the array
+    /// is sorted
     function isActiveInBalances(AccountContext memory accountContext, uint256 currencyId)
         internal
         pure
         returns (bool)
     {
-        bytes18 currencies = accountContext.activeCurrencies;
+        // @audit-ok
         require(currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
+        bytes18 currencies = accountContext.activeCurrencies;
 
         if (accountContext.bitmapCurrencyId == currencyId) return true;
 
         while (currencies != 0x00) {
-            uint256 cid = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            uint256 cid = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
             if (cid == currencyId) {
                 // Currency found, return if it is active in balances or not
                 return bytes2(currencies) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES;
@@ -139,10 +142,12 @@ library AccountContextHandler {
         bool isActive,
         bytes2 flags
     ) internal pure {
-        require(currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
+        require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
 
         // If the bitmapped currency is already set then return here. Turning off the bitmap currency
         // id requires other logical handling so we will do it elsewhere.
+        // @audit-ok if you try to turn off a bitmap currency then this will be inefficient (it should not be
+        // in the list but even if it is it will be removed)
         if (isActive && accountContext.bitmapCurrencyId == currencyId) return;
 
         bytes18 prefix;
@@ -161,7 +166,7 @@ library AccountContextHandler {
         ///      - it must be set to active, check that the last two bytes are not set and then
         ///        append to the prefix
         ///      - it must be set to inactive, do nothing
-
+        // @audit consider simplifying this loop to use a binary search so it is easier to test and audit
         while (suffix != 0x00) {
             uint256 cid = uint256(uint16(bytes2(suffix) & Constants.UNMASK_FLAGS));
             // if matches and isActive then return, already in list
@@ -213,15 +218,18 @@ library AccountContextHandler {
     }
 
     function _clearPortfolioActiveFlags(bytes18 activeCurrencies) internal pure returns (bytes18) {
+        // @audit-ok
         bytes18 result;
+        // This is required to clear the suffix as we append below
         bytes18 suffix = activeCurrencies & TURN_OFF_PORTFOLIO_FLAGS;
         uint256 shifts;
 
+        // This loop will append all currencies that are active in balances into the result.
         while (suffix != 0x00) {
             if (bytes2(suffix) & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
                 // If any flags are active, then append.
-                result = result | (bytes18(bytes2(suffix)) >> (shifts * 16));
-                shifts += 1;
+                result = result | (bytes18(bytes2(suffix)) >> shifts);
+                shifts += 16;
             }
             suffix = suffix << 16;
         }
@@ -237,30 +245,38 @@ library AccountContextHandler {
         PortfolioState memory portfolioState,
         bool isLiquidation
     ) internal {
+        // @audit-ok
+        // Each of these parameters is recalculated based on the entire array of assets in store assets,
+        // regardless of whether or not they have been updated.
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =
             portfolioState.storeAssets(account);
+        accountContext.assetArrayLength = assetArrayLength;
+        accountContext.nextSettleTime = nextSettleTime;
 
+        // During liquidation it is possible for an array to go over the max amount of assets allowed due to
+        // liquidity tokens being withdrawn into fCash.
         if (!isLiquidation) {
             require(assetArrayLength <= uint8(Constants.MAX_TRADED_MARKET_INDEX)); // dev: max assets allowed
         }
 
+        // Sets the hasDebt flag properly based on whether or not portfolio has asset debt, meaning
+        // a negative fCash balance.
         if (hasDebt) {
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
         } else {
             // Turns off the ASSET_DEBT flag
-            accountContext.hasDebt = accountContext.hasDebt & Constants.HAS_CASH_DEBT;
+            accountContext.hasDebt = accountContext.hasDebt & ~Constants.HAS_ASSET_DEBT;
         }
-        accountContext.assetArrayLength = assetArrayLength;
-        accountContext.nextSettleTime = nextSettleTime;
+
+        // Clear the active portfolio active flags and they will be recalculated in the next step
+        accountContext.activeCurrencies = _clearPortfolioActiveFlags(accountContext.activeCurrencies);
 
         uint256 lastCurrency;
-        // Clear the active portfolio active flags and they will be recalculated in the next step
-        accountContext.activeCurrencies = _clearPortfolioActiveFlags(
-            accountContext.activeCurrencies
-        );
-
         while (portfolioCurrencies != 0) {
-            uint256 currencyId = uint256(uint16(bytes2(portfolioCurrencies)));
+            // Portfolio currencies will not have flags, it is just an byte array of all the currencies found
+            // in a portfolio. They are appended in a sorted order so we can compare to the previous currency
+            // and only set it if they are different.
+            uint256 currencyId = uint16(bytes2(portfolioCurrencies));
             if (currencyId != lastCurrency) {
                 setActiveCurrency(accountContext, currencyId, true, Constants.ACTIVE_IN_PORTFOLIO);
             }

@@ -55,6 +55,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (Token memory assetToken, Token memory underlyingToken)
     {
+        // @audit this check adds 2000+ gas every time, not sure if it is worth it...
         _checkValidCurrency(currencyId);
         assetToken = TokenHandler.getToken(currencyId, false);
         underlyingToken = TokenHandler.getToken(currencyId, true);

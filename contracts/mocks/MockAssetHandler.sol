@@ -60,7 +60,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint256 blockTime,
         uint256 oracleRate
     ) public pure returns (int256) {
-        int256 pv = AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        int256 pv = AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
         if (notional > 0) assert(pv > 0);
         if (notional < 0) assert(pv < 0);
 
@@ -76,7 +76,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint256 oracleRate
     ) public pure returns (int256) {
         int256 riskPv =
-            AssetHandler.getRiskAdjustedPresentValue(
+            AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
                 maturity,

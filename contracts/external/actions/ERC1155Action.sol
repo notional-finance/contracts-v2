@@ -138,6 +138,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             PortfolioAsset[] memory assets = new PortfolioAsset[](1);
             (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
                 .decodeAssetId(id);
+            // @audit-ok overflow is checked above
+            // @audit write a unit test to check overflow
             assets[0].notional = int256(amount);
             _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
 
