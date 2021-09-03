@@ -85,6 +85,7 @@ contract nTokenERC20Proxy is IERC20 {
         bool success = proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(msg.sender, to, amount);
+        return success;
     }
 
     /// @notice Transfer `amount` tokens from `src` to `dst`

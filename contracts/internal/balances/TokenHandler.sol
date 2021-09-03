@@ -48,7 +48,7 @@ library TokenHandler {
     }
 
     function getUnderlyingToken(uint256 currencyId) internal view returns (Token memory) {
-        return _getToken(currencyId, false);
+        return _getToken(currencyId, true);
     }
 
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
