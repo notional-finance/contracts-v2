@@ -57,8 +57,8 @@ contract Views is StorageLayoutV1, NotionalViews {
     {
         // @audit this check adds 2000+ gas every time, not sure if it is worth it...
         _checkValidCurrency(currencyId);
-        assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, true);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
     }
 
     /// @notice Returns the ETH and Asset rates for a currency as stored, useful for viewing how they are configured
@@ -87,8 +87,8 @@ contract Views is StorageLayoutV1, NotionalViews {
         )
     {
         _checkValidCurrency(currencyId);
-        assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, false);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
         ethRate = ExchangeRate.buildExchangeRate(currencyId);
         assetRate = AssetRate.buildAssetRateView(currencyId);
     }
@@ -468,7 +468,8 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (uint256)
     {
         _checkValidCurrency(currencyId);
-        Token memory token = TokenHandler.getToken(currencyId, false);
+        // @audit-ok we get the asset token to calculate deposit amount
+        Token memory token = TokenHandler.getAssetToken(currencyId);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory nToken;

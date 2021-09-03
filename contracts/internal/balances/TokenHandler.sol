@@ -43,9 +43,17 @@ library TokenHandler {
         }
     } 
 
+    function getAssetToken(uint256 currencyId) internal view returns (Token memory) {
+        return _getToken(currencyId, false);
+    }
+
+    function getUnderlyingToken(uint256 currencyId) internal view returns (Token memory) {
+        return _getToken(currencyId, false);
+    }
+
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
     /// the underlying token. (These may not always exist)
-    function getToken(uint256 currencyId, bool underlying) internal view returns (Token memory) {
+    function _getToken(uint256 currencyId, bool underlying) private view returns (Token memory) {
         bytes32 slot = _getSlot(currencyId, underlying);
         bytes32 data;
 
@@ -107,7 +115,7 @@ library TokenHandler {
 
         // Once a token is set we cannot override it. In the case that we do need to do change a token address
         // then we should explicitly upgrade this method to allow for a token to be changed.
-        Token memory token = getToken(currencyId, underlying);
+        Token memory token = _getToken(currencyId, underlying);
         require(
             token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
             "TH: token cannot be reset"
@@ -115,7 +123,7 @@ library TokenHandler {
 
         if (tokenStorage.tokenType == TokenType.cToken) {
             // Set the approval for the underlying so that we can mint cTokens
-            Token memory underlyingToken = getToken(currencyId, true);
+            Token memory underlyingToken = getUnderlyingToken(currencyId);
             ERC20(underlyingToken.tokenAddress).approve(
                 tokenStorage.tokenAddress,
                 type(uint256).max

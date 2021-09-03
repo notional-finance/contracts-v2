@@ -136,8 +136,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     ) external override onlyOwner {
         {
             // Cannot enable fCash trading on a token with a max collateral balance
-            Token memory assetToken = TokenHandler.getToken(currencyId, false);
-            Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
+            Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
             require(
                 assetToken.maxCollateralBalance == 0 &&
                 underlyingToken.maxCollateralBalance == 0
@@ -361,7 +361,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
 
         // If rate oracle refers to address zero then do not apply any updates here, this means
         // that a token is non mintable.
-        Token memory assetToken = TokenHandler.getToken(currencyId, false);
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
         if (address(rateOracle) == address(0)) {
             // Sanity check that unset rate oracles are only for non mintable tokens
             require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");

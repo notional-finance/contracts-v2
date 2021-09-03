@@ -17,9 +17,9 @@ library BalanceHandler {
     using AccountContextHandler for AccountContext;
 
     /// @notice Emitted when a cash balance changes
-    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
+    event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
     /// @notice Emitted when nToken supply changes (not the same as transfers)
-    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
+    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
 
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
@@ -38,8 +38,7 @@ library BalanceHandler {
     ) internal returns (int256) {
         if (assetAmountExternal == 0) return 0;
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
-        // @audit-ok gets asset token, change this call
-        Token memory token = TokenHandler.getToken(balanceState.currencyId, false);
+        Token memory token = TokenHandler.getAssetToken(balanceState.currencyId);
         int256 assetAmountInternal = token.convertToInternal(assetAmountExternal);
 
         // Force transfer is used to complete the transfer before going to finalize
@@ -51,6 +50,7 @@ library BalanceHandler {
             // Convert the external precision to internal, it's possible that we lose dust amounts here but
             // this is unavoidable because we do not know how transfer fees are calculated.
             assetAmountInternal = token.convertToInternal(assetAmountExternalPrecisionFinal);
+            // @audit-ok transfer has been called
             balanceState.netCashChange = balanceState.netCashChange.add(assetAmountInternal);
 
             return assetAmountInternal;
@@ -59,6 +59,7 @@ library BalanceHandler {
         // Otherwise add the asset amount here. It may be net off later and we want to only do
         // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
         // and external account remain in sync.
+        // @audit-ok transfer will be deferred
         balanceState.netAssetTransferInternalPrecision = balanceState
             .netAssetTransferInternalPrecision
             .add(assetAmountInternal);
@@ -80,7 +81,7 @@ library BalanceHandler {
 
         // @audit change getter to getUnderlyingToken or getAssetToken
         // @audit-ok gets the underlying token
-        Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
             // @audit-ok adding overflow check here
@@ -90,7 +91,7 @@ library BalanceHandler {
         }
 
         // @audit-ok gets the asset token
-        Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+        Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
         // Tokens that are not mintable like cTokens will be deposited as assetTokens
         require(assetToken.tokenType == TokenType.cToken || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type
         int256 assetTokensReceivedExternalPrecision =
@@ -101,6 +102,7 @@ library BalanceHandler {
         // accrue but that is not relevant now.
         int256 assetTokensReceivedInternal =
             assetToken.convertToInternal(assetTokensReceivedExternalPrecision);
+        // @audit-ok transfer / mint has taken effect
         balanceState.netCashChange = balanceState.netCashChange.add(assetTokensReceivedInternal);
 
         return assetTokensReceivedInternal;
@@ -210,7 +212,7 @@ library BalanceHandler {
         address account,
         bool redeemToUnderlying
     ) private returns (int256 actualTransferAmountExternal) {
-        Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+        Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
         int256 assetTransferAmountExternal =
             assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
@@ -221,7 +223,7 @@ library BalanceHandler {
             // no loss of precision between our internal accounting and the external account. In this case
             // there will be no dust accrual since we will transfer the exact amount of underlying that was
             // received.
-            Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
             int256 underlyingAmountExternal = assetToken.redeem(
                 underlyingToken,
                 // NOTE: dust may accrue at the lowest decimal place

@@ -14,8 +14,12 @@ contract MockBalanceHandler is StorageLayoutV1 {
         maxCurrencyId = num;
     }
 
-    function getCurrencyMapping(uint256 id, bool underlying) external view returns (Token memory) {
-        return TokenHandler.getToken(id, underlying);
+    function getCurrencyMapping(uint16 id, bool underlying) external view returns (Token memory) {
+        if (underlying) {
+            return TokenHandler.getUnderlyingToken(id);
+        } else {
+            return TokenHandler.getAssetToken(id);
+        }
     }
 
     function setCurrencyMapping(

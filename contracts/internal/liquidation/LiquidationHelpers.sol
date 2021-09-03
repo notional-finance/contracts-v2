@@ -174,7 +174,7 @@ library LiquidationHelpers {
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
-        Token memory token = TokenHandler.getToken(localCurrencyId, false);
+        Token memory token = TokenHandler.getAssetToken(localCurrencyId);
         AccountContext memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
         BalanceState memory liquidatorLocalBalance;
