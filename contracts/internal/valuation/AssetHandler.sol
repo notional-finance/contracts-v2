@@ -49,7 +49,7 @@ library AssetHandler {
         int128 expValue =
             ABDKMath64x64.fromUInt(oracleRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME));
         expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
-        expValue = ABDKMath64x64.exp(expValue * -1);
+        expValue = ABDKMath64x64.exp(ABDKMath64x64.neg(expValue));
         expValue = ABDKMath64x64.mul(expValue, Constants.RATE_PRECISION_64x64);
         int256 discountFactor = ABDKMath64x64.toInt(expValue);
 
