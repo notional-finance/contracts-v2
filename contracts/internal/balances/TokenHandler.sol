@@ -62,6 +62,7 @@ library TokenHandler {
             Token({
                 tokenAddress: tokenAddress,
                 hasTransferFee: tokenHasTransferFee,
+                // @audit-ok no overflow, restricted on storage
                 decimals: int256(10**tokenDecimalPlaces),
                 tokenType: tokenType,
                 maxCollateralBalance: maxCollateralBalance
@@ -102,7 +103,7 @@ library TokenHandler {
         }
 
         uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
-        require(decimalPlaces != 0, "TH: decimals is zero");
+        require(0 < decimalPlaces && decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
 
         // Once a token is set we cannot override it. In the case that we do need to do change a token address
         // then we should explicitly upgrade this method to allow for a token to be changed.

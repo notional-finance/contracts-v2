@@ -16,7 +16,6 @@ library ExchangeRate {
     /// @param er exchange rate object from base to ETH
     /// @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
     function convertToETH(ETHRate memory er, int256 balance) internal pure returns (int256) {
-        if (balance == 0) return 0;
         int256 multiplier = balance > 0 ? er.haircut : er.buffer;
 
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
@@ -35,8 +34,6 @@ library ExchangeRate {
     /// @param er exchange rate object from base to ETH
     /// @param balance amount (denominated in ETH) to convert
     function convertETHTo(ETHRate memory er, int256 balance) internal pure returns (int256) {
-        if (balance == 0) return 0;
-
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
         // internalDecimals * rateDecimals / rateDecimals
         int256 result = balance.mul(er.rateDecimals).div(er.rate);
@@ -73,7 +70,7 @@ library ExchangeRate {
             rateDecimals = Constants.ETH_DECIMALS;
             rate = Constants.ETH_DECIMALS;
         } else {
-            address rateOracle = address(bytes20(data << 96));
+            address rateOracle = address(uint160(uint256(data)));
             // prettier-ignore
             (
                 /* uint80 */,
@@ -84,7 +81,8 @@ library ExchangeRate {
             ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
             require(rate > 0, "ExchangeRate: invalid rate");
 
-            uint8 rateDecimalPlaces = uint8(bytes1(data << 88));
+            uint8 rateDecimalPlaces = uint8(uint256(data >> 160));
+            // @audit-ok no overflow, restricted on storage
             rateDecimals = int256(10**rateDecimalPlaces);
             if (
                 bytes1(data << 80) != Constants.BOOL_FALSE /* mustInvert */
@@ -93,9 +91,9 @@ library ExchangeRate {
             }
         }
 
-        int256 buffer = int256(uint8(bytes1(data << 72)));
-        int256 haircut = int256(uint8(bytes1(data << 64)));
-        int256 liquidationDiscount = int256(uint8(bytes1(data << 56)));
+        int256 buffer = uint8(bytes1(data << 72));
+        int256 haircut = uint8(bytes1(data << 64));
+        int256 liquidationDiscount = uint8(bytes1(data << 56));
         return
             ETHRate({
                 rateDecimals: rateDecimals,

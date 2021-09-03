@@ -9,7 +9,7 @@ import "interfaces/notional/AssetRateAdapter.sol";
 
 library AssetRate {
     using SafeInt256 for int256;
-    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
+    event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
     uint256 private constant ASSET_RATE_STORAGE_SLOT = 2;
     // Asset rates are in 1e18 decimals (cToken exchange rates), internal balances
@@ -24,10 +24,8 @@ library AssetRate {
         pure
         returns (int256)
     {
-        if (assetBalance == 0) return 0;
-
         // Calculation here represents:
-        // rateDecimals * balance * internalPrecision / rateDecimals * underlyingPrecision
+        // rate * balance * internalPrecision / rateDecimals * underlyingPrecision
         int256 underlyingBalance =
             ar.rate.mul(assetBalance).div(ASSET_RATE_DECIMAL_DIFFERENCE).div(ar.underlyingDecimals);
 
@@ -42,10 +40,8 @@ library AssetRate {
         pure
         returns (int256)
     {
-        if (underlyingBalance == 0) return 0;
-
         // Calculation here represents:
-        // rateDecimals * balance * underlyingPrecision / rateDecimals * internalPrecision
+        // rateDecimals * balance * underlyingPrecision / rate * internalPrecision
         int256 assetBalance =
             underlyingBalance.mul(ASSET_RATE_DECIMAL_DIFFERENCE).mul(ar.underlyingDecimals).div(
                 ar.rate
@@ -78,7 +74,7 @@ library AssetRate {
             data := sload(slot)
         }
 
-        rateOracle = AssetRateAdapter(address(bytes20(data << 96)));
+        rateOracle = AssetRateAdapter(address(uint256(data)));
         underlyingDecimalPlaces = uint8(uint256(data >> 160));
     }
 
@@ -99,6 +95,7 @@ library AssetRate {
         if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
+            // @audit-ok this will get raised to 10^x and return 1, will not end up with div by zero
             underlyingDecimalPlaces = 0;
         } else {
             rate = rateOracle.getExchangeRateView();
@@ -146,6 +143,7 @@ library AssetRate {
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
+                // @audit-ok no overflow, restricted on storage
                 underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
@@ -162,6 +160,7 @@ library AssetRate {
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
+                // @audit-ok no overflow, restricted on storage
                 underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
@@ -218,6 +217,7 @@ library AssetRate {
         return AssetRateParameters(
             AssetRateAdapter(address(0)),
             settlementRate,
+            // @audit-ok no overflow, restricted on storage
             int256(10**underlyingDecimalPlaces)
         );
     }
@@ -265,6 +265,7 @@ library AssetRate {
         return AssetRateParameters(
             AssetRateAdapter(address(0)),
             settlementRate,
+            // @audit-ok no overflow, restricted on storage
             int256(10**underlyingDecimalPlaces)
         );
     }

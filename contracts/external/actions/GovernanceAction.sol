@@ -381,6 +381,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             underlyingDecimals = ERC20(underlyingToken).decimals();
         }
 
+        // Perform this check to ensure that decimal calculations don't overflow
+        require(underlyingDecimals <= Constants.MAX_DECIMAL_PLACES);
         assetToUnderlyingRateMapping[currencyId] = AssetRateStorage({
             rateOracle: rateOracle,
             underlyingDecimalPlaces: underlyingDecimals
@@ -416,6 +418,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             "G: discount must be gt decimals"
         );
 
+        // Perform this check to ensure that decimal calculations don't overflow
+        require(rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
         underlyingToETHRateMapping[currencyId] = ETHRateStorage({
             rateOracle: rateOracle,
             rateDecimalPlaces: rateDecimalPlaces,
