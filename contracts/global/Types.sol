@@ -54,7 +54,7 @@ enum DepositActionType {
 }
 
 /// @notice Used internally for PortfolioHandler state
-enum AssetStorageState {NoChange, Update, Delete}
+enum AssetStorageState {NoChange, Update, Delete, RevertIfStored}
 
 /****** Calldata objects ******/
 

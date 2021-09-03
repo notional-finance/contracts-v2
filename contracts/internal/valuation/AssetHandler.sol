@@ -193,16 +193,21 @@ library AssetHandler {
 
         // Find the matching fCash asset and net off the value, assumes that the portfolio is sorted and
         // in that case we know the previous asset will be the matching fCash asset
-        if (
-            index > 0 &&
-            assets[index - 1].currencyId == liquidityToken.currencyId &&
-            assets[index - 1].maturity == liquidityToken.maturity &&
-            assets[index - 1].assetType == Constants.FCASH_ASSET_TYPE
-        ) {
-            // Net off the fCashClaim here and we will discount it to present value in the second pass.
-            // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
-            assets[index - 1].notional = assets[index - 1].notional.add(fCashClaim);
-            return (assetCashClaim, 0);
+        if (index > 0) {
+            PortfolioAsset memory maybefCash = assets[index - 1];
+            if (
+                maybefCash.assetType == Constants.FCASH_ASSET_TYPE &&
+                maybefCash.currencyId == liquidityToken.currencyId &&
+                maybefCash.maturity == liquidityToken.maturity
+            ) {
+                // Net off the fCashClaim here and we will discount it to present value in the second pass.
+                // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
+                maybefCash.notional = maybefCash.notional.add(fCashClaim);
+                // This state will prevent the fCash asset from being stored.
+                // @audit test this claim
+                maybefCash.storageState = AssetStorageState.RevertIfStored;
+                return (assetCashClaim, 0);
+            }
         }
 
         // If not matching fCash asset found then get the pv directly
@@ -225,7 +230,8 @@ library AssetHandler {
         }
     }
 
-    /// @notice Returns the asset cash claim and the present value of the fCash asset (if it exists)
+    /// @notice Returns present value of all assets in the cash group as asset cash and the updated
+    /// portfolio index where the function has ended.
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
@@ -258,18 +264,20 @@ library AssetHandler {
 
         uint256 j = portfolioIndex;
         for (; j < assets.length; j++) {
-            if (assets[j].assetType != Constants.FCASH_ASSET_TYPE) continue;
+            PortfolioAsset memory a = assets[j];
+            if (a.assetType != Constants.FCASH_ASSET_TYPE) continue;
             // If we hit a different currency id then we've accounted for all assets in this currency
-            if (assets[j].currencyId != cashGroup.currencyId) break;
+            // @audit-ok j will mark the index where we don't have this currency anymore
+            if (a.currencyId != cashGroup.currencyId) break;
 
-            uint256 maturity = assets[j].maturity;
-            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+            uint256 oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
 
+            // @audit-ok cash group must equal currency id
             int256 pv =
                 getRiskAdjustedPresentfCashValue(
                     cashGroup,
-                    assets[j].notional,
-                    maturity,
+                    a.notional,
+                    a.maturity,
                     blockTime,
                     oracleRate
                 );
