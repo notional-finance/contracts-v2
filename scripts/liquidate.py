@@ -1,4 +1,4 @@
-
+import eth_abi
 from brownie import (
     accounts,
     MockWETH,
@@ -14,6 +14,8 @@ from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import get_balance_action, get_balance_trade_action, get_tref
 
 chain = Chain()
+CollateralCurrency_NoTransferFee = 1
+zeroAddress = HexString(0, "bytes20")
 
 def environment(accounts):
     return TestEnvironment(accounts[0])
@@ -44,6 +46,54 @@ def collateralLiquidate(env):
         accounts[1], [ethCollateral, borrowAction], {"from": accounts[1], "value": 3e18}
     )
 
+    env.ethOracle["DAI"].setAnswer(0.017e18)
+
+    tradeCalldata = eth_abi.encode_abi(
+        [
+            "uint24", 
+            "uint256", 
+            "uint160"
+        ],
+        [
+            3000,
+            chain.time() + 20000,
+            0
+        ]
+    )
+
+    calldata = eth_abi.encode_abi(
+        [
+            "uint8",
+            "address",
+            "uint256",
+            "uint256",
+            "uint128",
+            "uint96",
+            "bytes",
+        ],
+        [
+            CollateralCurrency_NoTransferFee,
+            accounts[1].address,
+            2,
+            1,
+            0,
+            0,
+            tradeCalldata,
+        ],
+    )
+
+    tx = env.flashLender.flashLoan(
+        env.flashLiquidator.address,
+        [env.token["DAI"].address],
+        [100e18],
+        [0],
+        env.flashLiquidator.address,
+        calldata,
+        0,
+        {"from": accounts[0]},
+    )
+    print(tx.events())
+
 DEPOSIT_PARAMETERS = {
     2: [[int(0.4e8), int(0.6e8)], [int(0.8e9)] * 2],
     3: [[int(0.4e8), int(0.4e8), int(0.2e8)], [int(0.8e9)] * 3],
@@ -68,9 +118,8 @@ INIT_PARAMETERS = {
 def main():
     env = environment(accounts)
     deployer = accounts[0]
-    zeroAddress = HexString(0, "bytes20")
 
-    env.uniV3Router = MockUniV3SwapRouter.deploy({"from": deployer})
+    env.swapRouter = MockUniV3SwapRouter.deploy({"from": deployer})
     env.weth = MockWETH.deploy({"from": deployer})
     
     # Create flash lender
@@ -82,14 +131,19 @@ def main():
     env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": accounts[0]})    
 
     env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy(
-        env.uniV3Router.address,
+        env.swapRouter.address,
         env.notional.address,
         env.flashLender.address,
-        zeroAddress,
+        env.flashLender.address,
         env.weth,
         env.cToken["ETH"].address,
         {"from": deployer}
     )
+
+    env.flashLiquidator.setCTokenAddress(env.cToken["DAI"].address, {"from": accounts[0]})
+    env.flashLiquidator.setCTokenAddress(env.cToken["USDT"].address, {"from": accounts[0]})
+    env.flashLiquidator.approveToken(env.cToken["ETH"].address, env.notional.address, {"from": accounts[0]})
+    env.flashLiquidator.approveToken(env.weth.address, env.flashLender.address, {"from": accounts[0]})
 
     # Set time
     blockTime = chain.time()

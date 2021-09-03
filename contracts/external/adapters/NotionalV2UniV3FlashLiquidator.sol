@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./NotionalV2FlashLiquidator.sol";
 import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
     struct ExactOutputSingleParams {
@@ -33,19 +34,32 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
     function executeDexTrade(
         address from,
         address to,
-        uint256 amountOut
+        uint256 amountOut,
+        bytes memory params
     ) internal override {
-        ISwapRouter.ExactOutputSingleParams
-            memory swapParams = ISwapRouter.ExactOutputSingleParams(
-                from,
-                to,
-                3000,
-                address(this),
-                0,
-                amountOut,
-                0,
-                0
-            );
+        uint256 amountIn = IERC20(from).balanceOf(address(this));
+        uint24 fee;
+        uint256 deadline;
+        uint160 priceLimit;
+
+        // prettier-ignore
+        (
+            fee,
+            deadline,
+            priceLimit
+        ) = abi.decode(params, (uint24, uint256, uint160));
+
+        ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams(
+            from,
+            to,
+            fee,
+            address(this),
+            deadline,
+            amountOut,
+            amountIn,
+            priceLimit
+        );
+
         ISwapRouter(_swapRouter).exactOutputSingle(swapParams);
     }
 }
