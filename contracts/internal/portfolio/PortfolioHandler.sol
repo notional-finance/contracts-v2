@@ -161,7 +161,7 @@ library PortfolioHandler {
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             // NOTE: this is to prevent the storage of assets that have been modified in the AssetHandler
             // during valuation.
-            require(portfolioState.storedAssets[i].storageState == AssetStorageState.RevertIfStored);
+            require(portfolioState.storedAssets[i].storageState != AssetStorageState.RevertIfStored);
             if (
                 portfolioState.storedAssets[i].storageState != AssetStorageState.Delete &&
                 portfolioState.storedAssets[i].notional == 0
