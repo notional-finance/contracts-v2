@@ -26,8 +26,11 @@ library AssetRate {
     {
         // Calculation here represents:
         // rate * balance * internalPrecision / rateDecimals * underlyingPrecision
-        int256 underlyingBalance =
-            ar.rate.mul(assetBalance).div(ASSET_RATE_DECIMAL_DIFFERENCE).div(ar.underlyingDecimals);
+        // @audit-ok
+        int256 underlyingBalance = ar.rate
+            .mul(assetBalance)
+            .div(ASSET_RATE_DECIMAL_DIFFERENCE)
+            .div(ar.underlyingDecimals);
 
         return underlyingBalance;
     }
@@ -42,10 +45,11 @@ library AssetRate {
     {
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rate * internalPrecision
-        int256 assetBalance =
-            underlyingBalance.mul(ASSET_RATE_DECIMAL_DIFFERENCE).mul(ar.underlyingDecimals).div(
-                ar.rate
-            );
+        // @audit-ok
+        int256 assetBalance = underlyingBalance
+            .mul(ASSET_RATE_DECIMAL_DIFFERENCE)
+            .mul(ar.underlyingDecimals)
+            .div(ar.rate);
 
         return assetBalance;
     }
@@ -57,6 +61,8 @@ library AssetRate {
         if (address(ar.rateOracle) == address(0)) return 0;
 
         uint256 rate = ar.rateOracle.getAnnualizedSupplyRate();
+        // @audit-ok zero supply rate is valid since this is an interest rate, not an exchange rate
+        // and we will not divide by it
         require(rate >= 0); // dev: invalid supply rate
 
         return rate;
@@ -74,6 +80,7 @@ library AssetRate {
             data := sload(slot)
         }
 
+        // @audit-ok
         rateOracle = AssetRateAdapter(address(uint256(data)));
         underlyingDecimalPlaces = uint8(uint256(data >> 160));
     }
@@ -121,6 +128,7 @@ library AssetRate {
         if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
+            // @audit-ok this will get raised to 10^x and return 1, will not end up with div by zero
             underlyingDecimalPlaces = 0;
         } else {
             rate = rateOracle.getExchangeRateStateful();
@@ -187,7 +195,9 @@ library AssetRate {
             data := sload(slot)
         }
 
+        // @audit-ok blockTime (uint40) is not loaded
         settlementRate = int256(uint128(uint256(data >> 40)));
+        // @audit-ok 128 + 40 = 168 (left shift)
         underlyingDecimalPlaces = uint8(uint256(data >> 168));
     }
 
@@ -204,6 +214,7 @@ library AssetRate {
             /* bytes32 slot */
         ) = _getSettlementRateStorage(currencyId, maturity);
 
+        // @audit-ok asset exchange rates cannot be zero
         if (settlementRate == 0) {
             // If settlement rate has not been set then we need to fetch it
             // prettier-ignore
@@ -231,10 +242,12 @@ library AssetRate {
         (int256 settlementRate, uint8 underlyingDecimalPlaces, bytes32 slot) =
             _getSettlementRateStorage(currencyId, maturity);
 
+        // @audit-ok asset exchange rates cannot be zero
         if (settlementRate == 0) {
             // Settlement rate has not yet been set, set it in this branch
             AssetRateAdapter rateOracle;
             // prettier-ignore
+            // @audit-ok if rate oracle == 0 then this will return the identity settlement rate
             (
                 settlementRate,
                 rateOracle,
@@ -246,12 +259,15 @@ library AssetRate {
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
                 require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
-                require(settlementRate > 0 && settlementRate <= type(uint128).max); // dev: settlement rate overflow
+                // @audit-ok settlement rate cannot be zero
+                require(0 < settlementRate && settlementRate <= type(uint128).max); // dev: settlement rate overflow
                 uint128 storedRate = uint128(uint256(settlementRate));
 
                 bytes32 data =
                     (bytes32(blockTime) |
+                        // @audit-ok uint40 shift
                         (bytes32(uint256(storedRate)) << 40) |
+                        // @audit-ok 128 + 40 = 168
                         (bytes32(uint256(underlyingDecimalPlaces)) << 168));
 
                 assembly {
