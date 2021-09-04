@@ -35,7 +35,9 @@ library TokenHandler {
         }
 
         // Clear the top 72 bits for the max collateral balance
+        // @audit-ok top 72 bits in this constant
         data = data & 0x000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        // @audit-ok 256 - 72 == 184
         data = data | bytes32(uint256(maxCollateralBalance) << 184);
 
         assembly {
@@ -44,10 +46,12 @@ library TokenHandler {
     } 
 
     function getAssetToken(uint256 currencyId) internal view returns (Token memory) {
+        // @audit-ok underlying == false
         return _getToken(currencyId, false);
     }
 
     function getUnderlyingToken(uint256 currencyId) internal view returns (Token memory) {
+        // @audit-ok underlying == true
         return _getToken(currencyId, true);
     }
 
@@ -60,10 +64,15 @@ library TokenHandler {
         assembly {
             data := sload(slot)
         }
-        address tokenAddress = address(bytes20(data << 96));
+        // @audit-ok token address is at lowest position
+        address tokenAddress = address(uint256(data));
+        // @audit-ok 256 - 160 - 8 == 88
         bool tokenHasTransferFee = bytes1(data << 88) != Constants.BOOL_FALSE;
-        uint8 tokenDecimalPlaces = uint8(bytes1(data << 80));
-        TokenType tokenType = TokenType(uint8(bytes1(data << 72)));
+        // @audit-ok 160 + 8 == 168
+        uint8 tokenDecimalPlaces = uint8(uint256(data) >> 168);
+        // @audit-ok 160 + 8 + 8 == 176
+        TokenType tokenType = TokenType(uint8(uint256(data) >> 176));
+        // @audit-ok 160 + 8 + 8 + 8 == 184
         uint256 maxCollateralBalance = uint256(data >> 184);
 
         return
@@ -88,10 +97,14 @@ library TokenHandler {
         if (tokenStorage.tokenType == TokenType.Ether && currencyId == Constants.ETH_CURRENCY_ID) {
             // Specific storage for Ether token type
             bytes32 etherData =
-                ((bytes32(bytes20(address(0))) >> 96) |
-                    (bytes32(bytes1(Constants.BOOL_FALSE)) >> 88) |
+                // NOTE: address is set to zero so we don't OR it in here
+                // @audit-ok matches storage shift below
+                ((bytes32(Constants.BOOL_FALSE) >> 88) |
+                    // @audit-ok matches storage shift below
                     bytes32(uint256(18) << 168) |
+                    // @audit-ok matches storage shift below
                     bytes32(uint256(TokenType.Ether) << 176));
+                    // @audit-ok max collateral balance set to zero
 
             assembly {
                 sstore(slot, etherData)
@@ -99,8 +112,26 @@ library TokenHandler {
 
             return;
         }
-        require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
+
+        // @audit-ok check token address
+        // Check token address
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
+        // Once a token is set we cannot override it. In the case that we do need to do change a token address
+        // then we should explicitly upgrade this method to allow for a token to be changed.
+        Token memory token = _getToken(currencyId, underlying);
+        require(
+            token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
+            "TH: token cannot be reset"
+        );
+
+        // Fetch the decimal places here, this will fail if token address is not a contract
+        // @audit-ok
+        uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
+        require(0 < decimalPlaces && decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
+
+        // Validate token type
+        // @audit-ok
+        require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
         if (underlying) {
             // Underlying tokens cannot have max collateral balances, the contract only has a balance temporarily
             // during mint and redeem actions.
@@ -110,18 +141,8 @@ library TokenHandler {
             require(tokenStorage.tokenType != TokenType.UnderlyingToken); // dev: underlying token inconsistent
         }
 
-        uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
-        require(0 < decimalPlaces && decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
-
-        // Once a token is set we cannot override it. In the case that we do need to do change a token address
-        // then we should explicitly upgrade this method to allow for a token to be changed.
-        Token memory token = _getToken(currencyId, underlying);
-        require(
-            token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
-            "TH: token cannot be reset"
-        );
-
         if (tokenStorage.tokenType == TokenType.cToken) {
+            // @audit-ok
             // Set the approval for the underlying so that we can mint cTokens
             Token memory underlyingToken = getUnderlyingToken(currencyId);
             ERC20(underlyingToken.tokenAddress).approve(
@@ -130,14 +151,22 @@ library TokenHandler {
             );
         }
 
+        // Convert transfer fee from a boolean field
+        // @audit-ok
         bytes1 transferFee =
             tokenStorage.hasTransferFee ? Constants.BOOL_TRUE : Constants.BOOL_FALSE;
 
         bytes32 data =
-            ((bytes32(bytes20(tokenStorage.tokenAddress)) >> 96) |
+            // @audit-ok lowest 20 bytes
+            ((bytes32(uint256(tokenStorage.tokenAddress))) |
+                // @audit-ok 256 - 160 - 8 == 88 (shift from left)
                 (bytes32(bytes1(transferFee)) >> 88) |
+                // @audit-ok 160 + 8 == 168 (shift from right)
                 bytes32(uint256(decimalPlaces) << 168) |
+                // @audit-ok 160 + 8 + 8 == 176 (shift from right)
                 bytes32(uint256(tokenStorage.tokenType) << 176) |
+                // @audit-ok 160 + 8 + 8 + 8 == 184 (shift from right)
+                // @audit-ok 256 - 184 == 72 (fits the uint72)
                 bytes32(uint256(tokenStorage.maxCollateralBalance) << 184)
             );
 
@@ -148,6 +177,7 @@ library TokenHandler {
 
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic
     function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
+        // @audit-ok balance in asset
         uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         uint256 success;
@@ -160,11 +190,13 @@ library TokenHandler {
             revert(); // dev: non mintable token
         }
 
-        require(success == 0, "Mint");
+        require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Mint");
+        // @audit-ok balance in asset
         uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         // This is the starting and ending balance in external precision
-        return int256(endingBalance.sub(startingBalance));
+        // @audit-ok adding safe cast
+        return SafeInt256.toInt(endingBalance.sub(startingBalance));
     }
 
     function redeem(
@@ -172,27 +204,34 @@ library TokenHandler {
         Token memory underlyingToken,
         uint256 assetAmountExternal
     ) internal returns (int256) {
+        // @audit-ok
         uint256 startingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
+            // @audit-ok balance in underlying
             startingBalance = address(this).balance;
         } else if (assetToken.tokenType == TokenType.cToken) {
+            // @audit-ok balance in underlying
             startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         } else {
             revert(); // dev: non redeemable failure
         }
 
+        // @audit-ok
         uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
-        require(success == 0, "Redeem");
+        require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Redeem");
 
         uint256 endingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
+            // @audit-ok balance in underlying
             endingBalance = address(this).balance;
         } else {
+            // @audit-ok balance in underlying
             endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         }
 
         // Underlying token external precision
-        return int256(endingBalance.sub(startingBalance));
+        // @audit-ok
+        return SafeInt256.toInt(endingBalance.sub(startingBalance));
     }
 
     /// @notice Handles transfers into and out of the system denominated in the external token decimal
@@ -204,9 +243,11 @@ library TokenHandler {
     ) internal returns (int256) {
         if (netTransferExternal > 0) {
             // Deposits must account for transfer fees.
+            // @audit-ok overflow checked above
             netTransferExternal = _deposit(token, account, uint256(netTransferExternal));
         } else if (token.tokenType == TokenType.Ether) {
-            require(netTransferExternal < 0); // dev: cannot transfer ether
+            // @audit-ok user must push ether
+            require(netTransferExternal <= 0); // dev: cannot deposit ether
             address payable accountPayable = payable(account);
             // This does not work with contracts, but is reentrancy safe. If contracts want to withdraw underlying
             // ETH they will have to withdraw the cETH token and then redeem it manually.
@@ -215,6 +256,7 @@ library TokenHandler {
             safeTransferOut(
                 token.tokenAddress,
                 account,
+                // @audit-ok netTransferExternal is zero or negative here
                 uint256(netTransferExternal.neg())
             );
         }
@@ -245,7 +287,8 @@ library TokenHandler {
         }
 
         if (token.maxCollateralBalance > 0) {
-            int256 internalPrecisionBalance = convertToInternal(token, int256(endingBalance));
+            int256 internalPrecisionBalance = convertToInternal(token, SafeInt256.toInt(endingBalance));
+            // @audit-ok max collateral balance is stored as uint72, no overflow
             require(internalPrecisionBalance <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
         }
 
@@ -256,16 +299,20 @@ library TokenHandler {
         }
 
         if (token.hasTransferFee) {
-            return int256(endingBalance.sub(startingBalance).sub(finalAmountAdjustment));
+            // @audit-ok math is done in uint and will revert on negative
+            return SafeInt256.toInt(endingBalance.sub(startingBalance).sub(finalAmountAdjustment));
         } else {
-            return int256(amount.sub(finalAmountAdjustment));
+            // @audit-ok math is done in uint and will revert on negative
+            // @audit-ok if amount == 0 then this will revert if final amount adjustment is 1
+            return SafeInt256.toInt(amount.sub(finalAmountAdjustment));
         }
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {
         // If token decimals is greater than INTERNAL_TOKEN_PRECISION then this will truncate
-        // down to the internal precision. If token decimals is less than INTERNAL_TOKEN_PRECISION
-        // then this will add zeros to the end of amount and will not result in dust.
+        // down to the internal precision. Resulting dust will accumulate to the protocol.
+        // If token decimals is less than INTERNAL_TOKEN_PRECISION then this will add zeros to the
+        // end of amount and will not result in dust.
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
         return amount.mul(Constants.INTERNAL_TOKEN_PRECISION).div(token.decimals);
     }
@@ -276,7 +323,7 @@ library TokenHandler {
         // by adding a number of zeros to the end. If token decimals is less than INTERNAL_TOKEN_PRECISION
         // then we will end up truncating off the lower portion of the amount. This can result in the
         // internal cash balances being different from the actual cash balances. This can result in dust
-        // amounts accruing in the protocol.
+        // amounts.
         // For this case, when withdrawing out of the protocol we want to round down such that the
         // protocol will retain more balance than the user. This already happens in the conversion below. When
         // depositing, we want to decrease the amount of cash balance we credit to the user by a dust amount
@@ -309,15 +356,16 @@ library TokenHandler {
 
     function checkReturnCode() private pure {
         bool success;
+        uint[1] memory result;
         assembly {
             switch returndatasize()
                 case 0 {
                     // This is a non-standard ERC-20
-                    success := not(0) // set success to true
+                    success := 1 // set success to true
                 }
                 case 32 {
                     // This is a compliant ERC-20
-                    returndatacopy(0, 0, 32)
+                    returndatacopy(result, 0, 32)
                     success := mload(0) // Set `success = returndata` of external call
                 }
                 default {

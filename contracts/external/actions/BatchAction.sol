@@ -198,7 +198,7 @@ contract BatchAction is StorageLayoutV1 {
 
         // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
         // then all the assets have already been updated in in storage.
-        if (!accountContext.bitmapCurrencyId.isBitmapEnabled()) {
+        if (!accountContext.isBitmapEnabled()) {
             // NOTE: account context is updated in memory inside this method call.
             // @audit have account context return here to make it more explicit
             accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
@@ -212,7 +212,6 @@ contract BatchAction is StorageLayoutV1 {
     }
 
     /// @dev Loads balances and nets off against any cash amounts
-    /// @audit consider removing the automatic netting off...what is the benefit here?
     function _loadBalanceState(
         address account,
         uint256 settleAmountIndex,
@@ -221,6 +220,7 @@ contract BatchAction is StorageLayoutV1 {
         BalanceState memory balanceState,
         AccountContext memory accountContext
     ) private returns (uint256) {
+        /// @audit consider removing the automatic netting off...what is the benefit here?
         while (
             settleAmountIndex < settleAmounts.length &&
             settleAmounts[settleAmountIndex].currencyId < currencyId

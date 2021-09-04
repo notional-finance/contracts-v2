@@ -3,6 +3,9 @@ pragma solidity ^0.7.0;
 
 /// @title All shared constants for the Notional system should be declared here.
 library Constants {
+    // Return code for cTokens that represents no error
+    uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
+
     // Token precision used for all internal balances, TokenHandler library ensures that we
     // limit the dust amount caused by precision mismatches
     int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;

@@ -89,4 +89,9 @@ library SafeInt256 {
         require(x >= 0);
         return uint256(x);
     }
+
+    function toInt(uint256 x) internal pure returns (int256) {
+        require (x <= uint256(type(int256).max));
+        return int256(x);
+    }
 }
