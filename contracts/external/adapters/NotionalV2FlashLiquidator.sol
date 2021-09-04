@@ -188,7 +188,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
                 /* uint8 action */,
                 /* address liquidateAccount */,
                 /* uint256 localCurrency */,
-                collateralCurrency,
+                /* collateralCurrency */,
                 /* uint128 maxCollateralLiquidation */,
                 /* uint96 maxNTokenLiquidation */,
                 tradeCallData
@@ -199,7 +199,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
                 /* uint8 action */,
                 /* address liquidateAccount */,
                 /* uint256 localCurrency*/,
-                collateralCurrency,
+                /* collateralCurrency */,
                 /* fCashMaturities */,
                 /* maxfCashLiquidateAmounts */,
                 tradeCallData
