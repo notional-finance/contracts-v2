@@ -29,6 +29,7 @@ contract BatchAction is StorageLayoutV1 {
         external
         payable
     {
+        // @audit-ok authentication, zero addresss not possible
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         // Return any settle amounts here to reduce the number of storage writes to balances
@@ -37,17 +38,20 @@ contract BatchAction is StorageLayoutV1 {
             SettleAmount[] memory settleAmounts
         ) = _settleAccountIfRequiredAndStorePortfolio(account);
 
-        uint256 settleAmountIndex;
+        uint256 settleAmountIndex = 0;
         BalanceState memory balanceState;
-        for (uint256 i; i < actions.length; i++) {
+        for (uint256 i = 0; i < actions.length; i++) {
+            BalanceAction calldata action = actions[i];
+            // msg.value will only be used when currency id == 1, referencing ETH. The requirement
+            // to sort actions by increasing id enforces that msg.value will only be used once.
             if (i > 0) {
-                require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
+                require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
 
-            settleAmountIndex = _preTradeActions(
+            settleAmountIndex = _loadBalanceState(
                 account,
                 settleAmountIndex,
-                actions[i].currencyId,
+                action.currencyId,
                 settleAmounts,
                 balanceState,
                 accountContext
@@ -56,22 +60,24 @@ contract BatchAction is StorageLayoutV1 {
             _executeDepositAction(
                 account,
                 balanceState,
-                actions[i].actionType,
-                actions[i].depositActionAmount
+                action.actionType,
+                action.depositActionAmount
             );
 
             _calculateWithdrawActionAndFinalize(
                 account,
                 accountContext,
                 balanceState,
-                actions[i].withdrawAmountInternalPrecision,
-                actions[i].withdrawEntireCashBalance,
-                actions[i].redeemToUnderlying
+                action.withdrawAmountInternalPrecision,
+                action.withdrawEntireCashBalance,
+                action.redeemToUnderlying
             );
         }
 
         // Finalize remaining settle amounts
+        // @audit-ok all settle amounts get finalized
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
+        // @audit-ok will call free collateral here
         _finalizeAccountContext(account, accountContext);
     }
 
@@ -84,8 +90,10 @@ contract BatchAction is StorageLayoutV1 {
         external
         payable
     {
+        // @audit-ok authorization
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        // @audit-ok set account context in the correct location
         _finalizeAccountContext(account, accountContext);
     }
 
@@ -94,9 +102,12 @@ contract BatchAction is StorageLayoutV1 {
         BalanceActionWithTrades[] calldata actions,
         bytes calldata callbackData
     ) external payable {
+        // @audit-ok authorization
         require(authorizedCallbackContract[msg.sender], "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        // @audit-ok set account context in the correct location
         accountContext.setAccountContext(account);
+
         // Be sure to set the account context before initiating the callback
         NotionalCallback(msg.sender).notionalCallback(msg.sender, account, callbackData);
 
@@ -115,56 +126,62 @@ contract BatchAction is StorageLayoutV1 {
             PortfolioState memory portfolioState
         ) = _settleAccountIfRequiredAndReturnPortfolio(account);
 
-        uint256 settleAmountIndex;
+        uint256 settleAmountIndex = 0;
         BalanceState memory balanceState;
-        for (uint256 i; i < actions.length; i++) {
+        for (uint256 i = 0; i < actions.length; i++) {
+            BalanceActionWithTrades calldata action = actions[i];
+            // msg.value will only be used when currency id == 1, referencing ETH. The requirement
+            // to sort actions by increasing id enforces that msg.value will only be used once.
             if (i > 0) {
-                require(actions[i].currencyId > actions[i - 1].currencyId, "Unsorted actions");
+                require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
-            settleAmountIndex = _preTradeActions(
+            settleAmountIndex = _loadBalanceState(
                 account,
                 settleAmountIndex,
-                actions[i].currencyId,
+                action.currencyId,
                 settleAmounts,
                 balanceState,
                 accountContext
             );
 
+            // @audit we do not revert on invalid action types here, they also have no effect
             _executeDepositAction(
                 account,
                 balanceState,
-                actions[i].actionType,
-                actions[i].depositActionAmount
+                action.actionType,
+                action.depositActionAmount
             );
 
-            if (actions[i].trades.length > 0) {
+            if (action.trades.length > 0) {
                 int256 netCash;
                 if (accountContext.isBitmapEnabled()) {
                     require(
-                        accountContext.bitmapCurrencyId == actions[i].currencyId,
+                        accountContext.bitmapCurrencyId == action.currencyId,
                         "Invalid trades for account"
                     );
                     bool didIncurDebt;
                     (netCash, didIncurDebt) = TradingAction.executeTradesBitmapBatch(
                         account,
                         accountContext,
-                        actions[i].trades
+                        action.trades
                     );
                     if (didIncurDebt) {
-                        accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
+                        // @audit-ok does set has debt properly
+                        accountContext.hasDebt = Constants.HAS_ASSET_DEBT | accountContext.hasDebt;
                     }
                 } else {
                     // NOTE: we return portfolio state here instead of setting it inside executeTradesArrayBatch
                     // because we want to only write to storage once after all trades are completed
                     (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
                         account,
-                        actions[i].currencyId,
+                        action.currencyId,
                         portfolioState,
-                        actions[i].trades
+                        action.trades
                     );
                 }
 
                 // If the account owes cash after trading, ensure that it has enough
+                // @audit-ok netCash.neg() will always be a positive number
                 if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
                 balanceState.netCashChange = balanceState.netCashChange.add(netCash);
             }
@@ -173,23 +190,30 @@ contract BatchAction is StorageLayoutV1 {
                 account,
                 accountContext,
                 balanceState,
-                actions[i].withdrawAmountInternalPrecision,
-                actions[i].withdrawEntireCashBalance,
-                actions[i].redeemToUnderlying
+                action.withdrawAmountInternalPrecision,
+                action.withdrawEntireCashBalance,
+                action.redeemToUnderlying
             );
         }
 
-        if (accountContext.bitmapCurrencyId == 0) {
+        // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
+        // then all the assets have already been updated in in storage.
+        if (!accountContext.bitmapCurrencyId.isBitmapEnabled()) {
+            // NOTE: account context is updated in memory inside this method call.
+            // @audit have account context return here to make it more explicit
             accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
 
         // Finalize remaining settle amounts
+        // @audit-ok all settle amounts get finalized
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
+        // NOTE: free collateral and account context will be set outside of this method call.
         return accountContext;
     }
 
-    /// @dev Loads balances, nets off settle amounts and then executes deposit actions
-    function _preTradeActions(
+    /// @dev Loads balances and nets off against any cash amounts
+    /// @audit consider removing the automatic netting off...what is the benefit here?
+    function _loadBalanceState(
         address account,
         uint256 settleAmountIndex,
         uint256 currencyId,
@@ -204,10 +228,12 @@ contract BatchAction is StorageLayoutV1 {
             // Loop through settleAmounts to find a matching currency
             settleAmountIndex += 1;
         }
+        // @audit-info at this point settle amount index will be equal to or past the currency
 
         // This saves a number of memory allocations
         balanceState.loadBalanceState(account, currencyId, accountContext);
 
+        // @audit-ok this will only net off if the currency id matches
         if (
             settleAmountIndex < settleAmounts.length &&
             settleAmounts[settleAmountIndex].currencyId == currencyId
@@ -227,6 +253,7 @@ contract BatchAction is StorageLayoutV1 {
         DepositActionType depositType,
         uint256 depositActionAmount_
     ) private {
+        // @audit-ok overflow checked below
         int256 depositActionAmount = int256(depositActionAmount_);
         int256 assetInternalAmount;
         require(depositActionAmount >= 0);
@@ -237,6 +264,9 @@ contract BatchAction is StorageLayoutV1 {
             depositType == DepositActionType.DepositAsset ||
             depositType == DepositActionType.DepositAssetAndMintNToken
         ) {
+            // @audit-ok correct account and deposit action
+            // NOTE: this deposit will NOT revert on a failed transfer unless there is a
+            // transfer fee. The actual transfer will take effect later in balanceState.finalize
             assetInternalAmount = balanceState.depositAssetToken(
                 account,
                 depositActionAmount,
@@ -246,14 +276,16 @@ contract BatchAction is StorageLayoutV1 {
             depositType == DepositActionType.DepositUnderlying ||
             depositType == DepositActionType.DepositUnderlyingAndMintNToken
         ) {
+            // @audit-ok correct account and deposit action
+            // NOTE: this deposit will revert on a failed transfer immediately
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
         } else if (depositType == DepositActionType.ConvertCashToNToken) {
             // _executeNTokenAction, will check if the account has sufficient cash
             assetInternalAmount = depositActionAmount;
         }
+        // @audit-ok other deposit types will fall through here
 
         _executeNTokenAction(
-            account,
             balanceState,
             depositType,
             depositActionAmount,
@@ -263,7 +295,6 @@ contract BatchAction is StorageLayoutV1 {
 
     /// @dev Executes nToken actions
     function _executeNTokenAction(
-        address account,
         BalanceState memory balanceState,
         DepositActionType depositType,
         int256 depositActionAmount,
@@ -275,6 +306,7 @@ contract BatchAction is StorageLayoutV1 {
             depositType == DepositActionType.DepositUnderlyingAndMintNToken ||
             depositType == DepositActionType.ConvertCashToNToken
         ) {
+            // @audit-ok will revert if trying to mint ntokens and result in a negative cash balance
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
@@ -288,6 +320,7 @@ contract BatchAction is StorageLayoutV1 {
                 tokensMinted
             );
         } else if (depositType == DepositActionType.RedeemNToken) {
+            // @audit-ok will result in a negative ntoken balance
             require(
                 // prettier-ignore
                 balanceState
@@ -319,12 +352,14 @@ contract BatchAction is StorageLayoutV1 {
         bool withdrawEntireCashBalance,
         bool redeemToUnderlying
     ) private {
+        // @audit CVF-214 claims that overflow is possible here, unclear how
         int256 withdrawAmount = int256(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
             // This option is here so that accounts do not end up with dust after lending since we generally
             // cannot calculate exact cash amounts from the liquidity curve.
+            // @audit-ok the ending cash balance will be storedCashBalance + netCashChange + netAssetTransferInternalPrecision
             withdrawAmount = balanceState.storedCashBalance.add(balanceState.netCashChange).add(
                 balanceState.netAssetTransferInternalPrecision
             );
@@ -358,12 +393,12 @@ contract BatchAction is StorageLayoutV1 {
         private
         pure
     {
+        // The total cash position at this point is: storedCashBalance + netCashChange + netAssetTransferInternalPrecision
         require(
             amountInternalPrecision >= 0 &&
-                balanceState.storedCashBalance.add(balanceState.netCashChange).add(
-                    balanceState.netAssetTransferInternalPrecision
-                ) >=
-                amountInternalPrecision,
+                balanceState.storedCashBalance
+                .add(balanceState.netCashChange)
+                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
             "Insufficient cash"
         );
     }
@@ -378,14 +413,16 @@ contract BatchAction is StorageLayoutV1 {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
+            // This will return the appropriate account context and settle amounts
             return SettleAssetsExternal.settleAssetsAndReturnAll(account, accountContext);
+        } else {
+            return (
+                accountContext,
+                new SettleAmount[](0),
+                // @audit we do not use the new assets hint here at all...
+                PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
+            );
         }
-
-        return (
-            accountContext,
-            new SettleAmount[](0),
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
-        );
     }
 
     function _settleAccountIfRequiredAndStorePortfolio(address account)
@@ -393,12 +430,12 @@ contract BatchAction is StorageLayoutV1 {
         returns (AccountContext memory, SettleAmount[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        SettleAmount[] memory settleAmounts;
 
         if (accountContext.mustSettleAssets()) {
+            // This will return the appropriate account context and settle amounts
             return SettleAssetsExternal.settleAssetsAndStorePortfolio(account, accountContext);
+        } else {
+            return (accountContext, new SettleAmount[](0));
         }
-
-        return (accountContext, settleAmounts);
     }
 }
