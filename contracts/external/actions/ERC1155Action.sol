@@ -15,10 +15,8 @@ import "interfaces/notional/nERC1155Interface.sol";
 contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     using AccountContextHandler for AccountContext;
 
-    // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))
-    bytes4 internal constant ERC1155_ACCEPTED = 0xf23a6e61;
-    // bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))
-    bytes4 internal constant ERC1155_BATCH_ACCEPTED = 0xbc197c81;
+    bytes4 internal constant ERC1155_ACCEPTED = bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"));
+    bytes4 internal constant ERC1155_BATCH_ACCEPTED = bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
         return interfaceId == type(nERC1155Interface).interfaceId;
@@ -73,13 +71,17 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 bitmapCurrencyId,
         uint256 id
     ) internal view returns (int256) {
-        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(
-            id
-        );
-        if (currencyId != bitmapCurrencyId) return 0;
-        if (assetType != Constants.FCASH_ASSET_TYPE) return 0;
+        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(id);
 
-        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+        if (
+            currencyId != bitmapCurrencyId ||
+            assetType != Constants.FCASH_ASSET_TYPE
+        ) {
+            // @audit-ok neither of these are possible
+            return 0;
+        } else {
+            return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+        }
     }
 
     /// @dev Searches an array for the matching asset
@@ -88,14 +90,16 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         pure
         returns (int256)
     {
+        // @audit-ok
+        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(id);
+
         for (uint256 i; i < portfolio.length; i++) {
+            PortfolioAsset memory asset = portfolio[i];
             if (
-                TransferAssets.encodeAssetId(
-                    portfolio[i].currencyId,
-                    portfolio[i].maturity,
-                    portfolio[i].assetType
-                ) == id
-            ) return portfolio[i].notional;
+                asset.currencyId == currencyId &&
+                asset.maturity == maturity &&
+                asset.assetType == assetType
+            ) return asset.notional;
         }
     }
 
@@ -115,6 +119,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 amount,
         bytes calldata data
     ) external payable override {
+        // @audit-ok check overflow
         require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
@@ -135,14 +140,15 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
         AccountContext memory fromContext;
         if (amount > 0) {
-            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-            (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
-                .decodeAssetId(id);
+            PortfolioAsset memory asset;
+            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
             // @audit-ok overflow is checked above
             // @audit write a unit test to check overflow
-            assets[0].notional = int256(amount);
-            _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
+            asset.notional = int256(amount);
+            _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
 
+            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
+            assets[0] = asset;
             // prettier-ignore
             (fromContext, /* toContext */) = _transfer(from, to, assets);
 
@@ -211,7 +217,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
     /// @dev Validates accounts on transfer
     function _validateAccounts(address from, address to) private view {
+        // @audit-ok cannot transfer to self, cannot transfer to zero addres
         require(from != to && to != address(0), "Invalid address");
+        // @audit-ok authentication is valid
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
     }
 
@@ -235,23 +243,25 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         view
         returns (PortfolioAsset[] memory, bool)
     {
-        uint256 blockTime = block.timestamp;
+        // @audit-ok check array lengths
+        require(ids.length == amounts.length);
         bool toTransferNegative = false;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
 
         for (uint256 i; i < ids.length; i++) {
-            (assets[i].currencyId, assets[i].maturity, assets[i].assetType) = TransferAssets
-                .decodeAssetId(ids[i]);
+            PortfolioAsset memory asset = assets[i];
+            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(ids[i]);
 
-            _assertValidMaturity(assets[i].currencyId, assets[i].maturity, blockTime);
+            _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
             // Although amounts is encoded as uint256 we allow it to be negative here. This will
             // allow for bidirectional transfers of fCash. Internally fCash assets are always stored
             // as int128 (for bitmap portfolio) or int88 (for array portfolio) so there is no potential
             // that a uint256 value that is greater than type(int256).max would actually valid.
-            assets[i].notional = int256(amounts[i]);
+            asset.notional = int256(amounts[i]);
             // If there is a negative transfer we mark it as such, this will force us to do a free collateral
             // check on the `to` address as well.
-            if (assets[i].notional < 0) toTransferNegative = true;
+            // @audit-ok
+            if (asset.notional < 0) toTransferNegative = true;
         }
 
         return (assets, toTransferNegative);
@@ -267,6 +277,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint40 maturity,
         uint8 assetType
     ) external pure override returns (uint256) {
+        // @audit-ok
         return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
     }
 
@@ -277,6 +288,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 maturity,
         uint256 blockTime
     ) private view {
+        // @audit-ok
         require(
             DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
             "Invalid maturity"
@@ -320,8 +332,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         bytes calldata data,
         bool toTransferNegative
     ) internal {
-        bytes4 sig;
-        address transactedAccount;
+        // @audit-ok initializing values here
+        bytes4 sig = 0;
+        address transactedAccount = address(0);
         if (data.length >= 32) {
             // Method signature is not abi encoded so decode to bytes32 first and take the first 4 bytes. This works
             // because all the methods we want to call below require more than 32 bytes in the calldata
@@ -341,27 +354,48 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             // Ensure that the "transactedAccount" parameter of the call is set to the from address or the
             // to address. If it is the "to" address then ensure that the msg.sender has approval to
             // execute operations
+            // @audit-ok authorization, if msg.sender != from then it is authorized in _validateAccounts
             require(
                 transactedAccount == from ||
                     (transactedAccount == to && isApprovedForAll(to, msg.sender)),
                 "Unauthorized call"
             );
 
+            // @audit-ok can only call back to the notional contracts
+            // @audit-ok account context is already stored at this point
+            // @audit-ok all three whitelisted methods check free collateral
             (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
-            // TODO: retrieve revert string
-            require(status, "Call failed");
+            require(status, _getRevertMsg(result));
         }
 
         // The transacted account will have its free collateral checked above so there is
         // no need to recheck here.
+        // @audit if transactedAccount == 0 then will check fc
+        // @audit if transactedAccount == to then will check fc
+        // @audit if transactedAccount == from then will skip prefer call above
         if (transactedAccount != from && fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
 
         // Check free collateral if the `to` account has taken on a negative fCash amount
+        // @audit toTransferNegative is false then will not check
+        // @audit if transactedAccount == 0 then will check fc
+        // @audit if transactedAccount == from then will check fc
+        // @audit if transactedAccount == to then will skip prefer call above
         if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(to);
         }
+    }
+
+    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
+        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
+        if (_returnData.length < 68) return "Transaction reverted silently";
+
+        assembly {
+            // Slice the sighash.
+            _returnData := add(_returnData, 0x04)
+        }
+        return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
     /// @notice Allows an account to set approval for an operator
