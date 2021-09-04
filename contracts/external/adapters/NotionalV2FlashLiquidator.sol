@@ -89,7 +89,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         IERC20(token).approve(spender, type(uint256).max);
     }
 
-    event OperationExecuted(uint256 num, uint256 cdai, uint256 dai, uint256 ceth, uint256 weth, uint256 eth);
+    event OperationExecuted(uint256 cdai, uint256 dai, uint256 ceth, uint256 weth, uint256 eth);
 
     function executeOperation(
         address[] calldata assets,
@@ -102,28 +102,11 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         require(msg.sender == LENDING_POOL); // dev: unauthorized caller
         LiquidationAction action = LiquidationAction(abi.decode(params, (uint8)));
 
-        emit OperationExecuted(
-            1,
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
         // Mint cTokens for incoming assets, if required. If there are transfer fees
         // the we deposit underlying instead inside each _liquidate call instead
         if (!_hasTransferFees(action)) _mintCTokens(assets, amounts);
 
-        emit OperationExecuted(
-            2,
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
+        address from;
         if (
             action == LiquidationAction.LocalCurrency_WithTransferFee ||
             action == LiquidationAction.LocalCurrency_NoTransferFee
@@ -133,7 +116,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
             action == LiquidationAction.CollateralCurrency_NoTransferFee
         ) {
-            _liquidateCollateral(action, params, assets);
+           from =  _liquidateCollateral(action, params, assets);
         } else if (
             action == LiquidationAction.LocalfCash_WithTransferFee ||
             action == LiquidationAction.LocalfCash_NoTransferFee
@@ -148,7 +131,13 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
         _redeemCTokens(assets);
 
-        revert();
+        emit OperationExecuted(
+            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
+            IERC20(assets[0]).balanceOf(address(this)),
+            IERC20(cETH).balanceOf(address(this)),
+            IERC20(WETH).balanceOf(address(this)),
+            address(this).balance
+        );
 
         if (
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
@@ -156,8 +145,10 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CrossCurrencyfCash_WithTransferFee ||
             action == LiquidationAction.CrossCurrencyfCash_NoTransferFee
         ) {
-            _executeDexTrade(action, assets[0], amounts[0] + premiums[0], params);
+            _executeDexTrade(action, from, assets[0], amounts[0], premiums[0], params);
         }
+
+        revert();
 
         // The lending pool should have enough approval to pull the required amount from the contract
         return true;
@@ -172,14 +163,21 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
     function _executeDexTrade(
         LiquidationAction action,
-        address asset,
+        address from,
+        address to,
         uint256 amount,
+        uint256 premium,
         bytes calldata params
     ) internal {
-        address tradeContract;
-        bytes memory tradeCallData;
-        uint256 tradeETHValue;
+        uint256 bal = IERC20(from).balanceOf(address(this));
+        uint256 total = amount + premium;
+
+        if (bal >= total) {
+            return;
+        }
+
         uint256 collateralCurrency;
+        bytes memory tradeCallData;
 
         if (
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
@@ -208,13 +206,15 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             ) = abi.decode(params, (uint8, address, uint256, uint256, uint256[], uint256[], bytes));
         }
 
-        // prettier-ignore
-        (
-            /* Token memory localAssetToken */,
-            Token memory localUnderlyingToken
-        ) = NotionalV2.getCurrency(uint16(collateralCurrency));
-
-        executeDexTrade(localUnderlyingToken.tokenAddress, asset, amount, tradeCallData);
+        emit OperationExecuted(
+            IERC20(from).balanceOf(address(this)),
+            IERC20(to).balanceOf(address(this)),
+            IERC20(cETH).balanceOf(address(this)),
+            IERC20(WETH).balanceOf(address(this)),
+            address(this).balance
+        );
+        
+        executeDexTrade(from, to, total - bal, tradeCallData);
 
         // Arbitrary call to any DEX to trade back to local currency
         /*(bool success, bytes memory retVal) = tradeContract.call{value: tradeETHValue}(
@@ -285,7 +285,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         LiquidationAction action,
         bytes calldata params,
         address[] calldata assets
-    ) internal {
+    ) internal returns (address) {
         // prettier-ignore
         (
             /* uint8 action */,
@@ -303,15 +303,6 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
         }
 
-        emit OperationExecuted(
-            3,
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
         // prettier-ignore
         (
             /* int256 localAssetCashFromLiquidator */,
@@ -327,22 +318,13 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             false // Redeem to underlying (will happen later)
         );
 
-        emit OperationExecuted(
-            4,
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
         // Redeem to underlying for collateral because it needs to be traded on the DEX
         _redeemAndWithdraw(collateralCurrency, uint96(collateralNTokens), true);
 
         // prettier-ignore
         (
             Token memory localAssetToken,
-            /* Token memory localUnderlyingToken */
+            Token memory localUnderlyingToken
         ) = NotionalV2.getCurrency(uint16(collateralCurrency));
 
         CErc20Interface(localAssetToken.tokenAddress).redeem(IERC20(localAssetToken.tokenAddress).balanceOf(address(this)));
@@ -350,18 +332,11 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         // Wrap everything to WETH for trading
         if (collateralCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
 
-        emit OperationExecuted(
-            5,
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
         // Will withdraw all cash balance, no need to redeem local currency, it will be
         // redeemed later
         if (_hasTransferFees(action)) _redeemAndWithdraw(localCurrency, 0, false);
+
+        return collateralCurrency == 1 ? WETH : localUnderlyingToken.tokenAddress;
     }
 
     function _liquidateLocalfCash(
