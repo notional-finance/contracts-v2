@@ -4,7 +4,7 @@ pragma solidity ^0.7.0;
 import "../global/Constants.sol";
 
 library SafeInt256 {
-    int256 private constant _INT256_MIN = -2**255;
+    int256 private constant _INT256_MIN = type(int256).min;
 
     /// @dev Returns the multiplication of two signed integers, reverting on
     /// overflow.
@@ -15,20 +15,10 @@ library SafeInt256 {
 
     /// - Multiplication cannot overflow.
 
-    function mul(int256 a, int256 b) internal pure returns (int256) {
-        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
-        // benefit is lost if 'b' is also tested.
-        // See: https://github.com/OpenZeppelin/openzeppelin-contracts/pull/522
-        if (a == 0) {
-            return 0;
-        }
-
-        require(!(a == -1 && b == _INT256_MIN)); // dev: int256 mul overflow
-
-        int256 c = a * b;
-        require(c / a == b); // dev: int256 mul overflow
-
-        return c;
+    function mul(int256 a, int256 b) internal pure returns (int256 c) {
+        c = a * b;
+        if (a == -1) require (b == 0 || c / b == a);
+        else require (a == 0 || c / a == b);
     }
 
     /// @dev Returns the integer division of two signed integers. Reverts on
@@ -42,25 +32,25 @@ library SafeInt256 {
 
     /// - The divisor cannot be zero.
 
-    function div(int256 a, int256 b) internal pure returns (int256) {
-        require(b != 0); // dev: int256 div by zero
+    function div(int256 a, int256 b) internal pure returns (int256 c) {
         require(!(b == -1 && a == _INT256_MIN)); // dev: int256 div overflow
-
-        int256 c = a / b;
-
-        return c;
+        // NOTE: solidity will automatically revert on divide by zero
+        c = a / b;
     }
 
     function sub(int256 x, int256 y) internal pure returns (int256 z) {
+        // @audit taken from uniswap v3
         require((z = x - y) <= x == (y >= 0));
     }
 
     function add(int256 x, int256 y) internal pure returns (int256 z) {
+        // @audit taken from uniswap v3
         require((z = x + y) >= x == (y >= 0));
     }
 
-    function neg(int256 x) internal pure returns (int256) {
-        return mul(x, -1);
+    function neg(int256 x) internal pure returns (int256 y) {
+        // @audit via abdk
+        require ((y = -x) ^ x < 0);
     }
 
     function abs(int256 x) internal pure returns (int256) {
@@ -68,8 +58,8 @@ library SafeInt256 {
         else return x;
     }
 
-    function subNoNeg(int256 x, int256 y) internal pure returns (int256) {
-        int256 z = sub(x, y);
+    function subNoNeg(int256 x, int256 y) internal pure returns (int256 z) {
+        z = sub(x, y);
         require(z >= 0); // dev: int256 sub to negative
 
         return z;
