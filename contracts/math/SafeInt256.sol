@@ -84,4 +84,9 @@ library SafeInt256 {
     function mulInRatePrecision(int256 x, int256 y) internal pure returns (int256) {
         return div(mul(x, y), Constants.RATE_PRECISION);
     }
+
+    function toUint(int256 x) internal pure returns (uint256) {
+        require(x >= 0);
+        return uint256(x);
+    }
 }

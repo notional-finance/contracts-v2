@@ -41,6 +41,7 @@ contract AccountAction {
         // @audit-ok no authentication required
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
+            // @audit-ok returns a new memory reference to account context
             accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
             // Don't use the internal method here to avoid setting the account context if it does
             // not require settlement
@@ -87,10 +88,11 @@ contract AccountAction {
             int256(amountExternalPrecision)
         );
 
+        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+
+        // @audit-ok finalize and set account context
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
-
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -128,10 +130,10 @@ contract AccountAction {
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
 
+        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
-
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
         // NOTE: no free collateral checks required for depositing
         return uint256(assetTokensReceivedInternal);
@@ -153,29 +155,27 @@ contract AccountAction {
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
     ) external returns (uint256) {
-        // @audit-ok authentication
-        address account = msg.sender;
-
         // This happens before reading the balance state to get the most up to date cash balance
-        AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(account);
+        AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(msg.sender);
 
         BalanceState memory balanceState;
-        balanceState.loadBalanceState(account, currencyId, accountContext);
+        balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
         // @audit-ok overflow is not possible due to uint88
         balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 
-        int256 amountWithdrawn = balanceState.finalize(account, accountContext, redeemToUnderlying);
+        int256 amountWithdrawn = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
 
-        accountContext.setAccountContext(account);
+        accountContext.setAccountContext(msg.sender);
+
         if (accountContext.hasDebt != 0x00) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+            FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
         }
 
         require(amountWithdrawn <= 0);
-        // @audit add a safe convert method for uint and int
+        // @audit-ok add a safe convert method for uint and int
         // @audit-ok convert to uint checked above
-        return uint256(amountWithdrawn.neg());
+        return amountWithdrawn.neg().toUint();
     }
 
     function _settleAccountIfRequiredAndFinalize(address account)
@@ -184,6 +184,7 @@ contract AccountAction {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
+            // @audit-ok returns a new memory reference to account context
             return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
         } else {
             return accountContext;
