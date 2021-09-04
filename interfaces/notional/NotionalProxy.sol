@@ -10,33 +10,33 @@ import "./NotionalViews.sol";
 
 interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, NotionalViews {
     /** User trading events */
-    event CashBalanceChange(address indexed account, uint16 currencyId, int256 netCashChange);
-    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
+    event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
+    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
     event MarketsInitialized(uint16 currencyId);
     event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
     event SettledCashDebt(
-        address settledAccount,
-        uint16 currencyId,
+        address indexed settledAccount,
+        uint16 indexed currencyId,
         int256 amountToSettleAsset,
         int256 fCashAmount
     );
     event nTokenResidualPurchase(
-        uint16 currencyId,
-        uint40 maturity,
+        uint16 indexed currencyId,
+        uint40 indexed maturity,
         int256 fCashAmountToPurchase,
         int256 netAssetCashNToken
     );
     event LendBorrowTrade(
-        address account,
-        uint16 currencyId,
+        address indexed account,
+        uint16 indexed currencyId,
         uint40 maturity,
         int256 netAssetCash,
         int256 netfCash,
         int256 netFee
     );
     event AddRemoveLiquidity(
-        address account,
-        uint16 currencyId,
+        address indexed account,
+        uint16 indexed currencyId,
         uint40 maturity,
         int256 netAssetCash,
         int256 netfCash,

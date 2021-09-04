@@ -356,7 +356,7 @@ library TokenHandler {
 
     function checkReturnCode() private pure {
         bool success;
-        uint[1] memory result;
+        uint256[1] memory result;
         assembly {
             switch returndatasize()
                 case 0 {
@@ -366,7 +366,7 @@ library TokenHandler {
                 case 32 {
                     // This is a compliant ERC-20
                     returndatacopy(result, 0, 32)
-                    success := mload(0) // Set `success = returndata` of external call
+                    success := mload(result) // Set `success = returndata` of external call
                 }
                 default {
                     // This is an excessively non-compliant ERC-20, revert.
