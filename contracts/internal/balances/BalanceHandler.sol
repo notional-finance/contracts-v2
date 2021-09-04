@@ -259,9 +259,11 @@ library BalanceHandler {
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
+        // @audit using storage slot directly would be more reliable here
         (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
             getBalanceStorage(account, cashGroup.currencyId);
 
+        // @audit-ok this prevents settlement of positive balances
         require(cashBalance < 0, "Invalid settle balance");
         if (amountToSettleAsset == 0) {
             // Symbolizes that the entire debt should be settled
@@ -270,11 +272,13 @@ library BalanceHandler {
         } else {
             // A partial settlement of the debt
             require(amountToSettleAsset <= cashBalance.neg(), "Invalid amount to settle");
+            // @audit-ok this is the partial settlement amount
             cashBalance = cashBalance.add(amountToSettleAsset);
         }
 
         // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
         // also have cash debts
+        // @audit-ok checks both cash and nToken balance
         if (cashBalance == 0 && nTokenBalance == 0) {
             accountContext.setActiveCurrency(
                 cashGroup.currencyId,
@@ -283,6 +287,7 @@ library BalanceHandler {
             );
         }
 
+        // @audit-ok immediately update the storage here
         _setBalanceStorage(
             account,
             cashGroup.currencyId,
@@ -293,6 +298,7 @@ library BalanceHandler {
         );
 
         // Emit the event here, we do not call finalize
+        // @audit-ok currency id cannot overflow, we don't have ids > uint16
         emit CashBalanceChange(account, uint16(cashGroup.currencyId), amountToSettleAsset);
 
         return amountToSettleAsset;

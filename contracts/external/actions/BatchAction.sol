@@ -162,7 +162,8 @@ contract BatchAction is StorageLayoutV1 {
                     bool didIncurDebt;
                     (netCash, didIncurDebt) = TradingAction.executeTradesBitmapBatch(
                         account,
-                        accountContext,
+                        accountContext.bitmapCurrencyId,
+                        accountContext.nextSettleTime,
                         action.trades
                     );
                     if (didIncurDebt) {

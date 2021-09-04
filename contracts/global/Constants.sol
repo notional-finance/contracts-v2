@@ -18,9 +18,6 @@ library Constants {
     // constraint when storing decimal places in governance.
     uint256 internal constant MAX_DECIMAL_PLACES = 36;
 
-    // Used to when calculating the amount to deleverage of a market when minting nTokens
-    uint256 internal constant DELEVERAGE_BUFFER = 300 * BASIS_POINT;
-
     // Address of the reserve account
     address internal constant RESERVE = address(0);
     // NOTE: this address is hardcoded in the library, must update this on deployment
@@ -63,6 +60,10 @@ library Constants {
     int256 internal constant RATE_PRECISION = 1e9;
     // One basis point in RATE_PRECISION terms
     uint256 internal constant BASIS_POINT = uint256(RATE_PRECISION / 10000);
+    // Used to when calculating the amount to deleverage of a market when minting nTokens
+    uint256 internal constant DELEVERAGE_BUFFER = 300 * BASIS_POINT;
+    // Used for residual purchase incentive and cash withholding buffer
+    uint256 internal constant TEN_BASIS_POINTS = 10 * BASIS_POINT;
 
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
