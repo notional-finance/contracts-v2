@@ -42,6 +42,11 @@ library Constants {
     uint256 internal constant MONTH = WEEK * 5;
     uint256 internal constant QUARTER = MONTH * 3;
     uint256 internal constant YEAR = QUARTER * 4;
+    
+    // These constants are used in DateTime.sol
+    uint256 internal constant DAYS_IN_WEEK = 6;
+    uint256 internal constant DAYS_IN_MONTH = 30;
+    uint256 internal constant DAYS_IN_QUARTER = 90;
 
     // Offsets for each time chunk denominated in days
     uint256 internal constant MAX_DAY_OFFSET = 90;
