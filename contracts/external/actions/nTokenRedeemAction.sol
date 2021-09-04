@@ -70,6 +70,10 @@ contract nTokenRedeemAction {
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
         AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
+        if (context.mustSettleAssets()) {
+            context = SettleAssetsExternal.settleAssetsAndFinalize(redeemer, context);
+        }
+
         BalanceState memory balance;
         balance.loadBalanceState(redeemer, currencyId, context);
 
@@ -82,9 +86,8 @@ contract nTokenRedeemAction {
         balance.finalize(redeemer, context, false);
 
         if (hasResidual) {
-            // If the account has assets that need to be settled it will occur inside
-            // this method call. We ensure that balances are finalized before this so
-            // that settled balances don't overwrite existing balances.
+            // This method will store assets and update the account context in memory
+            // @audit-ok settlement is done above
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
         context.setAccountContext(redeemer);

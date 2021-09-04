@@ -457,6 +457,7 @@ library TradingAction {
             assets[0].notional = fCashAmount.neg(); // This is the debt the settled account will incur
             assets[0].assetType = Constants.FCASH_ASSET_TYPE;
             // @audit-ok counterparty should receive a negative fCashAmount
+            // @audit-ok can transfer assets, we have settled above
             counterpartyContext = TransferAssets.placeAssetsInAccount(
                 counterparty,
                 counterpartyContext,

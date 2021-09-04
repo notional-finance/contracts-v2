@@ -286,6 +286,12 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
+        // If sender has debt then we will check free collateral which will revert if we have not
+        // settled assets first. To prevent this we settle sender context if required.
+        if (senderContext.mustSettleAssets()) {
+            senderContext = SettleAssetsExternal.settleAssetsAndFinalize(sender, senderContext);
+        }
+
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
         senderBalance.netNTokenTransfer = amountInt.neg();

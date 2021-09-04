@@ -460,9 +460,8 @@ library LiquidatefCash {
         (PortfolioAsset[] memory assets, bool liquidatorIncursDebt) =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
-        // NOTE: when this method returns liquidatorContext may not point to the same
-        // memory location as before so we need to ensure that the liquidator context
-        // is returned from this method and set properly
+        // NOTE: if the liquidator has assets that need to be settled this will fail, automatic
+        // settlement is not done here due to the bytecode limit
         liquidatorContext = TransferAssets.placeAssetsInAccount(
             liquidator,
             liquidatorContext,
