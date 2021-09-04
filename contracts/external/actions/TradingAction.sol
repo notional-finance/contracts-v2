@@ -267,7 +267,9 @@ library TradingAction {
         int256 fCashAmount;
         int256 tokens;
         if (tradeType == TradeActionType.AddLiquidity) {
-            cashAmount = int256(uint88(bytes11(trade << 16)));
+            // @audit 256 - tradeType - marketIndex - 88 = 152 (shift left)
+            // @audit 256 - 8 - 8 - 88 = 152 (shift left)
+            cashAmount = int256((uint256(trade) >> 152) & type(uint88).max);
             // Setting cash amount to zero will deposit all net cash accumulated in this trade into
             // liquidity. This feature allows accounts to borrow in one maturity to provide liquidity
             // in another in a single transaction without dust. It also allows liquidity providers to
@@ -278,14 +280,18 @@ library TradingAction {
             (tokens, fCashAmount) = market.addLiquidity(cashAmount);
             cashAmount = cashAmount.neg(); // Report a negative cash amount in the event
         } else {
-            tokens = int256(uint88(bytes11(trade << 16)));
+            // @audit 256 - 16 - 88 = 152 (shift left)
+            tokens = int256((uint256(trade) >> 152) & type(uint88).max);
             (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
             tokens = tokens.neg(); // Report a negative amount tokens in the event
         }
 
         {
-            uint256 minImpliedRate = uint256(uint32(bytes4(trade << 104)));
-            uint256 maxImpliedRate = uint256(uint32(bytes4(trade << 136)));
+            // @audit 256 - tradeType - marketIndex - fCashAmount - minImpliedRate = 152 (shift left)
+            // @audit 256 - 8 - 8 - 88 - 32 = 120 (shift left)
+            uint256 minImpliedRate = uint32(uint256(trade) >> 120);
+            // @audit 120 - 32 = 88 (shift left)
+            uint256 maxImpliedRate = uint32(uint256(trade) >> 88);
             // @audit-ok if minImpliedRate is not set then it will be zero
             require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
             // @audit-ok if maxImpliedRate is set then will revert
@@ -405,10 +411,12 @@ library TradingAction {
             int256
         )
     {
-        address counterparty = address(bytes20(trade << 8));
+        // @audit-ok 256 - 8 - 160 = 88 (shift left)
+        address counterparty = address(uint256(trade) >> 88);
         // @audit allowing an account to settle itself would result in strange outcomes
         require(account != counterparty, "Cannot settle self");
-        int256 amountToSettleAsset = int256(int88(bytes11(trade << 168)));
+        // @audit-ok amountToSettleAsset is the right most 88 bits
+        int256 amountToSettleAsset = int256(uint88(uint256(trade)));
 
         AccountContext memory counterpartyContext =
             AccountContextHandler.getAccountContext(counterparty);
@@ -513,8 +521,10 @@ library TradingAction {
             int256
         )
     {
-        uint256 maturity = uint256(uint32(bytes4(trade << 8)));
-        int256 fCashAmountToPurchase = int256(int88(bytes11(trade << 40)));
+        // @audit 256 - 8 - 32 == 216 (left shift)
+        uint256 maturity = uint256(uint32(uint256(trade) >> 216));
+        // @audit 256 - 8 - 32 - 88 == 128 (left shift)
+        int256 fCashAmountToPurchase = int256(uint88(uint256(trade) >> 128));
         require(maturity > blockTime, "Invalid maturity");
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
         // it is an idiosyncratic maturity)
