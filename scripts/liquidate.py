@@ -82,7 +82,7 @@ def collateralLiquidate(env):
         ],
     )
 
-    tx = env.flashLender.flashLoan(
+    env.flashLender.flashLoan(
         env.flashLiquidator.address,
         [env.token["DAI"].address],
         [100e18],
@@ -92,7 +92,6 @@ def collateralLiquidate(env):
         0,
         {"from": accounts[0]},
     )
-    print(tx.events())
 
 DEPOSIT_PARAMETERS = {
     2: [[int(0.4e8), int(0.6e8)], [int(0.8e9)] * 2],
@@ -119,8 +118,14 @@ def main():
     env = environment(accounts)
     deployer = accounts[0]
 
-    env.swapRouter = MockUniV3SwapRouter.deploy({"from": deployer})
+    # Create exchange
     env.weth = MockWETH.deploy({"from": deployer})
+    env.swapRouter = MockUniV3SwapRouter.deploy({"from": deployer})
+    env.weth.deposit({"from": accounts[0], "value": 50e18})
+    env.weth.transfer(env.swapRouter.address, 50e18, {"from": accounts[0]})
+
+    env.token["DAI"].transfer(env.swapRouter.address, 1000e18, {"from": accounts[0]})
+    env.token["USDT"].transfer(env.swapRouter.address, 1000e6, {"from": accounts[0]})
     
     # Create flash lender
     env.flashLender = MockAaveFlashLender.deploy({"from": deployer})
@@ -144,6 +149,7 @@ def main():
     env.flashLiquidator.setCTokenAddress(env.cToken["USDT"].address, {"from": accounts[0]})
     env.flashLiquidator.approveToken(env.cToken["ETH"].address, env.notional.address, {"from": accounts[0]})
     env.flashLiquidator.approveToken(env.weth.address, env.flashLender.address, {"from": accounts[0]})
+    env.flashLiquidator.approveToken(env.weth.address, env.swapRouter.address, {"from": accounts[0]})
 
     # Set time
     blockTime = chain.time()

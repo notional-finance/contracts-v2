@@ -18,11 +18,7 @@ contract MockUniV3SwapRouter {
         uint160 sqrtPriceLimitX96;
     }
 
-    event DexTrade(address from, address to, address recipient, uint256 amountOut, uint256 deadline);
-
     function exactOutputSingle(ExactOutputSingleParams calldata params) external payable returns (uint256 amountIn) {
-        emit DexTrade(params.tokenIn, params.tokenOut, params.recipient, params.amountOut, params.deadline);
-
         IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountInMaximum);
         IERC20(params.tokenOut).transfer(msg.sender, params.amountOut);
         return params.amountInMaximum;

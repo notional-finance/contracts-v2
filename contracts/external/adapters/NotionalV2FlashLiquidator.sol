@@ -89,8 +89,6 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         IERC20(token).approve(spender, type(uint256).max);
     }
 
-    event OperationExecuted(uint256 cdai, uint256 dai, uint256 ceth, uint256 weth, uint256 eth);
-
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -131,14 +129,6 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
         _redeemCTokens(assets);
 
-        emit OperationExecuted(
-            IERC20(underlyingToCToken[assets[0]]).balanceOf(address(this)),
-            IERC20(assets[0]).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
-
         if (
             action == LiquidationAction.CollateralCurrency_WithTransferFee ||
             action == LiquidationAction.CollateralCurrency_NoTransferFee ||
@@ -147,8 +137,6 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         ) {
             _executeDexTrade(action, from, assets[0], amounts[0], premiums[0], params);
         }
-
-        revert();
 
         // The lending pool should have enough approval to pull the required amount from the contract
         return true;
@@ -205,22 +193,8 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
                 tradeCallData
             ) = abi.decode(params, (uint8, address, uint256, uint256, uint256[], uint256[], bytes));
         }
-
-        emit OperationExecuted(
-            IERC20(from).balanceOf(address(this)),
-            IERC20(to).balanceOf(address(this)),
-            IERC20(cETH).balanceOf(address(this)),
-            IERC20(WETH).balanceOf(address(this)),
-            address(this).balance
-        );
         
         executeDexTrade(from, to, total - bal, tradeCallData);
-
-        // Arbitrary call to any DEX to trade back to local currency
-        /*(bool success, bytes memory retVal) = tradeContract.call{value: tradeETHValue}(
-            tradeCallData
-        );
-        require(success, _getRevertMsg(retVal)); */
     }
 
     function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
