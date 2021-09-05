@@ -157,7 +157,7 @@ def test_fail_on_non_acceptance(environment, accounts, MockTransferOperator):
             accounts[1], transferOp.address, [erc1155id], [100e8], bytes(), {"from": accounts[1]}
         )
 
-    with brownie.reverts("Not accepted"):
+    with brownie.reverts():
         # nTokens will reject ERC1155 transfers
         environment.notional.safeTransferFrom(
             accounts[0], environment.nToken[1], erc1155id, 100e8, ""

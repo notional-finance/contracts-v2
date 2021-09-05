@@ -240,17 +240,17 @@ def test_withdraw_and_redeem_eth(environment, accounts):
 
 
 def test_eth_failures(environment, accounts):
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.depositUnderlyingToken(accounts[1], 1, 1e18, {"from": accounts[1]})
 
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAction(
             accounts[0], [get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)]
         )
 
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAndTradeAction(
             accounts[0],

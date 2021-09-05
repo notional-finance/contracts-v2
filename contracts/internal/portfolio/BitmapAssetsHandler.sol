@@ -16,6 +16,7 @@ library BitmapAssetsHandler {
     using SafeInt256 for int256;
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
+    using AccountContextHandler for AccountContext;
 
     function _getAssetsBitmapSlot(address account, uint256 currencyId)
         private
@@ -99,7 +100,7 @@ library BitmapAssetsHandler {
         bytes32 ifCashBitmap = getAssetsBitmap(account, currencyId);
 
         for (uint256 i; i < assets.length; i++) {
-            PortfolioAssets memory asset = assets[i];
+            PortfolioAsset memory asset = assets[i];
             if (asset.notional == 0) continue;
 
             require(asset.currencyId == currencyId); // dev: invalid asset in set ifcash assets

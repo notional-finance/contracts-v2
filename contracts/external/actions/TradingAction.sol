@@ -525,7 +525,7 @@ library TradingAction {
         // @audit 256 - 8 - 32 == 216 (left shift)
         uint256 maturity = uint256(uint32(uint256(trade) >> 216));
         // @audit 256 - 8 - 32 - 88 == 128 (left shift)
-        int256 fCashAmountToPurchase = int256(uint88(uint256(trade) >> 128));
+        int256 fCashAmountToPurchase = int88(uint88(uint256(trade) >> 128));
         require(maturity > blockTime, "Invalid maturity");
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
         // it is an idiosyncratic maturity)

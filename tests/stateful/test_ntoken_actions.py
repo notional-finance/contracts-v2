@@ -380,7 +380,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
             accounts[2], [action], {"from": accounts[2]}
         )
 
-    with brownie.reverts("Invalid maturity"):
+    with brownie.reverts("Non idiosyncratic maturity"):
         action = get_balance_trade_action(
             2,
             "None",
@@ -400,6 +400,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
     # 96 hour buffer period
     chain.mine(1, timestamp=blockTime + 96 * 3600)
 
+    # TODO: what happened here?
     with brownie.reverts("Invalid amount"):
         action = get_balance_trade_action(
             2,
