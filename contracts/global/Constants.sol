@@ -12,6 +12,7 @@ library Constants {
 
     // ETH will be initialized as the first currency
     uint256 internal constant ETH_CURRENCY_ID = 1;
+    uint8 internal constant ETH_DECIMAL_PLACES = 18;
     int256 internal constant ETH_DECIMALS = 1e18;
     // Used to prevent overflow when converting decimal places to decimal precision values via
     // 10**decimalPlaces. This is a safe value for int256 and uint256 variables. We apply this

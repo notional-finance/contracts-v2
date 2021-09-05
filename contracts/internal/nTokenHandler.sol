@@ -77,7 +77,7 @@ library nTokenHandler {
             sstore(addressSlot, tokenAddress)
         }
 
-        // This will initialize all the other token context values to zer
+        // This will initialize all the other token context values to zero
         assembly {
             sstore(currencySlot, currencyId)
         }

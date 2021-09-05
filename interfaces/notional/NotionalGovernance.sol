@@ -34,7 +34,7 @@ interface NotionalGovernance {
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
-    ) external;
+    ) external returns (uint16 currencyId);
 
     function updateMaxCollateralBalance(
         uint16 currencyId,
