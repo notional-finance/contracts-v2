@@ -39,6 +39,7 @@ ghost chosenToken() returns address;
 
 rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
     require account != currentContract;
+    require account != 0;
     require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
@@ -47,11 +48,12 @@ rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal
 
     uint balance_ = token.balanceOf(account);
 
-    assert balance_ == _balance + to_mathint(assetAmountExternal);
+    assert balance_ == _balance - to_mathint(assetAmountExternal);
     // if !forceTransfer, check netAssetTransferInternalPrecision
 }
 
-rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
+rule integrity_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
+    require account != currentContract;
     require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
@@ -60,7 +62,7 @@ rule integrtiy_depositAssetToken(address account, uint256 assetAmountExternal, u
 
     uint balance_ = token.balanceOf(account);
 
-    assert balance_ == _balance + to_mathint(assetAmountExternal);
+    assert balance_ == _balance - to_mathint(assetAmountExternal);
 }
 
 // exploratory
