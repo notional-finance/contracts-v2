@@ -102,8 +102,7 @@ class TestCashGroupGetters:
 
         for i in range(1, 50):
             cashGroup.setAssetRateMapping(i, rateStorage)
-            maxMarketIndex = random.randint(0, 7)
-            maxMarketIndex = 3
+            maxMarketIndex = random.randint(2, 7)
             cashGroupParameters = [
                 maxMarketIndex,
                 random.randint(1, 255),  # 1 rateOracleTimeWindowMin,
