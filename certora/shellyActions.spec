@@ -35,7 +35,9 @@ hook Sstore (slot 1000001) [KEY address account] uint256 v STORAGE {
 }
 
 
-rule accountContextMustBeReadAndWrittenExactlyOnce(address account, method f) {
+rule accountContextMustBeReadAndWrittenExactlyOnce(address account, method f) 
+filtered { f -> !f.isView }
+{
     require forall address a. g_readsToAccountContext(a) == 0;
     require forall address a. g_writesToAccountContext(a) == 0;
     env e;
@@ -43,5 +45,5 @@ rule accountContextMustBeReadAndWrittenExactlyOnce(address account, method f) {
     calldataarg args;
     f(e, args);
 
-    assert forall address a. g_readsToAccountContext(a) == g_writesToAccountContext(a) && g_readsToAccountContext(a) <= 1;
+    assert forall address a. (g_readsToAccountContext(a) == g_writesToAccountContext(a) && g_readsToAccountContext(a) <= 1) || g_writesToAccountContext(a) == 0;
 }
