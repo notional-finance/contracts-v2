@@ -195,7 +195,7 @@ contract MockMarket is StorageLayoutV1 {
         int256 netCashToAccount,
         uint256 marketIndex,
         uint256 timeToMaturity,
-        uint256 maxfCashDelta
+        int256 maxfCashDelta
     ) external pure returns (int256) {
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
