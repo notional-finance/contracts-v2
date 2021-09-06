@@ -91,6 +91,8 @@ library Market {
         uint256 marketIndex
     ) internal view returns (int256, int256) {
         // We return false if there is not enough fCash to support this trade.
+        // @audit-ok if fCashToAccount > 0 and totalfCash - fCashToAccount <= 0 then the trade will fail
+        // @audit-ok if fCashToAccount < 0 and totalfCash > 0 then this will always pass
         if (market.totalfCash <= fCashToAccount) return (0, 0);
 
         // Calculates initial rate factors for the trade
