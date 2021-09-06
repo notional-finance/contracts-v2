@@ -48,7 +48,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     /// @notice Emitted when an account has assets that are settled
     event AccountSettled(address indexed account);
     /// @notice Emitted when an asset rate is settled
-    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
+    event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
     /* Liquidation Events */
     event LiquidateLocalCurrency(

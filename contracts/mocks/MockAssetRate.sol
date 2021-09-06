@@ -6,7 +6,7 @@ import "../internal/markets/AssetRate.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockAssetRate is StorageLayoutV1 {
-    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
+    event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
