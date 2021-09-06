@@ -49,8 +49,8 @@ library SafeInt256 {
     }
 
     function neg(int256 x) internal pure returns (int256 y) {
-        // @audit via abdk
-        require ((y = -x) ^ x < 0);
+        // @audit abdk formula does not work?
+        return mul(-1, x);
     }
 
     function abs(int256 x) internal pure returns (int256) {
@@ -83,5 +83,13 @@ library SafeInt256 {
     function toInt(uint256 x) internal pure returns (int256) {
         require (x <= uint256(type(int256).max));
         return int256(x);
+    }
+
+    function max(int256 x, int256 y) internal pure returns (int256) {
+        return x > y ? x : y;
+    }
+
+    function min(int256 x, int256 y) internal pure returns (int256) {
+        return x < y ? x : y;
     }
 }

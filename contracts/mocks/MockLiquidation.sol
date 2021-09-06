@@ -13,8 +13,8 @@ import "./BaseMockLiquidation.sol";
 contract MockLiquidationSetup is BaseMockLiquidation {
     function preLiquidationActions(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
+        uint16 localCurrency,
+        uint16 collateralCurrency
     )
         external
         returns (
@@ -37,7 +37,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
 
     function liquidateLocalCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation,
         uint256 blockTime
     )
@@ -85,7 +85,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
 
 contract MockLocalLiquidationOverride is BaseMockLiquidation {
     function liquidateLocalCurrencyOverride(
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation,
         uint256 blockTime,
         BalanceState memory liquidatedBalanceState,
@@ -150,8 +150,8 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
 contract MockfCashLiquidation is BaseMockLiquidation {
     function preLiquidationActions(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
+        uint16 localCurrency,
+        uint16 collateralCurrency
     )
         external
         returns (
@@ -170,7 +170,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
     function liquidatefCashLocal(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         LiquidatefCash.fCashContext memory c,
@@ -199,7 +199,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint256 collateralCurrency,
+        uint16 collateralCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         LiquidatefCash.fCashContext memory c,

@@ -40,7 +40,7 @@ contract LiquidateCurrencyAction {
     ///   - local nTokens paid to liquidator (positive)
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation
     ) external returns (int256, int256) {
         // prettier-ignore
@@ -67,7 +67,7 @@ contract LiquidateCurrencyAction {
     ///   - local nTokens paid to liquidator (positive)
     function liquidateLocalCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation
     ) external returns (int256, int256) {
         (
@@ -82,9 +82,11 @@ contract LiquidateCurrencyAction {
         // amounts to the liquidator
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
+                // @audit-ok msg.sender != liquidateAccount
                 msg.sender,
                 localCurrency,
                 localAssetCashFromLiquidator,
+                // @audit-ok
                 localBalanceState.netNTokenTransfer.neg()
             );
         liquidatorContext.setAccountContext(msg.sender);
@@ -100,7 +102,7 @@ contract LiquidateCurrencyAction {
         emit LiquidateLocalCurrency(
             liquidateAccount,
             msg.sender,
-            uint16(localCurrency),
+            localCurrency,
             localAssetCashFromLiquidator
         );
 
@@ -124,8 +126,8 @@ contract LiquidateCurrencyAction {
     ///   - collateral nTokens paid to liquidator (positive)
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
     )
@@ -172,8 +174,8 @@ contract LiquidateCurrencyAction {
     ///   - collateral nTokens paid to liquidator (positive)
     function liquidateCollateralCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation,
         bool withdrawCollateral,
@@ -212,7 +214,7 @@ contract LiquidateCurrencyAction {
 
         _emitCollateralEvent(
             liquidateAccount,
-            uint16(localCurrency),
+            localCurrency,
             localAssetCashFromLiquidator,
             collateralBalanceState
         );
@@ -243,14 +245,14 @@ contract LiquidateCurrencyAction {
 
     function _emitCollateralEvent(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         int256 localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState
     ) private {
         emit LiquidateCollateralCurrency(
             liquidateAccount,
             msg.sender,
-            uint16(localCurrency),
+            localCurrency,
             uint16(collateralBalanceState.currencyId),
             localAssetCashFromLiquidator,
             _collateralAssetCashToLiquidator(collateralBalanceState),
@@ -260,7 +262,7 @@ contract LiquidateCurrencyAction {
 
     function _localCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation
     )
         private
@@ -272,7 +274,7 @@ contract LiquidateCurrencyAction {
             MarketParameters[] memory markets
         )
     {
-        uint256 blockTime = block.timestamp;
+        // @audit-ok
         (
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
@@ -285,7 +287,7 @@ contract LiquidateCurrencyAction {
             LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
-                blockTime,
+                block.timestamp,
                 localBalanceState,
                 factors,
                 portfolio
@@ -302,8 +304,8 @@ contract LiquidateCurrencyAction {
 
     function _collateralCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
     )
@@ -356,8 +358,8 @@ contract LiquidateCurrencyAction {
 
     /// @dev Only used for collateral currency liquidation
     function _finalizeLiquidatorBalances(
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         int256 localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState,
         bool withdrawCollateral,
@@ -391,6 +393,8 @@ contract LiquidateCurrencyAction {
         pure
         returns (int256)
     {
+        // @audit-ok netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
+        // liquidity tokens.
         return
             collateralBalanceState.netCashChange.neg().add(
                 collateralBalanceState.netAssetTransferInternalPrecision

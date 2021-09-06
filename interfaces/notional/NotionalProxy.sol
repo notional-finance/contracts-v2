@@ -137,20 +137,20 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     /** Liquidation Action */
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation
     ) external returns (int256, int256);
 
     function liquidateLocalCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation
     ) external returns (int256, int256);
 
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
     )
@@ -163,8 +163,8 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     function liquidateCollateralCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation,
         bool withdrawCollateral,
@@ -179,30 +179,30 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     function calculatefCashLocalLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256);
 
     function liquidatefCashLocal(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256);
 
     function calculatefCashCrossCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256);
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256);

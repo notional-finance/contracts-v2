@@ -66,7 +66,7 @@ library TransferAssets {
     ) internal returns (AccountContext memory) {
         // @audit-ok if an account has assets that require settlement then placing assets inside it
         // may cause issues.
-        require(!accountContext.mustSettleAssets()); // dev: cannot transfer if account is not settled
+        require(!accountContext.mustSettleAssets(), "Account must settle");
 
         if (accountContext.isBitmapEnabled()) {
             // Adds fCash assets into the account and finalized storage

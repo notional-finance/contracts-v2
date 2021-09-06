@@ -220,9 +220,9 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         (
             /* uint8 action */,
             address liquidateAccount,
-            uint256 localCurrency,
+            uint16 localCurrency,
             uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint256, uint96));
+        ) = abi.decode(params, (uint8, address, uint16, uint96));
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
@@ -251,17 +251,17 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         (
             /* uint8 action */,
             address liquidateAccount,
-            uint256 localCurrency,
-            uint256 collateralCurrency,
+            uint16 localCurrency,
+            uint16 collateralCurrency,
             uint128 maxCollateralLiquidation,
             uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint256, uint256, uint128, uint96));
+        ) = abi.decode(params, (uint8, address, uint16, uint16, uint128, uint96));
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
             checkAllowanceOrSet(assets[0], address(NotionalV2));
-            NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
+            NotionalV2.depositUnderlyingToken(address(this), localCurrency, amount);
         }
 
         // prettier-ignore
@@ -298,16 +298,16 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         (
             /* uint8 action */,
             address liquidateAccount,
-            uint256 localCurrency,
+            uint16 localCurrency,
             uint256[] memory fCashMaturities,
             uint256[] memory maxfCashLiquidateAmounts
-        ) = abi.decode(params, (uint8, address, uint256, uint256[], uint256[]));
+        ) = abi.decode(params, (uint8, address, uint16, uint256[], uint256[]));
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
             checkAllowanceOrSet(assets[0], address(NotionalV2));
-            NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
+            NotionalV2.depositUnderlyingToken(address(this), localCurrency, amount);
         }
 
         // prettier-ignore
@@ -344,19 +344,19 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         (
             /* bytes1 action */,
             address liquidateAccount,
-            uint256 localCurrency,
-            uint256 fCashCurrency,
+            uint16 localCurrency,
+            uint16 fCashCurrency,
             uint256[] memory fCashMaturities,
             uint256[] memory maxfCashLiquidateAmounts
         ) = abi.decode(params, 
-            (uint8, address, uint256, uint256, uint256[], uint256[])
+            (uint8, address, uint16, uint16, uint256[], uint256[])
         );
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
             uint256 amount = IERC20(assets[0]).balanceOf(address(this));
             checkAllowanceOrSet(assets[0], address(NotionalV2));
-            NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
+            NotionalV2.depositUnderlyingToken(address(this), localCurrency, amount);
         }
 
         // prettier-ignore
@@ -416,7 +416,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
     }
 
     function _sellfCashAssets(
-        uint256 fCashCurrency,
+        uint16 fCashCurrency,
         uint256[] memory fCashMaturities,
         int256[] memory fCashNotional,
         uint256 depositActionAmount,
@@ -428,7 +428,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             ? DepositActionType.DepositAsset
             : DepositActionType.None;
         action[0].depositActionAmount = depositActionAmount;
-        action[0].currencyId = uint16(fCashCurrency);
+        action[0].currencyId = fCashCurrency;
         action[0].withdrawEntireCashBalance = true;
         action[0].redeemToUnderlying = redeemToUnderlying;
 
