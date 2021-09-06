@@ -23,7 +23,7 @@ library SettlePortfolioAssets {
         returns (SettleAmount[] memory)
     {
         uint256 currenciesSettled;
-        uint256 lastCurrencyId;
+        uint256 lastCurrencyId = 0;
         if (portfolioState.storedAssets.length == 0) return new SettleAmount[](0);
 
         // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
@@ -31,20 +31,23 @@ library SettlePortfolioAssets {
         // a revert, must wrap in an unchecked.
         for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
+            // @audit-ok assets settle on exactly blocktime
             if (asset.getSettlementDate() > blockTime) {
                 continue;
             }
 
             // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
             // will work for the first asset
+            // @audit-ok
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
                 currenciesSettled++;
             }
         }
 
-        // Actual currency ids will be set in the loop
+        // Actual currency ids will be set as we loop through the portfolio and settle assets
         SettleAmount[] memory settleAmounts = new SettleAmount[](currenciesSettled);
+        // @audit-ok
         if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
         return settleAmounts;
     }
@@ -59,6 +62,8 @@ library SettlePortfolioAssets {
             SettlementMarket memory
         )
     {
+        // @audit just have the market object settle the positions and return the net amounts
+        // @audit this is the same as removing liquidity from a market, don't duplicate that method
         SettlementMarket memory market =
             Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
 
@@ -81,6 +86,7 @@ library SettlePortfolioAssets {
         (int256 assetCash, int256 fCash, SettlementMarket memory market) =
             _calculateMarketStorage(asset);
 
+        // @audit-ok correct settlement rate
         assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
         return (assetCash, market);
     }
@@ -107,6 +113,7 @@ library SettlePortfolioAssets {
                 fCashAsset.maturity == liquidityToken.maturity &&
                 fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
             ) {
+                // @audit-ok
                 // This fCash asset has not matured if were are settling to fCash
                 fCashAsset.notional = fCashAsset.notional.add(fCash);
                 fCashAsset.storageState = AssetStorageState.Update;
@@ -116,6 +123,7 @@ library SettlePortfolioAssets {
             }
         }
 
+        // @audit-ok we are going to delete this asset anyway
         liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
         liquidityToken.notional = fCash;
         liquidityToken.storageState = AssetStorageState.Update;
@@ -132,45 +140,47 @@ library SettlePortfolioAssets {
         SettleAmount[] memory settleAmounts = _getSettleAmountArray(portfolioState, blockTime);
         if (settleAmounts.length == 0) return settleAmounts;
         uint256 settleAmountIndex;
-        uint256 lastMaturity;
 
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
+            // @audit-ok settlement date is on block time exactly
             if (asset.getSettlementDate() > blockTime) continue;
 
+            // @audit on the first loop the lastCurrencyId is already set.
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 // New currency in the portfolio
-                lastMaturity = 0;
                 settleAmountIndex += 1;
                 settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
-            // Saves a storage call if there is an fCash token and then an liquidity token after it
-            if (lastMaturity != asset.maturity && asset.maturity < blockTime) {
-                settlementRate = AssetRate.buildSettlementRateStateful(
-                    asset.currencyId,
-                    asset.maturity,
-                    blockTime
-                );
-                lastMaturity = asset.maturity;
-            }
+            // @audit-ok
+            settlementRate = AssetRate.buildSettlementRateStateful(
+                asset.currencyId,
+                asset.maturity,
+                blockTime
+            );
 
             int256 assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
+                // @audit-ok
                 assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 SettlementMarket memory market;
+                // @audit-ok assets mature exactly on block time
                 if (asset.maturity > blockTime) {
                     (assetCash, market) = _settleLiquidityTokenTofCash(portfolioState, i);
                 } else {
                     (assetCash, market) = _settleLiquidityToken(asset, settlementRate);
+                    // @audit-ok asset is deleted
                     portfolioState.deleteAsset(i);
                 }
 
+                // @audit if we use remove liquidity and have it set then this is redundant
                 Market.setSettlementMarket(market);
             }
 
+            // @audit-ok
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
                 .netCashChange
                 .add(assetCash);

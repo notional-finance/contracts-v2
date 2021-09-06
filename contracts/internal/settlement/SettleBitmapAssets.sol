@@ -29,15 +29,16 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 oldSettleTime,
         uint256 blockTime
-    ) internal returns (bytes32, int256, uint256) {
+    ) internal returns (bytes32, int256 totalAssetCash, uint256 newSettleTime) {
+        // @audit just have this set the bitmap instead of returning it
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        int256 totalAssetCash;
 
         // This newSettleTime will be set to the new `oldSettleTime`. The bits between 1 and
         // `lastSettleBit` (inclusive) will be shifted out of the bitmap and settled. The reason
         // that lastSettleBit is inclusive is that it refers to newSettleTime which always less
         // than the current block time.
-        uint256 newSettleTime = DateTime.getTimeUTC0(blockTime);
+        newSettleTime = DateTime.getTimeUTC0(blockTime);
+        // @audit-ok if newSettleTime == oldSettleTime lastSettleBit will be zero
         require(newSettleTime >= oldSettleTime); // dev: new settle time before previous
 
         // Do not need to worry about validity, if newSettleTime is not on an exact bit we will settle up until
@@ -45,34 +46,35 @@ library SettleBitmapAssets {
         (uint256 lastSettleBit, /* isValid */) = DateTime.getBitNumFromMaturity(oldSettleTime, newSettleTime);
         if (lastSettleBit == 0) return (bitmap, totalAssetCash, newSettleTime);
 
-        // Returns the next bit that is set in the bitmap using a binary search for the MSB.
+        // Returns the next bit that is set in the bitmap
         uint256 nextBitNum = bitmap.getNextBitNum();
+        // @audit-ok
         while (nextBitNum != 0 && nextBitNum <= lastSettleBit) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
             totalAssetCash = totalAssetCash.add(
                 _settlefCashAsset(account, currencyId, maturity, blockTime)
             );
+
             // Turn the bit off now that it is settled
             bitmap = bitmap.setBit(nextBitNum, false);
-
-            // Continue the loop
             nextBitNum = bitmap.getNextBitNum();
         }
 
         bytes32 newBitmap;
+        // @audit-ok
         while (nextBitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
             (uint256 newBitNum, bool isValid) = DateTime.getBitNumFromMaturity(newSettleTime, maturity);
             require(isValid); // dev: invalid new bit num
 
             newBitmap = newBitmap.setBit(newBitNum, true);
+
             // Turn the bit off now that it is remapped
             bitmap = bitmap.setBit(nextBitNum, false);
-
-            // Continue the loop
             nextBitNum = bitmap.getNextBitNum();
         }
 
+        // @audit set the new bitmap in here
         return (newBitmap, totalAssetCash, newSettleTime);
     }
 
@@ -87,8 +89,10 @@ library SettleBitmapAssets {
         // Storage Read
         bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
         int256 ifCash;
+        // Read and delete the ifCash asset
         assembly {
             ifCash := sload(ifCashSlot)
+            sstore(ifCashSlot, 0)
         }
 
         // Gets the current settlement rate or will store a new settlement rate if it does not
@@ -97,9 +101,6 @@ library SettleBitmapAssets {
             AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
         assetCash = rate.convertFromUnderlying(ifCash);
         // Delete ifCash value
-        assembly {
-            sstore(ifCashSlot, 0)
-        }
 
         return assetCash;
     }
