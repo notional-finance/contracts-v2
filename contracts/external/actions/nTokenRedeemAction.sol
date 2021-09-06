@@ -22,7 +22,7 @@ contract nTokenRedeemAction {
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
 
-    event nTokenSupplyChange(address indexed account, uint16 currencyId, int256 tokenSupplyChange);
+    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
 
     /// @notice When redeeming nTokens via the batch they must all be sold to cash and this
     /// method will return the amount of asset cash sold. This method can only be invoked via delegatecall.
@@ -34,6 +34,7 @@ contract nTokenRedeemAction {
         external
         returns (int256)
     {
+        // @audit-ok only delegate call
         require(msg.sender == address(this), "Unauthorized caller");
         uint256 blockTime = block.timestamp;
         // prettier-ignore
@@ -64,24 +65,29 @@ contract nTokenRedeemAction {
         bool sellTokenAssets
     ) external returns (int256) {
         // ERC1155 can call this method during a post transfer event
+        // @audit-ok authentication
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
         uint256 blockTime = block.timestamp;
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
+        // @audit-ok settle assets first if redeeming
         AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
         if (context.mustSettleAssets()) {
             context = SettleAssetsExternal.settleAssetsAndFinalize(redeemer, context);
         }
 
+        // @audit-ok
         BalanceState memory balance;
         balance.loadBalanceState(redeemer, currencyId, context);
 
+        // @audit-ok
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
         (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
+        // @audit-ok set balances before transferring assets
         balance.netCashChange = totalAssetCash;
         balance.finalize(redeemer, context, false);
 
@@ -90,17 +96,21 @@ contract nTokenRedeemAction {
             // @audit-ok settlement is done above
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
+
         context.setAccountContext(redeemer);
-
-        emit nTokenSupplyChange(redeemer, currencyId, tokensToRedeem.neg());
-
         if (context.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
 
+        emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
         return totalAssetCash;
     }
 
+    /// @notice Redeems nTokens for asset cash and fCash
+    /// @return
+    ///     assetCash: positive amount of asset cash to the account
+    ///     hasResidual: true if there are fCash residuals left
+    ///     assets: an array of fCash asset residuals to place into the account
     function _redeem(
         uint256 currencyId,
         int256 tokensToRedeem,
@@ -116,7 +126,9 @@ contract nTokenRedeemAction {
     {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken;
+        // @audit change this, looks weird
         nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        // @audit don't need an array if we set storage immediately
         MarketParameters[] memory markets = new MarketParameters[](nToken.cashGroup.maxMarketIndex);
 
         // Get the assetCash and fCash assets as a result of redeeming tokens
@@ -124,6 +136,7 @@ contract nTokenRedeemAction {
             _reduceTokenAssets(nToken, markets, tokensToRedeem, blockTime);
 
         // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
+        // @audit-ok default should be true
         bool hasResidual = true;
         if (sellTokenAssets) {
             int256 assetCash;
@@ -138,6 +151,7 @@ contract nTokenRedeemAction {
         }
 
         // Finalize all market states
+        // @audit this is redundant if we store markets immediately
         for (uint256 i; i < markets.length; i++) {
             markets[i].setMarketStorage();
         }
@@ -145,16 +159,22 @@ contract nTokenRedeemAction {
         return (totalAssetCash, hasResidual, newfCashAssets);
     }
 
-    /// @notice Removes nToken assets and returns the net amount of asset cash owed to the account.
+    /// @notice Removes nToken assets
+    /// @return
+    ///     newifCashAssets: an array of fCash assets the redeemer will take
+    ///     assetCash: amount of cash the redeemer will take
     function _reduceTokenAssets(
         nTokenPortfolio memory nToken,
         MarketParameters[] memory markets,
         int256 tokensToRedeem,
         uint256 blockTime
     ) private returns (PortfolioAsset[] memory, int256) {
+        // @audit move this higher up
+        // @audit consider moving this into a function that returns a bool
         require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
 
         // Get share of ifCash assets to remove
+        // @audit move this method into this library
         PortfolioAsset[] memory newifCashAssets =
             BitmapAssetsHandler.reduceifCashAssetsProportional(
                 nToken.tokenAddress,
@@ -168,6 +188,7 @@ contract nTokenRedeemAction {
         // nToken can never have a negative cash asset cash balance so what we get here is always positive.
         int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
         if (assetCashShare > 0) {
+            // @audit-ok
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
@@ -177,6 +198,7 @@ contract nTokenRedeemAction {
         }
 
         // Get share of liquidity tokens to remove
+        // @audit this modifies newifCashAssets in memory, consider returning it to be more explicit
         assetCashShare = assetCashShare.add(
             _removeLiquidityTokens(
                 nToken,
@@ -219,17 +241,25 @@ contract nTokenRedeemAction {
         int256 tokensToRedeem,
         int256 totalSupply,
         uint256 blockTime
-    ) private view returns (int256) {
-        int256 totalAssetCash;
-
-        for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
+    ) private view returns (int256 totalAssetCash) {
+        for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = nToken.portfolioState.storedAssets[i];
-            int256 tokensToRemove = asset.notional.mul(tokensToRedeem).div(int256(totalSupply));
+            // @audit-ok
+            int256 tokensToRemove = asset.notional.mul(tokensToRedeem).div(totalSupply);
+            // @audit-ok
             asset.notional = asset.notional.sub(tokensToRemove);
+            // Cannot redeem liquidity tokens down to zero or this will cause many issues with
+            // market initialization.
+            require(asset.notional > 0, "Cannot redeem to zero");
+            require(asset.storageState == AssetStorageState.NoChange);
+
+            // @audit-ok
             asset.storageState = AssetStorageState.Update;
 
+            // @audit-ok
             nToken.cashGroup.loadMarket(markets[i], i + 1, true, blockTime);
             // Remove liquidity from the market
+            // @audit have this set the market immediately
             (int256 assetCash, int256 fCash) = markets[i].removeLiquidity(tokensToRemove);
             totalAssetCash = totalAssetCash.add(assetCash);
 
@@ -248,6 +278,7 @@ contract nTokenRedeemAction {
                 );
             }
         }
+        // @audit we should immediately update the nToken portfolio here.
 
         return totalAssetCash;
     }
@@ -255,6 +286,7 @@ contract nTokenRedeemAction {
     /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netAssetCash
     /// as a result. The aim here is to ensure that accounts can redeem nTokens without having to take on
     /// fCash assets.
+    /// @dev fCashAssets is modified in place here, we should return it
     function _sellfCashAssets(
         CashGroupParameters memory cashGroup,
         MarketParameters[] memory markets,
@@ -262,11 +294,16 @@ contract nTokenRedeemAction {
         uint256 blockTime
     ) private returns (int256, bool) {
         int256[] memory values = new int256[](2);
-        uint256 fCashIndex;
+        uint256 fCashIndex = 0;
         bool hasResidual;
 
-        for (uint256 i; i < markets.length; i++) {
+        // @audit ok loop over every market
+        for (uint256 i = 0; i < markets.length; i++) {
+            // @audit refactor this to loop over every fcash asset and check if it is idiosyncratic
+            // @audit then load the market for that fCash asset and then attempt to trade
+
             while (fCashAssets[fCashIndex].maturity < markets[i].maturity) {
+                // @audit-ok
                 // Skip an idiosyncratic fCash asset, if this happens then we know there is a residual
                 // fCash asset
                 fCashIndex += 1;
@@ -274,9 +311,11 @@ contract nTokenRedeemAction {
             }
             // It's not clear that this is idiosyncratic at this point but we know that this asset cannot trade
             // on this particular market.
+            // @audit-ok
             if (fCashAssets[fCashIndex].maturity > markets[i].maturity) continue;
 
             // Safety check to ensure that we only ever trade on matching markets
+            // @audit-ok
             require(fCashAssets[fCashIndex].maturity == markets[i].maturity); // dev: invalid maturity during trading
 
             if (fCashAssets[fCashIndex].notional != 0) {
@@ -286,11 +325,14 @@ contract nTokenRedeemAction {
                         cashGroup,
                         // Use the negative of fCash notional here since we want to net it out
                         fCashAssets[fCashIndex].notional.neg(),
+                        // @audit-ok time to maturity
                         fCashAssets[fCashIndex].maturity.sub(blockTime),
+                        // @audit-ok market index
                         i + 1
                     );
 
                 if (netAssetCash == 0) {
+                    // This means that the trade failed
                     hasResidual = true;
                 } else {
                     values[0] = values[0].add(netAssetCash);
