@@ -54,18 +54,18 @@ library BalanceHandler {
             balanceState.netCashChange = balanceState.netCashChange.add(assetAmountInternal);
 
             return assetAmountInternal;
+        } else {
+            // Otherwise add the asset amount here. It may be net off later and we want to only do
+            // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
+            // and external account remain in sync.
+            // @audit-ok transfer will be deferred
+            balanceState.netAssetTransferInternalPrecision = balanceState
+                .netAssetTransferInternalPrecision
+                .add(assetAmountInternal);
+
+            // Returns the converted assetAmountExternal to the internal amount
+            return assetAmountInternal;
         }
-
-        // Otherwise add the asset amount here. It may be net off later and we want to only do
-        // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
-        // and external account remain in sync.
-        // @audit-ok transfer will be deferred
-        balanceState.netAssetTransferInternalPrecision = balanceState
-            .netAssetTransferInternalPrecision
-            .add(assetAmountInternal);
-
-        // Returns the converted assetAmountExternal to the internal amount
-        return assetAmountInternal;
     }
 
     /// @notice Handle deposits of the underlying token
@@ -84,8 +84,8 @@ library BalanceHandler {
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
-            // @audit-ok adding overflow check here
-            require(msg.value <= uint256(type(int256).max) && underlyingAmountExternal == int256(msg.value), "ETH Balance");
+            // @audit-ok underflow checked above
+            require(uint256(underlyingAmountExternal) == msg.value, "ETH Balance");
         } else {
             underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
         }
@@ -95,7 +95,7 @@ library BalanceHandler {
         // Tokens that are not mintable like cTokens will be deposited as assetTokens
         require(assetToken.tokenType == TokenType.cToken || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type
         int256 assetTokensReceivedExternalPrecision =
-            assetToken.mint(uint256(underlyingAmountExternal));
+            assetToken.mint(SafeInt256.toUint(underlyingAmountExternal));
 
         // cTokens match INTERNAL_TOKEN_PRECISION so this will short circuit but we leave this here in case a different
         // type of asset token is listed in the future. It's possible if those tokens have a different precision dust may
@@ -119,46 +119,45 @@ library BalanceHandler {
     ) internal returns (int256 transferAmountExternal) {
         bool mustUpdate;
         if (balanceState.netNTokenTransfer < 0) {
+            // @audit-ok
             require(
-                balanceState.storedNTokenBalance.add(balanceState.netNTokenSupplyChange) >=
-                    balanceState.netNTokenTransfer.neg(),
-                "NegBal"
+                balanceState.storedNTokenBalance
+                    .add(balanceState.netNTokenSupplyChange)
+                    .add(balanceState.netNTokenTransfer) >= 0,
+                "Neg nToken"
             );
         }
 
+        // @audit-ok
+        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
         if (balanceState.netAssetTransferInternalPrecision < 0) {
-            require(
-                balanceState.storedCashBalance.add(balanceState.netCashChange).add(
-                    balanceState.netAssetTransferInternalPrecision
-                ) >= 0,
-                "NegBal"
-            );
+            require(balanceState.storedCashBalance.add(totalCashChange) >= 0, "Neg Cash");
         }
 
-        if (balanceState.netAssetTransferInternalPrecision != 0) {
-            transferAmountExternal = _finalizeTransfers(balanceState, account, redeemToUnderlying);
-        }
+        // Transfer amount is checked inside finalize transfers in case when converting to external we
+        // round down to zero. This returns the actual net transfer in internal precision as well.
+        (
+            transferAmountExternal,
+            balanceState.netAssetTransferInternalPrecision
+        ) = _finalizeTransfers(balanceState, account, redeemToUnderlying);
 
-        if (
-            balanceState.netCashChange != 0 || balanceState.netAssetTransferInternalPrecision != 0
-        ) {
-            balanceState.storedCashBalance = balanceState
-                .storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision);
-
+        if (totalCashChange != 0) {
+            // @audit-ok
+            balanceState.storedCashBalance = balanceState.storedCashBalance.add(totalCashChange);
             mustUpdate = true;
 
             emit CashBalanceChange(
                 account,
                 uint16(balanceState.currencyId),
-                balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision)
+                totalCashChange
             );
         }
 
         if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
+            // @audit-ok
             // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
-            // of the system. This method will update the lastClaimTime time in the balanceState for storage.
+            // of the system. This method will update the lastClaimTime time and lastIntegralTotalSupply in balance
+            // state in place.
             Incentives.claimIncentives(balanceState, account);
 
             // nTokens are within the notional system so we can update balances directly.
@@ -179,6 +178,7 @@ library BalanceHandler {
         }
 
         if (mustUpdate) {
+            // @audit-ok all balances have updated by now
             _setBalanceStorage(
                 account,
                 balanceState.currencyId,
@@ -189,6 +189,7 @@ library BalanceHandler {
             );
         }
 
+        // @audit-ok
         accountContext.setActiveCurrency(
             balanceState.currencyId,
             // Set active currency to true if either balance is non-zero
@@ -196,13 +197,12 @@ library BalanceHandler {
             Constants.ACTIVE_IN_BALANCES
         );
 
+        // @audit-ok
         if (balanceState.storedCashBalance < 0) {
             // NOTE: HAS_CASH_DEBT cannot be extinguished except by a free collateral check where all balances
             // are examined
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
         }
-
-        return transferAmountExternal;
     }
 
     /// @dev Returns the amount transferred in underlying or asset terms depending on how redeem to underlying
@@ -211,19 +211,23 @@ library BalanceHandler {
         BalanceState memory balanceState,
         address account,
         bool redeemToUnderlying
-    ) private returns (int256 actualTransferAmountExternal) {
+    ) private returns (int256 actualTransferAmountExternal, int256 assetTransferAmountInternal) {
         Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
         int256 assetTransferAmountExternal =
             assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
-        // We only do the redeem to underlying if the asset transfer amount is less than zero. If it is greater than
-        // zero then we will do a normal transfer instead. We know in this function that the value will not be zero.
-        if (redeemToUnderlying && assetTransferAmountExternal < 0) {
+        if (assetTransferAmountExternal == 0) {
+            return (0, 0);
+        } else if (redeemToUnderlying && assetTransferAmountExternal < 0) {
+            // We only do the redeem to underlying if the asset transfer amount is less than zero. If it is greater than
+            // zero then we will do a normal transfer instead.
+
             // We use the internal amount here and then scale it to the external amount so that there is
             // no loss of precision between our internal accounting and the external account. In this case
             // there will be no dust accrual since we will transfer the exact amount of underlying that was
             // received.
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
+            // @audit underlyingAmountExternal is converted from uint to int inside, must be positive
             int256 underlyingAmountExternal = assetToken.redeem(
                 underlyingToken,
                 // NOTE: dust may accrue at the lowest decimal place
@@ -231,6 +235,7 @@ library BalanceHandler {
             );
 
             // Withdraws the underlying amount out to the destination account
+            // @audit-ok this is guaranteed to be a withdraw
             actualTransferAmountExternal = underlyingToken.transfer(
                 account,
                 underlyingAmountExternal.neg()
@@ -241,11 +246,8 @@ library BalanceHandler {
         }
 
         // Convert the actual transferred amount
-        balanceState.netAssetTransferInternalPrecision = assetToken.convertToInternal(
-            assetTransferAmountExternal
-        );
-
-        return actualTransferAmountExternal;
+        // @audit-ok
+        assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
     }
 
     /// @notice Special method for settling negative current cash debts. This occurs when an account
@@ -310,36 +312,40 @@ library BalanceHandler {
         AccountContext memory accountContext,
         SettleAmount[] memory settleAmounts
     ) internal {
-        for (uint256 i; i < settleAmounts.length; i++) {
-            if (settleAmounts[i].netCashChange == 0) continue;
+        for (uint256 i = 0; i < settleAmounts.length; i++) {
+            SettleAmount memory amt = settleAmounts[i];
+            if (amt.netCashChange == 0) continue;
 
             (
                 int256 cashBalance,
                 int256 nTokenBalance,
                 uint256 lastClaimTime,
                 uint256 lastClaimIntegralSupply
-            ) = getBalanceStorage(account, settleAmounts[i].currencyId);
+            ) = getBalanceStorage(account, amt.currencyId);
 
-            cashBalance = cashBalance.add(settleAmounts[i].netCashChange);
+            // @audit-ok
+            cashBalance = cashBalance.add(amt.netCashChange);
             accountContext.setActiveCurrency(
-                settleAmounts[i].currencyId,
+                amt.currencyId,
                 cashBalance != 0 || nTokenBalance != 0,
                 Constants.ACTIVE_IN_BALANCES
             );
 
+            // @audit-ok
             if (cashBalance < 0) {
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
             }
 
             emit CashBalanceChange(
                 account,
-                uint16(settleAmounts[i].currencyId),
-                settleAmounts[i].netCashChange
+                uint16(amt.currencyId),
+                amt.netCashChange
             );
 
+            // @audit-ok
             _setBalanceStorage(
                 account,
-                settleAmounts[i].currencyId,
+                amt.currencyId,
                 cashBalance,
                 nTokenBalance,
                 lastClaimTime,
@@ -354,12 +360,14 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance
     ) internal {
+        // @audit consider moving this to its own storage slot
         require(cashBalance >= 0); // dev: invalid nToken cash balance
         _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
     }
 
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
+        // @audit consider moving this to its own storage slot
         require(fee >= 0); // dev: invalid fee
         // prettier-ignore
         (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
@@ -390,16 +398,20 @@ library BalanceHandler {
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
-        require(lastClaimTime >= 0 && lastClaimTime <= type(uint32).max); // dev: last claim time overflow
+        require(lastClaimTime <= type(uint32).max); // dev: last claim time overflow
         // Last claim supply is stored in a "floating point" storage slot that does not maintain exact precision but
         // is also not limited by storage overflows. `packTo56Bits` will ensure that the the returned value will fit
         // in 56 bits (7 bytes)
         bytes32 packedLastClaimIntegralSupply = FloatingPoint56.packTo56Bits(lastClaimIntegralSupply);
 
+        // @audit-ok
         bytes32 data =
             ((bytes32(uint256(nTokenBalance))) |
+            // 80 bits
                 (bytes32(lastClaimTime) << 80) |
+            // 80 + 32 = 112
                 (packedLastClaimIntegralSupply << 112) |
+            // 80 + 32 + 56 = 112
                 (bytes32(cashBalance) << 168));
 
         assembly {
@@ -425,10 +437,11 @@ library BalanceHandler {
             data := sload(slot)
         }
 
-        nTokenBalance = int256(uint80(uint256(data)));
-        lastClaimTime = uint256(uint32(uint256(data >> 80)));
-        lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(uint256(uint56(uint256(data >> 112))));
-        cashBalance = int256(int88(int256(data >> 168)));
+        // @audit-ok
+        nTokenBalance = uint80(uint256(data));
+        lastClaimTime = uint32(uint256(data >> 80));
+        lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(uint56(uint256(data >> 112)));
+        cashBalance = int88(int256(data >> 168));
     }
 
     /// @notice Loads a balance state memory object
@@ -440,8 +453,9 @@ library BalanceHandler {
         uint256 currencyId,
         AccountContext memory accountContext
     ) internal view {
-        require(currencyId != 0); // dev: invalid currency id
+        require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
         balanceState.currencyId = currencyId;
+        // @audit-ok
 
         if (accountContext.isActiveInBalances(currencyId)) {
             (
@@ -463,11 +477,14 @@ library BalanceHandler {
         balanceState.netNTokenSupplyChange = 0;
     }
 
-    /// @notice Used when manually claiming incentives in nTokenAction
+    /// @notice Used when manually claiming incentives in nTokenAction. Also sets the balance state
+    /// to storage to update the lastClaimTime and lastClaimIntegralSupply
     function claimIncentivesManual(BalanceState memory balanceState, address account)
         internal
         returns (uint256)
     {
+        // @audit maybe have this take a currency id instead of a balance state so that we don't
+        // update cash balances in an unintended way...
         uint256 incentivesClaimed = Incentives.claimIncentives(balanceState, account);
         _setBalanceStorage(
             account,

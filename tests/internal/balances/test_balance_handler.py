@@ -119,7 +119,7 @@ class TestBalanceHandler:
         # netNTokenTransfer
         if nTokenBalance + netNTokenSupplyChange >= 0:
             bsCopy[5] = -(nTokenBalance + netNTokenSupplyChange + random.randint(1, 1e8))
-            with brownie.reverts("NegBal"):
+            with brownie.reverts("Neg nToken"):
                 balanceHandler.finalize(bsCopy, accounts[0], context, False)
         else:
             with brownie.reverts("dev: nToken supply overflow"):
@@ -146,7 +146,7 @@ class TestBalanceHandler:
         else:
             bsCopy[4] = -random.randint(1, 1e8)
 
-        with brownie.reverts("NegBal"):
+        with brownie.reverts("Neg Cash"):
             balanceHandler.finalize(bsCopy, accounts[0], context, False)
 
     @pytest.mark.skip

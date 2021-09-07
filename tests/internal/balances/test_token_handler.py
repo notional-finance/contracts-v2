@@ -20,9 +20,12 @@ class TestTokenHandler:
     def test_cannot_set_eth_twice(self, tokenHandler, accounts, MockERC20):
         zeroAddress = HexString(0, "bytes20")
         tokenHandler.setCurrencyMapping(1, True, (zeroAddress, False, TokenType["Ether"], 0))
+        erc20 = MockERC20.deploy("Ether", "Ether", 18, 0, {"from": accounts[0]})
 
         with brownie.reverts("dev: ether can only be set once"):
-            tokenHandler.setCurrencyMapping(2, True, (zeroAddress, False, TokenType["Ether"], 0))
+            tokenHandler.setCurrencyMapping(2, True, (erc20.address, False, TokenType["Ether"], 0))
+
+        with brownie.reverts("TH: address is zero"):
             tokenHandler.setCurrencyMapping(
                 2, True, (zeroAddress, False, TokenType["UnderlyingToken"], 0)
             )
