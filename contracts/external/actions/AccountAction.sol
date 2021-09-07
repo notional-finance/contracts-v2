@@ -71,8 +71,7 @@ contract AccountAction {
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
         // @audit-ok depositing to address zero may mess up reserve account
         require(account != address(0)); // dev: cannot deposit to address zero
-        // Int conversion overflow check done inside this method call
-        require(0 < amountExternalPrecision && amountExternalPrecision < uint256(type(int256).max)); // dev: amount out of bounds
+        // @audit do not allow deposits to nToken
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
@@ -85,7 +84,8 @@ contract AccountAction {
         int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             msg.sender,
             // @audit-ok checked overflow above
-            int256(amountExternalPrecision)
+            // @audit switch to safe int
+            SafeInt256.toInt(amountExternalPrecision)
         );
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
@@ -114,7 +114,7 @@ contract AccountAction {
     ) external returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
         require(account != address(0)); // dev: cannot deposit to address zero
-        require(0 < amountExternalPrecision && amountExternalPrecision < uint256(type(int256).max)); // dev: amount out of bounds
+        // @audit do not allow deposits to nToken
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
@@ -126,7 +126,7 @@ contract AccountAction {
         int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
             // @audit-ok checked overflow above
-            int256(amountExternalPrecision),
+            SafeInt256.toInt(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
 
@@ -136,7 +136,7 @@ contract AccountAction {
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return uint256(assetTokensReceivedInternal);
+        return SafeInt256.toUint(assetTokensReceivedInternal);
     }
 
     /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. Will settle

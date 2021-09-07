@@ -119,8 +119,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 amount,
         bytes calldata data
     ) external payable override {
-        // @audit-ok check overflow
-        require(amount <= uint256(type(int256).max)); // dev: int overflow
         _validateAccounts(from, to);
 
         // If code size > 0 call onERC1155received
@@ -143,8 +141,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             PortfolioAsset memory asset;
             (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
             // @audit-ok overflow is checked above
-            // @audit write a unit test to check overflow
-            asset.notional = int256(amount);
+            asset.notional = SafeInt256.toInt(amount);
             _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
 
             PortfolioAsset[] memory assets = new PortfolioAsset[](1);

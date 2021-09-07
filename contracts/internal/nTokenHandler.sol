@@ -453,7 +453,9 @@ library nTokenHandler {
         nToken.cashGroup = CashGroup.buildCashGroupView(currencyId);
     }
 
+    /// @notice Returns the next settle time for the nToken which is 1 quarter away
     function getNextSettleTime(nTokenPortfolio memory nToken) internal pure returns (uint256) {
+        // @audit-ok
         if (nToken.lastInitializedTime == 0) return 0;
         return DateTime.getReferenceTime(nToken.lastInitializedTime) + Constants.QUARTER;
     }

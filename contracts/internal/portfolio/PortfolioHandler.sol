@@ -17,15 +17,16 @@ library PortfolioHandler {
         internal
         pure
     {
-        for (uint256 i; i < assets.length; i++) {
-            if (assets[i].notional == 0) continue;
+        for (uint256 i = 0; i < assets.length; i++) {
+            PortfolioAsset memory asset = assets[i];
+            if (asset.notional == 0) continue;
 
             addAsset(
                 portfolioState,
-                assets[i].currencyId,
-                assets[i].maturity,
-                assets[i].assetType,
-                assets[i].notional
+                asset.currencyId,
+                asset.maturity,
+                asset.assetType,
+                asset.notional
             );
         }
     }
@@ -37,16 +38,17 @@ library PortfolioHandler {
         uint256 assetType,
         int256 notional
     ) private pure returns (bool) {
-        for (uint256 i; i < assetArray.length; i++) {
-            if (assetArray[i].assetType != assetType) continue;
-            if (assetArray[i].currencyId != currencyId) continue;
-            if (assetArray[i].maturity != maturity) continue;
+        for (uint256 i = 0; i < assetArray.length; i++) {
+            PortfolioAsset memory asset = assetArray[i];
+            if (asset.assetType != assetType) continue;
+            if (asset.currencyId != currencyId) continue;
+            if (asset.maturity != maturity) continue;
 
             // If the storage index is -1 this is because it's been deleted from settlement. We cannot
             // add fcash that has been settled.
-            require(assetArray[i].storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
+            require(asset.storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
 
-            int256 newNotional = assetArray[i].notional.add(notional);
+            int256 newNotional = asset.notional.add(notional);
             // Liquidity tokens cannot be reduced below zero.
             if (AssetHandler.isLiquidityToken(assetType)) {
                 require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
@@ -54,8 +56,8 @@ library PortfolioHandler {
 
             require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
 
-            assetArray[i].notional = newNotional;
-            assetArray[i].storageState = AssetStorageState.Update;
+            asset.notional = newNotional;
+            asset.storageState = AssetStorageState.Update;
 
             return true;
         }

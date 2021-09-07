@@ -510,7 +510,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         return
             Market.getfCashGivenCashAmount(
                 market.totalfCash,
-                int256(netCashToAccount),
+                netCashToAccount,
                 totalCashUnderlying,
                 rateScalar,
                 rateAnchor,
@@ -570,7 +570,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     tokenAddress,
-                    uint256(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,
@@ -596,7 +596,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    uint256(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,
