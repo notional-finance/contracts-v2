@@ -10,7 +10,7 @@
   "devDependencies": {
     "@nomiclabs/hardhat-etherscan": "^2.1.4",
     "@openzeppelin/contracts": "^3.4.0-solc-0.7",
-    "hardhat": "^2.2.0-dtt.1"
+    "hardhat": "^2.6.2"
   },
   "scripts": {
     "test": "mocha"

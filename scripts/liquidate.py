@@ -15,6 +15,7 @@ from tests.helpers import get_balance_action, get_balance_trade_action, get_tref
 
 chain = Chain()
 CollateralCurrency_NoTransferFee = 1
+CrossCurrencyfCash_NoTransferFee = 3
 zeroAddress = HexString(0, "bytes20")
 
 def environment(accounts):
@@ -78,6 +79,134 @@ def collateralLiquidate(env):
             1,
             0,
             0,
+            tradeCalldata,
+        ],
+    )
+
+    env.flashLender.flashLoan(
+        env.flashLiquidator.address,
+        [env.token["DAI"].address],
+        [100e18],
+        [0],
+        env.flashLiquidator.address,
+        calldata,
+        0,
+        {"from": accounts[0]},
+    )
+
+def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
+    env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
+    env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
+    env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
+    env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
+
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId, "DepositAssetAndMintNToken", depositActionAmount=initialCash
+            )
+        ],
+        {"from": accounts[0]},
+    )
+    env.notional.initializeMarkets(currencyId, True)
+
+def fcashLiquidateSetup(env):
+    cToken = env.cToken["ETH"]
+    cToken.mint({"from": accounts[0], "value": 10000e18})
+    cToken.approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
+
+    _enable_cash_group(1, env, accounts, initialCash=40000e8)
+    cashGroup = list(env.notional.getCashGroup(2))
+    # Enable the one year market
+    cashGroup[0] = 3
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    env.notional.updateCashGroup(2, cashGroup)
+
+    env.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
+
+    env.notional.updateInitializationParameters(
+        2, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
+    )
+
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(1, "DepositUnderlyingAndMintNToken", depositActionAmount=5e18),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+        ],
+        {"from": accounts[0], "value": 5e18},
+    )
+
+    env.notional.initializeMarkets(2, True)
+
+    env.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(1, "DepositUnderlyingAndMintNToken", depositActionAmount=5e18),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000000e8),
+        ],
+        {"from": accounts[0], "value": 5e18},
+    )
+
+def crossCurrencyLiquidate(env):
+    fcashLiquidateSetup(env)
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    collateral = get_balance_trade_action(
+        1,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 1e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 1e8, "minSlippage": 0},
+        ],
+        depositActionAmount=2e18,
+    )
+    env.notional.batchBalanceAndTradeAction(
+        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 2e18})
+
+    # Drop ETH price
+    env.ethOracle["DAI"].setAnswer(0.017e18)
+
+    tradeCalldata = eth_abi.encode_abi(
+        [
+            "uint24", 
+            "uint256", 
+            "uint160"
+        ],
+        [
+            3000,
+            chain.time() + 20000,
+            0
+        ]
+    )
+
+    liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
+    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+
+    calldata = eth_abi.encode_abi(
+        [
+            "uint8",
+            "address",
+            "uint256",
+            "uint256",
+            "uint256[]",
+            "uint256[]",
+            "bytes",
+        ],
+        [
+            CrossCurrencyfCash_NoTransferFee,
+            accounts[1].address,
+            2,
+            1,
+            maturities,
+            [0, 0],
             tradeCalldata,
         ],
     )
@@ -201,5 +330,6 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
 
     chain.snapshot()
-
     collateralLiquidate(env)
+    chain.revert()
+    crossCurrencyLiquidate(env)
