@@ -330,6 +330,6 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
 
     chain.snapshot()
-    collateralLiquidate(env)
-    chain.revert()
+    #collateralLiquidate(env)
+    #chain.revert()
     crossCurrencyLiquidate(env)
