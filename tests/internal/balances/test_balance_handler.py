@@ -434,24 +434,38 @@ class TestBalanceHandler:
         if assetTokensReceived > 0:
             assert accountUnderlyingBalanceAfter > accountUnderlyingBalanceBefore
 
-    def test_redeem_to_underlying_doesnt_fail_on_positive(
-        self, balanceHandler, accounts, cTokenEnvironment
-    ):
+    def test_redeem_to_underlying(self, balanceHandler, accounts, cTokenEnvironment):
         currencyId = DAI_CURRENCY_ID
         cTokenEnvironment.token["DAI"].approve(
             cTokenEnvironment.cToken["DAI"].address, 2 ** 255, {"from": accounts[0]}
         )
         cTokenEnvironment.cToken["DAI"].mint(10000e18, {"from": accounts[0]})
+        cTokenEnvironment.cToken["DAI"].transfer(
+            balanceHandler.address, 200e8, {"from": accounts[0]}
+        )
         active_currencies = currencies_list_to_active_currency_bytes([(currencyId, False, True)])
         context = (0, "0x00", 0, 0, active_currencies)
 
         (bs, context) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
         bsCopy = list(bs)
-        bsCopy[4] = 100e8
+        bsCopy[1] = Wei(100e8)
+        bsCopy[4] = Wei(-100e8)
 
-        assetBalanceBefore = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
+        cTokenBalanceBefore = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
+        daiBalanceBefore = cTokenEnvironment.token["DAI"].balanceOf(accounts[0])
         balanceHandler.finalize(bsCopy, accounts[0], context, True)
         (bsAfter, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, context)
-        assetBalanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
-        assert bsAfter[1] == 100e8
-        assert assetBalanceBefore - assetBalanceAfter == 100e8
+
+        cTokenBalanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(accounts[0])
+        daiBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(accounts[0])
+        contractDaiBalanceAfter = cTokenEnvironment.token["DAI"].balanceOf(balanceHandler.address)
+        contractCTokenBalanceAfter = cTokenEnvironment.cToken["DAI"].balanceOf(
+            balanceHandler.address
+        )
+
+        assert bsAfter[1] == 0
+        assert cTokenBalanceBefore - cTokenBalanceAfter == 0
+        assert daiBalanceAfter - daiBalanceBefore == 2e18
+        assert cTokenBalanceBefore - cTokenBalanceAfter == 0
+        assert contractDaiBalanceAfter == 0
+        assert contractCTokenBalanceAfter == 100e8

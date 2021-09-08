@@ -247,14 +247,16 @@ library BalanceHandler {
                 account,
                 underlyingAmountExternal.neg()
             );
+            // @audit-ok in this case we're transferring underlying tokens, we want to convert the internal
+            // asset transfer amount to store in cash balances
+            assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
         } else {
             // @audit-ok this is the actual transfer amount
             actualTransferAmountExternal = assetToken.transfer(account, assetTransferAmountExternal);
+            // Convert the actual transferred amount
+            // @audit-ok in this case we're transferring asset tokens
+            assetTransferAmountInternal = assetToken.convertToInternal(actualTransferAmountExternal);
         }
-
-        // Convert the actual transferred amount
-        // @audit-ok
-        assetTransferAmountInternal = assetToken.convertToInternal(actualTransferAmountExternal);
     }
 
     /// @notice Special method for settling negative current cash debts. This occurs when an account
