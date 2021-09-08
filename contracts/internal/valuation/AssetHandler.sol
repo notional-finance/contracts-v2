@@ -232,6 +232,7 @@ library AssetHandler {
 
     /// @notice Returns present value of all assets in the cash group as asset cash and the updated
     /// portfolio index where the function has ended.
+    /// @return the value of the cash group in asset cash
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
