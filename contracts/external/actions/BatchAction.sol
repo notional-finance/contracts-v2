@@ -33,13 +33,9 @@ contract BatchAction is StorageLayoutV1 {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         // Return any settle amounts here to reduce the number of storage writes to balances
-        (
-            AccountContext memory accountContext,
-            SettleAmount[] memory settleAmounts
-        ) = _settleAccountIfRequiredAndStorePortfolio(account);
-
-        uint256 settleAmountIndex = 0;
+        AccountContext memory accountContext = _settleAccountIfRequired(account);
         BalanceState memory balanceState;
+
         for (uint256 i = 0; i < actions.length; i++) {
             BalanceAction calldata action = actions[i];
             // msg.value will only be used when currency id == 1, referencing ETH. The requirement
@@ -47,15 +43,8 @@ contract BatchAction is StorageLayoutV1 {
             if (i > 0) {
                 require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
-
-            settleAmountIndex = _loadBalanceState(
-                account,
-                settleAmountIndex,
-                action.currencyId,
-                settleAmounts,
-                balanceState,
-                accountContext
-            );
+            // Loads the currencyId into balance state
+            balanceState.loadBalanceState(account, action.currencyId, accountContext);
 
             _executeDepositAction(
                 account,
@@ -74,9 +63,6 @@ contract BatchAction is StorageLayoutV1 {
             );
         }
 
-        // Finalize remaining settle amounts
-        // @audit-ok all settle amounts get finalized
-        BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
         // @audit-ok will call free collateral here
         _finalizeAccountContext(account, accountContext);
     }
@@ -120,14 +106,15 @@ contract BatchAction is StorageLayoutV1 {
         address account,
         BalanceActionWithTrades[] calldata actions
     ) internal returns (AccountContext memory) {
-        (
-            AccountContext memory accountContext,
-            SettleAmount[] memory settleAmounts,
-            PortfolioState memory portfolioState
-        ) = _settleAccountIfRequiredAndReturnPortfolio(account);
-
-        uint256 settleAmountIndex = 0;
+        AccountContext memory accountContext = _settleAccountIfRequired(account);
         BalanceState memory balanceState;
+        // @audit-ok this has to happen after settle account
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+            account,
+            accountContext.assetArrayLength,
+            0
+        );
+
         for (uint256 i = 0; i < actions.length; i++) {
             BalanceActionWithTrades calldata action = actions[i];
             // msg.value will only be used when currency id == 1, referencing ETH. The requirement
@@ -135,14 +122,8 @@ contract BatchAction is StorageLayoutV1 {
             if (i > 0) {
                 require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
-            settleAmountIndex = _loadBalanceState(
-                account,
-                settleAmountIndex,
-                action.currencyId,
-                settleAmounts,
-                balanceState,
-                accountContext
-            );
+            // Loads the currencyId into balance state
+            balanceState.loadBalanceState(account, action.currencyId, accountContext);
 
             // @audit we do not revert on invalid action types here, they also have no effect
             _executeDepositAction(
@@ -205,46 +186,8 @@ contract BatchAction is StorageLayoutV1 {
             accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
 
-        // Finalize remaining settle amounts
-        // @audit-ok all settle amounts get finalized
-        BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);
         // NOTE: free collateral and account context will be set outside of this method call.
         return accountContext;
-    }
-
-    /// @dev Loads balances and nets off against any cash amounts
-    function _loadBalanceState(
-        address account,
-        uint256 settleAmountIndex,
-        uint256 currencyId,
-        SettleAmount[] memory settleAmounts,
-        BalanceState memory balanceState,
-        AccountContext memory accountContext
-    ) private returns (uint256) {
-        /// @audit consider removing the automatic netting off...what is the benefit here?
-        while (
-            settleAmountIndex < settleAmounts.length &&
-            settleAmounts[settleAmountIndex].currencyId < currencyId
-        ) {
-            // Loop through settleAmounts to find a matching currency
-            settleAmountIndex += 1;
-        }
-        // @audit-info at this point settle amount index will be equal to or past the currency
-
-        // This saves a number of memory allocations
-        balanceState.loadBalanceState(account, currencyId, accountContext);
-
-        // @audit-ok this will only net off if the currency id matches
-        if (
-            settleAmountIndex < settleAmounts.length &&
-            settleAmounts[settleAmountIndex].currencyId == currencyId
-        ) {
-            balanceState.netCashChange = settleAmounts[settleAmountIndex].netCashChange;
-            // Set to zero so that we don't double count later
-            settleAmounts[settleAmountIndex].netCashChange = 0;
-        }
-
-        return settleAmountIndex;
     }
 
     /// @dev Executes deposits
@@ -353,8 +296,8 @@ contract BatchAction is StorageLayoutV1 {
         bool withdrawEntireCashBalance,
         bool redeemToUnderlying
     ) private {
-        // @audit CVF-214 claims that overflow is possible here, unclear how
-        int256 withdrawAmount = int256(withdrawAmountInternalPrecision);
+        // @audit-ok no overflow
+        int256 withdrawAmount = SafeInt256.toInt(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
@@ -404,39 +347,16 @@ contract BatchAction is StorageLayoutV1 {
         );
     }
 
-    function _settleAccountIfRequiredAndReturnPortfolio(address account)
+    function _settleAccountIfRequired(address account)
         private
-        returns (
-            AccountContext memory,
-            SettleAmount[] memory,
-            PortfolioState memory
-        )
+        returns (AccountContext memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            // This will return the appropriate account context and settle amounts
-            return SettleAssetsExternal.settleAssetsAndReturnAll(account, accountContext);
+            // @audit-ok returns a new memory reference to account context
+            return SettleAssetsExternal.settleAccount(account, accountContext);
         } else {
-            return (
-                accountContext,
-                new SettleAmount[](0),
-                // @audit we do not use the new assets hint here at all...
-                PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0)
-            );
-        }
-    }
-
-    function _settleAccountIfRequiredAndStorePortfolio(address account)
-        private
-        returns (AccountContext memory, SettleAmount[] memory)
-    {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-
-        if (accountContext.mustSettleAssets()) {
-            // This will return the appropriate account context and settle amounts
-            return SettleAssetsExternal.settleAssetsAndStorePortfolio(account, accountContext);
-        } else {
-            return (accountContext, new SettleAmount[](0));
+            return accountContext;
         }
     }
 }

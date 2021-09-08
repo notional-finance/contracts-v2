@@ -23,7 +23,7 @@ contract AccountAction {
         // @audit-ok address(0) cannot occur
         require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
         address account = msg.sender;
-        AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(account);
+        (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
         // @audit-ok currency id will be checked inside here
         accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
         accountContext.setAccountContext(account);
@@ -39,17 +39,10 @@ contract AccountAction {
     /// @return returns true if account has been settled
     function settleAccount(address account) external returns (bool) {
         // @audit-ok no authentication required
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        if (accountContext.mustSettleAssets()) {
-            // @audit-ok returns a new memory reference to account context
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
-            // Don't use the internal method here to avoid setting the account context if it does
-            // not require settlement
-            accountContext.setAccountContext(account);
-            return true;
-        } else {
-            return false;
-        }
+        (AccountContext memory accountContext, bool didSettle) = _settleAccountIfRequired(account);
+        // @audit-ok set the account if did settle
+        if (didSettle) accountContext.setAccountContext(account);
+        return didSettle;
     }
 
     /// @notice Deposits and wraps the underlying token for a particular cToken. Does not settle assets or check free
@@ -156,7 +149,7 @@ contract AccountAction {
         bool redeemToUnderlying
     ) external returns (uint256) {
         // This happens before reading the balance state to get the most up to date cash balance
-        AccountContext memory accountContext = _settleAccountIfRequiredAndFinalize(msg.sender);
+        (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(msg.sender);
 
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
@@ -178,16 +171,18 @@ contract AccountAction {
         return amountWithdrawn.neg().toUint();
     }
 
-    function _settleAccountIfRequiredAndFinalize(address account)
+    /// @notice Settle the account if required, returning a reference to the account context. Also
+    /// returns a boolean to indicate if it did settle.
+    function _settleAccountIfRequired(address account)
         private
-        returns (AccountContext memory)
+        returns (AccountContext memory, bool)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
             // @audit-ok returns a new memory reference to account context
-            return SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+            return (SettleAssetsExternal.settleAccount(account, accountContext), true);
         } else {
-            return accountContext;
+            return (accountContext, false);
         }
     }
 }

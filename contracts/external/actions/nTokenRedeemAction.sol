@@ -74,7 +74,7 @@ contract nTokenRedeemAction {
         // @audit-ok settle assets first if redeeming
         AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
         if (context.mustSettleAssets()) {
-            context = SettleAssetsExternal.settleAssetsAndFinalize(redeemer, context);
+            context = SettleAssetsExternal.settleAccount(redeemer, context);
         }
 
         // @audit-ok

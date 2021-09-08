@@ -423,7 +423,7 @@ library TradingAction {
 
         // @audit-ok settles assets first
         if (counterpartyContext.mustSettleAssets()) {
-            counterpartyContext = SettleAssetsExternal.settleAssetsAndFinalize(counterparty, counterpartyContext);
+            counterpartyContext = SettleAssetsExternal.settleAccount(counterparty, counterpartyContext);
         }
 
         // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive

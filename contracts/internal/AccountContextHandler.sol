@@ -250,8 +250,9 @@ library AccountContextHandler {
         // regardless of whether or not they have been updated.
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =
             portfolioState.storeAssets(account);
-        accountContext.assetArrayLength = assetArrayLength;
         accountContext.nextSettleTime = nextSettleTime;
+        require(mustSettleAssets(accountContext) == false); // dev: cannot store matured assets
+        accountContext.assetArrayLength = assetArrayLength;
 
         // During liquidation it is possible for an array to go over the max amount of assets allowed due to
         // liquidity tokens being withdrawn into fCash.

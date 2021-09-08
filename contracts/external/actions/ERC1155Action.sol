@@ -300,7 +300,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     ) internal returns (AccountContext memory, AccountContext memory) {
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
         if (toContext.mustSettleAssets()) {
-            toContext = SettleAssetsExternal.settleAssetsAndFinalize(to, toContext);
+            toContext = SettleAssetsExternal.settleAccount(to, toContext);
         }
         // @audit-ok settlement happens immediately prior
         toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
@@ -310,7 +310,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         if (fromContext.mustSettleAssets()) {
-            fromContext = SettleAssetsExternal.settleAssetsAndFinalize(from, fromContext);
+            fromContext = SettleAssetsExternal.settleAccount(from, fromContext);
         }
         // @audit-ok settlement happens immediately prior
         fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
