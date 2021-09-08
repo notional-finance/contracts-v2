@@ -34,10 +34,10 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
     function executeDexTrade(
         address from,
         address to,
-        uint256 amountOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
         bytes memory params
     ) internal override {
-        uint256 amountIn = IERC20(from).balanceOf(address(this));
         uint24 fee;
         uint256 deadline;
         uint160 priceLimit;
@@ -49,17 +49,17 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
             priceLimit
         ) = abi.decode(params, (uint24, uint256, uint160));
 
-        ISwapRouter.ExactOutputSingleParams memory swapParams = ISwapRouter.ExactOutputSingleParams(
+        ISwapRouter.ExactInputSingleParams memory swapParams = ISwapRouter.ExactInputSingleParams(
             from,
             to,
             fee,
             address(this),
             deadline,
-            amountOut,
             amountIn,
+            amountOutMin,
             priceLimit
         );
 
-        ISwapRouter(_swapRouter).exactOutputSingle(swapParams);
+        ISwapRouter(_swapRouter).exactInputSingle(swapParams);
     }
 }

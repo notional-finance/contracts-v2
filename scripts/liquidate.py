@@ -83,6 +83,7 @@ def collateralLiquidate(env):
         ],
     )
 
+    print(env.notional.getFreeCollateral(accounts[1]))
     env.flashLender.flashLoan(
         env.flashLiquidator.address,
         [env.token["DAI"].address],
@@ -93,6 +94,7 @@ def collateralLiquidate(env):
         0,
         {"from": accounts[0]},
     )
+    print(env.notional.getFreeCollateral(accounts[1]))
 
 def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
@@ -211,6 +213,7 @@ def crossCurrencyLiquidate(env):
         ],
     )
 
+    print(env.notional.getFreeCollateral(accounts[1]))
     env.flashLender.flashLoan(
         env.flashLiquidator.address,
         [env.token["DAI"].address],
@@ -221,6 +224,7 @@ def crossCurrencyLiquidate(env):
         0,
         {"from": accounts[0]},
     )
+    print(env.notional.getFreeCollateral(accounts[1]))
 
 DEPOSIT_PARAMETERS = {
     2: [[int(0.4e8), int(0.6e8)], [int(0.8e9)] * 2],
@@ -330,6 +334,6 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
 
     chain.snapshot()
-    #collateralLiquidate(env)
-    #chain.revert()
+    collateralLiquidate(env)
+    chain.revert()
     crossCurrencyLiquidate(env)

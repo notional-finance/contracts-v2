@@ -135,7 +135,14 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             action == LiquidationAction.CrossCurrencyfCash_WithTransferFee ||
             action == LiquidationAction.CrossCurrencyfCash_NoTransferFee
         ) {
-            _executeDexTrade(action, from, assets[0], amounts[0], premiums[0], params);
+            _executeDexTrade(
+                action,
+                from,
+                assets[0],
+                IERC20(from).balanceOf(address(this)),  // Available tokens to sell from liquidation
+                amounts[0] + premiums[0],               // Amount needed to pay back flash loan
+                params
+            );
         }
 
         // The lending pool should have enough approval to pull the required amount from the contract
@@ -145,7 +152,8 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
     function executeDexTrade(
         address from,
         address to,
-        uint256 amountOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
         bytes memory params
     ) internal virtual;
 
@@ -153,19 +161,10 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         LiquidationAction action,
         address from,
         address to,
-        uint256 amount,
-        uint256 premium,
+        uint256 amountIn,
+        uint256 amountOutMin,
         bytes calldata params
     ) internal {
-        uint256 bal = IERC20(to).balanceOf(address(this));
-        uint256 total = amount + premium;
-
-        // There's already enough cash to pay back the flash loan
-        // Do we still need to trade in this case?
-        if (bal >= total) {
-            return;
-        }
-
         uint256 collateralCurrency;
         bytes memory tradeCallData;
 
@@ -196,7 +195,7 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
             ) = abi.decode(params, (uint8, address, uint256, uint256, uint256[], uint256[], bytes));
         }
 
-        executeDexTrade(from, to, total - bal, tradeCallData);
+        executeDexTrade(from, to, amountIn, amountOutMin, tradeCallData);
     }
 
     function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
