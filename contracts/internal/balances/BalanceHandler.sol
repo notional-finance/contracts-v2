@@ -129,9 +129,13 @@ library BalanceHandler {
         }
 
         // @audit-ok
-        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
         if (balanceState.netAssetTransferInternalPrecision < 0) {
-            require(balanceState.storedCashBalance.add(totalCashChange) >= 0, "Neg Cash");
+            require(
+                balanceState.storedCashBalance
+                    .add(balanceState.netCashChange)
+                    .add(balanceState.netAssetTransferInternalPrecision) >= 0,
+                "Neg Cash"
+            );
         }
 
         // Transfer amount is checked inside finalize transfers in case when converting to external we
@@ -140,6 +144,8 @@ library BalanceHandler {
             transferAmountExternal,
             balanceState.netAssetTransferInternalPrecision
         ) = _finalizeTransfers(balanceState, account, redeemToUnderlying);
+        // @audit-ok no changes to total cash after this point
+        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
 
         if (totalCashChange != 0) {
             // @audit-ok
@@ -213,6 +219,8 @@ library BalanceHandler {
         bool redeemToUnderlying
     ) private returns (int256 actualTransferAmountExternal, int256 assetTransferAmountInternal) {
         Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
+        // Dust accrual to the protocol is possible if the token decimals is less than internal token precision.
+        // See the comments in TokenHandler.convertToExternal and TokenHandler.convertToInternal
         int256 assetTransferAmountExternal =
             assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
 
@@ -224,13 +232,12 @@ library BalanceHandler {
 
             // We use the internal amount here and then scale it to the external amount so that there is
             // no loss of precision between our internal accounting and the external account. In this case
-            // there will be no dust accrual since we will transfer the exact amount of underlying that was
-            // received.
+            // there will be no dust accrual in underlying tokens since we will transfer the exact amount
+            // of underlying that was received.
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
             // @audit underlyingAmountExternal is converted from uint to int inside, must be positive
             int256 underlyingAmountExternal = assetToken.redeem(
                 underlyingToken,
-                // NOTE: dust may accrue at the lowest decimal place
                 uint256(assetTransferAmountExternal.neg())
             );
 
@@ -241,13 +248,13 @@ library BalanceHandler {
                 underlyingAmountExternal.neg()
             );
         } else {
-            assetTransferAmountExternal = assetToken.transfer(account, assetTransferAmountExternal);
-            actualTransferAmountExternal = assetTransferAmountExternal;
+            // @audit-ok this is the actual transfer amount
+            actualTransferAmountExternal = assetToken.transfer(account, assetTransferAmountExternal);
         }
 
         // Convert the actual transferred amount
         // @audit-ok
-        assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
+        assetTransferAmountInternal = assetToken.convertToInternal(actualTransferAmountExternal);
     }
 
     /// @notice Special method for settling negative current cash debts. This occurs when an account

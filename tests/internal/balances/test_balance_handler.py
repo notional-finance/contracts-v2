@@ -244,10 +244,10 @@ class TestBalanceHandler:
                 assert balanceBefore == balanceAfter
             else:
                 assert bs_[1] == bsCopy[1] + convert_to_internal(
-                    convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
+                    convert_to_external(bsCopy[4], currency[2]), currency[2]
                 )
                 assert balanceAfter - balanceBefore == transferAmountExternal
-                assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2]) - 1
+                assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2])
         else:
             assert bs_[1] == bsCopy[1] + bsCopy[4]
             assert balanceAfter - balanceBefore == transferAmountExternal
