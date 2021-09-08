@@ -144,6 +144,13 @@ abstract contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
                 params
             );
         }
+        
+        // Note: Is this necessary? Seems like leave random assets around will
+        // mess up future liquidations
+        uint256 bal = IERC20(assets[0]).balanceOf(address(this));
+        if (bal > amounts[0] + premiums[0]) {
+            IERC20(assets[0]).transfer(OWNER, bal - (amounts[0] + premiums[0]));
+        }
 
         // The lending pool should have enough approval to pull the required amount from the contract
         return true;
