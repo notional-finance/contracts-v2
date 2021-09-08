@@ -17,6 +17,7 @@ library PortfolioHandler {
         internal
         pure
     {
+        // @audit-ok
         for (uint256 i = 0; i < assets.length; i++) {
             PortfolioAsset memory asset = assets[i];
             if (asset.notional == 0) continue;
@@ -39,21 +40,30 @@ library PortfolioHandler {
         int256 notional
     ) private pure returns (bool) {
         for (uint256 i = 0; i < assetArray.length; i++) {
+            // @audit-ok
             PortfolioAsset memory asset = assetArray[i];
-            if (asset.assetType != assetType) continue;
-            if (asset.currencyId != currencyId) continue;
-            if (asset.maturity != maturity) continue;
+            if (
+                asset.assetType != assetType ||
+                asset.currencyId != currencyId ||
+                asset.maturity != maturity
+            ) continue;
 
-            // If the storage index is -1 this is because it's been deleted from settlement. We cannot
-            // add fcash that has been settled.
-            require(asset.storageState != AssetStorageState.Delete); // dev: portfolio handler deleted storage
+            // Either of these storage states mean that some error in logic has occured, we cannot
+            // store this portfolio
+            // @audit-ok
+            require(
+                asset.storageState != AssetStorageState.Delete &&
+                asset.storageState != AssetStorageState.RevertIfStored
+            ); // dev: portfolio handler deleted storage
 
+            // @audit-ok
             int256 newNotional = asset.notional.add(notional);
             // Liquidity tokens cannot be reduced below zero.
             if (AssetHandler.isLiquidityToken(assetType)) {
                 require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
             }
 
+            // @audit-ok
             require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
 
             asset.notional = newNotional;
@@ -75,6 +85,7 @@ library PortfolioHandler {
         uint256 assetType,
         int256 notional
     ) internal pure {
+        // @audit-ok
         if (
             // Will return true if merged
             _mergeAssetIntoArray(
@@ -86,6 +97,7 @@ library PortfolioHandler {
             )
         ) return;
 
+        // @audit-ok
         if (portfolioState.lastNewAssetIndex > 0) {
             bool merged = _mergeAssetIntoArray(
                 portfolioState.newAssets,
@@ -111,12 +123,13 @@ library PortfolioHandler {
 
         // Otherwise add to the new assets array. It should not be possible to add matching assets in a single transaction, we will
         // check this again when we write to storage.
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex].currencyId = currencyId;
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex].maturity = maturity;
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex].assetType = assetType;
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex].notional = notional;
-        portfolioState.newAssets[portfolioState.lastNewAssetIndex].storageState = AssetStorageState
-            .NoChange;
+        // @audit-ok
+        PortfolioAsset memory newAsset = portfolioState.newAssets[portfolioState.lastNewAssetIndex];
+        newAsset.currencyId = currencyId;
+        newAsset.maturity = maturity;
+        newAsset.assetType = assetType;
+        newAsset.notional = notional;
+        newAsset.storageState = AssetStorageState.NoChange;
         portfolioState.lastNewAssetIndex += 1;
     }
 
@@ -127,8 +140,11 @@ library PortfolioHandler {
         pure
         returns (PortfolioAsset[] memory)
     {
-        PortfolioAsset[] memory extendedArray = new PortfolioAsset[](newAssets.length + 1);
-        for (uint256 i; i < newAssets.length; i++) {
+        // Double the size of the new asset array every time we have to extend to reduce the number of times
+        // that we have to extend it. This will go: 0, 1, 2, 4, 8 (probably stops there).
+        uint256 newLength = newAssets.length == 0 ? 1 : newAssets.length * 2;
+        PortfolioAsset[] memory extendedArray = new PortfolioAsset[](newLength);
+        for (uint256 i = 0; i < newAssets.length; i++) {
             extendedArray[i] = newAssets[i];
         }
 
@@ -138,6 +154,11 @@ library PortfolioHandler {
     /// @notice Takes a portfolio state and writes it to storage.
     /// @dev This method should only be called directly by the nToken. Account updates to portfolios should happen via
     /// the storeAssetsAndUpdateContext call in the AccountContextHandler.sol library.
+    /// @return updated variables to update the account context with
+    ///     hasDebt: whether or not the portfolio has negative fCash assets
+    ///     portfolioActiveCurrencies: a byte32 word with all the currencies in the portfolio
+    ///     uint8: the length of the storage array
+    ///     uint40: the new nextSettleTime for the portfolio
     function storeAssets(PortfolioState memory portfolioState, address account)
         internal
         returns (
@@ -159,21 +180,21 @@ library PortfolioHandler {
         bytes32 portfolioActiveCurrencies;
         uint256 nextSettleTime;
 
-        // Mark any zero notional assets as deleted
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+        for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
+            PortfolioAsset memory asset = portfolioState.storedAssets[i];
             // NOTE: this is to prevent the storage of assets that have been modified in the AssetHandler
             // during valuation.
-            require(portfolioState.storedAssets[i].storageState != AssetStorageState.RevertIfStored);
-            if (
-                portfolioState.storedAssets[i].storageState != AssetStorageState.Delete &&
-                portfolioState.storedAssets[i].notional == 0
-            ) {
+            require(asset.storageState != AssetStorageState.RevertIfStored);
+
+            // Mark any zero notional assets as deleted
+            if (asset.storageState != AssetStorageState.Delete && asset.notional == 0) {
+                // @audit-ok
                 deleteAsset(portfolioState, i);
             }
         }
 
         // First delete assets from asset storage to maintain asset storage indexes
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+        for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
 
             if (asset.storageState == AssetStorageState.Delete) {
@@ -182,35 +203,42 @@ library PortfolioHandler {
                 assembly {
                     sstore(currentSlot, 0x00)
                 }
-                continue;
-            }
-
-            if (portfolioState.storedAssets[i].storageState == AssetStorageState.Update) {
-                // Apply updates
-                uint256 currentSlot = asset.storageSlot;
-                bytes32 encodedAsset = _encodeAssetToBytes(portfolioState.storedAssets[i]);
-                assembly {
-                    sstore(currentSlot, encodedAsset)
+            } else {
+                if (asset.storageState == AssetStorageState.Update) {
+                    // Apply updates
+                    uint256 currentSlot = asset.storageSlot;
+                    bytes32 encodedAsset = _encodeAssetToBytes(asset);
+                    assembly {
+                        sstore(currentSlot, encodedAsset)
+                    }
                 }
-            }
 
-            (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
-                asset,
-                hasDebt,
-                portfolioActiveCurrencies,
-                nextSettleTime
-            );
+                // @audit-ok update portfolio context for every asset that is in storage, whether it is
+                // updated or not.
+                (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
+                    asset,
+                    hasDebt,
+                    portfolioActiveCurrencies,
+                    nextSettleTime
+                );
+            }
         }
 
         // Add new assets
         uint256 assetStorageLength = portfolioState.storedAssetLength;
-        for (uint256 i; i < portfolioState.newAssets.length; i++) {
+        for (uint256 i = 0; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
+            // @audit-ok
             if (asset.notional == 0) continue;
+            require(
+                asset.storageState != AssetStorageState.Delete &&
+                asset.storageState != AssetStorageState.RevertIfStored
+            ); // dev: store assets deleted storage
 
-            bytes32 encodedAsset = _encodeAssetToBytes(portfolioState.newAssets[i]);
+            bytes32 encodedAsset = _encodeAssetToBytes(asset);
             uint256 newAssetSlot = initialSlot + assetStorageLength;
 
+            // @audit-ok
             (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
                 asset,
                 hasDebt,
@@ -224,6 +252,9 @@ library PortfolioHandler {
             assetStorageLength += 1;
         }
 
+        // 16 is the maximum number of assets or portfolio active currencies will overflow at 32 bytes with
+        // 2 bytes per currency
+        require(assetStorageLength <= 16 && nextSettleTime <= type(uint40).max); // dev: portfolio return value overflow
         return (
             hasDebt,
             portfolioActiveCurrencies,
@@ -247,27 +278,36 @@ library PortfolioHandler {
             uint256
         )
     {
-        if (nextSettleTime == 0 || nextSettleTime > asset.getSettlementDate()) {
-            nextSettleTime = asset.getSettlementDate();
+        uint256 settlementDate = asset.getSettlementDate();
+        // @audit-ok this will set it to the minimum settlement date
+        if (nextSettleTime == 0 || nextSettleTime > settlementDate) {
+            nextSettleTime = settlementDate;
         }
+        // @audit-ok
         hasDebt = hasDebt || asset.notional < 0;
-        portfolioActiveCurrencies =
-            (portfolioActiveCurrencies >> 16) |
-            (bytes32(asset.currencyId) << 240);
+
+        require(uint16(uint256(portfolioActiveCurrencies)) == 0); // dev: portfolio active currencies overflow
+        // @audit-ok 256 - 16 (left shift)
+        portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
 
         return (hasDebt, portfolioActiveCurrencies, nextSettleTime);
     }
 
     /// @dev Encodes assets for storage
     function _encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
-        require(asset.currencyId > 0 && asset.currencyId <= type(uint16).max); // dev: encode asset currency id overflow
-        require(asset.maturity > 0 && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
-        require(asset.assetType > 0 && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
-        require(asset.notional >= type(int88).min && asset.notional <= type(int88).max); // dev: encode asset notional overflow
+        require(0 < asset.currencyId && asset.currencyId <= Constants.MAX_CURRENCIES); // dev: encode asset currency id overflow
+        require(0 < asset.maturity && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
+        require(0 < asset.assetType && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
+        require(type(int88).min <= asset.notional && asset.notional <= type(int88).max); // dev: encode asset notional overflow
 
+        // @audit-ok 16
         return (bytes32(asset.currencyId) |
+        // @audit-ok
             (bytes32(asset.maturity) << 16) |
+        // @audit-ok 40 + 16 = 56
             (bytes32(asset.assetType) << 56) |
+        // @audit-ok 40 + 16 + 8 = 64
+        // Expects that the top 168 bits in asset.notional are insignificant, checked above.
             (bytes32(asset.notional) << 64));
     }
 
@@ -277,7 +317,11 @@ library PortfolioHandler {
     function deleteAsset(PortfolioState memory portfolioState, uint256 index) internal pure {
         require(index < portfolioState.storedAssets.length); // dev: stored assets bounds
         require(portfolioState.storedAssetLength > 0); // dev: stored assets length is zero
-        require(portfolioState.storedAssets[index].storageState != AssetStorageState.Delete); // dev: cannot re-delete asset
+        PortfolioAsset memory assetToDelete = portfolioState.storedAssets[index];
+        require(
+            assetToDelete.storageState != AssetStorageState.Delete &&
+            assetToDelete.storageState != AssetStorageState.RevertIfStored
+        ); // dev: cannot delete asset
 
         portfolioState.storedAssetLength -= 1;
 
@@ -286,32 +330,33 @@ library PortfolioHandler {
         // The max active slot is the last storage slot where an asset exists, it's not clear where this will be in the
         // array so we search for it here.
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
-            if (
-                portfolioState.storedAssets[i].storageSlot > maxActiveSlot &&
-                portfolioState.storedAssets[i].storageState != AssetStorageState.Delete
-            ) {
-                maxActiveSlot = portfolioState.storedAssets[i].storageSlot;
+            PortfolioAsset memory a = portfolioState.storedAssets[i];
+            // @audit-ok
+            if (a.storageSlot > maxActiveSlot && a.storageState != AssetStorageState.Delete) {
+                maxActiveSlot = a.storageSlot;
                 maxActiveSlotIndex = i;
             }
         }
 
+        // @audit-ok
         if (index == maxActiveSlotIndex) {
             // In this case we are deleting the asset with the max storage slot so no swap is necessary.
-            portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
+            assetToDelete.storageState = AssetStorageState.Delete;
             return;
         }
 
         // Swap the storage slots of the deleted asset with the last non-deleted asset in the array. Mark them accordingly
         // so that when we call store assets they will be updated appropriately
+        PortfolioAsset memory assetToSwap = portfolioState.storedAssets[maxActiveSlotIndex];
         (
-            portfolioState.storedAssets[maxActiveSlotIndex].storageSlot,
-            portfolioState.storedAssets[index].storageSlot
+            assetToSwap.storageSlot,
+            assetToDelete.storageSlot
         ) = (
-            portfolioState.storedAssets[index].storageSlot,
-            portfolioState.storedAssets[maxActiveSlotIndex].storageSlot
+            assetToDelete.storageSlot,
+            assetToSwap.storageSlot
         );
-        portfolioState.storedAssets[maxActiveSlotIndex].storageState = AssetStorageState.Update;
-        portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
+        assetToSwap.storageState = AssetStorageState.Update;
+        assetToDelete.storageState = AssetStorageState.Delete;
     }
 
     /// @notice Returns a portfolio array, will be sorted
@@ -360,6 +405,7 @@ library PortfolioHandler {
         int256 i = left;
         int256 j = right;
 
+        // @audit calculate the encoded id once at the beginning
         uint256 pivot = _getEncodedId(assets[uint256(left + (right - left) / 2)]);
         while (i <= j) {
             while (_getEncodedId(assets[uint256(i)]) < pivot) i++;
@@ -385,17 +431,20 @@ library PortfolioHandler {
             keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET))
         );
 
-        for (uint256 i; i < length; i++) {
+        for (uint256 i = 0; i < length; i++) {
             bytes32 data;
             assembly {
                 data := sload(slot)
             }
 
-            assets[i].currencyId = uint256(uint16(uint256(data)));
-            assets[i].maturity = uint256(uint40(uint256(data >> 16)));
-            assets[i].assetType = uint256(uint8(uint256(data >> 56)));
-            assets[i].notional = int256(int88(uint256(data >> 64)));
-            assets[i].storageSlot = slot;
+            // @audit-ok
+            PortfolioAsset memory asset = assets[i];
+            asset.currencyId = uint16(uint256(data));
+            asset.maturity = uint40(uint256(data >> 16));
+            asset.assetType = uint8(uint256(data >> 56));
+            asset.notional = int88(uint256(data >> 64));
+            asset.storageSlot = slot;
+
             slot = slot + 1;
         }
 

@@ -78,10 +78,10 @@ library Constants {
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
     int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
 
-    uint256 internal constant FCASH_ASSET_TYPE = 1;
+    uint8 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
-    uint256 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
-    uint256 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
+    uint8 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
+    uint8 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
 
     // Used for converting bool to bytes1, solidity does not have a native conversion
     // method for this

@@ -1,4 +1,3 @@
-import itertools
 import random
 
 from brownie.convert import to_bytes, to_uint
@@ -174,7 +173,7 @@ def get_portfolio_array(length, cashGroups, **kwargs):
         if isLiquidity:
             lt = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
             portfolio.append(lt)
-            if random.random() > 0.75:
+            if len(portfolio) < length and random.random() > 0.75:
                 portfolio.append(
                     get_fcash_token(marketIndex, currencyId=cashGroup[0], notional=-lt[3])
                 )
@@ -186,32 +185,6 @@ def get_portfolio_array(length, cashGroups, **kwargs):
         return sorted(portfolio, key=lambda x: (x[0], x[1], x[2]))
 
     return portfolio
-
-
-def generate_asset_array(numAssets, numCurrencies):
-    assets = []
-    nextSettleTime = 2 ** 40
-    assetsChoice = random.sample(
-        list(itertools.product(range(1, numCurrencies), MARKETS)), numAssets
-    )
-
-    for a in assetsChoice:
-        notional = random.randint(-1e18, 1e18)
-        # isfCash = random.randint(0, 1)
-        isfCash = 0
-        if isfCash:
-            assets.append((a[0], a[1], 1, notional))
-            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
-        else:
-            index = MARKETS.index(a[1])
-            assets.append((a[0], a[1], index + 2, abs(notional)))
-            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
-            # Offsetting fCash asset
-            assets.append((a[0], a[1], 1, -abs(notional)))
-            nextSettleTime = min(get_settlement_date(assets[-1], START_TIME), nextSettleTime)
-
-    random.shuffle(assets)
-    return (assets, nextSettleTime)
 
 
 def get_bitstring_from_bitmap(bitmap):
