@@ -20,14 +20,16 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
 
     address private _swapRouter;
 
-    constructor(
+    function initialize(
         address swapRouter,
         NotionalProxy notionalV2_,
         address lendingPool_,
         address addressProvider_,
         address weth_,
-        address cETH_
-    ) NotionalV2FlashLiquidator(notionalV2_, lendingPool_, addressProvider_, weth_, cETH_) {
+        address cETH_,
+        address owner_
+    ) public initializer {
+        __NotionalV2FlashLiquidator_init(notionalV2_, lendingPool_, addressProvider_, weth_, cETH_, owner_);
         _swapRouter = swapRouter;
     }
 
