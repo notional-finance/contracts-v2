@@ -67,18 +67,18 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity,
         uint256 nextSettleTime,
-        int256 notional,
-        bytes32 assetsBitmap
+        int256 notional
     ) public returns (bytes32, int256) {
-        return
-            BitmapAssetsHandler.addifCashAsset(
-                account,
-                currencyId,
-                maturity,
-                nextSettleTime,
-                notional,
-                assetsBitmap
-            );
+        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
+            account,
+            currencyId,
+            maturity,
+            nextSettleTime,
+            notional
+        );
+        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+
+        return (bitmap, finalNotional);
     }
 
     function getifCashNetPresentValue(
@@ -86,7 +86,6 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 currencyId,
         uint256 nextSettleTime,
         uint256 blockTime,
-        bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
     ) public view returns (int256, bool) {
@@ -96,7 +95,6 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
                 currencyId,
                 nextSettleTime,
                 blockTime,
-                assetsBitmap,
                 cashGroup,
                 riskAdjusted
             );
@@ -153,5 +151,18 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 nextSettleTime
     ) external view returns (PortfolioAsset[] memory) {
         return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
+    }
+
+    function totalBitsSet(
+        bytes32 bitmap
+    ) external view returns (uint256) {
+        return Bitmap.totalBitsSet(bitmap);
+    }
+
+    function isBitSet(
+        bytes32 bitmap,
+        uint256 bitNum
+    ) external view returns (bool) {
+        return Bitmap.isBitSet(bitmap, bitNum);
     }
 }

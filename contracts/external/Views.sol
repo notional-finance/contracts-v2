@@ -475,11 +475,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
-        // prettier-ignore
-        (
-            int256 tokensToMint,
-            /* */
-        ) = nTokenMintAction.calculateTokensToMint(
+        int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
             nToken,
             amountToDepositInternal,
             block.timestamp

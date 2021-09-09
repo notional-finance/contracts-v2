@@ -71,11 +71,7 @@ library FreeCollateral {
         nTokenHandler.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId, nToken);
         nToken.cashGroup = cashGroup;
 
-        // prettier-ignore
-        (
-            int256 nTokenAssetPV,
-            /* ifCashBitmap */
-        ) = nToken.getNTokenAssetPV(blockTime);
+        int256 nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
 
         // @audit-ok (tokenBalance * nTokenValue * haircut) / totalSupply
         int256 nTokenHaircutAssetPV =
@@ -180,16 +176,12 @@ library FreeCollateral {
         AccountContext memory accountContext,
         FreeCollateralFactors memory factors
     ) private view returns (int256) {
-        // @audit move the get assets bitmap call inside the bitmap assets handler
-        bytes32 assetsBitmap =
-            BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
         (int256 netPortfolioValueUnderlying, bool bitmapHasDebt) =
             BitmapAssetsHandler.getifCashNetPresentValue(
                 account,
                 accountContext.bitmapCurrencyId,
                 accountContext.nextSettleTime,
                 blockTime,
-                assetsBitmap,
                 factors.cashGroup,
                 true // risk adjusted
             );

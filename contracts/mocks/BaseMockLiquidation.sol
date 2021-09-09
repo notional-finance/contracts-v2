@@ -127,16 +127,13 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.bitmapCurrencyId = currencyId;
         accountContext.nextSettleTime = nextSettleTime;
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             accountContext.nextSettleTime,
-            notional,
-            assetsBitmap
+            notional
         );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
         accountContext.setAccountContext(account);
     }
 

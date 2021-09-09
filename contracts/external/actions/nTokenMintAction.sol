@@ -36,8 +36,7 @@ library nTokenMintAction {
         // @audit fix this, looks weird
         nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
 
-        (int256 tokensToMint, bytes32 ifCashBitmap) =
-            calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
+        int256 tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
         require(tokensToMint >= 0, "Invalid token amount");
 
         if (nToken.portfolioState.storedAssets.length == 0) {
@@ -50,7 +49,7 @@ library nTokenMintAction {
                 nToken.cashBalance
             );
         } else {
-            _depositIntoPortfolio(nToken, ifCashBitmap, amountToDepositInternal, blockTime);
+            _depositIntoPortfolio(nToken, amountToDepositInternal, blockTime);
         }
 
         // NOTE: token supply does not change here, it will change after incentives have been claimed
@@ -65,9 +64,9 @@ library nTokenMintAction {
         nTokenPortfolio memory nToken,
         int256 amountToDepositInternal,
         uint256 blockTime
-    ) internal view returns (int256, bytes32) {
+    ) internal view returns (int256) {
         require(amountToDepositInternal >= 0); // dev: deposit amount negative
-        if (amountToDepositInternal == 0) return (0, 0x0);
+        if (amountToDepositInternal == 0) return 0;
 
         if (nToken.lastInitializedTime != 0) {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
@@ -78,20 +77,20 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "PT: requires settlement");
         }
 
-        (int256 assetCashPV, bytes32 ifCashBitmap) = nToken.getNTokenAssetPV(blockTime);
+        int256 assetCashPV = nToken.getNTokenAssetPV(blockTime);
         // @audit-ok
         require(assetCashPV >= 0, "PT: pv value negative");
 
         // Allow for the first deposit
         if (nToken.totalSupply == 0) {
-            return (amountToDepositInternal, ifCashBitmap);
+            return amountToDepositInternal;
         } else {
             // @audit-ok assetCashPVPost = assetCashPV + amountToDeposit
             // @audit-ok (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
             // @audit-ok (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
             // @audit-ok (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
             // @audit-ok tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
-            return (amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV), ifCashBitmap);
+            return amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV);
         }
     }
 
@@ -100,7 +99,6 @@ library nTokenMintAction {
     /// initialized to have liquidity tokens.
     function _depositIntoPortfolio(
         nTokenPortfolio memory nToken,
-        bytes32 ifCashBitmap,
         int256 assetCashDeposit,
         uint256 blockTime
     ) private {
@@ -150,18 +148,12 @@ library nTokenMintAction {
             );
 
             if (fCashAmount != 0) {
-                // @audit have addifCash asset set the bitmap internally
-                // prettier-ignore
-                (
-                    ifCashBitmap,
-                    /* notional */
-                ) = BitmapAssetsHandler.addifCashAsset(
+                BitmapAssetsHandler.addifCashAsset(
                     nToken.tokenAddress,
                     nToken.cashGroup.currencyId,
                     market.maturity,
                     nToken.lastInitializedTime,
-                    fCashAmount,
-                    ifCashBitmap
+                    fCashAmount
                 );
             }
 
@@ -169,12 +161,6 @@ library nTokenMintAction {
             market.setMarketStorage();
         }
 
-        // @audit this should be redundant
-        BitmapAssetsHandler.setAssetsBitmap(
-            nToken.tokenAddress,
-            nToken.cashGroup.currencyId,
-            ifCashBitmap
-        );
         // @audit consider renaming this method as storeLiquidityTokenAssets and putting it on the nToken itself
         nToken.portfolioState.storeAssets(nToken.tokenAddress);
 

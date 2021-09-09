@@ -77,7 +77,6 @@ library TradingAction {
     ) external returns (int256, bool) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(bitmapCurrencyId);
         MarketParameters memory market;
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, bitmapCurrencyId);
         bool didIncurDebt;
         TradeContext memory c;
         c.blockTime = block.timestamp;
@@ -93,13 +92,12 @@ library TradingAction {
                 c.blockTime
             );
 
-            (ifCashBitmap, c.fCashAmount) = BitmapAssetsHandler.addifCashAsset(
+            c.fCashAmount = BitmapAssetsHandler.addifCashAsset(
                 account,
                 bitmapCurrencyId,
                 maturity,
                 nextSettleTime,
-                c.fCashAmount,
-                ifCashBitmap
+                c.fCashAmount
             );
 
             didIncurDebt = didIncurDebt || (c.fCashAmount < 0);
@@ -107,7 +105,6 @@ library TradingAction {
             c.totalFee = c.totalFee.add(c.fee);
         }
 
-        BitmapAssetsHandler.setAssetsBitmap(account, bitmapCurrencyId, ifCashBitmap);
         BalanceHandler.incrementFeeToReserve(bitmapCurrencyId, c.totalFee);
 
         return (c.netCash, didIncurDebt);
@@ -647,19 +644,12 @@ library TradingAction {
         int256 fCashAmountToPurchase,
         int256 netAssetCashNToken
     ) private {
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(nTokenAddress, currencyId);
-        int256 finalNotional;
-        // prettier-ignore
-        (
-            ifCashBitmap,
-            finalNotional
-        ) = BitmapAssetsHandler.addifCashAsset(
+        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
             nTokenAddress,
             currencyId,
             maturity,
             lastInitializedTime, // @audit-ok this is the equivalent of next settle time
-            fCashAmountToPurchase.neg(), // @audit-ok this ensures that the nToken takes on the negative position
-            ifCashBitmap
+            fCashAmountToPurchase.neg() // @audit-ok this ensures that the nToken takes on the negative position
         );
 
         // Defensive check to ensure that fCash amounts do not flip signs
@@ -667,8 +657,6 @@ library TradingAction {
             (fCashAmountToPurchase > 0 && finalNotional >= 0) ||
             (fCashAmountToPurchase < 0 && finalNotional <= 0)
         );
-        // @audit-ok set the assets bitmap after
-        BitmapAssetsHandler.setAssetsBitmap(nTokenAddress, currencyId, ifCashBitmap);
 
         // prettier-ignore
         (

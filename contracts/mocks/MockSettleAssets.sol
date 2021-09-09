@@ -12,6 +12,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
     using AccountContextHandler for AccountContext;
+    event BlockTime(uint256 blockTime, bool mustSettle);
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -23,6 +24,10 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint256 maturity
     ) public view returns (int256) {
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+    }
+
+    function getAccountContext(address account) external view returns (AccountContext memory) {
+        return AccountContextHandler.getAccountContext(account);
     }
 
     function setAssetArray(address account, PortfolioAsset[] memory a) external {
@@ -92,22 +97,13 @@ contract MockSettleAssets is StorageLayoutV1 {
         int256 notional,
         uint256 nextSettleTime
     ) external {
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-
-        // prettier-ignore
-        (
-            ifCashBitmap,
-            /* finalNotional */
-        ) = BitmapAssetsHandler.addifCashAsset(
+        BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             nextSettleTime,
-            notional,
-            ifCashBitmap
+            notional
         );
-
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
     }
 
     function setSettlementRate(
@@ -134,10 +130,9 @@ contract MockSettleAssets is StorageLayoutV1 {
         }
     }
 
-    function settlePortfolio(address account, uint256 blockTime)
-        public
-        returns (SettleAmount[] memory)
-    {
+    event SettleAmountsCompleted(SettleAmount[] settleAmounts);
+
+    function settlePortfolio(address account, uint256 blockTime) public {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory pState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
@@ -149,7 +144,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         accountContext.storeAssetsAndUpdateContext(account, pState, false);
         accountContext.setAccountContext(account);
 
-        return settleAmount;
+        emit SettleAmountsCompleted(settleAmount);
     }
 
     function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
@@ -183,7 +178,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes32 newBitmap, int256 newAssetCash, uint256 blockTimeUTC0) =
+        (int256 newAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -191,7 +186,7 @@ contract MockSettleAssets is StorageLayoutV1 {
                 blockTime
             );
 
-        newBitmapStorage = newBitmap;
+        newBitmapStorage = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         totalAssetCash = newAssetCash;
     }
 
@@ -199,16 +194,15 @@ contract MockSettleAssets is StorageLayoutV1 {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external {
-        // prettier-ignore
-        (bytes32 newBitmap, /* int256 newAssetCash */, /* uint256 blockTimeUTC0 */) =
-            SettleBitmapAssets.settleBitmappedCashGroup(
-                account,
-                currencyId,
-                nextSettleTime,
-                blockTime
-            );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
+    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external returns (int256, uint256) {
+        (int256 newAssetCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
+            account,
+            currencyId,
+            nextSettleTime,
+            blockTime
+        );
+
+        return (newAssetCash, blockTimeUTC0);
     }
 
     function getifCashArray(

@@ -125,12 +125,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
-        (
-            int256 assetPv, /* ifCashBitmap */
-
-        ) = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
-
-        return assetPv;
+        return nTokenHandler.getNTokenAssetPV(nToken, blockTime);
     }
 
     function updateNTokenCollateralParameters(

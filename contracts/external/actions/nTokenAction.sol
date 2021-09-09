@@ -255,11 +255,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
 
-        // prettier-ignore
-        (
-            int256 totalAssetPV,
-            /* ifCashMapping */
-        ) = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
+        int256 totalAssetPV = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }

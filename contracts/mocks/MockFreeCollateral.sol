@@ -77,7 +77,6 @@ contract MockFreeCollateral is StorageLayoutV1 {
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         if (
             accountContext.nextSettleTime != 0 &&
             accountContext.nextSettleTime != DateTime.getTimeUTC0(blockTime)
@@ -86,21 +85,17 @@ contract MockFreeCollateral is StorageLayoutV1 {
         }
         accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
 
-        int256 finalNotional;
-        (bitmap, finalNotional) = BitmapAssetsHandler.addifCashAsset(
+        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             accountContext.nextSettleTime,
-            notional,
-            bitmap
+            notional
         );
         if (finalNotional < 0)
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
 
         accountContext.setAccountContext(account);
-
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
     }
 
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {

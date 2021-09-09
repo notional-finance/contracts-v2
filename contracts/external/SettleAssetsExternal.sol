@@ -24,7 +24,7 @@ library SettleAssetsExternal {
         PortfolioState memory portfolioState;
 
         if (accountContext.isBitmapEnabled()) {
-            (bytes32 assetsBitmap, int256 settledCash, uint256 blockTimeUTC0) =
+            (int256 settledCash, uint256 blockTimeUTC0) =
                 SettleBitmapAssets.settleBitmappedCashGroup(
                     account,
                     accountContext.bitmapCurrencyId,
@@ -34,7 +34,6 @@ library SettleAssetsExternal {
             require(blockTimeUTC0 < type(uint40).max); // dev: block time utc0 overflow
             accountContext.nextSettleTime = uint40(blockTimeUTC0);
 
-            BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, assetsBitmap);
             settleAmounts = new SettleAmount[](1);
             settleAmounts[0] = SettleAmount(accountContext.bitmapCurrencyId, settledCash);
         } else {

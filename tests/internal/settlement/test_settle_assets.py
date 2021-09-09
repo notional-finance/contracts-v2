@@ -2,9 +2,12 @@ import itertools
 import random
 
 import pytest
+from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import MARKETS, SETTLEMENT_DATE
 from tests.helpers import get_market_state, get_portfolio_array
+
+chain = Chain()
 
 NUM_CURRENCIES = 3
 SETTLEMENT_RATE = [
@@ -74,7 +77,7 @@ class TestSettleAssets:
         if len(assets) == 0:
             return (assets, 0)
 
-        nextSettleTime = min([a[1] for a in assets])
+        nextSettleTime = min([a[1] if a[0] == 1 else SETTLEMENT_DATE for a in assets])
 
         random.shuffle(assets)
         return (assets, nextSettleTime)
@@ -148,11 +151,15 @@ class TestSettleAssets:
         blockTime = random.choice(MARKETS[0:3]) + random.randint(0, 6000)
         (assetArray, nextSettleTime) = self.generate_asset_array(numAssets)
 
-        # Set state
+        # Set state (store assets prevents storing matured assets)
+        if nextSettleTime < blockTime:
+            chain.mine(1, timestamp=nextSettleTime - 1000)
         mockSettleAssets.setAssetArray(accounts[1], assetArray)
+        chain.mine(1, timestamp=blockTime)
 
         # This will assert the values from the view match the values from the stateful method
-        settleAmounts = mockSettleAssets.settlePortfolio(accounts[1], blockTime).return_value
+        txn = mockSettleAssets.settlePortfolio(accounts[1], blockTime)
+        settleAmounts = txn.events["SettleAmountsCompleted"][0]["settleAmounts"]
         assets = mockSettleAssets.getAssetArray(accounts[1])
 
         # Assert that net balance change are equal
@@ -173,3 +180,5 @@ class TestSettleAssets:
         # Assert that remaining assets are ok
         assets = [(a[0], a[1], a[2], a[3]) for a in assets]
         assert sorted(assets) == sorted(remainingAssets)
+
+        chain.mine(1)

@@ -97,7 +97,6 @@ library BitmapAssetsHandler {
         require(accountContext.isBitmapEnabled()); // dev: bitmap currency not set
         // @audit-ok
         uint256 currencyId = accountContext.bitmapCurrencyId;
-        bytes32 ifCashBitmap = getAssetsBitmap(account, currencyId);
 
         for (uint256 i; i < assets.length; i++) {
             PortfolioAsset memory asset = assets[i];
@@ -107,21 +106,17 @@ library BitmapAssetsHandler {
             require(asset.assetType == Constants.FCASH_ASSET_TYPE); // dev: invalid asset in set ifcash assets
             int256 finalNotional;
 
-            (ifCashBitmap, finalNotional) = addifCashAsset(
+            finalNotional = addifCashAsset(
                 account,
                 currencyId,
                 asset.maturity,
                 accountContext.nextSettleTime,
-                asset.notional,
-                ifCashBitmap
+                asset.notional
             );
 
             if (finalNotional < 0)
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
         }
-
-        // @audit-ok sets the bitmap after
-        setAssetsBitmap(account, currencyId, ifCashBitmap);
     }
 
     /// @notice Add an ifCash asset in the bitmap and mapping. Updates the bitmap in memory
@@ -132,9 +127,9 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         uint256 maturity,
         uint256 nextSettleTime,
-        int256 notional,
-        bytes32 assetsBitmap
-    ) internal returns (bytes32, int256) {
+        int256 notional
+    ) internal returns (int256) {
+        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
         (uint256 bitNum, bool isExact) = DateTime.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
@@ -142,24 +137,25 @@ library BitmapAssetsHandler {
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
             // @audit-ok
-            int256 existingNotional;
+            int256 finalNotional;
             assembly {
-                existingNotional := sload(fCashSlot)
+                finalNotional := sload(fCashSlot)
             }
-            existingNotional = existingNotional.add(notional);
+            finalNotional = finalNotional.add(notional);
 
             // @audit-ok
-            require(type(int128).min <= existingNotional && existingNotional <= type(int128).max); // dev: bitmap notional overflow
+            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
             assembly {
-                sstore(fCashSlot, existingNotional)
+                sstore(fCashSlot, finalNotional)
             }
 
             // If the new notional is zero then turn off the bit
-            if (existingNotional == 0) {
+            if (finalNotional == 0) {
                 assetsBitmap = assetsBitmap.setBit(bitNum, false);
             }
 
-            return (assetsBitmap, existingNotional);
+            setAssetsBitmap(account, currencyId, assetsBitmap);
+            return finalNotional;
         }
 
         if (notional != 0) {
@@ -169,10 +165,12 @@ library BitmapAssetsHandler {
             assembly {
                 sstore(fCashSlot, notional)
             }
+
             assetsBitmap = assetsBitmap.setBit(bitNum, true);
+            setAssetsBitmap(account, currencyId, assetsBitmap);
         }
 
-        return (assetsBitmap, notional);
+        return notional;
     }
 
     /// @notice Returns the present value of an asset
@@ -217,14 +215,12 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         uint256 nextSettleTime,
         uint256 blockTime,
-        bytes32 assetsBitmap,
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
-    ) internal view returns (int256, bool) {
-        int256 totalValueUnderlying;
-        bool hasDebt;
-
+    ) internal view returns (int256 totalValueUnderlying, bool hasDebt) {
+        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 bitNum = assetsBitmap.getNextBitNum();
+
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
             int256 pv = _getPresentValue(
@@ -245,8 +241,6 @@ library BitmapAssetsHandler {
             assetsBitmap = assetsBitmap.setBit(bitNum, false);
             bitNum = assetsBitmap.getNextBitNum();
         }
-
-        return (totalValueUnderlying, hasDebt);
     }
 
     /// @notice Returns the ifCash assets as an array

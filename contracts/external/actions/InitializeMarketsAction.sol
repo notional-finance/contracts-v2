@@ -69,10 +69,7 @@ library InitializeMarketsAction {
         return params;
     }
 
-    function _settleNTokenPortfolio(nTokenPortfolio memory nToken, uint256 blockTime)
-        private
-        returns (bytes32)
-    {
+    function _settleNTokenPortfolio(nTokenPortfolio memory nToken, uint256 blockTime) private {
         // nToken never has idiosyncratic cash between 90 day intervals but since it also has a
         // bitmap fCash assets. We don't set the pointer to the settlement date of the liquidity
         // tokens (1 quarter away), instead we set it to the current block time. This is a bit
@@ -93,7 +90,7 @@ library InitializeMarketsAction {
         }
 
         // @audit maybe have settle bitmap assets just set the bitmap inside
-        (bytes32 ifCashBitmap, int256 settledAssetCash, uint256 blockTimeUTC0) =
+        (int256 settledAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
@@ -104,9 +101,8 @@ library InitializeMarketsAction {
         nToken.cashBalance = nToken.cashBalance.add(settledAssetCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
+        // @audit change this data type
         nToken.lastInitializedTime = uint40(blockTimeUTC0);
-
-        return ifCashBitmap;
     }
 
     /// @notice Special method to get previous markets, normal usage would not reference previous markets
@@ -149,9 +145,8 @@ library InitializeMarketsAction {
         nTokenPortfolio memory nToken,
         MarketParameters[] memory previousMarkets,
         uint256 currencyId,
-        bytes32 ifCashBitmap,
         uint256 blockTime
-    ) private returns (int256, bytes32) {
+    ) private returns (int256) {
         // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
         // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
         for (uint256 i = 1; i < nToken.portfolioState.storedAssets.length; i++) {
@@ -159,18 +154,12 @@ library InitializeMarketsAction {
             // @audit-ok switch to a defensive check to ensure that everything is an fcash asset
             require(asset.assetType == Constants.FCASH_ASSET_TYPE);
 
-            // @audit just have bitmap assets handler set the bitmap here
-            // prettier-ignore
-            (
-                ifCashBitmap,
-                /* notional */
-            ) = BitmapAssetsHandler.addifCashAsset(
+            BitmapAssetsHandler.addifCashAsset(
                 nToken.tokenAddress,
                 currencyId,
                 asset.maturity,
                 nToken.lastInitializedTime,
-                asset.notional,
-                ifCashBitmap
+                asset.notional
             );
 
             // Do not have fCash assets stored in the portfolio
@@ -178,10 +167,7 @@ library InitializeMarketsAction {
         }
 
         // Recalculate what the withholdings are if there are any ifCash assets remaining
-        int256 assetCashWithholding =
-            _getNTokenNegativefCashWithholding(nToken, previousMarkets, blockTime, ifCashBitmap);
-
-        return (assetCashWithholding, ifCashBitmap);
+        return _getNTokenNegativefCashWithholding(nToken, previousMarkets, blockTime);
     }
 
     /// @notice If a nToken incurs a negative fCash residual as a result of lending, this means
@@ -190,10 +176,9 @@ library InitializeMarketsAction {
     function _getNTokenNegativefCashWithholding(
         nTokenPortfolio memory nToken,
         MarketParameters[] memory previousMarkets,
-        uint256 blockTime,
-        bytes32 assetsBitmap
-    ) internal view returns (int256) {
-        int256 totalCashWithholding;
+        uint256 blockTime
+    ) internal view returns (int256 totalCashWithholding) {
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
         // This buffer is denominated in rate precision with 10 basis point increments. It is used to shift the
         // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
         // @audit-ok
@@ -296,9 +281,8 @@ library InitializeMarketsAction {
         uint256 blockTime,
         uint256 currencyId,
         bool isFirstInit
-    ) private returns (int256, bytes32) {
+    ) private returns (int256) {
         int256 netAssetCashAvailable;
-        bytes32 ifCashBitmap;
         int256 assetCashWithholding;
 
         if (isFirstInit) {
@@ -306,13 +290,12 @@ library InitializeMarketsAction {
             nToken.lastInitializedTime = uint40(DateTime.getTimeUTC0(blockTime));
         } else {
             // @audit-ok
-            ifCashBitmap = _settleNTokenPortfolio(nToken, blockTime);
+            _settleNTokenPortfolio(nToken, blockTime);
             _getPreviousMarkets(currencyId, blockTime, nToken, previousMarkets);
-            (assetCashWithholding, ifCashBitmap) = _withholdAndSetfCashAssets(
+            assetCashWithholding = _withholdAndSetfCashAssets(
                 nToken,
                 previousMarkets,
                 currencyId,
-                ifCashBitmap,
                 blockTime
             );
         }
@@ -333,7 +316,7 @@ library InitializeMarketsAction {
             "IM: insufficient cash"
         );
 
-        return (netAssetCashAvailable, ifCashBitmap);
+        return netAssetCashAvailable;
     }
 
     /// @notice The six month implied rate is zero if there have never been any markets initialized
@@ -530,13 +513,11 @@ library InitializeMarketsAction {
         require(blockTime > minSweepCashTime, "Invalid sweep cash time");
 
         // @audit-ok
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, currencyId);
         int256 assetCashWithholding =
             _getNTokenNegativefCashWithholding(
                 nToken,
                 new MarketParameters[](0), // Parameter is unused when referencing current markets
-                blockTime,
-                ifCashBitmap
+                blockTime
             );
 
         // @audit-ok
@@ -573,14 +554,13 @@ library InitializeMarketsAction {
             require(nToken.portfolioState.storedAssets.length == 0, "IM: not first init");
         }
 
-        (int256 netAssetCashAvailable, bytes32 ifCashBitmap) =
-            _calculateNetAssetCashAvailable(
-                nToken,
-                previousMarkets,
-                blockTime,
-                currencyId,
-                isFirstInit
-            );
+        int256 netAssetCashAvailable = _calculateNetAssetCashAvailable(
+            nToken,
+            previousMarkets,
+            blockTime,
+            currencyId,
+            isFirstInit
+        );
 
         GovernanceParameters memory parameters =
             _getGovernanceParameters(currencyId, nToken.cashGroup.maxMarketIndex);
@@ -718,7 +698,7 @@ library InitializeMarketsAction {
 
             // @audit-ok this matches above
             newMarket.lastImpliedRate = newMarket.oracleRate;
-            ifCashBitmap = finalizeMarket(newMarket, currencyId, nToken, ifCashBitmap);
+            finalizeMarket(newMarket, currencyId, nToken);
         }
 
         // prettier-ignore
@@ -734,7 +714,6 @@ library InitializeMarketsAction {
             currencyId,
             nToken.cashBalance
         );
-        BitmapAssetsHandler.setAssetsBitmap(nToken.tokenAddress, currencyId, ifCashBitmap);
         nTokenHandler.setArrayLengthAndInitializedTime(
             nToken.tokenAddress,
             assetArrayLength,
@@ -747,8 +726,7 @@ library InitializeMarketsAction {
     function finalizeMarket(
         MarketParameters memory market,
         uint256 currencyId,
-        nTokenPortfolio memory nToken,
-        bytes32 ifCashBitmap
+        nTokenPortfolio memory nToken
     ) internal returns (bytes32) {
         // @audit-ok
         uint256 blockTime = block.timestamp;
@@ -758,19 +736,12 @@ library InitializeMarketsAction {
         market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
         market.setMarketStorage();
 
-        // prettier-ignore
-        (
-            bytes32 bitmap,
-            /* notional */
-        ) = BitmapAssetsHandler.addifCashAsset(
-                nToken.tokenAddress,
-                currencyId,
-                market.maturity,
-                nToken.lastInitializedTime,
-                market.totalfCash.neg(),
-                ifCashBitmap
-            );
-
-        return bitmap;
+        BitmapAssetsHandler.addifCashAsset(
+            nToken.tokenAddress,
+            currencyId,
+            market.maturity,
+            nToken.lastInitializedTime,
+            market.totalfCash.neg()
+        );
     }
 }

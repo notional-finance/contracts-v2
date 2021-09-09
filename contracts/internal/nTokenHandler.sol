@@ -464,12 +464,10 @@ library nTokenHandler {
     function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
-        returns (int256, bytes32)
+        returns (int256)
     {
         int256 totalAssetPV;
         int256 totalUnderlyingPV;
-        bytes32 ifCashBitmap =
-            BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
 
         {
             uint256 nextSettleTime = getNextSettleTime(nToken);
@@ -515,13 +513,12 @@ library nTokenHandler {
         // prettier-ignore
         (
             int256 bitmapPv, 
-            /* */
+            /* hasDebt */
         ) = BitmapAssetsHandler.getifCashNetPresentValue(
             nToken.tokenAddress,
             nToken.cashGroup.currencyId,
             nToken.lastInitializedTime,
             blockTime,
-            ifCashBitmap,
             nToken.cashGroup,
             false
         );
@@ -532,6 +529,6 @@ library nTokenHandler {
             .add(nToken.cashGroup.assetRate.convertFromUnderlying(totalUnderlyingPV))
             .add(nToken.cashBalance);
 
-        return (totalAssetPV, ifCashBitmap);
+        return totalAssetPV;
     }
 }

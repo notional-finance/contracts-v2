@@ -30,7 +30,8 @@ class TestPortfolioHandler:
         pass
 
     def test_store_asset_reverts_on_tainted_asset(self, portfolioHandler, accounts):
-        assets = [(2, START_TIME, 1, 100e8, 1, 3)]
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 3)]
         with brownie.reverts():
             portfolioHandler.storeAssets(accounts[1], (assets, [], 0, 1))
 
@@ -38,7 +39,8 @@ class TestPortfolioHandler:
             portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
 
     def test_add_delete_asset_reverts_on_tainted_asset(self, portfolioHandler, accounts):
-        assets = [(2, START_TIME, 1, 100e8, 1, 1)]
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 1)]
         portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
         state = portfolioHandler.buildPortfolioState(accounts[1], 0)
         state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
@@ -47,13 +49,14 @@ class TestPortfolioHandler:
         state[0][0][5] = 3
 
         with brownie.reverts():
-            portfolioHandler.addAsset(state, 2, START_TIME, 1, 100e8)
+            portfolioHandler.addAsset(state, 2, maturity, 1, 100e8)
 
         with brownie.reverts():
             portfolioHandler.deleteAsset(state, 0)
 
     def test_delete_asset_reverts_on_deleted_asset(self, portfolioHandler, accounts):
-        assets = [(2, START_TIME, 1, 100e8, 1, 1)]
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 1)]
         portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
         state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
         state[0] = list(state[0])

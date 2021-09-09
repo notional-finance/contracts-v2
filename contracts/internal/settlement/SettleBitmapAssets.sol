@@ -29,7 +29,7 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 oldSettleTime,
         uint256 blockTime
-    ) internal returns (bytes32, int256 totalAssetCash, uint256 newSettleTime) {
+    ) internal returns (int256 totalAssetCash, uint256 newSettleTime) {
         // @audit just have this set the bitmap instead of returning it
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
@@ -44,7 +44,7 @@ library SettleBitmapAssets {
         // Do not need to worry about validity, if newSettleTime is not on an exact bit we will settle up until
         // the closest maturity that is less than newSettleTime.
         (uint256 lastSettleBit, /* isValid */) = DateTime.getBitNumFromMaturity(oldSettleTime, newSettleTime);
-        if (lastSettleBit == 0) return (bitmap, totalAssetCash, newSettleTime);
+        if (lastSettleBit == 0) return (totalAssetCash, newSettleTime);
 
         // Returns the next bit that is set in the bitmap
         uint256 nextBitNum = bitmap.getNextBitNum();
@@ -75,7 +75,7 @@ library SettleBitmapAssets {
         }
 
         // @audit set the new bitmap in here
-        return (newBitmap, totalAssetCash, newSettleTime);
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
     }
 
     /// @dev Stateful settlement function to settle a bitmapped asset. Deletes the
@@ -100,7 +100,6 @@ library SettleBitmapAssets {
         AssetRateParameters memory rate =
             AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
         assetCash = rate.convertFromUnderlying(ifCash);
-        // Delete ifCash value
 
         return assetCash;
     }
