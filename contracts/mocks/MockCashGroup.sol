@@ -202,7 +202,7 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.calculateOracleRate(assetMaturity, blockTime);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -210,14 +210,14 @@ contract MockCashGroup is StorageLayoutV1 {
         return CashGroup.buildCashGroupView(currencyId);
     }
 
-    function buildCashGroupStateful(uint256 currencyId)
+    function buildCashGroupStateful(uint16 currencyId)
         public
         returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupStateful(currencyId);
     }
 
-    function deserializeCashGroupStorage(uint256 currencyId)
+    function deserializeCashGroupStorage(uint16 currencyId)
         public
         view
         returns (CashGroupSettings memory)

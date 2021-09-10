@@ -6,6 +6,8 @@ import "../internal/nTokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockNTokenHandler is StorageLayoutV1 {
+    using nTokenHandler for nTokenPortfolio;
+
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) external {
         nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
     }
@@ -120,15 +122,15 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
     }
 
-    function getNTokenAssetPV(uint256 currencyId, uint256 blockTime)
+    function getNTokenAssetPV(uint16 currencyId, uint256 blockTime)
         external
         view
         returns (int256)
     {
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
+        nToken.loadNTokenPortfolioView(currencyId);
 
-        return nTokenHandler.getNTokenAssetPV(nToken, blockTime);
+        return nToken.getNTokenAssetPV(blockTime);
     }
 
     function updateNTokenCollateralParameters(

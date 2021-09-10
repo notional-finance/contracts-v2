@@ -23,6 +23,7 @@ contract Views is StorageLayoutV1, NotionalViews {
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using BalanceHandler for BalanceState;
+    using nTokenHandler for nTokenPortfolio;
     using AccountContextHandler for AccountContext;
 
     function _checkValidCurrency(uint16 currencyId) internal view {
@@ -472,7 +473,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
+        nToken.loadNTokenPortfolioView(currencyId);
 
         int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
             nToken,

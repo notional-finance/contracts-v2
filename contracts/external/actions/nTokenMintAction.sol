@@ -21,20 +21,20 @@ library nTokenMintAction {
     using PortfolioHandler for PortfolioState;
     using AssetRate for AssetRateParameters;
     using SafeMath for uint256;
+    using nTokenHandler for nTokenPortfolio;
 
     /// @notice Converts the given amount of cash to nTokens in the same currency.
     /// @param currencyId the currency associated the nToken
     /// @param amountToDepositInternal the amount of asset tokens to deposit denominated in internal decimals
     /// @return nTokens minted by this action
-    function nTokenMint(uint256 currencyId, int256 amountToDepositInternal)
+    function nTokenMint(uint16 currencyId, int256 amountToDepositInternal)
         external
         returns (int256)
     {
         // @audit-ok authentication, is library
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
-        // @audit fix this, looks weird
-        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        nToken.loadNTokenPortfolioStateful(currencyId);
 
         int256 tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
         require(tokensToMint >= 0, "Invalid token amount");

@@ -80,7 +80,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
     function loadBalanceState(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         AccountContext memory accountContext
     ) public view returns (BalanceState memory, AccountContext memory) {
         BalanceState memory bs;

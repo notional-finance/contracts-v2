@@ -437,8 +437,8 @@ library LiquidatefCash {
     function finalizefCashLiquidation(
         address liquidateAccount,
         address liquidator,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) internal returns (int256[] memory, int256) {

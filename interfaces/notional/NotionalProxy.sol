@@ -87,7 +87,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     function pauseGuardian() external view returns (address);
 
     /** Initialize Markets Action */
-    function initializeMarkets(uint256 currencyId, bool isFirstInit) external;
+    function initializeMarkets(uint16 currencyId, bool isFirstInit) external;
 
     function sweepCashIntoMarkets(uint16 currencyId) external;
 

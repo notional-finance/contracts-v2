@@ -192,7 +192,7 @@ library LiquidationHelpers {
 
     function finalizeLiquidatorLocal(
         address liquidator,
-        uint256 localCurrencyId,
+        uint16 localCurrencyId,
         int256 netLocalFromLiquidator,
         int256 netLocalNTokens
     ) internal returns (AccountContext memory) {
@@ -228,7 +228,7 @@ library LiquidationHelpers {
     function finalizeLiquidatorCollateral(
         address liquidator,
         AccountContext memory liquidatorContext,
-        uint256 collateralCurrencyId,
+        uint16 collateralCurrencyId,
         int256 netCollateralToLiquidator,
         int256 netCollateralNTokens,
         bool withdrawCollateral,
@@ -253,7 +253,7 @@ library LiquidationHelpers {
 
     function finalizeLiquidatedLocalBalance(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         AccountContext memory accountContext,
         int256 netLocalFromLiquidator
     ) internal {

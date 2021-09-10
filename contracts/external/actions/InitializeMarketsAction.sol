@@ -38,6 +38,7 @@ library InitializeMarketsAction {
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
+    using nTokenHandler for nTokenPortfolio;
 
     event MarketsInitialized(uint16 currencyId);
     event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
@@ -496,7 +497,7 @@ library InitializeMarketsAction {
     function sweepCashIntoMarkets(uint16 currencyId) external {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        nToken.loadNTokenPortfolioStateful(currencyId);
         require(nToken.portfolioState.storedAssets.length > 0, "No nToken assets");
 
         // Can only sweep cash after markets have been initialized
@@ -539,10 +540,10 @@ library InitializeMarketsAction {
     /// @param isFirstInit true if this is the first time the markets have been initialized
     /// @dev emit:MarketsInitialized
     /// @dev auth:none
-    function initializeMarkets(uint256 currencyId, bool isFirstInit) external {
+    function initializeMarkets(uint16 currencyId, bool isFirstInit) external {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        nToken.loadNTokenPortfolioStateful(currencyId);
         MarketParameters[] memory previousMarkets =
             new MarketParameters[](nToken.cashGroup.maxMarketIndex);
 

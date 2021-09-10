@@ -18,7 +18,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)

@@ -462,7 +462,7 @@ library BalanceHandler {
     function loadBalanceState(
         BalanceState memory balanceState,
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         AccountContext memory accountContext
     ) internal view {
         require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id

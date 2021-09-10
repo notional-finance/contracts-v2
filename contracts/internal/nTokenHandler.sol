@@ -349,19 +349,19 @@ library nTokenHandler {
     }
 
     /// @notice Uses buildCashGroupStateful
-    function loadNTokenPortfolioStateful(uint256 currencyId, nTokenPortfolio memory nToken)
+    function loadNTokenPortfolioStateful(nTokenPortfolio memory nToken, uint16 currencyId)
         internal
     {
-        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        loadNTokenPortfolioNoCashGroup(nToken, currencyId);
         nToken.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
     }
 
     /// @notice Uses buildCashGroupView
-    function loadNTokenPortfolioView(uint256 currencyId, nTokenPortfolio memory nToken)
+    function loadNTokenPortfolioView(nTokenPortfolio memory nToken, uint16 currencyId)
         internal
         view
     {
-        loadNTokenPortfolioNoCashGroup(currencyId, nToken);
+        loadNTokenPortfolioNoCashGroup(nToken, currencyId);
         nToken.cashGroup = CashGroup.buildCashGroupView(currencyId);
     }
 

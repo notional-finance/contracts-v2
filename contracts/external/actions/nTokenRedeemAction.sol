@@ -30,7 +30,7 @@ contract nTokenRedeemAction {
     /// @param tokensToRedeem the amount of nTokens to convert to cash
     /// @dev auth:only internal
     /// @return amount of asset cash to return to the account, denominated in internal token decimals
-    function nTokenRedeemViaBatch(uint256 currencyId, int256 tokensToRedeem)
+    function nTokenRedeemViaBatch(uint16 currencyId, int256 tokensToRedeem)
         external
         returns (int256)
     {
@@ -112,7 +112,7 @@ contract nTokenRedeemAction {
     ///     hasResidual: true if there are fCash residuals left
     ///     assets: an array of fCash asset residuals to place into the account
     function _redeem(
-        uint256 currencyId,
+        uint16 currencyId,
         int256 tokensToRedeem,
         bool sellTokenAssets,
         uint256 blockTime
@@ -126,8 +126,7 @@ contract nTokenRedeemAction {
     {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken;
-        // @audit change this, looks weird
-        nTokenHandler.loadNTokenPortfolioStateful(currencyId, nToken);
+        nToken.loadNTokenPortfolioStateful(currencyId);
 
         // Get the assetCash and fCash assets as a result of redeeming tokens
         (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =

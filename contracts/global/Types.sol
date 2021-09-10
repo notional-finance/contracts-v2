@@ -165,7 +165,7 @@ struct ETHRate {
 
 /// @notice Internal object used to handle balance state during a transaction
 struct BalanceState {
-    uint256 currencyId;
+    uint16 currencyId;
     // Cash balance stored in balance state at the beginning of the transaction
     int256 storedCashBalance;
     // nToken balance stored at the beginning of the transaction
@@ -196,7 +196,7 @@ struct AssetRateParameters {
 
 /// @dev Cash group when loaded into memory
 struct CashGroupParameters {
-    uint256 currencyId;
+    uint16 currencyId;
     uint256 maxMarketIndex;
     AssetRateParameters assetRate;
     bytes32 data;

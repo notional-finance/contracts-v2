@@ -68,7 +68,7 @@ library FreeCollateral {
         int256 tokenBalance,
         uint256 blockTime
     ) internal view returns (int256, bytes6) {
-        nTokenHandler.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId, nToken);
+        nToken.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId);
         nToken.cashGroup = cashGroup;
 
         int256 nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
@@ -257,7 +257,7 @@ library FreeCollateral {
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
-            uint256 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
 
             (int256 netLocalAssetValue, int256 nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
@@ -350,7 +350,7 @@ library FreeCollateral {
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
-            uint256 currencyId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
+            uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
             int256 nTokenBalance;
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
@@ -393,7 +393,7 @@ library FreeCollateral {
         bool setLiquidationFactors,
         uint256 blockTime
     ) private returns (int256) {
-        uint256 currencyId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
+        uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
         (int256 netLocalAssetValue, int256 nTokenBalance) =
             _getCurrencyBalances(liquidationFactors.account, currencyBytes);
 

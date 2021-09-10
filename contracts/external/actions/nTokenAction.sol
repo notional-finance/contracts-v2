@@ -17,6 +17,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
+    using nTokenHandler for nTokenPortfolio;
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -246,23 +247,23 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
-    function _getNTokenPV(uint256 currencyId)
+    function _getNTokenPV(uint16 currencyId)
         private
         view
         returns (int256, nTokenPortfolio memory)
     {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
+        nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 totalAssetPV = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
+        int256 totalAssetPV = nToken.getNTokenAssetPV(blockTime);
 
         return (totalAssetPV, nToken);
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time
     function _transfer(
-        uint256 currencyId,
+        uint16 currencyId,
         address sender,
         address recipient,
         uint256 amount

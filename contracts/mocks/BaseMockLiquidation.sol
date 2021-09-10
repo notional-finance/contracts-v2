@@ -22,7 +22,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -38,7 +38,7 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
-    function getMarkets(uint256 currencyId, uint256 blockTime)
+    function getMarkets(uint16 currencyId, uint256 blockTime)
         public
         view
         returns (MarketParameters[] memory)

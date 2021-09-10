@@ -378,7 +378,7 @@ library CashGroup {
             });
     }
 
-    function _buildCashGroup(uint256 currencyId, AssetRateParameters memory assetRate)
+    function _buildCashGroup(uint16 currencyId, AssetRateParameters memory assetRate)
         private
         view
         returns (CashGroupParameters memory)
@@ -397,7 +397,7 @@ library CashGroup {
     }
 
     /// @notice Builds a cash group using a view version of the asset rate
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         internal
         view
         returns (CashGroupParameters memory)
@@ -407,7 +407,7 @@ library CashGroup {
     }
 
     /// @notice Builds a cash group using a stateful version of the asset rate
-    function buildCashGroupStateful(uint256 currencyId)
+    function buildCashGroupStateful(uint16 currencyId)
         internal
         returns (CashGroupParameters memory)
     {
