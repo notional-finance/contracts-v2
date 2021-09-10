@@ -326,6 +326,90 @@ struct AccountContext {
     bytes18 activeCurrencies;
 }
 
+/// @dev Holds nToken context information mapped via the nToken address, total storage is
+/// 16 bytes
+struct nTokenContext {
+    // Currency id that the nToken represents
+    uint16 currencyId;
+    // Annual incentive emission rate denominated in WHOLE TOKENS (multiply by 
+    // INTERNAL_TOKEN_PRECISION to get the actual rate)
+    uint32 incentiveAnnualEmissionRate;
+    // The last block time at utc0 that the nToken was initialized at, zero if it
+    // has never been initialized
+    uint32 lastInitializedTime;
+    // Length of the asset array, refers to the number of liquidity tokens an nToken
+    // currently holds
+    uint8 assetArrayLength;
+    // Each byte is a specific nToken parameter
+    bytes5 nTokenParameters;
+}
+
+/// @dev Holds account balance information, total storage 32 bytes
+struct BalanceStorage {
+    // Number of nTokens held by the account
+    uint80 nTokenBalance;
+    // Last time the account claimed their nTokens
+    uint32 lastClaimTime;
+    // The total integral supply of the nToken at the last claim time packed into
+    // 56 bits. There is some loss of precision here but it is acceptable
+    bytes7 packedLastClaimIntegralSupply;
+    // Cash balance of the account
+    int88 cashBalance;
+}
+
+/// @dev Holds information about a settlement rate, total storage 25 bytes
+struct SettlementRateStorage {
+    uint40 blockTime;
+    uint128 settlementRate;
+    uint8 underlyingDecimalPlaces;
+}
+
+/// @dev Holds information about a market, total storage is 42 bytes so this spans
+/// two storage words
+struct MarketStorage {
+    // Total fCash in the market
+    uint80 totalfCash;
+    // Total asset cash in the market
+    uint80 totalAssetCash;
+    // Last annualized interest rate the market traded at
+    uint32 lastImpliedRate;
+    // Last recorded oracle rate for the market
+    uint32 oracleRate;
+    // Last time a trade was made
+    uint32 previousTradeTime;
+    // This is stored in slot + 1
+    uint80 totalLiquidity;
+}
+
+struct ifCashStorage {
+    // Notional amount of fCash at the slot, limited to int128 to allow for
+    // future expansion
+    int128 notional;
+}
+
+/// @dev A single portfolio asset in storage, total storage of 19 bytes
+struct PortfolioAssetStorage {
+    // Currency Id for the asset
+    uint16 currencyId;
+    // Maturity of the asset
+    uint40 maturity;
+    // Asset type (fCash or Liquidity Token marker)
+    uint8 assetType;
+    // Notional
+    int88 notional;
+}
+
+/// @dev nToken total supply factors for the nToken, includes factors related
+/// to claiming incentives, total storage 32 bytes
+struct nTokenTotalSupplyStorage {
+    // Total supply of the nToken
+    uint96 totalSupply;
+    // Integral of the total supply used for calculating the average total supply
+    uint128 integralTotalSupply;
+    // Last timestamp the supply value changed, used for calculating the integralTotalSupply
+    uint32 lastSupplyChangeTime;
+}
+
 /// @dev Used in view methods to return account balances in a developer friendly manner
 struct AccountBalance {
     uint16 currencyId;
