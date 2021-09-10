@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "../global/LibStorage.sol";
 import "./balances/BalanceHandler.sol";
 import "./portfolio/BitmapAssetsHandler.sol";
 import "./portfolio/PortfolioHandler.sol";
@@ -14,37 +15,14 @@ library AccountContextHandler {
 
     /// @notice Returns the account context of a given account
     function getAccountContext(address account) internal view returns (AccountContext memory) {
-        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        return
-            AccountContext({
-                nextSettleTime: uint40(uint256(data)),
-                hasDebt: bytes1(data << 208),
-                assetArrayLength: uint8(uint256(data >> 48)),
-                bitmapCurrencyId: uint16(uint256(data >> 56)),
-                activeCurrencies: bytes18(data << 40)
-            });
+        mapping(address => AccountContext) storage store = LibStorage.getAccountStorage();
+        return store[account];
     }
 
     /// @notice Sets the account context of a given account
     function setAccountContext(AccountContext memory accountContext, address account) internal {
-        bytes32 slot = keccak256(abi.encode(account, Constants.ACCOUNT_CONTEXT_STORAGE_OFFSET));
-        bytes32 data =
-            (bytes32(uint256(accountContext.nextSettleTime)) |
-                (bytes32(accountContext.hasDebt) >> 208) |
-                (bytes32(uint256(accountContext.assetArrayLength)) << 48) |
-                (bytes32(uint256(accountContext.bitmapCurrencyId)) << 56) |
-                (bytes32(accountContext.activeCurrencies) >> 40));
-
-        assembly {
-            sstore(slot, data)
-        }
-
+        mapping(address => AccountContext) storage store = LibStorage.getAccountStorage();
+        store[account] = accountContext;
         emit AccountContextUpdate(account);
     }
 
