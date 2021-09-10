@@ -56,8 +56,8 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity,
         uint256 settlementDate
-    ) external view returns (SettlementMarket memory) {
-        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
+    ) external view returns (MarketParameters memory s) {
+        Market.loadSettlementMarket(s, currencyId, maturity, settlementDate);
     }
 
     function getSettlementRate(uint256 currencyId, uint256 maturity)

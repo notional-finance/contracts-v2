@@ -237,19 +237,6 @@ struct MarketParameters {
     uint256 previousTradeTime;
 }
 
-/// @dev Simplified market object used during settlement
-struct SettlementMarket {
-    bytes32 storageSlot;
-    // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
-    // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
-    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
-    // Un parsed market data used for storage
-    bytes32 data;
-}
-
 /****** Storage objects ******/
 
 /// @dev Token object in storage:

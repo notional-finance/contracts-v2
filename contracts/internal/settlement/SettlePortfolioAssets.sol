@@ -13,6 +13,7 @@ import "../../global/Types.sol";
 library SettlePortfolioAssets {
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
+    using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;
 
@@ -52,85 +53,6 @@ library SettlePortfolioAssets {
         return settleAmounts;
     }
 
-    /// @notice Shared calculation for liquidity token settlement
-    function _calculateMarketStorage(PortfolioAsset memory asset)
-        private
-        view
-        returns (
-            int256,
-            int256,
-            SettlementMarket memory
-        )
-    {
-        // @audit just have the market object settle the positions and return the net amounts
-        // @audit this is the same as removing liquidity from a market, don't duplicate that method
-        SettlementMarket memory market =
-            Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
-
-        int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
-        int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
-
-        market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
-        market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
-
-        return (assetCash, fCash, market);
-    }
-
-    /// @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
-    /// converting the fCash portion to cash at the settlement rate.
-    function _settleLiquidityToken(
-        PortfolioAsset memory asset,
-        AssetRateParameters memory settlementRate
-    ) private view returns (int256, SettlementMarket memory) {
-        (int256 assetCash, int256 fCash, SettlementMarket memory market) =
-            _calculateMarketStorage(asset);
-
-        // @audit-ok correct settlement rate
-        assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
-        return (assetCash, market);
-    }
-
-    /// @notice Settles a liquidity token to idiosyncratic fCash, this occurs when the maturity is still in the future
-    function _settleLiquidityTokenTofCash(PortfolioState memory portfolioState, uint256 index)
-        private
-        view
-        returns (int256, SettlementMarket memory)
-    {
-        PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
-        (int256 assetCash, int256 fCash, SettlementMarket memory market) =
-            _calculateMarketStorage(liquidityToken);
-
-        // If the liquidity token's maturity is still in the future then we change the entry to be
-        // an idiosyncratic fCash entry with the net fCash amount.
-        if (index != 0) {
-            // Check to see if the previous index is the matching fCash asset, this will be the case when the
-            // portfolio is sorted
-            PortfolioAsset memory fCashAsset = portfolioState.storedAssets[index - 1];
-
-            if (
-                fCashAsset.currencyId == liquidityToken.currencyId &&
-                fCashAsset.maturity == liquidityToken.maturity &&
-                fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
-            ) {
-                // @audit-ok
-                // This fCash asset has not matured if were are settling to fCash
-                fCashAsset.notional = fCashAsset.notional.add(fCash);
-                fCashAsset.storageState = AssetStorageState.Update;
-
-                portfolioState.deleteAsset(index);
-                return (assetCash, market);
-            }
-        }
-
-        // @audit-ok we are going to delete this asset anyway
-        liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
-        liquidityToken.notional = fCash;
-        liquidityToken.storageState = AssetStorageState.Update;
-
-        return (assetCash, market);
-    }
-
     /// @notice Settles a portfolio array
     function settlePortfolio(PortfolioState memory portfolioState, uint256 blockTime)
         internal
@@ -138,15 +60,17 @@ library SettlePortfolioAssets {
     {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = _getSettleAmountArray(portfolioState, blockTime);
+        MarketParameters memory market;
         if (settleAmounts.length == 0) return settleAmounts;
         uint256 settleAmountIndex;
 
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
+            uint256 settleDate = asset.getSettlementDate();
             // @audit-ok settlement date is on block time exactly
-            if (asset.getSettlementDate() > blockTime) continue;
+            if (settleDate > blockTime) continue;
 
-            // @audit on the first loop the lastCurrencyId is already set.
+            // @audit-ok on the first loop the lastCurrencyId is already set.
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 // New currency in the portfolio
                 settleAmountIndex += 1;
@@ -166,20 +90,12 @@ library SettlePortfolioAssets {
                 assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
-                SettlementMarket memory market;
-                // @audit-ok assets mature exactly on block time
-                if (asset.maturity > blockTime) {
-                    (assetCash, market) = _settleLiquidityTokenTofCash(portfolioState, i);
-                } else {
-                    (assetCash, market) = _settleLiquidityToken(asset, settlementRate);
-                    // @audit-ok asset is deleted
-                    portfolioState.deleteAsset(i);
-                }
+                Market.loadSettlementMarket(market, asset.currencyId, asset.maturity, settleDate);
+                // @audit-ok asset is deleted
+                portfolioState.deleteAsset(i);
 
-                // @audit if we use remove liquidity and have it set then this is redundant
-                Market.setSettlementMarket(market);
+                assetCash = _settleLiquidityToken(asset, market, portfolioState, settlementRate, blockTime);
             }
-
             // @audit-ok
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
                 .netCashChange
@@ -187,5 +103,25 @@ library SettlePortfolioAssets {
         }
 
         return settleAmounts;
+    }
+
+    function _settleLiquidityToken(
+        PortfolioAsset memory asset,
+        MarketParameters memory market,
+        PortfolioState memory portfolioState,
+        AssetRateParameters memory settlementRate,
+        uint256 blockTime
+    ) internal returns (int256 assetCash) {
+        int256 fCash;
+        (assetCash, fCash) = market.removeLiquidity(asset.notional);
+
+        // @audit-ok assets mature exactly on block time
+        if (asset.maturity > blockTime) {
+            // If fCash has not yet matured then add it to the portfolio
+            portfolioState.addAsset(asset.currencyId, asset.maturity, Constants.FCASH_ASSET_TYPE, fCash);
+        } else {
+            // If asset has matured then settle fCash to asset cash
+            assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
+        }
     }
 }

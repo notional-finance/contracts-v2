@@ -119,63 +119,6 @@ class TestMarket:
             marketStorage = get_market_state(MARKETS[0], totalLiquidity=-1)
             market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
 
-    def test_get_and_set_settlement_market(self, market):
-        marketStorage = get_market_state(MARKETS[0])
-        market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
-
-        settlementMarket = list(market.getSettlementMarket(1, MARKETS[0], SETTLEMENT_DATE))
-        assert settlementMarket[1] == marketStorage[2]
-        assert settlementMarket[2] == marketStorage[3]
-        assert settlementMarket[3] == marketStorage[4]
-
-        settlementMarket[1] = 0.5e18
-        settlementMarket[2] = 0.5e18
-        settlementMarket[3] = 0.5e18
-        market.setSettlementMarket(settlementMarket)
-
-        result = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
-        assert result[2] == settlementMarket[1]
-        assert result[3] == settlementMarket[2]
-        assert result[4] == settlementMarket[3]
-        assert result[5] == marketStorage[5]
-        assert result[6] == marketStorage[6]
-        assert result[7] == marketStorage[7]
-
-    def test_fail_on_settlement_overflows(self, market):
-        marketStorage = get_market_state(MARKETS[0])
-        market.setMarketStorage(1, SETTLEMENT_DATE, marketStorage)
-        settlementMarket = market.getSettlementMarket(1, MARKETS[0], SETTLEMENT_DATE)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[1] = -1
-            market.setSettlementMarket(s)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[2] = -1
-            market.setSettlementMarket(s)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[3] = -1
-            market.setSettlementMarket(s)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[1] = 2 ** 81
-            market.setSettlementMarket(s)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[2] = 2 ** 81
-            market.setSettlementMarket(s)
-
-        with brownie.reverts():
-            s = list(settlementMarket)
-            s[3] = 2 ** 81
-            market.setSettlementMarket(s)
-
     @given(assetCash=strategy("uint", min_value=0, max_value=100e18))
     def test_add_liquidity(self, market, assetCash):
         marketState = get_market_state(MARKETS[0])

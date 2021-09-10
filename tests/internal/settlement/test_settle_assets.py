@@ -94,7 +94,7 @@ class TestSettleAssets:
             if a[2] > 1:
                 maturity = MARKETS[a[2] - 2]
                 value = mockSettleAssets.getSettlementMarket(a[0], maturity, SETTLEMENT_DATE)
-                assert value[1:4] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
+                assert value[2:5] == (int(1e18) - a[3], int(1e18) - a[3], int(1e18) - a[3])
 
     def settled_balance_context(self, assetArray, blockTime):
         assetsSorted = sorted(assetArray)

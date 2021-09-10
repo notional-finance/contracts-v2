@@ -167,18 +167,6 @@ contract MockMarket is StorageLayoutV1 {
         return market;
     }
 
-    function getSettlementMarket(
-        uint256 currencyId,
-        uint256 maturity,
-        uint256 settlementDate
-    ) public view returns (SettlementMarket memory) {
-        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
-    }
-
-    function setSettlementMarket(SettlementMarket memory market) public {
-        return Market.setSettlementMarket(market);
-    }
-
     function getfCashAmountGivenCashAmount(
         MarketParameters memory market,
         CashGroupParameters memory cashGroup,

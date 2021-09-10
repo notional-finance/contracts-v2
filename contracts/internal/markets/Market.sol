@@ -749,65 +749,13 @@ library Market {
         );
     }
 
-    /// @notice When settling liquidity tokens we only need to get half of the market parameters and the settlement
-    /// date must be specified.
-    function getSettlementMarket(
+    function loadSettlementMarket(
+        MarketParameters memory market,
         uint256 currencyId,
         uint256 maturity,
         uint256 settlementDate
-    ) internal view returns (SettlementMarket memory) {
-        uint256 slot = uint256(getSlot(currencyId, settlementDate, maturity));
-        int256 totalLiquidity;
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        int256 totalfCash = int256(uint80(uint256(data)));
-        int256 totalAssetCash = int256(uint80(uint256(data >> 80)));
-        // Clear the lower 160 bits, this data will be combined with the new totalfCash
-        // and totalAssetCash figures.
-        data = data & 0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
-
-        slot = uint256(slot) + 1;
-
-        assembly {
-            totalLiquidity := sload(slot)
-        }
-
-        return
-            SettlementMarket({
-                storageSlot: bytes32(slot - 1),
-                totalfCash: totalfCash,
-                totalAssetCash: totalAssetCash,
-                totalLiquidity: int256(totalLiquidity),
-                data: data
-            });
-    }
-
-    function setSettlementMarket(SettlementMarket memory market) internal {
-        bytes32 slot = market.storageSlot;
-        bytes32 data;
-        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
-        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
-        require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: settlement market storage totalLiquidity overflow
-
-        data = (bytes32(market.totalfCash) |
-            (bytes32(market.totalAssetCash) << 80) |
-            bytes32(market.data));
-
-        // Don't clear the storage even when all liquidity tokens have been removed because we need to use
-        // the oracle rates to initialize the next set of markets.
-        assembly {
-            sstore(slot, data)
-        }
-
-        slot = bytes32(uint256(slot) + 1);
-        bytes32 totalLiquidity = bytes32(market.totalLiquidity);
-        assembly {
-            sstore(slot, totalLiquidity)
-        }
+    ) internal view {
+        _loadMarketStorage(market, currencyId, maturity, true, settlementDate);
     }
 
     /// Uses Newton's method to converge on an fCash amount given the amount of
