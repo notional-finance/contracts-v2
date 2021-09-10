@@ -264,13 +264,11 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint16 currencyId,
             /* incentiveRate */,
             uint256 lastInitializedTime,
-            bytes6 parameters
+            uint8 assetArrayLength,
+            bytes5 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
-        liquidityTokens = PortfolioHandler.getSortedPortfolio(
-            tokenAddress,
-            uint8(parameters[Constants.ASSET_ARRAY_LENGTH])
-        );
+        liquidityTokens = PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength);
 
         netfCashAssets = BitmapAssetsHandler.getifCashArray(
             tokenAddress,
@@ -288,7 +286,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters,
+            bytes5 nTokenParameters,
             int256 cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
@@ -298,6 +296,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             currencyId,
             incentiveAnnualEmissionRate,
             lastInitializedTime,
+            /* assetArrayLength */,
             nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 

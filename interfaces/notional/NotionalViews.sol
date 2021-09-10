@@ -80,7 +80,7 @@ interface NotionalViews {
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters,
+            bytes5 nTokenParameters,
             int256 cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime

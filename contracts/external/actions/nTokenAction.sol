@@ -274,6 +274,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
                 uint256 isNToken,
                 /* incentiveAnnualEmissionRate */,
                 /* lastInitializedTime */,
+                /* assetArrayLength */,
                 /* parameters */
             ) = nTokenHandler.getNTokenContext(recipient);
             // nTokens cannot hold nToken balances

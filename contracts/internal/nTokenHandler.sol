@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "../global/LibStorage.sol";
 import "./markets/CashGroup.sol";
 import "./markets/AssetRate.sol";
 import "./valuation/AssetHandler.sol";
@@ -14,15 +15,8 @@ library nTokenHandler {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
-    /// @dev Stores (uint32)
-    bytes32 private constant INCENTIVE_RATE_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFF;
-    /// @dev Stores (uint8, uint32)
-    bytes32 private constant ARRAY_TIME_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFF;
-    /// @dev Stores (uint8, uint8, uint8, uint8, uint8)
-    bytes32 private constant COLLATERAL_MASK =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF0000000000FFFFFFFFFFFFFFFFFFFFFF;
+    /// @dev Mirror of the value in LibStorage
+    uint256 private constant NUM_NTOKEN_MARKET_FACTORS = 14;
 
     /// @notice Returns an account context object that is specific to nTokens.
     function getNTokenContext(address tokenAddress)
@@ -32,55 +26,40 @@ library nTokenHandler {
             uint16 currencyId,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 parameters
+            uint8 assetArrayLength,
+            bytes5 parameters
         )
     {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
-        bytes32 data;
-        assembly {
-            data := sload(slot)
-        }
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
 
-        currencyId = uint16(uint256(data));
-        incentiveAnnualEmissionRate = uint256(uint32(uint256(data >> 16)));
-        lastInitializedTime = uint256(uint32(uint256(data >> 48)));
-        parameters = bytes6(data << 128);
+        // TODO: how many storage reads is this?
+        currencyId = context.currencyId;
+        incentiveAnnualEmissionRate = context.incentiveAnnualEmissionRate;
+        lastInitializedTime = context.lastInitializedTime;
+        assetArrayLength = context.assetArrayLength;
+        parameters = context.nTokenParameters;
     }
 
     /// @notice Returns the nToken token address for a given currency
     function nTokenAddress(uint256 currencyId) internal view returns (address tokenAddress) {
-        bytes32 slot = keccak256(abi.encode(currencyId, Constants.NTOKEN_ADDRESS_STORAGE_OFFSET));
-        assembly {
-            tokenAddress := sload(slot)
-        }
+        mapping(uint256 => address) storage store = LibStorage.getNTokenAddressStorage();
+        return store[currencyId];
     }
 
     /// @notice Called by governance to set the nToken token address and its reverse lookup. Cannot be
     /// reset once this is set.
     function setNTokenAddress(uint16 currencyId, address tokenAddress) internal {
-        bytes32 addressSlot =
-            keccak256(abi.encode(currencyId, Constants.NTOKEN_ADDRESS_STORAGE_OFFSET));
-        bytes32 currencySlot =
-            keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
+        mapping(uint256 => address) storage addressStore = LibStorage.getNTokenAddressStorage();
+        require(addressStore[currencyId] == address(0), "PT: token address exists");
 
-        uint256 data;
-        assembly {
-            data := sload(addressSlot)
-        }
-        require(data == 0, "PT: token address exists");
-        assembly {
-            data := sload(currencySlot)
-        }
-        require(data == 0, "PT: currency exists");
+        mapping(address => nTokenContext) storage contextStore = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = contextStore[tokenAddress];
+        require(context.currencyId == 0, "PT: currency exists");
 
-        assembly {
-            sstore(addressSlot, tokenAddress)
-        }
-
-        // This will initialize all the other token context values to zero
-        assembly {
-            sstore(currencySlot, currencyId)
-        }
+        // This will initialize all other context slots to zero
+        context.currencyId = currencyId;
+        addressStore[currencyId] = tokenAddress;
     }
 
     /// @notice Set nToken token collateral parameters
@@ -92,11 +71,8 @@ library nTokenHandler {
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
-        bytes32 data;
-        assembly {
-            data := sload(slot)
-        }
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
 
         require(liquidationHaircutPercentage <= Constants.PERCENTAGE_DECIMALS, "Invalid haircut");
         // The pv haircut percentage must be less than the liquidation percentage or else liquidators will not
@@ -106,18 +82,15 @@ library nTokenHandler {
         // the nToken may not have enough cash to pay accounts to buy its negative ifCash
         require(residualPurchaseIncentive10BPS <= cashWithholdingBuffer10BPS, "Invalid discounts");
 
-        // Clear the bytes where collateral parameters will go and OR the data in
-        data = data & COLLATERAL_MASK;
-        bytes32 parameters =
-            (bytes32(uint256(residualPurchaseIncentive10BPS)) |
-                (bytes32(uint256(pvHaircutPercentage)) << 8) |
-                (bytes32(uint256(residualPurchaseTimeBufferHours)) << 16) |
-                (bytes32(uint256(cashWithholdingBuffer10BPS)) << 24) |
-                (bytes32(uint256(liquidationHaircutPercentage)) << 32));
-        data = data | (bytes32(parameters) << 88);
-        assembly {
-            sstore(slot, data)
-        }
+        bytes5 parameters =
+            (bytes5(uint40(residualPurchaseIncentive10BPS)) |
+            (bytes5(uint40(pvHaircutPercentage)) << 8) |
+            (bytes5(uint40(residualPurchaseTimeBufferHours)) << 16) |
+            (bytes5(uint40(cashWithholdingBuffer10BPS)) << 24) |
+            (bytes5(uint40(liquidationHaircutPercentage)) << 32));
+
+        // Set the parameters
+        context.nTokenParameters = parameters;
     }
 
     /// @notice Retrieves the nToken supply factors without any updates or calculations
@@ -130,18 +103,13 @@ library nTokenHandler {
             uint256 lastSupplyChangeTime
         )
     {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        totalSupply = uint256(uint96(uint256(data)));
+        mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
+        nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
+        totalSupply = nTokenStorage.totalSupply;
         // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The integral total supply
         // must be updated given the block time. Use `calculateIntegralTotalSupply` instead
-        integralTotalSupply = uint256(uint128(uint256(data >> 96)));
-        lastSupplyChangeTime = uint256(data >> 224);
+        integralTotalSupply = nTokenStorage.integralTotalSupply;
+        lastSupplyChangeTime = nTokenStorage.lastSupplyChangeTime;
     }
 
     /// @notice Retrieves stored total supply factors and 
@@ -190,40 +158,28 @@ library nTokenHandler {
         ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
 
         if (netChange != 0) {
-            bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_TOTAL_SUPPLY_OFFSET));
             // If the totalSupply will change then we store the new total supply, the integral total supply and the
             // current block time. We know that this int256 conversion will not overflow because totalSupply is stored
             // as a uint96 and checked in the next line.
             int256 newTotalSupply = int256(totalSupply).add(netChange);
             require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
 
-            bytes32 newData = (
-                (bytes32(uint256(newTotalSupply))) |
-                (bytes32(integralTotalSupply << 96)) |
-                (bytes32(blockTime << 224))
-            );
+            mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
+            nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
 
-            assembly {
-                sstore(slot, newData)
-            }
+            nTokenStorage.totalSupply = uint96(newTotalSupply);
+            // NOTE: overflows checked in calculateIntegralTotalSupply
+            nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
+            nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
         }
 
         return integralTotalSupply;
     }
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
-
-        bytes32 data;
-        assembly {
-            data := sload(slot)
-        }
-        // Clear the 4 bytes where emissions rate will go and OR it in
-        data = data & INCENTIVE_RATE_MASK;
-        data = data | (bytes32(uint256(newEmissionsRate)) << 16);
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
+        context.incentiveAnnualEmissionRate = newEmissionsRate;
     }
 
     function setArrayLengthAndInitializedTime(
@@ -231,20 +187,11 @@ library nTokenHandler {
         uint8 arrayLength,
         uint256 lastInitializedTime
     ) internal {
-        bytes32 slot = keccak256(abi.encode(tokenAddress, Constants.NTOKEN_CONTEXT_STORAGE_OFFSET));
         require(lastInitializedTime >= 0 && uint256(lastInitializedTime) < type(uint32).max); // dev: next settle time overflow
-
-        bytes32 data;
-        assembly {
-            data := sload(slot)
-        }
-        // Clear the 6 bytes where array length and settle time will go
-        data = data & ARRAY_TIME_MASK;
-        data = data | (bytes32(uint256(lastInitializedTime)) << 48);
-        data = data | (bytes32(uint256(arrayLength)) << 80);
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
+        context.lastInitializedTime = uint32(lastInitializedTime);
+        context.assetArrayLength = arrayLength;
     }
 
     /// @notice Returns the array of deposit shares and leverage thresholds for nTokens
@@ -253,9 +200,9 @@ library nTokenHandler {
         view
         returns (int256[] memory depositShares, int256[] memory leverageThresholds)
     {
-        uint256 slot =
-            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_DEPOSIT_STORAGE_OFFSET)));
-        (depositShares, leverageThresholds) = _getParameters(slot, maxMarketIndex, false);
+        mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenDepositStorage();
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage depositParameters = store[currencyId];
+        (depositShares, leverageThresholds) = _getParameters(depositParameters, maxMarketIndex, false);
     }
 
     /// @notice Sets the deposit parameters
@@ -266,13 +213,10 @@ library nTokenHandler {
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) internal {
-        uint256 slot =
-            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_DEPOSIT_STORAGE_OFFSET)));
         require(
             depositShares.length <= Constants.MAX_TRADED_MARKET_INDEX,
             "PT: deposit share length"
         );
-
         require(depositShares.length == leverageThresholds.length, "PT: leverage share length");
 
         uint256 shareSum;
@@ -287,7 +231,10 @@ library nTokenHandler {
 
         // Total deposit share must add up to 100%
         require(shareSum == uint256(Constants.DEPOSIT_PERCENT_BASIS), "PT: deposit shares sum");
-        _setParameters(slot, depositShares, leverageThresholds);
+
+        mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenDepositStorage();
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage depositParameters = store[currencyId];
+        _setParameters(depositParameters, depositShares, leverageThresholds);
     }
 
     /// @notice Sets the initialization parameters for the markets, these are read only when markets
@@ -297,10 +244,7 @@ library nTokenHandler {
         uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) internal {
-        uint256 slot =
-            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
         require(annualizedAnchorRates.length <= Constants.MAX_TRADED_MARKET_INDEX, "PT: annualized anchor rates length");
-
         require(proportions.length == annualizedAnchorRates.length, "PT: proportions length");
 
         for (uint256 i; i < proportions.length; i++) {
@@ -311,7 +255,9 @@ library nTokenHandler {
             );
         }
 
-        _setParameters(slot, annualizedAnchorRates, proportions);
+        mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenInitStorage();
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage initParameters = store[currencyId];
+        _setParameters(initParameters, annualizedAnchorRates, proportions);
     }
 
     /// @notice Returns the array of initialization parameters for a given currency.
@@ -320,40 +266,27 @@ library nTokenHandler {
         view
         returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
     {
-        uint256 slot =
-            uint256(keccak256(abi.encode(currencyId, Constants.NTOKEN_INIT_STORAGE_OFFSET)));
-        (annualizedAnchorRates, proportions) = _getParameters(slot, maxMarketIndex, true);
+        mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenInitStorage();
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage initParameters = store[currencyId];
+        (annualizedAnchorRates, proportions) = _getParameters(initParameters, maxMarketIndex, true);
     }
 
     function _getParameters(
-        uint256 slot,
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage slot,
         uint256 maxMarketIndex,
         bool noUnset
     ) private view returns (int256[] memory, int256[] memory) {
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
+        uint256 index = 0;
         int256[] memory array1 = new int256[](maxMarketIndex);
         int256[] memory array2 = new int256[](maxMarketIndex);
         for (uint256 i; i < maxMarketIndex; i++) {
-            array1[i] = int256(uint32(uint256(data)));
-            data = data >> 32;
-            array2[i] = int256(uint32(uint256(data)));
-            data = data >> 32;
+            array1[i] = slot[index];
+            index++;
+            array2[i] = slot[index];
+            index++;
 
             if (noUnset) {
                 require(array1[i] > 0 && array2[i] > 0, "PT: init value zero");
-            }
-
-            if (i == 3) {
-                // Load the second slot which occurs after the 4th market index
-                slot = slot + 1;
-                assembly {
-                    data := sload(slot)
-                }
             }
         }
 
@@ -361,43 +294,21 @@ library nTokenHandler {
     }
 
     function _setParameters(
-        uint256 slot,
+        uint32[NUM_NTOKEN_MARKET_FACTORS] storage slot,
         uint32[] calldata array1,
         uint32[] calldata array2
     ) private {
-        bytes32 data;
-        uint256 bitShift;
-        uint256 i;
-        for (; i < array1.length; i++) {
-            // Pack the data into alternating 4 byte slots
-            data = data | (bytes32(uint256(array1[i])) << bitShift);
-            bitShift += 32;
+        uint256 index = 0;
+        for (uint256 i = 0; i < array1.length; i++) {
+            slot[index] = array1[i];
+            index++;
 
-            data = data | (bytes32(uint256(array2[i])) << bitShift);
-            bitShift += 32;
-
-            if (i == 3) {
-                // The first 4 (i == 3) pairs of values will fit into 32 bytes of the first storage slot,
-                // after this we move one slot over
-                assembly {
-                    sstore(slot, data)
-                }
-                slot = slot + 1;
-                data = 0x00;
-                bitShift = 0;
-            }
-        }
-
-        // Store the data if i is not exactly 4 which means it was stored completely in the first slot
-        // when i == 3
-        if (i != 4) {
-            assembly {
-                sstore(slot, data)
-            }
+            slot[index] = array2[i];
+            index++;
         }
     }
 
-    function loadNTokenPortfolioNoCashGroup(uint256 currencyId, nTokenPortfolio memory nToken)
+    function loadNTokenPortfolioNoCashGroup(nTokenPortfolio memory nToken, uint16 currencyId)
         internal
         view
     {
@@ -407,7 +318,8 @@ library nTokenHandler {
             /* currencyId */,
             /* incentiveRate */,
             uint256 lastInitializedTime,
-            bytes6 parameters
+            uint8 assetArrayLength,
+            bytes5 parameters
         ) = getNTokenContext(nToken.tokenAddress);
 
         // prettier-ignore
@@ -423,7 +335,7 @@ library nTokenHandler {
 
         nToken.portfolioState = PortfolioHandler.buildPortfolioState(
             nToken.tokenAddress,
-            uint8(parameters[Constants.ASSET_ARRAY_LENGTH]),
+            assetArrayLength,
             0
         );
 

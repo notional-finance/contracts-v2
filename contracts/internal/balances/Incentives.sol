@@ -44,6 +44,7 @@ library Incentives {
             /* currencyId */,
             uint256 emissionRatePerYear,
             /* initializedTime */,
+            /* assetArrayLength */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 

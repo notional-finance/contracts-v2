@@ -17,18 +17,20 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256,
             uint256,
             uint256,
-            bytes6
+            uint8,
+            bytes5
         )
     {
         (
             uint256 currencyId,
             uint256 incentiveRate,
             uint256 lastInitializedTime,
-            bytes6 parameters
+            uint8 assetArrayLength,
+            bytes5 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
         assert(nTokenHandler.nTokenAddress(currencyId) == tokenAddress);
 
-        return (currencyId, incentiveRate, lastInitializedTime, parameters);
+        return (currencyId, incentiveRate, lastInitializedTime, assetArrayLength, parameters);
     }
 
     function nTokenAddress(uint256 currencyId) external view returns (address) {
@@ -38,6 +40,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256 currencyIdStored,
             /* incentiveRate */,
             /* lastInitializedTime */,
+            /* assetArrayLength */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
         assert(currencyIdStored == currencyId);
