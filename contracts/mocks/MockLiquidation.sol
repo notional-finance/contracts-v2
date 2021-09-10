@@ -71,8 +71,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             liquidateAccount,
             localBalanceState, // In this case, local currency is the collateral
             accountContext,
-            portfolio,
-            factors.markets
+            portfolio
         );
 
         return (localBalanceState, netLocalFromLiquidator, portfolio, factors);
@@ -92,11 +91,9 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
         LiquidationFactors memory factors
     )
         external
-        view
         returns (
             BalanceState memory,
-            int256,
-            MarketParameters[] memory
+            int256
         )
     {
         PortfolioState memory portfolio;
@@ -111,7 +108,7 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, netLocalFromLiquidator, factors.markets);
+        return (liquidatedBalanceState, netLocalFromLiquidator);
     }
 }
 
@@ -125,12 +122,10 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         uint256 blockTime
     )
         external
-        view
         returns (
             BalanceState memory,
             int256,
-            PortfolioState memory,
-            MarketParameters[] memory
+            PortfolioState memory
         )
     {
         int256 localAssetCashFromLiquidator =
@@ -143,7 +138,7 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio, factors.markets);
+        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio);
     }
 }
 

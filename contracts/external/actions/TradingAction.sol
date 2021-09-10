@@ -27,9 +27,9 @@ library TradingAction {
         uint16 indexed currencyId,
         uint40 maturity,
         int256 netAssetCash,
-        int256 netfCash,
-        int256 netFee
+        int256 netfCash
     );
+
     event AddRemoveLiquidity(
         address indexed account,
         uint16 indexed currencyId,
@@ -84,7 +84,7 @@ library TradingAction {
         for (uint256 i = 0; i < trades.length; i++) {
             uint256 maturity;
             // @audit-ok will execute a non-liquidity token trade
-            (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
+            (maturity, c.cash, c.fCashAmount) = _executeTrade(
                 account,
                 cashGroup,
                 market,
@@ -102,10 +102,7 @@ library TradingAction {
 
             didIncurDebt = didIncurDebt || (c.fCashAmount < 0);
             c.netCash = c.netCash.add(c.cash);
-            c.totalFee = c.totalFee.add(c.fee);
         }
-
-        BalanceHandler.incrementFeeToReserve(bitmapCurrencyId, c.totalFee);
 
         return (c.netCash, didIncurDebt);
     }
@@ -146,7 +143,7 @@ library TradingAction {
                 );
             } else {
                 uint256 maturity;
-                (maturity, c.cash, c.fCashAmount, c.fee) = _executeTrade(
+                (maturity, c.cash, c.fCashAmount) = _executeTrade(
                     account,
                     cashGroup,
                     market,
@@ -155,13 +152,10 @@ library TradingAction {
                 );
                 // Stack issues here :(
                 _addfCashAsset(portfolioState, currencyId, maturity, c.fCashAmount);
-                c.totalFee = c.totalFee.add(c.fee);
             }
 
             c.netCash = c.netCash.add(c.cash);
         }
-
-        BalanceHandler.incrementFeeToReserve(currencyId, c.totalFee);
 
         return (portfolioState, c.netCash);
     }
@@ -198,8 +192,7 @@ library TradingAction {
         returns (
             uint256 maturity,
             int256 cashAmount,
-            int256 fCashAmount,
-            int256 fee
+            int256 fCashAmount
         )
     {
         TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
@@ -212,7 +205,7 @@ library TradingAction {
         } else if (tradeType == TradeActionType.SettleCashDebt) {
             (maturity, cashAmount, fCashAmount) = _settleCashDebt(account, cashGroup, blockTime, trade);
         } else if (tradeType == TradeActionType.Lend || tradeType == TradeActionType.Borrow) {
-            (cashAmount, fCashAmount, fee) = _executeLendBorrowTrade(
+            (cashAmount, fCashAmount) = _executeLendBorrowTrade(
                 cashGroup,
                 market,
                 tradeType,
@@ -228,8 +221,7 @@ library TradingAction {
                 uint16(cashGroup.currencyId),
                 uint40(maturity),
                 cashAmount,
-                fCashAmount,
-                fee
+                fCashAmount
             );
         } else {
             revert("Invalid trade type");
@@ -294,8 +286,6 @@ library TradingAction {
             // @audit-ok if maxImpliedRate is set then will revert
             if (maxImpliedRate != 0)
                 require(market.lastImpliedRate <= maxImpliedRate, "Trade failed, slippage");
-            // @audit-ok finalize storage here
-            market.setMarketStorage();
         }
 
         // Add the assets in this order so they are sorted
@@ -333,10 +323,9 @@ library TradingAction {
     /// @param tradeType whether this is add or remove liquidity
     /// @param blockTime the current block time
     /// @param trade bytes32 encoding of the particular trade
-    /// @return 
+    /// Returns (cashAmount, fCashAmount)
     ///     cashAmount: a positive or negative cash amount accrued to the account
     ///     fCashAmount: a positive or negative fCash amount accrued to the account
-    ///     fee: a positive fee balance that accrues to the reserve
     function _executeLendBorrowTrade(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
@@ -346,27 +335,24 @@ library TradingAction {
     )
         private
         returns (
-            int256,
-            int256,
-            int256
+            int256 cashAmount,
+            int256 fCashAmount
         )
     {
         uint256 marketIndex = uint256(uint8(bytes1(trade << 8)));
         // @audit this loads the market in memory, consider having a return variable
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
-        int256 fCashAmount = int256(uint88(bytes11(trade << 16)));
+        fCashAmount = int256(uint88(bytes11(trade << 16)));
         // @audit-ok fCash to account will be negative here
         if (tradeType == TradeActionType.Borrow) fCashAmount = fCashAmount.neg();
 
-        (int256 cashAmount, int256 fee) =
-            // @audit consider finalizing market states inside here
-            market.calculateTrade(
-                cashGroup,
-                fCashAmount,
-                market.maturity.sub(blockTime),
-                marketIndex
-            );
+        cashAmount = market.executeTrade(
+            cashGroup,
+            fCashAmount,
+            market.maturity.sub(blockTime),
+            marketIndex
+        );
         require(cashAmount != 0, "Trade failed, liquidity");
 
         uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
@@ -379,10 +365,6 @@ library TradingAction {
                 require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
             }
         }
-        // @audit-ok finalize storage here
-        market.setMarketStorage();
-
-        return (cashAmount, fCashAmount, fee);
     }
 
     /// @notice If an account has a negative cash balance we allow anyone to lend to to that account at a penalty

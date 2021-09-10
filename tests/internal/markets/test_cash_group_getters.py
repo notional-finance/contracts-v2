@@ -169,7 +169,7 @@ class TestCashGroupGetters:
 
         for m in validMarkets:
             settlementDate = tRef + 90 * SECONDS_IN_DAY
-            cashGroup.setMarketState(cg[0], m, settlementDate, get_market_state(m))
+            cashGroup.setMarketState(cg[0], settlementDate, get_market_state(m))
 
         cg = cashGroup.buildCashGroupView(1)
 
@@ -189,8 +189,6 @@ class TestCashGroupGetters:
             assert market[5] == marketStored[5]
             # NOTE: don't need to test oracleRate
             assert market[7] == marketStored[7]
-            # Assert market has updated is set to false
-            assert market[8] == "0x00"
 
     @given(
         maxMarketIndex=strategy("uint8", min_value=2, max_value=7),
@@ -220,7 +218,6 @@ class TestCashGroupGetters:
 
             cashGroup.setMarketState(
                 cg[0],
-                m,
                 settlementDate,
                 get_market_state(
                     m, lastImpliedRate=lastImpliedRate, previousTradeTime=blockTime - 1000

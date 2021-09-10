@@ -56,7 +56,7 @@ library LiquidateCurrency {
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
-    ) internal view returns (int256) {
+    ) internal returns (int256) {
         require(factors.localAssetAvailable < 0, "No local debt");
 
         // Formula here uses the buffer since we know localAssetAvailable is negative.
@@ -194,7 +194,7 @@ library LiquidateCurrency {
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
-    ) internal view returns (int256) {
+    ) internal returns (int256) {
         require(factors.localAssetAvailable < 0, "No local debt");
         require(factors.collateralAssetAvailable > 0, "No collateral");
 
@@ -428,9 +428,9 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         uint256 blockTime,
         int256 assetAmountRemaining
-    ) internal view returns (WithdrawFactors memory, int256) {
+    ) internal returns (WithdrawFactors memory, int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
-        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
+        MarketParameters memory market;
         // Do this to deal with stack issues
         WithdrawFactors memory w;
 
@@ -439,23 +439,12 @@ library LiquidateCurrency {
             // @audit-ok
             if (!_isValidWithdrawToken(asset, factors.cashGroup.currencyId)) continue;
 
-            // @audit change this into a private block
-            uint256 marketIndex = asset.assetType - 1;
-            // This is set up this way so that we can delay setting storage of markets so that this method can
-            // remain a view function
-            // @audit change this to set it directly
-            factors.cashGroup.loadMarket(
-                factors.markets[marketIndex - 1],
-                marketIndex,
-                true,
+            (w.assetCash, w.fCash) = _loadMarketAndGetClaims(
+                asset,
+                factors.cashGroup,
+                market,
                 blockTime
             );
-
-            // NOTE: we do not give any credit to the haircut fCash in this procedure but it will end up adding
-            // additional collateral value back into the account. It's probably too complex to deal with this so
-            // we will just leave it as such.
-            (w.assetCash, w.fCash) = asset.getCashClaims(factors.markets[marketIndex - 1]);
-            // @audit change this into a private block
 
             (w.netCashIncrease, w.incentivePaid) = _calculateNetCashIncreaseAndIncentivePaid(
                 factors, w.assetCash, asset.assetType);
@@ -465,7 +454,7 @@ library LiquidateCurrency {
                 // @audit-ok
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
+                market.removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
@@ -478,15 +467,15 @@ library LiquidateCurrency {
                     .mul(assetAmountRemaining)
                     .div(w.netCashIncrease.subNoNeg(w.incentivePaid));
 
-                (w.assetCash, w.fCash) = factors.markets[marketIndex - 1].removeLiquidity(tokensToRemove);
+                (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
                 // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
                 // remove asset cash
                 (w.netCashIncrease, w.incentivePaid) = _calculateNetCashIncreaseAndIncentivePaid(
                     factors, w.assetCash, asset.assetType);
 
                 // Remove liquidity token balance
-                portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
-                portfolioState.storedAssets[i].storageState = AssetStorageState.Update;
+                asset.notional = asset.notional.subNoNeg(tokensToRemove);
+                asset.storageState = AssetStorageState.Update;
                 assetAmountRemaining = 0;
             }
 
@@ -537,32 +526,26 @@ library LiquidateCurrency {
         LiquidationFactors memory factors,
         uint256 blockTime,
         int256 collateralToWithdraw
-    ) internal view returns (int256) {
+    ) internal returns (int256) {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
-        factors.markets = new MarketParameters[](factors.cashGroup.maxMarketIndex);
+        MarketParameters memory market;
 
         for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (!_isValidWithdrawToken(asset, factors.cashGroup.currencyId)) continue;
 
-            // @audit refactor this block into a private fn
-            uint256 marketIndex = asset.assetType - 1;
-            // This is set up this way so that we can delay setting storage of markets so that this method can
-            // remain a view function
-            factors.cashGroup.loadMarket(
-                factors.markets[marketIndex - 1],
-                marketIndex,
-                true,
+            (int256 cashClaim, int256 fCashClaim) = _loadMarketAndGetClaims(
+                asset,
+                factors.cashGroup,
+                market,
                 blockTime
             );
-            (int256 cashClaim, int256 fCashClaim) = asset.getCashClaims(factors.markets[marketIndex - 1]);
-            // @audit refactor this block into a private fn
 
             if (cashClaim <= collateralToWithdraw) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
                 // @audit this should set it directly
-                factors.markets[marketIndex - 1].removeLiquidity(asset.notional);
+                market.removeLiquidity(asset.notional);
 
                 // overflow checked above
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
@@ -571,13 +554,11 @@ library LiquidateCurrency {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
-                (cashClaim, fCashClaim) = factors.markets[marketIndex - 1].removeLiquidity(
-                    tokensToRemove
-                );
+                (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
 
                 // Remove liquidity token balance
-                portfolioState.storedAssets[i].notional = asset.notional.subNoNeg(tokensToRemove);
-                portfolioState.storedAssets[i].storageState = AssetStorageState.Update;
+                asset.notional = asset.notional.subNoNeg(tokensToRemove);
+                asset.storageState = AssetStorageState.Update;
                 collateralToWithdraw = 0;
             }
 
@@ -605,12 +586,22 @@ library LiquidateCurrency {
         );
     }
 
+    function _loadMarketAndGetClaims(
+        PortfolioAsset memory asset,
+        CashGroupParameters memory cashGroup,
+        MarketParameters memory market,
+        uint256 blockTime
+    ) private view returns (int256 cashClaim, int256 fCashClaim) {
+        uint256 marketIndex = asset.assetType - 1;
+        cashGroup.loadMarket(market, marketIndex, true, blockTime);
+        (cashClaim, fCashClaim) = asset.getCashClaims(market);
+    }
+
     function finalizeLiquidatedCollateralAndPortfolio(
         address liquidateAccount,
         BalanceState memory collateralBalanceState,
         AccountContext memory accountContext,
-        PortfolioState memory portfolio,
-        MarketParameters[] memory markets
+        PortfolioState memory portfolio
     ) internal {
         // Asset transfer value is set to record liquidity token withdraw balances and should not be
         // finalized inside the liquidated collateral. See comment inside liquidateCollateralCurrency
@@ -630,12 +621,6 @@ library LiquidateCurrency {
                 portfolio,
                 true // is liquidation
             );
-
-            // @audit remove this in favor of setting markets immediately
-            for (uint256 i; i < markets.length; i++) {
-                // Will short circuit if market does not need to be set
-                markets[i].setMarketStorage();
-            }
         }
         // @audit-ok
         accountContext.setAccountContext(liquidateAccount);

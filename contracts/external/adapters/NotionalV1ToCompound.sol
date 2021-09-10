@@ -326,7 +326,7 @@ contract NotionalV1ToCompound {
         uint256 _id,
         uint256 _value,
         bytes calldata _data
-    ) external returns (bytes4) {
+    ) external pure returns (bytes4) {
         return 0xf23a6e61;
     }
 }

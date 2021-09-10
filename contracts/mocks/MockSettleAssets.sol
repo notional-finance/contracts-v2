@@ -47,13 +47,9 @@ contract MockSettleAssets is StorageLayoutV1 {
     function setMarketState(
         uint256 currencyId,
         uint256 settlementDate,
-        uint256 maturity,
-        MarketParameters memory ms
+        MarketParameters memory market
     ) external {
-        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
-        // ensure that state gets set
-        ms.storageState = 0xFF;
-        ms.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getSettlementMarket(
@@ -178,7 +174,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (int256 newAssetCash, uint256 blockTimeUTC0) =
+        (int256 newAssetCash, /* uint256 blockTimeUTC0 */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,

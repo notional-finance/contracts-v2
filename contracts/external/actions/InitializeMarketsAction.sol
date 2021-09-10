@@ -727,14 +727,11 @@ library InitializeMarketsAction {
         MarketParameters memory market,
         uint256 currencyId,
         nTokenPortfolio memory nToken
-    ) internal returns (bytes32) {
+    ) internal {
         // @audit-ok
-        uint256 blockTime = block.timestamp;
         // Always reference the current settlement date
-        uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
-        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
-        market.storageState = Market.STORAGE_STATE_INITIALIZE_MARKET;
-        market.setMarketStorage();
+        uint256 settlementDate = DateTime.getReferenceTime(block.timestamp) + Constants.QUARTER;
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
 
         BitmapAssetsHandler.addifCashAsset(
             nToken.tokenAddress,

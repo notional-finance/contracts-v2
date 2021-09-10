@@ -156,9 +156,6 @@ library nTokenMintAction {
                     fCashAmount
                 );
             }
-
-            // @audit this should be redundant, have market set its own storage
-            market.setMarketStorage();
         }
 
         // @audit consider renaming this method as storeLiquidityTokenAssets and putting it on the nToken itself
@@ -250,7 +247,7 @@ library nTokenMintAction {
         MarketParameters memory market,
         uint256 index,
         int256 perMarketDeposit
-    ) private pure returns (int256) {
+    ) private returns (int256) {
         // Add liquidity to the market
         PortfolioAsset memory asset = nToken.portfolioState.storedAssets[index];
         // We expect that all the liquidity tokens are in the portfolio in order.
@@ -304,17 +301,12 @@ library nTokenMintAction {
             // @audit-ok cash * exchangeRate = fCash
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
-        // @audit have this set market state inside
-        (int256 netAssetCash, int256 fee) =
-            market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        int256 netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         // This means that the trade failed
         if (netAssetCash == 0) {
             return (perMarketDeposit, 0);
         } else {
-            // @audit fee increment, but move this into store market
-            BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, fee);
-
             // @audit-ok
             // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
             // given how we've calculated the exchange rate but extra caution here

@@ -20,6 +20,8 @@ library BalanceHandler {
     event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
     /// @notice Emitted when nToken supply changes (not the same as transfers)
     event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
+    /// @notice Emitted when reserve fees are accrued
+    event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
 
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
@@ -382,6 +384,7 @@ library BalanceHandler {
         (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
         _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
+        emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
     function _getSlot(address account, uint256 currencyId) private pure returns (bytes32) {

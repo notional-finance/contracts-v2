@@ -85,7 +85,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -124,7 +123,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -161,7 +159,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -198,7 +195,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -235,7 +231,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (
@@ -286,7 +281,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (
@@ -337,7 +331,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (
@@ -388,7 +381,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (
@@ -439,7 +431,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (
@@ -491,7 +482,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [portfolio[1][1]]
@@ -525,7 +515,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [portfolio[1][1]]
@@ -559,7 +548,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
         maturities = [portfolio[1][1]]
@@ -593,7 +581,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -666,7 +653,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -703,7 +689,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, portfolioState, 0, 0, 0, 0, [])
@@ -737,7 +722,6 @@ class TestLiquidatefCash:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
         fCashContext = (accountContext, factors, ([], [], 0, 0), 0, 0, 0, 0, [])

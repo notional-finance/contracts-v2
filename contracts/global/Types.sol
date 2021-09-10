@@ -135,8 +135,6 @@ struct LiquidationFactors {
     AssetRateParameters localAssetRate;
     // Used during currency liquidations if the account has liquidity tokens
     CashGroupParameters cashGroup;
-    // Used during currency liquidations if the account has liquidity tokens
-    MarketParameters[] markets;
 }
 
 /// @notice Internal asset array portfolio state
@@ -237,8 +235,6 @@ struct MarketParameters {
     uint256 oracleRate;
     // This is the timestamp of the previous trade
     uint256 previousTradeTime;
-    // Used to determine if the market has been updated
-    bytes1 storageState;
 }
 
 /// @dev Simplified market object used during settlement

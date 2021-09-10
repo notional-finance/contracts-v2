@@ -74,14 +74,9 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
-        (
-            balanceState,
-            netLocalFromLiquidator,
-            markets,
-        ) = liquidateOverride.liquidateLocalCurrencyOverride(
+        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
             1,
             0,
             START_TIME,
@@ -89,7 +84,7 @@ class TestLiquidateLocalNTokens:
                 1, storedCashBalance=localAvailable, storedNTokenBalance=nTokenBalance
             ),
             factors,
-        )
+        ).return_value
 
         # allowed to purchase up to 40% of 1100
         assert balanceState[5] == -(nTokenBalance * 0.40)
@@ -112,20 +107,15 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
-        (
-            balanceState,
-            netLocalFromLiquidator,
-            markets,
-        ) = liquidateOverride.liquidateLocalCurrencyOverride(
+        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
             1,
             0,
             START_TIME,
             get_balance_state(1, storedCashBalance=-1000e8, storedNTokenBalance=nTokenBalance),
             factors,
-        )
+        ).return_value
 
         # allowed to purchase up to 100% of token balance
         assert -balanceState[5] <= nTokenBalance
@@ -146,20 +136,15 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
-            [],
         )
 
-        (
-            balanceState,
-            netLocalFromLiquidator,
-            markets,
-        ) = liquidateOverride.liquidateLocalCurrencyOverride(
+        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
             1,
             10e8,
             START_TIME,
             get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
             factors,
-        )
+        ).return_value
 
         # allowed to purchase up to 100% of 110
         assert balanceState[5] == -10e8

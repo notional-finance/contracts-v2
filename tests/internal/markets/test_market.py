@@ -46,7 +46,6 @@ class TestMarket:
         assert result[5] == marketStorage[5]
         assert result[6] == marketStorage[6]  # Oracle rate has not changed
         assert result[7] == marketStorage[7]
-        assert result[8] == "0x00"
 
     @given(
         lastImpliedRate=strategy(
@@ -183,7 +182,7 @@ class TestMarket:
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
 
-        (newMarket, tokens, fCash) = market.addLiquidity(marketState, assetCash)
+        (newMarket, tokens, fCash) = market.addLiquidity(marketState, assetCash).return_value
         assert newMarket[2] == marketState[2] - fCash
         assert newMarket[3] == marketState[3] + assetCash
         assert newMarket[4] == marketState[4] + tokens
@@ -197,20 +196,15 @@ class TestMarket:
             pytest.approx(math.trunc(newMarket[3] * tokens / newMarket[4]), rel=1e-15) == assetCash
         )
 
-        # Assert that oracle rates don't update in storage when adding liquidity
-        newMarketOracleRate = list(newMarket)
-        newMarketOracleRate[6] = newMarketOracleRate[6] + 100
-        market.setMarketStorageSimulate(newMarketOracleRate)
-        result = market.getMarketStorageOracleRate(newMarketOracleRate[0])
-        assert result == newMarket[6]
-
     @given(tokensToRemove=strategy("uint", min_value=0, max_value=1e18))
     def test_remove_liquidity(self, market, tokensToRemove):
         marketState = get_market_state(MARKETS[0])
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
 
-        (newMarket, assetCash, fCash) = market.removeLiquidity(marketState, tokensToRemove)
+        (newMarket, assetCash, fCash) = market.removeLiquidity(
+            marketState, tokensToRemove
+        ).return_value
         assert newMarket[2] == marketState[2] - fCash
         assert newMarket[3] == marketState[3] - assetCash
         assert newMarket[4] == marketState[4] - tokensToRemove
@@ -227,13 +221,6 @@ class TestMarket:
             pytest.approx(math.trunc(marketState[3] * tokensToRemove / marketState[4]), rel=1e-15)
             == assetCash
         )
-
-        # Assert that oracle rates don't update in storage when removing liquidity
-        newMarketOracleRate = list(newMarket)
-        newMarketOracleRate[6] = newMarketOracleRate[6] + 100
-        market.setMarketStorageSimulate(newMarketOracleRate)
-        result = market.getMarketStorageOracleRate(newMarketOracleRate[0])
-        assert result == newMarket[6]
 
     def test_liquidity_failures(self, market):
         marketState = list(get_market_state(MARKETS[0]))
@@ -274,13 +261,6 @@ class TestMarket:
         # Trade time has changed
         assert newMarket[7] > marketState[7]
 
-        # Assert that oracle rates do update in storage when trading
-        newMarketOracleRate = list(newMarket)
-        newMarketOracleRate[6] = newMarketOracleRate[6] + 100
-        market.setMarketStorageSimulate(newMarketOracleRate)
-        result = market.getMarketStorageOracleRate(newMarketOracleRate[0])
-        assert result == newMarketOracleRate[6]
-
     @given(fCashAmount=strategy("int", min_value=1e8, max_value=10000e8))
     def test_lend_state(self, market, fCashAmount):
         marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
@@ -305,9 +285,6 @@ class TestMarket:
         # Trade time has changed
         assert newMarket[7] > marketState[7]
 
-        # Assert that oracle rates do update in storage when trading
-        newMarketOracleRate = list(newMarket)
-        newMarketOracleRate[6] = newMarketOracleRate[6] + 100
-        market.setMarketStorageSimulate(newMarketOracleRate)
-        result = market.getMarketStorageOracleRate(newMarketOracleRate[0])
-        assert result == newMarketOracleRate[6]
+    @pytest.mark.todo
+    def test_oracle_rates_only_change_on_trading(self):
+        pass

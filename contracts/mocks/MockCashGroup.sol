@@ -19,14 +19,10 @@ contract MockCashGroup is StorageLayoutV1 {
 
     function setMarketState(
         uint256 currencyId,
-        uint256 maturity,
         uint256 settlementDate,
-        MarketParameters memory ms
+        MarketParameters memory market
     ) external {
-        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
-        // ensure that state gets set
-        ms.storageState = 0xFF;
-        ms.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketState(

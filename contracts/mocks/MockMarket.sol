@@ -111,7 +111,6 @@ contract MockMarket is StorageLayoutV1 {
 
     function addLiquidity(MarketParameters memory marketState, int256 assetCash)
         public
-        pure
         returns (
             MarketParameters memory,
             int256,
@@ -126,7 +125,6 @@ contract MockMarket is StorageLayoutV1 {
 
     function removeLiquidity(MarketParameters memory marketState, int256 tokensToRemove)
         public
-        pure
         returns (
             MarketParameters memory,
             int256,
@@ -145,15 +143,7 @@ contract MockMarket is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, market.maturity, settlementDate);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
-    }
-
-    function setMarketStorageSimulate(MarketParameters memory market) public {
-        // This is to simulate a real market storage
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketStorageOracleRate(bytes32 slot) public view returns (uint256) {

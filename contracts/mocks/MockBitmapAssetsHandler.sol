@@ -31,10 +31,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getifCashAsset(
@@ -155,14 +152,14 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
     function totalBitsSet(
         bytes32 bitmap
-    ) external view returns (uint256) {
+    ) external pure returns (uint256) {
         return Bitmap.totalBitsSet(bitmap);
     }
 
     function isBitSet(
         bytes32 bitmap,
         uint256 bitNum
-    ) external view returns (bool) {
+    ) external pure returns (bool) {
         return Bitmap.isBitSet(bitmap, bitNum);
     }
 }

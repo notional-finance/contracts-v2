@@ -155,7 +155,7 @@ contract Views is StorageLayoutV1, NotionalViews {
     }
 
     /// @notice Returns address of the NOTE token
-    function getNoteToken() external view override returns (address) {
+    function getNoteToken() external pure override returns (address) {
         return Constants.NOTE_TOKEN_ADDRESS;
     }
 

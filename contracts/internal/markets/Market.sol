@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "./AssetRate.sol";
 import "./CashGroup.sol";
 import "./DateTime.sol";
+import "../balances/BalanceHandler.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
@@ -17,62 +18,78 @@ library Market {
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
-    bytes1 private constant STORAGE_STATE_NO_CHANGE = 0x00;
-    bytes1 private constant STORAGE_STATE_UPDATE_LIQUIDITY = 0x01;
-    bytes1 private constant STORAGE_STATE_UPDATE_TRADE = 0x02;
-    bytes1 internal constant STORAGE_STATE_INITIALIZE_MARKET = 0x03; // Both settings are set
-
     // Max positive value for a ABDK64x64 integer
     int256 private constant MAX64 = 0x7FFFFFFFFFFFFFFF;
 
     /// @notice Add liquidity to a market, assuming that it is initialized. If not then
     /// this method will revert and the market must be initialized first.
-    /// @return liquidityTokenAmount and net negative fCash
+    /// Return liquidityTokens and negative fCash to the portfolio
     function addLiquidity(MarketParameters memory market, int256 assetCash)
         internal
-        pure
-        returns (int256, int256)
+        returns (int256 liquidityTokens, int256 fCash)
     {
         require(market.totalLiquidity > 0, "M: zero liquidity");
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
         // @audit-ok
-        int256 liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
+        liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
         // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
-        int256 fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
+        fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
 
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
         market.totalfCash = market.totalfCash.add(fCash);
         market.totalAssetCash = market.totalAssetCash.add(assetCash);
-        // @audit just set the storage state here
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
-
-        return (liquidityTokens, fCash.neg());
+        _setMarketStorageForLiquidity(market);
+        // Flip the sign to represent the LP's net position
+        fCash = fCash.neg();
     }
 
     /// @notice Remove liquidity from a market, assuming that it is initialized.
-    /// @return asset cash and positive fCash claim to return
+    /// Return assetCash and positive fCash to the portfolio
     function removeLiquidity(MarketParameters memory market, int256 tokensToRemove)
         internal
-        pure
-        returns (int256, int256)
+        returns (int256 assetCash, int256 fCash)
     {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
         // @audit-ok
-        int256 assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
-        int256 fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
+        assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
+        fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
         market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
 
-        // @audit just set the storage state here
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_LIQUIDITY;
+        _setMarketStorageForLiquidity(market);
+    }
 
-        return (assetCash, fCash);
+    function executeTrade(
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup,
+        int256 fCashToAccount,
+        uint256 timeToMaturity,
+        uint256 marketIndex
+    ) internal returns (int256 netAssetCash) {
+        int256 netAssetCashToReserve;
+        (netAssetCash, netAssetCashToReserve) = calculateTrade(
+            market,
+            cashGroup,
+            fCashToAccount,
+            timeToMaturity,
+            marketIndex
+        );
+
+        _setMarketStorage(
+            market.storageSlot,
+            market.totalfCash,
+            market.totalAssetCash,
+            market.lastImpliedRate,
+            market.oracleRate,
+            market.previousTradeTime
+        );
+        BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netAssetCashToReserve);
     }
 
     /// @notice Calculates the asset cash amount the results from trading fCashToAccount with the market. A positive
@@ -291,14 +308,11 @@ library Market {
         int256 netCashToReserve
     ) private view returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
-        // @audit must check that asset cash does not go below zero
+        // @audit-ok set storage checks that total asset cash is above zero
         market.totalAssetCash = market.totalAssetCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
         market.previousTradeTime = block.timestamp;
-        // @audit set the market state directly here
-        market.storageState = market.storageState | STORAGE_STATE_UPDATE_TRADE;
-
         int256 assetCashToReserve = assetRate.convertFromUnderlying(netCashToReserve);
         int256 netAssetCashToAccount = assetRate.convertFromUnderlying(netCashToAccount);
         return (netAssetCashToAccount, assetCashToReserve);
@@ -604,7 +618,6 @@ library Market {
         market.lastImpliedRate = uint256(uint32(uint256(data >> 160)));
         market.oracleRate = uint256(uint32(uint256(data >> 192)));
         market.previousTradeTime = uint256(uint32(uint256(data >> 224)));
-        market.storageState = STORAGE_STATE_NO_CHANGE;
 
         if (needsLiquidity) {
             getTotalLiquidity(market);
@@ -613,47 +626,82 @@ library Market {
         }
     }
 
-    /// @notice Writes market parameters to storage if the market is marked as updated.
-    function setMarketStorage(MarketParameters memory market) internal {
-        if (market.storageState == STORAGE_STATE_NO_CHANGE) return;
+    function _setMarketStorageForLiquidity(MarketParameters memory market) internal {
         bytes32 slot = market.storageSlot;
-
-        if (market.storageState & STORAGE_STATE_UPDATE_TRADE != STORAGE_STATE_UPDATE_TRADE) {
-            // If no trade has occurred then the oracleRate on chain should not update.
-            bytes32 oldData;
-            assembly {
-                oldData := sload(slot)
-            }
-            market.oracleRate = uint256(uint32(uint256(oldData >> 192)));
+        // When setting storage for liquidity, oracleRate should not update.
+        bytes32 oldData;
+        assembly {
+            oldData := sload(slot)
         }
+        uint256 storedOracleRate = uint32(uint256(oldData >> 192));
+        _setMarketStorage(
+            slot,
+            market.totalfCash,
+            market.totalAssetCash,
+            market.lastImpliedRate,
+            storedOracleRate,
+            market.previousTradeTime
+        );
 
-        require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: market storage totalfCash overflow
-        require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: market storage totalAssetCash overflow
-        require(market.lastImpliedRate >= 0 && market.lastImpliedRate <= type(uint32).max); // dev: market storage lastImpliedRate overflow
-        require(market.oracleRate >= 0 && market.oracleRate <= type(uint32).max); // dev: market storage oracleRate overflow
-        require(market.previousTradeTime >= 0 && market.previousTradeTime <= type(uint32).max); // dev: market storage previous trade time overflow
+        _setTotalLiquidity(slot, market.totalLiquidity);
+    }
+
+    function setMarketStorageForInitialize(
+        MarketParameters memory market,
+        uint256 currencyId,
+        uint256 settlementDate
+    ) internal {
+        bytes32 slot = Market.getSlot(currencyId, settlementDate, market.maturity);
+        _setMarketStorage(
+            slot,
+            market.totalfCash,
+            market.totalAssetCash,
+            market.lastImpliedRate,
+            market.oracleRate,
+            market.previousTradeTime
+        );
+
+        _setTotalLiquidity(slot, market.totalLiquidity);
+    }
+
+    function _setTotalLiquidity(
+        bytes32 marketSlot,
+        int256 totalLiquidity
+    ) internal {
+        require(totalLiquidity >= 0 && totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
+        assembly {
+            sstore(add(marketSlot, 1), totalLiquidity)
+        }
+    }
+
+    function _setMarketStorage(
+        bytes32 slot,
+        int256 totalfCash,
+        int256 totalAssetCash,
+        uint256 lastImpliedRate,
+        uint256 oracleRate,
+        uint256 previousTradeTime
+    ) private {
+        require(totalfCash >= 0 && totalfCash <= type(uint80).max); // dev: storage totalfCash overflow
+        require(totalAssetCash >= 0 && totalAssetCash <= type(uint80).max); // dev: storage totalAssetCash overflow
+        require(0 < lastImpliedRate && lastImpliedRate <= type(uint32).max); // dev: storage lastImpliedRate overflow
+        require(0 < oracleRate && oracleRate <= type(uint32).max); // dev: storage oracleRate overflow
+        require(0 <= previousTradeTime && previousTradeTime <= type(uint32).max); // dev: storage previous trade time overflow
 
         bytes32 data =
-            (bytes32(market.totalfCash) |
-                (bytes32(market.totalAssetCash) << 80) |
-                (bytes32(market.lastImpliedRate) << 160) |
-                (bytes32(market.oracleRate) << 192) |
-                (bytes32(market.previousTradeTime) << 224));
+            // @audit-ok
+            (bytes32(totalfCash) |
+            // @audit-ok 80
+                (bytes32(totalAssetCash) << 80) |
+            // @audit-ok 80 + 80 = 160
+                (bytes32(lastImpliedRate) << 160) |
+            // @audit-ok 80 + 80 + 32 = 192
+                (bytes32(oracleRate) << 192) |
+            // @audit-ok 80 + 80 + 32 + 32 = 224
+                (bytes32(previousTradeTime) << 224));
 
         assembly {
             sstore(slot, data)
-        }
-
-        if (
-            market.storageState & STORAGE_STATE_UPDATE_LIQUIDITY == STORAGE_STATE_UPDATE_LIQUIDITY
-        ) {
-            require(market.totalLiquidity >= 0 && market.totalLiquidity <= type(uint80).max); // dev: market storage totalLiquidity overflow
-            slot = bytes32(uint256(slot) + 1);
-            bytes32 totalLiquidity = bytes32(market.totalLiquidity);
-
-            assembly {
-                sstore(slot, totalLiquidity)
-            }
         }
     }
 

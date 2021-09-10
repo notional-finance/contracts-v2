@@ -31,8 +31,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         uint16 indexed currencyId,
         uint40 maturity,
         int256 netAssetCash,
-        int256 netfCash,
-        int256 netFee
+        int256 netfCash
     );
     event AddRemoveLiquidity(
         address indexed account,
@@ -43,6 +42,8 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         int256 netLiquidityTokens
     );
 
+    /// @notice Emitted when reserve fees are accrued
+    event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
     /// @notice Emitted whenever an account context has updated
     event AccountContextUpdate(address indexed account);
     /// @notice Emitted when an account has assets that are settled

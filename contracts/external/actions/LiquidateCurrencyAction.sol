@@ -48,8 +48,7 @@ contract LiquidateCurrencyAction {
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio */,
-            /* AccountContext memory accountContext */,
-            /* MarketParameters[] memory markets */
+            /* AccountContext memory accountContext */
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
         return (
@@ -74,8 +73,7 @@ contract LiquidateCurrencyAction {
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
-            AccountContext memory accountContext,
-            MarketParameters[] memory markets
+            AccountContext memory accountContext
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
         // Transfers a positive or negative amount of local currency as well as the net nToken
@@ -95,8 +93,7 @@ contract LiquidateCurrencyAction {
             liquidateAccount,
             localBalanceState, // In this case, local currency is the collateral
             accountContext,
-            portfolio,
-            markets
+            portfolio
         );
 
         emit LiquidateLocalCurrency(
@@ -143,8 +140,7 @@ contract LiquidateCurrencyAction {
             int256 localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             /* PortfolioState memory portfolio */,
-            /* AccountContext memory accountContext */,
-            /* MarketParameters[] memory markets */
+            /* AccountContext memory accountContext */
         ) = _collateralCurrencyLiquidation(
                 liquidateAccount,
                 localCurrency,
@@ -192,8 +188,7 @@ contract LiquidateCurrencyAction {
             int256 localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             PortfolioState memory portfolio,
-            AccountContext memory accountContext,
-            MarketParameters[] memory markets
+            AccountContext memory accountContext
         ) =
             _collateralCurrencyLiquidation(
                 liquidateAccount,
@@ -232,8 +227,7 @@ contract LiquidateCurrencyAction {
             liquidateAccount,
             collateralBalanceState,
             accountContext,
-            portfolio,
-            markets
+            portfolio
         );
 
         return (
@@ -270,8 +264,7 @@ contract LiquidateCurrencyAction {
             int256,
             BalanceState memory,
             PortfolioState memory,
-            AccountContext memory,
-            MarketParameters[] memory markets
+            AccountContext memory
         )
     {
         // @audit-ok
@@ -297,8 +290,7 @@ contract LiquidateCurrencyAction {
             localAssetCashFromLiquidator,
             localBalanceState,
             portfolio,
-            accountContext,
-            factors.markets
+            accountContext
         );
     }
 
@@ -314,8 +306,7 @@ contract LiquidateCurrencyAction {
             int256,
             BalanceState memory,
             PortfolioState memory,
-            AccountContext memory,
-            MarketParameters[] memory markets
+            AccountContext memory
         )
     {
         uint256 blockTime = block.timestamp;
@@ -351,8 +342,7 @@ contract LiquidateCurrencyAction {
             localAssetCashFromLiquidator,
             collateralBalanceState,
             portfolio,
-            accountContext,
-            factors.markets
+            accountContext
         );
     }
 
