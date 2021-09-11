@@ -39,12 +39,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 currencyId,
         uint256 maturity
     ) public view returns (int256) {
-        bytes32 slot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
-        int256 notional;
-        assembly {
-            notional := sload(slot)
-        }
-        return notional;
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
     function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {

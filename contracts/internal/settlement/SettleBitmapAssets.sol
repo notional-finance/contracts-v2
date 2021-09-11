@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../markets/AssetRate.sol";
+import "../../global/LibStorage.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
@@ -86,20 +87,17 @@ library SettleBitmapAssets {
         uint256 maturity,
         uint256 blockTime
     ) private returns (int256 assetCash) {
-        // Storage Read
-        bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
-        int256 ifCash;
-        // Read and delete the ifCash asset
-        assembly {
-            ifCash := sload(ifCashSlot)
-            sstore(ifCashSlot, 0)
-        }
-
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+        int256 notional = store[account][currencyId][maturity].notional;
+        
         // Gets the current settlement rate or will store a new settlement rate if it does not
         // yet exist.
         AssetRateParameters memory rate =
             AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
-        assetCash = rate.convertFromUnderlying(ifCash);
+        assetCash = rate.convertFromUnderlying(notional);
+
+        delete store[account][currencyId][maturity];
 
         return assetCash;
     }

@@ -7,6 +7,7 @@ import "../markets/CashGroup.sol";
 import "../valuation/AssetHandler.sol";
 import "../../math/Bitmap.sol";
 import "../../math/SafeInt256.sol";
+import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
 import "../../global/Types.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -18,27 +19,9 @@ library BitmapAssetsHandler {
     using CashGroup for CashGroupParameters;
     using AccountContextHandler for AccountContext;
 
-    function _getAssetsBitmapSlot(address account, uint256 currencyId)
-        private
-        pure
-        returns (bytes32)
-    {
-        // @audit-ok
-        return
-            keccak256(
-                abi.encode(
-                    account,
-                    keccak256(abi.encode(currencyId, Constants.ASSETS_BITMAP_STORAGE_OFFSET))
-                )
-            );
-    }
-
-    function getAssetsBitmap(address account, uint256 currencyId) internal view returns (bytes32 data) {
-        // @audit-ok
-        bytes32 slot = _getAssetsBitmapSlot(account, currencyId);
-        assembly {
-            data := sload(slot)
-        }
+    function getAssetsBitmap(address account, uint256 currencyId) internal view returns (bytes32 assetsBitmap) {
+        mapping(address => mapping(uint256 => bytes32)) storage store = LibStorage.getAssetsBitmapStorage();
+        return store[account][currencyId];
     }
 
     function setAssetsBitmap(
@@ -46,33 +29,9 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         bytes32 assetsBitmap
     ) internal {
-        // @audit-ok
-        bytes32 slot = _getAssetsBitmapSlot(account, currencyId);
         require(assetsBitmap.totalBitsSet() <= Constants.MAX_BITMAP_ASSETS, "Over max assets");
-
-        assembly {
-            sstore(slot, assetsBitmap)
-        }
-    }
-
-    function getifCashSlot(
-        address account,
-        uint256 currencyId,
-        uint256 maturity
-    ) internal pure returns (bytes32) {
-        // @audit-ok
-        return
-            keccak256(
-                abi.encode(
-                    maturity,
-                    keccak256(
-                        abi.encode(
-                            currencyId,
-                            keccak256(abi.encode(account, Constants.IFCASH_STORAGE_OFFSET))
-                        )
-                    )
-                )
-            );
+        mapping(address => mapping(uint256 => bytes32)) storage store = LibStorage.getAssetsBitmapStorage();
+        store[account][currencyId] = assetsBitmap;
     }
 
     function getifCashNotional(
@@ -80,11 +39,9 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         uint256 maturity
     ) internal view returns (int256 notional) {
-        // @audit-ok
-        bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-        assembly {
-            notional := sload(fCashSlot)
-        }
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+        return store[account][currencyId][maturity].notional;
     }
 
     /// @notice Adds multiple assets to a bitmap portfolio
@@ -130,24 +87,18 @@ library BitmapAssetsHandler {
         int256 notional
     ) internal returns (int256) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
-        bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+        ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
         (uint256 bitNum, bool isExact) = DateTime.getBitNumFromMaturity(nextSettleTime, maturity);
         require(isExact); // dev: invalid maturity in set ifcash asset
 
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
             // @audit-ok
-            int256 finalNotional;
-            assembly {
-                finalNotional := sload(fCashSlot)
-            }
-            finalNotional = finalNotional.add(notional);
-
-            // @audit-ok
+            int256 finalNotional = notional.add(fCashSlot.notional);
             require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
-            assembly {
-                sstore(fCashSlot, finalNotional)
-            }
+            fCashSlot.notional = int128(finalNotional);
 
             // If the new notional is zero then turn off the bit
             if (finalNotional == 0) {
@@ -162,9 +113,7 @@ library BitmapAssetsHandler {
             // Bit is not set so we turn it on and update the mapping directly, no read required.
             // @audit-ok
             require(type(int128).min <= notional && notional <= type(int128).max); // dev: bitmap notional overflow
-            assembly {
-                sstore(fCashSlot, notional)
-            }
+            fCashSlot.notional = int128(notional);
 
             assetsBitmap = assetsBitmap.setBit(bitNum, true);
             setAssetsBitmap(account, currencyId, assetsBitmap);
@@ -286,24 +235,24 @@ library BitmapAssetsHandler {
     ) internal returns (PortfolioAsset[] memory) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
         index = 0;
 
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-            bytes32 fCashSlot = getifCashSlot(account, currencyId, maturity);
-            int256 notional;
-            assembly {
-                notional := sload(fCashSlot)
-            }
+            ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
+            int256 notional = fCashSlot.notional;
 
             // @audit-ok
             int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
-            notional = notional.sub(notionalToTransfer);
-            assembly {
-                sstore(fCashSlot, notional)
-            }
+            int256 finalNotional = notional.sub(notionalToTransfer);
+
+            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
+            fCashSlot.notional = int128(finalNotional);
 
             PortfolioAsset memory asset = assets[index];
             asset.currencyId = currencyId;
