@@ -81,7 +81,7 @@ library LibStorage {
     }
 
     /// @dev Mapping from account to currencyId to it's balance storage for that currency
-    function getBalance() internal pure
+    function getBalanceStorage() internal pure
         returns (mapping(address => mapping(uint256 => BalanceStorage)) storage store)
     {
         uint256 slot = _getStorageSlot(StorageId.Balance);

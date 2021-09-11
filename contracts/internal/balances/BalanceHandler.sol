@@ -387,16 +387,6 @@ library BalanceHandler {
         emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
-    function _getSlot(address account, uint256 currencyId) private pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    currencyId,
-                    keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET))
-                )
-            );
-    }
-
     /// @notice Sets internal balance storage.
     function _setBalanceStorage(
         address account,
@@ -406,29 +396,22 @@ library BalanceHandler {
         uint256 lastClaimTime,
         uint256 lastClaimIntegralSupply
     ) private {
-        bytes32 slot = _getSlot(account, currencyId);
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
         require(lastClaimTime <= type(uint32).max); // dev: last claim time overflow
+
+        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        balanceStorage.lastClaimTime = uint32(lastClaimTime);
+        balanceStorage.cashBalance = int88(cashBalance);
+
         // Last claim supply is stored in a "floating point" storage slot that does not maintain exact precision but
         // is also not limited by storage overflows. `packTo56Bits` will ensure that the the returned value will fit
         // in 56 bits (7 bytes)
-        bytes32 packedLastClaimIntegralSupply = FloatingPoint56.packTo56Bits(lastClaimIntegralSupply);
-
-        // @audit-ok
-        bytes32 data =
-            ((bytes32(uint256(nTokenBalance))) |
-            // 80 bits
-                (bytes32(lastClaimTime) << 80) |
-            // 80 + 32 = 112
-                (packedLastClaimIntegralSupply << 112) |
-            // 80 + 32 + 56 = 112
-                (bytes32(cashBalance) << 168));
-
-        assembly {
-            sstore(slot, data)
-        }
+        balanceStorage.packedLastClaimIntegralSupply = FloatingPoint56.packTo56Bits(lastClaimIntegralSupply);
     }
 
     /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
@@ -442,18 +425,13 @@ library BalanceHandler {
             uint256 lastClaimIntegralSupply
         )
     {
-        bytes32 slot = _getSlot(account, currencyId);
-        bytes32 data;
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
 
-        assembly {
-            data := sload(slot)
-        }
-
-        // @audit-ok
-        nTokenBalance = uint80(uint256(data));
-        lastClaimTime = uint32(uint256(data >> 80));
-        lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(uint56(uint256(data >> 112)));
-        cashBalance = int88(int256(data >> 168));
+        nTokenBalance = balanceStorage.nTokenBalance;
+        lastClaimTime = balanceStorage.lastClaimTime;
+        lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(balanceStorage.packedLastClaimIntegralSupply);
+        cashBalance = balanceStorage.cashBalance;
     }
 
     /// @notice Loads a balance state memory object

@@ -352,7 +352,7 @@ struct BalanceStorage {
     uint32 lastClaimTime;
     // The total integral supply of the nToken at the last claim time packed into
     // 56 bits. There is some loss of precision here but it is acceptable
-    bytes7 packedLastClaimIntegralSupply;
+    uint56 packedLastClaimIntegralSupply;
     // Cash balance of the account
     int88 cashBalance;
 }
