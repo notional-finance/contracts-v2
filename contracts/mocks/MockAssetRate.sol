@@ -12,7 +12,8 @@ contract MockAssetRate is StorageLayoutV1 {
     using AssetRate for AssetRateParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function assertBalanceSign(int256 balance, int256 result) private pure {

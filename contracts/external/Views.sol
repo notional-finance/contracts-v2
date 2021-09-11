@@ -9,6 +9,7 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/nTokenHandler.sol";
 import "../internal/balances/TokenHandler.sol";
+import "../global/LibStorage.sol";
 import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
@@ -70,8 +71,10 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (ETHRateStorage memory ethRate, AssetRateStorage memory assetRate)
     {
         _checkValidCurrency(currencyId);
-        ethRate = underlyingToETHRateMapping[currencyId];
-        assetRate = assetToUnderlyingRateMapping[currencyId];
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        ethRate = ethStore[currencyId];
+        assetRate = assetStore[currencyId];
     }
 
     /// @notice Returns a currency and its corresponding asset rate and ETH exchange rates. Note that this does not recalculate

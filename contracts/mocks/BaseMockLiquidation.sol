@@ -7,6 +7,7 @@ import "../internal/markets/Market.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
+import "../global/LibStorage.sol";
 
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
@@ -15,7 +16,13 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
+    }
+
+    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
@@ -56,10 +63,6 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     function getPortfolio(address account) public view returns (PortfolioAsset[] memory) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-    }
-
-    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
     }
 
     function clearPortfolio(address account) external {

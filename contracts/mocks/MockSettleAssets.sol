@@ -41,7 +41,8 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         require(id <= maxCurrencyId, "invalid currency id");
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setMarketState(
@@ -109,21 +110,11 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint8 underlyingDecimalPlaces
     ) external {
         uint256 blockTime = block.timestamp;
-        bytes32 slot =
-            keccak256(
-                abi.encode(
-                    currencyId,
-                    keccak256(abi.encode(maturity, Constants.SETTLEMENT_RATE_STORAGE_OFFSET))
-                )
-            );
-        bytes32 data =
-            (bytes32(blockTime) |
-                (bytes32(uint256(rate)) << 40) |
-                (bytes32(uint256(underlyingDecimalPlaces)) << 168));
-
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
+        SettlementRateStorage storage rateStorage = store[currencyId][maturity];
+        rateStorage.blockTime = uint40(blockTime);
+        rateStorage.settlementRate = rate;
+        rateStorage.underlyingDecimalPlaces = underlyingDecimalPlaces;
     }
 
     event SettleAmountsCompleted(SettleAmount[] settleAmounts);

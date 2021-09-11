@@ -7,6 +7,8 @@ import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../global/LibStorage.sol";
+import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
@@ -405,7 +407,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
 
             // Perform this check to ensure that decimal calculations don't overflow
             require(underlyingDecimals <= Constants.MAX_DECIMAL_PLACES);
-            assetToUnderlyingRateMapping[currencyId] = AssetRateStorage({
+            mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
+            store[currencyId] = AssetRateStorage({
                 rateOracle: rateOracle,
                 underlyingDecimalPlaces: underlyingDecimals
             });
@@ -442,7 +445,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         // Perform this check to ensure that decimal calculations don't overflow
         // @audit-ok
         require(rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
-        underlyingToETHRateMapping[currencyId] = ETHRateStorage({
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        store[currencyId] = ETHRateStorage({
             rateOracle: rateOracle,
             rateDecimalPlaces: rateDecimalPlaces,
             mustInvert: mustInvert,

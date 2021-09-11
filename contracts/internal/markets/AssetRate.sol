@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../global/Types.sol";
+import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
@@ -11,7 +12,6 @@ library AssetRate {
     using SafeInt256 for int256;
     event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
-    uint256 private constant ASSET_RATE_STORAGE_SLOT = 2;
     // Asset rates are in 1e18 decimals (cToken exchange rates), internal balances
     // are in 1e8 decimals. Therefore we leave this as 1e18 / 1e8 = 1e10
     int256 private constant ASSET_RATE_DECIMAL_DIFFERENCE = 1e10;
@@ -73,16 +73,10 @@ library AssetRate {
         view
         returns (AssetRateAdapter rateOracle, uint8 underlyingDecimalPlaces)
     {
-        bytes32 slot = keccak256(abi.encode(currencyId, ASSET_RATE_STORAGE_SLOT));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        // @audit-ok
-        rateOracle = AssetRateAdapter(address(uint256(data)));
-        underlyingDecimalPlaces = uint8(uint256(data >> 160));
+        mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
+        AssetRateStorage storage ar = store[currencyId];
+        rateOracle = AssetRateAdapter(ar.rateOracle);
+        underlyingDecimalPlaces = ar.underlyingDecimalPlaces;
     }
 
     /// @notice Gets an asset rate using a view function, does not accrue interest so the
@@ -179,26 +173,15 @@ library AssetRate {
         view
         returns (
             int256 settlementRate,
-            uint8 underlyingDecimalPlaces,
-            bytes32 slot
+            uint8 underlyingDecimalPlaces
         )
     {
-        bytes32 data;
-        slot = keccak256(
-            abi.encode(
-                currencyId,
-                keccak256(abi.encode(maturity, Constants.SETTLEMENT_RATE_STORAGE_OFFSET))
-            )
-        );
-
-        assembly {
-            data := sload(slot)
-        }
-
+        mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
+        SettlementRateStorage storage rateStorage = store[currencyId][maturity];
         // @audit-ok blockTime (uint40) is not loaded
-        settlementRate = int256(uint128(uint256(data >> 40)));
+        settlementRate = rateStorage.settlementRate;
         // @audit-ok 128 + 40 = 168 (left shift)
-        underlyingDecimalPlaces = uint8(uint256(data >> 168));
+        underlyingDecimalPlaces = rateStorage.underlyingDecimalPlaces;
     }
 
     /// @notice Returns a settlement rate object using the view method
@@ -210,8 +193,7 @@ library AssetRate {
         // prettier-ignore
         (
             int256 settlementRate,
-            uint8 underlyingDecimalPlaces,
-            /* bytes32 slot */
+            uint8 underlyingDecimalPlaces
         ) = _getSettlementRateStorage(currencyId, maturity);
 
         // @audit-ok asset exchange rates cannot be zero
@@ -239,7 +221,7 @@ library AssetRate {
         uint256 maturity,
         uint256 blockTime
     ) internal returns (AssetRateParameters memory) {
-        (int256 settlementRate, uint8 underlyingDecimalPlaces, bytes32 slot) =
+        (int256 settlementRate, uint8 underlyingDecimalPlaces) =
             _getSettlementRateStorage(currencyId, maturity);
 
         // @audit-ok asset exchange rates cannot be zero
@@ -255,26 +237,19 @@ library AssetRate {
             ) = _getAssetRateStateful(currencyId);
 
             if (address(rateOracle) != address(0)) {
+                mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
                 // Only need to set settlement rates when the rate oracle is set (meaning the asset token has
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
                 require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
                 // @audit-ok settlement rate cannot be zero
                 require(0 < settlementRate && settlementRate <= type(uint128).max); // dev: settlement rate overflow
-                uint128 storedRate = uint128(uint256(settlementRate));
 
-                bytes32 data =
-                    (bytes32(blockTime) |
-                        // @audit-ok uint40 shift
-                        (bytes32(uint256(storedRate)) << 40) |
-                        // @audit-ok 128 + 40 = 168
-                        (bytes32(uint256(underlyingDecimalPlaces)) << 168));
-
-                assembly {
-                    sstore(slot, data)
-                }
-
-                emit SetSettlementRate(currencyId, maturity, storedRate);
+                SettlementRateStorage storage rateStorage = store[currencyId][maturity];
+                rateStorage.blockTime = uint40(blockTime);
+                rateStorage.settlementRate = uint128(settlementRate);
+                rateStorage.underlyingDecimalPlaces = underlyingDecimalPlaces;
+                emit SetSettlementRate(currencyId, maturity, uint128(settlementRate));
             }
         }
 

@@ -34,7 +34,9 @@ library LibStorage {
         AssetsBitmap,
         ifCashBitmap,
         PortfolioArray,
-        nTokenTotalSupply
+        nTokenTotalSupply,
+        AssetRate,
+        ExchangeRate
     }
 
     /// @dev Mapping from an account address to account context
@@ -150,6 +152,24 @@ library LibStorage {
         returns (mapping(address => nTokenTotalSupplyStorage) storage store)
     {
         uint256 slot = _getStorageSlot(StorageId.nTokenTotalSupply);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns the exchange rate between an underlying currency and asset for trading
+    /// and free collateral. Mapping is from currency id to rate storage object.
+    function getAssetRateStorage() internal pure
+        returns (mapping(uint256 => AssetRateStorage) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.AssetRate);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns the exchange rate between an underlying currency and ETH for free
+    /// collateral purposes. Mapping is from currency id to rate storage object.
+    function getExchangeRateStorage() internal pure
+        returns (mapping(uint256 => ETHRateStorage) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.ExchangeRate);
         assembly { store.slot := slot }
     }
 

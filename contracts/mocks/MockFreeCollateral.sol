@@ -18,7 +18,8 @@ contract MockFreeCollateral is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
@@ -96,7 +97,8 @@ contract MockFreeCollateral is StorageLayoutV1 {
     }
 
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {

@@ -11,7 +11,8 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {

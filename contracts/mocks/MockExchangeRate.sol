@@ -10,7 +10,8 @@ contract MockExchangeRate is StorageLayoutV1 {
     using ExchangeRate for ETHRate;
 
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function assertBalanceSign(int256 balance, int256 result) private pure {

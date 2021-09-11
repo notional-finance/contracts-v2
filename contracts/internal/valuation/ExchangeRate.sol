@@ -55,12 +55,8 @@ library ExchangeRate {
 
     /// @notice Returns an ETHRate object used to calculate free collateral
     function buildExchangeRate(uint256 currencyId) internal view returns (ETHRate memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, ETH_RATE_STORAGE_SLOT));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        ETHRateStorage storage ethStorage = store[currencyId];
 
         int256 rateDecimals;
         int256 rate;
@@ -70,7 +66,6 @@ library ExchangeRate {
             rateDecimals = Constants.ETH_DECIMALS;
             rate = Constants.ETH_DECIMALS;
         } else {
-            address rateOracle = address(uint160(uint256(data)));
             // prettier-ignore
             (
                 /* uint80 */,
@@ -78,29 +73,23 @@ library ExchangeRate {
                 /* uint256 */,
                 /* uint256 */,
                 /* uint80 */
-            ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
+            ) = ethStorage.rateOracle.latestRoundData();
             require(rate > 0, "ExchangeRate: invalid rate");
 
-            uint8 rateDecimalPlaces = uint8(uint256(data >> 160));
             // @audit-ok no overflow, restricted on storage
-            rateDecimals = int256(10**rateDecimalPlaces);
-            if (
-                bytes1(data << 80) != Constants.BOOL_FALSE /* mustInvert */
-            ) {
+            rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
+            if (ethStorage.mustInvert) {
                 rate = rateDecimals.mul(rateDecimals).div(rate);
             }
         }
 
-        int256 buffer = uint8(bytes1(data << 72));
-        int256 haircut = uint8(bytes1(data << 64));
-        int256 liquidationDiscount = uint8(bytes1(data << 56));
         return
             ETHRate({
                 rateDecimals: rateDecimals,
                 rate: rate,
-                buffer: buffer,
-                haircut: haircut,
-                liquidationDiscount: liquidationDiscount
+                buffer: ethStorage.buffer,
+                haircut: ethStorage.haircut,
+                liquidationDiscount: ethStorage.liquidationDiscount
             });
     }
 }
