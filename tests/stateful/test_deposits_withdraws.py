@@ -290,8 +290,8 @@ def test_withdraw_asset_token_fail_fc(environment, accounts):
 def test_fail_on_deposit_over_max_collateral(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
     txn = environment.notional.listCurrency(
-        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 100e8),
-        (zeroAddress, False, 0, 0),
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
         environment.ethOracle["NOMINT"].address,
         False,
         130,
@@ -337,8 +337,8 @@ def test_cannot_set_max_collateral_on_traded_cash(environment, accounts):
 def test_cannot_enable_cash_group_on_capped_token(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
     txn = environment.notional.listCurrency(
-        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 100e8),
-        (zeroAddress, False, 0, 0),
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
         environment.ethOracle["NOMINT"].address,
         False,
         130,

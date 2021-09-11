@@ -251,6 +251,7 @@ struct TokenStorage {
     // Transfer fees will change token deposit behavior
     bool hasTransferFee;
     TokenType tokenType;
+    uint8 decimalPlaces;
     // Upper limit on how much of this token the contract can hold at any time
     uint72 maxCollateralBalance;
 }

@@ -52,7 +52,7 @@ class TestBalanceHandler:
 
             token = MockERC20.deploy(str(i), str(i), decimals, fee, {"from": accounts[0]})
             balanceHandler.setCurrencyMapping(
-                i, False, (token.address, hasFee, TokenType["NonMintable"], 0)
+                i, False, (token.address, hasFee, TokenType["NonMintable"], decimals, 0)
             )
             token.approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
             token.transfer(balanceHandler.address, 10 ** decimals * 10e18, {"from": accounts[0]})
@@ -66,10 +66,10 @@ class TestBalanceHandler:
         env.enableCurrency("DAI", CurrencyDefaults)
         currencyId = DAI_CURRENCY_ID
         balanceHandler.setCurrencyMapping(
-            currencyId, True, (env.token["DAI"].address, False, TokenType["UnderlyingToken"], 0)
+            currencyId, True, (env.token["DAI"].address, False, TokenType["UnderlyingToken"], 18, 0)
         )
         balanceHandler.setCurrencyMapping(
-            currencyId, False, (env.cToken["DAI"].address, False, TokenType["cToken"], 0)
+            currencyId, False, (env.cToken["DAI"].address, False, TokenType["cToken"], 8, 0)
         )
         env.token["DAI"].approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})
         env.cToken["DAI"].approve(balanceHandler.address, 2 ** 255, {"from": accounts[0]})

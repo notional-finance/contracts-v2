@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../math/SafeInt256.sol";
+import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "interfaces/compound/CErc20Interface.sol";
@@ -16,33 +17,10 @@ library TokenHandler {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    function _getSlot(uint256 currencyId, bool underlying) private pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    currencyId,
-                    keccak256(abi.encode(underlying, Constants.TOKEN_STORAGE_OFFSET))
-                )
-            );
-    }
-
     function setMaxCollateralBalance(uint256 currencyId, uint72 maxCollateralBalance) internal {
-        bytes32 slot = _getSlot(currencyId, false);
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        // Clear the top 72 bits for the max collateral balance
-        // @audit-ok top 72 bits in this constant
-        data = data & 0x000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        // @audit-ok 256 - 72 == 184
-        data = data | bytes32(uint256(maxCollateralBalance) << 184);
-
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(uint256 => mapping(bool => TokenStorage)) storage store = LibStorage.getTokenStorage();
+        TokenStorage storage tokenStorage = store[currencyId][false];
+        tokenStorage.maxCollateralBalance = maxCollateralBalance;
     } 
 
     function getAssetToken(uint256 currencyId) internal view returns (Token memory) {
@@ -58,31 +36,17 @@ library TokenHandler {
     /// @notice Gets token data for a particular currency id, if underlying is set to true then returns
     /// the underlying token. (These may not always exist)
     function _getToken(uint256 currencyId, bool underlying) private view returns (Token memory) {
-        bytes32 slot = _getSlot(currencyId, underlying);
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-        // @audit-ok token address is at lowest position
-        address tokenAddress = address(uint256(data));
-        // @audit-ok 256 - 160 - 8 == 88
-        bool tokenHasTransferFee = bytes1(data << 88) != Constants.BOOL_FALSE;
-        // @audit-ok 160 + 8 == 168
-        uint8 tokenDecimalPlaces = uint8(uint256(data) >> 168);
-        // @audit-ok 160 + 8 + 8 == 176
-        TokenType tokenType = TokenType(uint8(uint256(data) >> 176));
-        // @audit-ok 160 + 8 + 8 + 8 == 184
-        uint256 maxCollateralBalance = uint256(data >> 184);
+        mapping(uint256 => mapping(bool => TokenStorage)) storage store = LibStorage.getTokenStorage();
+        TokenStorage storage tokenStorage = store[currencyId][underlying];
 
         return
             Token({
-                tokenAddress: tokenAddress,
-                hasTransferFee: tokenHasTransferFee,
+                tokenAddress: tokenStorage.tokenAddress,
+                hasTransferFee: tokenStorage.hasTransferFee,
                 // @audit-ok no overflow, restricted on storage
-                decimals: int256(10**tokenDecimalPlaces),
-                tokenType: tokenType,
-                maxCollateralBalance: maxCollateralBalance
+                decimals: int256(10**tokenStorage.decimalPlaces),
+                tokenType: tokenStorage.tokenType,
+                maxCollateralBalance: tokenStorage.maxCollateralBalance
             });
     }
 
@@ -92,23 +56,16 @@ library TokenHandler {
         bool underlying,
         TokenStorage memory tokenStorage
     ) internal {
-        bytes32 slot = _getSlot(currencyId, underlying);
+        mapping(uint256 => mapping(bool => TokenStorage)) storage store = LibStorage.getTokenStorage();
 
         if (tokenStorage.tokenType == TokenType.Ether && currencyId == Constants.ETH_CURRENCY_ID) {
-            // Specific storage for Ether token type
-            bytes32 etherData =
-                // NOTE: address is set to zero so we don't OR it in here
-                // @audit-ok matches storage shift below
-                ((bytes32(Constants.BOOL_FALSE) >> 88) |
-                    // @audit-ok matches storage shift below
-                    bytes32(uint256(18) << 168) |
-                    // @audit-ok matches storage shift below
-                    bytes32(uint256(TokenType.Ether) << 176));
-                    // @audit-ok max collateral balance set to zero
-
-            assembly {
-                sstore(slot, etherData)
-            }
+            // Hardcoded parameters for ETH just to make sure we don't get it wrong.
+            TokenStorage storage ts = store[currencyId][true];
+            ts.tokenAddress = address(0);
+            ts.hasTransferFee = false;
+            ts.tokenType = TokenType.Ether;
+            ts.decimalPlaces = Constants.ETH_DECIMAL_PLACES;
+            ts.maxCollateralBalance = 0;
 
             return;
         }
@@ -124,10 +81,8 @@ library TokenHandler {
             "TH: token cannot be reset"
         );
 
-        // Fetch the decimal places here, this will fail if token address is not a contract
-        // @audit-ok
-        uint8 decimalPlaces = ERC20(tokenStorage.tokenAddress).decimals();
-        require(0 < decimalPlaces && decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
+        require(0 < tokenStorage.decimalPlaces 
+            && tokenStorage.decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
 
         // Validate token type
         // @audit-ok
@@ -151,28 +106,7 @@ library TokenHandler {
             );
         }
 
-        // Convert transfer fee from a boolean field
-        // @audit-ok
-        bytes1 transferFee =
-            tokenStorage.hasTransferFee ? Constants.BOOL_TRUE : Constants.BOOL_FALSE;
-
-        bytes32 data =
-            // @audit-ok lowest 20 bytes
-            ((bytes32(uint256(tokenStorage.tokenAddress))) |
-                // @audit-ok 256 - 160 - 8 == 88 (shift from left)
-                (bytes32(bytes1(transferFee)) >> 88) |
-                // @audit-ok 160 + 8 == 168 (shift from right)
-                bytes32(uint256(decimalPlaces) << 168) |
-                // @audit-ok 160 + 8 + 8 == 176 (shift from right)
-                bytes32(uint256(tokenStorage.tokenType) << 176) |
-                // @audit-ok 160 + 8 + 8 + 8 == 184 (shift from right)
-                // @audit-ok 256 - 184 == 72 (fits the uint72)
-                bytes32(uint256(tokenStorage.maxCollateralBalance) << 184)
-            );
-
-        assembly {
-            sstore(slot, data)
-        }
+        store[currencyId][underlying] = tokenStorage;
     }
 
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic

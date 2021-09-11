@@ -5,6 +5,7 @@ pragma solidity ^0.7.0;
 library Constants {
     // Return code for cTokens that represents no error
     uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
+    uint8 internal constant CETH_DECIMAL_PLACES = 8;
 
     // Token precision used for all internal balances, TokenHandler library ensures that we
     // limit the dust amount caused by precision mismatches
