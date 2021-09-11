@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "./Market.sol";
 import "./AssetRate.sol";
 import "./DateTime.sol";
+import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
@@ -256,10 +257,8 @@ library CashGroup {
     }
 
     function _getCashGroupStorageBytes(uint256 currencyId) private view returns (bytes32 data) {
-        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
-        assembly {
-            data := sload(slot)
-        }
+        mapping(uint256 => bytes32) storage store = LibStorage.getCashGroupStorage();
+        return store[currencyId];
     }
 
     /// @dev Helper method for validating maturities in ERC1155Action
@@ -336,10 +335,8 @@ library CashGroup {
             data = data | (bytes32(uint256(cashGroup.rateScalars[i])) << (RATE_SCALAR + i * 8));
         }
 
-        bytes32 slot = keccak256(abi.encode(currencyId, Constants.CASH_GROUP_STORAGE_OFFSET));
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(uint256 => bytes32) storage store = LibStorage.getCashGroupStorage();
+        store[currencyId] = data;
     }
 
     /// @notice Deserialize the cash group storage bytes into a user friendly object
