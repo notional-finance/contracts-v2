@@ -12,6 +12,9 @@ library PortfolioHandler {
     using SafeInt256 for int256;
     using AssetHandler for PortfolioAsset;
 
+    // Mirror of LibStorage.MAX_PORTFOLIO_ASSETS
+    uint256 private constant MAX_PORTFOLIO_ASSETS = 16;
+
     /// @notice Primarily used by the TransferAssets library
     function addMultipleAssets(PortfolioState memory portfolioState, PortfolioAsset[] memory assets)
         internal
@@ -168,9 +171,6 @@ library PortfolioHandler {
             uint40
         )
     {
-        uint256 initialSlot = uint256(
-            keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET))
-        );
         bool hasDebt;
         // NOTE: cannot have more than 16 assets or this byte object will overflow. Max assets is
         // set to 7 and the worst case during liquidation would be 7 liquidity tokens that generate
@@ -205,12 +205,13 @@ library PortfolioHandler {
                 }
             } else {
                 if (asset.storageState == AssetStorageState.Update) {
-                    // Apply updates
+                    PortfolioAssetStorage storage assetStorage;
                     uint256 currentSlot = asset.storageSlot;
-                    bytes32 encodedAsset = _encodeAssetToBytes(asset);
                     assembly {
-                        sstore(currentSlot, encodedAsset)
+                        assetStorage.slot := currentSlot
                     }
+
+                    _storeAsset(asset, assetStorage);
                 }
 
                 // @audit-ok update portfolio context for every asset that is in storage, whether it is
@@ -226,6 +227,9 @@ library PortfolioHandler {
 
         // Add new assets
         uint256 assetStorageLength = portfolioState.storedAssetLength;
+        mapping(address => 
+            PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS]) storage store = LibStorage.getPortfolioArrayStorage();
+        PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS] storage storageArray = store[account];
         for (uint256 i = 0; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
             // @audit-ok
@@ -235,9 +239,6 @@ library PortfolioHandler {
                 asset.storageState != AssetStorageState.RevertIfStored
             ); // dev: store assets deleted storage
 
-            bytes32 encodedAsset = _encodeAssetToBytes(asset);
-            uint256 newAssetSlot = initialSlot + assetStorageLength;
-
             // @audit-ok
             (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
                 asset,
@@ -246,9 +247,7 @@ library PortfolioHandler {
                 nextSettleTime
             );
 
-            assembly {
-                sstore(newAssetSlot, encodedAsset)
-            }
+            _storeAsset(asset, storageArray[assetStorageLength]);
             assetStorageLength += 1;
         }
 
@@ -294,21 +293,19 @@ library PortfolioHandler {
     }
 
     /// @dev Encodes assets for storage
-    function _encodeAssetToBytes(PortfolioAsset memory asset) internal pure returns (bytes32) {
+    function _storeAsset(
+        PortfolioAsset memory asset,
+        PortfolioAssetStorage storage assetStorage
+    ) internal {
         require(0 < asset.currencyId && asset.currencyId <= Constants.MAX_CURRENCIES); // dev: encode asset currency id overflow
         require(0 < asset.maturity && asset.maturity <= type(uint40).max); // dev: encode asset maturity overflow
         require(0 < asset.assetType && asset.assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX); // dev: encode asset type invalid
         require(type(int88).min <= asset.notional && asset.notional <= type(int88).max); // dev: encode asset notional overflow
 
-        // @audit-ok 16
-        return (bytes32(asset.currencyId) |
-        // @audit-ok
-            (bytes32(asset.maturity) << 16) |
-        // @audit-ok 40 + 16 = 56
-            (bytes32(asset.assetType) << 56) |
-        // @audit-ok 40 + 16 + 8 = 64
-        // Expects that the top 168 bits in asset.notional are insignificant, checked above.
-            (bytes32(asset.notional) << 64));
+        assetStorage.currencyId = uint16(asset.currencyId);
+        assetStorage.maturity = uint40(asset.maturity);
+        assetStorage.assetType = uint8(asset.assetType);
+        assetStorage.notional = int88(asset.notional);
     }
 
     /// @notice Deletes an asset from a portfolio
@@ -426,26 +423,28 @@ library PortfolioHandler {
         view
         returns (PortfolioAsset[] memory)
     {
+        // This will overflow the storage pointer
+        require(length <= MAX_PORTFOLIO_ASSETS);
+
+        mapping(address => 
+            PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS]) storage store = LibStorage.getPortfolioArrayStorage();
+        PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS] storage storageArray = store[account];
         PortfolioAsset[] memory assets = new PortfolioAsset[](length);
-        uint256 slot = uint256(
-            keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET))
-        );
 
         for (uint256 i = 0; i < length; i++) {
-            bytes32 data;
+            PortfolioAssetStorage storage assetStorage = storageArray[i];
+            PortfolioAsset memory asset = assets[i];
+            uint256 slot;
             assembly {
-                data := sload(slot)
+                slot := assetStorage.slot
             }
 
             // @audit-ok
-            PortfolioAsset memory asset = assets[i];
-            asset.currencyId = uint16(uint256(data));
-            asset.maturity = uint40(uint256(data >> 16));
-            asset.assetType = uint8(uint256(data >> 56));
-            asset.notional = int88(uint256(data >> 64));
+            asset.currencyId = assetStorage.currencyId;
+            asset.maturity = assetStorage.maturity;
+            asset.assetType = assetStorage.assetType;
+            asset.notional = assetStorage.notional;
             asset.storageSlot = slot;
-
-            slot = slot + 1;
         }
 
         return assets;
