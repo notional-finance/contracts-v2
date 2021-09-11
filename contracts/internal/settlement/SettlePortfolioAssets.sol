@@ -91,10 +91,19 @@ library SettlePortfolioAssets {
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 Market.loadSettlementMarket(market, asset.currencyId, asset.maturity, settleDate);
-                // @audit-ok asset is deleted
-                portfolioState.deleteAsset(i);
+                int256 fCash;
+                (assetCash, fCash) = market.removeLiquidity(asset.notional);
 
-                assetCash = _settleLiquidityToken(asset, market, portfolioState, settlementRate, blockTime);
+                // @audit-ok assets mature exactly on block time
+                if (asset.maturity > blockTime) {
+                    // If fCash has not yet matured then add it to the portfolio
+                    _settleLiquidityTokenTofCash(portfolioState, i, fCash);
+                } else {
+                    // If asset has matured then settle fCash to asset cash
+                    assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
+                    // @audit-ok asset is deleted
+                    portfolioState.deleteAsset(i);
+                }
             }
             // @audit-ok
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
@@ -105,23 +114,36 @@ library SettlePortfolioAssets {
         return settleAmounts;
     }
 
-    function _settleLiquidityToken(
-        PortfolioAsset memory asset,
-        MarketParameters memory market,
+    /// @notice Settles a liquidity token to idiosyncratic fCash, this occurs when the maturity is still in the future
+    function _settleLiquidityTokenTofCash(
         PortfolioState memory portfolioState,
-        AssetRateParameters memory settlementRate,
-        uint256 blockTime
-    ) internal returns (int256 assetCash) {
-        int256 fCash;
-        (assetCash, fCash) = market.removeLiquidity(asset.notional);
+        uint256 index,
+        int256 fCash
+    ) private pure {
+        PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
+        // If the liquidity token's maturity is still in the future then we change the entry to be
+        // an idiosyncratic fCash entry with the net fCash amount.
+        if (index != 0) {
+            // Check to see if the previous index is the matching fCash asset, this will be the case when the
+            // portfolio is sorted
+            PortfolioAsset memory fCashAsset = portfolioState.storedAssets[index - 1];
 
-        // @audit-ok assets mature exactly on block time
-        if (asset.maturity > blockTime) {
-            // If fCash has not yet matured then add it to the portfolio
-            portfolioState.addAsset(asset.currencyId, asset.maturity, Constants.FCASH_ASSET_TYPE, fCash);
-        } else {
-            // If asset has matured then settle fCash to asset cash
-            assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
+            if (
+                fCashAsset.currencyId == liquidityToken.currencyId &&
+                fCashAsset.maturity == liquidityToken.maturity &&
+                fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
+            ) {
+                // @audit-ok
+                // This fCash asset has not matured if were are settling to fCash
+                fCashAsset.notional = fCashAsset.notional.add(fCash);
+                fCashAsset.storageState = AssetStorageState.Update;
+                portfolioState.deleteAsset(index);
+            }
         }
+
+        // @audit-ok we are going to delete this asset anyway
+        liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
+        liquidityToken.notional = fCash;
+        liquidityToken.storageState = AssetStorageState.Update;
     }
 }
