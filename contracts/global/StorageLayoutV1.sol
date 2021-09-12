@@ -14,6 +14,8 @@ contract StorageLayoutV1 {
     // Sets the state of liquidations being enabled during a paused state. Each of the four lower
     // bits can be turned on to represent one of the liquidation types being enabled.
     bytes1 internal liquidationEnabledState;
+    // Set to true once the system has been initialized
+    bool internal hasInitialized;
 
     /* Authentication Mappings */
     // This is set to the timelock contract to execute governance functions

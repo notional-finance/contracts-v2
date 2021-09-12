@@ -33,6 +33,7 @@ contract Router is StorageLayoutV1 {
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
+    address private immutable DEPLOYER;
 
     constructor(
         address governance_,
@@ -58,12 +59,12 @@ contract Router is StorageLayoutV1 {
         LIQUIDATE_CURRENCY = liquidateCurrency_;
         LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
+        DEPLOYER = msg.sender;
     }
 
     function initialize(address owner_, address pauseRouter_, address pauseGuardian_) public {
-        // Cannot re-initialize once the contract has been initialized, ownership transfer does not
-        // allow address to be set back to zero
-        require(owner == address(0), "R: already initialized");
+        // Check that only the deployer can initialize
+        require(msg.sender == DEPLOYER && !hasInitialized);
 
         // Allow list currency to be called by this contract for the purposes of
         // initializing ETH as a currency
@@ -89,6 +90,8 @@ contract Router is StorageLayoutV1 {
         // The pause guardian may downgrade the router to the pauseRouter
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
+
+        hasInitialized == true;
     }
 
     /// @notice Returns the implementation contract for the method signature
