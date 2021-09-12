@@ -23,28 +23,6 @@ library LiquidateCurrency {
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
 
-    // @audit remove, duplciate code
-    function _hasLiquidityTokens(PortfolioAsset[] memory portfolio, uint256 currencyId)
-        private
-        pure
-        returns (bool)
-    {
-        for (uint256 i; i < portfolio.length; i++) {
-            // @audit-ok
-            if (
-                portfolio[i].currencyId == currencyId &&
-                AssetHandler.isLiquidityToken(portfolio[i].assetType) &&
-                // This should not be possible (a deleted asset) in the portfolio
-                // at this stage of liquidation but we do this check to be defensive.
-                portfolio[i].storageState != AssetStorageState.Delete
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     /// @notice Liquidates an account by converting their local currency collateral into cash and
     /// eliminates any haircut value incurred by liquidity tokens or nTokens. Requires no capital
     /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
@@ -73,10 +51,10 @@ library LiquidateCurrency {
 
         int256 netAssetCashFromLiquidator;
 
-        // @audit consider removing, redundant check
-        if (_hasLiquidityTokens(portfolio.storedAssets, localCurrency)) {
+        {
             // @audit-ok
             WithdrawFactors memory w;
+            // Will check if the account actually has liquidity tokens
             (w, assetBenefitRequired) = _withdrawLocalLiquidityTokens(
                 portfolio,
                 factors,
@@ -222,10 +200,8 @@ library LiquidateCurrency {
             }
         }
 
-        if (
-            collateralAssetRemaining > 0 &&
-            _hasLiquidityTokens(portfolio.storedAssets, balanceState.currencyId)
-        ) {
+        if (collateralAssetRemaining > 0) {
+            // Will check inside if the account actually has liquidity token
             int256 newCollateralAssetRemaining =
                 _withdrawCollateralLiquidityTokens(
                     portfolio,
