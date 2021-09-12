@@ -176,7 +176,7 @@ contract NotionalV1ToCompound {
         address spender,
         uint256 allowance
     ) external onlyOwner {
-        IERC20(token).approve(spender, allowance);
+        require(IERC20(token).approve(spender, allowance));
     }
 
     function _flashBorrowCollateral(

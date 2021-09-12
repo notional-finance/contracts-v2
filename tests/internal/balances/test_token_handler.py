@@ -141,6 +141,26 @@ class TestTokenHandler:
             tokenHandler.transfer(1, accounts[0].address, True, 100)
             tokenHandler.transfer(1, accounts[0].address, True, -100)
 
+    def test_non_compliant_token_approval(
+        self, tokenHandler, MockERC20, MockNonCompliantERC20, accounts
+    ):
+        decimals = 18
+        fee = 0
+        underlying = MockNonCompliantERC20.deploy(
+            "test", "TEST", decimals, fee, {"from": accounts[0]}
+        )
+        cToken = MockERC20.deploy("cToken", "cTEST", 8, fee, {"from": accounts[0]})
+
+        tokenHandler.setMaxCurrencyId(1)
+        tokenHandler.setCurrencyMapping(
+            1, True, (underlying.address, False, TokenType["UnderlyingToken"], decimals, 0)
+        )
+        tokenHandler.setCurrencyMapping(
+            1, False, (cToken.address, False, TokenType["cToken"], 8, 0)
+        )
+
+        assert cToken.allowance(tokenHandler.address, underlying.address) == 2 ** 255 - 1
+
     def test_non_compliant_token(self, tokenHandler, MockNonCompliantERC20, accounts):
         decimals = 18
         fee = 0

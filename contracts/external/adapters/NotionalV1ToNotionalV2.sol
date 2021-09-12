@@ -97,7 +97,7 @@ contract NotionalV1ToNotionalV2 {
     }
 
     function enableWBTC() external {
-        WBTC.approve(address(NotionalV2), type(uint256).max);
+        require(WBTC.approve(address(NotionalV2), type(uint256).max));
     }
 
     function migrateDaiEther(

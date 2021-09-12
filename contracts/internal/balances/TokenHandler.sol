@@ -100,10 +100,14 @@ library TokenHandler {
             // @audit-ok
             // Set the approval for the underlying so that we can mint cTokens
             Token memory underlyingToken = getUnderlyingToken(currencyId);
-            ERC20(underlyingToken.tokenAddress).approve(
+            // ERC20 tokens should return true on success for an approval, but Tether
+            // does not return a value here so we use the NonStandard interface here to
+            // check that the approval was successful.
+            IEIP20NonStandard(underlyingToken.tokenAddress).approve(
                 tokenStorage.tokenAddress,
                 type(uint256).max
             );
+            checkReturnCode();
         }
 
         store[currencyId][underlying] = tokenStorage;

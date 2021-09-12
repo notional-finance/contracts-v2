@@ -115,9 +115,8 @@ contract MockNonCompliantERC20 is Context {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public virtual returns (bool) {
+    function approve(address spender, uint256 amount) public virtual {
         _approve(_msgSender(), spender, amount);
-        return true;
     }
 
     /**

@@ -18,7 +18,7 @@ contract CompoundToNotionalV2 {
 
     function enableToken(address token, address spender) external {
         require(msg.sender == owner, "Unauthorized");
-        CTokenInterface(token).approve(spender, type(uint256).max);
+        require(CTokenInterface(token).approve(spender, type(uint256).max));
     }
 
     function migrateBorrowFromCompound(

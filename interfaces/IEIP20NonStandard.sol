@@ -48,15 +48,20 @@ interface IEIP20NonStandard {
       */
     function transferFrom(address src, address dst, uint256 amount) external;
 
+    ///
+    /// !!!!!!!!!!!!!!
+    /// !!! NOTICE !!! `approve` does not return a value, in violation of the ERC-20 specification
+    /// !!!!!!!!!!!!!!
+    ///
+
     /**
       * @notice Approve `spender` to transfer up to `amount` from `src`
       * @dev This will overwrite the approval amount for `spender`
       *  and is subject to issues noted [here](https://eips.ethereum.org/EIPS/eip-20#approve)
       * @param spender The address of the account which may transfer tokens
       * @param amount The number of tokens that are approved
-      * @return success Whether or not the approval succeeded
       */
-    function approve(address spender, uint256 amount) external returns (bool success);
+    function approve(address spender, uint256 amount) external;
 
     /**
       * @notice Get the current allowance from `owner` for `spender`
