@@ -144,19 +144,19 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         require(from != to, "Cannot transfer to self");
         requireValidAccount(to);
 
-        uint256 allowance = nTokenWhitelist[from][spender];
+        uint256 allowance = nTokenAllowance[from][spender][currencyId];
 
         if (allowance > 0) {
-            // This whitelist allowance supersedes any specific allowances
-            require(allowance >= amount, "Insufficient allowance");
-            allowance = allowance.sub(amount);
-            nTokenWhitelist[from][spender] = allowance;
-        } else {
             // This is the specific allowance for the nToken.
-            allowance = nTokenAllowance[from][spender][currencyId];
             require(allowance >= amount, "Insufficient allowance");
-            allowance = allowance.sub(amount);
-            nTokenAllowance[from][spender][currencyId] = allowance;
+            // Overflow checked above
+            nTokenAllowance[from][spender][currencyId] = allowance - amount;
+        } else {
+            // This whitelist allowance works across all nTokens
+            allowance = nTokenWhitelist[from][spender];
+            require(allowance >= amount, "Insufficient allowance");
+            // Overflow checked above
+            nTokenWhitelist[from][spender] = allowance - amount;
         }
 
         return _transfer(currencyId, from, to, amount);
