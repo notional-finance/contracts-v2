@@ -60,7 +60,7 @@ contract CompoundToNotionalV2 {
         address account,
         bytes calldata callbackData
     ) external returns (uint256) {
-        require(sender == address(this), "Unauthorized callback");
+        require(msg.sender == address(NotionalV2) && sender == address(this), "Unauthorized callback");
 
         (
             address cTokenBorrow,
