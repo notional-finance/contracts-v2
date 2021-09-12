@@ -166,6 +166,7 @@ contract GovernorAlpha is TimelockController {
         // Only the external methods can be used to execute governance
         grantRole(PROPOSER_ROLE, address(this));
         grantRole(EXECUTOR_ROLE, address(this));
+        revokeRole(TIMELOCK_ADMIN_ROLE, address(this));
         revokeRole(TIMELOCK_ADMIN_ROLE, msg.sender);
     }
 
@@ -314,6 +315,8 @@ contract GovernorAlpha is TimelockController {
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) external payable {
+        require(state(proposalId) == ProposalState.Queued, "Proposal not queued");
+
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
 
