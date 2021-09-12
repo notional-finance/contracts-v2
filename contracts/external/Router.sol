@@ -131,6 +131,8 @@ contract Router is StorageLayoutV1 {
             sig == nERC1155Interface.supportsInterface.selector ||
             sig == nERC1155Interface.balanceOf.selector ||
             sig == nERC1155Interface.balanceOfBatch.selector ||
+            sig == nERC1155Interface.signedBalanceOf.selector ||
+            sig == nERC1155Interface.signedBalanceOfBatch.selector ||
             sig == nERC1155Interface.safeTransferFrom.selector ||
             sig == nERC1155Interface.safeBatchTransferFrom.selector ||
             sig == nERC1155Interface.decodeToAssets.selector ||

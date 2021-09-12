@@ -11,6 +11,7 @@ import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 import "interfaces/notional/nERC1155Interface.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     using AccountContextHandler for AccountContext;
@@ -19,17 +20,26 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     bytes4 internal constant ERC1155_BATCH_ACCEPTED = bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"));
 
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
-        return interfaceId == type(nERC1155Interface).interfaceId;
+        return interfaceId == type(IERC1155).interfaceId;
     }
 
     /// @notice Returns the balance of an ERC1155 id on an account. WARNING: the balances returned by
-    /// this method are int256 not uint256 as specified in ERC1155. Modify smart contracts accordingly.
+    /// this method do not show negative fCash balances because only unsigned integers are returned. They
+    /// are represented by zero here. Use `signedBalanceOf` to get a signed return value.
     /// @param account account to get the id for
     /// @param id the ERC1155 id
-    /// @return Balance of the ERC1155 id as a signed integer
-    function balanceOf(address account, uint256 id) public view override returns (int256) {
+    /// @return Balance of the ERC1155 id as an unsigned integer (negative fCash balances return zero)
+    function balanceOf(address account, uint256 id) public view override returns (uint256) {
+        int256 notional = signedBalanceOf(account, id);
+        return notional < 0 ? 0 : uint256(notional);
+    }
+
+    /// @notice Returns the balance of an ERC1155 id on an account.
+    /// @param account account to get the id for
+    /// @param id the ERC1155 id
+    /// @return notional balance of the ERC1155 id as a signed integer
+    function signedBalanceOf(address account, uint256 id) public view override returns (int256 notional) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        int256 notional;
 
         if (accountContext.isBitmapEnabled()) {
             notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, id);
@@ -39,16 +49,13 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
                 id
             );
         }
-
-        return notional;
     }
 
-    /// @notice Returns the balance of a batch of accounts and ids. WARNING: these balances are signed integers, not
-    /// unsigned integers as the ERC1155 spec designates
+    /// @notice Returns the balance of a batch of accounts and ids.
     /// @param accounts array of accounts to get balances for
     /// @param ids array of ids to get balances for
-    /// @return Returns an array of balances as signed integers
-    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+    /// @return Returns an array of signed balances
+    function signedBalanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external
         view
         override
@@ -56,6 +63,28 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     {
         require(accounts.length == ids.length);
         int256[] memory amounts = new int256[](accounts.length);
+
+        for (uint256 i; i < accounts.length; i++) {
+            // This is pretty inefficient but gets the job done
+            amounts[i] = signedBalanceOf(accounts[i], ids[i]);
+        }
+
+        return amounts;
+    }
+
+    /// @notice Returns the balance of a batch of accounts and ids. WARNING: negative fCash balances are represented
+    /// as zero balances in the array. 
+    /// @param accounts array of accounts to get balances for
+    /// @param ids array of ids to get balances for
+    /// @return Returns an array of unsigned balances
+    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external
+        view
+        override
+        returns (uint256[] memory)
+    {
+        require(accounts.length == ids.length);
+        uint256[] memory amounts = new uint256[](accounts.length);
 
         for (uint256 i; i < accounts.length; i++) {
             // This is pretty inefficient but gets the job done
@@ -174,7 +203,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256[] calldata ids,
         uint256[] calldata amounts,
         bytes calldata data
-    ) external override {
+    ) external payable override {
         _validateAccounts(from, to);
 
         // If code size > 0 call onERC1155received

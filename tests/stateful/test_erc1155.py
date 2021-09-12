@@ -24,6 +24,10 @@ def isolation(fn_isolation):
     pass
 
 
+def test_supports_interface(environment, accounts):
+    assert environment.notional.supportsInterface("0xd9b67a26")
+
+
 def test_transfer_authentication_failures(environment, accounts):
     addressZero = to_bytes(0, "bytes20")
     markets = environment.notional.getActiveMarkets(2)

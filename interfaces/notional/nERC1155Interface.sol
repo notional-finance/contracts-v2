@@ -24,11 +24,16 @@ interface nERC1155Interface {
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool);
 
-    /// @dev Return value is overridden to be int256 here
-    function balanceOf(address account, uint256 id) external view returns (int256);
+    function balanceOf(address account, uint256 id) external view returns (uint256);
 
-    /// @dev Return value is overridden to be int256 here
     function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external
+        view
+        returns (uint256[] memory);
+
+    function signedBalanceOf(address account, uint256 id) external view returns (int256);
+
+    function signedBalanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external
         view
         returns (int256[] memory);
@@ -51,7 +56,7 @@ interface nERC1155Interface {
         uint256[] calldata ids,
         uint256[] calldata amounts,
         bytes calldata data
-    ) external;
+    ) external payable;
 
     function decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
         external

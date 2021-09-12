@@ -69,6 +69,7 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
         noteERC20.address,
         guardian,
         governorConfig["minDelay"],
+        0,
         {"from": deployer},
     )
 
@@ -201,7 +202,6 @@ class TestEnvironment:
                 self.deployer.address,
                 {"from": self.deployer},
             )
-            self.noteERC20.activateNotional(self.notional.address, {"from": self.deployer})
             self.noteERC20.transferOwnership(self.governor.address, {"from": self.deployer})
         else:
             self.noteERC20.initialize(
@@ -210,7 +210,6 @@ class TestEnvironment:
                 self.deployer.address,
                 {"from": self.deployer},
             )
-            self.noteERC20.activateNotional(self.notional.address, {"from": self.deployer})
 
         self.startTime = chain.time()
 

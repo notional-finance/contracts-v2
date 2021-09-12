@@ -293,11 +293,6 @@ def test_non_owners_cannot_upgrade_contracts(environment, accounts):
         environment.noteERC20.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
 
 
-def test_cannot_change_notional_proxy(environment, accounts, NoteERC20):
-    with brownie.reverts():
-        environment.noteERC20.activateNotional(accounts[1], {"from": accounts[1]})
-
-
 def test_upgrade_note_token(environment, accounts, NoteERC20):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
     newToken = NoteERC20.deploy({"from": environment.deployer})
@@ -357,6 +352,7 @@ def test_upgrade_governance_contract(environment, accounts, GovernorAlpha):
         environment.noteERC20.address,
         environment.multisig,
         GovernanceConfig["governorConfig"]["minDelay"],
+        2,
         {"from": environment.deployer},
     )
 

@@ -3,16 +3,7 @@ import re
 import subprocess
 
 import scripts.mainnet.deploy_governance as deploy_governance
-from brownie import (
-    MockAggregator,
-    MockCToken,
-    MockERC20,
-    NoteERC20,
-    accounts,
-    cTokenAggregator,
-    network,
-)
-from brownie.network.contract import Contract
+from brownie import MockAggregator, MockCToken, MockERC20, accounts, cTokenAggregator, network
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TokenType, deployNotional
 from scripts.mainnet.deploy_governance import EnvironmentConfig
@@ -382,14 +373,6 @@ def main():
     if network.show_active() != "development":
         listCurrency(notional, deployer, "USDC")
         listCurrency(notional, deployer, "WBTC")
-
-    if network.show_active() == "development":
-        # NOTE: Activate notional needs to be called via the guardian
-        noteERC20 = Contract.from_abi("NOTE", output["note"], abi=NoteERC20.abi)
-        noteERC20.activateNotional(notional.address, {"from": accounts[0]})
-
-        # Test to see if this method reverts or not
-        noteERC20.getCurrentVotes(deployer)
 
     with open(output_file, "w") as f:
         output["notional"] = notional.address
