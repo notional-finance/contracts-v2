@@ -23,7 +23,8 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @notice Total number of tokens in circulation (100 million NOTE)
     uint256 public constant totalSupply = 100000000e8;
 
-    /// @notice Notional router address
+    /// @notice Notional router address, not currently used but cannot be
+    /// removed or this will mess up storage.
     NotionalProxy public notionalProxy;
 
     // Allowance amounts on behalf of others
@@ -112,12 +113,6 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         _;
     }
 
-    function activateNotional(NotionalProxy notionalProxy_) external onlyOwner {
-        require(address(notionalProxy) == address(0), "Notional Proxy already initialized");
-        Address.isContract(address(notionalProxy_));
-        notionalProxy = notionalProxy_;
-    }
-
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).
     /// Can only be called by the current owner.
     function transferOwnership(address newOwner) external onlyOwner {
@@ -146,8 +141,8 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @return Whether or not the approval succeeded
     function approve(address spender, uint256 rawAmount) external returns (bool) {
         uint96 amount;
-        if (rawAmount == uint256(-1)) {
-            amount = uint96(-1);
+        if (rawAmount >= type(uint96).max) {
+            amount = type(uint96).max;
         } else {
             amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
         }
@@ -199,7 +194,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         uint96 spenderAllowance = allowances[src][spender];
         uint96 amount = _safe96(rawAmount, "Note::approve: amount exceeds 96 bits");
 
-        if (spender != src && spenderAllowance != uint96(-1)) {
+        if (spender != src) {
             uint96 newAllowance =
                 _sub96(
                     spenderAllowance,
@@ -207,8 +202,6 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
                     "Note::transferFrom: transfer amount exceeds spender allowance"
                 );
             allowances[src][spender] = newAllowance;
-
-            emit Approval(src, spender, newAllowance);
         }
 
         _transferTokens(src, dst, amount);
@@ -238,6 +231,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         bytes32 r,
         bytes32 s
     ) public {
+        require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
         bytes32 domainSeparator =
             keccak256(
                 abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), _getChainId(), address(this))
@@ -247,7 +241,6 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         // ECDSA will check if address is zero inside
         address signatory = ECDSA.recover(digest, v, r, s);
         require(nonce == nonces[signatory]++, "Note::delegateBySig: invalid nonce");
-        require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
         _delegate(signatory, delegatee);
     }
 
@@ -257,12 +250,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     function getCurrentVotes(address account) external view returns (uint96) {
         uint32 nCheckpoints = numCheckpoints[account];
         uint96 currentVotes = nCheckpoints > 0 ? checkpoints[account][nCheckpoints - 1].votes : 0;
-        return
-            _add96(
-                currentVotes,
-                getUnclaimedVotes(account),
-                "Note::getCurrentVotes: uint96 overflow"
-            );
+        return currentVotes;
     }
 
     /// @notice Determine the prior number of votes for an account as of a block number
@@ -280,11 +268,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
 
         // First check most recent balance
         if (checkpoints[account][nCheckpoints - 1].fromBlock <= blockNumber) {
-            return _add96(
-                checkpoints[account][nCheckpoints - 1].votes,
-                getUnclaimedVotes(account),
-                "Note::getPriorVotes: uint96 overflow"
-            );
+            return checkpoints[account][nCheckpoints - 1].votes;
         }
 
         // Next check implicit zero balance
@@ -298,12 +282,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
             uint32 center = upper - (upper - lower) / 2; // ceil, avoiding overflow
             Checkpoint memory cp = checkpoints[account][center];
             if (cp.fromBlock == blockNumber) {
-                return
-                    _add96(
-                        cp.votes,
-                        getUnclaimedVotes(account),
-                        "Note::getPriorVotes: uint96 overflow"
-                    );
+                return cp.votes;
             } else if (cp.fromBlock < blockNumber) {
                 lower = center;
             } else {
@@ -311,25 +290,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
             }
         }
 
-        return
-            _add96(
-                checkpoints[account][lower].votes,
-                getUnclaimedVotes(account),
-                "Note::getPriorVotes: uint96 overflow"
-            );
-    }
-
-    /// @notice Notional counts unclaimed incentives as part of a users' voting power. There is no
-    /// need to checkpoint these values because they cannot be transferred or delegated.
-    /// @param account the address of the Notional account to check
-    /// @return Total number of unclaimed tokens accrued on the Notional account
-    function getUnclaimedVotes(address account) public view returns (uint96) {
-        // If the notional proxy is not set then there are no unclaimed votes
-        if (address(notionalProxy) == address(0)) return 0;
-
-        uint256 votes = notionalProxy.nTokenGetClaimableIncentives(account, block.timestamp);
-        require(votes <= type(uint96).max);
-        return uint96(votes);
+        return checkpoints[account][lower].votes;
     }
 
     /// @dev Changes delegates from one address to another
@@ -418,12 +379,12 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     }
 
     function _safe32(uint256 n, string memory errorMessage) private pure returns (uint32) {
-        require(n < 2**32, errorMessage);
+        require(n <= type(uint32).max, errorMessage);
         return uint32(n);
     }
 
     function _safe96(uint256 n, string memory errorMessage) private pure returns (uint96) {
-        require(n < 2**96, errorMessage);
+        require(n <= type(uint96).max, errorMessage);
         return uint96(n);
     }
 
