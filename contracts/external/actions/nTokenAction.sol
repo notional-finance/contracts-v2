@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
@@ -13,7 +14,7 @@ import "interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract nTokenAction is StorageLayoutV1, nTokenERC20 {
+contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
@@ -117,7 +118,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
-        require(to != address(0), "Cannot transfer to zero");
+        requireValidAccount(to);
 
         return _transfer(currencyId, from, to, amount);
     }
@@ -141,8 +142,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
-        // @audit-ok address zero
-        require(to != address(0), "Cannot transfer to zero");
+        requireValidAccount(to);
 
         uint256 allowance = nTokenWhitelist[from][spender];
 
@@ -267,19 +267,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
-        {
-            // Prevent stack too deep error
-            // prettier-ignore
-            (
-                uint256 isNToken,
-                /* incentiveAnnualEmissionRate */,
-                /* lastInitializedTime */,
-                /* assetArrayLength */,
-                /* parameters */
-            ) = nTokenHandler.getNTokenContext(recipient);
-            // nTokens cannot hold nToken balances
-            require(isNToken == 0, "Cannot transfer to nToken");
-        }
         int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);

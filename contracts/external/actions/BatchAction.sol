@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./TradingAction.sol";
+import "./ActionGuards.sol";
 import "./nTokenMintAction.sol";
 import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
@@ -14,7 +15,7 @@ import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 import "interfaces/notional/NotionalCallback.sol";
 
-contract BatchAction is StorageLayoutV1 {
+contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
@@ -28,6 +29,7 @@ contract BatchAction is StorageLayoutV1 {
     function batchBalanceAction(address account, BalanceAction[] calldata actions)
         external
         payable
+        nonReentrant
     {
         // @audit-ok authentication, zero addresss not possible
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
@@ -75,6 +77,7 @@ contract BatchAction is StorageLayoutV1 {
     function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
         external
         payable
+        nonReentrant
     {
         // @audit-ok authorization
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
@@ -87,7 +90,7 @@ contract BatchAction is StorageLayoutV1 {
         address account,
         BalanceActionWithTrades[] calldata actions,
         bytes calldata callbackData
-    ) external payable {
+    ) external payable nonReentrant {
         // @audit-ok authorization
         require(authorizedCallbackContract[msg.sender], "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);

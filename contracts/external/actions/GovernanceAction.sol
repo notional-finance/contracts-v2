@@ -15,6 +15,7 @@ import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "interfaces/notional/NotionalGovernance.sol";
 import "interfaces/notional/nTokenERC20.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
@@ -342,12 +343,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(operator)
-        }
         // Sanity check to ensure that operator is a contract, not an EOA
-        require(codeSize > 0, "Operator must be a contract");
+        require(Address.isContract(operator), "Operator must be a contract");
 
         globalTransferOperator[operator] = approved;
         emit UpdateGlobalTransferOperator(operator, approved);
@@ -365,13 +362,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(operator)
-        }
         // Sanity check to ensure that operator is a contract, not an EOA
-        require(codeSize > 0, "Operator must be a contract");
-
+        require(Address.isContract(operator), "Operator must be a contract");
         authorizedCallbackContract[operator] = approved;
         emit UpdateAuthorizedCallbackContract(operator, approved);
     }

@@ -2,12 +2,13 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/liquidation/LiquidatefCash.sol";
 import "../../internal/liquidation/LiquidationHelpers.sol";
 import "../../math/SafeInt256.sol";
 
-contract LiquidatefCashAction {
+contract LiquidatefCashAction is ActionGuards {
     using AccountContextHandler for AccountContext;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
@@ -64,7 +65,7 @@ contract LiquidatefCashAction {
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -143,7 +144,7 @@ contract LiquidatefCashAction {
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
 
         LiquidatefCash.fCashContext memory c =

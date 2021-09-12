@@ -46,4 +46,7 @@ contract StorageLayoutV1 {
     // Reverse mapping from token addresses to currency ids, only used for referencing in views
     // and checking for duplicate token listings.
     mapping(address => uint16) internal tokenAddressToCurrencyId;
+
+    // Reentrancy guard
+    uint256 internal reentrancyStatus;
 }

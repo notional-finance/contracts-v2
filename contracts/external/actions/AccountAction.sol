@@ -2,13 +2,14 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 
-contract AccountAction {
+contract AccountAction is ActionGuards {
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
@@ -38,6 +39,7 @@ contract AccountAction {
     /// @dev auth:none
     /// @return returns true if account has been settled
     function settleAccount(address account) external returns (bool) {
+        requireValidAccount(account);
         // @audit-ok no authentication required
         (AccountContext memory accountContext, bool didSettle) = _settleAccountIfRequired(account);
         // @audit-ok set the account if did settle
@@ -58,7 +60,8 @@ contract AccountAction {
         address account,
         uint16 currencyId,
         uint256 amountExternalPrecision
-    ) external payable returns (uint256) {
+    ) external payable nonReentrant returns (uint256) {
+        requireValidAccount(account);
         // No other authorization required on depositing
         // @audit-ok authentication uses msg.sender
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
@@ -104,10 +107,9 @@ contract AccountAction {
         address account,
         uint16 currencyId,
         uint256 amountExternalPrecision
-    ) external returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
-        require(account != address(0)); // dev: cannot deposit to address zero
-        // @audit do not allow deposits to nToken
+        requireValidAccount(account);
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
@@ -147,7 +149,7 @@ contract AccountAction {
         uint16 currencyId,
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
-    ) external returns (uint256) {
+    ) external nonReentrant returns (uint256) {
         // This happens before reading the balance state to get the most up to date cash balance
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(msg.sender);
 

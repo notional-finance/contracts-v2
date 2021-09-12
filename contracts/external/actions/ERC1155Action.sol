@@ -12,6 +12,7 @@ import "../../internal/portfolio/PortfolioHandler.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 import "interfaces/notional/nERC1155Interface.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     using AccountContextHandler for AccountContext;
@@ -148,21 +149,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 amount,
         bytes calldata data
     ) external payable override {
+        // NOTE: there is no re-entrancy guard on this method because that would prevent a callback in 
+        // _checkPostTransferEvent. The external call to the receiver is done at the very end.
         _validateAccounts(from, to);
-
-        // If code size > 0 call onERC1155received
-        uint256 codeSize;
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            codeSize := extcodesize(to)
-        }
-        if (codeSize > 0) {
-            require(
-                IERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
-                    ERC1155_ACCEPTED,
-                "Not accepted"
-            );
-        }
 
         // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
         AccountContext memory fromContext;
@@ -186,6 +175,15 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         // toContext is always empty here because we cannot have bidirectional transfers in `safeTransferFrom`
         AccountContext memory toContext;
         _checkPostTransferEvent(from, to, fromContext, toContext, data, false);
+
+        // Do this external call at the end to prevent re-entrancy
+        if (Address.isContract(to)) {
+            require(
+                IERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
+                    ERC1155_ACCEPTED,
+                "Not accepted"
+            );
+        }
     }
 
     /// @notice Transfer of a batch of fCash or liquidity token assets between accounts. Allows `from` account to transfer more fCash
@@ -204,26 +202,9 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256[] calldata amounts,
         bytes calldata data
     ) external payable override {
+        // NOTE: there is no re-entrancy guard on this method because that would prevent a callback in 
+        // _checkPostTransferEvent. The external call to the receiver is done at the very end.
         _validateAccounts(from, to);
-
-        // If code size > 0 call onERC1155received
-        uint256 codeSize;
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            codeSize := extcodesize(to)
-        }
-        if (codeSize > 0) {
-            require(
-                IERC1155TokenReceiver(to).onERC1155BatchReceived(
-                    msg.sender,
-                    from,
-                    ids,
-                    amounts,
-                    data
-                ) == ERC1155_BATCH_ACCEPTED,
-                "Not accepted"
-            );
-        }
 
         (PortfolioAsset[] memory assets, bool toTransferNegative) = _decodeToAssets(ids, amounts);
         // When doing a bidirectional transfer must ensure that the `to` account has given approval
@@ -237,16 +218,30 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         );
 
         _checkPostTransferEvent(from, to, fromContext, toContext, data, toTransferNegative);
-
         emit TransferBatch(msg.sender, from, to, ids, amounts);
+
+        // Do this at the end to prevent re-entrancy
+        if (Address.isContract(to)) {
+            require(
+                IERC1155TokenReceiver(to).onERC1155BatchReceived(
+                    msg.sender,
+                    from,
+                    ids,
+                    amounts,
+                    data
+                ) == ERC1155_BATCH_ACCEPTED,
+                "Not accepted"
+            );
+        }
     }
 
     /// @dev Validates accounts on transfer
     function _validateAccounts(address from, address to) private view {
-        // @audit-ok cannot transfer to self, cannot transfer to zero addres
-        require(from != to && to != address(0), "Invalid address");
+        // @audit-ok cannot transfer to self, cannot transfer to zero address
+        require(from != to && to != address(0) && to != address(this), "Invalid address");
         // @audit-ok authentication is valid
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
+        // @audit-ok nTokens will not accept transfers
     }
 
     /// @notice Decodes ids and amounts to PortfolioAsset objects

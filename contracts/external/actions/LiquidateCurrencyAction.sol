@@ -2,12 +2,13 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/liquidation/LiquidateCurrency.sol";
 import "../../internal/liquidation/LiquidationHelpers.sol";
 import "../../math/SafeInt256.sol";
 
-contract LiquidateCurrencyAction {
+contract LiquidateCurrencyAction is ActionGuards {
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
@@ -68,7 +69,7 @@ contract LiquidateCurrencyAction {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256, int256) {
+    ) external nonReentrant returns (int256, int256) {
         (
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
@@ -178,6 +179,7 @@ contract LiquidateCurrencyAction {
         bool redeemToUnderlying
     )
         external
+        nonReentrant
         returns (
             int256,
             int256,
