@@ -131,16 +131,21 @@ library TradingAction {
                 tradeType == TradeActionType.AddLiquidity ||
                 tradeType == TradeActionType.RemoveLiquidity
             ) {
-                // Liquidity tokens can only be added by array portfolio
-                c.cash = _executeLiquidityTrade(
-                    account,
-                    cashGroup,
-                    market,
-                    tradeType,
-                    trades[i],
-                    portfolioState,
-                    c.netCash
-                );
+                revert("Disabled");
+                /**
+                 * Manual adding and removing of liquidity is currently disabled.
+                 *
+                 *  // Liquidity tokens can only be added by array portfolio
+                 *  c.cash = _executeLiquidityTrade(
+                 *      account,
+                 *      cashGroup,
+                 *      market,
+                 *      tradeType,
+                 *      trades[i],
+                 *      portfolioState,
+                 *      c.netCash
+                 *  );
+                 */
             } else {
                 uint256 maturity;
                 (maturity, c.cash, c.fCashAmount) = _executeTrade(
