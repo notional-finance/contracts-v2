@@ -101,15 +101,11 @@ contract nTokenERC20Proxy is IERC20 {
         address to,
         uint256 amount
     ) external override returns (bool) {
-        (bool success, uint256 newAllowance) =
+        bool success =
             proxy.nTokenTransferFrom(currencyId, msg.sender, from, to, amount);
 
         // Emit transfer events here so they come from the correct contract
-        if (success) {
-            emit Transfer(from, to, amount);
-            emit Approval(msg.sender, from, newAllowance);
-        }
-
+        if (success) emit Transfer(from, to, amount);
         return success;
     }
 

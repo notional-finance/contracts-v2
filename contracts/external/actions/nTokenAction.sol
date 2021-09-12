@@ -136,7 +136,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address from,
         address to,
         uint256 amount
-    ) external override returns (bool, uint256) {
+    ) external override returns (bool) {
         // @audit-ok authentication
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
@@ -159,8 +159,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
             nTokenAllowance[from][spender][currencyId] = allowance;
         }
 
-        bool success = _transfer(currencyId, from, to, amount);
-        return (success, allowance);
+        return _transfer(currencyId, from, to, amount);
     }
 
     /// @notice Will approve all nToken transfers to the specific sender. This is used for simplifying UX, a user can approve

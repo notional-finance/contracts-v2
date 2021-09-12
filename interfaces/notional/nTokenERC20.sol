@@ -37,7 +37,7 @@ interface nTokenERC20 {
         address from,
         address to,
         uint256 amount
-    ) external returns (bool, uint256);
+    ) external returns (bool);
 
     function nTokenTransferApproveAll(address spender, uint256 amount) external returns (bool);
 
