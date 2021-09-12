@@ -9,8 +9,6 @@ import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 library ExchangeRate {
     using SafeInt256 for int256;
 
-    uint256 private constant ETH_RATE_STORAGE_SLOT = 1;
-
     /// @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
     /// always applied in this method.
     /// @param er exchange rate object from base to ETH
@@ -67,14 +65,18 @@ library ExchangeRate {
             rate = Constants.ETH_DECIMALS;
         } else {
             // prettier-ignore
+            uint80 roundId;
+            uint256 updatedAt;
+            uint80 answeredInRound;
             (
-                /* uint80 */,
+                roundId,
                 rate,
-                /* uint256 */,
-                /* uint256 */,
-                /* uint80 */
+                /* uint256 startedAt */,
+                updatedAt,
+                answeredInRound
             ) = ethStorage.rateOracle.latestRoundData();
-            require(rate > 0, "ExchangeRate: invalid rate");
+            require(rate > 0, "Invalid rate");
+            require(updatedAt != 0 && answeredInRound >= roundId, "Stale rate");
 
             // @audit-ok no overflow, restricted on storage
             rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
