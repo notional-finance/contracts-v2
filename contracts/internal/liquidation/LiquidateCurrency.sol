@@ -430,7 +430,7 @@ library LiquidateCurrency {
                 // @audit-ok
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                market.removeLiquidity(asset.notional);
+                if (!factors.isCalculation) market.removeLiquidity(asset.notional);
 
                 // assetAmountRemaining = assetAmountRemaining - netCashToAccount
                 // netCashToAccount = netCashIncrease - incentivePaid
@@ -443,7 +443,12 @@ library LiquidateCurrency {
                     .mul(assetAmountRemaining)
                     .div(w.netCashIncrease.subNoNeg(w.incentivePaid));
 
-                (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
+                if (!factors.isCalculation) {
+                    (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);
+                } else {
+                    w.assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
+                    w.fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
+                }
                 // Recalculate net cash increase and incentive paid. w.assetCash is different because we partially
                 // remove asset cash
                 (w.netCashIncrease, w.incentivePaid) = _calculateNetCashIncreaseAndIncentivePaid(
@@ -520,8 +525,7 @@ library LiquidateCurrency {
             if (cashClaim <= collateralToWithdraw) {
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
-                // @audit this should set it directly
-                market.removeLiquidity(asset.notional);
+                if (!factors.isCalculation) market.removeLiquidity(asset.notional);
 
                 // overflow checked above
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
@@ -530,7 +534,12 @@ library LiquidateCurrency {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
-                (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
+                if (!factors.isCalculation) {
+                    (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
+                } else {
+                    cashClaim = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
+                    fCashClaim = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
+                }
 
                 // Remove liquidity token balance
                 asset.notional = asset.notional.subNoNeg(tokensToRemove);

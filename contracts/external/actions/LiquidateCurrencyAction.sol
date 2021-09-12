@@ -50,7 +50,7 @@ contract LiquidateCurrencyAction is ActionGuards {
             BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
-        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
+        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, false);
 
         return (
             localAssetCashFromLiquidator,
@@ -75,7 +75,7 @@ contract LiquidateCurrencyAction is ActionGuards {
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext
-        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation);
+        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, true);
 
         // Transfers a positive or negative amount of local currency as well as the net nToken
         // amounts to the liquidator
@@ -147,7 +147,8 @@ contract LiquidateCurrencyAction is ActionGuards {
                 localCurrency,
                 collateralCurrency,
                 maxCollateralLiquidation,
-                maxNTokenLiquidation
+                maxNTokenLiquidation,
+                true
             );
 
         return (
@@ -197,7 +198,8 @@ contract LiquidateCurrencyAction is ActionGuards {
                 localCurrency,
                 collateralCurrency,
                 maxCollateralLiquidation,
-                maxNTokenLiquidation
+                maxNTokenLiquidation,
+                false
             );
 
         _finalizeLiquidatorBalances(
@@ -259,7 +261,8 @@ contract LiquidateCurrencyAction is ActionGuards {
     function _localCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
-        uint96 maxNTokenLiquidation
+        uint96 maxNTokenLiquidation,
+        bool isCalculation
     )
         private
         returns (
@@ -277,6 +280,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         ) = LiquidationHelpers.preLiquidationActions(liquidateAccount, localCurrency, 0);
         BalanceState memory localBalanceState;
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
+        factors.isCalculation = isCalculation;
 
         int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
@@ -301,7 +305,8 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint16 localCurrency,
         uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
-        uint96 maxNTokenLiquidation
+        uint96 maxNTokenLiquidation,
+        bool isCalculation
     )
         private
         returns (
@@ -329,6 +334,7 @@ contract LiquidateCurrencyAction is ActionGuards {
             collateralCurrency,
             accountContext
         );
+        factors.isCalculation = isCalculation;
 
         int256 localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(

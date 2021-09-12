@@ -135,6 +135,8 @@ struct LiquidationFactors {
     AssetRateParameters localAssetRate;
     // Used during currency liquidations if the account has liquidity tokens
     CashGroupParameters cashGroup;
+    // Used during currency liquidations if it is only a calculation, defaults to false
+    bool isCalculation;
 }
 
 /// @notice Internal asset array portfolio state
