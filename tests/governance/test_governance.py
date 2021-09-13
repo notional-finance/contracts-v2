@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import Contract, NoteERC20
+from brownie import Contract, NoteERC20, nProxy
 from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.state import Chain
@@ -72,8 +72,10 @@ def test_note_token_cannot_reinitialize(environment, accounts):
 
 def test_note_token_cannot_initialize_duplicates(environment, accounts):
     erc20 = NoteERC20.deploy({"from": accounts[0]})
+    noteERC20Proxy = nProxy.deploy(erc20.address, bytes(), {"from": accounts[0]})
+    noteERC20 = Contract.from_abi("NoteERC20", noteERC20Proxy.address, abi=NoteERC20.abi)
     with brownie.reverts("Duplicate account"):
-        erc20.initialize(
+        noteERC20.initialize(
             [accounts[2].address, accounts[2].address],
             [50_000_000e8, 50_000_000e8],
             environment.governor.address,
@@ -98,7 +100,6 @@ def test_governor_must_update_parameters_via_governance(environment, accounts):
         environment.governor.updateDelay(0, {"from": environment.deployer})
 
 
-@pytest.mark.only
 def test_update_governance_parameters(environment, accounts):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
 

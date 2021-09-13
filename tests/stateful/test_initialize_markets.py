@@ -343,7 +343,7 @@ def test_redeem_to_zero_fails(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
-    with brownie.reverts("Cannot redeem to zero"):
+    with brownie.reverts("Cannot redeem"):
         environment.notional.nTokenRedeem(
             accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
         )
@@ -383,7 +383,7 @@ def test_failing_initialize_time(environment, accounts):
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # Cannot mint until markets are initialized
-    with brownie.reverts("PT: requires settlement"):
+    with brownie.reverts("Requires settlement"):
         environment.notional.batchBalanceAction(
             accounts[0],
             [
