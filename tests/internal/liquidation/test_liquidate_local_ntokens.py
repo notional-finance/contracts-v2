@@ -74,6 +74,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
@@ -107,6 +108,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
@@ -136,6 +138,7 @@ class TestLiquidateLocalNTokens:
             (0, 0, 0, 0, 0),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(

@@ -87,6 +87,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -128,6 +129,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -169,6 +171,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -210,6 +213,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -251,6 +255,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -293,6 +298,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -336,6 +342,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         (
@@ -376,6 +383,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         (
@@ -416,6 +424,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -459,6 +468,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -502,6 +512,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -553,6 +564,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -611,6 +623,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
