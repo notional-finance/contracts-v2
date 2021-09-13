@@ -376,10 +376,10 @@ library PortfolioHandler {
     function _sortInPlace(PortfolioAsset[] memory assets) private pure {
         uint256 length = assets.length;
         uint256[] memory ids = new uint256[](length);
-        for (uint256 i; i < length; i++) {
-            PortfolioAsset memory asset = assets[i];
+        for (uint256 k; k < length; k++) {
+            PortfolioAsset memory asset = assets[k];
             // Prepopulate the ids to calculate just once
-            ids[i] = TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
+            ids[k] = TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
         }
 
         // Uses insertion sort 

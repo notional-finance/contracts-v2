@@ -4,10 +4,12 @@ pragma abicoder v2;
 
 import "./TokenHandler.sol";
 import "../nTokenHandler.sol";
+import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {
     using SafeMath for uint256;
+    using SafeInt256 for int256;
 
     /// @dev Notional incentivizes nTokens using the formula:
     ///     incentivesToClaim = (tokenBalance / totalSupply) * emissionRatePerYear * proRataYears
