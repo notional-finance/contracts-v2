@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
@@ -30,16 +30,17 @@ library AssetHandler {
         // 3 month tokens and fCash tokens settle at maturity
         if (asset.assetType <= Constants.MIN_LIQUIDITY_TOKEN_INDEX) return asset.maturity;
 
+        // @audit-ok no underflow possible
         uint256 marketLength = DateTime.getTradedMarket(asset.assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
         // Here we calculate:
-        // tRef = maturity - marketLength + 90 days
+        // tRef = (maturity - marketLength) + 90 days
         return asset.maturity.sub(marketLength).add(Constants.QUARTER);
     }
 
     /// @notice Returns the continuously compounded discount rate given an oracle rate and a time to maturity.
-    /// The formula is: notional * e^(-rate * timeToMaturity).
+    /// The formula is: e^(-rate * timeToMaturity).
     function getDiscountFactor(uint256 timeToMaturity, uint256 oracleRate)
         internal
         pure
@@ -48,7 +49,7 @@ library AssetHandler {
         int128 expValue =
             ABDKMath64x64.fromUInt(oracleRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME));
         expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
-        expValue = ABDKMath64x64.exp(expValue * -1);
+        expValue = ABDKMath64x64.exp(ABDKMath64x64.neg(expValue));
         expValue = ABDKMath64x64.mul(expValue, Constants.RATE_PRECISION_64x64);
         int256 discountFactor = ABDKMath64x64.toInt(expValue);
 
@@ -56,7 +57,7 @@ library AssetHandler {
     }
 
     /// @notice Present value of an fCash asset without any risk adjustments.
-    function getPresentValue(
+    function getPresentfCashValue(
         int256 notional,
         uint256 maturity,
         uint256 blockTime,
@@ -64,6 +65,8 @@ library AssetHandler {
     ) internal pure returns (int256) {
         if (notional == 0) return 0;
 
+        // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
+        // discount matured assets.
         uint256 timeToMaturity = maturity.sub(blockTime);
         int256 discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
@@ -73,7 +76,7 @@ library AssetHandler {
 
     /// @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
     /// heavily than the oracle rate given and vice versa for negative fCash.
-    function getRiskAdjustedPresentValue(
+    function getRiskAdjustedPresentfCashValue(
         CashGroupParameters memory cashGroup,
         int256 notional,
         uint256 maturity,
@@ -81,10 +84,14 @@ library AssetHandler {
         uint256 oracleRate
     ) internal pure returns (int256) {
         if (notional == 0) return 0;
+        // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
+        // discount matured assets.
         uint256 timeToMaturity = maturity.sub(blockTime);
 
         int256 discountFactor;
         if (notional > 0) {
+            // If fCash is positive then discounting by a higher rate will result in a smaller
+            // discount factor (e ^ -x), meaning a lower positive fCash value.
             discountFactor = getDiscountFactor(
                 timeToMaturity,
                 oracleRate.add(cashGroup.getfCashHaircut())
@@ -96,6 +103,7 @@ library AssetHandler {
             // absolutely required.
             if (debtBuffer >= oracleRate) return notional;
 
+            // @audit-ok overflow checked above
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
         }
 
@@ -109,6 +117,7 @@ library AssetHandler {
         pure
         returns (int256 assetCash, int256 fCash)
     {
+        // @audit-ok
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
         assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
@@ -116,22 +125,22 @@ library AssetHandler {
     }
 
     /// @notice Returns the haircut claims on cash and fCash
-    /// @return (assetCash, fCash)
     function getHaircutCashClaims(
         PortfolioAsset memory token,
         MarketParameters memory market,
         CashGroupParameters memory cashGroup
-    ) internal pure returns (int256, int256) {
+    ) internal pure returns (int256 assetCash, int256 fCash) {
+        // @audit-ok
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset get haircut cash claims
 
         require(token.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
         // This won't overflow, the liquidity token haircut is stored as an uint8
         int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
 
-        int256 assetCash =
+        assetCash =
             _calcToken(market.totalAssetCash, token.notional, haircut, market.totalLiquidity);
 
-        int256 fCash =
+        fCash =
             _calcToken(market.totalfCash, token.notional, haircut, market.totalLiquidity);
 
         return (assetCash, fCash);
@@ -157,7 +166,6 @@ library AssetHandler {
         bool riskAdjusted
     ) internal view returns (int256, int256) {
         PortfolioAsset memory liquidityToken = assets[index];
-        require(isLiquidityToken(liquidityToken.assetType) && liquidityToken.notional >= 0); // dev: get liquidity token value, not liquidity token
 
         {
             (uint256 marketIndex, bool idiosyncratic) =
@@ -169,7 +177,8 @@ library AssetHandler {
             // Liquidity tokens can never be idiosyncratic
             require(!idiosyncratic); // dev: idiosyncratic liquidity token
 
-            // This market will always be initialized, if a liquidity token exists that means the market has some liquidity in it.
+            // This market will always be initialized, if a liquidity token exists that means the
+            // market has some liquidity in it.
             cashGroup.loadMarket(market, marketIndex, true, blockTime);
         }
 
@@ -183,22 +192,26 @@ library AssetHandler {
 
         // Find the matching fCash asset and net off the value, assumes that the portfolio is sorted and
         // in that case we know the previous asset will be the matching fCash asset
-        if (
-            index > 0 &&
-            assets[index - 1].currencyId == liquidityToken.currencyId &&
-            assets[index - 1].maturity == liquidityToken.maturity &&
-            assets[index - 1].assetType == Constants.FCASH_ASSET_TYPE
-        ) {
-            // Net off the fCashClaim here and we will discount it to present value in the second pass.
-            // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
-            assets[index - 1].notional = assets[index - 1].notional.add(fCashClaim);
-            return (assetCashClaim, 0);
+        if (index > 0) {
+            PortfolioAsset memory maybefCash = assets[index - 1];
+            if (
+                maybefCash.assetType == Constants.FCASH_ASSET_TYPE &&
+                maybefCash.currencyId == liquidityToken.currencyId &&
+                maybefCash.maturity == liquidityToken.maturity
+            ) {
+                // Net off the fCashClaim here and we will discount it to present value in the second pass.
+                // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
+                maybefCash.notional = maybefCash.notional.add(fCashClaim);
+                // This state will prevent the fCash asset from being stored.
+                maybefCash.storageState = AssetStorageState.RevertIfStored;
+                return (assetCashClaim, 0);
+            }
         }
 
         // If not matching fCash asset found then get the pv directly
         if (riskAdjusted) {
             int256 pv =
-                getRiskAdjustedPresentValue(
+                getRiskAdjustedPresentfCashValue(
                     cashGroup,
                     fCashClaim,
                     liquidityToken.maturity,
@@ -209,13 +222,15 @@ library AssetHandler {
             return (assetCashClaim, pv);
         } else {
             int256 pv =
-                getPresentValue(fCashClaim, liquidityToken.maturity, blockTime, market.oracleRate);
+                getPresentfCashValue(fCashClaim, liquidityToken.maturity, blockTime, market.oracleRate);
 
             return (assetCashClaim, pv);
         }
     }
 
-    /// @notice Returns the asset cash claim and the present value of the fCash asset (if it exists)
+    /// @notice Returns present value of all assets in the cash group as asset cash and the updated
+    /// portfolio index where the function has ended.
+    /// @return the value of the cash group in asset cash
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         CashGroupParameters memory cashGroup,
@@ -248,18 +263,20 @@ library AssetHandler {
 
         uint256 j = portfolioIndex;
         for (; j < assets.length; j++) {
-            if (assets[j].assetType != Constants.FCASH_ASSET_TYPE) continue;
+            PortfolioAsset memory a = assets[j];
+            if (a.assetType != Constants.FCASH_ASSET_TYPE) continue;
             // If we hit a different currency id then we've accounted for all assets in this currency
-            if (assets[j].currencyId != cashGroup.currencyId) break;
+            // @audit-ok j will mark the index where we don't have this currency anymore
+            if (a.currencyId != cashGroup.currencyId) break;
 
-            uint256 maturity = assets[j].maturity;
-            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+            uint256 oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
 
+            // @audit-ok cash group must equal currency id
             int256 pv =
-                getRiskAdjustedPresentValue(
+                getRiskAdjustedPresentfCashValue(
                     cashGroup,
-                    assets[j].notional,
-                    maturity,
+                    a.notional,
+                    a.maturity,
                     blockTime,
                     oracleRate
                 );

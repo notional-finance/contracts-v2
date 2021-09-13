@@ -240,17 +240,17 @@ def test_withdraw_and_redeem_eth(environment, accounts):
 
 
 def test_eth_failures(environment, accounts):
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.depositUnderlyingToken(accounts[1], 1, 1e18, {"from": accounts[1]})
 
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAction(
             accounts[0], [get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)]
         )
 
-    with brownie.reverts("ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAndTradeAction(
             accounts[0],
@@ -290,8 +290,8 @@ def test_withdraw_asset_token_fail_fc(environment, accounts):
 def test_fail_on_deposit_over_max_collateral(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
     txn = environment.notional.listCurrency(
-        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 100e8),
-        (zeroAddress, False, 0, 0),
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
         environment.ethOracle["NOMINT"].address,
         False,
         130,
@@ -337,8 +337,8 @@ def test_cannot_set_max_collateral_on_traded_cash(environment, accounts):
 def test_cannot_enable_cash_group_on_capped_token(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
     txn = environment.notional.listCurrency(
-        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 100e8),
-        (zeroAddress, False, 0, 0),
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
         environment.ethOracle["NOMINT"].address,
         False,
         130,

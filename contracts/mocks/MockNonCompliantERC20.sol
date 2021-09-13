@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
+pragma solidity ^0.7.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/GSN/Context.sol";
@@ -115,9 +115,8 @@ contract MockNonCompliantERC20 is Context {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public virtual returns (bool) {
+    function approve(address spender, uint256 amount) public virtual {
         _approve(_msgSender(), spender, amount);
-        return true;
     }
 
     /**

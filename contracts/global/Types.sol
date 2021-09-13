@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
+
+import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "interfaces/notional/AssetRateAdapter.sol";
 
 /// @notice Different types of internal tokens
 ///  - UnderlyingToken: underlying asset for a cToken (except for Ether)
@@ -51,7 +54,7 @@ enum DepositActionType {
 }
 
 /// @notice Used internally for PortfolioHandler state
-enum AssetStorageState {NoChange, Update, Delete}
+enum AssetStorageState {NoChange, Update, Delete, RevertIfStored}
 
 /****** Calldata objects ******/
 
@@ -132,8 +135,8 @@ struct LiquidationFactors {
     AssetRateParameters localAssetRate;
     // Used during currency liquidations if the account has liquidity tokens
     CashGroupParameters cashGroup;
-    // Used during currency liquidations if the account has liquidity tokens
-    MarketParameters[] markets;
+    // Used during currency liquidations if it is only a calculation, defaults to false
+    bool isCalculation;
 }
 
 /// @notice Internal asset array portfolio state
@@ -149,21 +152,22 @@ struct PortfolioState {
 
 /// @notice In memory ETH exchange rate used during free collateral calculation.
 struct ETHRate {
-    // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate
+    // The decimals (i.e. 10^rateDecimalPlaces) of the exchange rate, defined by the rate oracle
     int256 rateDecimals;
     // The exchange rate from base to ETH (if rate invert is required it is already done)
     int256 rate;
-    // Amount of buffer to apply to the exchange rate for negative balances.
+    // Amount of buffer as a multiple with a basis of 100 applied to negative balances.
     int256 buffer;
-    // Amount of haircut to apply to the exchange rate for positive balances
+    // Amount of haircut as a multiple with a basis of 100 applied to positive balances
     int256 haircut;
-    // Liquidation discount for this currency
+    // Liquidation discount as a multiple with a basis of 100 applied to the exchange rate
+    // as an incentive given to liquidators.
     int256 liquidationDiscount;
 }
 
 /// @notice Internal object used to handle balance state during a transaction
 struct BalanceState {
-    uint256 currencyId;
+    uint16 currencyId;
     // Cash balance stored in balance state at the beginning of the transaction
     int256 storedCashBalance;
     // nToken balance stored at the beginning of the transaction
@@ -185,7 +189,7 @@ struct BalanceState {
 /// @dev Asset rate used to convert between underlying cash and asset cash
 struct AssetRateParameters {
     // Address of the asset rate oracle
-    address rateOracle;
+    AssetRateAdapter rateOracle;
     // The exchange rate from base to quote (if invert is required it is already done)
     int256 rate;
     // The decimals of the underlying, the rate converts to the underlying decimals
@@ -194,7 +198,7 @@ struct AssetRateParameters {
 
 /// @dev Cash group when loaded into memory
 struct CashGroupParameters {
-    uint256 currencyId;
+    uint16 currencyId;
     uint256 maxMarketIndex;
     AssetRateParameters assetRate;
     bytes32 data;
@@ -225,35 +229,14 @@ struct MarketParameters {
     int256 totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
-    // This is the implied rate that we use to smooth the anchor rate between trades.
+    // This is the previous annualized interest rate in RATE_PRECISION that the market traded
+    // at. This is used to calculate the rate anchor to smooth interest rates over time.
     uint256 lastImpliedRate;
-    // This is the oracle rate used to value fCash and prevent flash loan attacks
+    // Time lagged version of lastImpliedRate, used to value fCash assets at market rates while
+    // remaining resistent to flash loan attacks.
     uint256 oracleRate;
     // This is the timestamp of the previous trade
     uint256 previousTradeTime;
-    // Used to determine if the market has been updated
-    bytes1 storageState;
-}
-
-/// @dev Simplified market object used during settlement
-struct SettlementMarket {
-    bytes32 storageSlot;
-    // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
-    // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
-    // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
-    // Un parsed market data used for storage
-    bytes32 data;
-}
-
-/// @dev Used during settling bitmap assets for calculating bitmap shifts
-struct SplitBitmap {
-    bytes32 dayBits;
-    bytes32 weekBits;
-    bytes32 monthBits;
-    bytes32 quarterBits;
 }
 
 /****** Storage objects ******/
@@ -270,6 +253,7 @@ struct TokenStorage {
     // Transfer fees will change token deposit behavior
     bool hasTransferFee;
     TokenType tokenType;
+    uint8 decimalPlaces;
     // Upper limit on how much of this token the contract can hold at any time
     uint72 maxCollateralBalance;
 }
@@ -277,7 +261,7 @@ struct TokenStorage {
 /// @dev Exchange rate object as it is represented in storage, total storage is 25 bytes.
 struct ETHRateStorage {
     // Address of the rate oracle
-    address rateOracle;
+    AggregatorV2V3Interface rateOracle;
     // The decimal places of precision that the rate oracle uses
     uint8 rateDecimalPlaces;
     // True of the exchange rate must be inverted
@@ -291,10 +275,10 @@ struct ETHRateStorage {
     uint8 liquidationDiscount;
 }
 
-/// @dev Asset rate object as it is represented in storage, total storage is 21 bytes.
+/// @dev Asset rate oracle object as it is represented in storage, total storage is 21 bytes.
 struct AssetRateStorage {
     // Address of the rate oracle
-    address rateOracle;
+    AssetRateAdapter rateOracle;
     // The decimal places of the underlying asset
     uint8 underlyingDecimalPlaces;
 }
@@ -345,9 +329,93 @@ struct AccountContext {
     bytes18 activeCurrencies;
 }
 
+/// @dev Holds nToken context information mapped via the nToken address, total storage is
+/// 16 bytes
+struct nTokenContext {
+    // Currency id that the nToken represents
+    uint16 currencyId;
+    // Annual incentive emission rate denominated in WHOLE TOKENS (multiply by 
+    // INTERNAL_TOKEN_PRECISION to get the actual rate)
+    uint32 incentiveAnnualEmissionRate;
+    // The last block time at utc0 that the nToken was initialized at, zero if it
+    // has never been initialized
+    uint32 lastInitializedTime;
+    // Length of the asset array, refers to the number of liquidity tokens an nToken
+    // currently holds
+    uint8 assetArrayLength;
+    // Each byte is a specific nToken parameter
+    bytes5 nTokenParameters;
+}
+
+/// @dev Holds account balance information, total storage 32 bytes
+struct BalanceStorage {
+    // Number of nTokens held by the account
+    uint80 nTokenBalance;
+    // Last time the account claimed their nTokens
+    uint32 lastClaimTime;
+    // The total integral supply of the nToken at the last claim time packed into
+    // 56 bits. There is some loss of precision here but it is acceptable
+    uint56 packedLastClaimIntegralSupply;
+    // Cash balance of the account
+    int88 cashBalance;
+}
+
+/// @dev Holds information about a settlement rate, total storage 25 bytes
+struct SettlementRateStorage {
+    uint40 blockTime;
+    uint128 settlementRate;
+    uint8 underlyingDecimalPlaces;
+}
+
+/// @dev Holds information about a market, total storage is 42 bytes so this spans
+/// two storage words
+struct MarketStorage {
+    // Total fCash in the market
+    uint80 totalfCash;
+    // Total asset cash in the market
+    uint80 totalAssetCash;
+    // Last annualized interest rate the market traded at
+    uint32 lastImpliedRate;
+    // Last recorded oracle rate for the market
+    uint32 oracleRate;
+    // Last time a trade was made
+    uint32 previousTradeTime;
+    // This is stored in slot + 1
+    uint80 totalLiquidity;
+}
+
+struct ifCashStorage {
+    // Notional amount of fCash at the slot, limited to int128 to allow for
+    // future expansion
+    int128 notional;
+}
+
+/// @dev A single portfolio asset in storage, total storage of 19 bytes
+struct PortfolioAssetStorage {
+    // Currency Id for the asset
+    uint16 currencyId;
+    // Maturity of the asset
+    uint40 maturity;
+    // Asset type (fCash or Liquidity Token marker)
+    uint8 assetType;
+    // Notional
+    int88 notional;
+}
+
+/// @dev nToken total supply factors for the nToken, includes factors related
+/// to claiming incentives, total storage 32 bytes
+struct nTokenTotalSupplyStorage {
+    // Total supply of the nToken
+    uint96 totalSupply;
+    // Integral of the total supply used for calculating the average total supply
+    uint128 integralTotalSupply;
+    // Last timestamp the supply value changed, used for calculating the integralTotalSupply
+    uint32 lastSupplyChangeTime;
+}
+
 /// @dev Used in view methods to return account balances in a developer friendly manner
 struct AccountBalance {
-    uint256 currencyId;
+    uint16 currencyId;
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;

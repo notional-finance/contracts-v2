@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
 
@@ -17,7 +17,7 @@ contract MockAccountContextHandler {
 
     function enableBitmapForAccount(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
@@ -87,4 +87,16 @@ contract MockAccountContextHandler {
 
         return accountContext.activeCurrencies;
     }
+
+    // function findCurrency(bytes18 activeCurrencies, uint256 currencyId) internal pure {
+    //     uint offset;
+    //     uint256 currencies = activeCurrencies;
+
+    //     if (uint16 (l >> 112) > element) { l >>= 128; offset += 128; }
+    //     if (uint16 (l >> 48) > element ) { l >>= 64; offset += 64; }
+    //     if (uint16 (l >> 16) > element ) { l >>= 32; offset += 32; }
+    //     if (uint16 (l) > element ) { l >>= 16; offset += 16; }
+
+    //     uint16 e = uint16 (l);
+    // }
 }

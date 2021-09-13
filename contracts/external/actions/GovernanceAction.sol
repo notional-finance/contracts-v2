@@ -1,29 +1,39 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../global/LibStorage.sol";
+import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
+import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "interfaces/notional/NotionalGovernance.sol";
-import "@openzeppelin/contracts/utils/Create2.sol";
+import "interfaces/notional/nTokenERC20.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
+        // @audit-ok
         require(owner == msg.sender, "Ownable: caller is not the owner");
         _;
+    }
+
+    function _checkValidCurrency(uint16 currencyId) internal view {
+        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).
     /// Can only be called by the current owner.
     function transferOwnership(address newOwner) external override onlyOwner {
+        // @audit-ok
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
@@ -32,6 +42,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
     /// to a predetermined router contract that provides read only access to the system.
     function _authorizeUpgrade(address newImplementation) internal override {
+        // @audit-ok
         require(
             owner == msg.sender ||
             (msg.sender == pauseGuardian && newImplementation == pauseRouter),
@@ -48,6 +59,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         address pauseRouter_,
         address pauseGuardian_
     ) external override onlyOwner {
+        // @audit-ok only owner
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
 
@@ -63,19 +75,24 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @param buffer multiplier (>= 100) for negative balances when calculating free collateral
     /// @param haircut multiplier (<= 100) for positive balances when calculating free collateral
     /// @param liquidationDiscount multiplier (>= 100) for exchange rate when liquidating
+    /// @return the new currency id
     function listCurrency(
         TokenStorage calldata assetToken,
         TokenStorage calldata underlyingToken,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
-    ) external override onlyOwner {
+    ) external override onlyOwner returns (uint16) {
+        // @audit-ok only owner
         uint16 currencyId = maxCurrencyId + 1;
         // Set the new max currency id
         maxCurrencyId = currencyId;
         require(currencyId <= Constants.MAX_CURRENCIES, "G: max currency overflow");
+        // NOTE: this allows multiple asset tokens that have the same underlying. That is ok from a protocol
+        // perspective. For example, we may choose list cDAI, yDAI and aDAI as asset currencies and each can
+        // trade as different forms of fDAI.
         require(
             tokenAddressToCurrencyId[assetToken.tokenAddress] == 0,
             "G: duplicate token listing"
@@ -88,13 +105,21 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             // Ether has a token address of zero
             underlyingToken.tokenType == TokenType.Ether
         ) {
+            // NOTE: set token will enforce the restriction that Ether can only be set once as the zero
+            // address. This sets the underlying token
+        // @audit-ok
             TokenHandler.setToken(currencyId, true, underlyingToken);
         }
+
+        // This sets the asset token
+        // @audit-ok
         TokenHandler.setToken(currencyId, false, assetToken);
 
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
 
         emit ListCurrency(currencyId);
+
+        return currencyId;
     }
 
     /// @notice Sets a maximum balance on a given currency. Max collateral balance cannot be set on a
@@ -109,8 +134,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint16 currencyId,
         uint72 maxCollateralBalanceInternalPrecision
     ) external override onlyOwner {
-        require(currencyId != 0, "G: invalid currency id");
-        require(currencyId <= maxCurrencyId, "G: invalid currency id");
+        _checkValidCurrency(currencyId);
+        // @audit-ok
         // Cannot turn on max collateral balance for a currency that is trading
         if (maxCollateralBalanceInternalPrecision > 0) require(CashGroup.getMaxMarketIndex(currencyId) == 0);
         TokenHandler.setMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
@@ -128,37 +153,37 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @param underlyingSymbol underlying token symbol for seeding nToken symbol (i.e. nDAI)
     function enableCashGroup(
         uint16 currencyId,
-        address assetRateOracle,
+        AssetRateAdapter assetRateOracle,
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
     ) external override onlyOwner {
+        // @audit-ok
+        _checkValidCurrency(currencyId);
         {
+            // @audit-ok
             // Cannot enable fCash trading on a token with a max collateral balance
-            Token memory assetToken = TokenHandler.getToken(currencyId, false);
-            Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
+            Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
             require(
                 assetToken.maxCollateralBalance == 0 &&
                 underlyingToken.maxCollateralBalance == 0
             ); // dev: cannot enable trading, collateral cap
         }
 
+        // @audit-ok the rate is already set from listing the currency
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        address nTokenAddress =
-            Create2.deploy(
-                0,
-                bytes32(uint256(currencyId)),
-                abi.encodePacked(
-                    type(nTokenERC20Proxy).creationCode,
-                    abi.encode(address(this), currencyId, underlyingName, underlyingSymbol)
-                )
-            );
-
-        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
-        emit DeployNToken(currencyId, nTokenAddress);
+        nTokenERC20Proxy proxy = new nTokenERC20Proxy(
+            nTokenERC20(address(this)),
+            currencyId,
+            underlyingName,
+            underlyingSymbol
+        );
+        nTokenHandler.setNTokenAddress(currencyId, address(proxy));
+        emit DeployNToken(currencyId, address(proxy));
     }
 
     /// @notice Updates the deposit parameters for an nToken
@@ -176,6 +201,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint32[] calldata depositShares,
         uint32[] calldata leverageThresholds
     ) external override onlyOwner {
+        _checkValidCurrency(currencyId);
         nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
         emit UpdateDepositParameters(currencyId);
     }
@@ -195,6 +221,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint32[] calldata annualizedAnchorRates,
         uint32[] calldata proportions
     ) external override onlyOwner {
+        _checkValidCurrency(currencyId);
         nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
         emit UpdateInitializationParameters(currencyId);
     }
@@ -210,6 +237,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
+        _checkValidCurrency(currencyId);
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
         // Sanity check that emissions rate is not specified in 1e8 terms.
@@ -247,6 +275,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint8 cashWithholdingBuffer10BPS,
         uint8 liquidationHaircutPercentage
     ) external override onlyOwner {
+        _checkValidCurrency(currencyId);
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
 
@@ -270,6 +299,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
+        _checkValidCurrency(currencyId);
         _updateCashGroup(currencyId, cashGroup);
     }
 
@@ -277,7 +307,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @dev emit:UpdateAssetRate
     /// @param currencyId id of the currency
     /// @param rateOracle new rate oracle for the asset
-    function updateAssetRate(uint16 currencyId, address rateOracle) external override onlyOwner {
+    function updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) external override onlyOwner {
+        _checkValidCurrency(currencyId);
         _updateAssetRate(currencyId, rateOracle);
     }
 
@@ -292,12 +323,13 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @param liquidationDiscount multiplier (>= 100) for exchange rate when liquidating
     function updateETHRate(
         uint16 currencyId,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
     ) external override onlyOwner {
+        _checkValidCurrency(currencyId);
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
     }
 
@@ -311,12 +343,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(operator)
-        }
         // Sanity check to ensure that operator is a contract, not an EOA
-        require(codeSize > 0, "Operator must be a contract");
+        require(Address.isContract(operator), "Operator must be a contract");
 
         globalTransferOperator[operator] = approved;
         emit UpdateGlobalTransferOperator(operator, approved);
@@ -334,80 +362,70 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         override
         onlyOwner
     {
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(operator)
-        }
         // Sanity check to ensure that operator is a contract, not an EOA
-        require(codeSize > 0, "Operator must be a contract");
-
+        require(Address.isContract(operator), "Operator must be a contract");
         authorizedCallbackContract[operator] = approved;
         emit UpdateAuthorizedCallbackContract(operator, approved);
     }
 
-    function _updateCashGroup(uint256 currencyId, CashGroupSettings calldata cashGroup) internal {
-        require(currencyId != 0, "G: invalid currency id");
-        require(currencyId <= maxCurrencyId, "G: invalid currency id");
-
+    function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {
+        // @audit-ok
         CashGroup.setCashGroupStorage(currencyId, cashGroup);
-
-        emit UpdateCashGroup(uint16(currencyId));
+        emit UpdateCashGroup(currencyId);
     }
 
-    function _updateAssetRate(uint256 currencyId, address rateOracle) internal {
-        require(currencyId != 0, "G: invalid currency id");
-        require(currencyId <= maxCurrencyId, "G: invalid currency id");
-
+    function _updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) internal {
         // If rate oracle refers to address zero then do not apply any updates here, this means
         // that a token is non mintable.
-        Token memory assetToken = TokenHandler.getToken(currencyId, false);
-        if (rateOracle == address(0)) {
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+        if (address(rateOracle) == address(0)) {
             // Sanity check that unset rate oracles are only for non mintable tokens
             require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");
-            return;
-        }
-
-        // Sanity check that the rate oracle refers to the proper asset token
-        address token = AssetRateAdapter(rateOracle).token();
-        require(assetToken.tokenAddress == token, "G: invalid rate oracle");
-
-        uint8 underlyingDecimals;
-        if (currencyId == 1) {
-            // If currencyId is one then this is referring to cETH and there is no underlying() to call
-            underlyingDecimals = 18;
         } else {
-            address underlyingToken = AssetRateAdapter(rateOracle).underlying();
-            underlyingDecimals = ERC20(underlyingToken).decimals();
+            // @audit-ok
+            // Sanity check that the rate oracle refers to the proper asset token
+            address token = AssetRateAdapter(rateOracle).token();
+            require(assetToken.tokenAddress == token, "G: invalid rate oracle");
+
+            uint8 underlyingDecimals;
+            if (currencyId == Constants.ETH_CURRENCY_ID) {
+                // If currencyId is one then this is referring to cETH and there is no underlying() to call
+                underlyingDecimals = Constants.ETH_DECIMAL_PLACES;
+            } else {
+                address underlyingToken = AssetRateAdapter(rateOracle).underlying();
+                underlyingDecimals = ERC20(underlyingToken).decimals();
+            }
+
+            // Perform this check to ensure that decimal calculations don't overflow
+            require(underlyingDecimals <= Constants.MAX_DECIMAL_PLACES);
+            mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
+            store[currencyId] = AssetRateStorage({
+                rateOracle: rateOracle,
+                underlyingDecimalPlaces: underlyingDecimals
+            });
+
+            emit UpdateAssetRate(currencyId);
         }
-
-        assetToUnderlyingRateMapping[currencyId] = AssetRateStorage({
-            rateOracle: rateOracle,
-            underlyingDecimalPlaces: underlyingDecimals
-        });
-
-        emit UpdateAssetRate(uint16(currencyId));
     }
 
     function _updateETHRate(
-        uint256 currencyId,
-        address rateOracle,
+        uint16 currencyId,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
     ) internal {
-        require(currencyId != 0, "G: invalid currency id");
-        require(currencyId <= maxCurrencyId, "G: invalid currency id");
-
         uint8 rateDecimalPlaces;
         if (currencyId == Constants.ETH_CURRENCY_ID) {
             // ETH to ETH exchange rate is fixed at 1 and has no rate oracle
-            rateOracle = address(0);
-            rateDecimalPlaces = 18;
+            rateOracle = AggregatorV2V3Interface(address(0));
+            rateDecimalPlaces = Constants.ETH_DECIMAL_PLACES;
         } else {
-            require(rateOracle != address(0), "G: zero rate oracle address");
-            rateDecimalPlaces = AggregatorV2V3Interface(rateOracle).decimals();
+            require(address(rateOracle) != address(0), "G: zero rate oracle address");
+            rateDecimalPlaces = rateOracle.decimals();
         }
+        // @audit-ok
         require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
         require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
         require(
@@ -415,7 +433,11 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             "G: discount must be gt decimals"
         );
 
-        underlyingToETHRateMapping[currencyId] = ETHRateStorage({
+        // Perform this check to ensure that decimal calculations don't overflow
+        // @audit-ok
+        require(rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        store[currencyId] = ETHRateStorage({
             rateOracle: rateOracle,
             rateDecimalPlaces: rateDecimalPlaces,
             mustInvert: mustInvert,
@@ -424,6 +446,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             liquidationDiscount: liquidationDiscount
         });
 
-        emit UpdateETHRate(uint16(currencyId));
+        // @audit-ok overflow checked above
+        emit UpdateETHRate(currencyId);
     }
 }

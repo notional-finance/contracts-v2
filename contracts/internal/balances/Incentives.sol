@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "./TokenHandler.sol";
 import "../nTokenHandler.sol";
@@ -19,6 +19,7 @@ library Incentives {
         pure
         returns (uint256)
     {
+        // @audit-ok
         // (timeSinceLastClaim * INTERNAL_TOKEN_PRECISION) / YEAR
         uint256 proRataYears =
             timeSinceLastClaim.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)).div(Constants.YEAR);
@@ -35,6 +36,7 @@ library Incentives {
         uint256 blockTime,
         uint256 integralTotalSupply
     ) internal view returns (uint256) {
+        // @audit-ok
         if (lastClaimTime == 0 || lastClaimTime >= blockTime) return 0;
 
         // prettier-ignore
@@ -42,6 +44,7 @@ library Incentives {
             /* currencyId */,
             uint256 emissionRatePerYear,
             /* initializedTime */,
+            /* assetArrayLength */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
@@ -50,12 +53,14 @@ library Incentives {
         uint256 incentiveRate =
             _getIncentiveRate(
                 timeSinceLastClaim,
-                // Convert this to the appropriate denomination
+                // Convert this to the appropriate denomination, emissionRatePerYear is denominated
+                // in whole tokens
                 emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
             );
 
         // Returns the average supply between now and the previous mint time using the integral of the total
         // supply.
+        // @audit-ok
         uint256 avgTotalSupply = integralTotalSupply.sub(lastClaimIntegralSupply).div(timeSinceLastClaim);
         if (avgTotalSupply == 0) return 0;
 
@@ -73,12 +78,14 @@ library Incentives {
     {
         uint256 blockTime = block.timestamp;
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+        // @audit-ok this will set the new supply and return the previous integral total supply
         uint256 integralTotalSupply = nTokenHandler.changeNTokenSupply(
             tokenAddress,
             balanceState.netNTokenSupplyChange,
             blockTime
         );
 
+        // @audit-ok returns the total supply
         uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
             uint256(balanceState.storedNTokenBalance),
@@ -88,9 +95,11 @@ library Incentives {
             integralTotalSupply
         );
 
+        // @audit-ok sets the claim time and total supply
         balanceState.lastClaimTime = blockTime;
         balanceState.lastClaimIntegralSupply = integralTotalSupply;
 
+        // @audit-ok only transfer incentives if positive
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
 
         return incentivesToClaim;

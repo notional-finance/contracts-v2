@@ -24,6 +24,10 @@ def isolation(fn_isolation):
     pass
 
 
+def test_supports_interface(environment, accounts):
+    assert environment.notional.supportsInterface("0xd9b67a26")
+
+
 def test_transfer_authentication_failures(environment, accounts):
     addressZero = to_bytes(0, "bytes20")
     markets = environment.notional.getActiveMarkets(2)
@@ -148,6 +152,15 @@ def test_fail_on_non_acceptance(environment, accounts, MockTransferOperator):
     transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
     transferOp.setShouldReject(True)
 
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 1000e8, "minSlippage": 0}],
+        depositActionAmount=10000e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+
     with brownie.reverts("Not accepted"):
         environment.notional.safeTransferFrom(
             accounts[1], transferOp.address, erc1155id, 100e8, bytes(), {"from": accounts[1]}
@@ -157,7 +170,7 @@ def test_fail_on_non_acceptance(environment, accounts, MockTransferOperator):
             accounts[1], transferOp.address, [erc1155id], [100e8], bytes(), {"from": accounts[1]}
         )
 
-    with brownie.reverts("Not accepted"):
+    with brownie.reverts():
         # nTokens will reject ERC1155 transfers
         environment.notional.safeTransferFrom(
             accounts[0], environment.nToken[1], erc1155id, 100e8, ""
@@ -309,6 +322,7 @@ def test_transfer_has_fcash_failure(environment, accounts):
         )
 
 
+@pytest.mark.skip
 def test_transfer_has_liquidity_tokens(environment, accounts):
     action = get_balance_trade_action(
         2,
@@ -346,6 +360,7 @@ def test_transfer_has_liquidity_tokens(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.skip
 def test_batch_transfer_has_liquidity_tokens(environment, accounts):
     action = get_balance_trade_action(
         2,
@@ -399,6 +414,7 @@ def test_batch_transfer_has_liquidity_tokens(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.skip
 def test_transfer_fail_liquidity_tokens(environment, accounts):
     action = get_balance_trade_action(
         2,

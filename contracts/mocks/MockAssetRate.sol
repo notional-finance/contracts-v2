@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/markets/AssetRate.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockAssetRate is StorageLayoutV1 {
-    event SetSettlementRate(uint256 currencyId, uint256 maturity, uint128 rate);
+    event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function assertBalanceSign(int256 balance, int256 result) private pure {

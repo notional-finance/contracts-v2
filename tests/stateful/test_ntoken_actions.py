@@ -380,7 +380,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
             accounts[2], [action], {"from": accounts[2]}
         )
 
-    with brownie.reverts("Invalid maturity"):
+    with brownie.reverts("Non idiosyncratic maturity"):
         action = get_balance_trade_action(
             2,
             "None",
@@ -400,6 +400,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
     # 96 hour buffer period
     chain.mine(1, timestamp=blockTime + 96 * 3600)
 
+    # TODO: what happened here?
     with brownie.reverts("Invalid amount"):
         action = get_balance_trade_action(
             2,
@@ -565,9 +566,9 @@ def test_transfer_tokens(environment, accounts):
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
     txn = environment.nToken[currencyId].transfer(accounts[1], 100e8)
 
-    assert txn.events["Transfer"][0]["from"] == accounts[0]
-    assert txn.events["Transfer"][0]["to"] == accounts[1]
-    assert txn.events["Transfer"][0]["value"] == 100e8
+    assert txn.events["Transfer"][1]["from"] == accounts[0]
+    assert txn.events["Transfer"][1]["to"] == accounts[1]
+    assert txn.events["Transfer"][1]["value"] == 100e8
     assert environment.nToken[currencyId].totalSupply() == totalSupplyBefore
     assert environment.nToken[currencyId].balanceOf(accounts[1]) == 100e8
     assert environment.nToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8
@@ -579,6 +580,42 @@ def test_transfer_tokens(environment, accounts):
     assert mintTimeAfterOne == mintTimeAfterZero == txn.timestamp
 
     check_system_invariants(environment, accounts)
+
+
+def test_cannot_transfer_ntokens_to_self(environment, accounts):
+    currencyId = 2
+    with brownie.reverts():
+        environment.nToken[currencyId].transfer(accounts[0], 100e8, {"from": accounts[0]})
+
+
+def test_cannot_transfer_ntokens_to_negative_fc(environment, accounts):
+    fCashAmount = 100e8
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 1,
+                "notional": fCashAmount,
+                "maxSlippage": 0,
+            }
+        ],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+
+    collateral = get_balance_trade_action(
+        3, "DepositUnderlyingAndMintNToken", [], depositActionAmount=10000e6
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+    )
+    (_, nTokenBalance, _) = environment.notional.getAccountBalance(3, accounts[1])
+
+    with brownie.reverts("Insufficient free collateral"):
+        environment.nToken[3].transfer(accounts[0], nTokenBalance, {"from": accounts[1]})
 
 
 def test_mint_incentives(environment, accounts):

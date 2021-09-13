@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/balances/TokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
@@ -25,28 +25,37 @@ contract MockTokenHandler is StorageLayoutV1 {
     }
 
     function transfer(
-        uint256 currencyId,
+        uint16 currencyId,
         address account,
         bool underlying,
         int256 netTransfer
     ) external returns (int256) {
-        Token memory token = TokenHandler.getToken(currencyId, underlying);
+        Token memory token;
+        if (underlying) {
+            token = TokenHandler.getUnderlyingToken(currencyId);
+        } else {
+            token = TokenHandler.getAssetToken(currencyId);
+        }
         return token.transfer(account, netTransfer);
     }
 
-    function mint(uint256 currencyId, uint256 underlyingAmount) external payable returns (int256) {
-        Token memory token = TokenHandler.getToken(currencyId, false);
+    function mint(uint16 currencyId, uint256 underlyingAmount) external payable returns (int256) {
+        Token memory token = TokenHandler.getAssetToken(currencyId);
         return token.mint(underlyingAmount);
     }
 
-    function redeem(uint256 currencyId, uint256 tokensInternalPrecision) external returns (int256) {
-        Token memory token = TokenHandler.getToken(currencyId, false);
-        Token memory underlyingToken = TokenHandler.getToken(currencyId, true);
+    function redeem(uint16 currencyId, uint256 tokensInternalPrecision) external returns (int256) {
+        Token memory token = TokenHandler.getAssetToken(currencyId);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
         return token.redeem(underlyingToken, tokensInternalPrecision);
     }
 
-    function getToken(uint256 currencyId, bool underlying) external view returns (Token memory) {
-        return TokenHandler.getToken(currencyId, underlying);
+    function getToken(uint16 currencyId, bool underlying) external view returns (Token memory) {
+        if (underlying) {
+            return TokenHandler.getUnderlyingToken(currencyId);
+        } else {
+            return TokenHandler.getAssetToken(currencyId);
+        }
     }
 
     receive() external payable { }

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/markets/CashGroup.sol";
 import "../internal/markets/Market.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
+import "../global/LibStorage.sol";
 
 contract BaseMockLiquidation is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
@@ -15,14 +16,20 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
+    }
+
+    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -35,13 +42,10 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
-    function getMarkets(uint256 currencyId, uint256 blockTime)
+    function getMarkets(uint16 currencyId, uint256 blockTime)
         public
         view
         returns (MarketParameters[] memory)
@@ -59,10 +63,6 @@ contract BaseMockLiquidation is StorageLayoutV1 {
     function getPortfolio(address account) public view returns (PortfolioAsset[] memory) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
-    }
-
-    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
     }
 
     function clearPortfolio(address account) external {
@@ -127,16 +127,13 @@ contract BaseMockLiquidation is StorageLayoutV1 {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.bitmapCurrencyId = currencyId;
         accountContext.nextSettleTime = nextSettleTime;
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             accountContext.nextSettleTime,
-            notional,
-            assetsBitmap
+            notional
         );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, assetsBitmap);
         accountContext.setAccountContext(account);
     }
 

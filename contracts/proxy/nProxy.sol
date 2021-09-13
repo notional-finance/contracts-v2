@@ -10,7 +10,9 @@ contract nProxy is ERC1967Proxy {
         bytes memory _data
     ) ERC1967Proxy(_logic, _data) {}
 
-    receive() external payable override {}
+    receive() external payable override {
+        // Allow ETH transfers to succeed
+    }
 
     function getImplementation() external view returns (address) {
         return _getImplementation();

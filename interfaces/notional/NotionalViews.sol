@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
 
@@ -48,12 +48,15 @@ interface NotionalViews {
 
     function nTokenAddress(uint16 currencyId) external view returns (address);
 
-    function getOwner() external view returns (address);
+    function getNoteToken() external view returns (address);
 
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
         view
         returns (AssetRateParameters memory);
+
+    function getMarket(uint16 currencyId, uint256 maturity, uint256 settlementDate)
+        external view returns (MarketParameters memory);
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
 
@@ -73,11 +76,11 @@ interface NotionalViews {
         external
         view
         returns (
-            uint256 currencyId,
+            uint16 currencyId,
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters,
+            bytes5 nTokenParameters,
             int256 cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
@@ -107,11 +110,11 @@ interface NotionalViews {
 
     function getfCashNotional(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity
     ) external view returns (int256);
 
-    function getAssetsBitmap(address account, uint256 currencyId) external view returns (bytes32);
+    function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory);
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../balances/TokenHandler.sol";
 import "../../math/SafeInt256.sol";
@@ -9,14 +9,11 @@ import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 library ExchangeRate {
     using SafeInt256 for int256;
 
-    uint256 private constant ETH_RATE_STORAGE_SLOT = 1;
-
     /// @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
     /// always applied in this method.
     /// @param er exchange rate object from base to ETH
     /// @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
     function convertToETH(ETHRate memory er, int256 balance) internal pure returns (int256) {
-        if (balance == 0) return 0;
         int256 multiplier = balance > 0 ? er.haircut : er.buffer;
 
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
@@ -35,8 +32,6 @@ library ExchangeRate {
     /// @param er exchange rate object from base to ETH
     /// @param balance amount (denominated in ETH) to convert
     function convertETHTo(ETHRate memory er, int256 balance) internal pure returns (int256) {
-        if (balance == 0) return 0;
-
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
         // internalDecimals * rateDecimals / rateDecimals
         int256 result = balance.mul(er.rateDecimals).div(er.rate);
@@ -58,12 +53,8 @@ library ExchangeRate {
 
     /// @notice Returns an ETHRate object used to calculate free collateral
     function buildExchangeRate(uint256 currencyId) internal view returns (ETHRate memory) {
-        bytes32 slot = keccak256(abi.encode(currencyId, ETH_RATE_STORAGE_SLOT));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        ETHRateStorage storage ethStorage = store[currencyId];
 
         int256 rateDecimals;
         int256 rate;
@@ -73,36 +64,34 @@ library ExchangeRate {
             rateDecimals = Constants.ETH_DECIMALS;
             rate = Constants.ETH_DECIMALS;
         } else {
-            address rateOracle = address(bytes20(data << 96));
             // prettier-ignore
+            uint80 roundId;
+            uint256 updatedAt;
+            uint80 answeredInRound;
             (
-                /* uint80 */,
+                roundId,
                 rate,
-                /* uint256 */,
-                /* uint256 */,
-                /* uint80 */
-            ) = AggregatorV2V3Interface(rateOracle).latestRoundData();
-            require(rate > 0, "ExchangeRate: invalid rate");
+                /* uint256 startedAt */,
+                updatedAt,
+                answeredInRound
+            ) = ethStorage.rateOracle.latestRoundData();
+            require(rate > 0, "Invalid rate");
+            require(updatedAt != 0 && answeredInRound >= roundId, "Stale rate");
 
-            uint8 rateDecimalPlaces = uint8(bytes1(data << 88));
-            rateDecimals = int256(10**rateDecimalPlaces);
-            if (
-                bytes1(data << 80) != Constants.BOOL_FALSE /* mustInvert */
-            ) {
+            // @audit-ok no overflow, restricted on storage
+            rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
+            if (ethStorage.mustInvert) {
                 rate = rateDecimals.mul(rateDecimals).div(rate);
             }
         }
 
-        int256 buffer = int256(uint8(bytes1(data << 72)));
-        int256 haircut = int256(uint8(bytes1(data << 64)));
-        int256 liquidationDiscount = int256(uint8(bytes1(data << 56)));
         return
             ETHRate({
                 rateDecimals: rateDecimals,
                 rate: rate,
-                buffer: buffer,
-                haircut: haircut,
-                liquidationDiscount: liquidationDiscount
+                buffer: ethStorage.buffer,
+                haircut: ethStorage.haircut,
+                liquidationDiscount: ethStorage.liquidationDiscount
             });
     }
 }

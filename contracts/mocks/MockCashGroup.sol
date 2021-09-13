@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/markets/CashGroup.sol";
 import "../global/StorageLayoutV1.sol";
@@ -10,7 +10,8 @@ contract MockCashGroup is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
@@ -19,14 +20,10 @@ contract MockCashGroup is StorageLayoutV1 {
 
     function setMarketState(
         uint256 currencyId,
-        uint256 maturity,
         uint256 settlementDate,
-        MarketParameters memory ms
+        MarketParameters memory market
     ) external {
-        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
-        // ensure that state gets set
-        ms.storageState = 0xFF;
-        ms.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketState(
@@ -109,7 +106,7 @@ contract MockCashGroup is StorageLayoutV1 {
     function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 timeToMaturity)
         public
         pure
-        returns (uint256)
+        returns (uint8)
     {
         return cashGroup.getLiquidityHaircut(timeToMaturity);
     }
@@ -206,7 +203,7 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.calculateOracleRate(assetMaturity, blockTime);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -214,14 +211,14 @@ contract MockCashGroup is StorageLayoutV1 {
         return CashGroup.buildCashGroupView(currencyId);
     }
 
-    function buildCashGroupStateful(uint256 currencyId)
+    function buildCashGroupStateful(uint16 currencyId)
         public
         returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupStateful(currencyId);
     }
 
-    function deserializeCashGroupStorage(uint256 currencyId)
+    function deserializeCashGroupStorage(uint16 currencyId)
         public
         view
         returns (CashGroupSettings memory)

@@ -25,8 +25,8 @@ def test_non_callable_methods(environment, accounts):
     with brownie.reverts("Ownable: caller is not the owner"):
         environment.notional.transferOwnership(accounts[1], {"from": accounts[1]})
         environment.notional.listCurrency(
-            (environment.token["DAI"].address, False, 0, 0),
-            (zeroAddress, False, 0, 0),
+            (environment.token["DAI"].address, False, 0, 18, 0),
+            (zeroAddress, False, 0, 0, 0),
             zeroAddress,
             False,
             CurrencyDefaults["buffer"],
@@ -81,9 +81,6 @@ def test_non_callable_methods(environment, accounts):
             accounts[1].address, True, {"from": accounts[1]}
         )
 
-    # with brownie.reverts("Method not found"):
-    #     environment.notional.nTokenRedeemViaBatch(1, 100e8, {"from": accounts[1]})
-
     with brownie.reverts("Unauthorized caller"):
         environment.notional.nTokenRedeem(accounts[2], 1, 100e8, False, {"from": accounts[1]})
         environment.notional.batchBalanceAction(accounts[2], [], {"from": accounts[1]})
@@ -106,8 +103,14 @@ def test_prevent_duplicate_token_listing(environment, accounts):
     assert environment.notional.getCurrencyId(environment.cToken[symbol].address) == 2
     with brownie.reverts("G: duplicate token listing"):
         environment.notional.listCurrency(
-            (environment.cToken[symbol].address, symbol == "USDT", TokenType["cToken"], 0),
-            (environment.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"], 0),
+            (environment.cToken[symbol].address, symbol == "USDT", TokenType["cToken"], 8, 0),
+            (
+                environment.token[symbol].address,
+                symbol == "USDT",
+                TokenType["UnderlyingToken"],
+                18,
+                0,
+            ),
             environment.ethOracle[symbol].address,
             False,
             CurrencyDefaults["buffer"],

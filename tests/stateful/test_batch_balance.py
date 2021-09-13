@@ -200,7 +200,7 @@ def test_deposit_underlying_and_mint_perpetual(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_perpetual(environment, accounts):
+def test_redeem_ntoken(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
@@ -245,7 +245,7 @@ def test_redeem_perpetual(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_perpetual_and_withdraw_asset(environment, accounts):
+def test_redeem_ntoken_and_withdraw_asset(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
@@ -302,7 +302,7 @@ def test_redeem_perpetual_and_withdraw_asset(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_perpetual_and_withdraw_underlying(environment, accounts):
+def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [

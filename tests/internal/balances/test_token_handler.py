@@ -19,38 +19,45 @@ class TestTokenHandler:
 
     def test_cannot_set_eth_twice(self, tokenHandler, accounts, MockERC20):
         zeroAddress = HexString(0, "bytes20")
-        tokenHandler.setCurrencyMapping(1, True, (zeroAddress, False, TokenType["Ether"], 0))
+        tokenHandler.setCurrencyMapping(1, True, (zeroAddress, False, TokenType["Ether"], 18, 0))
+        erc20 = MockERC20.deploy("Ether", "Ether", 18, 0, {"from": accounts[0]})
 
         with brownie.reverts("dev: ether can only be set once"):
-            tokenHandler.setCurrencyMapping(2, True, (zeroAddress, False, TokenType["Ether"], 0))
             tokenHandler.setCurrencyMapping(
-                2, True, (zeroAddress, False, TokenType["UnderlyingToken"], 0)
+                2, True, (erc20.address, False, TokenType["Ether"], 18, 0)
+            )
+
+        with brownie.reverts("TH: address is zero"):
+            tokenHandler.setCurrencyMapping(
+                2, True, (zeroAddress, False, TokenType["UnderlyingToken"], 18, 0)
             )
 
     def test_cannot_override_token(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
         erc20_ = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
         tokenHandler.setCurrencyMapping(
-            2, True, (erc20.address, False, TokenType["UnderlyingToken"], 0)
+            2, True, (erc20.address, False, TokenType["UnderlyingToken"], 18, 0)
         )
 
         with brownie.reverts("TH: token cannot be reset"):
             tokenHandler.setCurrencyMapping(
-                2, True, (erc20_.address, False, TokenType["UnderlyingToken"], 0)
+                2, True, (erc20_.address, False, TokenType["UnderlyingToken"], 18, 0)
             )
 
     def test_cannot_set_asset_to_underlying(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
 
         with brownie.reverts("dev: underlying token inconsistent"):
-            tokenHandler.setCurrencyMapping(2, True, (erc20.address, False, TokenType["cToken"], 0))
+            tokenHandler.setCurrencyMapping(
+                2, True, (erc20.address, False, TokenType["cToken"], 18, 0)
+            )
 
     def test_cannot_set_underlying_to_asset(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
 
         with brownie.reverts("dev: underlying token inconsistent"):
             tokenHandler.setCurrencyMapping(
-                2, False, (erc20.address, False, TokenType["UnderlyingToken"], 0)
+                2, False, (erc20.address, False, TokenType["UnderlyingToken"], 18, 0)
             )
 
     def test_cannot_set_max_collateral_on_underlying(self, tokenHandler, accounts, MockERC20):
@@ -58,13 +65,13 @@ class TestTokenHandler:
 
         with brownie.reverts("dev: underlying cannot have max collateral balance"):
             tokenHandler.setCurrencyMapping(
-                2, True, (erc20.address, False, TokenType["UnderlyingToken"], 100_000e8)
+                2, True, (erc20.address, False, TokenType["UnderlyingToken"], 18, 100_000e8)
             )
 
     def test_set_max_collateral_balance(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
         tokenHandler.setCurrencyMapping(
-            2, False, (erc20.address, False, TokenType["NonMintable"], 100_000e8)
+            2, False, (erc20.address, False, TokenType["NonMintable"], 18, 100_000e8)
         )
 
         token1 = tokenHandler.getToken(2, False)
@@ -82,7 +89,7 @@ class TestTokenHandler:
     def test_deposit_respects_max_collateral_balance(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
         tokenHandler.setCurrencyMapping(
-            2, False, (erc20.address, False, TokenType["NonMintable"], 100_000e8)
+            2, False, (erc20.address, False, TokenType["NonMintable"], 18, 100_000e8)
         )
 
         # This will succeed (transfer is denominated in external precision)
@@ -96,7 +103,7 @@ class TestTokenHandler:
     def test_can_withdraw_even_over_max_collateral(self, tokenHandler, accounts, MockERC20):
         erc20 = MockERC20.deploy("test", "TEST", 18, 0, {"from": accounts[0]})
         tokenHandler.setCurrencyMapping(
-            2, False, (erc20.address, False, TokenType["NonMintable"], 100_000e8)
+            2, False, (erc20.address, False, TokenType["NonMintable"], 18, 100_000e8)
         )
 
         # This will succeed (transfer is denominated in external precision)
@@ -122,7 +129,7 @@ class TestTokenHandler:
         erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
         tokenHandler.setMaxCurrencyId(1)
         tokenHandler.setCurrencyMapping(
-            1, True, (erc20.address, fee, TokenType["UnderlyingToken"], 0)
+            1, True, (erc20.address, fee, TokenType["UnderlyingToken"], decimals, 0)
         )
 
         erc20.approve(tokenHandler.address, 1000e18, {"from": accounts[0]})
@@ -134,13 +141,34 @@ class TestTokenHandler:
             tokenHandler.transfer(1, accounts[0].address, True, 100)
             tokenHandler.transfer(1, accounts[0].address, True, -100)
 
+    @pytest.mark.only
+    def test_non_compliant_token_approval(
+        self, tokenHandler, MockERC20, MockNonCompliantERC20, accounts
+    ):
+        decimals = 18
+        fee = 0
+        underlying = MockNonCompliantERC20.deploy(
+            "test", "TEST", decimals, fee, {"from": accounts[0]}
+        )
+        cToken = MockERC20.deploy("cToken", "cTEST", 8, fee, {"from": accounts[0]})
+
+        tokenHandler.setMaxCurrencyId(1)
+        tokenHandler.setCurrencyMapping(
+            1, True, (underlying.address, False, TokenType["UnderlyingToken"], decimals, 0)
+        )
+        tokenHandler.setCurrencyMapping(
+            1, False, (cToken.address, False, TokenType["cToken"], 8, 0)
+        )
+
+        assert underlying.allowance(tokenHandler.address, cToken.address) == Wei(2 ** 256) - 1
+
     def test_non_compliant_token(self, tokenHandler, MockNonCompliantERC20, accounts):
         decimals = 18
         fee = 0
         erc20 = MockNonCompliantERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
         tokenHandler.setMaxCurrencyId(1)
         tokenHandler.setCurrencyMapping(
-            1, True, (erc20.address, fee, TokenType["UnderlyingToken"], 0)
+            1, True, (erc20.address, fee, TokenType["UnderlyingToken"], decimals, 0)
         )
 
         amount = 10 ** decimals
@@ -167,7 +195,7 @@ class TestTokenHandler:
         erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
         tokenHandler.setMaxCurrencyId(1)
         tokenHandler.setCurrencyMapping(
-            1, False, (erc20.address, fee != 0, TokenType["NonMintable"], 0)
+            1, False, (erc20.address, fee != 0, TokenType["NonMintable"], decimals, 0)
         )
 
         amount = 10 ** decimals
@@ -195,7 +223,7 @@ class TestTokenHandler:
         erc20 = MockERC20.deploy("test", "TEST", decimals, fee, {"from": accounts[0]})
         tokenHandler.setMaxCurrencyId(1)
         tokenHandler.setCurrencyMapping(
-            1, True, (erc20.address, fee != 0, TokenType["UnderlyingToken"], 0)
+            1, True, (erc20.address, fee != 0, TokenType["UnderlyingToken"], decimals, 0)
         )
 
         amount = 10 ** decimals
@@ -212,10 +240,10 @@ class TestTokenHandler:
         env.enableCurrency("DAI", CurrencyDefaults)
 
         tokenHandler.setCurrencyMapping(
-            2, True, (env.token["DAI"].address, False, TokenType["UnderlyingToken"], 0)
+            2, True, (env.token["DAI"].address, False, TokenType["UnderlyingToken"], 18, 0)
         )
         tokenHandler.setCurrencyMapping(
-            2, False, (env.cToken["DAI"].address, False, TokenType["cToken"], 0)
+            2, False, (env.cToken["DAI"].address, False, TokenType["cToken"], 8, 0)
         )
 
         # Test minting of cDai, first transfer some balance to the tokenHandler
@@ -236,7 +264,7 @@ class TestTokenHandler:
         env = TestEnvironment(accounts[0])
 
         tokenHandler.setCurrencyMapping(
-            1, False, (env.cToken["ETH"].address, False, TokenType["cETH"], 0)
+            1, False, (env.cToken["ETH"].address, False, TokenType["cETH"], 8, 0)
         )
 
         sentETH = 100e18

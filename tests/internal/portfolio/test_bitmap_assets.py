@@ -52,6 +52,10 @@ class TestBitmapAssets:
 
         return mockAggregator
 
+    @pytest.fixture(autouse=True)
+    def isolation(self, fn_isolation):
+        pass
+
     @given(bitmap=strategy("bytes32"), currencyId=strategy("uint8"))
     def test_get_and_set_bitmap(self, bitmapAssets, bitmap, currencyId, accounts):
         if len(list(filter(lambda x: x == "1", get_bitstring_from_bitmap(bitmap)))) > 20:
@@ -64,12 +68,20 @@ class TestBitmapAssets:
 
             assert bmHex == storedValue
 
-    @given(bitmap=strategy("bytes32"), bitNum=strategy("uint", min_value=1, max_value=256))
-    def test_set_ifcash_asset(self, bitmapAssets, bitmap, bitNum, accounts):
+    @given(bitmap=strategy("bytes32"))
+    def test_set_assets_bitmap_reverts_on_max_assets(self, bitmapAssets, bitmap, accounts):
+        if bitmapAssets.totalBitsSet(bitmap) > 20:
+            with brownie.reverts("Over max assets"):
+                bitmapAssets.setAssetsBitmap(accounts[0], 1, bitmap)
+
+    @given(bitNum=strategy("uint", min_value=1, max_value=256))
+    def test_set_ifcash_asset(self, bitmapAssets, bitNum, accounts):
         maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum)
         notional = random.randint(-1e18, 1e18)
+        (bitmap, _) = random_asset_bitmap(15)
+        bitmapAssets.setAssetsBitmap(accounts[0], 1, bitmap)
 
-        txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, notional, bitmap)
+        txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, notional)
         (newBitmap, returnVal) = txn.return_value
 
         setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
@@ -80,9 +92,7 @@ class TestBitmapAssets:
         assert newBitlist[bitNum - 1] == "1"
 
         # This should net off the value
-        txn = bitmapAssets.addifCashAsset(
-            accounts[0], 1, maturity, START_TIME, -notional, newBitmap
-        )
+        txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, -notional)
         (newBitmap, returnVal) = txn.return_value
 
         setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
@@ -96,7 +106,7 @@ class TestBitmapAssets:
         maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, 1)
         bitmap = brownie.convert.datatypes.HexString(0, "bytes32")
         # Ensure that setting a notional to zero does not set the bitmap
-        txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, 0, bitmap)
+        txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, 0)
         (newBitmap, _) = txn.return_value
         assert newBitmap == bitmap
 
@@ -110,7 +120,7 @@ class TestBitmapAssets:
             maturity = bitmapAssets.getMaturityFromBitNum(START_TIME, bitNum + 1)
             maturities.append(maturity)
             notional = 1e8
-            bitmapAssets.addifCashAsset(accounts[0], currencyId, maturity, START_TIME, notional, "")
+            bitmapAssets.addifCashAsset(accounts[0], currencyId, maturity, START_TIME, notional)
 
         bitmapAssets.setAssetsBitmap(accounts[0], currencyId, bitmap)
         portfolio = bitmapAssets.getifCashArray(accounts[0], currencyId, START_TIME)
@@ -144,14 +154,7 @@ class TestBitmapAssets:
                 notional = random.randint(-1e12, 1e12)
                 maturity = bitmapAssets.getMaturityFromBitNum(nextSettleTime, i + 1)
 
-                bitmapAssets.addifCashAsset(
-                    accounts[0],
-                    1,
-                    maturity,
-                    nextSettleTime,
-                    notional,
-                    "0x00",  # bitmap doesnt matter here
-                )
+                bitmapAssets.addifCashAsset(accounts[0], 1, maturity, nextSettleTime, notional)
 
                 if maturity <= START_TIME:
                     computedPV += notional
@@ -165,23 +168,11 @@ class TestBitmapAssets:
                     computedRiskPV += riskPv
 
         (pv, _) = bitmapAssets.getifCashNetPresentValue(
-            accounts[0],
-            1,
-            nextSettleTime,
-            START_TIME,
-            assetsBitmap,
-            cashGroup,
-            False,  # non risk adjusted
+            accounts[0], 1, nextSettleTime, START_TIME, cashGroup, False  # non risk adjusted
         )
 
         (riskPv, _) = bitmapAssets.getifCashNetPresentValue(
-            accounts[0],
-            1,
-            nextSettleTime,
-            START_TIME,
-            assetsBitmap,
-            cashGroup,
-            True,  # risk adjusted
+            accounts[0], 1, nextSettleTime, START_TIME, cashGroup, True  # risk adjusted
         )
 
         assert computedPV == pv
