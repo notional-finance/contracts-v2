@@ -92,8 +92,9 @@ library LiquidationHelpers {
             result = maxTotalBalance;
         }
 
+        // Allow the liquidator to go up to the default allowed amount which is always
+        // less than the maxTotalBalance
         if (liquidateAmountRequired < defaultAllowedAmount) {
-            // Allow the liquidator to go up to the default allowed amount
             result = defaultAllowedAmount;
         }
 
@@ -102,13 +103,6 @@ library LiquidationHelpers {
             result = userSpecifiedMaximum;
         }
 
-        /// @audit-ok liquidateAmountRequired > maxTotalBalance => maxTotalBalance
-        /// @audit-ok maxTotalBalance > liquidateAmountRequired => either liquidate amount required or defaultAllowedAmount
-        /// @audit-ok maxTotalBalance is always > defaultAllowedAmount
-        /// @audit-ok liquidateAmountRequired > defaultAllowedAmount => liquidateAmountRequired
-        /// @audit-ok defaultAllowedAmount > liquidateAmountRequired => defaultAllowedAmount
-        /// @audit-ok userSpecifiedMaximum < result => userSpecifiedMaximum
-        /// @audit-ok userSpecifiedMaximum > result => result
         return result;
     }
 
