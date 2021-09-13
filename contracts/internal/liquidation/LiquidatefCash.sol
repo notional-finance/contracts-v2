@@ -122,6 +122,7 @@ library LiquidatefCash {
             // account is undercollateralized and there is value in trading it's fCash for cash. The value
             // will be in the difference between the risk adjusted haircut value and the resulting cash it
             // receives from the liquidator. This will likely be a very small amount.
+
             // Formula here: convertToLocal(netETHFCShortfall) = localRequired * haircut
             // localRequired = convertToLocal(netETHFCShortfall) / haircut
             // haircut is used because localAssetAvailable > 0
@@ -132,8 +133,9 @@ library LiquidatefCash {
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(c.factors.localETHRate.haircut);
         } else {
-            // If local available is negative then we can bring it up to zero.
-            // @audit why is this the case?
+            // If local available is negative then we can bring it up to zero. In this case positive
+            // local collateral (either cash or fCash) will be exchanged for either removing debt (transfer
+            // of negative fCash) or purchasing positive fCash for cash (removing the haircut on fCash).
             c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
                 c.factors.localAssetAvailable.neg()
             );
@@ -366,7 +368,7 @@ library LiquidatefCash {
         }
 
         int256 localAssetCashFromLiquidator;
-        (fCashToLiquidate, localAssetCashFromLiquidator) = _calculateLocalToPurchaseUnderlying(
+        (fCashToLiquidate, localAssetCashFromLiquidator) = LiquidationHelpers.calculateLocalToPurchase(
             c.factors,
             c.liquidationDiscount,
             fCashLiquidationUnderlyingPV,
@@ -386,41 +388,6 @@ library LiquidatefCash {
         );
 
         return (fCashToLiquidate, localAssetCashFromLiquidator);
-    }
-
-    // @audit why not used LiquidationHelpers.calculateLocalToPurchase?
-    function _calculateLocalToPurchaseUnderlying(
-        LiquidationFactors memory factors,
-        int256 liquidationDiscount,
-        int256 fCashLiquidationUnderlyingPV,
-        int256 fCashToLiquidate
-    ) internal pure returns (int256, int256) {
-        // When purchasing fCash collateral, this returns the price in local. The formula is:
-        // fCashCollateralLiquidationPrice * rateDecimals / (CollateralRate/LocalRate * liquidationDiscount) 
-        int256 localUnderlyingFromLiquidator =
-            fCashLiquidationUnderlyingPV
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .mul(factors.localETHRate.rateDecimals)
-                // (ETH/LocalRate) / (ETH/CollateralRate) => (CollateralRate/LocalRate)
-                .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
-                .div(liquidationDiscount);
-
-        int256 localAssetFromLiquidator =
-            factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
-        int256 maxLocalAsset = factors.localAssetAvailable.neg();
-
-        if (localAssetFromLiquidator > maxLocalAsset) {
-            // If the local to purchase will put the local available into negative territory we
-            // have to cut the collateral purchase amount back. Putting local available into negative
-            // territory will force the liquidated account to incur more debt.
-
-            // This is still in underlying terms because it is multiplied by a ratio of two values in asset terms
-            fCashToLiquidate = fCashToLiquidate.mul(maxLocalAsset).div(localAssetFromLiquidator);
-
-            localAssetFromLiquidator = maxLocalAsset;
-        }
-
-        return (fCashToLiquidate, localAssetFromLiquidator);
     }
 
     /// @dev Finalizes fCash liquidation for both local and cross currency liquidation

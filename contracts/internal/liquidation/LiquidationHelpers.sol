@@ -146,13 +146,11 @@ library LiquidationHelpers {
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
-        int256 collateralAssetPresentValue,
+        int256 collateralUnderlyingPresentValue,
         int256 collateralAssetBalanceToSell
     ) internal pure returns (int256, int256) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 collateralUnderlyingPresentValue =
-            factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
         int256 localUnderlyingFromLiquidator =
             collateralUnderlyingPresentValue
                 .mul(Constants.PERCENTAGE_DECIMALS)
