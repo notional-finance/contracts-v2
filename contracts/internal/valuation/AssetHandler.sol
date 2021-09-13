@@ -83,7 +83,6 @@ library AssetHandler {
         uint256 blockTime,
         uint256 oracleRate
     ) internal pure returns (int256) {
-        // @audit could an incorrect cash group be passed into here?
         if (notional == 0) return 0;
         // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
         // discount matured assets.
@@ -204,7 +203,6 @@ library AssetHandler {
                 // WARNING: this modifies the portfolio in memory and therefore we cannot store this portfolio!
                 maybefCash.notional = maybefCash.notional.add(fCashClaim);
                 // This state will prevent the fCash asset from being stored.
-                // @audit test this claim
                 maybefCash.storageState = AssetStorageState.RevertIfStored;
                 return (assetCashClaim, 0);
             }

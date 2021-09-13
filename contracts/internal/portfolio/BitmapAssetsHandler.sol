@@ -233,6 +233,10 @@ library BitmapAssetsHandler {
         int256 tokensToRedeem,
         int256 totalSupply
     ) internal returns (PortfolioAsset[] memory) {
+        // It is not possible to redeem the entire token supply because some liquidity tokens must remain
+        // in the liquidity token portfolio in order to re-initialize markets.
+        require(tokensToRedeem < totalSupply, "Cannot redeem");
+
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
         mapping(address => mapping(uint256 =>
@@ -264,14 +268,6 @@ library BitmapAssetsHandler {
             // Turn off the bit and look for the next one
             assetsBitmap = assetsBitmap.setBit(bitNum, false);
             bitNum = assetsBitmap.getNextBitNum();
-        }
-
-        // If the entire token supply is redeemed then the assets bitmap will have been reduced to zero.
-        // Because solidity truncates division there will always be dust left unless the entire supply is
-        // redeemed.
-        if (tokensToRedeem == totalSupply) {
-            // @audit this actually cannot ever happen given the current nTokenRedeem rules
-            setAssetsBitmap(account, currencyId, 0x00);
         }
 
         return assets;

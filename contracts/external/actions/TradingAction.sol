@@ -254,15 +254,13 @@ library TradingAction {
         int256 netCash
     ) private returns (int256) {
         uint256 marketIndex = uint8(bytes1(trade << 8));
-        // @audit this loads the market in memory, consider having a return variable
+        // NOTE: this loads the market in memory
         cashGroup.loadMarket(market, marketIndex, true, block.timestamp);
 
         int256 cashAmount;
         int256 fCashAmount;
         int256 tokens;
         if (tradeType == TradeActionType.AddLiquidity) {
-            // @audit 256 - tradeType - marketIndex - 88 = 152 (shift left)
-            // @audit 256 - 8 - 8 - 88 = 152 (shift left)
             cashAmount = int256((uint256(trade) >> 152) & type(uint88).max);
             // Setting cash amount to zero will deposit all net cash accumulated in this trade into
             // liquidity. This feature allows accounts to borrow in one maturity to provide liquidity
@@ -274,17 +272,13 @@ library TradingAction {
             (tokens, fCashAmount) = market.addLiquidity(cashAmount);
             cashAmount = cashAmount.neg(); // Report a negative cash amount in the event
         } else {
-            // @audit 256 - 16 - 88 = 152 (shift left)
             tokens = int256((uint256(trade) >> 152) & type(uint88).max);
             (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
             tokens = tokens.neg(); // Report a negative amount tokens in the event
         }
 
         {
-            // @audit 256 - tradeType - marketIndex - fCashAmount - minImpliedRate = 152 (shift left)
-            // @audit 256 - 8 - 8 - 88 - 32 = 120 (shift left)
             uint256 minImpliedRate = uint32(uint256(trade) >> 120);
-            // @audit 120 - 32 = 88 (shift left)
             uint256 maxImpliedRate = uint32(uint256(trade) >> 88);
             // @audit-ok if minImpliedRate is not set then it will be zero
             require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
@@ -345,7 +339,7 @@ library TradingAction {
         )
     {
         uint256 marketIndex = uint256(uint8(bytes1(trade << 8)));
-        // @audit this loads the market in memory, consider having a return variable
+        // NOTE: this updates the market in memory
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         fCashAmount = int256(uint88(bytes11(trade << 16)));
@@ -395,9 +389,8 @@ library TradingAction {
             int256
         )
     {
-        // @audit-ok 256 - 8 - 160 = 88 (shift left)
         address counterparty = address(uint256(trade) >> 88);
-        // @audit allowing an account to settle itself would result in strange outcomes
+        // Allowing an account to settle itself would result in strange outcomes
         require(account != counterparty, "Cannot settle self");
         // @audit-ok amountToSettleAsset is the right most 88 bits
         int256 amountToSettleAsset = int256(uint88(uint256(trade)));
@@ -506,9 +499,9 @@ library TradingAction {
             int256
         )
     {
-        // @audit 256 - 8 - 32 == 216 (left shift)
+        // @audit-ok 256 - 8 - 32 == 216 (left shift)
         uint256 maturity = uint256(uint32(uint256(trade) >> 216));
-        // @audit 256 - 8 - 32 - 88 == 128 (left shift)
+        // @audit-ok 256 - 8 - 32 - 88 == 128 (left shift)
         int256 fCashAmountToPurchase = int88(uint88(uint256(trade) >> 128));
         require(maturity > blockTime, "Invalid maturity");
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
@@ -556,7 +549,7 @@ library TradingAction {
             revert("Invalid amount");
         }
 
-        // @audit if fCashAmount > 0 then this will return netAssetCash > 0, if fCashAmount < 0 this will return
+        // If fCashAmount > 0 then this will return netAssetCash > 0, if fCashAmount < 0 this will return
         // netAssetCash < 0. fCashAmount will go to the purchaser and netAssetCash will go to the nToken.
         int256 netAssetCashNToken =
             _getResidualPriceAssetCash(
@@ -572,7 +565,6 @@ library TradingAction {
             cashGroup.currencyId,
             maturity,
             lastInitializedTime,
-            // @audit does this turn to negative?
             fCashAmountToPurchase,
             netAssetCashNToken
         );

@@ -61,13 +61,9 @@ contract AccountAction is ActionGuards {
         uint16 currencyId,
         uint256 amountExternalPrecision
     ) external payable nonReentrant returns (uint256) {
-        requireValidAccount(account);
-        // No other authorization required on depositing
         // @audit-ok authentication uses msg.sender
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
-        // @audit-ok depositing to address zero may mess up reserve account
-        require(account != address(0)); // dev: cannot deposit to address zero
-        // @audit do not allow deposits to nToken
+        requireValidAccount(account);
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         BalanceState memory balanceState;
@@ -80,7 +76,6 @@ contract AccountAction is ActionGuards {
         int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             msg.sender,
             // @audit-ok checked overflow above
-            // @audit switch to safe int
             SafeInt256.toInt(amountExternalPrecision)
         );
 

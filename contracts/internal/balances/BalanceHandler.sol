@@ -81,7 +81,6 @@ library BalanceHandler {
         if (underlyingAmountExternal == 0) return 0;
         require(underlyingAmountExternal > 0); // dev: deposit underlying token negative
 
-        // @audit change getter to getUnderlyingToken or getAssetToken
         // @audit-ok gets the underlying token
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
         // This is the exact amount of underlying tokens the account has in external precision.
@@ -237,7 +236,7 @@ library BalanceHandler {
             // there will be no dust accrual in underlying tokens since we will transfer the exact amount
             // of underlying that was received.
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
-            // @audit underlyingAmountExternal is converted from uint to int inside, must be positive
+            // underlyingAmountExternal is converted from uint to int inside redeem, must be positive
             int256 underlyingAmountExternal = assetToken.redeem(
                 underlyingToken,
                 uint256(assetTransferAmountExternal.neg())
@@ -272,7 +271,6 @@ library BalanceHandler {
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
-        // @audit using storage slot directly would be more reliable here
         (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
             getBalanceStorage(account, cashGroup.currencyId);
 
@@ -300,7 +298,6 @@ library BalanceHandler {
             );
         }
 
-        // @audit-ok immediately update the storage here
         _setBalanceStorage(
             account,
             cashGroup.currencyId,
@@ -371,14 +368,12 @@ library BalanceHandler {
         uint256 currencyId,
         int256 cashBalance
     ) internal {
-        // @audit consider moving this to its own storage slot
         require(cashBalance >= 0); // dev: invalid nToken cash balance
         _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
     }
 
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
-        // @audit consider moving this to its own storage slot
         require(fee >= 0); // dev: invalid fee
         // prettier-ignore
         (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
@@ -473,8 +468,6 @@ library BalanceHandler {
         internal
         returns (uint256)
     {
-        // @audit maybe have this take a currency id instead of a balance state so that we don't
-        // update cash balances in an unintended way...
         uint256 incentivesClaimed = Incentives.claimIncentives(balanceState, account);
         _setBalanceStorage(
             account,

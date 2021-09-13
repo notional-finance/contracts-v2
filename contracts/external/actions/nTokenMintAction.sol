@@ -134,7 +134,6 @@ library nTokenMintAction {
                 assetCashDeposit
                     // @audit-ok min market index = 1
                     .mul(depositShares[marketIndex - 1])
-                    // @audit change this to rate precision
                     .div(Constants.DEPOSIT_PERCENT_BASIS)
                     .add(residualCash);
 
@@ -158,7 +157,7 @@ library nTokenMintAction {
             }
         }
 
-        // @audit consider renaming this method as storeLiquidityTokenAssets and putting it on the nToken itself
+        // nToken is allowed to store assets directly without updating account context.
         nToken.portfolioState.storeAssets(nToken.tokenAddress);
 
         // Defensive check to ensure that we do not somehow accrue negative residual cash.
@@ -261,7 +260,6 @@ library nTokenMintAction {
         );
 
         // This will update the market state as well, fCashAmount returned here is negative
-        // @audit this should set the market state immediately
         (int256 liquidityTokens, int256 fCashAmount) = market.addLiquidity(perMarketDeposit);
         asset.notional = asset.notional.add(liquidityTokens);
         asset.storageState = AssetStorageState.Update;

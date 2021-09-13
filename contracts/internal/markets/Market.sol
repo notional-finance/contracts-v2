@@ -285,7 +285,6 @@ library Market {
             fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(fee).neg();
         }
 
-        // @audit change this to rate precision
         int256 cashToReserve =
             fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS);
 
@@ -452,7 +451,7 @@ library Market {
     /// defined as ln(proportion / (1 - proportion)). Special handling here is required to deal with
     /// fixed point precision and the ABDK library.
     function _logProportion(int256 proportion) internal pure returns (int256, bool) {
-        // @audit this will result in divide by zero, short circuit
+        // @audit-ok this will result in divide by zero, short circuit
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
         proportion = proportion.divInRatePrecision(Constants.RATE_PRECISION.sub(proportion));

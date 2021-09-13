@@ -230,7 +230,6 @@ library FreeCollateral {
         if (accountContext.isBitmapEnabled()) {
             factors.cashGroup = CashGroup.buildCashGroupStateful(accountContext.bitmapCurrencyId);
 
-            // @audit can we merge this with the view version
             // prettier-ignore
             (
                 int256 netCashBalance,

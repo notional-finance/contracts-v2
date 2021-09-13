@@ -84,7 +84,6 @@ library LiquidationHelpers {
         // By default, the liquidator is allowed to purchase at least to `defaultAllowedAmount`
         // if `liquidateAmountRequired` is less than `defaultAllowedAmount`.
         int256 defaultAllowedAmount =
-        // @audit change this to rate precision
             maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
             );
@@ -133,7 +132,6 @@ library LiquidationHelpers {
                 .collateralETHRate
                 // @audit-ok netETHValue must be negative to be in liquidation
                 .convertETHTo(factors.netETHValue.neg())
-                // @audit convert to rate precision
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(factors.collateralETHRate.haircut)
         );
@@ -162,7 +160,6 @@ library LiquidationHelpers {
             factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
         int256 localUnderlyingFromLiquidator =
             collateralUnderlyingPresentValue
-            // @audit convert to rate decimals
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .mul(factors.localETHRate.rateDecimals)
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
@@ -215,7 +212,6 @@ library LiquidationHelpers {
             ); // dev: token has transfer fee, no liquidator balance
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            // @audit what happens if there is re-entrancy here, balances are not yet finalized
             token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
         }
         // @audit-ok

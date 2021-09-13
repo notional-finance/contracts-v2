@@ -83,7 +83,6 @@ library CashGroup {
         ); // dev: liquidity haircut invalid asset type
         uint256 offset =
             LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - Constants.MIN_LIQUIDITY_TOKEN_INDEX);
-        // @audit change this to rate precision
         return uint8(uint256(cashGroup.data >> offset));
     }
 
@@ -98,7 +97,6 @@ library CashGroup {
         pure
         returns (int256)
     {
-        // @audit change this to rate precision
         return uint8(uint256(cashGroup.data >> RESERVE_FEE_SHARE));
     }
 

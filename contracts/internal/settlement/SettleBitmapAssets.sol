@@ -31,7 +31,6 @@ library SettleBitmapAssets {
         uint256 oldSettleTime,
         uint256 blockTime
     ) internal returns (int256 totalAssetCash, uint256 newSettleTime) {
-        // @audit just have this set the bitmap instead of returning it
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
         // This newSettleTime will be set to the new `oldSettleTime`. The bits between 1 and
@@ -75,7 +74,6 @@ library SettleBitmapAssets {
             nextBitNum = bitmap.getNextBitNum();
         }
 
-        // @audit set the new bitmap in here
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
     }
 

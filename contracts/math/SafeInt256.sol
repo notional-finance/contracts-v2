@@ -39,17 +39,15 @@ library SafeInt256 {
     }
 
     function sub(int256 x, int256 y) internal pure returns (int256 z) {
-        // @audit taken from uniswap v3
+        //  taken from uniswap v3
         require((z = x - y) <= x == (y >= 0));
     }
 
     function add(int256 x, int256 y) internal pure returns (int256 z) {
-        // @audit taken from uniswap v3
         require((z = x + y) >= x == (y >= 0));
     }
 
     function neg(int256 x) internal pure returns (int256 y) {
-        // @audit abdk formula does not work?
         return mul(-1, x);
     }
 

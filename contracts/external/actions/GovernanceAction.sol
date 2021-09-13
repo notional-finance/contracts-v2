@@ -392,7 +392,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
                 // If currencyId is one then this is referring to cETH and there is no underlying() to call
                 underlyingDecimals = Constants.ETH_DECIMAL_PLACES;
             } else {
-                // @audit consider moving the normalization into the adapter...
                 address underlyingToken = AssetRateAdapter(rateOracle).underlying();
                 underlyingDecimals = ERC20(underlyingToken).decimals();
             }

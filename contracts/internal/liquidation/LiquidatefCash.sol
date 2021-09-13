@@ -149,10 +149,9 @@ library LiquidatefCash {
             if (notional < 0) require(c.localCashBalanceUnderlying >= 0); // dev: insufficient cash balance
             if (notional == 0) continue;
 
-            // @audit is this true?
             // If notional > 0 then liquidation discount > risk adjusted discount
             //    this is because the liquidation oracle rate < risk adjusted oracle rate
-            // if notional < 0 then liquidation discount < risk adjusted discount
+            // If notional < 0 then liquidation discount < risk adjusted discount
             //    this is because the liquidation oracle rate > risk adjusted oracle rate
             (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
                 _calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime, notional > 0);
@@ -266,8 +265,7 @@ library LiquidatefCash {
 
             if (
                 c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST ||
-                // @audit why can this go negative?
-                c.factors.collateralAssetAvailable <= 0
+                c.factors.collateralAssetAvailable == 0
             ) break;
         }
     }
@@ -389,7 +387,7 @@ library LiquidatefCash {
             c.factors.cashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
         );
         c.factors.localAssetAvailable = c.factors.localAssetAvailable.add(
-            // @audit this cannot be negative
+            // @audit-ok this cannot be negative
             localAssetCashFromLiquidator
         );
 

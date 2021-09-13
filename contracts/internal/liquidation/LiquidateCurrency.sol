@@ -81,7 +81,6 @@ library LiquidateCurrency {
                     int256(
                         uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
                             uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
-                    // @audit convert to rate precision here instead
                     ) * Constants.PERCENTAGE_DECIMALS;
 
                 // This will calculate how much nTokens to liquidate given the "assetBenefitRequired" calculated above.
@@ -307,7 +306,7 @@ library LiquidateCurrency {
         );
 
         // Enforce the user specified max liquidation amount
-        // @audit why is this here?
+        // @audit why is this here instead of above
         if (
             maxCollateralLiquidation > 0 && requiredCollateralAssetCash > maxCollateralLiquidation
         ) {
@@ -340,7 +339,7 @@ library LiquidateCurrency {
         // See longer comment in `liquidateLocalCurrency`, the main difference here is that we know how much
         // collateral we want to raise instead of calculating a "benefitGained" difference in a single currency.
         // collateralToRaise = (tokensToLiquidate * nTokenAssetPV * LIQUIDATION_HAIRCUT) / totalSupply
-        // @audit cDAI = nDAI * cDAI * % / nDAI
+        // @audit-ok cDAI = nDAI * cDAI * % / nDAI
         // where:
         //    nTokenHaircutAssetValue = (tokenBalance * nTokenAssetPV * PV_HAIRCUT_PERCENTAGE) / totalSupply
         //    nTokenAssetPV = (nTokenHaircutAssetValue * totalSupply) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)

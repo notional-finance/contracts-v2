@@ -391,18 +391,18 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
         // The transacted account will have its free collateral checked above so there is
         // no need to recheck here.
-        // @audit if transactedAccount == 0 then will check fc
-        // @audit if transactedAccount == to then will check fc
-        // @audit if transactedAccount == from then will skip prefer call above
+        // @audit-ok if transactedAccount == 0 then will check fc
+        // @audit-ok if transactedAccount == to then will check fc
+        // @audit-ok if transactedAccount == from then will skip prefer call above
         if (transactedAccount != from && fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
 
         // Check free collateral if the `to` account has taken on a negative fCash amount
-        // @audit toTransferNegative is false then will not check
-        // @audit if transactedAccount == 0 then will check fc
-        // @audit if transactedAccount == from then will check fc
-        // @audit if transactedAccount == to then will skip prefer call above
+        // @audit-ok toTransferNegative is false then will not check
+        // @audit-ok if transactedAccount == 0 then will check fc
+        // @audit-ok if transactedAccount == from then will check fc
+        // @audit-ok if transactedAccount == to then will skip prefer call above
         if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(to);
         }

@@ -75,7 +75,6 @@ library InitializeMarketsAction {
         // bitmap fCash assets. We don't set the pointer to the settlement date of the liquidity
         // tokens (1 quarter away), instead we set it to the current block time. This is a bit
         // esoteric but will ensure that ifCash is never improperly settled.
-        // @audit can we move this to a more obvious place?
         // @audit-ok if last initialized time == reference time then this will fail, that is the correct
         // behavior since initialization begins at lastInitializedTime. if last initialized time >= reference time
         // then the markets have been initialized for the quarter.
@@ -90,7 +89,6 @@ library InitializeMarketsAction {
             nToken.cashBalance = nToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
-        // @audit maybe have settle bitmap assets just set the bitmap inside
         (int256 settledAssetCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
@@ -102,7 +100,7 @@ library InitializeMarketsAction {
         nToken.cashBalance = nToken.cashBalance.add(settledAssetCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
-        // @audit change this data type
+        require(blockTimeUTC0 <= type(uint40).max);
         nToken.lastInitializedTime = uint40(blockTimeUTC0);
     }
 
@@ -312,7 +310,6 @@ library InitializeMarketsAction {
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
         require(
-            // @audit change this to rate precision
             netAssetCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS),
             "IM: insufficient cash"
         );
@@ -454,7 +451,6 @@ library InitializeMarketsAction {
         nTokenPortfolio memory nToken
     ) private pure returns (int256) {
         // The portion of the cash available that will be deposited into the market
-        // @audit change deposit percent basis to rate precision
         int256 assetCashToMarket =
             netAssetCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
         // @audit-ok we are initializing the values here

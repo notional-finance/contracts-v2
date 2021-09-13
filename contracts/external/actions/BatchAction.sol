@@ -90,7 +90,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         address account,
         BalanceActionWithTrades[] calldata actions,
         bytes calldata callbackData
-    ) external payable nonReentrant {
+    ) external payable {
+        // NOTE: Re-entrancy is allowed for authorized callback functions.
         // @audit-ok authorization
         require(authorizedCallbackContract[msg.sender], "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
@@ -128,7 +129,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // Loads the currencyId into balance state
             balanceState.loadBalanceState(account, action.currencyId, accountContext);
 
-            // @audit we do not revert on invalid action types here, they also have no effect
+            // Does not revert on invalid action types here, they also have no effect.
             _executeDepositAction(
                 account,
                 balanceState,
@@ -185,7 +186,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         // then all the assets have already been updated in in storage.
         if (!accountContext.isBitmapEnabled()) {
             // NOTE: account context is updated in memory inside this method call.
-            // @audit have account context return here to make it more explicit
             accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
 

@@ -127,6 +127,8 @@ contract nTokenRedeemAction {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
+        // nTokens cannot be redeemed during the period of time where they require settlement.
+        require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
 
         // Get the assetCash and fCash assets as a result of redeeming tokens
         (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
@@ -158,12 +160,7 @@ contract nTokenRedeemAction {
         int256 tokensToRedeem,
         uint256 blockTime
     ) private returns (PortfolioAsset[] memory, int256) {
-        // @audit move this higher up
-        // @audit consider moving this into a function that returns a bool
-        require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
-
         // Get share of ifCash assets to remove
-        // @audit move this method into this library
         PortfolioAsset[] memory newifCashAssets =
             BitmapAssetsHandler.reduceifCashAssetsProportional(
                 nToken.tokenAddress,
@@ -186,8 +183,8 @@ contract nTokenRedeemAction {
             );
         }
 
-        // Get share of liquidity tokens to remove
-        // @audit this modifies newifCashAssets in memory, consider returning it to be more explicit
+        // Get share of liquidity tokens to remove, newifCashAssets is modified in memory
+        // during this method.
         assetCashShare = assetCashShare.add(
             _removeLiquidityTokens(
                 nToken,
@@ -266,7 +263,6 @@ contract nTokenRedeemAction {
                 );
             }
         }
-        // @audit we should immediately update the nToken portfolio here.
 
         return totalAssetCash;
     }

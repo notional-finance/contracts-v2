@@ -125,9 +125,9 @@ library DateTime {
             // @audit-ok
             return (daysOffset, true);
         } else if (daysOffset <= Constants.MAX_WEEK_OFFSET) {
-            // @audit (daysOffset - MAX_DAY_OFFSET) is the days overflow into the week portion
-            // @audit (daysOffset - MAX_DAY_OFFSET) must be gt 0
-            // @audit (blockTimeUTC0 % WEEK) / DAY is the offset into the week portion
+            // @audit-ok (daysOffset - MAX_DAY_OFFSET) is the days overflow into the week portion
+            // @audit-ok (daysOffset - MAX_DAY_OFFSET) must be gt 0
+            // @audit-ok (blockTimeUTC0 % WEEK) / DAY is the offset into the week portion
             // This returns the offset from the previous max offset in days
             uint256 offsetInDays =
                 daysOffset -

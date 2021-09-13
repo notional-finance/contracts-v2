@@ -144,7 +144,6 @@ library AccountContextHandler {
         ///      - it must be set to active, check that the last two bytes are not set and then
         ///        append to the prefix
         ///      - it must be set to inactive, do nothing
-        // @audit consider simplifying this loop to use a binary search so it is easier to test and audit
         while (suffix != 0x00) {
             uint256 cid = uint256(uint16(bytes2(suffix) & Constants.UNMASK_FLAGS));
             // if matches and isActive then return, already in list
