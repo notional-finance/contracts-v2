@@ -47,7 +47,7 @@ def deployNoteERC20(deployer):
     if network.show_active() == "sandbox":
         deployer = accounts.load("DEVELOPMENT_DEPLOYER")
         accounts[0].transfer(deployer, 100e18)
-    elif network.show_active() == "development":
+    elif network.show_active() == "development" or network.show_active() == "hardhat":
         deployer = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
 
     # Deploy governance contracts
