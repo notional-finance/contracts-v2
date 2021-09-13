@@ -26,7 +26,7 @@ def main():
     print("Deployed Governor to {}".format(newGovernor.address))
 
     verify(
-        "0x086b4ecD75c494dD36641195E89c25373E06d7cB",
+        newGovernor.address,
         [
             str(GovernanceConfig["governorConfig"]["quorumVotes"]),
             str(GovernanceConfig["governorConfig"]["proposalThreshold"]),
@@ -35,5 +35,11 @@ def main():
             noteERC20.address,
             EnvironmentConfig[networkName]["GuardianMultisig"],
             str(GovernanceConfig["governorConfig"]["minDelay"]),
+            str(0),
         ],
     )
+
+    # Encoding for transfer of NOTE tokens to new governor
+    # n = web3.eth.contract(abi=NoteERC20.abi)
+    # n.encodeABI(fn_name="transfer", args=[newGovernor.address,
+    #   noteERC20.balanceOf(governor.address)])
