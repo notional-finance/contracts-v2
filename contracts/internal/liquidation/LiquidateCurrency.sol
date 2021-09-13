@@ -222,10 +222,10 @@ library LiquidateCurrency {
         }
 
         if (collateralAssetRemaining > 0) {
-            // If there is any collateral asset remaining then recalculate the localAssetCashFromLiquidator, the
-            // last two parameters are the same because they are denominated in asset cash values which are always
-            // present value.
+            // If there is any collateral asset remaining then recalculate the localAssetCashFromLiquidator.
             int256 actualCollateralAssetSold = requiredCollateralAssetCash.sub(collateralAssetRemaining);
+            int256 collateralUnderlyingPresentValue =
+                factors.cashGroup.assetRate.convertToUnderlying(actualCollateralAssetSold);
             // prettier-ignore
             (
                 /* collateralToRaise */,
@@ -233,7 +233,7 @@ library LiquidateCurrency {
             ) = LiquidationHelpers.calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
-                actualCollateralAssetSold,
+                collateralUnderlyingPresentValue,
                 actualCollateralAssetSold
             );
         }

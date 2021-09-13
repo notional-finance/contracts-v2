@@ -154,9 +154,9 @@ library LiquidationHelpers {
 
         int256 localAssetFromLiquidator =
             factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
+        // localAssetAvailable must be negative in cross currency liquidations
         int256 maxLocalAsset = factors.localAssetAvailable.neg();
 
-        // localAssetAvailable must be negative in cross currency liquidations
         if (localAssetFromLiquidator > maxLocalAsset) {
             // If the local to purchase will flip the sign of localAssetAvailable then the calculations
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
