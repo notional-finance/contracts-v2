@@ -366,7 +366,7 @@ library PortfolioHandler {
         // No sorting required for length of 1
         if (assets.length <= 1) return assets;
 
-        _quickSortInPlace(assets, 0, int256(assets.length) - 1);
+        _sortInPlace(assets);
         return assets;
     }
 
@@ -388,34 +388,27 @@ library PortfolioHandler {
         return state;
     }
 
-    /// @dev These ids determine the sort order of assets
-    function _getEncodedId(PortfolioAsset memory asset) private pure returns (uint256) {
-        return TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
-    }
-
-    function _quickSortInPlace(
-        PortfolioAsset[] memory assets,
-        int256 left,
-        int256 right
-    ) private pure {
-        if (left == right) return;
-        int256 i = left;
-        int256 j = right;
-
-        // @audit calculate the encoded id once at the beginning
-        uint256 pivot = _getEncodedId(assets[uint256(left + (right - left) / 2)]);
-        while (i <= j) {
-            while (_getEncodedId(assets[uint256(i)]) < pivot) i++;
-            while (pivot < _getEncodedId(assets[uint256(j)])) j--;
-            if (i <= j) {
-                (assets[uint256(i)], assets[uint256(j)]) = (assets[uint256(j)], assets[uint256(i)]);
-                i++;
-                j--;
-            }
+    function _sortInPlace(PortfolioAsset[] memory assets) private pure {
+        uint256 length = assets.length;
+        uint256[] memory ids = new uint256[](length);
+        for (uint256 i; i < length; i++) {
+            PortfolioAsset memory asset = assets[i];
+            // Prepopulate the ids to calculate just once
+            ids[i] = TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
         }
 
-        if (left < j) _quickSortInPlace(assets, left, j);
-        if (i < right) _quickSortInPlace(assets, i, right);
+        // Uses insertion sort 
+        uint256 i = 1;
+        while (i < length) {
+            uint256 j = i;
+            while (j > 0 && ids[j - 1] > ids[j]) {
+                // Swap j - 1 and j
+                (ids[j - 1], ids[j]) = (ids[j], ids[j - 1]);
+                (assets[j - 1], assets[j]) = (assets[j], assets[j - 1]);
+                j--;
+            }
+            i++;
+        }
     }
 
     function _loadAssetArray(address account, uint8 length)
