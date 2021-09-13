@@ -33,7 +33,7 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
                     tokenDecimals,
                     0,
                 ),
-                (zeroAddress, False, 0, 0),
+                (zeroAddress, False, 0, 0, 0),
                 v2env.ethOracle[symbol].address,
                 False,
                 buffer,

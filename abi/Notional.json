@@ -29,13 +29,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "account",
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -128,7 +128,7 @@
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -166,13 +166,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "account",
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -193,12 +193,6 @@
                 "indexed": false,
                 "internalType": "int256",
                 "name": "netfCash",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netFee",
                 "type": "int256"
             }
         ],
@@ -396,13 +390,32 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
                 "indexed": false,
+                "internalType": "int256",
+                "name": "fee",
+                "type": "int256"
+            }
+        ],
+        "name": "ReserveFeeAccrued",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "currencyId",
                 "type": "uint256"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
                 "name": "maturity",
                 "type": "uint256"
@@ -421,13 +434,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "settledAccount",
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -743,13 +756,13 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint40",
                 "name": "maturity",
                 "type": "uint40"
@@ -780,7 +793,7 @@
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -1016,14 +1029,14 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "collateralCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint128",
@@ -1065,9 +1078,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint96",
@@ -1123,14 +1136,14 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "fCashCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256[]",
@@ -1167,9 +1180,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256[]",
@@ -1333,7 +1346,7 @@
                 "type": "uint16"
             },
             {
-                "internalType": "address",
+                "internalType": "contract AssetRateAdapter",
                 "name": "assetRateOracle",
                 "type": "address"
             },
@@ -1489,9 +1502,9 @@
             {
                 "components": [
                     {
-                        "internalType": "uint256",
+                        "internalType": "uint16",
                         "name": "currencyId",
-                        "type": "uint256"
+                        "type": "uint16"
                     },
                     {
                         "internalType": "int256",
@@ -1741,11 +1754,6 @@
                         "internalType": "uint256",
                         "name": "previousTradeTime",
                         "type": "uint256"
-                    },
-                    {
-                        "internalType": "bytes1",
-                        "name": "storageState",
-                        "type": "bytes1"
                     }
                 ],
                 "internalType": "struct MarketParameters[]",
@@ -1812,11 +1820,6 @@
                         "internalType": "uint256",
                         "name": "previousTradeTime",
                         "type": "uint256"
-                    },
-                    {
-                        "internalType": "bytes1",
-                        "name": "storageState",
-                        "type": "bytes1"
                     }
                 ],
                 "internalType": "struct MarketParameters[]",
@@ -1835,9 +1838,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "currencyId",
-                "type": "uint256"
+                "type": "uint16"
             }
         ],
         "name": "getAssetsBitmap",
@@ -2041,7 +2044,7 @@
             {
                 "components": [
                     {
-                        "internalType": "address",
+                        "internalType": "contract AssetRateAdapter",
                         "name": "rateOracle",
                         "type": "address"
                     },
@@ -2251,7 +2254,7 @@
             {
                 "components": [
                     {
-                        "internalType": "address",
+                        "internalType": "contract AssetRateAdapter",
                         "name": "rateOracle",
                         "type": "address"
                     },
@@ -2379,6 +2382,77 @@
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "settlementDate",
+                "type": "uint256"
+            }
+        ],
+        "name": "getMarket",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "storageSlot",
+                        "type": "bytes32"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "maturity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "totalfCash",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "totalAssetCash",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "totalLiquidity",
+                        "type": "int256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "lastImpliedRate",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "oracleRate",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "previousTradeTime",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MarketParameters",
+                "name": "",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "getMaxCurrencyId",
         "outputs": [
@@ -2402,9 +2476,9 @@
         "name": "getNTokenAccount",
         "outputs": [
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "currencyId",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256",
@@ -2422,9 +2496,9 @@
                 "type": "uint256"
             },
             {
-                "internalType": "bytes6",
+                "internalType": "bytes5",
                 "name": "nTokenParameters",
-                "type": "bytes6"
+                "type": "bytes5"
             },
             {
                 "internalType": "int256",
@@ -2535,7 +2609,7 @@
     },
     {
         "inputs": [],
-        "name": "getOwner",
+        "name": "getNoteToken",
         "outputs": [
             {
                 "internalType": "address",
@@ -2559,7 +2633,7 @@
             {
                 "components": [
                     {
-                        "internalType": "address",
+                        "internalType": "contract AggregatorV2V3Interface",
                         "name": "rateOracle",
                         "type": "address"
                     },
@@ -2596,7 +2670,7 @@
             {
                 "components": [
                     {
-                        "internalType": "address",
+                        "internalType": "contract AssetRateAdapter",
                         "name": "rateOracle",
                         "type": "address"
                     },
@@ -2651,7 +2725,7 @@
             {
                 "components": [
                     {
-                        "internalType": "address",
+                        "internalType": "contract AssetRateAdapter",
                         "name": "rateOracle",
                         "type": "address"
                     },
@@ -2716,9 +2790,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "currencyId",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256",
@@ -2740,9 +2814,9 @@
     {
         "inputs": [
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "currencyId",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "bool",
@@ -2787,14 +2861,14 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "collateralCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint128",
@@ -2846,9 +2920,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint96",
@@ -2880,14 +2954,14 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "fCashCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256[]",
@@ -2924,9 +2998,9 @@
                 "type": "address"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint16",
                 "name": "localCurrency",
-                "type": "uint256"
+                "type": "uint16"
             },
             {
                 "internalType": "uint256[]",
@@ -2975,6 +3049,11 @@
                         "type": "uint8"
                     },
                     {
+                        "internalType": "uint8",
+                        "name": "decimalPlaces",
+                        "type": "uint8"
+                    },
+                    {
                         "internalType": "uint72",
                         "name": "maxCollateralBalance",
                         "type": "uint72"
@@ -3002,6 +3081,11 @@
                         "type": "uint8"
                     },
                     {
+                        "internalType": "uint8",
+                        "name": "decimalPlaces",
+                        "type": "uint8"
+                    },
+                    {
                         "internalType": "uint72",
                         "name": "maxCollateralBalance",
                         "type": "uint72"
@@ -3012,7 +3096,7 @@
                 "type": "tuple"
             },
             {
-                "internalType": "address",
+                "internalType": "contract AggregatorV2V3Interface",
                 "name": "rateOracle",
                 "type": "address"
             },
@@ -3038,7 +3122,13 @@
             }
         ],
         "name": "listCurrency",
-        "outputs": [],
+        "outputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "function"
     },
@@ -3585,7 +3675,7 @@
                 "type": "uint16"
             },
             {
-                "internalType": "address",
+                "internalType": "contract AssetRateAdapter",
                 "name": "rateOracle",
                 "type": "address"
             }
@@ -3719,7 +3809,7 @@
                 "type": "uint16"
             },
             {
-                "internalType": "address",
+                "internalType": "contract AggregatorV2V3Interface",
                 "name": "rateOracle",
                 "type": "address"
             },

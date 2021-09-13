@@ -22,7 +22,7 @@
                 "type": "uint32"
             },
             {
-                "internalType": "address",
+                "internalType": "contract INoteERC20",
                 "name": "note_",
                 "type": "address"
             },
@@ -34,6 +34,11 @@
             {
                 "internalType": "uint256",
                 "name": "minDelay_",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "proposalCount_",
                 "type": "uint256"
             }
         ],
