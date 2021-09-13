@@ -60,6 +60,9 @@ contract Router is StorageLayoutV1 {
         LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
         DEPLOYER = msg.sender;
+
+        // This will lock everyone from calling initialize on the implementation contract
+        hasInitialized = true;
     }
 
     function initialize(address owner_, address pauseRouter_, address pauseGuardian_) public {

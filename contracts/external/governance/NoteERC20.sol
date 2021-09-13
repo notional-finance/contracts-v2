@@ -85,6 +85,11 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     /// @notice The standard EIP-20 approval event
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
+    constructor() initializer {
+        // Making the constructor also an initializer will lock everyone
+        // from calling initialize on the implementation contract.
+    }
+
     /// @notice Initialize note token with initial grants
     /// @param initialAccounts initial address to grant tokens to
     /// @param initialGrantAmount amount to grant address initially
