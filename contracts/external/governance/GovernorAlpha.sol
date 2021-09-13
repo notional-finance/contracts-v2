@@ -167,6 +167,7 @@ contract GovernorAlpha is TimelockController {
         votingPeriodBlocks = votingPeriodBlocks_;
         note = note_;
         guardian = guardian_;
+        proposalCount = proposalCount_;
 
         // Only the external methods can be used to execute governance
         grantRole(PROPOSER_ROLE, address(this));
