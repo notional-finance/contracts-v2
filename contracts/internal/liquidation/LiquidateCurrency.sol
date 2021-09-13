@@ -282,26 +282,19 @@ library LiquidateCurrency {
         requiredCollateralAssetCash = LiquidationHelpers.calculateLiquidationAmount(
             requiredCollateralAssetCash,
             factors.collateralAssetAvailable,
-            0 // will check userSpecifiedAmount below
+            maxCollateralLiquidation
         );
-
-        // Enforce the user specified max liquidation amount
-        // @audit why is this here instead of above
-        if (
-            maxCollateralLiquidation > 0 && requiredCollateralAssetCash > maxCollateralLiquidation
-        ) {
-            requiredCollateralAssetCash = maxCollateralLiquidation;
-        }
 
         // In this case the collateral asset present value and the collateral asset balance to sell are the same
         // value since cash is always equal to present value. That is why the last two parameters in calculateLocalToPurchase
         // are the same value.
-        // prettier-ignore
+        int256 collateralUnderlyingPresentValue =
+            factors.cashGroup.assetRate.convertToUnderlying(requiredCollateralAssetCash);
         (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
             .calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
-                requiredCollateralAssetCash,
+                collateralUnderlyingPresentValue,
                 requiredCollateralAssetCash
             );
 
