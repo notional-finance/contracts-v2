@@ -92,7 +92,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address spender,
         uint256 amount
     ) external override returns (bool) {
-        // @audit-ok authentication
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(tokenHolder != address(0));
@@ -114,7 +113,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address to,
         uint256 amount
     ) external override returns (bool) {
-        // @audit-ok authentication
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
@@ -138,7 +136,6 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address to,
         uint256 amount
     ) external override returns (bool) {
-        // @audit-ok authentication
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
@@ -174,11 +171,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         override
         returns (bool)
     {
-        // @audit-ok authentication msg.sender
         nTokenWhitelist[msg.sender][spender] = amount;
-
         emit Approval(msg.sender, spender, amount);
-
         return true;
     }
 
@@ -194,7 +188,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
-                // @audit-ok balance state is updated inside claim incentives manual
+                // balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = balanceState.claimIncentivesManual(account);
             }
         }
@@ -205,7 +199,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
 
             balanceState.loadBalanceState(account, currencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
-                // @audit-ok balance state is updated inside claim incentives manual
+                // balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = totalIncentivesClaimed
                     .add(balanceState.claimIncentivesManual(account));
             }

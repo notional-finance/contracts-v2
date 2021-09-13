@@ -57,7 +57,6 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (Token memory assetToken, Token memory underlyingToken)
     {
-        // @audit this check adds 2000+ gas every time, not sure if it is worth it...
         _checkValidCurrency(currencyId);
         assetToken = TokenHandler.getAssetToken(currencyId);
         underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
@@ -471,7 +470,6 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (uint256)
     {
         _checkValidCurrency(currencyId);
-        // @audit-ok we get the asset token to calculate deposit amount
         Token memory token = TokenHandler.getAssetToken(currencyId);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));

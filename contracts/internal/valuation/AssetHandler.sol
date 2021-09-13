@@ -30,7 +30,6 @@ library AssetHandler {
         // 3 month tokens and fCash tokens settle at maturity
         if (asset.assetType <= Constants.MIN_LIQUIDITY_TOKEN_INDEX) return asset.maturity;
 
-        // @audit-ok no underflow possible
         uint256 marketLength = DateTime.getTradedMarket(asset.assetType - 1);
         // Liquidity tokens settle at tRef + 90 days. The formula to get a maturity is:
         // maturity = tRef + marketLength
@@ -103,7 +102,6 @@ library AssetHandler {
             // absolutely required.
             if (debtBuffer >= oracleRate) return notional;
 
-            // @audit-ok overflow checked above
             discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
         }
 
@@ -117,7 +115,6 @@ library AssetHandler {
         pure
         returns (int256 assetCash, int256 fCash)
     {
-        // @audit-ok
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
         assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
@@ -130,7 +127,6 @@ library AssetHandler {
         MarketParameters memory market,
         CashGroupParameters memory cashGroup
     ) internal pure returns (int256 assetCash, int256 fCash) {
-        // @audit-ok
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset get haircut cash claims
 
         require(token.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
@@ -266,12 +262,11 @@ library AssetHandler {
             PortfolioAsset memory a = assets[j];
             if (a.assetType != Constants.FCASH_ASSET_TYPE) continue;
             // If we hit a different currency id then we've accounted for all assets in this currency
-            // @audit-ok j will mark the index where we don't have this currency anymore
+            // j will mark the index where we don't have this currency anymore
             if (a.currencyId != cashGroup.currencyId) break;
 
             uint256 oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
 
-            // @audit-ok cash group must equal currency id
             int256 pv =
                 getRiskAdjustedPresentfCashValue(
                     cashGroup,

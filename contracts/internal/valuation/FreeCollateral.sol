@@ -32,7 +32,6 @@ library FreeCollateral {
 
     /// @notice Checks if an asset is active in the portfolio
     function _isActiveInPortfolio(bytes2 currencyBytes) private pure returns (bool) {
-        // @audit-ok
         return currencyBytes & Constants.ACTIVE_IN_PORTFOLIO == Constants.ACTIVE_IN_PORTFOLIO;
     }
 
@@ -43,7 +42,6 @@ library FreeCollateral {
         view
         returns (int256, int256)
     {
-        // @audit-ok
         if (currencyBytes & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
             uint256 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
             // prettier-ignore
@@ -73,7 +71,7 @@ library FreeCollateral {
 
         int256 nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
 
-        // @audit-ok (tokenBalance * nTokenValue * haircut) / totalSupply
+        // (tokenBalance * nTokenValue * haircut) / totalSupply
         int256 nTokenHaircutAssetPV =
             tokenBalance
                 .mul(nTokenAssetPV)
@@ -106,7 +104,7 @@ library FreeCollateral {
             factors.portfolioIndex < factors.portfolio.length &&
             factors.portfolio[factors.portfolioIndex].currencyId == factors.cashGroup.currencyId
         ) {
-            // @audit-ok returns value in asset cash
+            // netPortfolioValue is in asset cash
             (netPortfolioValue, factors.portfolioIndex) = AssetHandler.getNetCashGroupValue(
                 factors.portfolio,
                 factors.cashGroup,
@@ -119,7 +117,6 @@ library FreeCollateral {
         }
 
         if (nTokenBalance > 0) {
-            // @audit-ok
             (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
                 factors.nToken,
@@ -147,7 +144,6 @@ library FreeCollateral {
             bytes6 nTokenParameters
         )
     {
-        // @audit-ok
         int256 nTokenBalance;
         // prettier-ignore
         (
@@ -190,16 +186,16 @@ library FreeCollateral {
         bool contextHasAssetDebt =
             accountContext.hasDebt & Constants.HAS_ASSET_DEBT == Constants.HAS_ASSET_DEBT;
         if (bitmapHasDebt && !contextHasAssetDebt) {
-            // @audit-ok turn on has debt
+            // Turn on has debt
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
             factors.updateContext = true;
         } else if (!bitmapHasDebt && contextHasAssetDebt) {
-            // @audit-ok turn off has debt
+            // Turn off has debt
             accountContext.hasDebt = accountContext.hasDebt & ~Constants.HAS_ASSET_DEBT;
             factors.updateContext = true;
         }
 
-        // @audit-ok return asset cash value
+        // Return asset cash value
         return factors.cashGroup.assetRate.convertFromUnderlying(netPortfolioValueUnderlying);
     }
 
@@ -209,7 +205,7 @@ library FreeCollateral {
         FreeCollateralFactors memory factors
     ) private view returns (ETHRate memory) {
         ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
-        // @audit-ok converts to underlying first
+        // Converts to underlying first, ETH exchange rates are in underlying
         factors.netETHValue = factors.netETHValue.add(
             ethRate.convertToETH(factors.assetRate.convertToUnderlying(netLocalAssetValue))
         );
@@ -238,7 +234,6 @@ library FreeCollateral {
             ) = _getBitmapBalanceValue(account, blockTime, accountContext, factors);
             if (netCashBalance < 0) hasCashDebt = true;
 
-            // @audit-ok
             int256 portfolioAssetValue =
                 _getBitmapPortfolioValue(account, blockTime, accountContext, factors);
             int256 netLocalAssetValue =
@@ -260,7 +255,6 @@ library FreeCollateral {
 
             (int256 netLocalAssetValue, int256 nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
-            // @audit-ok
             if (netLocalAssetValue < 0) hasCashDebt = true;
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
@@ -272,15 +266,12 @@ library FreeCollateral {
                     int256 nTokenHaircutAssetValue,
                     /* nTokenParameters */
                 ) = _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
-                // @audit-ok
                 netLocalAssetValue = netLocalAssetValue
                     .add(netPortfolioAssetValue)
                     .add(nTokenHaircutAssetValue);
-                // @audit-ok
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
                 // NOTE: we must set the proper assetRate when we updateNetETHValue
-                // @audit-ok
                 factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
             }
 
@@ -292,7 +283,6 @@ library FreeCollateral {
         // they have been repaid or settled via more debt) then this will turn off the flag. It's possible that this flag is out of
         // sync temporarily after a cash settlement and before the next free collateral check. The only downside for that is forcing
         // an account to do an extra free collateral check to turn off this setting.
-        // @audit-ok
         if (
             accountContext.hasDebt & Constants.HAS_CASH_DEBT == Constants.HAS_CASH_DEBT &&
             !hasCashDebt
@@ -337,7 +327,6 @@ library FreeCollateral {
                 factors
             );
 
-            // @audit-ok
             netLocalIndex++;
         } else {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
@@ -365,14 +354,11 @@ library FreeCollateral {
                     /* nTokenParameters */
                 ) = _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);
 
-                // @audit-ok
                 netLocalAssetValues[netLocalIndex] = netLocalAssetValues[netLocalIndex]
                     .add(netPortfolioValue)
                     .add(nTokenHaircutAssetValue);
-                // @audit-ok
                 factors.assetRate = factors.cashGroup.assetRate;
             } else {
-                // @audit-ok
                 factors.assetRate = AssetRate.buildAssetRateView(currencyId);
             }
 
@@ -384,7 +370,8 @@ library FreeCollateral {
         return (factors.netETHValue, netLocalAssetValues);
     }
 
-    /// @dev this is used to clear the stack frame
+    /// @notice Calculates the net value of a currency within a portfolio, this is a bit
+    /// convoluted to fit into the stack frame
     function _calculateLiquidationAssetValue(
         FreeCollateralFactors memory factors,
         LiquidationFactors memory liquidationFactors,
@@ -404,7 +391,6 @@ library FreeCollateral {
             netLocalAssetValue = netLocalAssetValue
                 .add(netPortfolioValue)
                 .add(nTokenHaircutAssetValue);
-            // @audit-ok
             factors.assetRate = factors.cashGroup.assetRate;
 
             // If collateralCurrencyId is set to zero then this is a local currency liquidation
@@ -414,7 +400,6 @@ library FreeCollateral {
                 liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
             }
         } else {
-            // @audit-ok
             factors.assetRate = AssetRate.buildAssetRateStateful(currencyId);
         }
 
@@ -506,12 +491,10 @@ library FreeCollateral {
         }
 
         liquidationFactors.netETHValue = factors.netETHValue;
-        // @audit-ok
         require(liquidationFactors.netETHValue < 0, "Sufficient collateral");
 
         // Refetch the portfolio if it exists, AssetHandler.getNetCashValue updates values in memory to do fCash
         // netting which will make further calculations incorrect.
-        // @audit-ok
         if (accountContext.assetArrayLength > 0) {
             factors.portfolio = PortfolioHandler.getSortedPortfolio(
                 account,

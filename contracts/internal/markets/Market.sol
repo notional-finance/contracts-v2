@@ -33,7 +33,6 @@ library Market {
         if (assetCash == 0) return (0, 0);
         require(assetCash > 0); // dev: negative asset cash
 
-        // @audit-ok
         liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
         // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
         fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
@@ -55,7 +54,6 @@ library Market {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
-        // @audit-ok
         assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
         fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
@@ -110,8 +108,8 @@ library Market {
         uint256 marketIndex
     ) internal view returns (int256, int256) {
         // We return false if there is not enough fCash to support this trade.
-        // @audit-ok if fCashToAccount > 0 and totalfCash - fCashToAccount <= 0 then the trade will fail
-        // @audit-ok if fCashToAccount < 0 and totalfCash > 0 then this will always pass
+        // if fCashToAccount > 0 and totalfCash - fCashToAccount <= 0 then the trade will fail
+        // if fCashToAccount < 0 and totalfCash > 0 then this will always pass
         if (market.totalfCash <= fCashToAccount) return (0, 0);
 
         // Calculates initial rate factors for the trade
@@ -241,18 +239,17 @@ library Market {
         // or divide depending on the side of the trade).
         // tradeExchangeRate = exp((tradeInterestRateNoFee +/- fee) * timeToMaturity)
         // tradeExchangeRate = tradeExchangeRateNoFee (* or /) exp(fee * timeToMaturity)
-        // @audit-ok cash = fCash / exchangeRate, exchangeRate > 1
+        // cash = fCash / exchangeRate, exchangeRate > 1
         int256 preFeeCashToAccount =
             fCashToAccount.divInRatePrecision(preFeeExchangeRate).neg();
         int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         if (fCashToAccount > 0) {
             // Lending
-            // @audit-ok dividing reduces exchange rate, lending should receive less fCash for cash
+            // Dividing reduces exchange rate, lending should receive less fCash for cash
             int256 postFeeExchangeRate = preFeeExchangeRate.divInRatePrecision(fee);
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
             // when borrowing. If this happens then the trade has failed.
-            // @audit-ok
             if (postFeeExchangeRate < Constants.RATE_PRECISION) return (0, 0, 0);
 
             // cashToAccount = -(fCashToAccount / exchangeRate)
@@ -265,7 +262,7 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (feeExchangeRate - 1)
             // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
-            // @audit-ok RATE_PRECISION - fee will be negative here, preFeeCashToAccount < 0, fee > 0
+            // RATE_PRECISION - fee will be negative here, preFeeCashToAccount < 0, fee > 0
             fee = preFeeCashToAccount.mulInRatePrecision(Constants.RATE_PRECISION.sub(fee));
         } else {
             // Borrowing
@@ -278,10 +275,8 @@ library Market {
             // netFee = (fCashToAccount / preFeeExchangeRate) * (1 / feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * ((1 - feeExchangeRate) / feeExchangeRate)
             // NOTE: preFeeCashToAccount is negative in this branch so we negate it to ensure that fee is a positive number
-            // @audit-ok RATE_PRECISION - fee will be negative
-            // @audit-ok preFeeCashToAccount is positive
-            // @audit-ok fee is positive
-            // @audit-ok preFee * (1 - fee) / fee will be negative, use neg() to flip to positive
+            // preFee * (1 - fee) / fee will be negative, use neg() to flip to positive
+            // RATE_PRECISION - fee will be negative
             fee = preFeeCashToAccount.mul(Constants.RATE_PRECISION.sub(fee)).div(fee).neg();
         }
 
@@ -309,7 +304,7 @@ library Market {
         int256 netCashToReserve
     ) private view returns (int256, int256) {
         int256 netAssetCashToMarket = assetRate.convertFromUnderlying(netCashToMarket);
-        // @audit-ok set storage checks that total asset cash is above zero
+        // Set storage checks that total asset cash is above zero
         market.totalAssetCash = market.totalAssetCash.add(netAssetCashToMarket);
 
         // Sets the trade time for the next oracle update
@@ -346,14 +341,14 @@ library Market {
 
         int256 rateAnchor;
         {
-            // @audit-ok totalfCash / (totalfCash + totalCashUnderlying)
+            // totalfCash / (totalfCash + totalCashUnderlying)
             int256 proportion =
                 totalfCash.divInRatePrecision(totalfCash.add(totalCashUnderlying));
 
             (int256 lnProportion, bool success) = _logProportion(proportion);
             if (!success) return (0, false);
 
-            // @audit-ok newExchangeRate - ln(proportion / (1 - proportion)) / rateScalar
+            // newExchangeRate - ln(proportion / (1 - proportion)) / rateScalar
             rateAnchor = newExchangeRate.sub(lnProportion.divInRatePrecision(rateScalar));
         }
 
@@ -377,16 +372,16 @@ library Market {
         // Uses continuous compounding to calculate the implied rate:
         // ln(exchangeRate) * Constants.IMPLIED_RATE_TIME / timeToMaturity
         int128 rate = ABDKMath64x64.fromInt(exchangeRate);
-        // @audit-ok scales down to a floating point for LN
+        // Scales down to a floating point for LN
         int128 rateScaled = ABDKMath64x64.div(rate, Constants.RATE_PRECISION_64x64);
         // We will not have a negative log here because we check that exchangeRate > Constants.RATE_PRECISION
         // inside getExchangeRate
         int128 lnRateScaled = ABDKMath64x64.ln(rateScaled);
-        // @audit-ok scales up to a fixed point
+        // Scales up to a fixed point
         uint256 lnRate =
             ABDKMath64x64.toUInt(ABDKMath64x64.mul(lnRateScaled, Constants.RATE_PRECISION_64x64));
 
-        // @audit-ok lnRate * IMPLIED_RATE_TIME / ttm
+        // lnRate * IMPLIED_RATE_TIME / ttm
         uint256 impliedRate = lnRate.mul(Constants.IMPLIED_RATE_TIME).div(timeToMaturity);
 
         // Implied rates over 429% will overflow, this seems like a safe assumption
@@ -402,7 +397,6 @@ library Market {
         pure
         returns (int256)
     {
-        // @audit-ok note this is the same as getDiscountFactor except we don't take the negative
         int128 expValue =
             ABDKMath64x64.fromUInt(
                 impliedRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME)
@@ -430,14 +424,14 @@ library Market {
         int256 numerator = totalfCash.subNoNeg(fCashToAccount);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
-        // @audit-ok (totalfCash + fCash) / (totalfCash + totalCashUnderlying)
+        // (totalfCash + fCash) / (totalfCash + totalCashUnderlying)
         int256 proportion =
             numerator.divInRatePrecision(totalfCash.add(totalCashUnderlying));
 
         (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
 
-        // @audit-ok lnProportion / rateScalar + rateAnchor
+        // lnProportion / rateScalar + rateAnchor
         int256 rate = lnProportion.divInRatePrecision(rateScalar).add(rateAnchor);
         // Do not succeed if interest rates fall below 1
         if (rate < Constants.RATE_PRECISION) {
@@ -451,7 +445,7 @@ library Market {
     /// defined as ln(proportion / (1 - proportion)). Special handling here is required to deal with
     /// fixed point precision and the ABDK library.
     function _logProportion(int256 proportion) internal pure returns (int256, bool) {
-        // @audit-ok this will result in divide by zero, short circuit
+        // This will result in divide by zero, short circuit
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
         proportion = proportion.divInRatePrecision(Constants.RATE_PRECISION.sub(proportion));
@@ -467,7 +461,6 @@ library Market {
         int128 abdkProportion = ABDKMath64x64.fromInt(proportion);
         // Here, abdk will revert due to negative log so abort
         if (abdkProportion <= 0) return (0, false);
-        // @audit-ok
         int256 result =
             ABDKMath64x64.toInt(
                 ABDKMath64x64.mul(
@@ -547,7 +540,6 @@ library Market {
         // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
         // during this time, but market initialization can be called by anyone so the actual time that this condition
         // exists for should be quite short.
-        // @audit-ok
         require(oracleRate > 0, "Market not initialized");
 
         return

@@ -23,7 +23,6 @@ library TransferAssets {
             uint256 assetType
         )
     {
-        // @audit-ok shifts are ok
         assetType = uint8(id);
         maturity = uint40(id >> 8);
         currencyId = uint16(id >> 48);
@@ -35,7 +34,6 @@ library TransferAssets {
         uint256 maturity,
         uint256 assetType
     ) internal pure returns (uint256) {
-        // @audit-ok add in bounds checking
         require(currencyId <= Constants.MAX_CURRENCIES);
         require(maturity <= type(uint40).max);
         require(assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX);
@@ -50,7 +48,6 @@ library TransferAssets {
 
     /// @dev Used to flip the sign of assets to decrement the `from` account that is sending assets
     function invertNotionalAmountsInPlace(PortfolioAsset[] memory assets) internal pure {
-        // @audit-ok
         for (uint256 i; i < assets.length; i++) {
             assets[i].notional = assets[i].notional.neg();
         }
@@ -64,7 +61,7 @@ library TransferAssets {
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal returns (AccountContext memory) {
-        // @audit-ok if an account has assets that require settlement then placing assets inside it
+        // If an account has assets that require settlement then placing assets inside it
         // may cause issues.
         require(!accountContext.mustSettleAssets(), "Account must settle");
 

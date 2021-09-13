@@ -31,7 +31,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         payable
         nonReentrant
     {
-        // @audit-ok authentication, zero addresss not possible
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
 
         // Return any settle amounts here to reduce the number of storage writes to balances
@@ -65,7 +64,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
         }
 
-        // @audit-ok will call free collateral here
         _finalizeAccountContext(account, accountContext);
     }
 
@@ -79,10 +77,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         payable
         nonReentrant
     {
-        // @audit-ok authorization
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
-        // @audit-ok set account context in the correct location
         _finalizeAccountContext(account, accountContext);
     }
 
@@ -92,16 +88,20 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         bytes calldata callbackData
     ) external payable {
         // NOTE: Re-entrancy is allowed for authorized callback functions.
-        // @audit-ok authorization
         require(authorizedCallbackContract[msg.sender], "Unauthorized");
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
-        // @audit-ok set account context in the correct location
         accountContext.setAccountContext(account);
 
-        // Be sure to set the account context before initiating the callback
+        // Be sure to set the account context before initiating the callback, all stateful updates
+        // have been finalized at this point so we are safe to issue a callback. This callback may
+        // re-enter Notional safely to deposit or take other actions.
         NotionalCallback(msg.sender).notionalCallback(msg.sender, account, callbackData);
 
         if (accountContext.hasDebt != 0x00) {
+            // NOTE: this method may update the account context to turn off the hasDebt flag, this
+            // is ok because the worst case would be causing an extra free collateral check when it
+            // is not required. This check will be entered if the account hasDebt prior to the callback
+            // being triggered above, so it will happen regardless of what the callback function does.
             FreeCollateralExternal.checkFreeCollateralAndRevert(account);
         }
     }
@@ -112,7 +112,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     ) internal returns (AccountContext memory) {
         AccountContext memory accountContext = _settleAccountIfRequired(account);
         BalanceState memory balanceState;
-        // @audit-ok this has to happen after settle account
+        // NOTE: loading the portfolio state must happen after settle account to get the
+        // correct portfolio, it will have changed if the account is settled.
         PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
             account,
             accountContext.assetArrayLength,
@@ -152,7 +153,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                         action.trades
                     );
                     if (didIncurDebt) {
-                        // @audit-ok does set has debt properly
                         accountContext.hasDebt = Constants.HAS_ASSET_DEBT | accountContext.hasDebt;
                     }
                 } else {
@@ -167,7 +167,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 }
 
                 // If the account owes cash after trading, ensure that it has enough
-                // @audit-ok netCash.neg() will always be a positive number
                 if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
                 balanceState.netCashChange = balanceState.netCashChange.add(netCash);
             }
@@ -200,8 +199,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         DepositActionType depositType,
         uint256 depositActionAmount_
     ) private {
-        // @audit-ok overflow checked below
-        int256 depositActionAmount = int256(depositActionAmount_);
+        int256 depositActionAmount = SafeInt256.toInt(depositActionAmount_);
         int256 assetInternalAmount;
         require(depositActionAmount >= 0);
 
@@ -211,7 +209,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             depositType == DepositActionType.DepositAsset ||
             depositType == DepositActionType.DepositAssetAndMintNToken
         ) {
-            // @audit-ok correct account and deposit action
             // NOTE: this deposit will NOT revert on a failed transfer unless there is a
             // transfer fee. The actual transfer will take effect later in balanceState.finalize
             assetInternalAmount = balanceState.depositAssetToken(
@@ -223,14 +220,12 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             depositType == DepositActionType.DepositUnderlying ||
             depositType == DepositActionType.DepositUnderlyingAndMintNToken
         ) {
-            // @audit-ok correct account and deposit action
             // NOTE: this deposit will revert on a failed transfer immediately
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
         } else if (depositType == DepositActionType.ConvertCashToNToken) {
             // _executeNTokenAction, will check if the account has sufficient cash
             assetInternalAmount = depositActionAmount;
         }
-        // @audit-ok other deposit types will fall through here
 
         _executeNTokenAction(
             balanceState,
@@ -253,7 +248,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             depositType == DepositActionType.DepositUnderlyingAndMintNToken ||
             depositType == DepositActionType.ConvertCashToNToken
         ) {
-            // @audit-ok will revert if trying to mint ntokens and result in a negative cash balance
+            // Will revert if trying to mint ntokens and results in a negative cash balance
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
@@ -267,7 +262,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 tokensMinted
             );
         } else if (depositType == DepositActionType.RedeemNToken) {
-            // @audit-ok will result in a negative ntoken balance
             require(
                 // prettier-ignore
                 balanceState
@@ -299,17 +293,15 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         bool withdrawEntireCashBalance,
         bool redeemToUnderlying
     ) private {
-        // @audit-ok no overflow
         int256 withdrawAmount = SafeInt256.toInt(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
             // This option is here so that accounts do not end up with dust after lending since we generally
             // cannot calculate exact cash amounts from the liquidity curve.
-            // @audit-ok the ending cash balance will be storedCashBalance + netCashChange + netAssetTransferInternalPrecision
-            withdrawAmount = balanceState.storedCashBalance.add(balanceState.netCashChange).add(
-                balanceState.netAssetTransferInternalPrecision
-            );
+            withdrawAmount = balanceState.storedCashBalance
+                .add(balanceState.netCashChange)
+                .add(balanceState.netAssetTransferInternalPrecision);
 
             // If the account has a negative cash balance then cannot withdraw
             if (withdrawAmount < 0) withdrawAmount = 0;
@@ -356,7 +348,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            // @audit-ok returns a new memory reference to account context
+            // Returns a new memory reference to account context
             return SettleAssetsExternal.settleAccount(account, accountContext);
         } else {
             return accountContext;

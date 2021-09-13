@@ -38,12 +38,9 @@ library LiquidationHelpers {
         )
     {
         // Cannot liquidate yourself
-        // @audit-ok
         require(msg.sender != liquidateAccount);
-        // @audit-ok
         require(localCurrency != 0);
         // Collateral currency must be unset or not equal to the local currency
-        // @audit-ok
         require(collateralCurrency != localCurrency);
         (
             AccountContext memory accountContext,
@@ -56,7 +53,6 @@ library LiquidationHelpers {
                 collateralCurrency
             );
 
-        // @audit-ok
         PortfolioState memory portfolioState =
             PortfolioState({
                 storedAssets: portfolio,
@@ -123,20 +119,19 @@ library LiquidationHelpers {
         returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
     {
         require(factors.collateralETHRate.haircut > 0);
-        // @audit-ok convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
-        // @audit-ok collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
         // This calculation returns the amount of benefit that selling collateral for local currency will
         // be back to the account.
+        // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
+        // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
         assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
-                // @audit-ok netETHValue must be negative to be in liquidation
+                // netETHValue must be negative to be in liquidation
                 .convertETHTo(factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(factors.collateralETHRate.haircut)
         );
 
-        // @audit-ok
         liquidationDiscount = SafeInt256.max(
             factors.collateralETHRate.liquidationDiscount,
             factors.localETHRate.liquidationDiscount
@@ -169,18 +164,16 @@ library LiquidationHelpers {
             factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
         int256 maxLocalAsset = factors.localAssetAvailable.neg();
 
-        // @audit-ok localAssetAvailable must be negative in cross currency liquidations
+        // localAssetAvailable must be negative in cross currency liquidations
         if (localAssetFromLiquidator > maxLocalAsset) {
             // If the local to purchase will flip the sign of localAssetAvailable then the calculations
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
             // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
-            // @audit-ok
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
                 .mul(maxLocalAsset)
                 .div(localAssetFromLiquidator);
 
-            // @audit-ok
             localAssetFromLiquidator = maxLocalAsset;
         }
 
@@ -214,7 +207,6 @@ library LiquidationHelpers {
         } else {
             token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
         }
-        // @audit-ok
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
 
@@ -235,13 +227,13 @@ library LiquidationHelpers {
         balance.netCashChange = netCollateralToLiquidator;
 
         if (withdrawCollateral) {
-            // @audit-ok this will net off the cash balance
+            // This will net off the cash balance
             balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
         }
 
-        // @audit-ok
         balance.netNTokenTransfer = netCollateralNTokens;
-        // @audit-ok redeem to underlying does not affect nTokens
+        // NOTE: redeem to underlying does not affect nTokens, those must be redeemed
+        // separately by calling back into Notional
         balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;
@@ -255,7 +247,6 @@ library LiquidationHelpers {
     ) internal {
         BalanceState memory balance;
         balance.loadBalanceState(liquidateAccount, localCurrency, accountContext);
-        // @audit-ok
         balance.netCashChange = netLocalFromLiquidator;
         balance.finalize(liquidateAccount, accountContext, false);
     }

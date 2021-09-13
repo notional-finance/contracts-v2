@@ -53,13 +53,10 @@ library CashGroup {
         uint256 marketIndex,
         uint256 timeToMaturity
     ) internal pure returns (int256) {
-        // @audit-ok
         require(1 <= marketIndex && marketIndex <= cashGroup.maxMarketIndex); // dev: invalid market index
 
-        // @audit-ok 8 bits for every market index
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
         int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
-        // @audit-ok safe int conversion
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(SafeInt256.toInt(timeToMaturity));
 
@@ -76,7 +73,6 @@ library CashGroup {
         pure
         returns (uint8)
     {
-        // @audit-ok
         require(
             Constants.MIN_LIQUIDITY_TOKEN_INDEX <= assetType &&
             assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX
@@ -161,7 +157,6 @@ library CashGroup {
         bool needsLiquidity,
         uint256 blockTime
     ) internal view {
-        // @audit-ok
         require(1 <= marketIndex && marketIndex <= cashGroup.maxMarketIndex, "Invalid market");
         uint256 maturity =
             DateTime.getReferenceTime(blockTime).add(DateTime.getTradedMarket(marketIndex));
@@ -227,7 +222,7 @@ library CashGroup {
             return Market.getOracleRate(cashGroup.currencyId, maturity, timeWindow, blockTime);
         } else {
             uint256 referenceTime = DateTime.getReferenceTime(blockTime);
-            // @audit-ok DateTime.getMarketIndex returns the market that is past the maturity if idiosyncratic
+            // DateTime.getMarketIndex returns the market that is past the maturity if idiosyncratic
             uint256 longMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex));
             uint256 longRate =
                 Market.getOracleRate(cashGroup.currencyId, longMaturity, timeWindow, blockTime);
@@ -239,7 +234,7 @@ library CashGroup {
                 shortMaturity = blockTime;
                 shortRate = cashGroup.assetRate.getSupplyRate();
             } else {
-                // @audit-ok minimum value for marketIndex here is 2
+                // Minimum value for marketIndex here is 2
                 shortMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex - 1));
 
                 shortRate = Market.getOracleRate(
@@ -273,25 +268,20 @@ library CashGroup {
         // The reason is that borrowers will not have a further maturity to roll from their 3 month fixed to a 6 month
         // fixed. It also complicates the logic in the nToken initialization method. Additionally, we cannot have cash
         // groups with 0 market index, it has no effect.
-        // @audit-ok
         require(2 <= cashGroup.maxMarketIndex && cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX,
             "CG: invalid market index"
         );
-        // @audit-ok
         require(
             cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS,
             "CG: invalid reserve share"
         );
-        // @audit-ok
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
         require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
         // This is required so that fCash liquidation can proceed correctly
-        // @audit-ok
         require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
         require(cashGroup.liquidationDebtBuffer5BPS < cashGroup.debtBuffer5BPS);
 
         // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
-        // @audit-ok
         uint8 previousMaxMarketIndex = getMaxMarketIndex(currencyId);
         require(
             previousMaxMarketIndex <= cashGroup.maxMarketIndex,
@@ -299,7 +289,6 @@ library CashGroup {
         );
 
         // Per cash group settings
-        // @audit-ok
         bytes32 data =
             (bytes32(uint256(cashGroup.maxMarketIndex)) |
                 (bytes32(uint256(cashGroup.rateOracleTimeWindowMin)) << RATE_ORACLE_TIME_WINDOW) |
@@ -319,7 +308,6 @@ library CashGroup {
                 "CG: invalid token haircut"
             );
 
-        // @audit-ok
             data =
                 data |
                 (bytes32(uint256(cashGroup.liquidityTokenHaircuts[i])) <<
@@ -329,7 +317,6 @@ library CashGroup {
         for (uint256 i = 0; i < cashGroup.rateScalars.length; i++) {
             // Causes a divide by zero error
             require(cashGroup.rateScalars[i] != 0, "CG: invalid rate scalar");
-        // @audit-ok
             data = data | (bytes32(uint256(cashGroup.rateScalars[i])) << (RATE_SCALAR + i * 8));
         }
 
@@ -344,19 +331,15 @@ library CashGroup {
         returns (CashGroupSettings memory)
     {
         bytes32 data = _getCashGroupStorageBytes(currencyId);
-        // @audit-ok
         uint8 maxMarketIndex = uint8(data[MARKET_INDEX_BIT]);
         uint8[] memory tokenHaircuts = new uint8[](uint256(maxMarketIndex));
         uint8[] memory rateScalars = new uint8[](uint256(maxMarketIndex));
 
         for (uint8 i = 0; i < maxMarketIndex; i++) {
-        // @audit-ok
             tokenHaircuts[i] = uint8(data[LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT - i]);
-        // @audit-ok
             rateScalars[i] = uint8(data[RATE_SCALAR_FIRST_BIT - i]);
         }
 
-        // @audit-ok
         return
             CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
@@ -378,7 +361,6 @@ library CashGroup {
         view
         returns (CashGroupParameters memory)
     {
-        // @audit-ok
         bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint256 maxMarketIndex = uint8(data[MARKET_INDEX_BIT]);
 

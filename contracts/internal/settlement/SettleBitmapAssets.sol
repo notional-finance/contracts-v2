@@ -38,7 +38,7 @@ library SettleBitmapAssets {
         // that lastSettleBit is inclusive is that it refers to newSettleTime which always less
         // than the current block time.
         newSettleTime = DateTime.getTimeUTC0(blockTime);
-        // @audit-ok if newSettleTime == oldSettleTime lastSettleBit will be zero
+        // If newSettleTime == oldSettleTime lastSettleBit will be zero
         require(newSettleTime >= oldSettleTime); // dev: new settle time before previous
 
         // Do not need to worry about validity, if newSettleTime is not on an exact bit we will settle up until
@@ -48,7 +48,6 @@ library SettleBitmapAssets {
 
         // Returns the next bit that is set in the bitmap
         uint256 nextBitNum = bitmap.getNextBitNum();
-        // @audit-ok
         while (nextBitNum != 0 && nextBitNum <= lastSettleBit) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
             totalAssetCash = totalAssetCash.add(
@@ -61,7 +60,6 @@ library SettleBitmapAssets {
         }
 
         bytes32 newBitmap;
-        // @audit-ok
         while (nextBitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
             (uint256 newBitNum, bool isValid) = DateTime.getBitNumFromMaturity(newSettleTime, maturity);

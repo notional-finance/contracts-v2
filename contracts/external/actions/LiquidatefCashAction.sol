@@ -187,7 +187,6 @@ contract LiquidatefCashAction is ActionGuards {
     ) private returns (LiquidatefCash.fCashContext memory) {
         require(fCashMaturities.length == maxfCashLiquidateAmounts.length);
         LiquidatefCash.fCashContext memory c;
-        // @audit-ok
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,
             localCurrency,

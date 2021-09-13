@@ -20,12 +20,9 @@ contract AccountAction is ActionGuards {
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:msg.sender
     function enableBitmapCurrency(uint16 currencyId) external {
-        // @audit-ok authentication, msg.sender
-        // @audit-ok address(0) cannot occur
         require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
         address account = msg.sender;
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
-        // @audit-ok currency id will be checked inside here
         accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
         accountContext.setAccountContext(account);
     }
@@ -40,9 +37,7 @@ contract AccountAction is ActionGuards {
     /// @return returns true if account has been settled
     function settleAccount(address account) external returns (bool) {
         requireValidAccount(account);
-        // @audit-ok no authentication required
         (AccountContext memory accountContext, bool didSettle) = _settleAccountIfRequired(account);
-        // @audit-ok set the account if did settle
         if (didSettle) accountContext.setAccountContext(account);
         return didSettle;
     }
@@ -61,7 +56,6 @@ contract AccountAction is ActionGuards {
         uint16 currencyId,
         uint256 amountExternalPrecision
     ) external payable nonReentrant returns (uint256) {
-        // @audit-ok authentication uses msg.sender
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
         requireValidAccount(account);
 
@@ -75,13 +69,11 @@ contract AccountAction is ActionGuards {
         // msg.value to mint cETH from ETH.
         int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             msg.sender,
-            // @audit-ok checked overflow above
             SafeInt256.toInt(amountExternalPrecision)
         );
 
         require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
-        // @audit-ok finalize and set account context
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
@@ -115,7 +107,6 @@ contract AccountAction is ActionGuards {
         // on behalf of the given account.
         int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
-            // @audit-ok checked overflow above
             SafeInt256.toInt(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
@@ -151,7 +142,7 @@ contract AccountAction is ActionGuards {
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
-        // @audit-ok overflow is not possible due to uint88
+        // Overflow is not possible due to uint88
         balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 
         int256 amountWithdrawn = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
@@ -163,8 +154,6 @@ contract AccountAction is ActionGuards {
         }
 
         require(amountWithdrawn <= 0);
-        // @audit-ok add a safe convert method for uint and int
-        // @audit-ok convert to uint checked above
         return amountWithdrawn.neg().toUint();
     }
 
@@ -176,7 +165,6 @@ contract AccountAction is ActionGuards {
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
-            // @audit-ok returns a new memory reference to account context
             return (SettleAssetsExternal.settleAccount(account, accountContext), true);
         } else {
             return (accountContext, false);

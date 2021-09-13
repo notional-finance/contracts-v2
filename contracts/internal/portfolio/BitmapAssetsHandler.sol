@@ -50,9 +50,7 @@ library BitmapAssetsHandler {
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal {
-        // @audit-ok
         require(accountContext.isBitmapEnabled()); // dev: bitmap currency not set
-        // @audit-ok
         uint256 currencyId = accountContext.bitmapCurrencyId;
 
         for (uint256 i; i < assets.length; i++) {
@@ -95,7 +93,6 @@ library BitmapAssetsHandler {
 
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
-            // @audit-ok
             int256 finalNotional = notional.add(fCashSlot.notional);
             require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
             fCashSlot.notional = int128(finalNotional);
@@ -111,7 +108,6 @@ library BitmapAssetsHandler {
 
         if (notional != 0) {
             // Bit is not set so we turn it on and update the mapping directly, no read required.
-            // @audit-ok
             require(type(int128).min <= notional && notional <= type(int128).max); // dev: bitmap notional overflow
             fCashSlot.notional = int128(notional);
 
@@ -131,7 +127,6 @@ library BitmapAssetsHandler {
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
     ) private view returns (int256) {
-        // @audit-ok
         int256 notional = getifCashNotional(account, currencyId, maturity);
 
         // In this case the asset has matured and the total value is just the notional amount
@@ -180,10 +175,8 @@ library BitmapAssetsHandler {
                 cashGroup,
                 riskAdjusted
             );
-            // @audit-ok
             totalValueUnderlying = totalValueUnderlying.add(pv);
 
-            // @audit-ok
             if (pv < 0) hasDebt = true;
 
             // Turn off the bit and look for the next one
@@ -198,7 +191,6 @@ library BitmapAssetsHandler {
         uint256 currencyId,
         uint256 nextSettleTime
     ) internal view returns (PortfolioAsset[] memory) {
-        // @audit-ok
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
         PortfolioAsset[] memory assets = new PortfolioAsset[](index);
@@ -251,7 +243,6 @@ library BitmapAssetsHandler {
             ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
             int256 notional = fCashSlot.notional;
 
-            // @audit-ok
             int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
             int256 finalNotional = notional.sub(notionalToTransfer);
 

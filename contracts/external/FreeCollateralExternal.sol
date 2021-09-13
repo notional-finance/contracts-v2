@@ -63,7 +63,6 @@ library FreeCollateralExternal {
             PortfolioAsset[] memory portfolio
         )
     {
-        // @audit-ok first settle assets
         accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.mustSettleAssets()) {
             accountContext = SettleAssetsExternal.settleAccount(account, accountContext);

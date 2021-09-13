@@ -107,7 +107,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             currencyId != bitmapCurrencyId ||
             assetType != Constants.FCASH_ASSET_TYPE
         ) {
-            // @audit-ok neither of these are possible
+            // Neither of these are possible for a bitmap group
             return 0;
         } else {
             return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
@@ -120,7 +120,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         pure
         returns (int256)
     {
-        // @audit-ok
         (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(id);
 
         for (uint256 i; i < portfolio.length; i++) {
@@ -158,7 +157,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         if (amount > 0) {
             PortfolioAsset memory asset;
             (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
-            // @audit-ok overflow is checked above
             asset.notional = SafeInt256.toInt(amount);
             _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
 
@@ -237,11 +235,12 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
     /// @dev Validates accounts on transfer
     function _validateAccounts(address from, address to) private view {
-        // @audit-ok cannot transfer to self, cannot transfer to zero address
+        // Cannot transfer to self, cannot transfer to zero address
         require(from != to && to != address(0) && to != address(this), "Invalid address");
-        // @audit-ok authentication is valid
+        // Authentication is valid
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
-        // @audit-ok nTokens will not accept transfers
+        // nTokens will not accept transfers because they do not implement the ERC1155
+        // receive method
     }
 
     /// @notice Decodes ids and amounts to PortfolioAsset objects
@@ -264,7 +263,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         view
         returns (PortfolioAsset[] memory, bool)
     {
-        // @audit-ok check array lengths
         require(ids.length == amounts.length);
         bool toTransferNegative = false;
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
@@ -281,7 +279,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             asset.notional = int256(amounts[i]);
             // If there is a negative transfer we mark it as such, this will force us to do a free collateral
             // check on the `to` address as well.
-            // @audit-ok
             if (asset.notional < 0) toTransferNegative = true;
         }
 
@@ -298,7 +295,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint40 maturity,
         uint8 assetType
     ) external pure override returns (uint256) {
-        // @audit-ok
         return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
     }
 
@@ -309,7 +305,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         uint256 maturity,
         uint256 blockTime
     ) private view {
-        // @audit-ok
         require(
             DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
             "Invalid maturity"
@@ -322,21 +317,23 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         address to,
         PortfolioAsset[] memory assets
     ) internal returns (AccountContext memory, AccountContext memory) {
+        // Finalize all parts of a transfer for each account separately. Settlement must happen
+        // before the call to placeAssetsInAccount so that we load the proper portfolio state.
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
         if (toContext.mustSettleAssets()) {
             toContext = SettleAssetsExternal.settleAccount(to, toContext);
         }
-        // @audit-ok settlement happens immediately prior
         toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
         toContext.setAccountContext(to);
 
+        // Will flip the sign of notional in the assets array in memory
         TransferAssets.invertNotionalAmountsInPlace(assets);
 
+        // Now finalize the from account
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
         if (fromContext.mustSettleAssets()) {
             fromContext = SettleAssetsExternal.settleAccount(from, fromContext);
         }
-        // @audit-ok settlement happens immediately prior
         fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
         fromContext.setAccountContext(from);
 
@@ -353,7 +350,6 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         bytes calldata data,
         bool toTransferNegative
     ) internal {
-        // @audit-ok initializing values here
         bytes4 sig = 0;
         address transactedAccount = address(0);
         if (data.length >= 32) {
@@ -375,35 +371,33 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             // Ensure that the "transactedAccount" parameter of the call is set to the from address or the
             // to address. If it is the "to" address then ensure that the msg.sender has approval to
             // execute operations
-            // @audit-ok authorization, if msg.sender != from then it is authorized in _validateAccounts
             require(
                 transactedAccount == from ||
                     (transactedAccount == to && isApprovedForAll(to, msg.sender)),
                 "Unauthorized call"
             );
 
-            // @audit-ok can only call back to the notional contracts
-            // @audit-ok account context is already stored at this point
-            // @audit-ok all three whitelisted methods check free collateral
+            // We can only call back to Notional itself at this point, account context is already
+            // stored and all three of the whitelisted methods above will check free collateral.
             (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
             require(status, _getRevertMsg(result));
         }
 
         // The transacted account will have its free collateral checked above so there is
         // no need to recheck here.
-        // @audit-ok if transactedAccount == 0 then will check fc
-        // @audit-ok if transactedAccount == to then will check fc
-        // @audit-ok if transactedAccount == from then will skip prefer call above
+        // If transactedAccount == 0 then will check fc
+        // If transactedAccount == to then will check fc
+        // If transactedAccount == from then will skip, prefer call above
         if (transactedAccount != from && fromContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(from);
         }
 
         // Check free collateral if the `to` account has taken on a negative fCash amount
-        // @audit-ok toTransferNegative is false then will not check
-        // @audit-ok if transactedAccount == 0 then will check fc
-        // @audit-ok if transactedAccount == from then will check fc
-        // @audit-ok if transactedAccount == to then will skip prefer call above
-        if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
+        // If toTransferNegative is false then will not check
+        // If transactedAccount == 0 then will check fc
+        // If transactedAccount == from then will check fc
+        // If transactedAccount == to then will skip, prefer call above
+        if (toTransferNegative && transactedAccount != to && toContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(to);
         }
     }

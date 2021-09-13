@@ -83,7 +83,6 @@ library TradingAction {
 
         for (uint256 i = 0; i < trades.length; i++) {
             uint256 maturity;
-            // @audit-ok will execute a non-liquidity token trade
             (maturity, c.cash, c.fCashAmount) = _executeTrade(
                 account,
                 cashGroup,
@@ -268,7 +267,7 @@ library TradingAction {
             // sell off the net cash residuals and use the cash amount in the new market without dust
             if (cashAmount == 0) cashAmount = netCash;
 
-            // @audit-ok add liquidity will check cash amount
+            // Add liquidity will check cash amount is positive
             (tokens, fCashAmount) = market.addLiquidity(cashAmount);
             cashAmount = cashAmount.neg(); // Report a negative cash amount in the event
         } else {
@@ -280,9 +279,8 @@ library TradingAction {
         {
             uint256 minImpliedRate = uint32(uint256(trade) >> 120);
             uint256 maxImpliedRate = uint32(uint256(trade) >> 88);
-            // @audit-ok if minImpliedRate is not set then it will be zero
+            // If minImpliedRate is not set then it will be zero
             require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
-            // @audit-ok if maxImpliedRate is set then will revert
             if (maxImpliedRate != 0)
                 require(market.lastImpliedRate <= maxImpliedRate, "Trade failed, slippage");
         }
@@ -304,9 +302,8 @@ library TradingAction {
 
         emit AddRemoveLiquidity(
             account,
-            // @audit-ok we cannot have a cash group with a id > uint16
-            uint16(cashGroup.currencyId),
-            // @audit-ok we cannot have a market with a maturity > uint40
+            cashGroup.currencyId,
+            // This will not overflow for a long time
             uint40(market.maturity),
             cashAmount,
             fCashAmount,
@@ -343,7 +340,7 @@ library TradingAction {
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
 
         fCashAmount = int256(uint88(bytes11(trade << 16)));
-        // @audit-ok fCash to account will be negative here
+        // fCash to account will be negative here
         if (tradeType == TradeActionType.Borrow) fCashAmount = fCashAmount.neg();
 
         cashAmount = market.executeTrade(
@@ -357,10 +354,10 @@ library TradingAction {
         uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
         if (rateLimit != 0) {
             if (tradeType == TradeActionType.Borrow) {
-                /// @audit-ok do not allow borrows over the rate limit
+                // Do not allow borrows over the rate limit
                 require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
             } else {
-                /// @audit-ok do not allow lends under the rate limit
+                // Do not allow lends under the rate limit
                 require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
             }
         }
@@ -392,13 +389,11 @@ library TradingAction {
         address counterparty = address(uint256(trade) >> 88);
         // Allowing an account to settle itself would result in strange outcomes
         require(account != counterparty, "Cannot settle self");
-        // @audit-ok amountToSettleAsset is the right most 88 bits
         int256 amountToSettleAsset = int256(uint88(uint256(trade)));
 
         AccountContext memory counterpartyContext =
             AccountContextHandler.getAccountContext(counterparty);
 
-        // @audit-ok settles assets first
         if (counterpartyContext.mustSettleAssets()) {
             counterpartyContext = SettleAssetsExternal.settleAccount(counterparty, counterpartyContext);
         }
@@ -406,7 +401,6 @@ library TradingAction {
         // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive
         // number denominated in asset terms. If amountToSettleAsset is set equal to zero on the input, will return the
         // max amount to settle. This will update the balance storage on the counterparty.
-        // @audit-ok
         amountToSettleAsset = BalanceHandler.setBalanceStorageForSettleCashDebt(
             counterparty,
             cashGroup,
@@ -416,9 +410,7 @@ library TradingAction {
 
         // Settled account must borrow from the 3 month market at a penalty rate. This will fail if the market
         // is not initialized.
-        // @audit-ok
         uint256 threeMonthMaturity = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
-        // @audit-ok this will return a positive amount
         int256 fCashAmount =
             _getfCashSettleAmount(cashGroup, threeMonthMaturity, blockTime, amountToSettleAsset);
         // Defensive check to ensure that we can't inadvertently cause the settler to lose fCash.
@@ -433,8 +425,7 @@ library TradingAction {
             assets[0].maturity = threeMonthMaturity;
             assets[0].notional = fCashAmount.neg(); // This is the debt the settled account will incur
             assets[0].assetType = Constants.FCASH_ASSET_TYPE;
-            // @audit-ok counterparty should receive a negative fCashAmount
-            // @audit-ok can transfer assets, we have settled above
+            // Can transfer assets, we have settled above
             counterpartyContext = TransferAssets.placeAssetsInAccount(
                 counterparty,
                 counterpartyContext,
@@ -465,7 +456,6 @@ library TradingAction {
         int256 exchangeRate =
             Market.getExchangeRateFromImpliedRate(
                 oracleRate.add(cashGroup.getSettlementPenalty()),
-                // @audit-ok this is the time to maturity
                 threeMonthMaturity.sub(blockTime)
             );
 
@@ -473,9 +463,8 @@ library TradingAction {
         // receive as a positive number
         return
             cashGroup.assetRate
-                // @audit-ok this will return the amount of underlying
                 .convertToUnderlying(amountToSettleAsset)
-                // @audit-ok exchange rate converts from cash to fCash when multiplying
+                // Exchange rate converts from cash to fCash when multiplying
                 .mulInRatePrecision(exchangeRate);
     }
 
@@ -499,9 +488,7 @@ library TradingAction {
             int256
         )
     {
-        // @audit-ok 256 - 8 - 32 == 216 (left shift)
         uint256 maturity = uint256(uint32(uint256(trade) >> 216));
-        // @audit-ok 256 - 8 - 32 - 88 == 128 (left shift)
         int256 fCashAmountToPurchase = int88(uint88(uint256(trade) >> 128));
         require(maturity > blockTime, "Invalid maturity");
         // Require that the residual to purchase does not fall on an existing maturity (i.e.
@@ -523,8 +510,8 @@ library TradingAction {
 
         // Restrict purchasing until some amount of time after the last initialized time to ensure that arbitrage
         // opportunities are not available (by generating residuals and then immediately purchasing them at a discount)
-        // @audit-ok this is always relative to the last initialized time which is set at utc0 when initialized, not the
-        // reference time. therefore we will always restrict residual purchase relative to initialization, not reference.
+        // This is always relative to the last initialized time which is set at utc0 when initialized, not the
+        // reference time. Therefore we will always restrict residual purchase relative to initialization, not reference.
         // This is safer, prevents an attack if someone forces residuals and then somehow prevents market initialization
         // until the residual time buffer passes.
         require(
@@ -539,13 +526,13 @@ library TradingAction {
             BitmapAssetsHandler.getifCashNotional(nTokenAddress, cashGroup.currencyId, maturity);
         // Check if amounts are valid and set them to the max available if necessary
         if (notional < 0 && fCashAmountToPurchase < 0) {
-            // @audit-ok does not allow purchasing more negative notional than available
+            // Does not allow purchasing more negative notional than available
             if (fCashAmountToPurchase < notional) fCashAmountToPurchase = notional;
         } else if (notional > 0 && fCashAmountToPurchase > 0) {
-            // @audit-ok does not allow purchasing more positive notional than available
+            // Does not allow purchasing more positive notional than available
             if (fCashAmountToPurchase > notional) fCashAmountToPurchase = notional;
         } else {
-            // @audit-ok does not allow moving notional in the opposite direction
+            // Does not allow moving notional in the opposite direction
             revert("Invalid amount");
         }
 
@@ -588,17 +575,17 @@ library TradingAction {
         bytes6 parameters
     ) internal view returns (int256) {
         uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
-        // @audit-ok Residual purchase incentive is specified in ten basis point increments
+        // Residual purchase incentive is specified in ten basis point increments
         uint256 purchaseIncentive =
             uint256(uint8(parameters[Constants.RESIDUAL_PURCHASE_INCENTIVE])) *
                 Constants.TEN_BASIS_POINTS;
 
         if (fCashAmount > 0) {
-            // @audit-ok when fCash is positive then we add the purchase incentive, the purchaser
+            // When fCash is positive then we add the purchase incentive, the purchaser
             // can pay less cash for the fCash relative to the oracle rate
             oracleRate = oracleRate.add(purchaseIncentive);
         } else if (oracleRate > purchaseIncentive) {
-            // @audit-ok When fCash is negative, we reduce the interest rate that the purchaser will
+            // When fCash is negative, we reduce the interest rate that the purchaser will
             // borrow at, we do this check to ensure that we floor the oracle rate at zero.
             oracleRate = oracleRate.sub(purchaseIncentive);
         } else {
@@ -610,8 +597,6 @@ library TradingAction {
             Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
-        // @audit-ok converting from fCash to cash requires division
-        // @audit-ok returns the asset cash amount
         return
             cashGroup.assetRate.convertFromUnderlying(fCashAmount.divInRatePrecision(exchangeRate));
     }
@@ -628,8 +613,8 @@ library TradingAction {
             nTokenAddress,
             currencyId,
             maturity,
-            lastInitializedTime, // @audit-ok this is the equivalent of next settle time
-            fCashAmountToPurchase.neg() // @audit-ok this ensures that the nToken takes on the negative position
+            lastInitializedTime,
+            fCashAmountToPurchase.neg() // the nToken takes on the negative position
         );
 
         // Defensive check to ensure that fCash amounts do not flip signs
@@ -645,7 +630,6 @@ library TradingAction {
             /* lastClaimTime */,
             /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(nTokenAddress, currencyId);
-        // @audit-ok will never let nTokenCash balance go less than zero
         nTokenCashBalance = nTokenCashBalance.add(netAssetCashNToken);
 
         // This will ensure that the cash balance is not negative

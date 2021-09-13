@@ -20,7 +20,6 @@ library PortfolioHandler {
         internal
         pure
     {
-        // @audit-ok
         for (uint256 i = 0; i < assets.length; i++) {
             PortfolioAsset memory asset = assets[i];
             if (asset.notional == 0) continue;
@@ -43,7 +42,6 @@ library PortfolioHandler {
         int256 notional
     ) private pure returns (bool) {
         for (uint256 i = 0; i < assetArray.length; i++) {
-            // @audit-ok
             PortfolioAsset memory asset = assetArray[i];
             if (
                 asset.assetType != assetType ||
@@ -51,22 +49,19 @@ library PortfolioHandler {
                 asset.maturity != maturity
             ) continue;
 
-            // Either of these storage states mean that some error in logic has occured, we cannot
+            // Either of these storage states mean that some error in logic has occurred, we cannot
             // store this portfolio
-            // @audit-ok
             require(
                 asset.storageState != AssetStorageState.Delete &&
                 asset.storageState != AssetStorageState.RevertIfStored
             ); // dev: portfolio handler deleted storage
 
-            // @audit-ok
             int256 newNotional = asset.notional.add(notional);
             // Liquidity tokens cannot be reduced below zero.
             if (AssetHandler.isLiquidityToken(assetType)) {
                 require(newNotional >= 0); // dev: portfolio handler negative liquidity token balance
             }
 
-            // @audit-ok
             require(newNotional >= type(int88).min && newNotional <= type(int88).max); // dev: portfolio handler notional overflow
 
             asset.notional = newNotional;
@@ -88,7 +83,6 @@ library PortfolioHandler {
         uint256 assetType,
         int256 notional
     ) internal pure {
-        // @audit-ok
         if (
             // Will return true if merged
             _mergeAssetIntoArray(
@@ -100,7 +94,6 @@ library PortfolioHandler {
             )
         ) return;
 
-        // @audit-ok
         if (portfolioState.lastNewAssetIndex > 0) {
             bool merged = _mergeAssetIntoArray(
                 portfolioState.newAssets,
@@ -125,8 +118,7 @@ library PortfolioHandler {
         }
 
         // Otherwise add to the new assets array. It should not be possible to add matching assets in a single transaction, we will
-        // check this again when we write to storage.
-        // @audit-ok
+        // check this again when we write to storage. Assigning to memory directly here, do not allocate new memory via struct.
         PortfolioAsset memory newAsset = portfolioState.newAssets[portfolioState.lastNewAssetIndex];
         newAsset.currencyId = currencyId;
         newAsset.maturity = maturity;
@@ -188,7 +180,6 @@ library PortfolioHandler {
 
             // Mark any zero notional assets as deleted
             if (asset.storageState != AssetStorageState.Delete && asset.notional == 0) {
-                // @audit-ok
                 deleteAsset(portfolioState, i);
             }
         }
@@ -214,8 +205,8 @@ library PortfolioHandler {
                     _storeAsset(asset, assetStorage);
                 }
 
-                // @audit-ok update portfolio context for every asset that is in storage, whether it is
-                // updated or not.
+                // Update portfolio context for every asset that is in storage, whether it is
+                // updated in storage or not.
                 (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
                     asset,
                     hasDebt,
@@ -232,14 +223,12 @@ library PortfolioHandler {
         PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS] storage storageArray = store[account];
         for (uint256 i = 0; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
-            // @audit-ok
             if (asset.notional == 0) continue;
             require(
                 asset.storageState != AssetStorageState.Delete &&
                 asset.storageState != AssetStorageState.RevertIfStored
             ); // dev: store assets deleted storage
 
-            // @audit-ok
             (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
                 asset,
                 hasDebt,
@@ -278,15 +267,13 @@ library PortfolioHandler {
         )
     {
         uint256 settlementDate = asset.getSettlementDate();
-        // @audit-ok this will set it to the minimum settlement date
+        // Tis will set it to the minimum settlement date
         if (nextSettleTime == 0 || nextSettleTime > settlementDate) {
             nextSettleTime = settlementDate;
         }
-        // @audit-ok
         hasDebt = hasDebt || asset.notional < 0;
 
         require(uint16(uint256(portfolioActiveCurrencies)) == 0); // dev: portfolio active currencies overflow
-        // @audit-ok 256 - 16 (left shift)
         portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
 
         return (hasDebt, portfolioActiveCurrencies, nextSettleTime);
@@ -328,14 +315,12 @@ library PortfolioHandler {
         // array so we search for it here.
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory a = portfolioState.storedAssets[i];
-            // @audit-ok
             if (a.storageSlot > maxActiveSlot && a.storageState != AssetStorageState.Delete) {
                 maxActiveSlot = a.storageSlot;
                 maxActiveSlotIndex = i;
             }
         }
 
-        // @audit-ok
         if (index == maxActiveSlotIndex) {
             // In this case we are deleting the asset with the max storage slot so no swap is necessary.
             assetToDelete.storageState = AssetStorageState.Delete;
@@ -432,7 +417,6 @@ library PortfolioHandler {
                 slot := assetStorage.slot
             }
 
-            // @audit-ok
             asset.currencyId = assetStorage.currencyId;
             asset.maturity = assetStorage.maturity;
             asset.assetType = assetStorage.assetType;

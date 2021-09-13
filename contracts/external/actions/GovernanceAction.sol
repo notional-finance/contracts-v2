@@ -21,7 +21,6 @@ import "@openzeppelin/contracts/utils/Address.sol";
 contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
-        // @audit-ok
         require(owner == msg.sender, "Ownable: caller is not the owner");
         _;
     }
@@ -33,7 +32,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @dev Transfers ownership of the contract to a new account (`newOwner`).
     /// Can only be called by the current owner.
     function transferOwnership(address newOwner) external override onlyOwner {
-        // @audit-ok
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
@@ -42,7 +40,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
     /// to a predetermined router contract that provides read only access to the system.
     function _authorizeUpgrade(address newImplementation) internal override {
-        // @audit-ok
         require(
             owner == msg.sender ||
             (msg.sender == pauseGuardian && newImplementation == pauseRouter),
@@ -59,7 +56,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         address pauseRouter_,
         address pauseGuardian_
     ) external override onlyOwner {
-        // @audit-ok only owner
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
 
@@ -85,7 +81,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint8 haircut,
         uint8 liquidationDiscount
     ) external override onlyOwner returns (uint16) {
-        // @audit-ok only owner
         uint16 currencyId = maxCurrencyId + 1;
         // Set the new max currency id
         maxCurrencyId = currencyId;
@@ -107,12 +102,10 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         ) {
             // NOTE: set token will enforce the restriction that Ether can only be set once as the zero
             // address. This sets the underlying token
-        // @audit-ok
             TokenHandler.setToken(currencyId, true, underlyingToken);
         }
 
         // This sets the asset token
-        // @audit-ok
         TokenHandler.setToken(currencyId, false, assetToken);
 
         _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
@@ -135,7 +128,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         uint72 maxCollateralBalanceInternalPrecision
     ) external override onlyOwner {
         _checkValidCurrency(currencyId);
-        // @audit-ok
         // Cannot turn on max collateral balance for a currency that is trading
         if (maxCollateralBalanceInternalPrecision > 0) require(CashGroup.getMaxMarketIndex(currencyId) == 0);
         TokenHandler.setMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
@@ -158,10 +150,8 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         string calldata underlyingName,
         string calldata underlyingSymbol
     ) external override onlyOwner {
-        // @audit-ok
         _checkValidCurrency(currencyId);
         {
-            // @audit-ok
             // Cannot enable fCash trading on a token with a max collateral balance
             Token memory assetToken = TokenHandler.getAssetToken(currencyId);
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
@@ -171,7 +161,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             ); // dev: cannot enable trading, collateral cap
         }
 
-        // @audit-ok the rate is already set from listing the currency
         _updateCashGroup(currencyId, cashGroup);
         _updateAssetRate(currencyId, assetRateOracle);
 
@@ -369,7 +358,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
     }
 
     function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {
-        // @audit-ok
         CashGroup.setCashGroupStorage(currencyId, cashGroup);
         emit UpdateCashGroup(currencyId);
     }
@@ -382,7 +370,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             // Sanity check that unset rate oracles are only for non mintable tokens
             require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");
         } else {
-            // @audit-ok
             // Sanity check that the rate oracle refers to the proper asset token
             address token = AssetRateAdapter(rateOracle).token();
             require(assetToken.tokenAddress == token, "G: invalid rate oracle");
@@ -425,7 +412,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             require(address(rateOracle) != address(0), "G: zero rate oracle address");
             rateDecimalPlaces = rateOracle.decimals();
         }
-        // @audit-ok
         require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
         require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
         require(
@@ -434,7 +420,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         );
 
         // Perform this check to ensure that decimal calculations don't overflow
-        // @audit-ok
         require(rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
         mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
         store[currencyId] = ETHRateStorage({
@@ -446,7 +431,6 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             liquidationDiscount: liquidationDiscount
         });
 
-        // @audit-ok overflow checked above
         emit UpdateETHRate(currencyId);
     }
 }

@@ -32,14 +32,11 @@ library SettlePortfolioAssets {
         // a revert, must wrap in an unchecked.
         for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            // @audit-ok assets settle on exactly blocktime
-            if (asset.getSettlementDate() > blockTime) {
-                continue;
-            }
+            // Assets settle on exactly blockTime
+            if (asset.getSettlementDate() > blockTime) continue;
 
             // Assume that this is sorted by cash group and maturity, currencyId = 0 is unused so this
             // will work for the first asset
-            // @audit-ok
             if (lastCurrencyId != asset.currencyId) {
                 lastCurrencyId = asset.currencyId;
                 currenciesSettled++;
@@ -48,7 +45,6 @@ library SettlePortfolioAssets {
 
         // Actual currency ids will be set as we loop through the portfolio and settle assets
         SettleAmount[] memory settleAmounts = new SettleAmount[](currenciesSettled);
-        // @audit-ok
         if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
         return settleAmounts;
     }
@@ -67,17 +63,16 @@ library SettlePortfolioAssets {
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             uint256 settleDate = asset.getSettlementDate();
-            // @audit-ok settlement date is on block time exactly
+            // Settlement date is on block time exactly
             if (settleDate > blockTime) continue;
 
-            // @audit-ok on the first loop the lastCurrencyId is already set.
+            // On the first loop the lastCurrencyId is already set.
             if (settleAmounts[settleAmountIndex].currencyId != asset.currencyId) {
                 // New currency in the portfolio
                 settleAmountIndex += 1;
                 settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
-            // @audit-ok
             settlementRate = AssetRate.buildSettlementRateStateful(
                 asset.currencyId,
                 asset.maturity,
@@ -86,7 +81,6 @@ library SettlePortfolioAssets {
 
             int256 assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
-                // @audit-ok
                 assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
@@ -94,18 +88,16 @@ library SettlePortfolioAssets {
                 int256 fCash;
                 (assetCash, fCash) = market.removeLiquidity(asset.notional);
 
-                // @audit-ok assets mature exactly on block time
+                // Assets mature exactly on block time
                 if (asset.maturity > blockTime) {
                     // If fCash has not yet matured then add it to the portfolio
                     _settleLiquidityTokenTofCash(portfolioState, i, fCash);
                 } else {
                     // If asset has matured then settle fCash to asset cash
                     assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
-                    // @audit-ok asset is deleted
                     portfolioState.deleteAsset(i);
                 }
             }
-            // @audit-ok
             settleAmounts[settleAmountIndex].netCashChange = settleAmounts[settleAmountIndex]
                 .netCashChange
                 .add(assetCash);
@@ -133,15 +125,14 @@ library SettlePortfolioAssets {
                 fCashAsset.maturity == liquidityToken.maturity &&
                 fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
             ) {
-                // @audit-ok
-                // This fCash asset has not matured if were are settling to fCash
+                // This fCash asset has not matured if we are settling to fCash
                 fCashAsset.notional = fCashAsset.notional.add(fCash);
                 fCashAsset.storageState = AssetStorageState.Update;
                 portfolioState.deleteAsset(index);
             }
         }
 
-        // @audit-ok we are going to delete this asset anyway
+        // We are going to delete this asset anyway, convert to an fCash position
         liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
         liquidityToken.notional = fCash;
         liquidityToken.storageState = AssetStorageState.Update;

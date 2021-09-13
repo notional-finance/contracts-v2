@@ -58,7 +58,6 @@ library AccountContextHandler {
         accountContext.bitmapCurrencyId = currencyId;
 
         // Setting this is required to initialize the assets bitmap
-        // @audit-ok we can only enter this point if there are no assets
         uint256 nextSettleTime = DateTime.getTimeUTC0(blockTime);
         require(nextSettleTime < type(uint40).max); // dev: blockTime overflow
         accountContext.nextSettleTime = uint40(nextSettleTime);
@@ -69,12 +68,12 @@ library AccountContextHandler {
         uint256 blockTime = block.timestamp;
 
         if (isBitmapEnabled(accountContext)) {
-            // @audit-ok next settle time will be set to utc0 after settlement so we
+            // nextSettleTime will be set to utc0 after settlement so we
             // settle if this is strictly less than utc0
             return accountContext.nextSettleTime < DateTime.getTimeUTC0(blockTime);
         } else {
-            // @audit-ok 0 value occurs on an uninitialized account
-            // @audit-ok assets mature exactly on the blockTime (not one second past) so in this
+            // 0 value occurs on an uninitialized account
+            // Assets mature exactly on the blockTime (not one second past) so in this
             // case we settle on the block timestamp
             return 0 < accountContext.nextSettleTime && accountContext.nextSettleTime <= blockTime;
         }
@@ -89,7 +88,6 @@ library AccountContextHandler {
         pure
         returns (bool)
     {
-        // @audit-ok
         require(currencyId != 0 && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
         bytes18 currencies = accountContext.activeCurrencies;
 
@@ -124,8 +122,6 @@ library AccountContextHandler {
 
         // If the bitmapped currency is already set then return here. Turning off the bitmap currency
         // id requires other logical handling so we will do it elsewhere.
-        // @audit-ok if you try to turn off a bitmap currency then this will be inefficient (it should not be
-        // in the list but even if it is it will be removed)
         if (isActive && accountContext.bitmapCurrencyId == currencyId) return;
 
         bytes18 prefix;
@@ -195,7 +191,6 @@ library AccountContextHandler {
     }
 
     function _clearPortfolioActiveFlags(bytes18 activeCurrencies) internal pure returns (bytes18) {
-        // @audit-ok
         bytes18 result;
         // This is required to clear the suffix as we append below
         bytes18 suffix = activeCurrencies & TURN_OFF_PORTFOLIO_FLAGS;
@@ -222,7 +217,6 @@ library AccountContextHandler {
         PortfolioState memory portfolioState,
         bool isLiquidation
     ) internal {
-        // @audit-ok
         // Each of these parameters is recalculated based on the entire array of assets in store assets,
         // regardless of whether or not they have been updated.
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =

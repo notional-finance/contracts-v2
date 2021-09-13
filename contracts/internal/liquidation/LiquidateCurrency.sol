@@ -52,7 +52,6 @@ library LiquidateCurrency {
         int256 netAssetCashFromLiquidator;
 
         {
-            // @audit-ok
             WithdrawFactors memory w;
             // Will check if the account actually has liquidity tokens
             (w, assetBenefitRequired) = _withdrawLocalLiquidityTokens(
@@ -68,7 +67,6 @@ library LiquidateCurrency {
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
-        // @audit-ok
         if (factors.nTokenHaircutAssetValue > 0) {
             int256 nTokensToLiquidate;
             {
@@ -116,18 +114,15 @@ library LiquidateCurrency {
                 //
                 // Finally:
                 // benefitGained = nTokensToLiquidate * (nTokenLiquidatedValue - nTokenHaircutAssetValue) / tokenBalance
-                // @audit-ok double checking units: cToken = nToken * (cToken - cToken) / nToken
                 // nTokensToLiquidate = tokenBalance * benefitGained * PV_HAIRCUT / 
                 //          (nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT - PV_HAIRCUT_PERCENTAGE))
                 //
-                // @audit-ok
                 nTokensToLiquidate = assetBenefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                     .div(factors.nTokenHaircutAssetValue.mul(haircutDiff));
             }
 
-            // @audit-ok
             nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
                 nTokensToLiquidate,
                 balanceState.storedNTokenBalance,
@@ -144,7 +139,6 @@ library LiquidateCurrency {
                 // nTokenHaircutAssetValue / (tokenBalance * PV_HAIRCUT_PERCENTAGE) = (nTokenAssetPV / totalSupply)
                 // nTokenLiquidationPrice = (tokensToLiquidate * LIQUIDATION_HAIRCUT * nTokenHaircutAssetValue) / 
                 //      (tokenBalance * PV_HAIRCUT_PERCENTAGE)
-                // @audit-ok double check cToken = (nToken * % * cToken) / (nToken * %)
                 // prettier-ignore
                 int256 localAssetCash =
                     nTokensToLiquidate
@@ -153,7 +147,6 @@ library LiquidateCurrency {
                         .div(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                         .div(balanceState.storedNTokenBalance);
 
-                // @audit-ok
                 balanceState.netCashChange = balanceState.netCashChange.add(localAssetCash);
                 netAssetCashFromLiquidator = netAssetCashFromLiquidator.add(localAssetCash);
             }
@@ -182,7 +175,6 @@ library LiquidateCurrency {
         ) = _calculateCollateralToRaise(factors, maxCollateralLiquidation);
 
         int256 collateralAssetRemaining = requiredCollateralAssetCash;
-        // @audit-ok
         // First in liquidation preference is the cash balance. Take as much cash as allowed.
         if (balanceState.storedCashBalance > 0) {
             if (balanceState.storedCashBalance >= collateralAssetRemaining) {
@@ -190,9 +182,8 @@ library LiquidateCurrency {
                 collateralAssetRemaining = 0;
             } else {
                 // Sell off all cash balance and calculate remaining collateral
-                // @audit-ok we have ensured that stored cash balance is positive
                 balanceState.netCashChange = balanceState.storedCashBalance.neg();
-                // @audit-ok collateral asset remaining cannot be negative
+                // Collateral asset remaining cannot be negative
                 collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
                     balanceState.storedCashBalance
                 );
@@ -215,7 +206,6 @@ library LiquidateCurrency {
             // going into finalize for the liquidated account's cash balances. This value is not simply added to the netCashChange field
             // because the cashClaim value is not stored in the balances and therefore the liquidated account will have too much cash
             // debited from their stored cash value.
-            // @audit-ok
             balanceState.netAssetTransferInternalPrecision = collateralAssetRemaining.sub(
                 newCollateralAssetRemaining
             );
@@ -223,7 +213,6 @@ library LiquidateCurrency {
         }
 
         if (collateralAssetRemaining > 0 && factors.nTokenHaircutAssetValue > 0) {
-            // @audit-ok
             collateralAssetRemaining = _calculateCollateralNTokenTransfer(
                 balanceState,
                 factors,
@@ -237,7 +226,6 @@ library LiquidateCurrency {
             // last two parameters are the same because they are denominated in asset cash values which are always
             // present value.
             int256 actualCollateralAssetSold = requiredCollateralAssetCash.sub(collateralAssetRemaining);
-            // @audit-ok
             // prettier-ignore
             (
                 /* collateralToRaise */,
@@ -268,14 +256,11 @@ library LiquidateCurrency {
         )
     {
         int256 assetCashBenefitRequired;
-        // @audit-ok
         (assetCashBenefitRequired, liquidationDiscount) = LiquidationHelpers
             .calculateCrossCurrencyBenefitAndDiscount(factors);
         {
-            // @audit-ok ETH = DAI * % * ETH/DAI - ETH * %
             // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
             //      collateralToSell * collateralHaircut
-            // @audit-ok ETH / ( ETH/DAI * % ) = DAI
             // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
             //
             // collateralCurrencyBenefit = [collateralToSell / (exchangeRate * liquidationDiscount)] * localBuffer * exchangeRate -
@@ -283,17 +268,12 @@ library LiquidateCurrency {
             // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
             // collateralCurrencyBenefit = collateralToSell * ((localBuffer / liquidationDiscount) - collateralHaircut)
             // collateralToSell = collateralCurrencyBenefit / ((localBuffer / liquidationDiscount) - collateralHaircut)
-            // @audit-ok ETH = ETH / (% / % - %)
-            // @audit-ok
             int256 denominator =
-                factors
-                    .localETHRate
-                    .buffer
+                factors.localETHRate.buffer
                     .mul(Constants.PERCENTAGE_DECIMALS)
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
-            // @audit-ok
             requiredCollateralAssetCash = assetCashBenefitRequired
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(denominator);
@@ -316,7 +296,6 @@ library LiquidateCurrency {
         // In this case the collateral asset present value and the collateral asset balance to sell are the same
         // value since cash is always equal to present value. That is why the last two parameters in calculateLocalToPurchase
         // are the same value.
-        // @audit-ok
         // prettier-ignore
         (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
             .calculateLocalToPurchase(
@@ -339,7 +318,6 @@ library LiquidateCurrency {
         // See longer comment in `liquidateLocalCurrency`, the main difference here is that we know how much
         // collateral we want to raise instead of calculating a "benefitGained" difference in a single currency.
         // collateralToRaise = (tokensToLiquidate * nTokenAssetPV * LIQUIDATION_HAIRCUT) / totalSupply
-        // @audit-ok cDAI = nDAI * cDAI * % / nDAI
         // where:
         //    nTokenHaircutAssetValue = (tokenBalance * nTokenAssetPV * PV_HAIRCUT_PERCENTAGE) / totalSupply
         //    nTokenAssetPV = (nTokenHaircutAssetValue * totalSupply) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
@@ -352,19 +330,16 @@ library LiquidateCurrency {
             uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]);
         int256 nTokenHaircut =
             uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]);
-        // @audit-ok
         int256 nTokensToLiquidate =
             collateralAssetRemaining
                 .mul(balanceState.storedNTokenBalance)
                 .mul(nTokenHaircut)
                 .div(factors.nTokenHaircutAssetValue.mul(nTokenLiquidationHaircut));
 
-        // @audit-ok
         if (maxNTokenLiquidation > 0 && nTokensToLiquidate > maxNTokenLiquidation) {
             nTokensToLiquidate = maxNTokenLiquidation;
         }
 
-        // @audit-ok
         if (nTokensToLiquidate > balanceState.storedNTokenBalance) {
             nTokensToLiquidate = balanceState.storedNTokenBalance;
         }
@@ -375,7 +350,6 @@ library LiquidateCurrency {
         // don't put too much emphasis on this and allow it to occur.
         // Formula here:
         // collateralToRaise = (tokensToLiquidate * nTokenHaircutAssetValue * LIQUIDATION_HAIRCUT) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
-        // @audit-ok
         collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
             nTokensToLiquidate
                 .mul(factors.nTokenHaircutAssetValue)
@@ -411,7 +385,6 @@ library LiquidateCurrency {
 
         for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            // @audit-ok
             if (!_isValidWithdrawToken(asset, factors.cashGroup.currencyId)) continue;
 
             (w.assetCash, w.fCash) = _loadMarketAndGetClaims(
@@ -426,7 +399,6 @@ library LiquidateCurrency {
 
             // (netCashToAccount <= assetAmountRemaining)
             if (w.netCashIncrease.subNoNeg(w.incentivePaid) <= assetAmountRemaining) {
-                // @audit-ok
                 // The additional cash is insufficient to cover asset amount required so we just remove all of it.
                 portfolioState.deleteAsset(i);
                 if (!factors.isCalculation) market.removeLiquidity(asset.notional);
@@ -437,7 +409,6 @@ library LiquidateCurrency {
                 assetAmountRemaining = assetAmountRemaining - w.netCashIncrease.sub(w.incentivePaid);
             } else {
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // @audit-ok
                 int256 tokensToRemove = asset.notional
                     .mul(assetAmountRemaining)
                     .div(w.netCashIncrease.subNoNeg(w.incentivePaid));
@@ -463,7 +434,6 @@ library LiquidateCurrency {
             w.totalCashClaim = w.totalCashClaim.add(w.assetCash);
 
             // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
-            // @audit-ok
             portfolioState.addAsset(
                 factors.cashGroup.currencyId,
                 asset.maturity,
@@ -482,7 +452,6 @@ library LiquidateCurrency {
         int256 assetCash,
         uint256 assetType
     ) private pure returns (int256 netCashIncrease, int256 incentivePaid) {
-        // @audit-ok
         // We can only recollateralize the local currency using the part of the liquidity token that
         // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
         // is paid out as an incentive so that must be accounted for.
@@ -529,7 +498,6 @@ library LiquidateCurrency {
                 // overflow checked above
                 collateralToWithdraw = collateralToWithdraw - cashClaim;
             } else {
-                // @audit-ok
                 // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
                 // NOTE: dust can accrue when withdrawing liquidity at this point
                 int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
@@ -594,21 +562,19 @@ library LiquidateCurrency {
         collateralBalanceState.netAssetTransferInternalPrecision = 0;
 
         // Finalize liquidated account balance
-        // @audit-ok set balances before portfolio
         collateralBalanceState.finalize(liquidateAccount, accountContext, false);
+
         if (!accountContext.isBitmapEnabled()) {
             // Portfolio updates only happen if the account has liquidity tokens, which can only be the
             // case in a non-bitmapped portfolio.
-            // @audit-ok
             accountContext.storeAssetsAndUpdateContext(
                 liquidateAccount,
                 portfolio,
                 true // is liquidation
             );
         }
-        // @audit-ok
-        accountContext.setAccountContext(liquidateAccount);
 
+        accountContext.setAccountContext(liquidateAccount);
         collateralBalanceState.netAssetTransferInternalPrecision = tmpAssetTransferAmount;
     }
 }

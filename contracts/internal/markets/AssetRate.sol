@@ -26,7 +26,6 @@ library AssetRate {
     {
         // Calculation here represents:
         // rate * balance * internalPrecision / rateDecimals * underlyingPrecision
-        // @audit-ok
         int256 underlyingBalance = ar.rate
             .mul(assetBalance)
             .div(ASSET_RATE_DECIMAL_DIFFERENCE)
@@ -45,7 +44,6 @@ library AssetRate {
     {
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rate * internalPrecision
-        // @audit-ok
         int256 assetBalance = underlyingBalance
             .mul(ASSET_RATE_DECIMAL_DIFFERENCE)
             .mul(ar.underlyingDecimals)
@@ -61,8 +59,8 @@ library AssetRate {
         if (address(ar.rateOracle) == address(0)) return 0;
 
         uint256 rate = ar.rateOracle.getAnnualizedSupplyRate();
-        // @audit-ok zero supply rate is valid since this is an interest rate, not an exchange rate
-        // and we will not divide by it
+        // Zero supply rate is valid since this is an interest rate, we do not divide by
+        // the supply rate so we do not get div by zero errors.
         require(rate >= 0); // dev: invalid supply rate
 
         return rate;
@@ -96,7 +94,7 @@ library AssetRate {
         if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
-            // @audit-ok this will get raised to 10^x and return 1, will not end up with div by zero
+            // This will get raised to 10^x and return 1, will not end up with div by zero
             underlyingDecimalPlaces = 0;
         } else {
             rate = rateOracle.getExchangeRateView();
@@ -122,7 +120,7 @@ library AssetRate {
         if (address(rateOracle) == address(0)) {
             // If no rate oracle is set, then set this to the identity
             rate = ASSET_RATE_DECIMAL_DIFFERENCE;
-            // @audit-ok this will get raised to 10^x and return 1, will not end up with div by zero
+            // This will get raised to 10^x and return 1, will not end up with div by zero
             underlyingDecimalPlaces = 0;
         } else {
             rate = rateOracle.getExchangeRateStateful();
@@ -145,7 +143,7 @@ library AssetRate {
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
-                // @audit-ok no overflow, restricted on storage
+                // No overflow, restricted on storage
                 underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
@@ -162,7 +160,7 @@ library AssetRate {
             AssetRateParameters({
                 rateOracle: rateOracle,
                 rate: rate,
-                // @audit-ok no overflow, restricted on storage
+                // No overflow, restricted on storage
                 underlyingDecimals: int256(10**underlyingDecimalPlaces)
             });
     }
@@ -178,9 +176,7 @@ library AssetRate {
     {
         mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
         SettlementRateStorage storage rateStorage = store[currencyId][maturity];
-        // @audit-ok blockTime (uint40) is not loaded
         settlementRate = rateStorage.settlementRate;
-        // @audit-ok 128 + 40 = 168 (left shift)
         underlyingDecimalPlaces = rateStorage.underlyingDecimalPlaces;
     }
 
@@ -196,7 +192,7 @@ library AssetRate {
             uint8 underlyingDecimalPlaces
         ) = _getSettlementRateStorage(currencyId, maturity);
 
-        // @audit-ok asset exchange rates cannot be zero
+        // Asset exchange rates cannot be zero
         if (settlementRate == 0) {
             // If settlement rate has not been set then we need to fetch it
             // prettier-ignore
@@ -210,7 +206,7 @@ library AssetRate {
         return AssetRateParameters(
             AssetRateAdapter(address(0)),
             settlementRate,
-            // @audit-ok no overflow, restricted on storage
+            // No overflow, restricted on storage
             int256(10**underlyingDecimalPlaces)
         );
     }
@@ -224,12 +220,11 @@ library AssetRate {
         (int256 settlementRate, uint8 underlyingDecimalPlaces) =
             _getSettlementRateStorage(currencyId, maturity);
 
-        // @audit-ok asset exchange rates cannot be zero
         if (settlementRate == 0) {
             // Settlement rate has not yet been set, set it in this branch
             AssetRateAdapter rateOracle;
+            // If rate oracle == 0 then this will return the identity settlement rate
             // prettier-ignore
-            // @audit-ok if rate oracle == 0 then this will return the identity settlement rate
             (
                 settlementRate,
                 rateOracle,
@@ -242,7 +237,6 @@ library AssetRate {
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
                 require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
-                // @audit-ok settlement rate cannot be zero
                 require(0 < settlementRate && settlementRate <= type(uint128).max); // dev: settlement rate overflow
 
                 SettlementRateStorage storage rateStorage = store[currencyId][maturity];
@@ -256,7 +250,7 @@ library AssetRate {
         return AssetRateParameters(
             AssetRateAdapter(address(0)),
             settlementRate,
-            // @audit-ok no overflow, restricted on storage
+            // No overflow, restricted on storage
             int256(10**underlyingDecimalPlaces)
         );
     }

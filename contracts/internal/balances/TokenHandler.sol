@@ -24,12 +24,10 @@ library TokenHandler {
     } 
 
     function getAssetToken(uint256 currencyId) internal view returns (Token memory) {
-        // @audit-ok underlying == false
         return _getToken(currencyId, false);
     }
 
     function getUnderlyingToken(uint256 currencyId) internal view returns (Token memory) {
-        // @audit-ok underlying == true
         return _getToken(currencyId, true);
     }
 
@@ -43,7 +41,7 @@ library TokenHandler {
             Token({
                 tokenAddress: tokenStorage.tokenAddress,
                 hasTransferFee: tokenStorage.hasTransferFee,
-                // @audit-ok no overflow, restricted on storage
+                // No overflow, restricted on storage
                 decimals: int256(10**tokenStorage.decimalPlaces),
                 tokenType: tokenStorage.tokenType,
                 maxCollateralBalance: tokenStorage.maxCollateralBalance
@@ -70,7 +68,6 @@ library TokenHandler {
             return;
         }
 
-        // @audit-ok check token address
         // Check token address
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
         // Once a token is set we cannot override it. In the case that we do need to do change a token address
@@ -85,7 +82,6 @@ library TokenHandler {
             && tokenStorage.decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");
 
         // Validate token type
-        // @audit-ok
         require(tokenStorage.tokenType != TokenType.Ether); // dev: ether can only be set once
         if (underlying) {
             // Underlying tokens cannot have max collateral balances, the contract only has a balance temporarily
@@ -97,7 +93,6 @@ library TokenHandler {
         }
 
         if (tokenStorage.tokenType == TokenType.cToken) {
-            // @audit-ok
             // Set the approval for the underlying so that we can mint cTokens
             Token memory underlyingToken = getUnderlyingToken(currencyId);
             // ERC20 tokens should return true on success for an approval, but Tether
@@ -115,7 +110,6 @@ library TokenHandler {
 
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic
     function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
-        // @audit-ok balance in asset
         uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         uint256 success;
@@ -129,11 +123,9 @@ library TokenHandler {
         }
 
         require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Mint");
-        // @audit-ok balance in asset
         uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
 
         // This is the starting and ending balance in external precision
-        // @audit-ok adding safe cast
         return SafeInt256.toInt(endingBalance.sub(startingBalance));
     }
 
@@ -142,33 +134,26 @@ library TokenHandler {
         Token memory underlyingToken,
         uint256 assetAmountExternal
     ) internal returns (int256) {
-        // @audit-ok
         uint256 startingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
-            // @audit-ok balance in underlying
             startingBalance = address(this).balance;
         } else if (assetToken.tokenType == TokenType.cToken) {
-            // @audit-ok balance in underlying
             startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         } else {
             revert(); // dev: non redeemable failure
         }
 
-        // @audit-ok
         uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
         require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Redeem");
 
         uint256 endingBalance;
         if (assetToken.tokenType == TokenType.cETH) {
-            // @audit-ok balance in underlying
             endingBalance = address(this).balance;
         } else {
-            // @audit-ok balance in underlying
             endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
         }
 
         // Underlying token external precision
-        // @audit-ok
         return SafeInt256.toInt(endingBalance.sub(startingBalance));
     }
 
@@ -181,10 +166,8 @@ library TokenHandler {
     ) internal returns (int256) {
         if (netTransferExternal > 0) {
             // Deposits must account for transfer fees.
-            // @audit-ok overflow checked above
             netTransferExternal = _deposit(token, account, uint256(netTransferExternal));
         } else if (token.tokenType == TokenType.Ether) {
-            // @audit-ok user must push ether
             require(netTransferExternal <= 0); // dev: cannot deposit ether
             address payable accountPayable = payable(account);
             // This does not work with contracts, but is reentrancy safe. If contracts want to withdraw underlying
@@ -194,7 +177,7 @@ library TokenHandler {
             safeTransferOut(
                 token.tokenAddress,
                 account,
-                // @audit-ok netTransferExternal is zero or negative here
+                // netTransferExternal is zero or negative here
                 uint256(netTransferExternal.neg())
             );
         }
@@ -226,8 +209,8 @@ library TokenHandler {
 
         if (token.maxCollateralBalance > 0) {
             int256 internalPrecisionBalance = convertToInternal(token, SafeInt256.toInt(endingBalance));
-            // @audit-ok max collateral balance is stored as uint72, no overflow
-            require(internalPrecisionBalance <= int256(token.maxCollateralBalance)); // dev: over max collateral balance
+            // Max collateral balance is stored as uint72, no overflow
+            require(internalPrecisionBalance <= SafeInt256.toInt(token.maxCollateralBalance)); // dev: over max collateral balance
         }
 
         if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION && token.tokenType != TokenType.UnderlyingToken) {
@@ -236,12 +219,11 @@ library TokenHandler {
             finalAmountAdjustment = 1;
         }
 
+        // Math is done in uint inside these statements and will revert on negative
         if (token.hasTransferFee) {
-            // @audit-ok math is done in uint and will revert on negative
             return SafeInt256.toInt(endingBalance.sub(startingBalance).sub(finalAmountAdjustment));
         } else {
-            // @audit-ok math is done in uint and will revert on negative
-            // @audit-ok if amount == 0 then this will revert if final amount adjustment is 1
+            // If amount == 0 then will revert if final amount adjustment is 1
             return SafeInt256.toInt(amount.sub(finalAmountAdjustment));
         }
     }

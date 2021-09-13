@@ -78,7 +78,7 @@ library ExchangeRate {
             require(rate > 0, "Invalid rate");
             require(updatedAt != 0 && answeredInRound >= roundId, "Stale rate");
 
-            // @audit-ok no overflow, restricted on storage
+            // No overflow, restricted on storage
             rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
             if (ethStorage.mustInvert) {
                 rate = rateDecimals.mul(rateDecimals).div(rate);

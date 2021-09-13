@@ -10,9 +10,10 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
+import "./ActionGuards.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract nTokenRedeemAction {
+contract nTokenRedeemAction is ActionGuards {
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using BalanceHandler for BalanceState;
@@ -34,7 +35,7 @@ contract nTokenRedeemAction {
         external
         returns (int256)
     {
-        // @audit-ok only delegate call
+        // Only self call allowed
         require(msg.sender == address(this), "Unauthorized caller");
         uint256 blockTime = block.timestamp;
         // prettier-ignore
@@ -63,37 +64,33 @@ contract nTokenRedeemAction {
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets
-    ) external returns (int256) {
+    ) external nonReentrant returns (int256) {
         // ERC1155 can call this method during a post transfer event
-        // @audit-ok authentication
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
         uint256 blockTime = block.timestamp;
         int256 tokensToRedeem = int256(tokensToRedeem_);
 
-        // @audit-ok settle assets first if redeeming
         AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
         if (context.mustSettleAssets()) {
             context = SettleAssetsExternal.settleAccount(redeemer, context);
         }
 
-        // @audit-ok
         BalanceState memory balance;
         balance.loadBalanceState(redeemer, currencyId, context);
 
-        // @audit-ok
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
         (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
-        // @audit-ok set balances before transferring assets
+
+        // Set balances before transferring assets
         balance.netCashChange = totalAssetCash;
         balance.finalize(redeemer, context, false);
 
         if (hasResidual) {
             // This method will store assets and update the account context in memory
-            // @audit-ok settlement is done above
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
 
@@ -135,10 +132,10 @@ contract nTokenRedeemAction {
             _reduceTokenAssets(nToken, tokensToRedeem, blockTime);
 
         // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
-        // @audit-ok default should be true
         bool hasResidual = true;
         if (sellTokenAssets) {
             int256 assetCash;
+            // NOTE: newfCashAssets is modified in place during this method
             (assetCash, hasResidual) = _sellfCashAssets(
                 nToken.cashGroup,
                 newfCashAssets,
@@ -174,7 +171,6 @@ contract nTokenRedeemAction {
         // nToken can never have a negative cash asset cash balance so what we get here is always positive.
         int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
         if (assetCashShare > 0) {
-            // @audit-ok
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
@@ -230,19 +226,15 @@ contract nTokenRedeemAction {
 
         for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = nToken.portfolioState.storedAssets[i];
-            // @audit-ok
             int256 tokensToRemove = asset.notional.mul(tokensToRedeem).div(totalSupply);
-            // @audit-ok
             asset.notional = asset.notional.sub(tokensToRemove);
             // Cannot redeem liquidity tokens down to zero or this will cause many issues with
             // market initialization.
             require(asset.notional > 0, "Cannot redeem to zero");
             require(asset.storageState == AssetStorageState.NoChange);
-
-            // @audit-ok
             asset.storageState = AssetStorageState.Update;
 
-            // @audit-ok
+            // This will load a market object in memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             // Remove liquidity from the market
             (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
@@ -270,7 +262,6 @@ contract nTokenRedeemAction {
     /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netAssetCash
     /// as a result. The aim here is to ensure that accounts can redeem nTokens without having to take on
     /// fCash assets.
-    /// @dev fCashAssets is modified in place here, we should return it
     function _sellfCashAssets(
         CashGroupParameters memory cashGroup,
         PortfolioAsset[] memory fCashAssets,
@@ -296,7 +287,6 @@ contract nTokenRedeemAction {
                     cashGroup,
                     // Use the negative of fCash notional here since we want to net it out
                     asset.notional.neg(),
-                    // @audit-ok time to maturity
                     asset.maturity.sub(blockTime),
                     marketIndex
                 );

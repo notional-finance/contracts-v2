@@ -65,8 +65,6 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param spender The address of the account which may transfer tokens
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
-    // @audit-ok authentication ok, uses msg.sender
-    // @audit-ok address zero ok, does nothing
     function approve(address spender, uint256 amount) external override returns (bool) {
         bool success = proxy.nTokenTransferApprove(currencyId, msg.sender, spender, amount);
         // Emit approvals here so that they come from the correct contract address
@@ -79,8 +77,6 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
-    // @audit-ok authentication ok, uses msg.sender
-    // @audit-ok address zero ok, does nothing
     function transfer(address to, uint256 amount) external override returns (bool) {
         bool success = proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
         // Emit transfer events here so they come from the correct contract
@@ -94,8 +90,6 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
-    // @audit-ok authentication ok, uses msg.sender
-    // @audit-ok address zero ok, does nothing
     function transferFrom(
         address from,
         address to,

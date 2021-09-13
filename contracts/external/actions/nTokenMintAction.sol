@@ -31,7 +31,6 @@ library nTokenMintAction {
         external
         returns (int256)
     {
-        // @audit-ok authentication, is library
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
@@ -40,7 +39,6 @@ library nTokenMintAction {
         require(tokensToMint >= 0, "Invalid token amount");
 
         if (nToken.portfolioState.storedAssets.length == 0) {
-            // @audit-ok
             // If the token does not have any assets, then the markets must be initialized first.
             nToken.cashBalance = nToken.cashBalance.add(amountToDepositInternal);
             BalanceHandler.setBalanceStorageForNToken(
@@ -72,24 +70,23 @@ library nTokenMintAction {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
             // that need to be settled. This is only done during market initialization.
             uint256 nextSettleTime = nToken.getNextSettleTime();
-            // @audit-ok if next settle time == blockTime then the token can be settled
-            // @audit consider moving this into a function that returns a bool
-            require(nextSettleTime > blockTime, "PT: requires settlement");
+            // If next settle time <= blockTime then the token can be settled
+            require(nextSettleTime > blockTime, "Requires settlement");
         }
 
         int256 assetCashPV = nToken.getNTokenAssetPV(blockTime);
-        // @audit-ok
-        require(assetCashPV >= 0, "PT: pv value negative");
+        // Defensive check to ensure PV remains positive
+        require(assetCashPV >= 0);
 
         // Allow for the first deposit
         if (nToken.totalSupply == 0) {
             return amountToDepositInternal;
         } else {
-            // @audit-ok assetCashPVPost = assetCashPV + amountToDeposit
-            // @audit-ok (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
-            // @audit-ok (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
-            // @audit-ok (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
-            // @audit-ok tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
+            // assetCashPVPost = assetCashPV + amountToDeposit
+            // (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
+            // (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
+            // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
+            // tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
             return amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV);
         }
     }
@@ -132,7 +129,6 @@ library nTokenMintAction {
             // Checked that assetCashDeposit must be positive before entering
             int256 perMarketDeposit =
                 assetCashDeposit
-                    // @audit-ok min market index = 1
                     .mul(depositShares[marketIndex - 1])
                     .div(Constants.DEPOSIT_PERCENT_BASIS)
                     .add(residualCash);
@@ -166,7 +162,6 @@ library nTokenMintAction {
         if (residualCash > 0) {
             // Any remaining residual cash will be put into the nToken balance and added as liquidity on the
             // next market initialization
-            // @audit-ok
             nToken.cashBalance = nToken.cashBalance.add(residualCash);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
@@ -194,7 +189,6 @@ library nTokenMintAction {
             (residualCash, fCashAmount) = _deleverageMarket(
                 nToken.cashGroup,
                 market,
-                // @audit-ok pass in the per market deposit
                 perMarketDeposit,
                 blockTime,
                 marketIndex
@@ -210,8 +204,8 @@ library nTokenMintAction {
 
         // Add liquidity to the market only if we have successfully delevered.
         // (marketIndex - 1) is the index of the nToken portfolio array where the asset is stored
-        // @audit-ok if develeraged, residualCash is what remains
-        // @audit-ok if not delevered, residual cash is per market deposit
+        // If deleveraged, residualCash is what remains
+        // If not deleveraged, residual cash is per market deposit
         fCashAmount = fCashAmount.add(
             _addLiquidityToMarket(nToken, market, marketIndex - 1, residualCash)
         );
@@ -234,7 +228,6 @@ library nTokenMintAction {
         // However, the division will introduce rounding errors so we change this to:
         // totalfCash * RATE_PRECISION > leverageThreshold * (totalfCash + totalCashUnderlying)
         // Leverage threshold is denominated in rate precision.
-        // @audit-ok
         return (
             market.totalfCash.mul(Constants.RATE_PRECISION) >
             leverageThreshold.mul(market.totalfCash.add(totalCashUnderlying))
@@ -283,7 +276,7 @@ library nTokenMintAction {
         // because it is very gas inefficient.
         int256 assumedExchangeRate;
         if (market.lastImpliedRate < Constants.DELEVERAGE_BUFFER) {
-            // @audit-ok floor the exchange rate
+            // Floor the exchange rate at zero interest rate
             assumedExchangeRate = Constants.RATE_PRECISION;
         } else {
             assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
@@ -296,7 +289,7 @@ library nTokenMintAction {
         {
             int256 perMarketDepositUnderlying =
                 cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
-            // @audit-ok cash * exchangeRate = fCash
+            // NOTE: cash * exchangeRate = fCash
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
         int256 netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
@@ -305,7 +298,6 @@ library nTokenMintAction {
         if (netAssetCash == 0) {
             return (perMarketDeposit, 0);
         } else {
-            // @audit-ok
             // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
             // given how we've calculated the exchange rate but extra caution here
             int256 residual = perMarketDeposit.add(netAssetCash);

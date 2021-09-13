@@ -81,11 +81,9 @@ contract LiquidateCurrencyAction is ActionGuards {
         // amounts to the liquidator
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
-                // @audit-ok msg.sender != liquidateAccount
                 msg.sender,
                 localCurrency,
                 localAssetCashFromLiquidator,
-                // @audit-ok
                 localBalanceState.netNTokenTransfer.neg()
             );
         liquidatorContext.setAccountContext(msg.sender);
@@ -272,7 +270,6 @@ contract LiquidateCurrencyAction is ActionGuards {
             AccountContext memory
         )
     {
-        // @audit-ok
         (
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
@@ -391,7 +388,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         pure
         returns (int256)
     {
-        // @audit-ok netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
+        // netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
         // liquidity tokens.
         return
             collateralBalanceState.netCashChange.neg().add(
