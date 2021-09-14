@@ -32,11 +32,6 @@ class TestExchangeRate:
         with brownie.reverts():
             exchangeRate.buildExchangeRate(2)
 
-        aggregator.setAnswer(100)
-        aggregator.setRoundData(100, 0, 99)
-        with brownie.reverts("Stale rate"):
-            exchangeRate.buildExchangeRate(2)
-
     @pytest.mark.parametrize(parameterNames, parameterValues)
     def test_build_exchange_rate(
         self, accounts, MockAggregator, exchangeRate, rateDecimals, mustInvert

@@ -346,8 +346,8 @@ def main():
         TokenConfig["development"] = {
             "cETH": cETH.address,
             "DAI": {
-                "assetToken": (cDAI.address, False, TokenType["cToken"]),
-                "underlyingToken": (DAI.address, False, TokenType["UnderlyingToken"]),
+                "assetToken": (cDAI.address, False, TokenType["cToken"], CTOKEN_DECIMALS, 0),
+                "underlyingToken": (DAI.address, False, TokenType["UnderlyingToken"], 18, 0),
                 "ethOracle": ethDaiOracle.address,
                 "ethOracleMustInvert": False,
             },

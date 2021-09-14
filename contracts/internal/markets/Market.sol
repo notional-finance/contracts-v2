@@ -587,7 +587,7 @@ library Market {
 
     function _getMarketStoragePointer(
         MarketParameters memory market
-    ) private returns (MarketStorage storage marketStorage) {
+    ) private pure returns (MarketStorage storage marketStorage) {
         bytes32 slot = market.storageSlot;
         assembly {
             marketStorage.slot := slot

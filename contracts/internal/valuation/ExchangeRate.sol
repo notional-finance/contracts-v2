@@ -65,18 +65,14 @@ library ExchangeRate {
             rate = Constants.ETH_DECIMALS;
         } else {
             // prettier-ignore
-            uint80 roundId;
-            uint256 updatedAt;
-            uint80 answeredInRound;
             (
-                roundId,
+                /* roundId */,
                 rate,
                 /* uint256 startedAt */,
-                updatedAt,
-                answeredInRound
+                /* updatedAt */,
+                /* answeredInRound */
             ) = ethStorage.rateOracle.latestRoundData();
             require(rate > 0, "Invalid rate");
-            require(updatedAt != 0 && answeredInRound >= roundId, "Stale rate");
 
             // No overflow, restricted on storage
             rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
