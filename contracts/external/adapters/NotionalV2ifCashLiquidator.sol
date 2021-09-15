@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/compound/CTokenInterface.sol";
@@ -127,7 +127,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
     function liquidateCrossCurrencyfCash(
         BalanceActionWithTrades[] calldata actions,
         address liquidateAccount,
-        uint256 localCurrencyId,
+        uint16 localCurrencyId,
         address localCurrencyAssetToken,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
@@ -164,7 +164,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
             (
                 Token memory localAssetToken,
                 Token memory localUnderlyingToken
-            ) = NotionalV2.getCurrency(uint16(localCurrencyId));
+            ) = NotionalV2.getCurrency(localCurrencyId);
 
             // Set approval for minting if not set
             if (localAssetToken.tokenType == TokenType.cToken) {
@@ -190,7 +190,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
                 uint256 depositAmount = IERC20(localAssetToken.tokenAddress).balanceOf(
                     address(this)
                 );
-                NotionalV2.depositAssetToken(address(this), uint16(localCurrencyId), depositAmount);
+                NotionalV2.depositAssetToken(address(this), localCurrencyId, depositAmount);
             }
         }
 

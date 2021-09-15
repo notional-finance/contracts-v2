@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "./TokenHandler.sol";
 import "../nTokenHandler.sol";
+import "../../math/SafeInt256.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {
     using SafeMath for uint256;
+    using SafeInt256 for int256;
 
     /// @dev Notional incentivizes nTokens using the formula:
     ///     incentivesToClaim = (tokenBalance / totalSupply) * emissionRatePerYear * proRataYears
@@ -42,6 +44,7 @@ library Incentives {
             /* currencyId */,
             uint256 emissionRatePerYear,
             /* initializedTime */,
+            /* assetArrayLength */,
             /* parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
@@ -50,7 +53,8 @@ library Incentives {
         uint256 incentiveRate =
             _getIncentiveRate(
                 timeSinceLastClaim,
-                // Convert this to the appropriate denomination
+                // Convert this to the appropriate denomination, emissionRatePerYear is denominated
+                // in whole tokens
                 emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
             );
 
@@ -73,6 +77,7 @@ library Incentives {
     {
         uint256 blockTime = block.timestamp;
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
+        // This will set the new supply and return the previous integral total supply
         uint256 integralTotalSupply = nTokenHandler.changeNTokenSupply(
             tokenAddress,
             balanceState.netNTokenSupplyChange,
@@ -81,7 +86,7 @@ library Incentives {
 
         uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
-            uint256(balanceState.storedNTokenBalance),
+            balanceState.storedNTokenBalance.toUint(),
             balanceState.lastClaimTime,
             balanceState.lastClaimIntegralSupply,
             blockTime,

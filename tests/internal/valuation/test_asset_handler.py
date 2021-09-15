@@ -230,6 +230,8 @@ class TestAssetHandler:
         assert riskAdjustedPv == 0
         # Take the haircut first and then net off
         assert assetsAfter[0][3] == (0.5e18 * 0.99) - 0.25e18
+        # Assert that this now has a storage state of RevertIfStored
+        assert assetsAfter[0][5] == 3
 
     @pytest.mark.skip_coverage
     @given(oracleRate=impliedRateStrategy)

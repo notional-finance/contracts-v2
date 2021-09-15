@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,13 +9,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// balances and allowances are stored in at single address for gas efficiency. This contract
 /// is used simply for ERC20 compliance.
 contract nTokenERC20Proxy is IERC20 {
-    /// @notice Will be "nToken {Underlying Token}.name()"
+    /// @notice Will be "nToken {Underlying Token}.name()", therefore "USD Coin" will be
+    /// nToken USD Coin
     string public name;
 
-    /// @notice Will be "n{Underlying Token}.symbol()"
+    /// @notice Will be "n{Underlying Token}.symbol()", therefore "USDC" will be "nUSDC"
     string public symbol;
 
-    /// @notice Inherits from Constants.INTERNAL_TOKEN_DECIMALS
+    /// @notice Inherits from Constants.INTERNAL_TOKEN_PRECISION
     uint8 public constant decimals = 8;
 
     /// @notice Address of the notional proxy
@@ -65,9 +66,10 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
     function approve(address spender, uint256 amount) external override returns (bool) {
+        bool success = proxy.nTokenTransferApprove(currencyId, msg.sender, spender, amount);
         // Emit approvals here so that they come from the correct contract address
-        emit Approval(msg.sender, spender, amount);
-        return proxy.nTokenTransferApprove(currencyId, msg.sender, spender, amount);
+        if (success) emit Approval(msg.sender, spender, amount);
+        return success;
     }
 
     /// @notice Transfer `amount` tokens from `msg.sender` to `dst`
@@ -76,9 +78,10 @@ contract nTokenERC20Proxy is IERC20 {
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
     function transfer(address to, uint256 amount) external override returns (bool) {
+        bool success = proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
         // Emit transfer events here so they come from the correct contract
-        emit Transfer(msg.sender, to, amount);
-        return proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
+        if (success) emit Transfer(msg.sender, to, amount);
+        return success;
     }
 
     /// @notice Transfer `amount` tokens from `src` to `dst`
@@ -92,13 +95,11 @@ contract nTokenERC20Proxy is IERC20 {
         address to,
         uint256 amount
     ) external override returns (bool) {
-        (bool success, uint256 newAllowance) =
+        bool success =
             proxy.nTokenTransferFrom(currencyId, msg.sender, from, to, amount);
 
         // Emit transfer events here so they come from the correct contract
-        emit Transfer(from, to, amount);
-        emit Approval(msg.sender, from, newAllowance);
-
+        if (success) emit Transfer(from, to, amount);
         return success;
     }
 
@@ -110,27 +111,5 @@ contract nTokenERC20Proxy is IERC20 {
     /// @notice Returns the present value of the nToken's assets denominated in underlying
     function getPresentValueUnderlyingDenominated() external view returns (int256) {
         return proxy.nTokenPresentValueUnderlyingDenominated(currencyId);
-    }
-
-    /// @dev nTokens should never accept any erc1155 transfers of fCash
-    function onERC1155Received(
-        address, /* _operator */
-        address, /* _from */
-        uint256, /* _id */
-        uint256, /* _value */
-        bytes calldata /* _data */
-    ) external pure returns (bytes4) {
-        return 0;
-    }
-
-    /// @dev nTokens should never accept any erc1155 transfers of fCash
-    function onERC1155BatchReceived(
-        address, /* _operator */
-        address, /* _from */
-        uint256[] calldata, /* _ids */
-        uint256[] calldata, /* _values */
-        bytes calldata /* _data */
-    ) external pure returns (bytes4) {
-        return 0;
     }
 }

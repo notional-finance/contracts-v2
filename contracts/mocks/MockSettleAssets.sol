@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/BitmapAssetsHandler.sol";
@@ -12,6 +12,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
     using AccountContextHandler for AccountContext;
+    event BlockTime(uint256 blockTime, bool mustSettle);
 
     function setMaxCurrencyId(uint16 num) external {
         maxCurrencyId = num;
@@ -25,6 +26,10 @@ contract MockSettleAssets is StorageLayoutV1 {
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
+    function getAccountContext(address account) external view returns (AccountContext memory) {
+        return AccountContextHandler.getAccountContext(account);
+    }
+
     function setAssetArray(address account, PortfolioAsset[] memory a) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory state;
@@ -36,27 +41,24 @@ contract MockSettleAssets is StorageLayoutV1 {
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
         require(id <= maxCurrencyId, "invalid currency id");
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setMarketState(
         uint256 currencyId,
         uint256 settlementDate,
-        uint256 maturity,
-        MarketParameters memory ms
+        MarketParameters memory market
     ) external {
-        ms.storageSlot = Market.getSlot(currencyId, settlementDate, maturity);
-        // ensure that state gets set
-        ms.storageState = 0xFF;
-        ms.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getSettlementMarket(
         uint256 currencyId,
         uint256 maturity,
         uint256 settlementDate
-    ) external view returns (SettlementMarket memory) {
-        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
+    ) external view returns (MarketParameters memory s) {
+        Market.loadSettlementMarket(s, currencyId, maturity, settlementDate);
     }
 
     function getSettlementRate(uint256 currencyId, uint256 maturity)
@@ -92,22 +94,13 @@ contract MockSettleAssets is StorageLayoutV1 {
         int256 notional,
         uint256 nextSettleTime
     ) external {
-        bytes32 ifCashBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-
-        // prettier-ignore
-        (
-            ifCashBitmap,
-            /* finalNotional */
-        ) = BitmapAssetsHandler.addifCashAsset(
+        BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             nextSettleTime,
-            notional,
-            ifCashBitmap
+            notional
         );
-
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, ifCashBitmap);
     }
 
     function setSettlementRate(
@@ -117,27 +110,16 @@ contract MockSettleAssets is StorageLayoutV1 {
         uint8 underlyingDecimalPlaces
     ) external {
         uint256 blockTime = block.timestamp;
-        bytes32 slot =
-            keccak256(
-                abi.encode(
-                    currencyId,
-                    keccak256(abi.encode(maturity, Constants.SETTLEMENT_RATE_STORAGE_OFFSET))
-                )
-            );
-        bytes32 data =
-            (bytes32(blockTime) |
-                (bytes32(uint256(rate)) << 40) |
-                (bytes32(uint256(underlyingDecimalPlaces)) << 168));
-
-        assembly {
-            sstore(slot, data)
-        }
+        mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
+        SettlementRateStorage storage rateStorage = store[currencyId][maturity];
+        rateStorage.blockTime = uint40(blockTime);
+        rateStorage.settlementRate = rate;
+        rateStorage.underlyingDecimalPlaces = underlyingDecimalPlaces;
     }
 
-    function settlePortfolio(address account, uint256 blockTime)
-        public
-        returns (SettleAmount[] memory)
-    {
+    event SettleAmountsCompleted(SettleAmount[] settleAmounts);
+
+    function settlePortfolio(address account, uint256 blockTime) public {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory pState =
             PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
@@ -149,7 +131,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         accountContext.storeAssetsAndUpdateContext(account, pState, false);
         accountContext.setAccountContext(account);
 
-        return settleAmount;
+        emit SettleAmountsCompleted(settleAmount);
     }
 
     function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
@@ -183,7 +165,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (bytes32 newBitmap, int256 newAssetCash, uint256 blockTimeUTC0) =
+        (int256 newAssetCash, /* uint256 blockTimeUTC0 */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -191,7 +173,7 @@ contract MockSettleAssets is StorageLayoutV1 {
                 blockTime
             );
 
-        newBitmapStorage = newBitmap;
+        newBitmapStorage = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         totalAssetCash = newAssetCash;
     }
 
@@ -199,16 +181,15 @@ contract MockSettleAssets is StorageLayoutV1 {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external {
-        // prettier-ignore
-        (bytes32 newBitmap, /* int256 newAssetCash */, /* uint256 blockTimeUTC0 */) =
-            SettleBitmapAssets.settleBitmappedCashGroup(
-                account,
-                currencyId,
-                nextSettleTime,
-                blockTime
-            );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
+    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external returns (int256, uint256) {
+        (int256 newAssetCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
+            account,
+            currencyId,
+            nextSettleTime,
+            blockTime
+        );
+
+        return (newAssetCash, blockTimeUTC0);
     }
 
     function getifCashArray(

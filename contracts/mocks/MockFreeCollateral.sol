@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/valuation/ExchangeRate.sol";
 import "../internal/markets/AssetRate.sol";
@@ -18,14 +18,15 @@ contract MockFreeCollateral is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -38,10 +39,7 @@ contract MockFreeCollateral is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketStorage(
@@ -61,7 +59,7 @@ contract MockFreeCollateral is StorageLayoutV1 {
 
     function enableBitmapForAccount(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
@@ -77,7 +75,6 @@ contract MockFreeCollateral is StorageLayoutV1 {
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
         if (
             accountContext.nextSettleTime != 0 &&
             accountContext.nextSettleTime != DateTime.getTimeUTC0(blockTime)
@@ -86,25 +83,22 @@ contract MockFreeCollateral is StorageLayoutV1 {
         }
         accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
 
-        int256 finalNotional;
-        (bitmap, finalNotional) = BitmapAssetsHandler.addifCashAsset(
+        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             accountContext.nextSettleTime,
-            notional,
-            bitmap
+            notional
         );
         if (finalNotional < 0)
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
 
         accountContext.setAccountContext(account);
-
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
     }
 
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {

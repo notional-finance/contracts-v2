@@ -121,8 +121,6 @@ class TestLiquidationFactors:
         assert factors[2] > -100e8 and factors[2] < -99e8
         # Collateral available
         assert factors[3] == 100e8
-        # Markets unset (collateral has no assets)
-        assert len(factors[10]) == 0
         # Cash group unset (collateral has no assets)
         assert factors[9][0] == 0
         # Assert that asset rate is set

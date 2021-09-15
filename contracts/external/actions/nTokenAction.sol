@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/Incentives.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../external/FreeCollateralExternal.sol";
 import "interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract nTokenAction is StorageLayoutV1, nTokenERC20 {
+contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
+    using nTokenHandler for nTokenPortfolio;
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -58,36 +61,42 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
-    /// @param owner The address of the account holding the funds
+    /// @param currencyId Currency id of the nToken account
+    /// @param tokenHolder The address of the account holding the funds
     /// @param spender The address of the account spending the funds
     /// @return The number of tokens approved
     function nTokenTransferAllowance(
         uint16 currencyId,
-        address owner,
+        address tokenHolder,
         address spender
     ) external view override returns (uint256) {
         // This whitelist allowance supersedes any specific allowances
-        uint256 allowance = nTokenWhitelist[owner][spender];
-        if (allowance > 0) return allowance;
-
-        return nTokenAllowance[owner][spender][currencyId];
+        uint256 allowance = nTokenWhitelist[tokenHolder][spender];
+        if (allowance > 0) {
+            return allowance;
+        } else {
+            return nTokenAllowance[tokenHolder][spender][currencyId];
+        }
     }
 
     /// @notice Approve `spender` to transfer up to `amount` from `src`
     /// @dev Can only be called via the nToken proxy
+    /// @param currencyId Currency id of the nToken account
+    /// @param tokenHolder The address of the account holding the funds
     /// @param spender The address of the account which may transfer tokens
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
     function nTokenTransferApprove(
         uint16 currencyId,
-        address owner,
+        address tokenHolder,
         address spender,
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(tokenHolder != address(0));
 
-        nTokenAllowance[owner][spender][currencyId] = amount;
+        nTokenAllowance[tokenHolder][spender][currencyId] = amount;
 
         return true;
     }
@@ -95,6 +104,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     /// @notice Transfer `amount` tokens from `msg.sender` to `dst`
     /// @dev Can only be called via the nToken proxy
     /// @param from The address of the destination account
+    /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
     function nTokenTransfer(
@@ -105,6 +115,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(from != to, "Cannot transfer to self");
+        requireValidAccount(to);
 
         return _transfer(currencyId, from, to, amount);
     }
@@ -123,27 +135,28 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         address from,
         address to,
         uint256 amount
-    ) external override returns (bool, uint256) {
+    ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(from != to, "Cannot transfer to self");
+        requireValidAccount(to);
 
-        uint256 allowance = nTokenWhitelist[from][spender];
+        uint256 allowance = nTokenAllowance[from][spender][currencyId];
 
         if (allowance > 0) {
-            // This whitelist allowance supersedes any specific allowances
-            require(allowance >= amount, "Insufficient allowance");
-            allowance = allowance.sub(amount);
-            nTokenWhitelist[from][spender] = allowance;
-        } else {
             // This is the specific allowance for the nToken.
-            allowance = nTokenAllowance[from][spender][currencyId];
             require(allowance >= amount, "Insufficient allowance");
-            allowance = allowance.sub(amount);
-            nTokenAllowance[from][spender][currencyId] = allowance;
+            // Overflow checked above
+            nTokenAllowance[from][spender][currencyId] = allowance - amount;
+        } else {
+            // This whitelist allowance works across all nTokens
+            allowance = nTokenWhitelist[from][spender];
+            require(allowance >= amount, "Insufficient allowance");
+            // Overflow checked above
+            nTokenWhitelist[from][spender] = allowance - amount;
         }
 
-        bool success = _transfer(currencyId, from, to, amount);
-        return (success, allowance);
+        return _transfer(currencyId, from, to, amount);
     }
 
     /// @notice Will approve all nToken transfers to the specific sender. This is used for simplifying UX, a user can approve
@@ -159,9 +172,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         returns (bool)
     {
         nTokenWhitelist[msg.sender][spender] = amount;
-
         emit Approval(msg.sender, spender, amount);
-
         return true;
     }
 
@@ -171,33 +182,33 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
     function nTokenClaimIncentives() external override returns (uint256) {
         address account = msg.sender;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        uint256 totalIncentivesClaimed;
+        uint256 totalIncentivesClaimed = 0;
         BalanceState memory balanceState;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
-                totalIncentivesClaimed = totalIncentivesClaimed.add(
-                    BalanceHandler.claimIncentivesManual(balanceState, account)
-                );
+                // balance state is updated inside claim incentives manual
+                totalIncentivesClaimed = balanceState.claimIncentivesManual(account);
             }
         }
 
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
-            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
 
             balanceState.loadBalanceState(account, currencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
-                totalIncentivesClaimed = totalIncentivesClaimed.add(
-                    BalanceHandler.claimIncentivesManual(balanceState, account)
-                );
+                // balance state is updated inside claim incentives manual
+                totalIncentivesClaimed = totalIncentivesClaimed
+                    .add(balanceState.claimIncentivesManual(account));
             }
 
             currencies = currencies << 16;
         }
 
-        // NOTE: no need to set account context after claiming incentives
+        // NOTE: no need to set account context after claiming incentives. No currencies
+        // or fCash assets have been added or changed.
         return totalIncentivesClaimed;
     }
 
@@ -229,61 +240,54 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20 {
         return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
-    function _getNTokenPV(uint256 currencyId)
+    function _getNTokenPV(uint16 currencyId)
         private
         view
         returns (int256, nTokenPortfolio memory)
     {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
+        nToken.loadNTokenPortfolioView(currencyId);
 
-        // prettier-ignore
-        (
-            int256 totalAssetPV,
-            /* ifCashMapping */
-        ) = nTokenHandler.getNTokenAssetPV(nToken, blockTime);
+        int256 totalAssetPV = nToken.getNTokenAssetPV(blockTime);
 
         return (totalAssetPV, nToken);
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time
     function _transfer(
-        uint256 currencyId,
+        uint16 currencyId,
         address sender,
         address recipient,
         uint256 amount
     ) internal returns (bool) {
-        {
-            // prettier-ignore
-            (
-                uint256 isNToken,
-                /* incentiveAnnualEmissionRate */,
-                /* lastInitializedTime */,
-                /* parameters */
-            ) = nTokenHandler.getNTokenContext(recipient);
-            // nTokens cannot hold nToken balances
-            require(isNToken == 0, "Cannot transfer to nToken");
-        }
+        int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
+        // If sender has debt then we will check free collateral which will revert if we have not
+        // settled assets first. To prevent this we settle sender context if required.
+        if (senderContext.mustSettleAssets()) {
+            senderContext = SettleAssetsExternal.settleAccount(sender, senderContext);
+        }
+
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
+        senderBalance.netNTokenTransfer = amountInt.neg();
+        senderBalance.finalize(sender, senderContext, false);
+        senderContext.setAccountContext(sender);
 
         AccountContext memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance;
         recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
-
-        int256 amountInt = SafeCast.toInt256(amount);
-        senderBalance.netNTokenTransfer = amountInt.neg();
         recipientBalance.netNTokenTransfer = amountInt;
-
-        senderBalance.finalize(sender, senderContext, false);
         recipientBalance.finalize(recipient, recipientContext, false);
-        senderContext.setAccountContext(sender);
         recipientContext.setAccountContext(recipient);
 
-        emit Transfer(sender, recipient, amount);
+        // nTokens are used as collateral so we have to check the free collateral when we transfer. Only the
+        // sender needs a free collateral check, the receiver's net free collateral position will only increase
+        if (senderContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(sender);
+        }
 
         return true;
     }

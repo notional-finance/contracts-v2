@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/valuation/ExchangeRate.sol";
 import "../global/StorageLayoutV1.sol";
@@ -10,7 +10,8 @@ contract MockExchangeRate is StorageLayoutV1 {
     using ExchangeRate for ETHRate;
 
     function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
-        underlyingToETHRateMapping[id] = rs;
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
     }
 
     function assertBalanceSign(int256 balance, int256 result) private pure {

@@ -40,7 +40,7 @@ class TestSettleBitmap:
             # Set market state
             for m in MARKETS:
                 marketState = get_market_state(m)
-                contract.setMarketState(currencyId, SETTLEMENT_DATE, m, marketState)
+                contract.setMarketState(currencyId, SETTLEMENT_DATE, marketState)
 
                 # Set settlement rates for markets 0, 1
                 if m == MARKETS[0]:

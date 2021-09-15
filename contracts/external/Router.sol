@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
@@ -33,6 +33,7 @@ contract Router is StorageLayoutV1 {
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
+    address private immutable DEPLOYER;
 
     constructor(
         address governance_,
@@ -58,12 +59,15 @@ contract Router is StorageLayoutV1 {
         LIQUIDATE_CURRENCY = liquidateCurrency_;
         LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
+        DEPLOYER = msg.sender;
+
+        // This will lock everyone from calling initialize on the implementation contract
+        hasInitialized = true;
     }
 
     function initialize(address owner_, address pauseRouter_, address pauseGuardian_) public {
-        // Cannot re-initialize once the contract has been initialized, ownership transfer does not
-        // allow address to be set back to zero
-        require(owner == address(0), "R: already initialized");
+        // Check that only the deployer can initialize
+        require(msg.sender == DEPLOYER && !hasInitialized);
 
         // Allow list currency to be called by this contract for the purposes of
         // initializing ETH as a currency
@@ -73,9 +77,9 @@ contract Router is StorageLayoutV1 {
             address(GOVERNANCE).delegatecall(
                 abi.encodeWithSelector(
                     NotionalGovernance.listCurrency.selector,
-                    TokenStorage(cETH, false, TokenType.cETH),
+                    TokenStorage(cETH, false, TokenType.cETH, Constants.CETH_DECIMAL_PLACES, 0),
                     // No underlying set for cETH
-                    TokenStorage(address(0), false, TokenType.Ether),
+                    TokenStorage(address(0), false, TokenType.Ether, Constants.ETH_DECIMAL_PLACES, 0),
                     address(0),
                     false,
                     130, // Initial settings of 130 buffer
@@ -89,6 +93,8 @@ contract Router is StorageLayoutV1 {
         // The pause guardian may downgrade the router to the pauseRouter
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
+
+        hasInitialized == true;
     }
 
     /// @notice Returns the implementation contract for the method signature
@@ -101,9 +107,7 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector
         ) {
             return BATCH_ACTION;
-        }
-
-        if (
+        } else if (
             sig == nTokenAction.nTokenTotalSupply.selector ||
             sig == nTokenAction.nTokenBalanceOf.selector ||
             sig == nTokenAction.nTokenTransferAllowance.selector ||
@@ -116,9 +120,7 @@ contract Router is StorageLayoutV1 {
             sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
         ) {
             return NTOKEN_ACTIONS;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.depositUnderlyingToken.selector ||
             sig == NotionalProxy.depositAssetToken.selector ||
             sig == NotionalProxy.withdraw.selector ||
@@ -126,19 +128,17 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.enableBitmapCurrency.selector
         ) {
             return ACCOUNT_ACTION;
-        }
-
-        if (
+        } else if (
             sig == nTokenRedeemAction.nTokenRedeem.selector ||
             sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
         ) {
             return NTOKEN_REDEEM;
-        }
-
-        if (
+        } else if (
             sig == nERC1155Interface.supportsInterface.selector ||
             sig == nERC1155Interface.balanceOf.selector ||
             sig == nERC1155Interface.balanceOfBatch.selector ||
+            sig == nERC1155Interface.signedBalanceOf.selector ||
+            sig == nERC1155Interface.signedBalanceOfBatch.selector ||
             sig == nERC1155Interface.safeTransferFrom.selector ||
             sig == nERC1155Interface.safeBatchTransferFrom.selector ||
             sig == nERC1155Interface.decodeToAssets.selector ||
@@ -147,34 +147,26 @@ contract Router is StorageLayoutV1 {
             sig == nERC1155Interface.isApprovedForAll.selector
         ) {
             return ERC1155;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.liquidateLocalCurrency.selector ||
             sig == NotionalProxy.liquidateCollateralCurrency.selector ||
             sig == NotionalProxy.calculateLocalCurrencyLiquidation.selector ||
             sig == NotionalProxy.calculateCollateralCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_CURRENCY;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.liquidatefCashLocal.selector ||
             sig == NotionalProxy.liquidatefCashCrossCurrency.selector ||
             sig == NotionalProxy.calculatefCashLocalLiquidation.selector ||
             sig == NotionalProxy.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
-        }
-
-        if (
+        } else if (
             sig == NotionalProxy.initializeMarkets.selector ||
             sig == NotionalProxy.sweepCashIntoMarkets.selector
         ) {
             return INITIALIZE_MARKET;
-        }
-
-        if (
+        } else if (
             sig == NotionalGovernance.listCurrency.selector ||
             sig == NotionalGovernance.enableCashGroup.selector ||
             sig == NotionalGovernance.updateCashGroup.selector ||
@@ -182,6 +174,7 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateETHRate.selector ||
             sig == NotionalGovernance.transferOwnership.selector ||
             sig == NotionalGovernance.updateIncentiveEmissionRate.selector ||
+            sig == NotionalGovernance.updateMaxCollateralBalance.selector ||
             sig == NotionalGovernance.updateDepositParameters.selector ||
             sig == NotionalGovernance.updateInitializationParameters.selector ||
             sig == NotionalGovernance.updateTokenCollateralParameters.selector ||
@@ -191,11 +184,11 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
+        } else {
+            // If not found then delegate to views. This will revert if there is no method on
+            // the view contract
+            return VIEWS;
         }
-
-        // If not found then delegate to views. This will revert if there is no method on
-        // the view contract
-        return VIEWS;
     }
 
     /// @dev Delegates the current call to `implementation`.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
+pragma solidity ^0.7.0;
 
 import "../math/FloatingPoint56.sol";
 import "../math/Bitmap.sol";
@@ -10,7 +10,7 @@ contract MockFloatingPoint56 {
         pure
         returns (bytes32 packed, uint256 unpacked)
     {
-        packed = FloatingPoint56.packTo56Bits(value);
+        packed = bytes32(uint256(FloatingPoint56.packTo56Bits(value)));
         unpacked = FloatingPoint56.unpackFrom56Bits(uint256(packed));
     }
 

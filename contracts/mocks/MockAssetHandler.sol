@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/valuation/AssetHandler.sol";
 import "../internal/markets/Market.sol";
@@ -13,14 +13,15 @@ contract MockAssetHandler is StorageLayoutV1 {
     using Market for MarketParameters;
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -33,10 +34,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, settlementDate, market.maturity);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketStorage(
@@ -60,7 +58,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint256 blockTime,
         uint256 oracleRate
     ) public pure returns (int256) {
-        int256 pv = AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        int256 pv = AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
         if (notional > 0) assert(pv > 0);
         if (notional < 0) assert(pv < 0);
 
@@ -76,7 +74,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         uint256 oracleRate
     ) public pure returns (int256) {
         int256 riskPv =
-            AssetHandler.getRiskAdjustedPresentValue(
+            AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
                 maturity,

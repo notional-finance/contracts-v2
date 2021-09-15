@@ -22,11 +22,18 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
 
     if symbol == "NOMINT":
         zeroAddress = HexString(0, "bytes20")
+        tokenDecimals = v2env.token[symbol].decimals()
         return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
             fn_name="listCurrency",
             args=[
-                (v2env.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
-                (zeroAddress, False, 0),
+                (
+                    v2env.token[symbol].address,
+                    symbol == "USDT",
+                    TokenType["NonMintable"],
+                    tokenDecimals,
+                    0,
+                ),
+                (zeroAddress, False, 0, 0, 0),
                 v2env.ethOracle[symbol].address,
                 False,
                 buffer,
@@ -35,11 +42,25 @@ def listCurrencyCalldata(symbol, v2env, **kwargs):
             ],
         )
     else:
+        cTokenDecimals = v2env.cToken[symbol].decimals()
+        tokenDecimals = v2env.token[symbol].decimals()
         return web3.eth.contract(abi=v2env.notional.abi).encodeABI(
             fn_name="listCurrency",
             args=[
-                (v2env.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
-                (v2env.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+                (
+                    v2env.cToken[symbol].address,
+                    symbol == "USDT",
+                    TokenType["cToken"],
+                    cTokenDecimals,
+                    0,
+                ),
+                (
+                    v2env.token[symbol].address,
+                    symbol == "USDT",
+                    TokenType["UnderlyingToken"],
+                    tokenDecimals,
+                    0,
+                ),
                 v2env.ethOracle[symbol].address,
                 False,
                 buffer,

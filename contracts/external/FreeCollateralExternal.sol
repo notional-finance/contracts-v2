@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
 import "../internal/valuation/FreeCollateral.sol";
@@ -22,20 +22,23 @@ library FreeCollateralExternal {
         view
         returns (int256, int256[] memory)
     {
-        uint256 blockTime = block.timestamp;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
+        // The internal free collateral function does not account for settled assets. The Notional SDK
+        // can calculate the free collateral off chain if required at this point.
+        require(!accountContext.mustSettleAssets(), "Assets not settled");
+        return FreeCollateral.getFreeCollateralView(account, accountContext, block.timestamp);
     }
 
     /// @notice Calculates free collateral and will revert if it falls below zero. If the account context
-    /// must be updated due to changes in debt settings, will update
+    /// must be updated due to changes in debt settings, will update. Cannot check free collateral if assets
+    /// need to be settled first.
     /// @param account account to calculate free collateral for
     function checkFreeCollateralAndRevert(address account) external {
-        uint256 blockTime = block.timestamp;
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        require(!accountContext.mustSettleAssets(), "Assets not settled");
 
         (int256 ethDenominatedFC, bool updateContext) =
-            FreeCollateral.getFreeCollateralStateful(account, accountContext, blockTime);
+            FreeCollateral.getFreeCollateralStateful(account, accountContext, block.timestamp);
 
         if (updateContext) {
             accountContext.setAccountContext(account);
@@ -61,9 +64,8 @@ library FreeCollateralExternal {
         )
     {
         accountContext = AccountContextHandler.getAccountContext(account);
-
         if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
+            accountContext = SettleAssetsExternal.settleAccount(account, accountContext);
         }
 
         (factors, portfolio) = FreeCollateral.getLiquidationFactors(

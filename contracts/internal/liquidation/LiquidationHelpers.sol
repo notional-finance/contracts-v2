@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "./LiquidatefCash.sol";
 import "../AccountContextHandler.sol";
@@ -22,11 +22,13 @@ library LiquidationHelpers {
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
 
-    /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions.
+    /// @notice Settles accounts and returns liquidation factors for all of the liquidation actions. Also
+    /// returns the account context and portfolio state post settlement. All liquidation actions will start
+    /// here to get their required preconditions met.
     function preLiquidationActions(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
+        uint16 localCurrency,
+        uint16 collateralCurrency
     )
         internal
         returns (
@@ -39,7 +41,7 @@ library LiquidationHelpers {
         require(msg.sender != liquidateAccount);
         require(localCurrency != 0);
         // Collateral currency must be unset or not equal to the local currency
-        require(collateralCurrency == 0 || collateralCurrency != localCurrency);
+        require(collateralCurrency != localCurrency);
         (
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
@@ -67,28 +69,32 @@ library LiquidationHelpers {
     /// further into negative free collateral (i.e. constraints on local available and collateral available).
     /// Additionally, we allow the liquidator to specify a maximum amount of collateral they would like to
     /// purchase so we also enforce that limit here.
+    /// @param liquidateAmountRequired this is the amount required by liquidation to get back to positive free collateral
+    /// @param maxTotalBalance the maximum total balance of the asset the account has
+    /// @param userSpecifiedMaximum the maximum amount the liquidator is willing to purchase
     function calculateLiquidationAmount(
-        int256 initialAmountToLiquidate,
+        int256 liquidateAmountRequired,
         int256 maxTotalBalance,
         int256 userSpecifiedMaximum
     ) internal pure returns (int256) {
         // By default, the liquidator is allowed to purchase at least to `defaultAllowedAmount`
-        // if `initialAmountToLiquidate` is less than `defaultAllowedAmount`.
+        // if `liquidateAmountRequired` is less than `defaultAllowedAmount`.
         int256 defaultAllowedAmount =
             maxTotalBalance.mul(Constants.DEFAULT_LIQUIDATION_PORTION).div(
                 Constants.PERCENTAGE_DECIMALS
             );
 
-        int256 result = initialAmountToLiquidate;
+        int256 result = liquidateAmountRequired;
 
         // Limit the purchase amount by the max total balance, we cannot purchase
         // more than what is available.
-        if (initialAmountToLiquidate > maxTotalBalance) {
+        if (liquidateAmountRequired > maxTotalBalance) {
             result = maxTotalBalance;
         }
 
-        if (initialAmountToLiquidate < defaultAllowedAmount) {
-            // Allow the liquidator to go up to the default allowed amount
+        // Allow the liquidator to go up to the default allowed amount which is always
+        // less than the maxTotalBalance
+        if (liquidateAmountRequired < defaultAllowedAmount) {
             result = defaultAllowedAmount;
         }
 
@@ -106,41 +112,39 @@ library LiquidationHelpers {
         pure
         returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
     {
+        require(factors.collateralETHRate.haircut > 0);
         // This calculation returns the amount of benefit that selling collateral for local currency will
         // be back to the account.
+        // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
+        // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
         assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
+                // netETHValue must be negative to be in liquidation
                 .convertETHTo(factors.netETHValue.neg())
                 .mul(Constants.PERCENTAGE_DECIMALS)
-            // If the haircut is zero here the transaction will revert, which is the correct result. Liquidating
-            // collateral with a zero haircut will have no net benefit back to the liquidated account.
                 .div(factors.collateralETHRate.haircut)
         );
 
-        if (
-            factors.collateralETHRate.liquidationDiscount > factors.localETHRate.liquidationDiscount
-        ) {
-            liquidationDiscount = factors.collateralETHRate.liquidationDiscount;
-        } else {
-            liquidationDiscount = factors.localETHRate.liquidationDiscount;
-        }
-
-        return (assetCashBenefitRequired, liquidationDiscount);
+        liquidationDiscount = SafeInt256.max(
+            factors.collateralETHRate.liquidationDiscount,
+            factors.localETHRate.liquidationDiscount
+        );
     }
 
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
     /// is not so large that the account is put further into debt.
+    /// @return
+    ///     collateralAssetBalanceToSell: the amount of collateral asset balance to be sold to the liquidator
+    ///     localAssetFromLiquidator: the amount of asset cash from the liquidator
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
-        int256 collateralAssetPresentValue,
+        int256 collateralUnderlyingPresentValue,
         int256 collateralAssetBalanceToSell
     ) internal pure returns (int256, int256) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 collateralUnderlyingPresentValue =
-            factors.cashGroup.assetRate.convertToUnderlying(collateralAssetPresentValue);
         int256 localUnderlyingFromLiquidator =
             collateralUnderlyingPresentValue
                 .mul(Constants.PERCENTAGE_DECIMALS)
@@ -150,17 +154,19 @@ library LiquidationHelpers {
 
         int256 localAssetFromLiquidator =
             factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
+        // localAssetAvailable must be negative in cross currency liquidations
+        int256 maxLocalAsset = factors.localAssetAvailable.neg();
 
-        if (localAssetFromLiquidator > factors.localAssetAvailable.neg()) {
+        if (localAssetFromLiquidator > maxLocalAsset) {
             // If the local to purchase will flip the sign of localAssetAvailable then the calculations
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
             // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
-                .mul(factors.localAssetAvailable.neg())
+                .mul(maxLocalAsset)
                 .div(localAssetFromLiquidator);
 
-            localAssetFromLiquidator = factors.localAssetAvailable.neg();
+            localAssetFromLiquidator = maxLocalAsset;
         }
 
         return (collateralAssetBalanceToSell, localAssetFromLiquidator);
@@ -168,13 +174,13 @@ library LiquidationHelpers {
 
     function finalizeLiquidatorLocal(
         address liquidator,
-        uint256 localCurrencyId,
+        uint16 localCurrencyId,
         int256 netLocalFromLiquidator,
         int256 netLocalNTokens
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
-        Token memory token = TokenHandler.getToken(localCurrencyId, false);
+        Token memory token = TokenHandler.getAssetToken(localCurrencyId);
         AccountContext memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
         BalanceState memory liquidatorLocalBalance;
@@ -202,7 +208,7 @@ library LiquidationHelpers {
     function finalizeLiquidatorCollateral(
         address liquidator,
         AccountContext memory liquidatorContext,
-        uint256 collateralCurrencyId,
+        uint16 collateralCurrencyId,
         int256 netCollateralToLiquidator,
         int256 netCollateralNTokens,
         bool withdrawCollateral,
@@ -213,10 +219,13 @@ library LiquidationHelpers {
         balance.netCashChange = netCollateralToLiquidator;
 
         if (withdrawCollateral) {
+            // This will net off the cash balance
             balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
         }
 
         balance.netNTokenTransfer = netCollateralNTokens;
+        // NOTE: redeem to underlying does not affect nTokens, those must be redeemed
+        // separately by calling back into Notional
         balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
 
         return liquidatorContext;
@@ -224,7 +233,7 @@ library LiquidationHelpers {
 
     function finalizeLiquidatedLocalBalance(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         AccountContext memory accountContext,
         int256 netLocalFromLiquidator
     ) internal {

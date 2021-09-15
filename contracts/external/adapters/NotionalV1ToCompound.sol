@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 // WARNING: this is unaudited code. Use at your own risk. Very much recommended that this
 // should be deployed behind an upgradeable proxy in case of issues.
@@ -176,7 +176,7 @@ contract NotionalV1ToCompound {
         address spender,
         uint256 allowance
     ) external onlyOwner {
-        IERC20(token).approve(spender, allowance);
+        require(IERC20(token).approve(spender, allowance));
     }
 
     function _flashBorrowCollateral(
@@ -326,7 +326,7 @@ contract NotionalV1ToCompound {
         uint256 _id,
         uint256 _value,
         bytes calldata _data
-    ) external returns (bytes4) {
+    ) external pure returns (bytes4) {
         return 0xf23a6e61;
     }
 }

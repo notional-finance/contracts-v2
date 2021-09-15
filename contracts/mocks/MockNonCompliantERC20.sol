@@ -4,7 +4,10 @@ pragma solidity ^0.7.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/GSN/Context.sol";
 
-contract MockERC20 is IERC20, Context {
+contract MockNonCompliantERC20 is Context {
+    event Approval(address indexed owner, address indexed spender, uint value);
+    event Transfer(address indexed from, address indexed to, uint value);
+
     uint public transferFee;
     uint internal constant transferFeeDecimals = 1e18;
 
@@ -17,7 +20,6 @@ contract MockERC20 is IERC20, Context {
     string private _name;
     string private _symbol;
     uint8 private _decimals;
-    bool private _returnValue;
 
     /**
      * @dev Sets the values for {name} and {symbol}.
@@ -39,11 +41,6 @@ contract MockERC20 is IERC20, Context {
         _decimals = decimals_;
         _mint(msg.sender, 10**decimals_ * 1e23);
         transferFee = fee;
-        _returnValue = true;
-    }
-
-    function setTransferReturnValue(bool returnValue) external {
-        _returnValue = returnValue;
     }
 
     /**
@@ -81,14 +78,14 @@ contract MockERC20 is IERC20, Context {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() public view virtual returns (uint256) {
         return _totalSupply;
     }
 
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public view virtual override returns (uint256) {
+    function balanceOf(address account) public view virtual returns (uint256) {
         return _balances[account];
     }
 
@@ -100,15 +97,14 @@ contract MockERC20 is IERC20, Context {
      * - `recipient` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+    function transfer(address recipient, uint256 amount) public virtual {
         _transfer(_msgSender(), recipient, amount);
-        return _returnValue;
     }
 
     /**
      * @dev See {IERC20-allowance}.
      */
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+    function allowance(address owner, address spender) public view virtual returns (uint256) {
         return _allowances[owner][spender];
     }
 
@@ -119,9 +115,8 @@ contract MockERC20 is IERC20, Context {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+    function approve(address spender, uint256 amount) public virtual {
         _approve(_msgSender(), spender, amount);
-        return true;
     }
 
     /**
@@ -137,13 +132,11 @@ contract MockERC20 is IERC20, Context {
      * - the caller must have allowance for ``sender``'s tokens of at least
      * `amount`.
      */
-    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual {
         _transfer(sender, recipient, amount);
 
         require(_allowances[sender][_msgSender()] >= amount, "ERC20: transfer amount exceeds allowance");
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()] - amount);
-
-        return _returnValue;
     }
 
     /**

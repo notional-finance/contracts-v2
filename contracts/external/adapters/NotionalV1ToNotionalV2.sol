@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../global/Types.sol";
 import "interfaces/notional/NotionalProxy.sol";
@@ -97,7 +97,7 @@ contract NotionalV1ToNotionalV2 {
     }
 
     function enableWBTC() external {
-        WBTC.approve(address(NotionalV2), type(uint256).max);
+        require(WBTC.approve(address(NotionalV2), type(uint256).max));
     }
 
     function migrateDaiEther(
@@ -146,7 +146,7 @@ contract NotionalV1ToNotionalV2 {
         address account,
         bytes calldata callbackData
     ) external returns (uint256) {
-        require(sender == address(this), "Unauthorized callback");
+        require(msg.sender == address(NotionalV2) && sender == address(this), "Unauthorized callback");
         (
             uint16 v1DebtCurrencyId,
             uint128 v1RepayAmount,
@@ -155,9 +155,11 @@ contract NotionalV1ToNotionalV2 {
         ) = abi.decode(callbackData, (uint16, uint128, uint16, uint16));
 
         int256[] memory balances = Escrow.getBalances(account);
+        // Notional V1 returns an array of balances for all listed currencies. We do not allow
+        // collateral to be USDC or DAI during migration.
         int256 collateralBalance =
             (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
-        require(collateralBalance > 0);
+        require(0 < collateralBalance && collateralBalance <= type(uint128).max);
 
         {
             INotionalV1Erc1155.Deposit[] memory deposits = new INotionalV1Erc1155.Deposit[](1);
@@ -165,13 +167,15 @@ contract NotionalV1ToNotionalV2 {
             INotionalV1Erc1155.Withdraw[] memory withdraws = new INotionalV1Erc1155.Withdraw[](1);
 
             // This will deposit what was borrowed from the account's wallet
-            deposits[0].currencyId = v1DebtCurrencyId;
-            deposits[0].amount = v1RepayAmount;
+            deposits[0] = INotionalV1Erc1155.Deposit(v1DebtCurrencyId, v1RepayAmount);
 
-            // This will withdraw to the current contract the collateral to repay the flash loan
-            withdraws[0].currencyId = v1CollateralId;
-            withdraws[0].to = address(this);
-            withdraws[0].amount = uint128(collateralBalance);
+            // This will withdraw to the current contract the collateral to repay the flash loan,
+            // overflow checked above
+            withdraws[0] = INotionalV1Erc1155.Withdraw(
+                address(this), // Will withdraw collateral to this contract, to be deposited below
+                v1CollateralId,
+                uint128(collateralBalance)
+            );
 
             NotionalV1Erc1155.batchOperationWithdraw(
                 account,
@@ -199,5 +203,7 @@ contract NotionalV1ToNotionalV2 {
         // When this exits it will do a free collateral check
     }
 
-    receive() external payable {}
+    receive() external payable {
+        // Allows contract to receive ETH during WETH withdraw
+    }
 }

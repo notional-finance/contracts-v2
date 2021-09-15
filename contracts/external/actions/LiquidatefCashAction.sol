@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
+import "./ActionGuards.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/liquidation/LiquidatefCash.sol";
 import "../../internal/liquidation/LiquidationHelpers.sol";
 import "../../math/SafeInt256.sol";
 
-contract LiquidatefCashAction {
+contract LiquidatefCashAction is ActionGuards {
     using AccountContextHandler for AccountContext;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
@@ -33,7 +34,7 @@ contract LiquidatefCashAction {
     ///   - amount of local currency required from the liquidator
     function calculatefCashLocalLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256) {
@@ -61,10 +62,10 @@ contract LiquidatefCashAction {
     ///   - amount of local currency required from the liquidator
     function liquidatefCashLocal(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -86,8 +87,8 @@ contract LiquidatefCashAction {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
-            uint16(localCurrency),
-            uint16(localCurrency),
+            localCurrency,
+            localCurrency,
             c.localAssetCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
@@ -108,8 +109,8 @@ contract LiquidatefCashAction {
     ///   - amount of local currency required from the liquidator
     function calculatefCashCrossCurrencyLiquidation(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external returns (int256[] memory, int256) {
@@ -139,11 +140,11 @@ contract LiquidatefCashAction {
     ///   - amount of local currency required from the liquidator
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
 
         LiquidatefCash.fCashContext memory c =
@@ -167,8 +168,8 @@ contract LiquidatefCashAction {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
-            uint16(localCurrency),
-            uint16(fCashCurrency),
+            localCurrency,
+            fCashCurrency,
             c.localAssetCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
@@ -179,11 +180,12 @@ contract LiquidatefCashAction {
 
     function _liquidateLocal(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         uint256 blockTime
     ) private returns (LiquidatefCash.fCashContext memory) {
+        require(fCashMaturities.length == maxfCashLiquidateAmounts.length);
         LiquidatefCash.fCashContext memory c;
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,
@@ -198,6 +200,7 @@ contract LiquidatefCashAction {
             /* uint256 lastClaimTime */,
             /* uint256 lastClaimIntegralSupply*/
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
+        // Cash balance is used if liquidating negative fCash
         c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
@@ -215,12 +218,13 @@ contract LiquidatefCashAction {
 
     function _liquidateCrossCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 fCashCurrency,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         uint256 blockTime
     ) private returns (LiquidatefCash.fCashContext memory) {
+        require(fCashMaturities.length == maxfCashLiquidateAmounts.length); // dev: fcash maturity length mismatch
         LiquidatefCash.fCashContext memory c;
         (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount,

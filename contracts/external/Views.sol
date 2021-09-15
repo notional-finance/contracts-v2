@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../external/FreeCollateralExternal.sol";
 import "./actions/nTokenMintAction.sol";
@@ -9,6 +9,7 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/nTokenHandler.sol";
 import "../internal/balances/TokenHandler.sol";
+import "../global/LibStorage.sol";
 import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
@@ -23,6 +24,12 @@ contract Views is StorageLayoutV1, NotionalViews {
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using BalanceHandler for BalanceState;
+    using nTokenHandler for nTokenPortfolio;
+    using AccountContextHandler for AccountContext;
+
+    function _checkValidCurrency(uint16 currencyId) internal view {
+        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
+    }
 
     /** Governance Parameter Getters **/
 
@@ -39,6 +46,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (uint16 currencyId)
     {
         currencyId = tokenAddressToCurrencyId[tokenAddress];
+        require(currencyId != 0, "Token not listed");
     }
 
     /// @notice Returns the asset token and underlying token related to a given currency id. If underlying
@@ -49,8 +57,9 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (Token memory assetToken, Token memory underlyingToken)
     {
-        assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, true);
+        _checkValidCurrency(currencyId);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
     }
 
     /// @notice Returns the ETH and Asset rates for a currency as stored, useful for viewing how they are configured
@@ -60,8 +69,11 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (ETHRateStorage memory ethRate, AssetRateStorage memory assetRate)
     {
-        ethRate = underlyingToETHRateMapping[currencyId];
-        assetRate = assetToUnderlyingRateMapping[currencyId];
+        _checkValidCurrency(currencyId);
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        ethRate = ethStore[currencyId];
+        assetRate = assetStore[currencyId];
     }
 
     /// @notice Returns a currency and its corresponding asset rate and ETH exchange rates. Note that this does not recalculate
@@ -77,8 +89,9 @@ contract Views is StorageLayoutV1, NotionalViews {
             AssetRateParameters memory assetRate
         )
     {
-        assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, false);
+        _checkValidCurrency(currencyId);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
         ethRate = ExchangeRate.buildExchangeRate(currencyId);
         assetRate = AssetRate.buildAssetRateView(currencyId);
     }
@@ -90,6 +103,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (CashGroupSettings memory)
     {
+        _checkValidCurrency(currencyId);
         return CashGroup.deserializeCashGroupStorage(currencyId);
     }
 
@@ -100,6 +114,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (CashGroupSettings memory cashGroup, AssetRateParameters memory assetRate)
     {
+        _checkValidCurrency(currencyId);
         cashGroup = CashGroup.deserializeCashGroupStorage(currencyId);
         assetRate = AssetRate.buildAssetRateView(currencyId);
     }
@@ -111,6 +126,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
     {
+        _checkValidCurrency(currencyId);
         uint256 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
         (annualizedAnchorRates, proportions) = nTokenHandler.getInitializationParameters(
             currencyId,
@@ -125,6 +141,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (int256[] memory depositShares, int256[] memory leverageThresholds)
     {
+        _checkValidCurrency(currencyId);
         uint256 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
         (depositShares, leverageThresholds) = nTokenHandler.getDepositParameters(
             currencyId,
@@ -134,12 +151,15 @@ contract Views is StorageLayoutV1, NotionalViews {
 
     /// @notice Returns nToken address for a given currency
     function nTokenAddress(uint16 currencyId) external view override returns (address) {
-        return nTokenHandler.nTokenAddress(currencyId);
+        _checkValidCurrency(currencyId);
+        address nToken = nTokenHandler.nTokenAddress(currencyId);
+        require(nToken != address(0), "No nToken for currency");
+        return nToken;
     }
 
-    /// @notice Returns address of contract owner
-    function getOwner() external view override returns (address) {
-        return owner;
+    /// @notice Returns address of the NOTE token
+    function getNoteToken() external pure override returns (address) {
+        return Constants.NOTE_TOKEN_ADDRESS;
     }
 
     /** Global System State View Methods **/
@@ -151,7 +171,34 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (AssetRateParameters memory)
     {
+        _checkValidCurrency(currencyId);
         return AssetRate.buildSettlementRateView(currencyId, maturity);
+    }
+
+    /// @notice Returns a single market
+    function getMarket(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 settlementDate
+    )
+        external
+        view
+        override
+        returns (MarketParameters memory)
+    {
+        _checkValidCurrency(currencyId);
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters memory market;
+        market.loadMarketWithSettlementDate(
+            currencyId,
+            maturity,
+            block.timestamp,
+            true,
+            cashGroup.getRateOracleTimeWindow(),
+            settlementDate
+        );
+
+        return market;
     }
 
     /// @notice Returns all currently active markets for a currency
@@ -161,8 +208,8 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (MarketParameters[] memory)
     {
-        uint256 blockTime = block.timestamp;
-        return _getActiveMarketsAtBlockTime(currencyId, blockTime);
+        _checkValidCurrency(currencyId);
+        return _getActiveMarketsAtBlockTime(currencyId, block.timestamp);
     }
 
     /// @notice Returns all active markets for a currency at the specified block time, useful for looking
@@ -173,10 +220,11 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (MarketParameters[] memory)
     {
+        _checkValidCurrency(currencyId);
         return _getActiveMarketsAtBlockTime(currencyId, blockTime);
     }
 
-    function _getActiveMarketsAtBlockTime(uint256 currencyId, uint256 blockTime)
+    function _getActiveMarketsAtBlockTime(uint16 currencyId, uint256 blockTime)
         internal
         view
         returns (MarketParameters[] memory)
@@ -198,6 +246,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (int256 reserveBalance)
     {
+        _checkValidCurrency(currencyId);
         // prettier-ignore
         (
             reserveBalance,
@@ -215,16 +264,14 @@ contract Views is StorageLayoutV1, NotionalViews {
     {
         // prettier-ignore
         (
-            uint256 currencyId,
+            uint16 currencyId,
             /* incentiveRate */,
             uint256 lastInitializedTime,
-            bytes6 parameters
+            uint8 assetArrayLength,
+            bytes5 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
-        liquidityTokens = PortfolioHandler.getSortedPortfolio(
-            tokenAddress,
-            uint8(parameters[Constants.ASSET_ARRAY_LENGTH])
-        );
+        liquidityTokens = PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength);
 
         netfCashAssets = BitmapAssetsHandler.getifCashArray(
             tokenAddress,
@@ -238,11 +285,11 @@ contract Views is StorageLayoutV1, NotionalViews {
         view
         override
         returns (
-            uint256 currencyId,
+            uint16 currencyId,
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters,
+            bytes5 nTokenParameters,
             int256 cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
@@ -252,6 +299,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             currencyId,
             incentiveAnnualEmissionRate,
             lastInitializedTime,
+            /* assetArrayLength */,
             nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
@@ -287,35 +335,35 @@ contract Views is StorageLayoutV1, NotionalViews {
         accountContext = AccountContextHandler.getAccountContext(account);
         accountBalances = new AccountBalance[](10);
 
-        uint256 i;
-        if (accountContext.bitmapCurrencyId != 0) {
+        uint256 i = 0;
+        if (accountContext.isBitmapEnabled()) {
+            AccountBalance memory b = accountBalances[0];
             (
-                accountBalances[i].cashBalance,
-                accountBalances[i].nTokenBalance,
-                accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimIntegralSupply
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
 
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
-            accountBalances[i].currencyId = uint256(
-                uint16(bytes2(currencies) & Constants.UNMASK_FLAGS)
-            );
-            if (accountBalances[i].currencyId == 0) break;
+            AccountBalance memory b = accountBalances[i];
+            b.currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
+            if (b.currencyId == 0) break;
 
             (
-                accountBalances[i].cashBalance,
-                accountBalances[i].nTokenBalance,
-                accountBalances[i].lastClaimTime,
-                accountBalances[i].lastClaimIntegralSupply
-            ) = BalanceHandler.getBalanceStorage(account, accountBalances[i].currencyId);
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
+            ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
             i += 1;
             currencies = currencies << 16;
         }
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             portfolio = BitmapAssetsHandler.getifCashArray(
                 account,
                 accountContext.bitmapCurrencyId,
@@ -350,6 +398,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint256 lastClaimTime
         )
     {
+        _checkValidCurrency(currencyId);
         // prettier-ignore
         (
             cashBalance,
@@ -367,7 +416,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         returns (PortfolioAsset[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             return
                 BitmapAssetsHandler.getifCashArray(
                     account,
@@ -382,19 +431,21 @@ contract Views is StorageLayoutV1, NotionalViews {
     /// @notice Returns the fCash amount at the specified maturity for a bitmapped portfolio
     function getfCashNotional(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity
     ) external view override returns (int256) {
+        _checkValidCurrency(currencyId);
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
     /// @notice Returns the assets bitmap for an account
-    function getAssetsBitmap(address account, uint256 currencyId)
+    function getAssetsBitmap(address account, uint16 currencyId)
         external
         view
         override
         returns (bytes32)
     {
+        _checkValidCurrency(currencyId);
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
@@ -418,17 +469,14 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (uint256)
     {
-        Token memory token = TokenHandler.getToken(currencyId, false);
+        _checkValidCurrency(currencyId);
+        Token memory token = TokenHandler.getAssetToken(currencyId);
         int256 amountToDepositInternal =
             token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory nToken;
-        nTokenHandler.loadNTokenPortfolioView(currencyId, nToken);
+        nToken.loadNTokenPortfolioView(currencyId);
 
-        // prettier-ignore
-        (
-            int256 tokensToMint,
-            /* */
-        ) = nTokenMintAction.calculateTokensToMint(
+        int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
             nToken,
             amountToDepositInternal,
             block.timestamp
@@ -445,6 +493,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         uint256 marketIndex,
         uint256 blockTime
     ) external view override returns (int256) {
+        _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
@@ -458,7 +507,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         return
             Market.getfCashGivenCashAmount(
                 market.totalfCash,
-                int256(netCashToAccount),
+                netCashToAccount,
                 totalCashUnderlying,
                 rateScalar,
                 rateAnchor,
@@ -475,6 +524,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         uint256 marketIndex,
         uint256 blockTime
     ) external view override returns (int256, int256) {
+        _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
@@ -503,7 +553,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         BalanceState memory balanceState;
         uint256 totalIncentivesClaimable;
 
-        if (accountContext.bitmapCurrencyId != 0) {
+        if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
@@ -517,7 +567,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     tokenAddress,
-                    uint256(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,
@@ -529,7 +579,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
-            uint256 currencyId = uint256(uint16(bytes2(currencies) & Constants.UNMASK_FLAGS));
+            uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
             balanceState.loadBalanceState(account, currencyId, accountContext);
 
             if (balanceState.storedNTokenBalance > 0) {
@@ -543,7 +593,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    uint256(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(balanceState.storedNTokenBalance),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,

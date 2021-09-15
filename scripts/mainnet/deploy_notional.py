@@ -3,19 +3,12 @@ import re
 import subprocess
 
 import scripts.mainnet.deploy_governance as deploy_governance
-from brownie import (
-    MockAggregator,
-    MockCToken,
-    MockERC20,
-    NoteERC20,
-    accounts,
-    cTokenAggregator,
-    network,
-)
-from brownie.network.contract import Contract
+from brownie import MockAggregator, MockCToken, MockERC20, accounts, cTokenAggregator, network
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TokenType, deployNotional
 from scripts.mainnet.deploy_governance import EnvironmentConfig
+
+CTOKEN_DECIMALS = 8
 
 TokenConfig = {
     "kovan": {
@@ -25,11 +18,15 @@ TokenConfig = {
                 "0x4dC87A3D30C4A1B33E4349f02F4c5B1B1eF9A75D",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0x181D62Ff8C0aEeD5Bc2Bf77A88C07235c4cc6905",
                 False,
                 TokenType["UnderlyingToken"],
+                18,
+                0,
             ),
             "ethOracle": "0x990DE64Bb3E1B6D99b1B50567fC9Ccc0b9891A4D",
             "ethOracleMustInvert": False,
@@ -39,11 +36,15 @@ TokenConfig = {
                 "0xf17C5c7240CBc83D3186A9d6935F003e451C5cDd",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0xF503D5cd87d10Ce8172F9e77f76ADE8109037b4c",
                 False,
                 TokenType["UnderlyingToken"],
+                6,
+                0,
             ),
             "ethOracle": "0x0988059AF97c65D6a6EB8AcA422784728d907406",
             "ethOracleMustInvert": False,
@@ -53,12 +54,16 @@ TokenConfig = {
                 "0xBE2720C0064BF3A0E8F5f83f5B9FaC266c5Ce99E",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             # USDT potentially has a transfer fee
             "underlyingToken": (
                 "0x52EDEb260f0cb805d9224d00741a576752F045b7",
                 True,
                 TokenType["UnderlyingToken"],
+                6,
+                0,
             ),
             "ethOracle": "0x799e64CfAC5Feb421CBf76FA759B0672a03bcf71",
             "ethOracleMustInvert": False,
@@ -68,11 +73,15 @@ TokenConfig = {
                 "0xA8E51e20985E926dE882EE700eC7F7d51D89D130",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0x45a8451ceaae5976b4ae5f14a7ad789fae8e9971",
                 False,
                 TokenType["UnderlyingToken"],
+                8,
+                0,
             ),
             "ethOracle": "0x0CB9a95789929dC75D1B77A916762Bc719305543",
             "ethOracleMustInvert": False,
@@ -85,11 +94,15 @@ TokenConfig = {
                 "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0x6B175474E89094C44Da98b954EedeAC495271d0F",
                 False,
                 TokenType["UnderlyingToken"],
+                18,
+                0,
             ),
             "ethOracle": "0x773616E4d11A78F511299002da57A0a94577F1f4",
             "ethOracleMustInvert": False,
@@ -99,28 +112,17 @@ TokenConfig = {
                 "0x39aa39c021dfbae8fac545936693ac917d5e7563",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
                 False,
                 TokenType["UnderlyingToken"],
+                6,
+                0,
             ),
             "ethOracle": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
-            "ethOracleMustInvert": False,
-        },
-        "USDT": {
-            "assetToken": (
-                "0xf650c3d88d12db855b8bf7d11be6c55a4e07dcc9",
-                False,
-                TokenType["cToken"],
-            ),
-            # USDT potentially has a transfer fee
-            "underlyingToken": (
-                "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-                True,
-                TokenType["UnderlyingToken"],
-            ),
-            "ethOracle": "0xEe9F2375b4bdF6387aa8265dD4FB8F16512A1d46",
             "ethOracleMustInvert": False,
         },
         "WBTC": {
@@ -128,11 +130,15 @@ TokenConfig = {
                 "0xC11b1268C1A384e55C48c2391d8d480264A3A7F4",
                 False,
                 TokenType["cToken"],
+                CTOKEN_DECIMALS,
+                0,
             ),
             "underlyingToken": (
                 "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
                 False,
                 TokenType["UnderlyingToken"],
+                8,
+                0,
             ),
             "ethOracle": "0xdeb288F737066589598e9214E782fa5A8eD689e8",
             "ethOracleMustInvert": False,
@@ -340,8 +346,8 @@ def main():
         TokenConfig["development"] = {
             "cETH": cETH.address,
             "DAI": {
-                "assetToken": (cDAI.address, False, TokenType["cToken"]),
-                "underlyingToken": (DAI.address, False, TokenType["UnderlyingToken"]),
+                "assetToken": (cDAI.address, False, TokenType["cToken"], CTOKEN_DECIMALS, 0),
+                "underlyingToken": (DAI.address, False, TokenType["UnderlyingToken"], 18, 0),
                 "ethOracle": ethDaiOracle.address,
                 "ethOracleMustInvert": False,
             },
@@ -368,14 +374,6 @@ def main():
         listCurrency(notional, deployer, "USDC")
         listCurrency(notional, deployer, "WBTC")
 
-    if network.show_active() == "development":
-        # NOTE: Activate notional needs to be called via the guardian
-        noteERC20 = Contract.from_abi("NOTE", output["note"], abi=NoteERC20.abi)
-        noteERC20.activateNotional(notional.address, {"from": accounts[0]})
-
-        # Test to see if this method reverts or not
-        noteERC20.getCurrentVotes(deployer)
-
     with open(output_file, "w") as f:
         output["notional"] = notional.address
         json.dump(output, f, sort_keys=True, indent=4)
@@ -390,7 +388,14 @@ def etherscan_verify(contracts, router, pauseRouter):
         verify(contract.address, [])
 
     print("Verifying Pause Router at {}".format(pauseRouter.address))
-    verify(pauseRouter.address, [contracts["Views"].address])
+    verify(
+        pauseRouter.address,
+        [
+            contracts["Views"].address,
+            contracts["LiquidateCurrencyAction"].address,
+            contracts["LiquidatefCashAction"].address,
+        ],
+    )
     print("Verifying Router at {}".format(router.address))
     routerArgs = [
         contracts["Governance"].address,

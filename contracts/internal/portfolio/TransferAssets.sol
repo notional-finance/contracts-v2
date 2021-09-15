@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "./PortfolioHandler.sol";
 import "./BitmapAssetsHandler.sol";
@@ -18,14 +18,14 @@ library TransferAssets {
         internal
         pure
         returns (
-            uint16 currencyId,
-            uint40 maturity,
-            uint8 assetType
+            uint256 currencyId,
+            uint256 maturity,
+            uint256 assetType
         )
     {
-        currencyId = uint16(uint256(bytes32(id) >> 48));
-        maturity = uint40(uint256(bytes32(id) >> 8));
-        assetType = uint8(uint256(bytes32(id)));
+        assetType = uint8(id);
+        maturity = uint40(id >> 8);
+        currencyId = uint16(id >> 48);
     }
 
     /// @notice Encodes asset ids
@@ -34,6 +34,10 @@ library TransferAssets {
         uint256 maturity,
         uint256 assetType
     ) internal pure returns (uint256) {
+        require(currencyId <= Constants.MAX_CURRENCIES);
+        require(maturity <= type(uint40).max);
+        require(assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX);
+
         return
             uint256(
                 (bytes32(uint256(uint16(currencyId))) << 48) |
@@ -57,49 +61,24 @@ library TransferAssets {
         AccountContext memory accountContext,
         PortfolioAsset[] memory assets
     ) internal returns (AccountContext memory) {
-        if (accountContext.bitmapCurrencyId == 0) {
-            return _addAssetsToPortfolio(account, accountContext, assets);
-        } else {
-            return _addAssetsToBitmap(account, accountContext, assets);
-        }
-    }
+        // If an account has assets that require settlement then placing assets inside it
+        // may cause issues.
+        require(!accountContext.mustSettleAssets(), "Account must settle");
 
-    function _addAssetsToPortfolio(
-        address account,
-        AccountContext memory accountContext,
-        PortfolioAsset[] memory assets
-    ) private returns (AccountContext memory) {
-        PortfolioState memory portfolioState;
-        if (accountContext.mustSettleAssets()) {
-            // accountContext may change memory locations after this returns
-            (accountContext, portfolioState) = SettleAssetsExternal.settleAssetsAndReturnPortfolio(
-                account,
-                accountContext
-            );
+        if (accountContext.isBitmapEnabled()) {
+            // Adds fCash assets into the account and finalized storage
+            BitmapAssetsHandler.addMultipleifCashAssets(account, accountContext, assets);
         } else {
-            portfolioState = PortfolioHandler.buildPortfolioState(
+            PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
                 account,
                 accountContext.assetArrayLength,
                 assets.length
             );
+            // This will add assets in memory
+            portfolioState.addMultipleAssets(assets);
+            // This will store assets and update the account context in memory
+            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         }
-
-        portfolioState.addMultipleAssets(assets);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
-
-        return accountContext;
-    }
-
-    function _addAssetsToBitmap(
-        address account,
-        AccountContext memory accountContext,
-        PortfolioAsset[] memory assets
-    ) private returns (AccountContext memory) {
-        if (accountContext.mustSettleAssets()) {
-            accountContext = SettleAssetsExternal.settleAssetsAndFinalize(account, accountContext);
-        }
-
-        BitmapAssetsHandler.addMultipleifCashAssets(account, accountContext, assets);
 
         return accountContext;
     }
