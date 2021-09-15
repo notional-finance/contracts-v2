@@ -127,9 +127,9 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         (
             /* uint8 action */,
             address liquidateAccount,
-            uint256 localCurrency,
+            uint16 localCurrency,
             uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint256, uint96));
+        ) = abi.decode(params, (uint8, address, uint16, uint96));
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
@@ -158,14 +158,14 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         (
             /* uint8 action */,
             address liquidateAccount,
-            uint256 localCurrency,
+            uint16 localCurrency,
             /* uint256 localAddress */,
-            uint256 collateralCurrency,
+            uint16 collateralCurrency,
             address collateralAddress,
             /* address collateralUnderlyingAddress */,
             uint128 maxCollateralLiquidation,
             uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint256, address, uint256, address, address, uint128, uint96));
+        ) = abi.decode(params, (uint8, address, uint16, address, uint16, address, address, uint128, uint96));
 
         if (_hasTransferFees(action)) {
             // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees

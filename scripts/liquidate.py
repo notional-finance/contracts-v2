@@ -68,9 +68,9 @@ def collateralLiquidate(env):
         [
             "uint8",
             "address",
-            "uint256",
+            "uint16",
             "address",
-            "uint256",
+            "uint16",
             "address",
             "address",
             "uint128",
@@ -204,9 +204,9 @@ def crossCurrencyLiquidate(env):
         [
             "uint8",
             "address",
-            "uint256",
+            "uint16",
             "address",
-            "uint256",
+            "uint16",
             "address",
             "uint256[]",
             "uint256[]",

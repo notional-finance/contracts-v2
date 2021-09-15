@@ -231,115 +231,6 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             amountOutMin,
             tradeCallData
         );
-<<<<<<< HEAD
-=======
-        require(success, _getRevertMsg(retVal));
-    }
-
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
-        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
-        if (_returnData.length < 68) return "Transaction reverted silently";
-
-        assembly {
-            // Slice the sighash.
-            _returnData := add(_returnData, 0x04)
-        }
-        return abi.decode(_returnData, (string)); // All that remains is the revert string
-    }
-
-    function _mintCTokens(address[] calldata assets, uint256[] calldata amounts) internal {
-        for (uint256 i; i < assets.length; i++) {
-            if (assets[i] == WETH) {
-                // Withdraw WETH to ETH and mint CEth
-                WETH9(WETH).withdraw(amounts[i]);
-                CEtherInterface(cETH).mint{value: amounts[i]}();
-            } else {
-                address cToken = underlyingToCToken[assets[i]];
-                if (cToken != address(0)) {
-                    checkAllowanceOrSet(assets[i], cToken);
-                    CErc20Interface(cToken).mint(amounts[i]);
-                }
-            }
-        }
-    }
-
-    function _liquidateLocal(
-        LiquidationAction action,
-        bytes calldata params,
-        address[] calldata assets
-    ) internal {
-        // prettier-ignore
-        (
-            /* uint8 action */,
-            address liquidateAccount,
-            uint16 localCurrency,
-            uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint16, uint96));
-
-        if (_hasTransferFees(action)) {
-            // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
-            uint256 amount = IERC20(assets[0]).balanceOf(address(this));
-            checkAllowanceOrSet(assets[0], address(NotionalV2));
-            NotionalV2.depositUnderlyingToken(address(this), uint16(localCurrency), amount);
-        }
-
-        // prettier-ignore
-        (
-            /* int256 localAssetCashFromLiquidator */,
-            int256 netNTokens
-        ) = NotionalV2.liquidateLocalCurrency(liquidateAccount, localCurrency, maxNTokenLiquidation);
-
-        // Will withdraw entire cash balance. Don't redeem local currency here because it has been flash
-        // borrowed and we need to redeem the entire balance to underlying for the flash loan repayment.
-        _redeemAndWithdraw(localCurrency, uint96(netNTokens), false);
-    }
-
-    function _liquidateCollateral(
-        LiquidationAction action,
-        bytes calldata params,
-        address[] calldata assets
-    ) internal {
-        // prettier-ignore
-        (
-            /* uint8 action */,
-            address liquidateAccount,
-            uint16 localCurrency,
-            uint16 collateralCurrency,
-            uint128 maxCollateralLiquidation,
-            uint96 maxNTokenLiquidation
-        ) = abi.decode(params, (uint8, address, uint16, uint16, uint128, uint96));
-
-        if (_hasTransferFees(action)) {
-            // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
-            uint256 amount = IERC20(assets[0]).balanceOf(address(this));
-            checkAllowanceOrSet(assets[0], address(NotionalV2));
-            NotionalV2.depositUnderlyingToken(address(this), localCurrency, amount);
-        }
-
-        // prettier-ignore
-        (
-            /* int256 localAssetCashFromLiquidator */,
-            /* int256 collateralAssetCash */,
-            int256 collateralNTokens
-        ) = NotionalV2.liquidateCollateralCurrency(
-            liquidateAccount,
-            localCurrency,
-            collateralCurrency,
-            maxCollateralLiquidation,
-            maxNTokenLiquidation,
-            true, // Withdraw collateral
-            false // Redeem to underlying (will happen later)
-        );
-
-        // Redeem to underlying for collateral because it needs to be traded on the DEX
-        _redeemAndWithdraw(collateralCurrency, uint96(collateralNTokens), true);
-        // Wrap everything to WETH for trading
-        if (collateralCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
-
-        // Will withdraw all cash balance, no need to redeem local currency, it will be
-        // redeemed later
-        if (_hasTransferFees(action)) _redeemAndWithdraw(localCurrency, 0, false);
->>>>>>> master
     }
 
     function _liquidateLocalfCash(
@@ -397,15 +288,15 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         (
             /* bytes1 action */,
             address liquidateAccount,
-            uint256 localCurrency,
+            uint16 localCurrency,
             /* address localAddress */,
-            uint256 fCashCurrency,
+            uint16 fCashCurrency,
             /* address fCashAddress */,
             /* address fCashUnderlyingAddress */,
             uint256[] memory fCashMaturities,
             uint256[] memory maxfCashLiquidateAmounts
         ) = abi.decode(params, 
-            (uint8, address, uint256, address, uint256, address, address, uint256[], uint256[])
+            (uint8, address, uint16, address, uint16, address, address, uint256[], uint256[])
         );
 
         if (_hasTransferFees(action)) {
