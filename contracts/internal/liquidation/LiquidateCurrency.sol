@@ -23,10 +23,12 @@ library LiquidateCurrency {
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
 
-    /// @notice Liquidates an account by converting their local currency collateral into cash and
-    /// eliminates any haircut value incurred by liquidity tokens or nTokens. Requires no capital
-    /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
-    /// encounter this scenario but this method is here for completeness.
+    /// @notice Liquidates an account by converting their local currency collateral (liquidity tokens or nTokens)
+    /// into cash. This scenario shouldn't be common, but an account can get into this position by borrowing
+    /// against their nTokens within the same currency.
+    /// @dev This function starts by solving for the freeCollateral benefit required in local currency to return
+    /// the account to positive freeCollateral. As we move through the account's liquidity tokens and nTokens, we
+    /// use this figure to determine how much of the account's assets we should liquidate.
     function liquidateLocalCurrency(
         uint256 localCurrency,
         uint96 maxNTokenLiquidation,
@@ -37,9 +39,13 @@ library LiquidateCurrency {
     ) internal returns (int256) {
         require(factors.localAssetAvailable < 0, "No local debt");
 
-        // Formula here uses the buffer since we know localAssetAvailable is negative.
-        // convertToLocal(netFCShortfallInETH) = localRequired * buffer
-        // convertToLocal(netFCShortfallInETH) / buffer = localRequired
+        // factors.netETHValue.neg() is the account's ETH-denominated free collateral shortfall.
+        // We know that localAssetAvailable < 0, so the localCurrency-denominated freeCollateral benefit 
+        // of an increase to localAssetAvailable is benefitIncrease * buffer.
+        // Math:
+        // localCurrency-denominated benefit required = convertToLocalCurrency(factors.netETHValue.neg())
+        // assetBenefitRequired * buffer = convertToLocalCurrency(factors.netETHValue.neg())
+        // assetBenefitRequired = convertToLocalCurrency(factors.netETHValue.neg()) / buffer
         int256 assetBenefitRequired =
             factors.cashGroup.assetRate.convertFromUnderlying(
                 factors
@@ -53,7 +59,8 @@ library LiquidateCurrency {
 
         {
             WithdrawFactors memory w;
-            // Will check if the account actually has liquidity tokens
+            // The first asset we check for is liquidity tokens. 
+            // This function will check if the account actually has liquidity tokens.
             (w, assetBenefitRequired) = _withdrawLocalLiquidityTokens(
                 portfolio,
                 factors,
@@ -67,6 +74,9 @@ library LiquidateCurrency {
             balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
+        // Even if we have raised assetBenefitRequired already, we continue on to liquidate nTokens.
+        // It's important not to finish early or else liquidators might not be sufficiently incentivized
+        // to liquidate.
         if (factors.nTokenHaircutAssetValue > 0) {
             int256 nTokensToLiquidate;
             {
@@ -75,11 +85,6 @@ library LiquidateCurrency {
                     uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) >
                     uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
                 ); // dev: haircut percentage underflow
-                int256 haircutDiff =
-                    int256(
-                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
-                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
-                    ) * Constants.PERCENTAGE_DECIMALS;
 
                 // This will calculate how much nTokens to liquidate given the "assetBenefitRequired" calculated above.
                 // We are supplied with the nTokenHaircutAssetValue, this is calculated in the formula below. This value
@@ -95,28 +100,36 @@ library LiquidateCurrency {
                 // account as a result of purchasing nTokens in exchange for cash in the same currency. The amount of benefit gained
                 // is equal to the removal of the haircut on the nTokenValue minus the discount given to the liquidator.
                 //
-                // benefitGained = nTokensToLiquidate * (nTokenLiquidatedValue - nTokenHaircutAssetValue) / tokenBalance
+                // benefitGained = nTokensLiquidated * (nTokenLiquidatedValue - nTokenHaircutAssetValue) / tokenBalance
                 // where:
                 //   nTokenHaircutAssetValue = (tokenBalance * nTokenAssetPV * PV_HAIRCUT_PERCENTAGE) / totalSupply
                 //   nTokenLiquidatedValue = (tokenBalance * nTokenAssetPV * LIQUIDATION_HAIRCUT_PERCENTAGE) / totalSupply
                 // NOTE: nTokenLiquidatedValue > nTokenHaircutAssetValue because we require that:
                 //        LIQUIDATION_HAIRCUT_PERCENTAGE > PV_HAIRCUT_PERCENTAGE
                 //
-                // nTokenHaircutAssetValue - nTokenLiquidatedValue =
+                // nTokenLiquidatedValue - nTokenHaircutAssetValue =
                 //    (tokenBalance * nTokenAssetPV) / totalSupply * (LIQUIDATION_HAIRCUT_PERCENTAGE - PV_HAIRCUT_PERCENTAGE)
                 //
                 // From above:
                 //    (tokenBalance * nTokenAssetPV) / totalSupply = nTokenHaircutAssetValue / PV_HAIRCUT_PERCENTAGE
                 //
                 // Therefore:
-                // nTokenHaircutAssetValue - nTokenLiquidatedValue =
+                // nTokenLiquidatedValue - nTokenHaircutAssetValue =
                 //    nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT_PERCENTAGE - PV_HAIRCUT_PERCENTAGE) / PV_HAIRCUT_PERCENTAGE
                 //
                 // Finally:
-                // benefitGained = nTokensToLiquidate * (nTokenLiquidatedValue - nTokenHaircutAssetValue) / tokenBalance
-                // nTokensToLiquidate = tokenBalance * benefitGained * PV_HAIRCUT / 
-                //          (nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT - PV_HAIRCUT_PERCENTAGE))
+                // assetBenefitRequired = nTokensToLiquidate * 
+                // (nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT_PERCENTAGE - PV_HAIRCUT_PERCENTAGE) / PV_HAIRCUT_PERCENTAGE) / tokenBalance
                 //
+                // nTokensToLiquidate = tokenBalance * assetBenefitRequired * PV_HAIRCUT_PERCENTAGE / 
+                //          (nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT_PERCENTAGE - PV_HAIRCUT_PERCENTAGE))
+                //
+                int256 haircutDiff =
+                    int256(
+                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
+                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
+                    ) * Constants.PERCENTAGE_DECIMALS;
+
                 nTokensToLiquidate = assetBenefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
@@ -135,6 +148,7 @@ library LiquidateCurrency {
                 // nTokenHaircutAssetValue = (tokenBalance * nTokenAssetPV * PV_HAIRCUT_PERCENTAGE) / totalSupply
                 // nTokenLiquidationPrice = (tokensToLiquidate * nTokenAssetPV * LIQUIDATION_HAIRCUT) / totalSupply
                 //
+                // We don't have access to the nTokenAssetPV, so we need to use the nTokenHaircutAssetValue.
                 // Combining the two formulas:
                 // nTokenHaircutAssetValue / (tokenBalance * PV_HAIRCUT_PERCENTAGE) = (nTokenAssetPV / totalSupply)
                 // nTokenLiquidationPrice = (tokensToLiquidate * LIQUIDATION_HAIRCUT * nTokenHaircutAssetValue) / 
@@ -445,10 +459,19 @@ library LiquidateCurrency {
         int256 assetCash,
         uint256 assetType
     ) private pure returns (int256 netCashIncrease, int256 incentivePaid) {
-        // We can only recollateralize the local currency using the part of the liquidity token that
-        // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
-        // is paid out as an incentive so that must be accounted for.
+        // The collateral benefit to the liquidated account of withdrawing their liquidity tokens
+        // is the difference between the cash/fCash claims pre-haircut and post-haircut. For simplicity,
+        // we only consider the collateral benefit resulting from the cash claim and we ignore any benefit 
+        // from the fCash claim.
+        // MATH:
+        // collateralValuePreWithdrawal = cashClaim * haircut
+        // collateralValuePostWithdrawal = cashClaim
+        // netCashIncrease = collateralValuePostWithdrawal - collateralValuePreWithdrawal 
         // netCashIncrease = cashClaim * (1 - haircut)
+        //
+        // We divide the netCashIncrease between the account and the liquidator. The liquidator gets a 
+        // fixed percentage of the netCashIncrease.
+        // MATH:
         // netCashIncrease = netCashToAccount + incentivePaid
         // incentivePaid = netCashIncrease * incentivePercentage
         int256 haircut = factors.cashGroup.getLiquidityHaircut(assetType);
