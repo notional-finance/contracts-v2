@@ -3,8 +3,10 @@ from brownie import (
     accounts,
     MockWETH,
     NotionalV2UniV3FlashLiquidator,
+    NotionalV2ManualLiquidator,
     MockAaveFlashLender,
-    MockUniV3SwapRouter
+    MockUniV3SwapRouter,
+    nProxy
 )
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
@@ -14,8 +16,8 @@ from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import get_balance_action, get_balance_trade_action, get_tref
 
 chain = Chain()
-CollateralCurrency_NoTransferFee = 1
-CrossCurrencyfCash_NoTransferFee = 3
+CollateralCurrency_NoTransferFee_Withdraw = 1
+CrossCurrencyfCash_NoTransferFee_Withdraw = 3
 zeroAddress = HexString(0, "bytes20")
 
 def environment(accounts):
@@ -70,17 +72,18 @@ def collateralLiquidate(env):
             "address",
             "uint256",
             "address",
+            "address",
             "uint128",
             "uint96",
             "bytes",
         ],
         [
-            CollateralCurrency_NoTransferFee,
+            CollateralCurrency_NoTransferFee_Withdraw,
             accounts[1].address,
             2,
             env.token['DAI'].address,
             1,
-            env.cToken['DAI'].address,
+            env.cToken['ETH'].address,
             env.weth.address,
             0,
             0,
@@ -210,12 +213,12 @@ def crossCurrencyLiquidate(env):
             "bytes",
         ],
         [
-            CrossCurrencyfCash_NoTransferFee,
+            CrossCurrencyfCash_NoTransferFee_Withdraw,
             accounts[1].address,
             2,
             env.token['DAI'].address,
             1,
-            env.cToken['DAI'].address,
+            env.cToken['ETH'].address,
             env.weth.address,
             maturities,
             [0, 0],
@@ -278,13 +281,27 @@ def main():
     env.token["DAI"].transfer(env.flashLender.address, 100000e18, {"from": accounts[0]})
     env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": accounts[0]})    
 
-    env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy(
-        env.swapRouter.address,
+    env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy({"from": deployer})
+    env.flashLiquidator.initialize(
         env.notional.address,
         env.flashLender.address,
         env.flashLender.address,
         env.weth,
         env.cToken["ETH"].address,
+        deployer,
+        env.swapRouter.address,
+        {"from": deployer}
+    )
+
+    env.manualLiquidator = NotionalV2ManualLiquidator.deploy({"from": deployer})
+    env.manualLiquidatorProxy = nProxy.deploy(env.manualLiquidator.address, bytes(), {"from": deployer})    
+
+    env.manualLiquidator.initialize(
+        env.notional.address,
+        env.weth,
+        env.cToken["ETH"].address,
+        deployer,
+        env.swapRouter.address,
         {"from": deployer}
     )
 
@@ -345,5 +362,5 @@ def main():
 
     chain.snapshot()
     collateralLiquidate(env)
-    chain.revert()
-    crossCurrencyLiquidate(env)
+    #chain.revert()
+    #crossCurrencyLiquidate(env)
