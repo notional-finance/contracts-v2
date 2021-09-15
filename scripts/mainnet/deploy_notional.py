@@ -388,7 +388,14 @@ def etherscan_verify(contracts, router, pauseRouter):
         verify(contract.address, [])
 
     print("Verifying Pause Router at {}".format(pauseRouter.address))
-    verify(pauseRouter.address, [contracts["Views"].address])
+    verify(
+        pauseRouter.address,
+        [
+            contracts["Views"].address,
+            contracts["LiquidateCurrencyAction"].address,
+            contracts["LiquidatefCashAction"].address,
+        ],
+    )
     print("Verifying Router at {}".format(router.address))
     routerArgs = [
         contracts["Governance"].address,
