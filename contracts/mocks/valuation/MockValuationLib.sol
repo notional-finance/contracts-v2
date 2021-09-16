@@ -1,0 +1,341 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity ^0.7.0;
+pragma abicoder v2;
+
+import "../../internal/valuation/ExchangeRate.sol";
+import "../../internal/markets/AssetRate.sol";
+import "../../internal/valuation/AssetHandler.sol";
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/AccountContextHandler.sol";
+import "../../internal/nTokenHandler.sol";
+import "../../internal/markets/Market.sol";
+import "../../global/LibStorage.sol";
+
+/**
+ * Exposes manual getters and setters for all the valuation and liquidation mocks. These
+ * are the relevant settings required for the valuation and liquidation flows:
+ *  - Asset Rate
+ *  - Exchange Rate
+ *  - Cash Group
+ *  - nToken Parameters, Supply and Value
+ *  - Markets
+ *
+ * Per Account: Balances and Portfolio Type
+ */
+library MockValuationLib {
+    using PortfolioHandler for PortfolioState;
+    using AccountContextHandler for AccountContext;
+    using Market for MarketParameters;
+    using nTokenHandler for nTokenPortfolio;
+    using CashGroup for CashGroupParameters;
+
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
+    }
+
+    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        ethStore[id] = rs;
+    }
+
+    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
+        CashGroup.setCashGroupStorage(id, cg);
+    }
+
+    function setNTokenValue(
+        uint16 currencyId,
+        address nTokenAddress,
+        uint96 totalSupply,
+        int88 cashBalance,
+        uint8 pvHaircutPercentage,
+        uint8 liquidationHaircutPercentage
+    ) public {
+        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
+        nTokenHandler.setNTokenCollateralParameters(
+            nTokenAddress,
+            0,
+            pvHaircutPercentage,
+            0,
+            0,
+            liquidationHaircutPercentage
+        );
+        nTokenHandler.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
+        BalanceHandler.setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
+    }
+
+    function setMarketStorage(
+        uint256 currencyId,
+        uint256 settlementDate,
+        MarketParameters memory market
+    ) public {
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
+    }
+
+    function setBalance(
+        address account,
+        uint256 currencyId,
+        int256 cashBalance,
+        int256 nTokenBalance
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (cashBalance < 0)
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
+        accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);
+        accountContext.setAccountContext(account);
+
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+
+        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        balanceStorage.cashBalance = int88(cashBalance);
+    }
+
+    function setPortfolio(address account, PortfolioAsset[] memory assets) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        PortfolioState memory portfolioState =
+            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
+        portfolioState.newAssets = assets;
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        accountContext.setAccountContext(account);
+    }
+
+    function enableBitmapForAccount(address account, uint16 currencyId) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.bitmapCurrencyId = currencyId;
+        accountContext.setAccountContext(account);
+    }
+
+    function setifCashAsset(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        int256 notional,
+        uint256 blockTime
+    ) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (
+            accountContext.nextSettleTime != 0 &&
+            accountContext.nextSettleTime != DateTime.getTimeUTC0(blockTime)
+        ) {
+            revert(); // dev: invalid block time for test
+        }
+        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
+
+        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
+            account,
+            currencyId,
+            maturity,
+            accountContext.nextSettleTime,
+            notional
+        );
+        if (finalNotional < 0)
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
+
+        accountContext.setAccountContext(account);
+    }
+
+    // View Methods Start Here
+    function convertToUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
+        return AssetRate.convertToUnderlying(assetRate, balance);
+    }
+
+    function convertFromUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
+        return AssetRate.convertFromUnderlying(assetRate, balance);
+    }
+
+    function convertToETH(uint256 currencyId, int256 balance) public view returns (int256) {
+        ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+        return ExchangeRate.convertToETH(ethRate, balance);
+    }
+
+    function convertETHTo(uint256 currencyId, int256 balance) public view returns (int256) {
+        ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
+        return ExchangeRate.convertETHTo(ethRate, balance);
+    }
+
+    function getAccount(address account)
+        external
+        view
+        returns (
+            AccountContext memory accountContext,
+            AccountBalance[] memory accountBalances,
+            PortfolioAsset[] memory portfolio
+        )
+    {
+        accountContext = AccountContextHandler.getAccountContext(account);
+        accountBalances = new AccountBalance[](10);
+
+        uint256 i = 0;
+        if (accountContext.isBitmapEnabled()) {
+            AccountBalance memory b = accountBalances[0];
+            (
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
+            ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
+            i += 1;
+        }
+
+        bytes18 currencies = accountContext.activeCurrencies;
+        while (currencies != 0) {
+            AccountBalance memory b = accountBalances[i];
+            b.currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
+            if (b.currencyId == 0) break;
+
+            (
+                b.cashBalance,
+                b.nTokenBalance,
+                b.lastClaimTime,
+                b.lastClaimIntegralSupply
+            ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
+            i += 1;
+            currencies = currencies << 16;
+        }
+
+        if (accountContext.isBitmapEnabled()) {
+            portfolio = BitmapAssetsHandler.getifCashArray(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime
+            );
+        } else {
+            portfolio = PortfolioHandler.getSortedPortfolio(
+                account,
+                accountContext.assetArrayLength
+            );
+        }
+    }
+
+    function getNTokenPV(uint16 currencyId) external view returns (int256) {
+        nTokenPortfolio memory nToken;
+        nToken.loadNTokenPortfolioView(currencyId);
+        return nToken.getNTokenAssetPV(block.timestamp);
+    }
+
+    function getActiveMarkets(uint16 currencyId)
+        external
+        view
+        returns (MarketParameters[] memory)
+    {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
+
+        for (uint256 i = 0; i < cashGroup.maxMarketIndex; i++) {
+            cashGroup.loadMarket(markets[i], i + 1, true, block.timestamp);
+        }
+
+        return markets;
+    }
+}
+
+contract MockValuationBase {
+    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
+        MockValuationLib.setAssetRateMapping(id, rs);
+    }
+
+    function setETHRateMapping(uint256 id, ETHRateStorage calldata rs) external {
+        MockValuationLib.setETHRateMapping(id, rs);
+    }
+
+    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
+        MockValuationLib.setCashGroup(id, cg);
+    }
+
+    function setNTokenValue(
+        uint16 currencyId,
+        address nTokenAddress,
+        uint96 totalSupply,
+        int88 cashBalance,
+        uint8 pvHaircutPercentage,
+        uint8 liquidationHaircutPercentage
+    ) public {
+        MockValuationLib.setNTokenValue(
+            currencyId,
+            nTokenAddress,
+            totalSupply,
+            cashBalance,
+            pvHaircutPercentage,
+            liquidationHaircutPercentage
+        );
+    }
+
+    function setMarketStorage(
+        uint256 currencyId,
+        uint256 settlementDate,
+        MarketParameters memory market
+    ) public {
+        MockValuationLib.setMarketStorage(currencyId, settlementDate, market);
+    }
+
+    function setBalance(
+        address account,
+        uint256 currencyId,
+        int256 cashBalance,
+        int256 nTokenBalance
+    ) external {
+        MockValuationLib.setBalance(account, currencyId, cashBalance, nTokenBalance);
+    }
+
+    function setPortfolio(address account, PortfolioAsset[] memory assets) external {
+        MockValuationLib.setPortfolio(account, assets);
+    }
+
+    function enableBitmapForAccount(address account, uint16 currencyId) external {
+        MockValuationLib.enableBitmapForAccount(account, currencyId);
+    }
+
+    function setifCashAsset(
+        address account,
+        uint256 currencyId,
+        uint256 maturity,
+        int256 notional,
+        uint256 blockTime
+    ) external {
+        MockValuationLib.setifCashAsset(account, currencyId, maturity, notional, blockTime);
+    }
+
+    // View Methods Start Here
+    function convertToUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+        return MockValuationLib.convertToUnderlying(currencyId, balance);
+    }
+
+    function convertFromUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+        return MockValuationLib.convertFromUnderlying(currencyId, balance);
+    }
+
+    function convertToETH(uint256 currencyId, int256 balance) public view returns (int256) {
+        return MockValuationLib.convertToETH(currencyId, balance);
+    }
+
+    function convertFromETH(uint256 currencyId, int256 balance) public view returns (int256) {
+        return MockValuationLib.convertETHTo(currencyId, balance);
+    }
+
+    function getAccount(address account)
+        external
+        view
+        returns (
+            AccountContext memory accountContext,
+            AccountBalance[] memory accountBalances,
+            PortfolioAsset[] memory portfolio
+        )
+    {
+        return MockValuationLib.getAccount(account);
+    }
+
+    function getNTokenPV(uint16 currencyId) external view returns (int256) {
+        return MockValuationLib.getNTokenPV(currencyId);
+    }
+
+    function getActiveMarkets(uint16 currencyId)
+        external
+        view
+        returns (MarketParameters[] memory)
+    {
+        return MockValuationLib.getActiveMarkets(currencyId);
+    }
+}

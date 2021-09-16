@@ -1,0 +1,166 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity ^0.7.0;
+pragma abicoder v2;
+
+import "../../internal/portfolio/PortfolioHandler.sol";
+import "../../internal/AccountContextHandler.sol";
+import "../../internal/liquidation/LiquidationHelpers.sol";
+import "../../internal/liquidation/LiquidateCurrency.sol";
+import "../../internal/liquidation/LiquidatefCash.sol";
+import "../../external/actions/LiquidateCurrencyAction.sol";
+import "./MockValuationLib.sol";
+
+contract MockLiquidationSetup is MockValuationBase {
+    function preLiquidationActions(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 collateralCurrency
+    ) external returns (
+        AccountContext memory,
+        LiquidationFactors memory,
+        PortfolioState memory
+    ) {
+        return LiquidationHelpers.preLiquidationActions(
+            liquidateAccount,
+            localCurrency,
+            collateralCurrency
+        );
+    }
+
+    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+}
+
+contract MockLocalLiquidation is MockValuationBase, LiquidateCurrencyAction {
+    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+}
+
+contract MockLocalfCashLiquidation is MockValuationBase {
+    using AccountContextHandler for AccountContext;
+    using AssetRate for AssetRateParameters;
+    using SafeInt256 for int256;
+
+    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+
+    function calculatefCashLocalLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+        LiquidatefCash.fCashContext memory c =
+            _liquidateLocal(
+                liquidateAccount,
+                localCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+    }
+
+    function _liquidateLocal(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
+    ) private returns (LiquidatefCash.fCashContext memory) {
+        require(fCashMaturities.length == maxfCashLiquidateAmounts.length);
+        LiquidatefCash.fCashContext memory c;
+        (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
+            liquidateAccount,
+            localCurrency,
+            0
+        );
+
+        // prettier-ignore
+        (
+            int256 cashBalance,
+            /* int256 nTokenBalance */,
+            /* uint256 lastClaimTime */,
+            /* uint256 lastClaimIntegralSupply*/
+        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
+        // Cash balance is used if liquidating negative fCash
+        c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
+        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
+
+        LiquidatefCash.liquidatefCashLocal(
+            liquidateAccount,
+            localCurrency,
+            fCashMaturities,
+            maxfCashLiquidateAmounts,
+            c,
+            blockTime
+        );
+
+        return c;
+    }
+}
+
+contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
+    using AccountContextHandler for AccountContext;
+    using AssetRate for AssetRateParameters;
+    using SafeInt256 for int256;
+
+    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+
+    function calculatefCashCrossCurrencyLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts
+    ) external returns (int256[] memory, int256) {
+        uint256 blockTime = block.timestamp;
+        LiquidatefCash.fCashContext memory c =
+            _liquidateCrossCurrency(
+                liquidateAccount,
+                localCurrency,
+                fCashCurrency,
+                fCashMaturities,
+                maxfCashLiquidateAmounts,
+                blockTime
+            );
+
+        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+    }
+
+    function _liquidateCrossCurrency(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 fCashCurrency,
+        uint256[] calldata fCashMaturities,
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
+    ) private returns (LiquidatefCash.fCashContext memory) {
+        require(fCashMaturities.length == maxfCashLiquidateAmounts.length); // dev: fcash maturity length mismatch
+        LiquidatefCash.fCashContext memory c;
+        (c.accountContext, c.factors, c.portfolio) = LiquidationHelpers.preLiquidationActions(
+            liquidateAccount,
+            localCurrency,
+            fCashCurrency
+        );
+        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
+
+        LiquidatefCash.liquidatefCashCrossCurrency(
+            liquidateAccount,
+            fCashCurrency,
+            fCashMaturities,
+            maxfCashLiquidateAmounts,
+            c,
+            blockTime
+        );
+
+        return c;
+    }
+}
