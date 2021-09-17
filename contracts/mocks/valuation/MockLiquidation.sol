@@ -30,6 +30,38 @@ contract MockLiquidationSetup is MockValuationBase {
     function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
+
+    function calculateLiquidationAmount(
+        int256 liquidateAmountRequired,
+        int256 maxTotalBalance,
+        int256 userSpecifiedMaximum
+    ) external pure returns (int256) {
+        return LiquidationHelpers.calculateLiquidationAmount(
+            liquidateAmountRequired,
+            maxTotalBalance,
+            userSpecifiedMaximum
+        );
+    }
+
+    function calculateCrossCurrencyBenefitAndDiscount(
+        LiquidationFactors memory factors
+    ) external pure returns (int256 assetCashBenefitRequired, int256 liquidationDiscount) {
+        return LiquidationHelpers.calculateCrossCurrencyBenefitAndDiscount(factors);
+    }
+
+    function calculateLocalToPurchase(
+        LiquidationFactors memory factors,
+        int256 liquidationDiscount,
+        int256 collateralUnderlyingPresentValue,
+        int256 collateralAssetBalanceToSell
+    ) internal pure returns (int256, int256) {
+        return LiquidationHelpers.calculateLocalToPurchase(
+            factors,
+            liquidationDiscount,
+            collateralUnderlyingPresentValue,
+            collateralAssetBalanceToSell
+        );
+    }
 }
 
 contract MockLocalLiquidation is MockValuationBase, LiquidateCurrencyAction {

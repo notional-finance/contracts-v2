@@ -131,6 +131,65 @@ class ValuationMock:
             / (self.nTokenTotalSupply[currency] * 100)
         )
 
+    def get_liquidation_factors(self, local, collateral, **kwargs):
+        account = 0 if "account" not in kwargs else kwargs["account"].address
+        netETHValue = 0 if "netETHValue" not in kwargs else kwargs["netETHValue"]
+        localAssetAvailable = (
+            0 if "localAssetAvailable" not in kwargs else kwargs["localAssetAvailable"]
+        )
+        collateralAssetAvailable = (
+            0 if "collateralAssetAvailable" not in kwargs else kwargs["collateralAssetAvailable"]
+        )
+        nTokenHaircutAssetValue = (
+            0 if "nTokenHaircutAssetValue" not in kwargs else kwargs["nTokenHaircutAssetValue"]
+        )
+        if collateral == 0:
+            nTokenParameters = "0x{}0000{}00".format(
+                hex(self.nTokenParameters[local][1])[2:], hex(self.nTokenParameters[local][0])[2:]
+            )
+        else:
+            nTokenParameters = "0x{}0000{}00".format(
+                hex(self.nTokenParameters[collateral][1])[2:],
+                hex(self.nTokenParameters[collateral][0])[2:],
+            )
+
+        localETHRate = [1e18, self.ethRates[local]] + self.bufferHaircutDiscount[local]
+        collateralETHRate = [1e18, self.ethRates[collateral]] + self.bufferHaircutDiscount[
+            collateral
+        ]
+        localAssetRate = [
+            self.cTokenAdapters[local].address,
+            self.cTokenRates[local],
+            10 ** self.underlyingDecimals[local],
+        ]
+        collateralCashGroup = [
+            local if collateral == 0 else collateral,
+            3,
+            localAssetRate
+            if collateral == 0
+            else [
+                self.cTokenAdapters[collateral].address,
+                self.cTokenRates[collateral],
+                10 ** self.underlyingDecimals[collateral],
+            ],
+            0,  # TODO: need to fill this in for fCash
+        ]
+        isCalculation = False if "isCalculation" not in kwargs else kwargs["isCalculation"]
+
+        return [
+            account,
+            netETHValue,
+            localAssetAvailable,
+            collateralAssetAvailable,
+            nTokenHaircutAssetValue,
+            nTokenParameters,
+            localETHRate,
+            collateralETHRate,
+            localAssetRate,
+            collateralCashGroup,
+            isCalculation,
+        ]
+
 
 def get_portfolio(
     assetMarketIndexes,

@@ -68,6 +68,11 @@ library FreeCollateralExternal {
             accountContext = SettleAssetsExternal.settleAccount(account, accountContext);
         }
 
+        if (accountContext.isBitmapEnabled()) {
+            // A bitmap currency can only ever hold debt in this currency
+            require(localCurrencyId == accountContext.bitmapCurrencyId);
+        }
+
         (factors, portfolio) = FreeCollateral.getLiquidationFactors(
             account,
             accountContext,
