@@ -100,9 +100,10 @@ library MockValuationLib {
         accountContext.setAccountContext(account);
     }
 
-    function enableBitmapForAccount(address account, uint16 currencyId) external {
+    function enableBitmapForAccount(address account, uint16 currencyId, uint256 blockTime) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.bitmapCurrencyId = currencyId;
+        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
         accountContext.setAccountContext(account);
     }
 
@@ -110,18 +111,9 @@ library MockValuationLib {
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional,
-        uint256 blockTime
+        int256 notional
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        if (
-            accountContext.nextSettleTime != 0 &&
-            accountContext.nextSettleTime != DateTime.getTimeUTC0(blockTime)
-        ) {
-            revert(); // dev: invalid block time for test
-        }
-        accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
-
         int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
@@ -171,6 +163,7 @@ library MockValuationLib {
         uint256 i = 0;
         if (accountContext.isBitmapEnabled()) {
             AccountBalance memory b = accountBalances[0];
+            b.currencyId = accountContext.bitmapCurrencyId;
             (
                 b.cashBalance,
                 b.nTokenBalance,
@@ -230,6 +223,25 @@ library MockValuationLib {
 
         return markets;
     }
+
+    function getRiskAdjustedPresentfCashValue(
+        PortfolioAsset memory asset,
+        uint256 blockTime
+    ) external view returns (int256) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(uint16(asset.currencyId));
+
+        return AssetHandler.getRiskAdjustedPresentfCashValue(
+            cashGroup,
+            asset.notional,
+            asset.maturity,
+            blockTime,
+            cashGroup.calculateOracleRate(asset.maturity, blockTime)
+        );
+    }
+
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum) external pure returns (uint256) {
+        return DateTime.getMaturityFromBitNum(blockTime, bitNum);
+    }
 }
 
 contract MockValuationBase {
@@ -284,18 +296,17 @@ contract MockValuationBase {
         MockValuationLib.setPortfolio(account, assets);
     }
 
-    function enableBitmapForAccount(address account, uint16 currencyId) external {
-        MockValuationLib.enableBitmapForAccount(account, currencyId);
+    function enableBitmapForAccount(address account, uint16 currencyId, uint256 blockTime) external {
+        MockValuationLib.enableBitmapForAccount(account, currencyId, blockTime);
     }
 
     function setifCashAsset(
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional,
-        uint256 blockTime
+        int256 notional
     ) external {
-        MockValuationLib.setifCashAsset(account, currencyId, maturity, notional, blockTime);
+        MockValuationLib.setifCashAsset(account, currencyId, maturity, notional);
     }
 
     // View Methods Start Here
@@ -337,5 +348,20 @@ contract MockValuationBase {
         returns (MarketParameters[] memory)
     {
         return MockValuationLib.getActiveMarkets(currencyId);
+    }
+
+    function getRiskAdjustedPresentfCashValue(
+        PortfolioAsset memory asset,
+        uint256 blockTime
+    ) external view returns (int256) {
+        return MockValuationLib.getRiskAdjustedPresentfCashValue(asset, blockTime);
+    }
+
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum) external pure returns (uint256) {
+        return MockValuationLib.getMaturityFromBitNum(blockTime, bitNum);
+    }
+
+    function getAccountContext(address account) external view returns (AccountContext memory) {
+        return AccountContextHandler.getAccountContext(account);
     }
 }

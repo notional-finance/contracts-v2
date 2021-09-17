@@ -432,15 +432,17 @@ library FreeCollateral {
             ETHRate memory ethRate =
                 _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
 
-            // If the bitmap currency id can only ever be the local currency where debt is held. During enable bitmap we check that
-            // the account has no assets in their portfolio and no cash debts.
+            // If the bitmap currency id can only ever be the local currency where debt is held.
+            // During enable bitmap we check that the account has no assets in their portfolio and
+            // no cash debts.
             if (accountContext.bitmapCurrencyId == localCurrencyId) {
-                liquidationFactors.cashGroup = factors.cashGroup;
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
+                liquidationFactors.localAssetRate = factors.assetRate;
 
                 // This will be the case during local currency or local fCash liquidation
                 if (collateralCurrencyId == 0) {
+                    liquidationFactors.cashGroup = factors.cashGroup;
                     liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
                     liquidationFactors.nTokenParameters = nTokenParameters;
                 }
@@ -482,9 +484,11 @@ library FreeCollateral {
                 liquidationFactors.collateralAssetAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
             } else if (currencyId == localCurrencyId) {
+                // This branch will not be entered if bitmap is enabled
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
                 liquidationFactors.localAssetRate = factors.assetRate;
+                liquidationFactors.cashGroup.assetRate = factors.assetRate;
             }
 
             currencies = currencies << 16;

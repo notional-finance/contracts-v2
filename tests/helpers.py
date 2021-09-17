@@ -157,7 +157,7 @@ def get_portfolio_array(length, cashGroups, **kwargs):
     while len(portfolio) < length:
         isLiquidity = random.randint(0, 1)
         cashGroup = random.choice(cashGroups)
-        marketIndex = random.randint(1, cashGroup[1])
+        marketIndex = random.randint(1, cashGroup[0])
 
         if any(
             a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == marketIndex + 1
@@ -165,7 +165,7 @@ def get_portfolio_array(length, cashGroups, **kwargs):
             else 1
             for a in portfolio
         ):
-            # No duplciate assets
+            # No duplicate assets
             continue
 
         if isLiquidity:

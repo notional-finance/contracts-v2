@@ -10,6 +10,8 @@ contract MockFreeCollateral is MockValuationBase {
     using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
     event Liquidation(LiquidationFactors factors);
+    event FreeCollateralResult(int256 fc, int256[] netLocal);
+    event AccountContextUpdate(address indexed account);
 
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
@@ -68,22 +70,20 @@ contract MockFreeCollateral is MockValuationBase {
         (int256 fcView, int256[] memory netLocal) =
             FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
 
-        if (fcView >= 0) {
-            // Refetch to clear state
-            AccountContext memory accountContextNew =
-                AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContextNew =
+            AccountContextHandler.getAccountContext(account);
 
-            // prettier-ignore
-            (int256 ethDenominatedFC, bool updateContext) =
-                FreeCollateral.getFreeCollateralStateful(account, accountContextNew, blockTime);
+        // prettier-ignore
+        (int256 ethDenominatedFC, bool updateContext) =
+            FreeCollateral.getFreeCollateralStateful(account, accountContextNew, blockTime);
 
-            if (updateContext) {
-                accountContextNew.setAccountContext(account);
-            }
+        if (updateContext) {
+            accountContextNew.setAccountContext(account);
+        }
 
-            assert(fcView == ethDenominatedFC);
-        } else {
-            // prettier-ignore
+        assert(fcView == ethDenominatedFC);
+
+        if (fcView < 0) {
             (LiquidationFactors memory factors, /* */) = FreeCollateral.getLiquidationFactors(
                 account, accountContext, blockTime, 1, 0);
             emit Liquidation(factors);
@@ -91,6 +91,7 @@ contract MockFreeCollateral is MockValuationBase {
             assert(fcView == factors.netETHValue);
         }
 
+        emit FreeCollateralResult(fcView, netLocal);
         return (fcView, netLocal);
     }
 }
