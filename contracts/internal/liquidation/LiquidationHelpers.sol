@@ -106,17 +106,16 @@ library LiquidationHelpers {
         return result;
     }
 
-    /// @dev Calculates factors when liquidating across two currencies
+    /// @dev This function does two things: 
+    /// 1. Takes an account's ETH-denominated freeCollateral shortfall and converts it to collateralCurrency
+    /// 2. Returns the max of the liquidation discounts for the local and collateral currencies
     function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
         internal
         pure
         returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
     {
         require(factors.collateralETHRate.haircut > 0);
-        // This calculation returns the amount of benefit that selling collateral for local currency will
-        // be back to the account.
-        // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
-        // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
+
         assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
@@ -133,7 +132,7 @@ library LiquidationHelpers {
     }
 
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
-    /// is not so large that the account is put further into debt.
+    /// is not so large that the account's localAvailable goes above zero.
     /// @return
     ///     collateralAssetBalanceToSell: the amount of collateral asset balance to be sold to the liquidator
     ///     localAssetFromLiquidator: the amount of asset cash from the liquidator
@@ -159,9 +158,9 @@ library LiquidationHelpers {
 
         if (localAssetFromLiquidator > maxLocalAsset) {
             // If the local to purchase will flip the sign of localAssetAvailable then the calculations
-            // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
-            // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
-            // the collateralAssetValue then this may actually decrease overall free collateral.
+            // for the collateral purchase amounts will be thrown off because the freeCollateral benefit of
+            // a positive localAssetAvailable has a haircut applied instead of a buffer. 
+            // In this case, we scale down collateralAssetBalanceToSell proportionally.
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
                 .mul(maxLocalAsset)
                 .div(localAssetFromLiquidator);

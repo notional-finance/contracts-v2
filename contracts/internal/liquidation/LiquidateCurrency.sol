@@ -171,6 +171,7 @@ library LiquidateCurrency {
 
     /// @notice Liquidates collateral in the form of cash, liquidity token cash claims, or nTokens in that
     /// liquidation preference.
+    /// @dev This function begins by calculating the amount of collateral needed to exchange for localCurrency
     function liquidateCollateralCurrency(
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation,
@@ -226,6 +227,7 @@ library LiquidateCurrency {
             collateralAssetRemaining = newCollateralAssetRemaining;
         }
 
+        // Now we move on to nTokens
         if (collateralAssetRemaining > 0 && factors.nTokenHaircutAssetValue > 0) {
             collateralAssetRemaining = _calculateCollateralNTokenTransfer(
                 balanceState,
@@ -269,19 +271,36 @@ library LiquidateCurrency {
             int256 liquidationDiscount
         )
     {
+        // This function will give us the ETHDenominatedFreeCollateralShortfall and liquidation Discount which
+        // we will need for the following calculations.
         int256 assetCashBenefitRequired;
         (assetCashBenefitRequired, liquidationDiscount) = LiquidationHelpers
             .calculateCrossCurrencyBenefitAndDiscount(factors);
         {
-            // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
-            //      collateralToSell * collateralHaircut
-            // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
+            // We need to solve for an amount of collateral to sell such that we recoup the freeCollateral shortfall. This
+            // is the ETH-denominated freeCollateral benefit for the liquidated account purchasing some amount of localCurrency
+            // and selling some amount of collateral:
+            // 
+            // ETHDenominatedFreeCollateralBenefit = localPurchased * localBuffer * exRateLocalToEth -
+            //      collateralToSell * collateralHaircut * exRateCollateralToEth
             //
-            // collateralCurrencyBenefit = [collateralToSell / (exchangeRate * liquidationDiscount)] * localBuffer * exchangeRate -
+            // We know how much ETH-denominated freeCollateral benefit we need - it's factors.netETHValue.neg()
+            // 
+            // factors.netETHValue.neg() = localPurchased * localBuffer * exRateLocalToEth -
+            //      collateralToSell * collateralHaircut * exRateCollateralToEth
+            // 
+            // To simplify this equation, we multiply both sides by exRateEthToCollateral
+            //
+            // collateralDenominatedFreeCollateralBenefit = localPurchased * localBuffer * exRateLocalToCollateral -
             //      collateralToSell * collateralHaircut
-            // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
-            // collateralCurrencyBenefit = collateralToSell * ((localBuffer / liquidationDiscount) - collateralHaircut)
-            // collateralToSell = collateralCurrencyBenefit / ((localBuffer / liquidationDiscount) - collateralHaircut)
+            //
+            // MATH:
+            // localPurchased = collateralToSell * exRateCollateralToLocal / liquidationDiscount
+            // localPurchased * localBuffer * exRateLocalToCollateral = collateralToSell * localBuffer / liquidationDiscount
+            // collateralDenominatedFreeCollateralBenefit = collateralToSell * localBuffer / liquidationDiscount -
+            //      collateralToSell * collateralHaircut
+            // collateralDenominatedFreeCollateralBenefit = collateralToSell * ((localBuffer / liquidationDiscount) - collateralHaircut)
+            // collateralToSell = collateralDenominatedFreeCollateralBenefit / ((localBuffer / liquidationDiscount) - collateralHaircut)
             int256 denominator =
                 factors.localETHRate.buffer
                     .mul(Constants.PERCENTAGE_DECIMALS)
@@ -293,15 +312,20 @@ library LiquidateCurrency {
                 .div(denominator);
         }
 
+        // Now that we have collateralToSell, we need to apply a few conditions. Our calculations rely on the liquidated account's
+        // collateralAvailable not becoming negative, and this function will ensure that we don't sell too mcuh collateral such
+        // that the liquidated account's collateralAvailable becomes negative.
         requiredCollateralAssetCash = LiquidationHelpers.calculateLiquidationAmount(
             requiredCollateralAssetCash,
             factors.collateralAssetAvailable,
             maxCollateralLiquidation
         );
 
-        // In this case the collateral asset present value and the collateral asset balance to sell are the same
-        // value since cash is always equal to present value. That is why the last two parameters in calculateLocalToPurchase
-        // are the same value.
+        // Now we need to calculate how much localCurrency the liquidated account is going to purchase. This function will convert the
+        // collateral value into localCurrency and apply the liquidation discount. It will also check to make sure that the
+        // liquidated account's localCurrencyAvailable does not go above zero (this would throw off our calculations, similar to above).
+        // If the collateral amount would cause localCurrencyAvailable to go above zero, this function will return a localAssetCash
+        // figure that would put localCurrencyAvailable to zero and will proportionally scale down the collateral value.
         int256 collateralUnderlyingPresentValue =
             factors.cashGroup.assetRate.convertToUnderlying(requiredCollateralAssetCash);
         (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
@@ -352,11 +376,13 @@ library LiquidateCurrency {
         }
 
         balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
-        // NOTE: it's possible that this results in > DEFAULT_LIQUIDATION_PORTION in PV terms. However, it will not be more than
-        // the liquidateHaircutPercentage which will be set to a nominal amount. Since DEFAULT_LIQUIDATION_PORTION is arbitrary we
-        // don't put too much emphasis on this and allow it to occur.
-        // Formula here:
-        // collateralToRaise = (tokensToLiquidate * nTokenHaircutAssetValue * LIQUIDATION_HAIRCUT) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
+        // NOTE: when calculating nTokensToLiquidate, we are ignoring the freeCollateral benefit that the account will
+        // receive because the liquidator is purchasing nTokens at the liquidation haircut, which is a smaller discount
+        // than the PV haircut. This will mean that the liquidated account will wind up with more freeCollateral than we "expect",
+        // but that's fine and we do this for simplicity.
+        // Formula here (from above):
+        // collateralToRaise = (tokensToLiquidate * nTokenHaircutAssetValue * LIQUIDATION_HAIRCUT) 
+        //      / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
         collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
             nTokensToLiquidate
                 .mul(factors.nTokenHaircutAssetValue)
