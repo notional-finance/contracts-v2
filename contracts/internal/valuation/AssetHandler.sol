@@ -39,7 +39,7 @@ library AssetHandler {
     }
 
     /// @notice Returns the continuously compounded discount rate given an oracle rate and a time to maturity.
-    /// The formula is: e^(-rate * timeToMaturity).
+    /// The formula is: e^(-rate * timeToMaturity / secondsInYear).
     function getDiscountFactor(uint256 timeToMaturity, uint256 oracleRate)
         internal
         pure

@@ -25,7 +25,7 @@ library LiquidatefCash {
 
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The
     /// The risk adjusted discount factor is used to value fCash, the liquidation discount factor is used to 
-    /// calculate the price of the fCash asset at a discount to the risk adjusted factor.
+    /// calculate the price that the liquidator will pay for the fCash asset.
     function _calculatefCashDiscounts(
         LiquidationFactors memory factors,
         uint256 maturity,
@@ -49,6 +49,8 @@ library LiquidatefCash {
                 oracleRate.add(factors.cashGroup.getLiquidationfCashHaircut())
             );
         } else {
+            // If the notional is negative, the risk adjusted discount factor will be greater than the 
+            // liquidation discount factor.
             uint256 buffer = factors.cashGroup.getDebtBuffer();
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
@@ -105,9 +107,7 @@ library LiquidatefCash {
         int256[] fCashNotionalTransfers;
     }
 
-    /// @notice Allows the liquidator to purchase fCash in the same currency that a debt is denominated in. It's
-    /// also possible that there is no debt in the local currency, in that case the liquidated account will gain the
-    /// benefit of the difference between the discounted fCash value and the cash
+    /// @notice Allows the liquidator to purchase fCash in exchange for cash in the same currency.
     function liquidatefCashLocal(
         address liquidateAccount,
         uint256 localCurrency,
@@ -118,14 +118,11 @@ library LiquidatefCash {
     ) internal view {
         if (c.factors.localAssetAvailable > 0) {
             require(c.factors.localETHRate.haircut > 0);
-            // If local available is positive then we can bring it down to zero, this can occur when the
-            // account is undercollateralized and there is value in trading it's fCash for cash. The value
-            // will be in the difference between the risk adjusted haircut value and the resulting cash it
-            // receives from the liquidator. This will likely be a very small amount.
-
-            // Formula here: convertToLocal(netETHFCShortfall) = localRequired * haircut
-            // localRequired = convertToLocal(netETHFCShortfall) / haircut
-            // haircut is used because localAssetAvailable > 0
+            // If localAvailable is positive, the Eth-denominated freeCollateral benefit of increasing localAvailable is:
+            // EthDenominatedFreeCollateralBenefit = localRequired * haircut * exchangeRateLocalToEth
+            // In other words:
+            // convertToLocal(netETHValue.neg()) = localRequired * haircut
+            // localRequired = convertToLocal(netETHValue.neg()) / haircut
 
             // prettier-ignore
             c.underlyingBenefitRequired = c.factors.localETHRate
@@ -133,9 +130,7 @@ library LiquidatefCash {
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(c.factors.localETHRate.haircut);
         } else {
-            // If local available is negative then we can bring it up to zero. In this case positive
-            // local collateral (either cash or fCash) will be exchanged for either removing debt (transfer
-            // of negative fCash) or purchasing positive fCash for cash (removing the haircut on fCash).
+            // If local available is negative then we can bring it up to zero.
             c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
                 c.factors.localAssetAvailable.neg()
             );
@@ -157,11 +152,14 @@ library LiquidatefCash {
             (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
                 _calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime, notional > 0);
 
-            // The benefit to the liquidated account is the difference between the liquidation discount factor
-            // and the risk adjusted discount factor:
-            // localCurrencyBenefit = fCash * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            // fCash = localCurrencyBenefit / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
-            // abs is used here to ensure positive values
+            // The benefit to the liquidated account is the difference between the price that the liquidator pays
+            // for the fCash (liquidationDiscountFactor * notional) and the 
+            // free collateral value of the fCash (riskAdjustedDiscountFactor * notional):
+            //
+            // localCurrencyBenefit = fCashNotional * (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            // fCashNotional = localCurrencyBenefit / (liquidationDiscountFactor - riskAdjustedDiscountFactor)
+            //
+            // abs is used here to ensure positive values - we handle negative fCashNotional values later
             c.fCashNotionalTransfers[i] = c.underlyingBenefitRequired
             // NOTE: Governance should be set such that these discount factors are unlikely to be zero. It's
             // possible that the interest rates are so low that this situation can occur.
@@ -176,7 +174,7 @@ library LiquidatefCash {
                 SafeInt256.toInt(maxfCashLiquidateAmounts[i]) // user specified maximum
             );
 
-            // This is the price the liquidator pays of the fCash that has been liquidated
+            // This is the price the liquidator pays for the fCash that has been liquidated
             int256 fCashLiquidationValueUnderlying =
                 c.fCashNotionalTransfers[i].mulInRatePrecision(liquidationDiscountFactor);
 
@@ -198,8 +196,8 @@ library LiquidatefCash {
                 fCashLiquidationValueUnderlying = fCashLiquidationValueUnderlying.neg();
             }
 
-            // NOTE: localAssetCashFromLiquidator is actually in underlying terms during this loop, it is converted to asset terms just once
-            // at the end of the loop to limit loss of precision
+            // NOTE: localAssetCashFromLiquidator is actually in underlying terms during this loop, it is converted
+            // to asset terms just once at the end of the loop to limit loss of precision
             c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.add(
                 fCashLiquidationValueUnderlying
             );
