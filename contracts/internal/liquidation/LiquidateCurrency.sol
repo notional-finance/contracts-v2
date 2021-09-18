@@ -34,22 +34,44 @@ library LiquidateCurrency {
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         PortfolioState memory portfolio
-    ) internal returns (int256) {
-        require(factors.localAssetAvailable < 0, "No local debt");
+    ) internal returns (int256 netAssetCashFromLiquidator) {
+        // If local asset available == 0 then there is nothing that this liquidation can do.
+        require(factors.localAssetAvailable != 0);
+        int256 assetBenefitRequired;
+        {
+            // Local currency liquidation adds free collateral value back to an account by trading nTokens or
+            // liquidity tokens back to cash in the same local currency. Local asset available may be
+            // either positive or negative when we enter this method.
+            //
+            // If local asset available is positive then there is a debt in a different currency, in this
+            // case we are not paying off any debt in the other currency. We are only adding free collateral in the
+            // form of a reduced haircut on nTokens or liquidity tokens. It may be possible to do a subsequent
+            // collateral currency liquidation to trade local cash for the collateral cash to actually pay down
+            // the debt. If that happens, the account would gain the benefit of removing the haircut on
+            // the local currency and also removing the buffer on the negative collateral debt.
+            //
+            // If localAssetAvailable is negative then this will reduce free collateral by trading
+            // nTokens or liquidity tokens back to cash in this currency.
+            //
+            // Formula in both cases requires dividing by the haircut or buffer:
+            // convertToLocal(netFCShortfallInETH) = localRequired * haircut
+            // convertToLocal(netFCShortfallInETH) / haircut = localRequired
+            //
+            // convertToLocal(netFCShortfallInETH) = localRequired * buffer
+            // convertToLocal(netFCShortfallInETH) / buffer = localRequired
+            int256 multiple = factors.localAssetAvailable > 0 ? 
+                factors.localETHRate.haircut :
+                factors.localETHRate.buffer;
 
-        // Formula here uses the buffer since we know localAssetAvailable is negative.
-        // convertToLocal(netFCShortfallInETH) = localRequired * buffer
-        // convertToLocal(netFCShortfallInETH) / buffer = localRequired
-        int256 assetBenefitRequired =
-            factors.localAssetRate.convertFromUnderlying(
-                factors
-                    .localETHRate
-                    .convertETHTo(factors.netETHValue.neg())
-                    .mul(Constants.PERCENTAGE_DECIMALS)
-                    .div(factors.localETHRate.buffer)
-            );
-
-        int256 netAssetCashFromLiquidator;
+            assetBenefitRequired =
+                factors.localAssetRate.convertFromUnderlying(
+                    factors
+                        .localETHRate
+                        .convertETHTo(factors.netETHValue.neg())
+                        .mul(Constants.PERCENTAGE_DECIMALS)
+                        .div(multiple)
+                );
+        }
 
         {
             WithdrawFactors memory w;
@@ -149,8 +171,6 @@ library LiquidateCurrency {
                 netAssetCashFromLiquidator = netAssetCashFromLiquidator.add(localAssetCash);
             }
         }
-
-        return netAssetCashFromLiquidator;
     }
 
     /// @notice Liquidates collateral in the form of cash, liquidity token cash claims, or nTokens in that

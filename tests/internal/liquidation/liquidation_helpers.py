@@ -121,12 +121,16 @@ class ValuationMock:
     def calculate_from_eth(self, currency, underlying):
         return math.trunc((underlying * Wei(1e18)) / self.ethRates[currency])
 
-    def calculate_to_eth(self, currency, underlying):
-        multiple = (
-            self.bufferHaircutDiscount[currency][1]
-            if underlying > 0
-            else self.bufferHaircutDiscount[currency][0]
-        )
+    def calculate_to_eth(self, currency, underlying, valueType="haircut"):
+        if valueType == "haircut":
+            multiple = (
+                self.bufferHaircutDiscount[currency][1]
+                if underlying > 0
+                else self.bufferHaircutDiscount[currency][0]
+            )
+        elif valueType == "no-haircut":
+            multiple = 100
+
         return math.trunc(
             (underlying * self.ethRates[currency] * Wei(multiple)) / (Wei(1e18) * Wei(100))
         )

@@ -1,3 +1,6 @@
+import random
+
+import brownie
 import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
@@ -95,7 +98,6 @@ class TestLiquidateLocalNTokens:
         currency=strategy("uint", min_value=1, max_value=4),
         ratio=strategy("uint", min_value=1, max_value=150),
     )
-    @pytest.mark.only
     def test_ntoken_negative_local_available_user_limit(
         self, liquidation, accounts, currency, nTokenBalance, ratio, nTokenLimit
     ):
@@ -121,12 +123,196 @@ class TestLiquidateLocalNTokens:
             localAssetCashFromLiquidator, abs=5
         ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
 
-    def test_ntoken_positive_local_available():
+    @given(
+        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=1, max_value=150),
+    )
+    def test_ntoken_positive_local_available(
+        self, liquidation, accounts, currency, nTokenBalance, ratio
+    ):
+        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
+        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
+        benefit = liquidator - haircut
+        # Choose a random currency for the debt to be in
+        debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
+
+        # Convert from nToken asset value to debt balance value
+        # if (signed terms) debt cash balance < -(benefit + nTokenHaircutValue) then insolvent
+        # if -(benefit + nTokenHaircutValue) < debt cash balance < 0 then ok
+
+        # Max benefit to the debt currency is going to be, we don't actually pay off any
+        # debt in this liquidation type:
+        # convertToETHWithHaircut(benefit) + convertToETHWithBuffer(debt)
+        benefitInUnderlying = liquidation.calculate_to_underlying(
+            currency, Wei((benefit * ratio * 1e8) / 1e10)
+        )
+        # Since this benefit is cross currency, apply the haircut here
+        benefitInETH = liquidation.calculate_to_eth(currency, benefitInUnderlying)
+
+        # However, we need to also ensure that this account is undercollateralized, so the debt cash
+        # balance needs to be lower than the value of the haircut nToken value:
+        # convertToETHWithHaircut(nTokenHaircut) = convertToETHWithBuffer(debt)
+        haircutInETH = liquidation.calculate_to_eth(
+            currency, liquidation.calculate_to_underlying(currency, Wei(haircut))
+        )
+
+        # This is the amount of debt post buffer we can offset with the benefit in ETH
+        debtInUnderlyingBuffered = liquidation.calculate_from_eth(
+            debtCurrency, benefitInETH + haircutInETH
+        )
+        # Undo the buffer when calculating the cash balance
+        debtCashBalance = liquidation.calculate_from_underlying(
+            debtCurrency,
+            Wei(
+                (debtInUnderlyingBuffered * 100)
+                / liquidation.bufferHaircutDiscount[debtCurrency][0]
+            ),
+        )
+
+        # Set the proper balances
+        liquidation.mock.setBalance(accounts[0], currency, 0, nTokenBalance)
+        liquidation.mock.setBalance(accounts[0], debtCurrency, -debtCashBalance, 0)
+        (
+            localAssetCashFromLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateLocalCurrencyLiquidation.call(
+            accounts[0], currency, 0, {"from": accounts[1]}
+        )
+        # Check that the price is correct
+        assert pytest.approx(
+            localAssetCashFromLiquidator, abs=5
+        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+
+        # Simulate the transfer above and check the FC afterwards
+        liquidation.mock.setBalance(
+            accounts[0], currency, localAssetCashFromLiquidator, nTokenBalance - nTokensPurchased
+        )
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
+
+        nTokenNetLocal = netLocal[0] if currency < debtCurrency else netLocal[1]
+        nTokenNetLocalAfter = netLocalAfter[0] if currency < debtCurrency else netLocalAfter[1]
+
+        if ratio <= 40:
+            # In the case that the ratio is less than 40%, we liquidate up to 40%
+            assert pytest.approx(Wei(nTokenNetLocal + benefit * 0.40), abs=5) == nTokenNetLocalAfter
+            assert fcAfter > 0
+        elif ratio > 100:
+            # In this scenario we liquidate all the nTokens and are still undercollateralized
+            assert nTokenBalance == nTokensPurchased
+            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=5) == nTokenNetLocalAfter
+            assert fcAfter < 0
+        else:
+            # In this case the benefit is proportional to the amount liquidated
+            benefit = Wei((benefit * nTokensPurchased) / nTokenBalance)
+            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=5) == nTokenNetLocalAfter
+            assert -100 <= fcAfter and fcAfter <= 0
+
+    @given(
+        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        nTokenLimit=strategy("uint", min_value=1, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=1, max_value=150),
+    )
+    def test_ntoken_positive_local_available_user_limit(
+        self, liquidation, accounts, currency, nTokenBalance, nTokenLimit, ratio
+    ):
+        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
+        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
+        benefit = liquidator - haircut
+        # Choose a random currency for the debt to be in
+        debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
+
+        # Convert from nToken asset value to debt balance value
+        # if (signed terms) debt cash balance < -(benefit + nTokenHaircutValue) then insolvent
+        # if -(benefit + nTokenHaircutValue) < debt cash balance < 0 then ok
+
+        # Max benefit to the debt currency is going to be, we don't actually pay off any debt
+        # convertToETHWithHaircut(benefit) + convertToETHWithBuffer(debt)
+        benefitInUnderlying = liquidation.calculate_to_underlying(
+            currency, Wei((benefit * ratio * 1e8) / 1e10)
+        )
+        # Since this benefit is cross currency, apply the haircut here
+        benefitInETH = liquidation.calculate_to_eth(currency, benefitInUnderlying)
+
+        # However, we need to also ensure that this account is undercollateralized, so the debt cash
+        # balance needs to be lower than the value of the haircut nToken value:
+        # convertToETHWithHaircut(nTokenHaircut) = convertToETHWithBuffer(debt)
+        haircutInETH = liquidation.calculate_to_eth(
+            currency, liquidation.calculate_to_underlying(currency, Wei(haircut))
+        )
+
+        # This is the amount of debt post buffer we can offset with the benefit in ETH
+        debtInUnderlyingBuffered = liquidation.calculate_from_eth(
+            debtCurrency, benefitInETH + haircutInETH
+        )
+        # Undo the buffer when calculating the cash balance
+        debtCashBalance = liquidation.calculate_from_underlying(
+            debtCurrency,
+            Wei(
+                (debtInUnderlyingBuffered * 100)
+                / liquidation.bufferHaircutDiscount[debtCurrency][0]
+            ),
+        )
+
+        # Set the proper balances
+        liquidation.mock.setBalance(accounts[0], currency, 0, nTokenBalance)
+        liquidation.mock.setBalance(accounts[0], debtCurrency, -debtCashBalance, 0)
+        (
+            localAssetCashFromLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateLocalCurrencyLiquidation.call(
+            accounts[0], currency, nTokenLimit, {"from": accounts[1]}
+        )
+
+        assert nTokensPurchased <= nTokenLimit
+        # Check that the price returned is correct
+        assert pytest.approx(
+            localAssetCashFromLiquidator, abs=5
+        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+
+    @given(
+        debtBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+    )
+    def test_ntoken_local_no_currency(self, liquidation, accounts, currency, debtBalance):
+        liquidation.mock.setBalance(accounts[0], currency, -debtBalance, 0)
+        localCurrency = random.choice([c for c in range(1, 5) if c != currency])
+
+        # There is no value in this local currency, we revert
+        with brownie.reverts():
+            liquidation.mock.calculateLocalCurrencyLiquidation.call(
+                accounts[0], localCurrency, 0, {"from": accounts[1]}
+            )
+
+    @pytest.mark.only
+    @given(
+        debtBalance=strategy("uint", min_value=10_000e8, max_value=100_000_000e8),
+        debtCurrency=strategy("uint", min_value=1, max_value=4),
+    )
+    def test_ntoken_local_no_ntokens(self, liquidation, accounts, debtCurrency, debtBalance):
+        localCurrency = random.choice([c for c in range(1, 5) if c != debtCurrency])
+        liquidation.mock.setBalance(accounts[0], localCurrency, 1e8, 0)
+        liquidation.mock.setBalance(accounts[0], debtCurrency, -debtBalance, 0)
+
+        # In this case there is a debt and local available, but there are no nTokens
+        # to liquidate
+        (
+            localAssetCashFromLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateLocalCurrencyLiquidation.call(
+            accounts[0], localCurrency, 0, {"from": accounts[1]}
+        )
+
+        assert localAssetCashFromLiquidator == 0
+        assert nTokensPurchased == 0
+
+    def test_liquidity_token_negative_available(self, liquidation, accounts):
         pass
 
-    def test_ntoken_positive_local_available_user_limit():
+    def test_liquidity_token_positive_available():
         pass
 
-    @pytest.mark.todo
-    def test_ntoken_local_no_currency():
+    def test_liquidity_token_to_ntoken_pass_through():
         pass
