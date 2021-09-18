@@ -117,7 +117,7 @@ library LiquidationHelpers {
         // be back to the account.
         // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
         // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
-        assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
+        assetCashBenefitRequired = factors.collateralCashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 // netETHValue must be negative to be in liquidation

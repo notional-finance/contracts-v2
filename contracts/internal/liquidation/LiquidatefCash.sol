@@ -26,36 +26,37 @@ library LiquidatefCash {
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The
     /// The risk adjusted discount factor is used to value fCash, the liquidation discount factor is used to 
     /// calculate the price of the fCash asset at a discount to the risk adjusted factor.
+    /// @dev During local fCash liquidation, collateralCashGroup will be set to the local currency cash group
     function _calculatefCashDiscounts(
         LiquidationFactors memory factors,
         uint256 maturity,
         uint256 blockTime,
         bool isNotionalPositive
     ) private view returns (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) {
-        uint256 oracleRate = factors.cashGroup.calculateOracleRate(maturity, blockTime);
+        uint256 oracleRate = factors.collateralCashGroup.calculateOracleRate(maturity, blockTime);
         uint256 timeToMaturity = maturity.sub(blockTime);
 
         if (isNotionalPositive) {
             // This is the discount factor used to calculate the fCash present value during free collateral
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate.add(factors.cashGroup.getfCashHaircut())
+                oracleRate.add(factors.collateralCashGroup.getfCashHaircut())
             );
 
             // This is the discount factor that liquidators get to purchase fCash at, will be larger than
             // the risk adjusted discount factor.
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate.add(factors.cashGroup.getLiquidationfCashHaircut())
+                oracleRate.add(factors.collateralCashGroup.getLiquidationfCashHaircut())
             );
         } else {
-            uint256 buffer = factors.cashGroup.getDebtBuffer();
+            uint256 buffer = factors.collateralCashGroup.getDebtBuffer();
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
                 oracleRate < buffer ? 0 : oracleRate.sub(buffer)
             );
 
-            buffer = factors.cashGroup.getLiquidationDebtBuffer();
+            buffer = factors.collateralCashGroup.getLiquidationDebtBuffer();
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
                 oracleRate < buffer ? 0 : oracleRate.sub(buffer)
@@ -238,10 +239,10 @@ library LiquidatefCash {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         {
             // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
-            // for the purposes of this method
+            // for the purposes of this method. The underlyingBenefitRequired is denominated in local currency terms.
             (c.underlyingBenefitRequired, c.liquidationDiscount) = LiquidationHelpers
                 .calculateCrossCurrencyBenefitAndDiscount(c.factors);
-            c.underlyingBenefitRequired = c.factors.cashGroup.assetRate.convertToUnderlying(
+            c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
                 c.underlyingBenefitRequired
             );
         }
@@ -353,7 +354,7 @@ library LiquidatefCash {
 
         // Ensures that collateralAssetAvailable does not go below zero
         int256 collateralUnderlyingAvailable =
-            c.factors.cashGroup.assetRate.convertToUnderlying(c.factors.collateralAssetAvailable);
+            c.factors.collateralCashGroup.assetRate.convertToUnderlying(c.factors.collateralAssetAvailable);
         if (fCashRiskAdjustedUnderlyingPV > collateralUnderlyingAvailable) {
             // If inside this if statement then all collateralAssetAvailable should be coming from fCashRiskAdjustedPV
             // collateralAssetAvailable = fCashRiskAdjustedPV
@@ -378,7 +379,7 @@ library LiquidatefCash {
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
         c.factors.collateralAssetAvailable = c.factors.collateralAssetAvailable.subNoNeg(
-            c.factors.cashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
+            c.factors.collateralCashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
         );
         // Cannot have a negative value here, local asset available should always increase as a result of
         // cross currency liquidation.

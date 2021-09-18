@@ -395,7 +395,7 @@ library FreeCollateral {
 
             // If collateralCurrencyId is set to zero then this is a local currency liquidation
             if (setLiquidationFactors) {
-                liquidationFactors.cashGroup = factors.cashGroup;
+                liquidationFactors.collateralCashGroup = factors.cashGroup;
                 liquidationFactors.nTokenParameters = nTokenParameters;
                 liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
             }
@@ -442,7 +442,9 @@ library FreeCollateral {
 
                 // This will be the case during local currency or local fCash liquidation
                 if (collateralCurrencyId == 0) {
-                    liquidationFactors.cashGroup = factors.cashGroup;
+                    // If this is local fCash liquidation, the cash group information is required
+                    // to calculate fCash haircuts and buffers.
+                    liquidationFactors.collateralCashGroup = factors.cashGroup;
                     liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
                     liquidationFactors.nTokenParameters = nTokenParameters;
                 }
@@ -479,8 +481,9 @@ library FreeCollateral {
             ETHRate memory ethRate = _updateNetETHValue(currencyId, netLocalAssetValue, factors);
 
             if (currencyId == collateralCurrencyId) {
-                // Ensure that this is set even if the cash group is not loaded
-                liquidationFactors.cashGroup.assetRate = factors.assetRate;
+                // Ensure that this is set even if the cash group is not loaded, it will not be
+                // loaded if the account only has a cash balance and no nTokens or assets
+                liquidationFactors.collateralCashGroup.assetRate = factors.assetRate;
                 liquidationFactors.collateralAssetAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
             } else if (currencyId == localCurrencyId) {
@@ -488,7 +491,10 @@ library FreeCollateral {
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
                 liquidationFactors.localAssetRate = factors.assetRate;
-                liquidationFactors.cashGroup.assetRate = factors.assetRate;
+                // If this is local fCash liquidation, the cash group information is required
+                // to calculate fCash haircuts and buffers and it will have been set in 
+                // _calculateLiquidationAssetValue above because the account must have fCash assets,
+                // there is no need to set cash group in this branch.
             }
 
             currencies = currencies << 16;

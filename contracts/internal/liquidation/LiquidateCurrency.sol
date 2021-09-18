@@ -41,7 +41,7 @@ library LiquidateCurrency {
         // convertToLocal(netFCShortfallInETH) = localRequired * buffer
         // convertToLocal(netFCShortfallInETH) / buffer = localRequired
         int256 assetBenefitRequired =
-            factors.cashGroup.assetRate.convertFromUnderlying(
+            factors.localAssetRate.convertFromUnderlying(
                 factors
                     .localETHRate
                     .convertETHTo(factors.netETHValue.neg())
@@ -225,7 +225,7 @@ library LiquidateCurrency {
             // If there is any collateral asset remaining then recalculate the localAssetCashFromLiquidator.
             int256 actualCollateralAssetSold = requiredCollateralAssetCash.sub(collateralAssetRemaining);
             int256 collateralUnderlyingPresentValue =
-                factors.cashGroup.assetRate.convertToUnderlying(actualCollateralAssetSold);
+                factors.collateralCashGroup.assetRate.convertToUnderlying(actualCollateralAssetSold);
             // prettier-ignore
             (
                 /* collateralToRaise */,
@@ -289,7 +289,7 @@ library LiquidateCurrency {
         // value since cash is always equal to present value. That is why the last two parameters in calculateLocalToPurchase
         // are the same value.
         int256 collateralUnderlyingPresentValue =
-            factors.cashGroup.assetRate.convertToUnderlying(requiredCollateralAssetCash);
+            factors.collateralCashGroup.assetRate.convertToUnderlying(requiredCollateralAssetCash);
         (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
             .calculateLocalToPurchase(
                 factors,
@@ -378,11 +378,13 @@ library LiquidateCurrency {
 
         for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (!_isValidWithdrawToken(asset, factors.cashGroup.currencyId)) continue;
+            // NOTE: during local liquidation, if the account has assets in local currency then
+            // collateral cash group will be set to the local cash group
+            if (!_isValidWithdrawToken(asset, factors.collateralCashGroup.currencyId)) continue;
 
             (w.assetCash, w.fCash) = _loadMarketAndGetClaims(
                 asset,
-                factors.cashGroup,
+                factors.collateralCashGroup,
                 market,
                 blockTime
             );
@@ -428,7 +430,7 @@ library LiquidateCurrency {
 
             // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
             portfolioState.addAsset(
-                factors.cashGroup.currencyId,
+                factors.collateralCashGroup.currencyId,
                 asset.maturity,
                 Constants.FCASH_ASSET_TYPE,
                 w.fCash
@@ -451,7 +453,7 @@ library LiquidateCurrency {
         // netCashIncrease = cashClaim * (1 - haircut)
         // netCashIncrease = netCashToAccount + incentivePaid
         // incentivePaid = netCashIncrease * incentivePercentage
-        int256 haircut = factors.cashGroup.getLiquidityHaircut(assetType);
+        int256 haircut = factors.collateralCashGroup.getLiquidityHaircut(assetType);
         netCashIncrease = assetCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
             Constants.PERCENTAGE_DECIMALS
         );
@@ -474,11 +476,11 @@ library LiquidateCurrency {
 
         for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (!_isValidWithdrawToken(asset, factors.cashGroup.currencyId)) continue;
+            if (!_isValidWithdrawToken(asset, factors.collateralCashGroup.currencyId)) continue;
 
             (int256 cashClaim, int256 fCashClaim) = _loadMarketAndGetClaims(
                 asset,
-                factors.cashGroup,
+                factors.collateralCashGroup,
                 market,
                 blockTime
             );
@@ -509,7 +511,7 @@ library LiquidateCurrency {
 
             // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
             portfolioState.addAsset(
-                factors.cashGroup.currencyId,
+                factors.collateralCashGroup.currencyId,
                 asset.maturity,
                 Constants.FCASH_ASSET_TYPE,
                 fCashClaim
@@ -525,9 +527,8 @@ library LiquidateCurrency {
         return (
             asset.currencyId == currencyId &&
             AssetHandler.isLiquidityToken(asset.assetType) &&
-            // This should not be possible (a deleted asset) in the portfolio
-            // at this stage of liquidation but we do this check to be defensive.
-            asset.storageState != AssetStorageState.Delete
+            // Defensive check to ensure that we only operate on unmodified assets
+            asset.storageState == AssetStorageState.NoChange
         );
     }
 
