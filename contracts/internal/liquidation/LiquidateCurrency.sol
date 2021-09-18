@@ -75,12 +75,6 @@ library LiquidateCurrency {
                     uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) >
                     uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
                 ); // dev: haircut percentage underflow
-                int256 haircutDiff =
-                    int256(
-                        uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
-                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])
-                    ) * Constants.PERCENTAGE_DECIMALS;
-
                 // This will calculate how much nTokens to liquidate given the "assetBenefitRequired" calculated above.
                 // We are supplied with the nTokenHaircutAssetValue, this is calculated in the formula below. This value
                 // is calculated in FreeCollateral._getNTokenHaircutAssetPV and is equal to:
@@ -117,6 +111,10 @@ library LiquidateCurrency {
                 // nTokensToLiquidate = tokenBalance * benefitGained * PV_HAIRCUT / 
                 //          (nTokenHaircutAssetValue * (LIQUIDATION_HAIRCUT - PV_HAIRCUT_PERCENTAGE))
                 //
+                int256 haircutDiff =
+                    (uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]) -
+                            uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]));
+
                 nTokensToLiquidate = assetBenefitRequired
                     .mul(balanceState.storedNTokenBalance)
                     .mul(int256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))

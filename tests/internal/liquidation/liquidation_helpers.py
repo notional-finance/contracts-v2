@@ -60,15 +60,18 @@ class ValuationMock:
     cashGroups = {}
     cTokenAdapters = {}
     ethAggregators = {}
+    cTokens = {}
 
     def __init__(self, account, MockContract):
         MockValuationLib.deploy({"from": account})
         c = account.deploy(MockContract)
         for i in range(1, 5):
-            cToken = account.deploy(MockCToken, 8)
-            cToken.setAnswer(self.cTokenRates[i])
+            self.cTokens[i] = account.deploy(MockCToken, 8)
+            self.cTokens[i].setAnswer(self.cTokenRates[i])
             self.ethAggregators[i] = MockAggregator.deploy(18, {"from": account})
-            self.cTokenAdapters[i] = cTokenAggregator.deploy(cToken.address, {"from": account})
+            self.cTokenAdapters[i] = cTokenAggregator.deploy(
+                self.cTokens[i].address, {"from": account}
+            )
 
             c.setAssetRateMapping(i, (self.cTokenAdapters[i].address, self.underlyingDecimals[i]))
             self.cashGroups[i] = get_cash_group_with_max_markets(3)
@@ -115,6 +118,9 @@ class ValuationMock:
             / (self.cTokenRates[currency] * Wei(1e8))
         )
 
+    def calculate_from_eth(self, currency, underlying):
+        return math.trunc((underlying * Wei(1e18)) / self.ethRates[currency])
+
     def calculate_to_eth(self, currency, underlying):
         multiple = (
             self.bufferHaircutDiscount[currency][1]
@@ -125,11 +131,21 @@ class ValuationMock:
             (underlying * self.ethRates[currency] * Wei(multiple)) / (Wei(1e18) * Wei(100))
         )
 
-    def calculate_ntoken_to_asset(self, currency, nToken):
-        return math.trunc(
-            (nToken * self.nTokenCashBalance[currency] * self.nTokenParameters[currency][0])
-            / (self.nTokenTotalSupply[currency] * 100)
-        )
+    def calculate_ntoken_to_asset(self, currency, nToken, valueType="haircut"):
+        if valueType == "haircut":
+            return math.trunc(
+                (nToken * self.nTokenCashBalance[currency] * self.nTokenParameters[currency][0])
+                / (self.nTokenTotalSupply[currency] * 100)
+            )
+        elif valueType == "no-haircut":
+            return math.trunc(
+                (nToken * self.nTokenCashBalance[currency]) / self.nTokenTotalSupply[currency]
+            )
+        elif valueType == "liquidator":
+            return math.trunc(
+                (nToken * self.nTokenCashBalance[currency] * self.nTokenParameters[currency][1])
+                / (self.nTokenTotalSupply[currency] * 100)
+            )
 
     def get_liquidation_factors(self, local, collateral, **kwargs):
         account = 0 if "account" not in kwargs else kwargs["account"].address

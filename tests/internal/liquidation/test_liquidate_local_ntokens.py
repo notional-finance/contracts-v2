@@ -1,154 +1,132 @@
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from tests.constants import START_TIME
-from tests.helpers import get_balance_state, get_cash_group_with_max_markets, get_eth_rate_mapping
+from tests.internal.liquidation.liquidation_helpers import ValuationMock
 
 chain = Chain()
 
 EMPTY_PORTFOLIO_STATE = ([], [], 0, 0)
+"""
+Liquidate Local Currency Test Matrix:
+
+1. Only nToken
+    => calculateLiquidationAmount test
+    => nTokensToLiquidateHaircutValue > netAssetCashFromLiquidator
+2. Only Liquidity Token
+    => Markets Update in actual
+    => Markets don't update in calculate
+    => Portfolio updates in actual
+    => incentive is paid to liquidator
+    => cash removed and fCash removed nets off
+3. Both
+    => assetBenefitRequired falls through from liquidity token to nToken
+    => netAssetCashFromLiquidator is the net of the incentive paid and the nTokenLiquidateValue
+"""
 
 
 @pytest.mark.liquidation
 class TestLiquidateLocalNTokens:
     @pytest.fixture(scope="module", autouse=True)
-    def ethAggregators(self, MockAggregator, accounts):
-        return [
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-        ]
-
-    @pytest.fixture(scope="module", autouse=True)
     def liquidation(
-        self,
-        MockLocalLiquidationOverride,
-        MockLiquidationSetup,
-        SettleAssetsExternal,
-        FreeCollateralExternal,
-        MockCToken,
-        cTokenAggregator,
-        ethAggregators,
-        accounts,
+        self, MockLocalLiquidation, SettleAssetsExternal, FreeCollateralExternal, accounts
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
         FreeCollateralExternal.deploy({"from": accounts[0]})
+        return ValuationMock(accounts[0], MockLocalLiquidation)
 
-        liquidateOverride = accounts[0].deploy(MockLocalLiquidationOverride)
-        liquidateSetup = accounts[0].deploy(MockLiquidationSetup)
-        ctoken = accounts[0].deploy(MockCToken, 8)
-        # This is the identity rate
-        ctoken.setAnswer(1e18)
-        aggregator = cTokenAggregator.deploy(ctoken.address, {"from": accounts[0]})
+    @given(
+        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=1, max_value=150),
+    )
+    def test_ntoken_negative_local_available(
+        self, liquidation, accounts, currency, nTokenBalance, ratio
+    ):
+        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
+        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
+        benefit = liquidator - haircut
 
-        rateStorage = (aggregator.address, 8)
-        ethAggregators[0].setAnswer(1e18)
-        cg = get_cash_group_with_max_markets(3)
-        liquidateOverride.setAssetRateMapping(1, rateStorage)
-        liquidateSetup.setAssetRateMapping(1, rateStorage)
-        liquidateOverride.setCashGroup(1, cg)
-        liquidateSetup.setCashGroup(1, cg)
-        liquidateOverride.setETHRateMapping(
-            1, get_eth_rate_mapping(ethAggregators[0], discount=104)
+        # if cashBalance < -haircut then under fc
+        # if cashBalance < -liquidator then insolvent
+        # ratio of 100 == liquidator, ratio > 100 is insolvent
+        cashBalance = -Wei(haircut + (benefit * ratio * 1e8) / 1e10)
+        liquidation.mock.setBalance(accounts[0], currency, cashBalance, nTokenBalance)
+        (
+            localAssetCashFromLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateLocalCurrencyLiquidation.call(
+            accounts[0], currency, 0, {"from": accounts[1]}
         )
-        liquidateSetup.setETHRateMapping(1, get_eth_rate_mapping(ethAggregators[0], discount=104))
+        # Check that the price returned is correct
+        assert pytest.approx(
+            localAssetCashFromLiquidator, abs=5
+        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
-        chain.mine(1, timestamp=START_TIME)
-
-        return (liquidateOverride, liquidateSetup)
-
-    @given(localAvailable=strategy("int", min_value=-1000e8, max_value=-1e8))
-    def test_liquidate_ntoken_no_limit(self, liquidation, accounts, localAvailable):
-        (liquidateOverride, _) = liquidation
-        cashGroup = liquidateOverride.buildCashGroupView(1)
-        nTokenBalance = 10000e8
-
-        factors = (
+        # Simulate the transfer above and check the FC afterwards
+        liquidation.mock.setBalance(
             accounts[0],
-            localAvailable,
-            localAvailable,
-            0,
-            nTokenBalance * 0.90,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (0, 0, 0, 0, 0),
-            cashGroup[2],
-            cashGroup,
-            False,
+            currency,
+            cashBalance + localAssetCashFromLiquidator,
+            nTokenBalance - nTokensPurchased,
+        )
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
+
+        if ratio <= 40:
+            # In the case that the ratio is less than 40%, we liquidate up to 40%
+            assert pytest.approx(Wei(netLocal[0] + benefit * 0.40), abs=5) == netLocalAfter[0]
+            assert fcAfter > 0
+        elif ratio > 100:
+            # In this scenario we liquidate all the nTokens and are still undercollateralized
+            assert nTokenBalance == nTokensPurchased
+            assert pytest.approx(Wei(netLocal[0] + benefit), abs=5) == netLocalAfter[0]
+            assert fcAfter < 0
+        else:
+            # In each of these scenarios sufficient nTokens exist to liquidate to zero fc,
+            # some dust will exist when rounding this back to zero, we may undershoot due to
+            # truncation in solidity math
+            assert -1e5 <= netLocalAfter[0] and netLocalAfter[0] <= 0
+            assert -100 <= fcAfter and fcAfter <= 0
+
+    @given(
+        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        nTokenLimit=strategy("uint", min_value=1, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=1, max_value=150),
+    )
+    @pytest.mark.only
+    def test_ntoken_negative_local_available_user_limit(
+        self, liquidation, accounts, currency, nTokenBalance, ratio, nTokenLimit
+    ):
+        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
+        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
+        benefit = liquidator - haircut
+
+        # if cashBalance < -haircut then under fc
+        # if cashBalance < -liquidator then insolvent
+        # ratio of 100 == liquidator, ratio > 100 is insolvent
+        cashBalance = -Wei(haircut + (benefit * ratio * 1e8) / 1e10)
+        liquidation.mock.setBalance(accounts[0], currency, cashBalance, nTokenBalance)
+        (
+            localAssetCashFromLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateLocalCurrencyLiquidation.call(
+            accounts[0], currency, nTokenLimit, {"from": accounts[1]}
         )
 
-        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
-            1,
-            0,
-            START_TIME,
-            get_balance_state(
-                1, storedCashBalance=localAvailable, storedNTokenBalance=nTokenBalance
-            ),
-            factors,
-        ).return_value
+        assert nTokensPurchased <= nTokenLimit
+        # Check that the price returned is correct
+        assert pytest.approx(
+            localAssetCashFromLiquidator, abs=5
+        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
 
-        # allowed to purchase up to 40% of 1100
-        assert balanceState[5] == -(nTokenBalance * 0.40)
-        assert netLocalFromLiquidator == (nTokenBalance * 0.40 * 0.95)
+    def test_ntoken_positive_local_available():
+        pass
 
-    @given(nTokenValue=strategy("int", min_value=1e8, max_value=400e8))
-    def test_liquidate_ntoken_more_than_limit(self, liquidation, accounts, nTokenValue):
-        (liquidateOverride, _) = liquidation
-        cashGroup = liquidateOverride.buildCashGroupView(1)
-        nTokenBalance = int(nTokenValue / 0.90)
+    def test_ntoken_positive_local_available_user_limit():
+        pass
 
-        factors = (
-            accounts[0],
-            -1000000e8,
-            -1000e8,
-            0,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (0, 0, 0, 0, 0),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
-            1,
-            0,
-            START_TIME,
-            get_balance_state(1, storedCashBalance=-1000e8, storedNTokenBalance=nTokenBalance),
-            factors,
-        ).return_value
-
-        # allowed to purchase up to 100% of token balance
-        assert -balanceState[5] <= nTokenBalance
-        assert pytest.approx(netLocalFromLiquidator, abs=2) == (-balanceState[5] * 0.95)
-
-    def test_liquidate_ntoken_limit_to_user_specification(self, liquidation, accounts):
-        (liquidateOverride, _) = liquidation
-        cashGroup = liquidateOverride.buildCashGroupView(1)
-
-        factors = (
-            accounts[0],
-            -1000000e8,
-            -100e8,
-            0,
-            99e8,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (0, 0, 0, 0, 0),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        (balanceState, netLocalFromLiquidator) = liquidateOverride.liquidateLocalCurrencyOverride(
-            1,
-            10e8,
-            START_TIME,
-            get_balance_state(1, storedCashBalance=-100e8, storedNTokenBalance=110e8),
-            factors,
-        ).return_value
-
-        # allowed to purchase up to 100% of 110
-        assert balanceState[5] == -10e8
-        assert netLocalFromLiquidator == (10e8 * 0.95)
+    @pytest.mark.todo
+    def test_ntoken_local_no_currency():
+        pass

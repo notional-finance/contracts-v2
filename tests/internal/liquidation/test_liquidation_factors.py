@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import SECONDS_IN_DAY, START_TIME_TREF
@@ -84,7 +85,13 @@ class TestLiquidationFactors:
         amount = liquidation.mock.calculateLiquidationAmount(
             liquidateAmountRequired, maxTotalBalance, 0
         )
-        assert amount <= maxTotalBalance
+        if liquidateAmountRequired > maxTotalBalance * 0.40:
+            if liquidateAmountRequired <= maxTotalBalance:
+                assert amount == liquidateAmountRequired
+            else:
+                assert amount <= maxTotalBalance
+        else:
+            assert pytest.approx(amount, abs=1) == Wei(maxTotalBalance * 0.40)
 
         amount = liquidation.mock.calculateLiquidationAmount(
             liquidateAmountRequired, maxTotalBalance, userSpecifiedMaximum
