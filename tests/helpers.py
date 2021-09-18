@@ -100,7 +100,7 @@ def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
         proportion = kwargs["proportion"]
-        totalfCash = totalLiquidity * (1 - proportion)
+        totalfCash = totalLiquidity * (1 - proportion) / 50
         totalAssetCash = totalLiquidity * proportion
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]

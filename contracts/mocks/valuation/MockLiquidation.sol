@@ -64,7 +64,104 @@ contract MockLiquidationSetup is MockValuationBase {
     }
 }
 
-contract MockLocalLiquidation is MockValuationBase, LiquidateCurrencyAction {
+contract MockLocalLiquidation is MockValuationBase {
+    using SafeInt256 for int256;
+    using AccountContextHandler for AccountContext;
+    using BalanceHandler for BalanceState;
+
+    event LocalLiquidationTokens(
+        int256 localAssetCashFromLiquidator,
+        int256 nTokensPurchased,
+        int256 netCashChange,
+        PortfolioState portfolioState
+    );
+
+    function calculateLocalCurrencyLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint96 maxNTokenLiquidation
+    ) external returns (int256, int256) {
+        // prettier-ignore
+        (
+            int256 localAssetCashFromLiquidator,
+            BalanceState memory localBalanceState,
+            PortfolioState memory portfolio,
+            /* AccountContext memory accountContext */
+        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, true);
+
+        return (
+            localAssetCashFromLiquidator,
+            localBalanceState.netNTokenTransfer.neg()
+        );
+    }
+
+    function calculateLocalCurrencyLiquidationTokens(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint96 maxNTokenLiquidation
+    ) external {
+        // prettier-ignore
+        (
+            int256 localAssetCashFromLiquidator,
+            BalanceState memory localBalanceState,
+            PortfolioState memory portfolio,
+            /* AccountContext memory accountContext */
+        ) = _localCurrencyLiquidation(
+            liquidateAccount,
+            localCurrency,
+            maxNTokenLiquidation,
+            false // This will update markets internally
+        );
+
+        emit LocalLiquidationTokens(
+            localAssetCashFromLiquidator,
+            localBalanceState.netNTokenTransfer.neg(),
+            localBalanceState.netCashChange,
+            portfolio
+        );
+    }
+
+    function _localCurrencyLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint96 maxNTokenLiquidation,
+        bool isCalculation
+    )
+        internal
+        returns (
+            int256,
+            BalanceState memory,
+            PortfolioState memory,
+            AccountContext memory
+        )
+    {
+        (
+            AccountContext memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioState memory portfolio
+        ) = LiquidationHelpers.preLiquidationActions(liquidateAccount, localCurrency, 0);
+        BalanceState memory localBalanceState;
+        localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
+        factors.isCalculation = isCalculation;
+
+        int256 localAssetCashFromLiquidator =
+            LiquidateCurrency.liquidateLocalCurrency(
+                localCurrency,
+                maxNTokenLiquidation,
+                block.timestamp,
+                localBalanceState,
+                factors,
+                portfolio
+            );
+
+        return (
+            localAssetCashFromLiquidator,
+            localBalanceState,
+            portfolio,
+            accountContext
+        );
+    }
+
     function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }

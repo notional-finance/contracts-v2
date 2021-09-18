@@ -91,6 +91,12 @@ library MockValuationLib {
         balanceStorage.cashBalance = int88(cashBalance);
     }
 
+    function setPortfolioState(address account, PortfolioState memory state) external {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        accountContext.storeAssetsAndUpdateContext(account, state, true);
+        accountContext.setAccountContext(account);
+    }
+
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         PortfolioState memory portfolioState =
@@ -242,6 +248,17 @@ library MockValuationLib {
     function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum) external pure returns (uint256) {
         return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
+
+    function getLiquidityTokenHaircuts(uint16 currencyId) external view returns (uint8[] memory) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        uint8[] memory haircuts = new uint8[](cashGroup.maxMarketIndex);
+
+        for (uint i; i < haircuts.length; i++) {
+            haircuts[i] = cashGroup.getLiquidityHaircut(i + 2);
+        }
+
+        return haircuts;
+    }
 }
 
 contract MockValuationBase {
@@ -292,6 +309,10 @@ contract MockValuationBase {
         MockValuationLib.setBalance(account, currencyId, cashBalance, nTokenBalance);
     }
 
+    function setPortfolioState(address account, PortfolioState memory state) external {
+        MockValuationLib.setPortfolioState(account, state);
+    }
+
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
         MockValuationLib.setPortfolio(account, assets);
     }
@@ -310,21 +331,25 @@ contract MockValuationBase {
     }
 
     // View Methods Start Here
-    function convertToUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
-        return MockValuationLib.convertToUnderlying(currencyId, balance);
-    }
+    // function convertToUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+    //     return MockValuationLib.convertToUnderlying(currencyId, balance);
+    // }
 
-    function convertFromUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
-        return MockValuationLib.convertFromUnderlying(currencyId, balance);
-    }
+    // function convertFromUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+    //     return MockValuationLib.convertFromUnderlying(currencyId, balance);
+    // }
 
-    function convertToETH(uint256 currencyId, int256 balance) public view returns (int256) {
-        return MockValuationLib.convertToETH(currencyId, balance);
-    }
+    // function convertToETH(uint256 currencyId, int256 balance) public view returns (int256) {
+    //     return MockValuationLib.convertToETH(currencyId, balance);
+    // }
 
-    function convertFromETH(uint256 currencyId, int256 balance) public view returns (int256) {
-        return MockValuationLib.convertETHTo(currencyId, balance);
-    }
+    // function convertFromETH(uint256 currencyId, int256 balance) public view returns (int256) {
+    //     return MockValuationLib.convertETHTo(currencyId, balance);
+    // }
+
+    // function getNTokenPV(uint16 currencyId) external view returns (int256) {
+    //     return MockValuationLib.getNTokenPV(currencyId);
+    // }
 
     function getAccount(address account)
         external
@@ -336,10 +361,6 @@ contract MockValuationBase {
         )
     {
         return MockValuationLib.getAccount(account);
-    }
-
-    function getNTokenPV(uint16 currencyId) external view returns (int256) {
-        return MockValuationLib.getNTokenPV(currencyId);
     }
 
     function getActiveMarkets(uint16 currencyId)
@@ -363,5 +384,9 @@ contract MockValuationBase {
 
     function getAccountContext(address account) external view returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
+    }
+
+    function getLiquidityTokenHaircuts(uint16 currencyId) external view returns (uint8[] memory) {
+        return MockValuationLib.getLiquidityTokenHaircuts(currencyId);
     }
 }
