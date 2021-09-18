@@ -221,7 +221,7 @@ library LiquidatefCash {
         );
     }
 
-    /// @notice Allows the liquidator to purchase fCash in a different currency that a debt is denominated in.
+    /// @notice Allows the liquidator to purchase fCash held as collateral in a different currency than the account's debt.
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
         uint256 collateralCurrency,
@@ -235,7 +235,8 @@ library LiquidatefCash {
 
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         {
-            // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
+            // Underlying benefit is the freeCollateral shortfall denominated in collateral currency terms
+            // NOTE: underlying benefit is returned in asset terms from this function, convert it to underlying
             // for the purposes of this method
             (c.underlyingBenefitRequired, c.liquidationDiscount) = LiquidationHelpers
                 .calculateCrossCurrencyBenefitAndDiscount(c.factors);
@@ -274,6 +275,25 @@ library LiquidatefCash {
     ) private view returns (int256) {
         (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
             _calculatefCashDiscounts(c.factors, maturity, blockTime, true);
+
+        // **ALTERNATIVE APPROACH**
+        //
+        // We take a similar approach here as in _calculateCollateralToRaise. See the commentary in that function
+        // for more background explanation.
+        //
+        // ETHDenominatedFreeCollateralBenefit = localPurchased * localBuffer * exRateLocalToEth -
+        //      collateralToSell * collateralHaircut * exRateCollateralToEth
+        // 
+        // collateralToSell = collateralDenominatedFreeCollateralBenefit / ((localBuffer / liquidationDiscount) - collateralHaircut)
+        //
+        // Now we need to solve for fCashToLiquidate.
+        //
+        // collateralToSell = fCashToLiquidate * fCashLiquidationDiscountFactor
+        // fCashToLiquidate = collateralToSell / fCashLiquidationDiscountFactor
+        // fCashToLiquidate = collateralDenominatedFreeCollateralBenefit /
+        //      (((localBuffer / liquidationDiscount) - collateralHaircut) * fCashLiquidationDiscountFactor)
+
+
 
         // collateralPurchased = fCashToLiquidate * fCashDiscountFactor
         // (see: _calculateCollateralToRaise)
@@ -321,6 +341,11 @@ library LiquidatefCash {
             fCashToLiquidate
         );
 
+        // **ALTERNATIVE APPROACH**
+        //
+        // collateralDenominatedFreeCollateralBenefit = fCashToLiquidate *
+        //      (((localBuffer / liquidationDiscount) - collateralHaircut) * fCashLiquidationDiscountFactor)
+
         // inverse of initial fCashToLiquidate calculation above
         // totalBenefit = fCashToLiquidate * [
         //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
@@ -336,16 +361,15 @@ library LiquidatefCash {
         return fCashToLiquidate;
     }
 
-    /// @dev Limits the fCash purchase to ensure that collateral available and local available do not go below zero,
-    /// in both those cases the liquidated account would incur debt
+    /// @dev Limits the fCash purchase to ensure that collateral available and local available do not flip signs.
+    /// That would throw off the calculations we make.
     function _limitPurchaseByAvailableAmounts(
         fCashContext memory c,
         int256 liquidationDiscountFactor,
         int256 riskAdjustedDiscountFactor,
         int256 fCashToLiquidate
     ) private pure returns (int256, int256) {
-        // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,
-        // this is the discounted value that the liquidator will purchase it at.
+        // The decrease in collateral available (in underlying terms) will be equal to fCashRiskAdjustedUnderlyingPV
         int256 fCashLiquidationUnderlyingPV = fCashToLiquidate.mulInRatePrecision(liquidationDiscountFactor);
         int256 fCashRiskAdjustedUnderlyingPV = fCashToLiquidate.mulInRatePrecision(riskAdjustedDiscountFactor);
 
@@ -353,10 +377,10 @@ library LiquidatefCash {
         int256 collateralUnderlyingAvailable =
             c.factors.cashGroup.assetRate.convertToUnderlying(c.factors.collateralAssetAvailable);
         if (fCashRiskAdjustedUnderlyingPV > collateralUnderlyingAvailable) {
-            // If inside this if statement then all collateralAssetAvailable should be coming from fCashRiskAdjustedPV
-            // collateralAssetAvailable = fCashRiskAdjustedPV
-            // collateralAssetAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
-            // fCashToLiquidate = collateralAssetAvailable / riskAdjustedDiscountFactor
+            // If inside this if statement then we should liquidate down to zero collateralUnderlyingAvailable
+            // collateralUnderlyingAvailable = fCashRiskAdjustedPV
+            // collateralUnderlyingAvailable = fCashToLiquidate * riskAdjustedDiscountFactor
+            // fCashToLiquidate = collateralUnderlyingAvailable / riskAdjustedDiscountFactor
             fCashToLiquidate = collateralUnderlyingAvailable.divInRatePrecision(riskAdjustedDiscountFactor);
 
             fCashRiskAdjustedUnderlyingPV = collateralUnderlyingAvailable;
@@ -365,6 +389,7 @@ library LiquidatefCash {
             fCashLiquidationUnderlyingPV = fCashToLiquidate.mulInRatePrecision(liquidationDiscountFactor);
         }
 
+        // Ensures localAssetAvailable does not go above zero
         int256 localAssetCashFromLiquidator;
         (fCashToLiquidate, localAssetCashFromLiquidator) = LiquidationHelpers.calculateLocalToPurchase(
             c.factors,
@@ -374,7 +399,7 @@ library LiquidatefCash {
         );
 
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
-        // that the limits will be hit on subsequent iterations.
+        // that the limits will be properly enforced on subsequent iterations.
         c.factors.collateralAssetAvailable = c.factors.collateralAssetAvailable.subNoNeg(
             c.factors.cashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
         );

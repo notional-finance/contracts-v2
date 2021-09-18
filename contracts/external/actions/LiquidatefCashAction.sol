@@ -132,7 +132,7 @@ contract LiquidatefCashAction is ActionGuards {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency local currency to liquidate
     /// @param fCashCurrency currency of fCash to purchase
-    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
+    /// @param fCashMaturities array of fCash maturities in the fCash currency to purchase
     /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
     /// no maximum
     /// @return returns two parameters
