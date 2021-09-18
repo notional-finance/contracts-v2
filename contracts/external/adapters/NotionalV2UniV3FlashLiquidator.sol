@@ -39,7 +39,7 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
         uint256 amountIn,
         uint256 amountOutMin,
         bytes memory params
-    ) internal override {
+    ) internal override returns (uint256) {
         uint24 fee;
         uint256 deadline;
         uint160 priceLimit;
@@ -62,6 +62,6 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
             priceLimit
         );
 
-        ISwapRouter(EXCHANGE).exactInputSingle(swapParams);
+       return ISwapRouter(EXCHANGE).exactInputSingle(swapParams);
     }
 }

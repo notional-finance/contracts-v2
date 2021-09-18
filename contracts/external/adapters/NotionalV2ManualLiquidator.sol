@@ -6,6 +6,7 @@ import "./NotionalV2BaseLiquidator.sol";
 
 contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
     address public EXCHANGE;
+    address public LOCAL_CURRENCY;
 
     function initialize(
         NotionalProxy notionalV2_,
@@ -20,20 +21,23 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
 
     function localLiquidateNoTransferFee(address account) public {}
 
-    function localLiquidateWithTransferFee(address account) public {}
+    function localLiquidateWithTransferFee(address account) public {
+        // _liquidateLocal() => nToken
+        // redeemNtoken -> cTokens
+    }
 
-    /*function collateralLiquidateNoTransferFee(
+    function collateralLiquidateNoTransferFee(
         address account,
-        uint256 localCurrencyId,
+        uint16 localCurrencyId,
         address localCurrencyAddress,
-        uint256 collateralCurrencyId,
+        uint16 collateralCurrencyId,
         address collateralCurrencyAddress,
         address collateralUnderlyingAddress,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
     ) public returns (uint256) {
         bytes memory encoded = abi.encode(
-            LiquidationAction.CollateralCurrency_NoTransferFee,
+            LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw,
             account,
             localCurrencyId,
             localCurrencyAddress,
@@ -43,13 +47,19 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
             maxCollateralLiquidation,
             maxNTokenLiquidation
         );
+        
+        address[] memory assets = new address[](1);
+        assets[0] = localCurrencyAddress;
+
         _liquidateCollateral(
-            LiquidationAction.CollateralCurrency_NoTransferFee,
+            LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw,
             encoded,
-            [localCurrencyAddress]
+            assets
         );
+
+        // withdraw + redeem -> underlying or WETH
         return 0;
-    } */
+    }
 
     function collateralLiquidateWithTransferFee(
         address account,
@@ -61,11 +71,33 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
 
     function fcashCrossCurrencyLiquidate(address account) public {}
 
+    // 1M cDAI
+    // 1 WBTC   20000 cDAI
+    // 1.1 WBTC
+
+    function tradeAndWrap(
+        address assetFrom,  // cETH   cWBTC cDAI
+        uint256 amountIn,
+        address from,       // WETH   WBTC   DAI
+        address to,         // DAI    USDC
+        address assetTo     // cDAI   cUSDC
+    ) public {
+       /* uint256 amountIn = CEtherInterface(assetFrom).redeem(IERC(assetFrom).balanceOf(address(this)));
+
+        bytes memory params = abi.encode(3000, block.timestamp + 3000, 0);
+        
+        uint256 amountOut = executeDexTrade(from, to, amountIn, 0, params); 
+
+        CEtherInterface(asset).mint(amountOut); */
+    }
+
+    // tradeAll
+
     function executeDexTrade(
         address from,
         address to,
         uint256 amountIn,
         uint256 amountOutMin,
         bytes memory params
-    ) internal override {}
+    ) internal override returns (uint256) {}
 }

@@ -208,6 +208,7 @@ def crossCurrencyLiquidate(env):
             "address",
             "uint16",
             "address",
+            "address",
             "uint256[]",
             "uint256[]",
             "bytes",
