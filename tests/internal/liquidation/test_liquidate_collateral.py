@@ -1,642 +1,211 @@
-import math
+import random
 
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
-from tests.constants import SETTLEMENT_DATE, START_TIME
-from tests.helpers import (
-    get_balance_state,
-    get_cash_group_with_max_markets,
-    get_eth_rate_mapping,
-    get_fcash_token,
-    get_liquidity_token,
-    get_market_curve,
-)
+from brownie.test import given, strategy
+from tests.internal.liquidation.liquidation_helpers import ValuationMock
 
 chain = Chain()
+
+"""
+Liquidate Collateral Test Matrix
+
+Invariants:
+    - FC increases
+    - No balances go negative
+
+1. Only Cash
+    => calculateLiquidationAmount test
+    => balance >= amount
+    => balance < amount
+
+2. Only Liquidity Token
+    => Markets only update during non calculation
+    => cashClaim >= amount
+    => cashClaim < amount
+
+3. Only nToken
+    => nTokenValue >= amount
+    => nTokenValue < amount
+    => maxNTokenAmount >= amount, nTokenValue >= amount
+    => maxNTokenAmount >= amount, nTokenValue < amount
+    => maxNTokenAmount < amount, nTokenValue >= amount
+    => maxNTokenAmount < amount, nTokenValue < amount
+
+4. Cash + Liquidity Token
+    => balance >= amount, cashClaim ?
+    => balance < amount, cashClaim > amount
+    => balance < amount, cashClaim < amount
+
+5. Cash + nToken
+    => balance >= amount, nTokenValue ?
+    => balance < amount, nTokenValue > amount
+    => balance < amount, nTokenValue < amount
+
+6. Cash + Liquidity Token + nToken
+    => balance >= amount, cashClaim ?, nTokenValue ?
+    => balance < amount, cashClaim > amount, nTokenValue ?
+    => balance < amount, cashClaim < amount, nTokenValue > amount
+    => balance < amount, cashClaim < amount, nTokenValue < amount
+
+7. Liquidity Token + nToken
+    => cashClaim >= amount, nTokenValue ?
+    => cashClaim < amount, nTokenValue > amount
+    => cashClaim < amount, nTokenValue < amount
+
+# For each liquidation:
+1. calculate the local benefit
+2. validate the liquidator amounts
+3. validate the fc afterwards
+"""
 
 
 @pytest.mark.liquidation
 class TestLiquidateCollateral:
     @pytest.fixture(scope="module", autouse=True)
-    def ethAggregators(self, MockAggregator, accounts):
-        return [
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-            MockAggregator.deploy(18, {"from": accounts[0]}),
-        ]
-
-    @pytest.fixture(scope="module", autouse=True)
     def liquidation(
-        self, MockCollateralLiquidation, MockCToken, cTokenAggregator, ethAggregators, accounts
+        self, MockCollateralLiquidation, SettleAssetsExternal, FreeCollateralExternal, accounts
     ):
-        liquidateCollateral = accounts[0].deploy(MockCollateralLiquidation)
-        ctoken = accounts[0].deploy(MockCToken, 8)
-        # This is the identity rate
-        ctoken.setAnswer(1e18)
-        aggregator = cTokenAggregator.deploy(ctoken.address, {"from": accounts[0]})
-
-        cg = get_cash_group_with_max_markets(3)
-        rateStorage = (aggregator.address, 8)
-
-        ethAggregators[0].setAnswer(1e18)
-        liquidateCollateral.setAssetRateMapping(1, rateStorage)
-        liquidateCollateral.setCashGroup(1, cg)
-        liquidateCollateral.setETHRateMapping(
-            1, get_eth_rate_mapping(ethAggregators[0], discount=104)
-        )
-
-        ethAggregators[1].setAnswer(1e18)
-        liquidateCollateral.setAssetRateMapping(2, rateStorage)
-        liquidateCollateral.setCashGroup(2, cg)
-        liquidateCollateral.setETHRateMapping(
-            2, get_eth_rate_mapping(ethAggregators[1], discount=102)
-        )
-
-        ethAggregators[2].setAnswer(1e18)
-        liquidateCollateral.setAssetRateMapping(3, rateStorage)
-        liquidateCollateral.setCashGroup(3, cg)
-        liquidateCollateral.setETHRateMapping(
-            3, get_eth_rate_mapping(ethAggregators[2], discount=105)
-        )
-
-        chain.mine(1, timestamp=START_TIME)
-
-        return liquidateCollateral
+        SettleAssetsExternal.deploy({"from": accounts[0]})
+        FreeCollateralExternal.deploy({"from": accounts[0]})
+        return ValuationMock(accounts[0], MockCollateralLiquidation)
 
     @pytest.fixture(autouse=True)
     def isolation(self, fn_isolation):
         pass
 
-    # Test liquidate collateral cash balance
     @pytest.mark.only
-    def test_over_max_collateral_amount(self, liquidation, accounts):
-        # Allow liquidation over 40% amount when required
-        collateralBalance = 500e8
+    @given(
+        local=strategy("uint", min_value=1, max_value=4),
+        localDebt=strategy("int", min_value=-100_000e8, max_value=-1e8),
+        ratio=strategy("uint", min_value=5, max_value=150),
+    )
+    def test_liquidate_cash(self, liquidation, accounts, local, localDebt, ratio):
+        collateral = random.choice([c for c in range(1, 5) if c != local])
+        localBuffer = liquidation.bufferHaircutDiscount[local][0]
+        collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
 
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -1000e8,  # Significantly undercollateralized
-            -1000e8,
-            106e8,  # Allow purchase of 100%
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
+        # This test needs to work off of changes to exchange rates, set up first such that
+        # we have collateral and local in alignment at zero free collateral
+        netETHRequired = liquidation.calculate_to_eth(local, localDebt)
+        collateralUnderlying = Wei(
+            liquidation.calculate_from_eth(collateral, -netETHRequired) * 100 / collateralHaircut
         )
 
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == 100e8
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
+        collateralCashAsset = liquidation.calculate_from_underlying(
+            collateral, collateralUnderlying
         )
-        assert newBalanceState[5] == 0
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        liquidation.mock.setBalance(accounts[0], collateral, collateralCashAsset, 0)
 
-    def test_limited_by_max_collateral_amount(self, liquidation, accounts):
-        # Allow liquidation up to 40% of collateral amount
-        collateralBalance = 500e8
+        # There should be a FC ~ 0 at this point
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        assert pytest.approx(fc, abs=100) == 0
 
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
+        # Now we change the exchange rates to simulate undercollateralization, decreasing
+        # the exchange rate will also decrease the FC
+        # Exchange Rates can move by by a maximum of (1 / buffer) * haircut, this is insolvency
+        # If ratio > 100 then we are insolvent
+        # If ratio == 0 then fc is 0
+        maxPercentDecrease = (1 / localBuffer) * collateralHaircut
+        exchangeRateDecrease = 100 - ((ratio * maxPercentDecrease) / 100)
+        liquidationDiscount = liquidation.get_discount(local, collateral)
 
-        factors = (
-            accounts[0],
-            -10e8,  # Only slightly undercollateralized
-            -1000e8,
-            132.5e8,  # But we allow purchasing up to 40% of this
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
+        if collateral != 1:
+            newExchangeRate = liquidation.ethRates[collateral] * exchangeRateDecrease / 100
+            liquidation.ethAggregators[collateral].setAnswer(newExchangeRate)
+            discountedExchangeRate = (
+                ((liquidation.ethRates[local] * 1e18) / newExchangeRate) * liquidationDiscount / 100
+            )
+        else:
+            # The collateral currency is ETH so we have to change the local currency
+            # exchange rate instead
+            newExchangeRate = liquidation.ethRates[local] * 100 / exchangeRateDecrease
+            liquidation.ethAggregators[local].setAnswer(newExchangeRate)
+            discountedExchangeRate = (
+                ((newExchangeRate * 1e18) / liquidation.ethRates[collateral])
+                * liquidationDiscount
+                / 100
+            )
 
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
+        # FC is be negative at this point
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == 50e8
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
-        )
-        assert newBalanceState[5] == 0
+        # Convert the free collateral amount back to the collateral currency at the
+        # new exchange rate
+        if collateral == 1:
+            # In this case it is ETH
+            fcInCollateral = -fc
+        else:
+            fcInCollateral = liquidation.calculate_from_eth(collateral, -fc, rate=newExchangeRate)
 
-    def test_limited_by_user_specification(self, liquidation, accounts):
-        # Do not liquidate more than what the user has specified in max collateral
-        collateralBalance = 500e8
+        # Apply the default liquidation buffer and cap at the total balance
+        if fcInCollateral < collateralUnderlying * 0.4:
+            expectedCollateralTrade = collateralUnderlying * 0.4
+        else:
+            # Cannot go above the total balance
+            expectedCollateralTrade = min(collateralUnderlying, fcInCollateral)
 
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
+        expectedLocalCash = Wei(expectedCollateralTrade * 1e18 / discountedExchangeRate)
 
-        factors = (
-            accounts[0],
-            -100e8,
-            -100e8,
-            500e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
+        # Apply haircuts and buffers
+        if collateral == 1:
+            # This is the reduction in the net ETH figure as a result of trading away this
+            # amount of collateral
+            collateralETHHaircutValue = liquidation.calculate_to_eth(
+                collateral, expectedCollateralTrade
+            )
+            # This is the benefit to the haircut position
+            debtETHBufferValue = liquidation.calculate_to_eth(
+                local, -expectedLocalCash, rate=newExchangeRate
+            )
+        else:
+            collateralETHHaircutValue = liquidation.calculate_to_eth(
+                collateral, expectedCollateralTrade, rate=newExchangeRate
+            )
+            debtETHBufferValue = liquidation.calculate_to_eth(local, -expectedLocalCash)
 
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            53e8,  # Specification is here
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == 50e8
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
-        )
-        assert newBalanceState[5] == 0
-
-    def test_limited_by_collateral_cash_balance(self, liquidation, accounts):
-        # Do not liquidate more than cash balance
-        collateralBalance = 53e8
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -100e8,
-            -100e8,
-            500e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == 50e8
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
-        )
-        assert newBalanceState[5] == 0
-
-    def test_limited_by_collateral_available(self, liquidation, accounts):
-        # Do not liquidate more collateral available
-        collateralBalance = 500e8
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -100e8,
-            -100e8,
-            53e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == 50e8
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
-        )
-        assert newBalanceState[5] == 0
-
-    def test_limited_by_local_available(self, liquidation, accounts):
-        # Do not liquidate more collateral than required to get up to -localAvailable
-        localBalance = -100e8
-        collateralBalance = 500e8
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -100e8,
-            -100e8,
-            500e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert localFromLiquidator == -localBalance
-        assert pytest.approx(newBalanceState[3], abs=2) == -math.trunc(
-            localFromLiquidator * discount / 100
-        )
-        assert newBalanceState[5] == 0
-
-    def test_ntokens_suffcient_amount(self, liquidation, accounts):
-        # Liquidate part of ntokens up to what is required
-        cashBalance = 0
-        nTokenBalance = 1000e8
-        nTokenValue = 900e8  # This is haircut at 90%
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -100e8,
-            -100e8,
-            900e8,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
+        # Total benefit is:
+        expectedNetETHBenefit = collateralETHHaircutValue + debtETHBufferValue
+        expectedCollateralTradeAsset = liquidation.calculate_from_underlying(
+            collateral, expectedCollateralTrade
         )
 
         (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == 100e8
-        assert pytest.approx(newBalanceState[3], abs=2) == 0
-        assert pytest.approx(newBalanceState[5], abs=2) == -math.trunc(106e8 / 0.95)
-
-    def test_ntokens_limited_by_collateral_specification(self, liquidation, accounts):
-        # Liquidate part of ntokens up to what is required
-        cashBalance = 0
-        nTokenBalance = 1000e8
-        nTokenValue = 900e8  # This is haircut at 90%
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -200e8,
-            -200e8,
-            900e8,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
+            localAssetCashFromLiquidator,
+            collateralAssetCashToLiquidator,
+            nTokensPurchased,
+        ) = liquidation.mock.calculateCollateralCurrencyLiquidation.call(
+            accounts[0], local, collateral, 0, 0, {"from": accounts[1]}
         )
-
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
-            factors,
-            portfolioState,
-            106e8,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == 100e8
-        assert pytest.approx(newBalanceState[3], abs=2) == 0
-        assert pytest.approx(newBalanceState[5], abs=2) == -math.trunc(106e8 / 0.95)
-
-    def test_ntokens_limited_by_ntoken_specification(self, liquidation, accounts):
-        # Liquidate part of ntokens up to what is required
-        cashBalance = 0
-        nTokenBalance = 1000e8
-        nTokenValue = 900e8  # This is haircut at 90%
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -200e8,
-            -200e8,
-            900e8,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
-            factors,
-            portfolioState,
-            0,
-            100e8,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
-            (100e8 * 0.95) / discount * 100
-        )
-        assert pytest.approx(newBalanceState[3], abs=2) == 0
-        assert pytest.approx(newBalanceState[5], abs=2) == -100e8
-
-    def test_ntokens_limited_by_balance(self, liquidation, accounts):
-        # Liquidate part of ntokens up to what is required
-        cashBalance = 0
-        nTokenBalance = 100e8
-        nTokenValue = 90e8  # This is haircut at 90%
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -200e8,
-            -200e8,
-            1000e8,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
-            ((100e8 * 0.95) / discount) * 100
-        )
-        assert pytest.approx(newBalanceState[3], abs=2) == 0
-        assert pytest.approx(newBalanceState[5], abs=2) == -100e8
-
-    def test_ntokens_limited_max_collateral_allowed(self, liquidation, accounts):
-        # Liquidate part of ntokens up to what is required
-        cashBalance = 0
-        nTokenBalance = 1000e8
-        nTokenValue = 900e8  # This is haircut at 90%
-
-        portfolioState = ([], [], 0, 0)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -10e8,
-            -1000e8,
-            1000e8,
-            nTokenValue,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
-            factors,
-            portfolioState,
-            0,
-            0,
-            START_TIME,
-        ).return_value
-
-        assert portfolioState == newPortfolioState
-        assert pytest.approx(localFromLiquidator, abs=2) == math.trunc((400e8 / discount) * 100)
-        assert pytest.approx(newBalanceState[3], abs=2) == 0
-        # TODO: This overshoots the 40% liquidation allowance
-        assert pytest.approx(newBalanceState[5] * 0.95, abs=2) == -400e8
-
-    def test_sufficient_withdraw_liquidity_tokens(self, liquidation, accounts):
-        localBalance = -100e8
-        collateralBalance = 10e8
-        liquidityTokenNotional = 100e8
-
-        markets = get_market_curve(3, "flat")
-        for m in markets:
-            liquidation.setMarketStorage(2, SETTLEMENT_DATE, m)
-
-        fCashClaim = math.trunc(markets[0][2] * liquidityTokenNotional / markets[0][4])
-        cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
-        portfolio = [
-            get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional),
-            get_fcash_token(1, currencyId=2, notional=-fCashClaim),
-        ]
-        portfolioState = (portfolio, [], 0, 2)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -20e8,
-            -100e8,
-            110e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
-        )
-
-        discount = max(factors[6][-1], factors[7][-1])
-
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2, storedCashBalance=collateralBalance),
-            factors,
-            portfolioState,
-            20e8,  # Cap the withdraw amount so that this is a partial withdraw
-            0,
-            START_TIME,
-        ).return_value
-
-        withdrawn = (
-            (localFromLiquidator * discount / 100 - collateralBalance)
-            * liquidityTokenNotional
-            / cashClaim
-        )
-        newfCashClaim = fCashClaim * withdrawn / liquidityTokenNotional - fCashClaim
-
-        assert localFromLiquidator < -localBalance
-        assert newBalanceState[3] == -collateralBalance
-        assert newBalanceState[5] == 0
         assert (
-            pytest.approx(newPortfolioState[0][0][3], abs=5) == liquidityTokenNotional - withdrawn
+            pytest.approx(collateralAssetCashToLiquidator, abs=100) == expectedCollateralTradeAsset
         )
-        assert pytest.approx(newPortfolioState[0][1][3], abs=5) == newfCashClaim
-        assert newPortfolioState[0][0][5] == 1
-        assert newPortfolioState[0][1][5] == 1
+        assert nTokensPurchased == 0
 
-    def test_not_sufficient_withdraw_liquidity_tokens(self, liquidation, accounts):
-        liquidityTokenNotional = 100e8
-
-        markets = get_market_curve(3, "flat")
-        for m in markets:
-            liquidation.setMarketStorage(2, SETTLEMENT_DATE, m)
-
-        cashClaim = math.trunc(markets[0][3] * liquidityTokenNotional / markets[0][4])
-
-        portfolio = [get_liquidity_token(1, currencyId=2, notional=liquidityTokenNotional)]
-        portfolioState = (portfolio, [], 0, 1)
-        cashGroup = liquidation.buildCashGroupView(2)
-
-        factors = (
-            accounts[0],
-            -1000e8,
-            -1000e8,
-            100e8,
-            0,
-            "0x5F00005A0000",  # 95 liquidation, 90 haircut
-            (1e18, 1e18, 140, 100, 106),
-            (1e18, 1e18, 140, 100, 105),
-            cashGroup[2],
-            cashGroup,
-            False,
+        # IN UNDERLYING #
+        # Check that the price is correct (underlying)
+        collateralCashFinal = liquidation.calculate_to_underlying(
+            collateral, collateralAssetCashToLiquidator
         )
+        localCashFinal = liquidation.calculate_to_underlying(local, localAssetCashFromLiquidator)
+        assert (
+            pytest.approx((localCashFinal * discountedExchangeRate) / 1e18, rel=1e-6)
+            == collateralCashFinal
+        )
+        # END UNDERLYING #
 
-        discount = max(factors[6][-1], factors[7][-1])
+        # ASSET VALUES
+        liquidation.mock.setBalance(
+            accounts[0], local, localDebtAsset + localAssetCashFromLiquidator, 0
+        )
+        liquidation.mock.setBalance(
+            accounts[0], collateral, collateralCashAsset - collateralAssetCashToLiquidator, 0
+        )
+        # ASSET VALUES
 
-        (
-            newBalanceState,
-            localFromLiquidator,
-            newPortfolioState,
-        ) = liquidation.liquidateCollateralCurrency(
-            get_balance_state(2), factors, portfolioState, 0, 0, START_TIME
-        ).return_value
-
-        assert pytest.approx(localFromLiquidator, abs=2) == cashClaim * 100 / discount
-        assert newBalanceState[4] == cashClaim
-        assert newBalanceState[5] == 0
-        assert newPortfolioState[0][0][5] == 2
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
+        # This is in underlying
+        assert pytest.approx(fc - expectedNetETHBenefit, abs=100) == fcAfter

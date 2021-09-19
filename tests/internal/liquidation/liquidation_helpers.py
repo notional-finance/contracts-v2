@@ -118,10 +118,19 @@ class ValuationMock:
             / (self.cTokenRates[currency] * Wei(1e8))
         )
 
-    def calculate_from_eth(self, currency, underlying):
-        return math.trunc((underlying * Wei(1e18)) / self.ethRates[currency])
+    def calculate_exchange_rate(self, base, quote):
+        return math.trunc(Wei(self.ethRates[base] * 1e18) / self.ethRates[quote])
 
-    def calculate_to_eth(self, currency, underlying, valueType="haircut"):
+    def get_discount(self, local, collateral):
+        return max(self.bufferHaircutDiscount[local][2], self.bufferHaircutDiscount[collateral][2])
+
+    def calculate_from_eth(self, currency, underlying, rate=None):
+        if rate:
+            return math.trunc((underlying * Wei(1e18)) / rate)
+        else:
+            return math.trunc((underlying * Wei(1e18)) / self.ethRates[currency])
+
+    def calculate_to_eth(self, currency, underlying, valueType="haircut", rate=None):
         if valueType == "haircut":
             multiple = (
                 self.bufferHaircutDiscount[currency][1]
@@ -131,9 +140,12 @@ class ValuationMock:
         elif valueType == "no-haircut":
             multiple = 100
 
-        return math.trunc(
-            (underlying * self.ethRates[currency] * Wei(multiple)) / (Wei(1e18) * Wei(100))
-        )
+        if rate:
+            return math.trunc((underlying * rate * Wei(multiple)) / (Wei(1e18) * Wei(100)))
+        else:
+            return math.trunc(
+                (underlying * self.ethRates[currency] * Wei(multiple)) / (Wei(1e18) * Wei(100))
+            )
 
     def calculate_ntoken_to_asset(self, currency, nToken, valueType="haircut"):
         if valueType == "haircut":

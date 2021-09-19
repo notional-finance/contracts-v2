@@ -167,6 +167,158 @@ contract MockLocalLiquidation is MockValuationBase {
     }
 }
 
+contract MockCollateralLiquidation is MockValuationBase {
+    using SafeInt256 for int256;
+    using AccountContextHandler for AccountContext;
+    using BalanceHandler for BalanceState;
+
+    event CollateralLiquidationTokens(
+        int256 localAssetCashFromLiquidator,
+        int256 collateralCashToLiquidator,
+        int256 collateralNTokensToLiquidator,
+        int256 cashClaimToLiquidator,
+        PortfolioState portfolioState
+    );
+
+    function calculateCollateralCurrencyLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation
+    )
+        external
+        returns (
+            int256,
+            int256,
+            int256
+        )
+    {
+        // prettier-ignore
+        (
+            int256 localAssetCashFromLiquidator,
+            BalanceState memory collateralBalanceState,
+            /* PortfolioState memory portfolio */,
+            /* AccountContext memory accountContext */
+        ) = _collateralCurrencyLiquidation(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency,
+                maxCollateralLiquidation,
+                maxNTokenLiquidation,
+                true
+            );
+
+        return (
+            localAssetCashFromLiquidator,
+            _collateralAssetCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netNTokenTransfer.neg()
+        );
+    }
+
+    function calculateCollateralCurrencyTokens(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation
+    ) external {
+        // prettier-ignore
+        (
+            int256 localAssetCashFromLiquidator,
+            BalanceState memory collateralBalanceState,
+            PortfolioState memory portfolio,
+            /* AccountContext memory accountContext */
+        ) = _collateralCurrencyLiquidation(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency,
+                maxCollateralLiquidation,
+                maxNTokenLiquidation,
+                false // not calculation, updates market state
+            );
+
+        emit CollateralLiquidationTokens(
+            localAssetCashFromLiquidator,
+            _collateralAssetCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netNTokenTransfer.neg(),
+            collateralBalanceState.netAssetTransferInternalPrecision,
+            portfolio
+        );
+    }
+
+    function _collateralCurrencyLiquidation(
+        address liquidateAccount,
+        uint16 localCurrency,
+        uint16 collateralCurrency,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation,
+        bool isCalculation
+    )
+        private
+        returns (
+            int256,
+            BalanceState memory,
+            PortfolioState memory,
+            AccountContext memory
+        )
+    {
+        uint256 blockTime = block.timestamp;
+        (
+            AccountContext memory accountContext,
+            LiquidationFactors memory factors,
+            PortfolioState memory portfolio
+        ) =
+            LiquidationHelpers.preLiquidationActions(
+                liquidateAccount,
+                localCurrency,
+                collateralCurrency
+            );
+
+        BalanceState memory collateralBalanceState;
+        collateralBalanceState.loadBalanceState(
+            liquidateAccount,
+            collateralCurrency,
+            accountContext
+        );
+        factors.isCalculation = isCalculation;
+
+        int256 localAssetCashFromLiquidator =
+            LiquidateCurrency.liquidateCollateralCurrency(
+                maxCollateralLiquidation,
+                maxNTokenLiquidation,
+                blockTime,
+                collateralBalanceState,
+                factors,
+                portfolio
+            );
+
+        return (
+            localAssetCashFromLiquidator,
+            collateralBalanceState,
+            portfolio,
+            accountContext
+        );
+    }
+
+    function _collateralAssetCashToLiquidator(BalanceState memory collateralBalanceState)
+        private
+        pure
+        returns (int256)
+    {
+        // netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
+        // liquidity tokens.
+        return
+            collateralBalanceState.netCashChange.neg().add(
+                collateralBalanceState.netAssetTransferInternalPrecision
+            );
+    }
+
+    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
+        return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+}
+
 contract MockLocalfCashLiquidation is MockValuationBase {
     using AccountContextHandler for AccountContext;
     using AssetRate for AssetRateParameters;
