@@ -84,7 +84,8 @@ library MockValuationLib {
         accountContext.setActiveCurrency(currencyId, true, Constants.ACTIVE_IN_BALANCES);
         accountContext.setAccountContext(account);
 
-        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage
+            .getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
         balanceStorage.nTokenBalance = uint80(nTokenBalance);
@@ -99,14 +100,21 @@ library MockValuationLib {
 
     function setPortfolio(address account, PortfolioAsset[] memory assets) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        PortfolioState memory portfolioState =
-            PortfolioHandler.buildPortfolioState(account, accountContext.assetArrayLength, 0);
-        portfolioState.newAssets = assets;
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+            account,
+            accountContext.assetArrayLength,
+            0
+        );
+        portfolioState.addMultipleAssets(assets);
         accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
         accountContext.setAccountContext(account);
     }
 
-    function enableBitmapForAccount(address account, uint16 currencyId, uint256 blockTime) external {
+    function enableBitmapForAccount(
+        address account,
+        uint16 currencyId,
+        uint256 blockTime
+    ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         accountContext.bitmapCurrencyId = currencyId;
         accountContext.nextSettleTime = uint40(DateTime.getTimeUTC0(blockTime));
@@ -139,7 +147,11 @@ library MockValuationLib {
         return AssetRate.convertToUnderlying(assetRate, balance);
     }
 
-    function convertFromUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+    function convertFromUnderlying(uint256 currencyId, int256 balance)
+        public
+        view
+        returns (int256)
+    {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
         return AssetRate.convertFromUnderlying(assetRate, balance);
     }
@@ -215,11 +227,7 @@ library MockValuationLib {
         return nToken.getNTokenAssetPV(block.timestamp);
     }
 
-    function getActiveMarkets(uint16 currencyId)
-        external
-        view
-        returns (MarketParameters[] memory)
-    {
+    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters[] memory markets = new MarketParameters[](cashGroup.maxMarketIndex);
 
@@ -230,22 +238,39 @@ library MockValuationLib {
         return markets;
     }
 
-    function getRiskAdjustedPresentfCashValue(
-        PortfolioAsset memory asset,
-        uint256 blockTime
-    ) external view returns (int256) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(uint16(asset.currencyId));
-
-        return AssetHandler.getRiskAdjustedPresentfCashValue(
-            cashGroup,
-            asset.notional,
-            asset.maturity,
-            blockTime,
-            cashGroup.calculateOracleRate(asset.maturity, blockTime)
+    function getRiskAdjustedPresentfCashValue(PortfolioAsset memory asset, uint256 blockTime)
+        external
+        view
+        returns (int256)
+    {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(
+            uint16(asset.currencyId)
         );
+
+        return
+            AssetHandler.getRiskAdjustedPresentfCashValue(
+                cashGroup,
+                asset.notional,
+                asset.maturity,
+                blockTime,
+                cashGroup.calculateOracleRate(asset.maturity, blockTime)
+            );
     }
 
-    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum) external pure returns (uint256) {
+    function calculateOracleRate(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) external view returns (uint256) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        return cashGroup.calculateOracleRate(maturity, blockTime);
+    }
+
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
+        external
+        pure
+        returns (uint256)
+    {
         return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
 
@@ -253,7 +278,7 @@ library MockValuationLib {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         uint8[] memory haircuts = new uint8[](cashGroup.maxMarketIndex);
 
-        for (uint i; i < haircuts.length; i++) {
+        for (uint256 i; i < haircuts.length; i++) {
             haircuts[i] = cashGroup.getLiquidityHaircut(i + 2);
         }
 
@@ -317,7 +342,11 @@ contract MockValuationBase {
         MockValuationLib.setPortfolio(account, assets);
     }
 
-    function enableBitmapForAccount(address account, uint16 currencyId, uint256 blockTime) external {
+    function enableBitmapForAccount(
+        address account,
+        uint16 currencyId,
+        uint256 blockTime
+    ) external {
         MockValuationLib.enableBitmapForAccount(account, currencyId, blockTime);
     }
 
@@ -363,22 +392,23 @@ contract MockValuationBase {
         return MockValuationLib.getAccount(account);
     }
 
-    function getActiveMarkets(uint16 currencyId)
-        external
-        view
-        returns (MarketParameters[] memory)
-    {
+    function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
         return MockValuationLib.getActiveMarkets(currencyId);
     }
 
-    function getRiskAdjustedPresentfCashValue(
-        PortfolioAsset memory asset,
-        uint256 blockTime
-    ) external view returns (int256) {
+    function getRiskAdjustedPresentfCashValue(PortfolioAsset memory asset, uint256 blockTime)
+        external
+        view
+        returns (int256)
+    {
         return MockValuationLib.getRiskAdjustedPresentfCashValue(asset, blockTime);
     }
 
-    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum) external pure returns (uint256) {
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
+        external
+        pure
+        returns (uint256)
+    {
         return MockValuationLib.getMaturityFromBitNum(blockTime, bitNum);
     }
 
@@ -388,5 +418,13 @@ contract MockValuationBase {
 
     function getLiquidityTokenHaircuts(uint16 currencyId) external view returns (uint8[] memory) {
         return MockValuationLib.getLiquidityTokenHaircuts(currencyId);
+    }
+
+    function calculateOracleRate(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) external view returns (uint256) {
+        return MockValuationLib.calculateOracleRate(currencyId, maturity, blockTime);
     }
 }

@@ -425,11 +425,14 @@ class TestLiquidateLocalNTokens:
             # Portfolio is updated with the negative side of the fcash claim
             assert finalfCashAsset[0][3] == -(totalfCashClaim - totalfCashChange)
 
+    @pytest.mark.todo
     def test_liquidity_token_positive_available():
         pass
 
+    @pytest.mark.todo
     def test_liquidity_token_to_ntoken_pass_through():
         pass
 
+    @pytest.mark.todo
     def test_liquidity_token_calculate_no_changes():
         pass

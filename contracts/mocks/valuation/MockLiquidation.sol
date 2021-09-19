@@ -324,25 +324,28 @@ contract MockLocalfCashLiquidation is MockValuationBase {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
-    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
-        return FreeCollateralExternal.getFreeCollateralView(account);
+    function getFreeCollateral(address account, uint256 blockTime)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
+        return FreeCollateralAtTime.getFreeCollateralViewAtTime(account, blockTime);
     }
 
     function calculatefCashLocalLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
-        uint256[] calldata maxfCashLiquidateAmounts
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
     ) external returns (int256[] memory, int256) {
-        uint256 blockTime = block.timestamp;
-        LiquidatefCash.fCashContext memory c =
-            _liquidateLocal(
-                liquidateAccount,
-                localCurrency,
-                fCashMaturities,
-                maxfCashLiquidateAmounts,
-                blockTime
-            );
+        LiquidatefCash.fCashContext memory c = _liquidateLocal(
+            liquidateAccount,
+            localCurrency,
+            fCashMaturities,
+            maxfCashLiquidateAmounts,
+            blockTime
+        );
 
         return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
@@ -391,8 +394,8 @@ contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
-    function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
-        return FreeCollateralExternal.getFreeCollateralView(account);
+    function getFreeCollateral(address account, uint256 blockTime) external view returns (int256, int256[] memory) {
+        return FreeCollateralAtTime.getFreeCollateralViewAtTime(account, blockTime);
     }
 
     function calculatefCashCrossCurrencyLiquidation(
@@ -400,18 +403,17 @@ contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
         uint16 localCurrency,
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
-        uint256[] calldata maxfCashLiquidateAmounts
+        uint256[] calldata maxfCashLiquidateAmounts,
+        uint256 blockTime
     ) external returns (int256[] memory, int256) {
-        uint256 blockTime = block.timestamp;
-        LiquidatefCash.fCashContext memory c =
-            _liquidateCrossCurrency(
-                liquidateAccount,
-                localCurrency,
-                fCashCurrency,
-                fCashMaturities,
-                maxfCashLiquidateAmounts,
-                blockTime
-            );
+        LiquidatefCash.fCashContext memory c = _liquidateCrossCurrency(
+            liquidateAccount,
+            localCurrency,
+            fCashCurrency,
+            fCashMaturities,
+            maxfCashLiquidateAmounts,
+            blockTime
+        );
 
         return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
     }
@@ -443,5 +445,22 @@ contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
         );
 
         return c;
+    }
+}
+
+library FreeCollateralAtTime {
+    using AccountContextHandler for AccountContext;
+
+    function getFreeCollateralViewAtTime(address account, uint256 blockTime)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        // The internal free collateral function does not account for settled assets. The Notional SDK
+        // can calculate the free collateral off chain if required at this point.
+        // TODO: this should go forward in time
+        require(!accountContext.mustSettleAssets(), "Assets not settled");
+        return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
     }
 }

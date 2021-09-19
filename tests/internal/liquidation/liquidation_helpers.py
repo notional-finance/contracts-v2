@@ -163,6 +163,25 @@ class ValuationMock:
                 / (self.nTokenTotalSupply[currency] * 100)
             )
 
+    def discount_to_pv(self, currency, fCash, oracleRate, maturity, blockTime, valueType="haircut"):
+        if valueType == "haircut" and fCash > 0:
+            adjustment = self.cashGroups[currency][5] * 5 * BASIS_POINT
+            adjustedOracleRate = oracleRate + adjustment
+        elif valueType == "haircut" and fCash > 0:
+            adjustment = self.cashGroups[currency][4] * 5 * BASIS_POINT
+            adjustedOracleRate = max(oracleRate - adjustment, 0)
+        elif valueType == "liquidator" and fCash > 0:
+            adjustment = self.cashGroups[currency][7] * 5 * BASIS_POINT
+            adjustedOracleRate = oracleRate + adjustment
+        elif valueType == "liquidator" and fCash < 0:
+            adjustment = self.cashGroups[currency][8] * 5 * BASIS_POINT
+            adjustedOracleRate = max(oracleRate - adjustment, 0)
+        else:
+            adjustedOracleRate = oracleRate
+
+        expValue = -adjustedOracleRate * ((maturity - blockTime) / SECONDS_IN_YEAR)
+        return Wei(math.trunc(fCash * math.exp(expValue / RATE_PRECISION)))
+
     def get_liquidation_factors(self, local, collateral, **kwargs):
         account = 0 if "account" not in kwargs else kwargs["account"].address
         netETHValue = 0 if "netETHValue" not in kwargs else kwargs["netETHValue"]
