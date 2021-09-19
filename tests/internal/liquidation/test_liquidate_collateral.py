@@ -1,10 +1,12 @@
-import random
-
 import pytest
-from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from tests.internal.liquidation.liquidation_helpers import ValuationMock
+from tests.internal.liquidation.liquidation_helpers import (
+    ValuationMock,
+    get_expected,
+    move_collateral_exchange_rate,
+    setup_collateral_liquidation,
+)
 
 chain = Chain()
 
@@ -82,93 +84,43 @@ class TestLiquidateCollateral:
         ratio=strategy("uint", min_value=5, max_value=150),
     )
     def test_liquidate_cash(self, liquidation, accounts, local, localDebt, ratio):
-        collateral = random.choice([c for c in range(1, 5) if c != local])
-        localBuffer = liquidation.bufferHaircutDiscount[local][0]
-        collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
+        # Set the local debt amount
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
 
-        # This test needs to work off of changes to exchange rates, set up first such that
-        # we have collateral and local in alignment at zero free collateral
-        netETHRequired = liquidation.calculate_to_eth(local, localDebt)
-        collateralUnderlying = Wei(
-            liquidation.calculate_from_eth(collateral, -netETHRequired) * 100 / collateralHaircut
+        (collateral, collateralUnderlying) = setup_collateral_liquidation(
+            liquidation, local, localDebt
         )
 
-        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
+        # Set the asset cash balance
         collateralCashAsset = liquidation.calculate_from_underlying(
             collateral, collateralUnderlying
         )
-        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
         liquidation.mock.setBalance(accounts[0], collateral, collateralCashAsset, 0)
 
         # There should be a FC ~ 0 at this point
         (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
         assert pytest.approx(fc, abs=100) == 0
 
-        # Now we change the exchange rates to simulate undercollateralization, decreasing
-        # the exchange rate will also decrease the FC
-        # Exchange Rates can move by by a maximum of (1 / buffer) * haircut, this is insolvency
-        # If ratio > 100 then we are insolvent
-        # If ratio == 0 then fc is 0
-        maxPercentDecrease = (1 / localBuffer) * collateralHaircut
-        exchangeRateDecrease = 100 - ((ratio * maxPercentDecrease) / 100)
-        liquidationDiscount = liquidation.get_discount(local, collateral)
-
-        if collateral != 1:
-            newExchangeRate = liquidation.ethRates[collateral] * exchangeRateDecrease / 100
-            liquidation.ethAggregators[collateral].setAnswer(newExchangeRate)
-            discountedExchangeRate = (
-                ((liquidation.ethRates[local] * 1e18) / newExchangeRate) * liquidationDiscount / 100
-            )
-        else:
-            # The collateral currency is ETH so we have to change the local currency
-            # exchange rate instead
-            newExchangeRate = liquidation.ethRates[local] * 100 / exchangeRateDecrease
-            liquidation.ethAggregators[local].setAnswer(newExchangeRate)
-            discountedExchangeRate = (
-                ((newExchangeRate * 1e18) / liquidation.ethRates[collateral])
-                * liquidationDiscount
-                / 100
-            )
+        # Moves the exchange rate based on the ratio
+        (newExchangeRate, discountedExchangeRate) = move_collateral_exchange_rate(
+            liquidation, local, collateral, ratio
+        )
 
         # FC is be negative at this point
         (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
-        # Convert the free collateral amount back to the collateral currency at the
-        # new exchange rate
-        if collateral == 1:
-            # In this case it is ETH
-            fcInCollateral = -fc
-        else:
-            fcInCollateral = liquidation.calculate_from_eth(collateral, -fc, rate=newExchangeRate)
+        (expectedCollateralTrade, expectedNetETHBenefit) = get_expected(
+            liquidation,
+            local,
+            collateral,
+            newExchangeRate,
+            discountedExchangeRate,
+            collateralUnderlying,
+            fc,
+        )
 
-        # Apply the default liquidation buffer and cap at the total balance
-        if fcInCollateral < collateralUnderlying * 0.4:
-            expectedCollateralTrade = collateralUnderlying * 0.4
-        else:
-            # Cannot go above the total balance
-            expectedCollateralTrade = min(collateralUnderlying, fcInCollateral)
-
-        expectedLocalCash = Wei(expectedCollateralTrade * 1e18 / discountedExchangeRate)
-
-        # Apply haircuts and buffers
-        if collateral == 1:
-            # This is the reduction in the net ETH figure as a result of trading away this
-            # amount of collateral
-            collateralETHHaircutValue = liquidation.calculate_to_eth(
-                collateral, expectedCollateralTrade
-            )
-            # This is the benefit to the haircut position
-            debtETHBufferValue = liquidation.calculate_to_eth(
-                local, -expectedLocalCash, rate=newExchangeRate
-            )
-        else:
-            collateralETHHaircutValue = liquidation.calculate_to_eth(
-                collateral, expectedCollateralTrade, rate=newExchangeRate
-            )
-            debtETHBufferValue = liquidation.calculate_to_eth(local, -expectedLocalCash)
-
-        # Total benefit is:
-        expectedNetETHBenefit = collateralETHHaircutValue + debtETHBufferValue
+        # Convert to asset cash
         expectedCollateralTradeAsset = liquidation.calculate_from_underlying(
             collateral, expectedCollateralTrade
         )
