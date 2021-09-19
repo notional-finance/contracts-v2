@@ -158,23 +158,36 @@ class ValuationMock:
                 / (self.nTokenTotalSupply[currency] * 100)
             )
 
-    def discount_to_pv(self, currency, fCash, oracleRate, maturity, blockTime, valueType="haircut"):
-        if valueType == "haircut" and fCash > 0:
+    def get_adjusted_oracle_rate(self, oracleRate, currency, isPositive, valueType):
+        if valueType == "haircut" and isPositive:
             adjustment = self.cashGroups[currency][5] * 5 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
-        elif valueType == "haircut" and fCash > 0:
+        elif valueType == "haircut" and not isPositive:
             adjustment = self.cashGroups[currency][4] * 5 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
-        elif valueType == "liquidator" and fCash > 0:
+        elif valueType == "liquidator" and isPositive:
             adjustment = self.cashGroups[currency][7] * 5 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
-        elif valueType == "liquidator" and fCash < 0:
+        elif valueType == "liquidator" and not isPositive:
             adjustment = self.cashGroups[currency][8] * 5 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
         else:
             adjustedOracleRate = oracleRate
 
-        expValue = -adjustedOracleRate * ((maturity - blockTime) / SECONDS_IN_YEAR)
+        return adjustedOracleRate
+
+    def notional_from_pv(self, currency, pv, maturity, blockTime, valueType="haircut"):
+        oracleRate = self.mock.calculateOracleRate(currency, maturity, blockTime)
+        adjustedOracleRate = self.get_adjusted_oracle_rate(oracleRate, currency, pv > 0, valueType)
+        expValue = math.trunc((adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
+        return Wei(math.trunc(pv * math.exp(expValue / RATE_PRECISION)))
+
+    def discount_to_pv(self, currency, fCash, maturity, blockTime, valueType="haircut"):
+        oracleRate = self.mock.calculateOracleRate(currency, maturity, blockTime)
+        adjustedOracleRate = self.get_adjusted_oracle_rate(
+            oracleRate, currency, fCash > 0, valueType
+        )
+        expValue = math.trunc((-adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
         return Wei(math.trunc(fCash * math.exp(expValue / RATE_PRECISION)))
 
     def get_liquidation_factors(self, local, collateral, **kwargs):

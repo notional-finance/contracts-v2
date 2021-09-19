@@ -99,7 +99,7 @@ class TestLiquidateCollateral:
         liquidation.mock.setBalance(accounts[0], collateral, collateralCashAsset, 0)
 
         # There should be a FC ~ 0 at this point
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        (fc, _) = liquidation.mock.getFreeCollateral(accounts[0])
         assert pytest.approx(fc, abs=100) == 0
 
         # Moves the exchange rate based on the ratio
