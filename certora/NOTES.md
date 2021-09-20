@@ -1,11 +1,18 @@
 # Certora Verification Notes
 
-Discarded changes from account action
+Agenda:
+- FloatingPointOver56Bits
+- Incentives failing
+- Balance State:
+  - What are next steps?
+  - Discarded changes from account action
+- Liquidity Curve:
+  - How can we merge w/ all the changes?
+- Settlement
+  - Sanity issue...
 
 ## Storage
-- GovernanceOwner
-  - Mostly passing, but fallback is failing:
-  https://vaas-stg.certora.com/output/42394/20e8d6b7b03138ac8125/?anonymousKey=fb94fb5cefbae9e5e1cdf00378b7b882f8055cda#onlyOwnerCanUpdateGovernaceResults
+- GovernanceOwner (PASSING)
 - GovernanceAction
   - Failing (same as before...)
   - https://vaas-stg.certora.com/output/42394/6ef56e843c5e832abcd8/?anonymousKey=5bb1856f28ee6d755e10b3dc777b3cf202852a6c
