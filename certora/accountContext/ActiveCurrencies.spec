@@ -28,7 +28,7 @@ definition MIN_TIMESTAMP() returns uint256 = 7776000;
  * If an account enables a bitmap portfolio it cannot strand assets behind such that the system
  * becomes blind to them.
  */
-rule enablingBitmapCannotLeaveBehindAssets(address account, uint256 currencyId) {
+rule enablingBitmapCannotLeaveBehindAssets(address account, uint16 currencyId) {
     env e;
     require currencyId <= MAX_CURRENCIES();
     require e.block.timestamp >= MIN_TIMESTAMP();

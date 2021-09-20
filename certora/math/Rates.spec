@@ -1,5 +1,6 @@
 methods {
     getMinRate(uint8 decimals) returns (int256) envfree;
+    isEQ(int256 x, int256 y) returns (bool) envfree;
     isGTE(int256 x, int256 y) returns (bool) envfree;
     isLT(int256 x, int256 y) returns (bool) envfree;
     convertToUnderlying(int256 rate, int256 balance, uint8 decimals) returns (int256) envfree;
@@ -34,7 +35,7 @@ rule assetRatesShouldBeInverses(int256 rate, int256 balance, uint8 decimals) {
     int256 underlying = convertToUnderlying(rate, balance, decimals);
     int256 asset = convertFromUnderlying(rate, underlying, decimals);
 
-    assert asset == balance;
+    assert isEQ(asset, balance);
 }
 
 // TIMEOUT: https://vaas-stg.certora.com/output/42394/da7a099706b1993b06db/?anonymousKey=b501b0398a52bade683149b4c4244ac69fdaf5e9
@@ -46,10 +47,10 @@ rule exchangeRateShouldBeInverses(int256 rate, int256 balance, uint8 rateDecimal
     int256 eth = convertToETH(rate, balance, rateDecimals, 100, 100);
     require eth != 0;
     int256 original = convertETHTo(rate, eth, rateDecimals, 100, 100);
-    int256 balancePlus1 = balance + 1;
-    int256 balanceMinus1 = balance - 1;
+    // int256 balancePlus1 = balance + 1;
+    // int256 balanceMinus1 = balance - 1;
 
-    assert original == balance || original == balancePlus1 || original == balanceMinus1;
+    assert isEQ(original, balance);
 }
 
 // Rounding errors fail spec:

@@ -147,6 +147,10 @@ contract MathHarness {
         return int256(10**decimals * 10**10);
     }
 
+    function isEQ(int256 x, int256 y) public pure returns (bool) {
+        return x == y;
+    }
+
     function isGTE(int256 x, int256 y) public pure returns (bool) {
         return x >= y;
     }
