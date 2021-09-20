@@ -234,3 +234,8 @@ invariant activeCurrencyBalanceFlagsMatchActual(address account, uint256 i)
 
 invariant hasCashDebtMatchesActual(address account)
     (getHasDebt(account) & 0x02 == 0x02) == g_hasCashDebt(account)
+
+// Valuations require that the portfolio always returns sorted values
+invariant portfolioIsAlwaysSorted(address account, uint256 i, uint256 j)
+    i < j && j < getAssetArrayLength(account) => 
+        clearNotionalAmount(getPortfolioAsset(account, i)) < clearNotionalAmount(getPortfolioAsset(account, j))
