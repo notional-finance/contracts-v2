@@ -154,21 +154,23 @@ def get_settlement_date(asset, blockTime):
 
 def get_portfolio_array(length, cashGroups, **kwargs):
     portfolio = []
-    while len(portfolio) < length:
+    attempts = 0
+    while len(portfolio) < length or attempts < 50:
+        attempts += 1
         isLiquidity = random.randint(0, 1)
         cashGroup = random.choice(cashGroups)
         marketIndex = random.randint(1, cashGroup[0])
 
-        if any(
-            a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == marketIndex + 1
-            if isLiquidity
-            else 1
-            for a in portfolio
-        ):
+        duplicate = False
+        assetType = marketIndex + 1 if isLiquidity else 1
+        for a in portfolio:
+            if a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == assetType:
+                duplicate = True
+
+        if duplicate:
             # No duplicate assets
             continue
-
-        if isLiquidity:
+        elif isLiquidity:
             lt = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
             portfolio.append(lt)
             if len(portfolio) < length and random.random() > 0.75:

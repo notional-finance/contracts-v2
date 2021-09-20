@@ -4,7 +4,6 @@ import random
 import pytest
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from hypothesis import settings
 from tests.constants import (
     HAS_ASSET_DEBT,
     HAS_CASH_DEBT,
@@ -36,8 +35,8 @@ class TestFreeCollateral:
     def isolation(self, fn_isolation):
         pass
 
-    def get_fc_and_net_local(self, freeCollateral, accounts):
-        txn = freeCollateral.mock.testFreeCollateral(accounts[0], START_TIME)
+    def get_fc_and_net_local(self, freeCollateral, accounts, time=START_TIME):
+        txn = freeCollateral.mock.testFreeCollateral(accounts[0], time)
         fc = txn.events["FreeCollateralResult"][0]["fc"]
         netLocal = txn.events["FreeCollateralResult"][0]["netLocal"]
 
@@ -91,29 +90,22 @@ class TestFreeCollateral:
         numAssets=strategy("uint", min_value=0, max_value=6),
         numCurrencies=strategy("uint", min_value=1, max_value=4),
     )
-    @settings(max_examples=10)
     @pytest.mark.only
     def test_portfolio_valuation(self, freeCollateral, accounts, numAssets, numCurrencies):
         # TODO: set additional balances...
         cashGroups = []
         for i in range(1, numCurrencies + 1):
             cashGroups.append(freeCollateral.cashGroups[i])
-
         assets = get_portfolio_array(numAssets, cashGroups, sorted=True)
-        LOGGER.info("got assets {}, {}".format(numAssets, numCurrencies))
         freeCollateral.mock.setPortfolio(accounts[0], assets)
-        LOGGER.info("set portfolio {}".format(assets))
 
         i = 0
         netLocalIndex = 0
         ethFC = 0
         (fc, netLocal, _) = self.get_fc_and_net_local(freeCollateral, accounts)
-        LOGGER.info("got fc")
         while i < len(assets):
-            LOGGER.info("inside loop {}, {}".format(i, len(assets)))
             currency = assets[i][0]
             (assetCashValue, i) = freeCollateral.mock.getNetCashGroupValue(assets, START_TIME, i)
-            LOGGER.info("loop at {}, {}".format(i, netLocalIndex))
 
             # Check that net local is correct on each loop
             assert netLocal[netLocalIndex] == assetCashValue
@@ -132,15 +124,12 @@ class TestFreeCollateral:
                 # Should not reach this condition
                 assert False
 
-        assert pytest.approx(fc, abs=1) == ethFC
-        LOGGER.info("end loop {}, {}".format(fc, ethFC))
-        # Seems like some issue with reverting chain?
+        assert pytest.approx(fc, abs=20) == ethFC
 
     @given(
         numAssets=strategy("uint", min_value=0, max_value=10),
         currency=strategy("uint", min_value=1, max_value=4),
     )
-    @pytest.mark.only
     def test_bitmap_valuation(self, freeCollateral, accounts, numAssets, currency):
         # TODO: set additional balances...
 
@@ -159,7 +148,7 @@ class TestFreeCollateral:
                 asset, START_TIME_TREF
             )
 
-        (fc, netLocal, _) = self.get_fc_and_net_local(freeCollateral, accounts)
+        (fc, netLocal, _) = self.get_fc_and_net_local(freeCollateral, accounts, START_TIME_TREF)
 
         netLocalAsset = freeCollateral.calculate_from_underlying(currency, presentValue)
         assert pytest.approx(netLocal[0], abs=1) == netLocalAsset
@@ -172,7 +161,6 @@ class TestFreeCollateral:
     # Bitmap Has Asset Debt
     # Bitmap Has Cash Debt
     # Array Has Cash Debt
-    @pytest.mark.only
     def test_bitmap_has_asset_debt(self, freeCollateral, accounts):
         freeCollateral = freeCollateral.mock
         freeCollateral.enableBitmapForAccount(accounts[0], 1, START_TIME_TREF)
