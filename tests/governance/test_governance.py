@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import NoteERC20
+from brownie import Contract, NoteERC20, nProxy
 from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.state import Chain
@@ -72,8 +72,10 @@ def test_note_token_cannot_reinitialize(environment, accounts):
 
 def test_note_token_cannot_initialize_duplicates(environment, accounts):
     erc20 = NoteERC20.deploy({"from": accounts[0]})
+    noteERC20Proxy = nProxy.deploy(erc20.address, bytes(), {"from": accounts[0]})
+    noteERC20 = Contract.from_abi("NoteERC20", noteERC20Proxy.address, abi=NoteERC20.abi)
     with brownie.reverts("Duplicate account"):
-        erc20.initialize(
+        noteERC20.initialize(
             [accounts[2].address, accounts[2].address],
             [50_000_000e8, 50_000_000e8],
             environment.governor.address,
@@ -292,11 +294,6 @@ def test_non_owners_cannot_upgrade_contracts(environment, accounts):
         environment.noteERC20.upgradeToAndCall(zeroAddress, {"from": accounts[0]})
 
 
-def test_cannot_change_notional_proxy(environment, accounts, NoteERC20):
-    with brownie.reverts():
-        environment.noteERC20.activateNotional(accounts[1], {"from": accounts[1]})
-
-
 def test_upgrade_note_token(environment, accounts, NoteERC20):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
     newToken = NoteERC20.deploy({"from": environment.deployer})
@@ -356,6 +353,7 @@ def test_upgrade_governance_contract(environment, accounts, GovernorAlpha):
         environment.noteERC20.address,
         environment.multisig,
         GovernanceConfig["governorConfig"]["minDelay"],
+        2,
         {"from": environment.deployer},
     )
 
@@ -419,6 +417,61 @@ def test_pause_and_restart_router(environment, accounts):
     environment.notional.settleAccount(accounts[0])
 
 
+def test_pause_router_and_enable_liquidations(environment, accounts, PauseRouter):
+    # Downgrade to pause router
+    environment.notional.upgradeTo(environment.pauseRouter.address, {"from": accounts[8]})
+
+    with brownie.reverts("Method not found"):
+        # Ensure that liquidation methods are not callable
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
+
+    pr = Contract.from_abi(
+        "PauseRouter", environment.notional.address, abi=PauseRouter.abi, owner=accounts[8]
+    )
+    pr.setLiquidationEnabledState("0x01")
+
+    with brownie.reverts(""):
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+    with brownie.reverts("Method not found"):
+        # Ensure that liquidation methods are not callable
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
+
+    pr.setLiquidationEnabledState("0x03")
+
+    with brownie.reverts(""):
+        environment.notional.calculateLocalCurrencyLiquidation(accounts[0], 1, 0)
+        environment.notional.liquidateLocalCurrency(accounts[0], 1, 0)
+
+        environment.notional.calculateCollateralCurrencyLiquidation(accounts[0], 1, 2, 0, 0)
+        environment.notional.liquidateCollateralCurrency(accounts[0], 1, 2, 0, 0, True, True)
+
+    with brownie.reverts("Method not found"):
+        environment.notional.calculatefCashLocalLiquidation(accounts[0], 1, [100], [0])
+        environment.notional.fCashLocalLiquidation(accounts[0], 1, [100], [0])
+
+        environment.notional.calculatefCashCrossCurrencyLiquidation(accounts[0], 1, 2, [100], [0])
+        environment.notional.liquidatefCashCrossCurrency(accounts[0], 1, 2, [100], [0])
+
+
 def test_can_delegate_if_notional_not_active(accounts):
     (_, noteERC20) = deployNoteERC20(accounts[0])
     noteERC20.initialize(
@@ -429,3 +482,56 @@ def test_can_delegate_if_notional_not_active(accounts):
     noteERC20.delegate(accounts[4], {"from": accounts[4]})
     assert noteERC20.notionalProxy() == "0x0000000000000000000000000000000000000000"
     assert noteERC20.getCurrentVotes(accounts[4]) == 100_000_000e8
+
+
+def test_timelock_controller_escalation(environment, accounts, MockTimelockAttack):
+    attacker = accounts[2]
+    attackContract = MockTimelockAttack.deploy({"from": attacker})
+    environment.noteERC20.transfer(attacker, 2_000_000e8, {"from": environment.multisig})
+    environment.noteERC20.delegate(attacker, {"from": attacker})
+
+    timelock = web3.eth.contract(abi=environment.governor.abi)
+    attackContractCalldata = web3.eth.contract(abi=attackContract.abi).encodeABI(
+        fn_name="scheduleBatchInitial", args=[]
+    )
+
+    targets = [
+        environment.governor.address,  # grant role timelock admin
+        environment.governor.address,  # grant execute
+        environment.governor.address,  # grant propose
+        environment.governor.address,  # update delay
+        attackContract.address,  # needs to call back to governor to schedule an id
+    ]
+    values = [0, 0, 0, 0, 0]
+    calldatas = [
+        timelock.encodeABI(
+            fn_name="grantRole",
+            args=[environment.governor.TIMELOCK_ADMIN_ROLE(), attackContract.address],
+        ),
+        timelock.encodeABI(
+            fn_name="grantRole", args=[environment.governor.EXECUTOR_ROLE(), attackContract.address]
+        ),
+        timelock.encodeABI(
+            fn_name="grantRole", args=[environment.governor.PROPOSER_ROLE(), attackContract.address]
+        ),
+        timelock.encodeABI(fn_name="updateDelay", args=[0]),
+        attackContractCalldata,
+    ]
+
+    environment.governor.propose(targets, values, calldatas, {"from": attacker})
+    proposalId = environment.governor.proposalCount()
+
+    attackContract.setScheduleVars(
+        environment.governor.address, targets, values, calldatas, proposalId
+    )
+    with brownie.reverts():
+        environment.governor.executeProposal(
+            proposalId, targets, values, calldatas, {"from": attacker}
+        )
+
+    # # execute an arbitrary method
+    # transferCalldata = web3.eth.contract(abi=environment.noteERC20.abi).encodeABI(
+    #     fn_name="transfer", args=[attacker.address, 100_000]
+    # )
+
+    # txn = attackContract.executeArbitrary(environment.noteERC20.address, 0, transferCalldata)

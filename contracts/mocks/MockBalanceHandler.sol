@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
 import "../internal/balances/BalanceHandler.sol";
@@ -14,8 +14,12 @@ contract MockBalanceHandler is StorageLayoutV1 {
         maxCurrencyId = num;
     }
 
-    function getCurrencyMapping(uint256 id, bool underlying) external view returns (Token memory) {
-        return TokenHandler.getToken(id, underlying);
+    function getCurrencyMapping(uint16 id, bool underlying) external view returns (Token memory) {
+        if (underlying) {
+            return TokenHandler.getUnderlyingToken(id);
+        } else {
+            return TokenHandler.getAssetToken(id);
+        }
     }
 
     function setCurrencyMapping(
@@ -68,15 +72,15 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         AccountContext memory accountContext,
         bool redeemToUnderlying
-    ) public returns (AccountContext memory) {
-        balanceState.finalize(account, accountContext, redeemToUnderlying);
+    ) public returns (AccountContext memory, int256) {
+        int256 transferAmountExternal = balanceState.finalize(account, accountContext, redeemToUnderlying);
 
-        return accountContext;
+        return (accountContext, transferAmountExternal);
     }
 
     function loadBalanceState(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         AccountContext memory accountContext
     ) public view returns (BalanceState memory, AccountContext memory) {
         BalanceState memory bs;

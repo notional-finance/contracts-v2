@@ -1,6 +1,9 @@
 import brownie
 import pytest
+from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
+from scripts.config import CurrencyDefaults
+from scripts.deployment import TokenType
 from tests.helpers import (
     active_currencies_to_list,
     get_balance_action,
@@ -237,17 +240,17 @@ def test_withdraw_and_redeem_eth(environment, accounts):
 
 
 def test_eth_failures(environment, accounts):
-    with brownie.reverts("Invalid ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.depositUnderlyingToken(accounts[1], 1, 1e18, {"from": accounts[1]})
 
-    with brownie.reverts("Invalid ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAction(
             accounts[0], [get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)]
         )
 
-    with brownie.reverts("Invalid ETH balance"):
+    with brownie.reverts("ETH Balance"):
         # Should revert, no msg.value
         environment.notional.batchBalanceAndTradeAction(
             accounts[0],
@@ -255,9 +258,113 @@ def test_eth_failures(environment, accounts):
         )
 
 
-def test_withdraw_asset_token_settle_first(environment, accounts):
-    pass
-
-
 def test_withdraw_asset_token_fail_fc(environment, accounts):
-    pass
+    fCashAmount = 100e8
+    borrowAction = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 1,
+                "notional": fCashAmount,
+                "maxSlippage": 0,
+            }
+        ],
+        depositActionAmount=3e18,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[1], [borrowAction], {"from": accounts[1]}
+    )
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+
+    # Will fail FC check
+    with brownie.reverts("Insufficient free collateral"):
+        environment.notional.withdraw(2, cashBalance, True, {"from": accounts[1]})
+        environment.notional.withdraw(2, cashBalance, False, {"from": accounts[1]})
+
+    check_system_invariants(environment, accounts)
+
+
+def test_fail_on_deposit_over_max_collateral(environment, accounts):
+    zeroAddress = HexString(0, "bytes20")
+    txn = environment.notional.listCurrency(
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
+        environment.ethOracle["NOMINT"].address,
+        False,
+        130,
+        70,
+        105,
+    )
+
+    environment.token["NOMINT"].approve(
+        environment.notional.address, 2 ** 255, {"from": accounts[1]}
+    )
+    environment.token["NOMINT"].transfer(accounts[1], 1000e18, {"from": accounts[0]})
+    currencyId = txn.events["ListCurrency"]["newCurrencyId"]
+
+    # Should succeed
+    environment.notional.depositAssetToken(accounts[1], currencyId, 50e18, {"from": accounts[1]})
+
+    # Should fail
+    with brownie.reverts():
+        environment.notional.depositAssetToken(
+            accounts[1], currencyId, 200e18, {"from": accounts[1]}
+        )
+
+    # increase amount
+    environment.notional.updateMaxCollateralBalance(currencyId, 200e8)
+
+    # Should succeed
+    environment.notional.depositAssetToken(accounts[1], currencyId, 100e18, {"from": accounts[1]})
+
+    # decrease amount
+    environment.notional.updateMaxCollateralBalance(currencyId, 1e8)
+
+    # Should succeed
+    environment.notional.withdraw(currencyId, 150e8, False, {"from": accounts[1]})
+
+    check_system_invariants(environment, accounts)
+
+
+def test_cannot_set_max_collateral_on_traded_cash(environment, accounts):
+    with brownie.reverts():
+        environment.notional.updateMaxCollateralBalance(2, 200e8)
+
+
+def test_cannot_enable_cash_group_on_capped_token(environment, accounts):
+    zeroAddress = HexString(0, "bytes20")
+    txn = environment.notional.listCurrency(
+        (environment.token["NOMINT"].address, False, TokenType["NonMintable"], 18, 100e8),
+        (zeroAddress, False, 0, 0, 0),
+        environment.ethOracle["NOMINT"].address,
+        False,
+        130,
+        70,
+        105,
+    )
+
+    currencyId = txn.events["ListCurrency"]["newCurrencyId"]
+    with brownie.reverts("dev: cannot enable trading, collateral cap"):
+        config = CurrencyDefaults
+        environment.notional.enableCashGroup(
+            currencyId,
+            zeroAddress,
+            (
+                config["maxMarketIndex"],
+                config["rateOracleTimeWindow"],
+                config["totalFee"],
+                config["reserveFeeShare"],
+                config["debtBuffer"],
+                config["fCashHaircut"],
+                config["settlementPenalty"],
+                config["liquidationfCashDiscount"],
+                config["liquidationDebtBuffer"],
+                config["tokenHaircut"][0 : config["maxMarketIndex"]],
+                config["rateScalar"][0 : config["maxMarketIndex"]],
+            ),
+            "NOMINT",
+            "NOMINT",
+        )

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "interfaces/compound/CTokenInterface.sol";
 import "interfaces/compound/CErc20Interface.sol";
@@ -18,7 +18,7 @@ contract CompoundToNotionalV2 {
 
     function enableToken(address token, address spender) external {
         require(msg.sender == owner, "Unauthorized");
-        CTokenInterface(token).approve(spender, type(uint256).max);
+        require(CTokenInterface(token).approve(spender, type(uint256).max));
     }
 
     function migrateBorrowFromCompound(
@@ -60,7 +60,7 @@ contract CompoundToNotionalV2 {
         address account,
         bytes calldata callbackData
     ) external returns (uint256) {
-        require(sender == address(this), "Unauthorized callback");
+        require(msg.sender == address(NotionalV2) && sender == address(this), "Unauthorized callback");
 
         (
             address cTokenBorrow,

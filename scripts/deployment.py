@@ -47,7 +47,7 @@ def deployNoteERC20(deployer):
     if network.show_active() == "sandbox":
         deployer = accounts.load("DEVELOPMENT_DEPLOYER")
         accounts[0].transfer(deployer, 100e18)
-    elif network.show_active() == "development":
+    elif network.show_active() == "development" or network.show_active() == "hardhat":
         deployer = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
 
     # Deploy governance contracts
@@ -69,6 +69,7 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
         noteERC20.address,
         guardian,
         governorConfig["minDelay"],
+        0,
         {"from": deployer},
     )
 
@@ -94,7 +95,12 @@ def deployNotionalContracts(deployer, cETHAddress):
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
 
     # Deploy Pause Router
-    pauseRouter = PauseRouter.deploy(contracts["Views"].address, {"from": deployer})
+    pauseRouter = PauseRouter.deploy(
+        contracts["Views"].address,
+        contracts["LiquidateCurrencyAction"].address,
+        contracts["LiquidatefCashAction"].address,
+        {"from": deployer},
+    )
 
     # Deploy router
     router = Router.deploy(
@@ -196,7 +202,6 @@ class TestEnvironment:
                 self.deployer.address,
                 {"from": self.deployer},
             )
-            self.noteERC20.activateNotional(self.notional.address, {"from": self.deployer})
             self.noteERC20.transferOwnership(self.governor.address, {"from": self.deployer})
         else:
             self.noteERC20.initialize(
@@ -205,7 +210,6 @@ class TestEnvironment:
                 self.deployer.address,
                 {"from": self.deployer},
             )
-            self.noteERC20.activateNotional(self.notional.address, {"from": self.deployer})
 
         self.startTime = chain.time()
 
@@ -319,9 +323,16 @@ class TestEnvironment:
         currencyId = 1
         if symbol == "NOMINT":
             zeroAddress = HexString(0, "bytes20")
+            decimals = self.token[symbol].decimals()
             txn = self.notional.listCurrency(
-                (self.token[symbol].address, symbol == "USDT", TokenType["NonMintable"]),
-                (zeroAddress, False, 0),
+                (
+                    self.token[symbol].address,
+                    symbol == "USDT",
+                    TokenType["NonMintable"],
+                    decimals,
+                    0,
+                ),
+                (zeroAddress, False, 0, 0, 0),
                 self.ethOracle[symbol].address,
                 False,
                 config["buffer"],
@@ -331,9 +342,23 @@ class TestEnvironment:
             currencyId = txn.events["ListCurrency"]["newCurrencyId"]
 
         elif symbol != "ETH":
+            cTokenDecimals = self.cToken[symbol].decimals()
+            tokenDecimals = self.token[symbol].decimals()
             txn = self.notional.listCurrency(
-                (self.cToken[symbol].address, symbol == "USDT", TokenType["cToken"]),
-                (self.token[symbol].address, symbol == "USDT", TokenType["UnderlyingToken"]),
+                (
+                    self.cToken[symbol].address,
+                    symbol == "USDT",
+                    TokenType["cToken"],
+                    cTokenDecimals,
+                    0,
+                ),
+                (
+                    self.token[symbol].address,
+                    symbol == "USDT",
+                    TokenType["UnderlyingToken"],
+                    tokenDecimals,
+                    0,
+                ),
                 self.ethOracle[symbol].address,
                 False,
                 config["buffer"],

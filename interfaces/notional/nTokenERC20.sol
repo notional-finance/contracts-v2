@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 interface nTokenERC20 {
     event Transfer(address indexed from, address indexed to, uint256 amount);
@@ -37,7 +37,7 @@ interface nTokenERC20 {
         address from,
         address to,
         uint256 amount
-    ) external returns (bool, uint256);
+    ) external returns (bool);
 
     function nTokenTransferApproveAll(address spender, uint256 amount) external returns (bool);
 

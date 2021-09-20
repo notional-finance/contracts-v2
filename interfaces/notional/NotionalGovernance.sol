@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
+import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "interfaces/notional/NotionalGovernance.sol";
 
 interface NotionalGovernance {
     event ListCurrency(uint16 newCurrencyId);
@@ -16,6 +18,7 @@ interface NotionalGovernance {
     event UpdateTokenCollateralParameters(uint16 currencyId);
     event UpdateGlobalTransferOperator(address operator, bool approved);
     event UpdateAuthorizedCallbackContract(address operator, bool approved);
+    event UpdateMaxCollateralBalance(uint16 currencyId, uint72 maxCollateralBalance);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
 
@@ -26,16 +29,21 @@ interface NotionalGovernance {
     function listCurrency(
         TokenStorage calldata assetToken,
         TokenStorage calldata underlyingToken,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,
         uint8 liquidationDiscount
+    ) external returns (uint16 currencyId);
+
+    function updateMaxCollateralBalance(
+        uint16 currencyId,
+        uint72 maxCollateralBalanceInternalPrecision
     ) external;
 
     function enableCashGroup(
         uint16 currencyId,
-        address assetRateOracle,
+        AssetRateAdapter assetRateOracle,
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
@@ -66,11 +74,11 @@ interface NotionalGovernance {
 
     function updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) external;
 
-    function updateAssetRate(uint16 currencyId, address rateOracle) external;
+    function updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) external;
 
     function updateETHRate(
         uint16 currencyId,
-        address rateOracle,
+        AggregatorV2V3Interface rateOracle,
         bool mustInvert,
         uint8 buffer,
         uint8 haircut,

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../markets/AssetRate.sol";
+import "../../global/LibStorage.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
@@ -29,33 +30,32 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 oldSettleTime,
         uint256 blockTime
-    ) internal returns (bytes32, int256, uint256) {
+    ) internal returns (int256 totalAssetCash, uint256 newSettleTime) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        int256 totalAssetCash;
 
         // This newSettleTime will be set to the new `oldSettleTime`. The bits between 1 and
         // `lastSettleBit` (inclusive) will be shifted out of the bitmap and settled. The reason
         // that lastSettleBit is inclusive is that it refers to newSettleTime which always less
         // than the current block time.
-        uint256 newSettleTime = DateTime.getTimeUTC0(blockTime);
+        newSettleTime = DateTime.getTimeUTC0(blockTime);
+        // If newSettleTime == oldSettleTime lastSettleBit will be zero
         require(newSettleTime >= oldSettleTime); // dev: new settle time before previous
 
         // Do not need to worry about validity, if newSettleTime is not on an exact bit we will settle up until
         // the closest maturity that is less than newSettleTime.
         (uint256 lastSettleBit, /* isValid */) = DateTime.getBitNumFromMaturity(oldSettleTime, newSettleTime);
-        if (lastSettleBit == 0) return (bitmap, totalAssetCash, newSettleTime);
+        if (lastSettleBit == 0) return (totalAssetCash, newSettleTime);
 
-        // Returns the next bit that is set in the bitmap using a binary search for the MSB.
+        // Returns the next bit that is set in the bitmap
         uint256 nextBitNum = bitmap.getNextBitNum();
         while (nextBitNum != 0 && nextBitNum <= lastSettleBit) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
             totalAssetCash = totalAssetCash.add(
                 _settlefCashAsset(account, currencyId, maturity, blockTime)
             );
+
             // Turn the bit off now that it is settled
             bitmap = bitmap.setBit(nextBitNum, false);
-
-            // Continue the loop
             nextBitNum = bitmap.getNextBitNum();
         }
 
@@ -66,14 +66,13 @@ library SettleBitmapAssets {
             require(isValid); // dev: invalid new bit num
 
             newBitmap = newBitmap.setBit(newBitNum, true);
+
             // Turn the bit off now that it is remapped
             bitmap = bitmap.setBit(nextBitNum, false);
-
-            // Continue the loop
             nextBitNum = bitmap.getNextBitNum();
         }
 
-        return (newBitmap, totalAssetCash, newSettleTime);
+        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
     }
 
     /// @dev Stateful settlement function to settle a bitmapped asset. Deletes the
@@ -84,22 +83,17 @@ library SettleBitmapAssets {
         uint256 maturity,
         uint256 blockTime
     ) private returns (int256 assetCash) {
-        // Storage Read
-        bytes32 ifCashSlot = BitmapAssetsHandler.getifCashSlot(account, currencyId, maturity);
-        int256 ifCash;
-        assembly {
-            ifCash := sload(ifCashSlot)
-        }
-
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+        int256 notional = store[account][currencyId][maturity].notional;
+        
         // Gets the current settlement rate or will store a new settlement rate if it does not
         // yet exist.
         AssetRateParameters memory rate =
             AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
-        assetCash = rate.convertFromUnderlying(ifCash);
-        // Delete ifCash value
-        assembly {
-            sstore(ifCashSlot, 0)
-        }
+        assetCash = rate.convertFromUnderlying(notional);
+
+        delete store[account][currencyId][maturity];
 
         return assetCash;
     }

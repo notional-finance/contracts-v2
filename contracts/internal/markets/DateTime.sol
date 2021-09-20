@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../global/Constants.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -10,21 +10,19 @@ library DateTime {
 
     /// @notice Returns the current reference time which is how all the AMM dates are calculated.
     function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {
-        require(blockTime > Constants.QUARTER);
+        require(blockTime >= Constants.QUARTER);
         return blockTime - (blockTime % Constants.QUARTER);
     }
 
     /// @notice Truncates a date to midnight UTC time
     function getTimeUTC0(uint256 time) internal pure returns (uint256) {
-        require(time > Constants.DAY);
+        require(time >= Constants.DAY);
         return time - (time % Constants.DAY);
     }
 
     /// @notice These are the predetermined market offsets for trading
     /// @dev Markets are 1-indexed because the 0 index means that no markets are listed for the cash group.
     function getTradedMarket(uint256 index) internal pure returns (uint256) {
-        require(index != 0); // dev: get traded market index is zero
-
         if (index == 1) return Constants.QUARTER;
         if (index == 2) return 2 * Constants.QUARTER;
         if (index == 3) return Constants.YEAR;
@@ -33,7 +31,7 @@ library DateTime {
         if (index == 6) return 10 * Constants.YEAR;
         if (index == 7) return 20 * Constants.YEAR;
 
-        revert("CG: invalid index");
+        revert("Invalid index");
     }
 
     /// @notice Determines if the maturity falls on one of the valid on chain market dates.
@@ -63,6 +61,7 @@ library DateTime {
     ) internal pure returns (bool) {
         uint256 tRef = DateTime.getReferenceTime(blockTime);
         uint256 maxMaturity = tRef.add(DateTime.getTradedMarket(maxMarketIndex));
+        // Cannot trade past max maturity
         if (maturity > maxMaturity) return false;
 
         // prettier-ignore
@@ -70,7 +69,8 @@ library DateTime {
         return isValid;
     }
 
-    /// @notice Returns the market index for a given maturity
+    /// @notice Returns the market index for a given maturity, if the maturity is idiosyncratic
+    /// will return the nearest market index that is larger than the maturity.
     /// @return uint marketIndex, bool isIdiosyncratic
     function getMarketIndex(
         uint256 maxMarketIndex,
@@ -83,7 +83,9 @@ library DateTime {
 
         for (uint256 i = 1; i <= maxMarketIndex; i++) {
             uint256 marketMaturity = tRef.add(DateTime.getTradedMarket(i));
+            // If market matches then is not idiosyncratic
             if (marketMaturity == maturity) return (i, false);
+            // Returns the market that is immediately greater than the maturity
             if (marketMaturity > maturity) return (i, true);
         }
 
@@ -100,49 +102,60 @@ library DateTime {
     {
         uint256 blockTimeUTC0 = getTimeUTC0(blockTime);
 
+        // Maturities must always divide days evenly
         if (maturity % Constants.DAY != 0) return (0, false);
+        // Maturity cannot be in the past
         if (blockTimeUTC0 >= maturity) return (0, false);
 
         // Overflow check done above
+        // daysOffset has no remainders, checked above
         uint256 daysOffset = (maturity - blockTimeUTC0) / Constants.DAY;
 
         // These if statements need to fall through to the next one
         if (daysOffset <= Constants.MAX_DAY_OFFSET) {
             return (daysOffset, true);
-        }
-
-        if (daysOffset <= Constants.MAX_WEEK_OFFSET) {
-            uint256 offset =
+        } else if (daysOffset <= Constants.MAX_WEEK_OFFSET) {
+            // (daysOffset - MAX_DAY_OFFSET) is the days overflow into the week portion, must be > 0
+            // (blockTimeUTC0 % WEEK) / DAY is the offset into the week portion
+            // This returns the offset from the previous max offset in days
+            uint256 offsetInDays =
                 daysOffset -
                     Constants.MAX_DAY_OFFSET +
                     (blockTimeUTC0 % Constants.WEEK) /
                     Constants.DAY;
-            // Ensures that the maturity specified falls on the actual day, otherwise division
-            // will truncate it
-            return (Constants.WEEK_BIT_OFFSET + offset / 6, (offset % 6) == 0);
-        }
-
-        if (daysOffset <= Constants.MAX_MONTH_OFFSET) {
-            uint256 offset =
+            
+            return (
+                // This converts the offset in days to its corresponding bit position, truncating down
+                // if it does not divide evenly into DAYS_IN_WEEK
+                Constants.WEEK_BIT_OFFSET + offsetInDays / Constants.DAYS_IN_WEEK,
+                (offsetInDays % Constants.DAYS_IN_WEEK) == 0
+            );
+        } else if (daysOffset <= Constants.MAX_MONTH_OFFSET) {
+            uint256 offsetInDays =
                 daysOffset -
                     Constants.MAX_WEEK_OFFSET +
                     (blockTimeUTC0 % Constants.MONTH) /
                     Constants.DAY;
 
-            return (Constants.MONTH_BIT_OFFSET + offset / 30, (offset % 30) == 0);
-        }
-
-        if (daysOffset <= Constants.MAX_QUARTER_OFFSET) {
-            uint256 offset =
+            return (
+                Constants.MONTH_BIT_OFFSET + offsetInDays / Constants.DAYS_IN_MONTH,
+                (offsetInDays % Constants.DAYS_IN_MONTH) == 0
+            );
+        } else if (daysOffset <= Constants.MAX_QUARTER_OFFSET) {
+            uint256 offsetInDays =
                 daysOffset -
                     Constants.MAX_MONTH_OFFSET +
                     (blockTimeUTC0 % Constants.QUARTER) /
                     Constants.DAY;
 
-            return (Constants.QUARTER_BIT_OFFSET + offset / 90, (offset % 90) == 0);
+            return (
+                Constants.QUARTER_BIT_OFFSET + offsetInDays / Constants.DAYS_IN_QUARTER,
+                (offsetInDays % Constants.DAYS_IN_QUARTER) == 0
+            );
         }
 
-        // This is the maximum 1-indexed bit num
+        // This is the maximum 1-indexed bit num, it is never valid because it is beyond the 20
+        // year max maturity
         return (256, false);
     }
 
@@ -160,31 +173,25 @@ library DateTime {
 
         if (bitNum <= Constants.WEEK_BIT_OFFSET) {
             return blockTimeUTC0 + bitNum * Constants.DAY;
-        }
-
-        if (bitNum <= Constants.MONTH_BIT_OFFSET) {
+        } else if (bitNum <= Constants.MONTH_BIT_OFFSET) {
             firstBit =
                 blockTimeUTC0 +
-                Constants.MAX_DAY_OFFSET *
-                Constants.DAY -
+                Constants.MAX_DAY_OFFSET * Constants.DAY -
+                // This backs up to the day that is divisible by a week
                 (blockTimeUTC0 % Constants.WEEK);
             return firstBit + (bitNum - Constants.WEEK_BIT_OFFSET) * Constants.WEEK;
-        }
-
-        if (bitNum <= Constants.QUARTER_BIT_OFFSET) {
+        } else if (bitNum <= Constants.QUARTER_BIT_OFFSET) {
             firstBit =
                 blockTimeUTC0 +
-                Constants.MAX_WEEK_OFFSET *
-                Constants.DAY -
+                Constants.MAX_WEEK_OFFSET * Constants.DAY -
                 (blockTimeUTC0 % Constants.MONTH);
             return firstBit + (bitNum - Constants.MONTH_BIT_OFFSET) * Constants.MONTH;
+        } else {
+            firstBit =
+                blockTimeUTC0 +
+                Constants.MAX_MONTH_OFFSET * Constants.DAY -
+                (blockTimeUTC0 % Constants.QUARTER);
+            return firstBit + (bitNum - Constants.QUARTER_BIT_OFFSET) * Constants.QUARTER;
         }
-
-        firstBit =
-            blockTimeUTC0 +
-            Constants.MAX_MONTH_OFFSET *
-            Constants.DAY -
-            (blockTimeUTC0 % Constants.QUARTER);
-        return firstBit + (bitNum - Constants.QUARTER_BIT_OFFSET) * Constants.QUARTER;
     }
 }

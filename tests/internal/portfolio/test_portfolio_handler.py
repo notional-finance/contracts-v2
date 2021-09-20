@@ -1,5 +1,6 @@
 import random
 
+import brownie
 import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
@@ -28,8 +29,44 @@ class TestPortfolioHandler:
     def isolation(self, fn_isolation):
         pass
 
-    @given(num_assets=strategy("uint", min_value=0, max_value=6))
-    # TODO: why is six the max value here
+    def test_store_asset_reverts_on_tainted_asset(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 3)]
+        with brownie.reverts():
+            portfolioHandler.storeAssets(accounts[1], (assets, [], 0, 1))
+
+        with brownie.reverts():
+            portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
+
+    def test_add_delete_asset_reverts_on_tainted_asset(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 1)]
+        portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
+        state[0] = list(state[0])
+        state[0][0] = list(state[0][0])
+        state[0][0][5] = 3
+
+        with brownie.reverts():
+            portfolioHandler.addAsset(state, 2, maturity, 1, 100e8)
+
+        with brownie.reverts():
+            portfolioHandler.deleteAsset(state, 0)
+
+    def test_delete_asset_reverts_on_deleted_asset(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        assets = [(2, maturity, 1, 100e8, 1, 1)]
+        portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
+        state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
+        state[0] = list(state[0])
+        state[0][0] = list(state[0][0])
+        state[0][0][5] = 2
+
+        with brownie.reverts():
+            portfolioHandler.deleteAsset(state, 0)
+
+    @given(num_assets=strategy("uint", min_value=0, max_value=7))
     def test_portfolio_sorting(self, portfolioHandler, accounts, num_assets):
         newAssets = generate_asset_array(num_assets)
         portfolioHandler.storeAssets(accounts[1], ([], newAssets, num_assets, 0))
@@ -40,8 +77,8 @@ class TestPortfolioHandler:
 
     def test_add_repeated_new_asset(self, portfolioHandler, accounts):
         state = portfolioHandler.buildPortfolioState(accounts[1], 0)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8, False)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
         assert len(state[1]) == 1
         assert state[1][0][3] == 200e8
 
@@ -87,10 +124,14 @@ class TestPortfolioHandler:
                     newAsset[1],  # maturity
                     newAsset[2],  # asset type
                     newAsset[3],  # notional
-                    False,
                 )
 
-                assert state[1][-1] == newAsset
+                # search backwards from the end for the new asset
+                index = -1
+                while state[1][index][0] == 0:
+                    index -= 1
+
+                assert state[1][index] == newAsset
                 startingAssets.append(newAsset)
 
             elif action == 1:
@@ -108,7 +149,6 @@ class TestPortfolioHandler:
                     asset[1],  # maturity
                     asset[2],  # asset type
                     notional,
-                    False,
                 )
 
                 assert state[0][index][5] == 1
@@ -129,7 +169,6 @@ class TestPortfolioHandler:
                     asset[1],  # maturity
                     asset[2],  # asset type
                     notional,
-                    False,
                 )
 
                 assert state[0][index][5] == 1

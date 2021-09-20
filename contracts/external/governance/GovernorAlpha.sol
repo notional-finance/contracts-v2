@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
-pragma experimental ABIEncoderV2;
+pragma abicoder v2;
 
 import "interfaces/notional/INoteERC20.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
@@ -81,7 +81,8 @@ contract GovernorAlpha is TimelockController {
     /// @notice The official record of all proposals ever proposed
     mapping(uint256 => Proposal) public proposals;
 
-    /// @notice Receipts of ballots for the entire set of voters
+    /// @notice Receipts of ballots for the entire set of voters, from proposal id to
+    /// address of voter
     mapping(uint256 => mapping(address => Receipt)) public receipts;
 
     /// @notice The latest proposal for each proposer
@@ -143,16 +144,20 @@ contract GovernorAlpha is TimelockController {
     /// @param note_ address of the NOTE token to get voting power
     /// @param guardian_ address of guardian
     /// @param minDelay_ initial minimum delay for timelock in seconds
+    /// @param proposalCount_ initial proposal count setting, can be used to maintain
+    /// proposal id continuity between upgrades
     constructor(
         uint96 quorumVotes_,
         uint96 proposalThreshold_,
         uint32 votingDelayBlocks_,
         uint32 votingPeriodBlocks_,
-        address note_,
+        INoteERC20 note_,
         address guardian_,
-        uint256 minDelay_
+        uint256 minDelay_,
+        uint256 proposalCount_
     ) TimelockController(minDelay_, new address[](0), new address[](0)) {
-        require(Address.isContract(note_));
+        // Sanity check to make sure we've set the correct token contract
+        require(keccak256(bytes(note_.symbol())) == keccak256(bytes("NOTE")));
 
         quorumVotes = quorumVotes_;
         proposalThreshold = proposalThreshold_;
@@ -160,12 +165,14 @@ contract GovernorAlpha is TimelockController {
         // Do not enforce MIN_VOTING_DELAY during constructor so that tests don't require a large number
         // of blocks for the voting period. During actual mainnet deployment this will be set to a reasonable value.
         votingPeriodBlocks = votingPeriodBlocks_;
-        note = INoteERC20(note_);
+        note = note_;
         guardian = guardian_;
+        proposalCount = proposalCount_;
 
         // Only the external methods can be used to execute governance
         grantRole(PROPOSER_ROLE, address(this));
         grantRole(EXECUTOR_ROLE, address(this));
+        revokeRole(TIMELOCK_ADMIN_ROLE, address(this));
         revokeRole(TIMELOCK_ADMIN_ROLE, msg.sender);
     }
 
@@ -180,11 +187,11 @@ contract GovernorAlpha is TimelockController {
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) external returns (uint256) {
-        uint256 blockNumber = block.number;
-        require(blockNumber > 0 && blockNumber < type(uint32).max);
+        require(block.number > 0 && block.number < type(uint32).max);
+        uint32 blockNumber = uint32(block.number);
 
         require(
-            note.getPriorVotes(msg.sender, blockNumber - 1) > proposalThreshold,
+            note.getPriorVotes(msg.sender, blockNumber - 1) >= proposalThreshold,
             "GovernorAlpha::propose: proposer votes below proposal threshold"
         );
         require(
@@ -314,6 +321,8 @@ contract GovernorAlpha is TimelockController {
         uint256[] calldata values,
         bytes[] calldata calldatas
     ) external payable {
+        require(state(proposalId) == ProposalState.Queued, "Proposal not queued");
+
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
 

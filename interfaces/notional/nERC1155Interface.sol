@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
-import "@openzeppelin/contracts/introspection/IERC165.sol";
 
-interface nERC1155Interface is IERC165 {
+interface nERC1155Interface {
     event TransferSingle(
         address indexed operator,
         address indexed from,
@@ -23,11 +22,18 @@ interface nERC1155Interface is IERC165 {
     event ApprovalForAll(address indexed account, address indexed operator, bool approved);
     event URI(string value, uint256 indexed id);
 
-    /// @dev Return value is overridden to be int256 here
-    function balanceOf(address account, uint256 id) external view returns (int256);
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool);
 
-    /// @dev Return value is overridden to be int256 here
+    function balanceOf(address account, uint256 id) external view returns (uint256);
+
     function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external
+        view
+        returns (uint256[] memory);
+
+    function signedBalanceOf(address account, uint256 id) external view returns (int256);
+
+    function signedBalanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external
         view
         returns (int256[] memory);
@@ -50,7 +56,7 @@ interface nERC1155Interface is IERC165 {
         uint256[] calldata ids,
         uint256[] calldata amounts,
         bytes calldata data
-    ) external;
+    ) external payable;
 
     function decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
         external

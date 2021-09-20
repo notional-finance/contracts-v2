@@ -714,7 +714,7 @@ def borrowActions(env, withdrawCash, redeem):
 
     chain.undo(2)
     collateralAction = get_balance_trade_action(
-        4, "DepositAssetAndMintNToken", [], depositActionAmount=10000e8
+        4, "DepositAssetAndMintNToken", [], depositActionAmount=20000e8
     )
     txnCold = env.notional.batchBalanceAndTradeAction(
         accounts[1], [borrowAction, collateralAction], {"from": accounts[1]}

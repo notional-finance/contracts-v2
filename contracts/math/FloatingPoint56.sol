@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
+pragma solidity ^0.7.0;
 
 import "./Bitmap.sol";
 
@@ -14,7 +14,7 @@ import "./Bitmap.sol";
  */
 library FloatingPoint56 {
 
-    function packTo56Bits(uint256 value) internal pure returns (bytes32) {
+    function packTo56Bits(uint256 value) internal pure returns (uint56) {
         uint256 bitShift;
         // If the value is over the uint48 max value then we will shift it down
         // given the index of the most significant bit. We store this bit shift 
@@ -22,13 +22,13 @@ library FloatingPoint56 {
         if (value > type(uint48).max) bitShift = (Bitmap.getMSB(value) - 47);
 
         uint256 shiftedValue = value >> bitShift;
-        return bytes32((shiftedValue << 8) | bitShift);
+        return uint56((shiftedValue << 8) | bitShift);
     }
 
     function unpackFrom56Bits(uint256 value) internal pure returns (uint256) {
         // The least significant 8 bits will be the amount to bit shift
-        uint256 bitShift = uint256(uint8(uint256(value)));
-        return uint256((value >> 8) << bitShift);
+        uint256 bitShift = uint256(uint8(value));
+        return ((value >> 8) << bitShift);
     }
 
 }

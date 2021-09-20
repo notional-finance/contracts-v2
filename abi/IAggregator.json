@@ -38,6 +38,19 @@
     },
     {
         "inputs": [],
+        "name": "answeredInRound",
+        "outputs": [
+            {
+                "internalType": "uint80",
+                "name": "",
+                "type": "uint80"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
         "name": "decimals",
         "outputs": [
             {
@@ -68,27 +81,40 @@
         "outputs": [
             {
                 "internalType": "uint80",
-                "name": "roundId",
+                "name": "",
                 "type": "uint80"
             },
             {
                 "internalType": "int256",
-                "name": "answer",
+                "name": "",
                 "type": "int256"
             },
             {
                 "internalType": "uint256",
-                "name": "startedAt",
+                "name": "",
                 "type": "uint256"
             },
             {
                 "internalType": "uint256",
-                "name": "updatedAt",
+                "name": "",
                 "type": "uint256"
             },
             {
                 "internalType": "uint80",
-                "name": "answeredInRound",
+                "name": "",
+                "type": "uint80"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "roundId",
+        "outputs": [
+            {
+                "internalType": "uint80",
+                "name": "",
                 "type": "uint80"
             }
         ],
@@ -106,6 +132,42 @@
         "name": "setAnswer",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint80",
+                "name": "_roundId",
+                "type": "uint80"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_updatedAt",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint80",
+                "name": "_answeredInRound",
+                "type": "uint80"
+            }
+        ],
+        "name": "setRoundData",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "updatedAt",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
 ]

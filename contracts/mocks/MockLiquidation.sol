@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../internal/AccountContextHandler.sol";
@@ -13,8 +13,8 @@ import "./BaseMockLiquidation.sol";
 contract MockLiquidationSetup is BaseMockLiquidation {
     function preLiquidationActions(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
+        uint16 localCurrency,
+        uint16 collateralCurrency
     )
         external
         returns (
@@ -37,7 +37,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
 
     function liquidateLocalCurrency(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation,
         uint256 blockTime
     )
@@ -71,8 +71,7 @@ contract MockLocalLiquidation is BaseMockLiquidation {
             liquidateAccount,
             localBalanceState, // In this case, local currency is the collateral
             accountContext,
-            portfolio,
-            factors.markets
+            portfolio
         );
 
         return (localBalanceState, netLocalFromLiquidator, portfolio, factors);
@@ -85,18 +84,16 @@ contract MockLocalLiquidation is BaseMockLiquidation {
 
 contract MockLocalLiquidationOverride is BaseMockLiquidation {
     function liquidateLocalCurrencyOverride(
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint96 maxNTokenLiquidation,
         uint256 blockTime,
         BalanceState memory liquidatedBalanceState,
         LiquidationFactors memory factors
     )
         external
-        view
         returns (
             BalanceState memory,
-            int256,
-            MarketParameters[] memory
+            int256
         )
     {
         PortfolioState memory portfolio;
@@ -111,7 +108,7 @@ contract MockLocalLiquidationOverride is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, netLocalFromLiquidator, factors.markets);
+        return (liquidatedBalanceState, netLocalFromLiquidator);
     }
 }
 
@@ -125,12 +122,10 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
         uint256 blockTime
     )
         external
-        view
         returns (
             BalanceState memory,
             int256,
-            PortfolioState memory,
-            MarketParameters[] memory
+            PortfolioState memory
         )
     {
         int256 localAssetCashFromLiquidator =
@@ -143,15 +138,15 @@ contract MockCollateralLiquidation is BaseMockLiquidation {
                 portfolio
             );
 
-        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio, factors.markets);
+        return (liquidatedBalanceState, localAssetCashFromLiquidator, portfolio);
     }
 }
 
 contract MockfCashLiquidation is BaseMockLiquidation {
     function preLiquidationActions(
         address liquidateAccount,
-        uint256 localCurrency,
-        uint256 collateralCurrency
+        uint16 localCurrency,
+        uint16 collateralCurrency
     )
         external
         returns (
@@ -170,7 +165,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
     function liquidatefCashLocal(
         address liquidateAccount,
-        uint256 localCurrency,
+        uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         LiquidatefCash.fCashContext memory c,
@@ -199,7 +194,7 @@ contract MockfCashLiquidation is BaseMockLiquidation {
 
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
-        uint256 collateralCurrency,
+        uint16 collateralCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts,
         LiquidatefCash.fCashContext memory c,

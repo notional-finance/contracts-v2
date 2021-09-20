@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity >0.7.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.0;
+pragma abicoder v2;
 
 import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
@@ -18,14 +18,15 @@ contract MockMarket is StorageLayoutV1 {
     }
 
     function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        assetToUnderlyingRateMapping[id] = rs;
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        assetStore[id] = rs;
     }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function buildCashGroupView(uint256 currencyId)
+    function buildCashGroupView(uint16 currencyId)
         public
         view
         returns (CashGroupParameters memory)
@@ -111,7 +112,6 @@ contract MockMarket is StorageLayoutV1 {
 
     function addLiquidity(MarketParameters memory marketState, int256 assetCash)
         public
-        pure
         returns (
             MarketParameters memory,
             int256,
@@ -126,7 +126,6 @@ contract MockMarket is StorageLayoutV1 {
 
     function removeLiquidity(MarketParameters memory marketState, int256 tokensToRemove)
         public
-        pure
         returns (
             MarketParameters memory,
             int256,
@@ -145,15 +144,7 @@ contract MockMarket is StorageLayoutV1 {
         uint256 settlementDate,
         MarketParameters memory market
     ) public {
-        market.storageSlot = Market.getSlot(currencyId, market.maturity, settlementDate);
-        // ensure that state gets set
-        market.storageState = 0xFF;
-        market.setMarketStorage();
-    }
-
-    function setMarketStorageSimulate(MarketParameters memory market) public {
-        // This is to simulate a real market storage
-        market.setMarketStorage();
+        market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
     function getMarketStorageOracleRate(bytes32 slot) public view returns (uint256) {
@@ -177,25 +168,13 @@ contract MockMarket is StorageLayoutV1 {
         return market;
     }
 
-    function getSettlementMarket(
-        uint256 currencyId,
-        uint256 maturity,
-        uint256 settlementDate
-    ) public view returns (SettlementMarket memory) {
-        return Market.getSettlementMarket(currencyId, maturity, settlementDate);
-    }
-
-    function setSettlementMarket(SettlementMarket memory market) public {
-        return Market.setSettlementMarket(market);
-    }
-
     function getfCashAmountGivenCashAmount(
         MarketParameters memory market,
         CashGroupParameters memory cashGroup,
         int256 netCashToAccount,
         uint256 marketIndex,
         uint256 timeToMaturity,
-        uint256 maxfCashDelta
+        int256 maxfCashDelta
     ) external pure returns (int256) {
         (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);

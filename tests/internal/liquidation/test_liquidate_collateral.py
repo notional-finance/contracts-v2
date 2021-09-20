@@ -68,6 +68,7 @@ class TestLiquidateCollateral:
         pass
 
     # Test liquidate collateral cash balance
+    @pytest.mark.only
     def test_over_max_collateral_amount(self, liquidation, accounts):
         # Allow liquidation over 40% amount when required
         collateralBalance = 500e8
@@ -86,7 +87,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -94,7 +95,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -102,7 +102,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 100e8
@@ -129,7 +129,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -137,7 +137,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -145,7 +144,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -172,7 +171,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -180,7 +179,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -188,7 +186,7 @@ class TestLiquidateCollateral:
             53e8,  # Specification is here
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -215,7 +213,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -223,7 +221,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -231,7 +228,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -258,7 +255,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -266,7 +263,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -274,7 +270,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == 50e8
@@ -302,7 +298,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -310,7 +306,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -318,7 +313,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert localFromLiquidator == -localBalance
@@ -347,14 +342,13 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         (
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
             factors,
@@ -362,7 +356,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == 100e8
@@ -389,14 +383,13 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         (
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
             factors,
@@ -404,7 +397,7 @@ class TestLiquidateCollateral:
             106e8,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == 100e8
@@ -431,7 +424,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -439,7 +432,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
             factors,
@@ -447,7 +439,7 @@ class TestLiquidateCollateral:
             0,
             100e8,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
@@ -476,7 +468,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -484,7 +476,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
             factors,
@@ -492,7 +483,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == math.trunc(
@@ -521,7 +512,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -529,7 +520,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            _,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=cashBalance, storedNTokenBalance=nTokenBalance),
             factors,
@@ -537,7 +527,7 @@ class TestLiquidateCollateral:
             0,
             0,
             START_TIME,
-        )
+        ).return_value
 
         assert portfolioState == newPortfolioState
         assert pytest.approx(localFromLiquidator, abs=2) == math.trunc((400e8 / discount) * 100)
@@ -574,7 +564,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -583,7 +573,6 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            markets,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2, storedCashBalance=collateralBalance),
             factors,
@@ -591,7 +580,7 @@ class TestLiquidateCollateral:
             20e8,  # Cap the withdraw amount so that this is a partial withdraw
             0,
             START_TIME,
-        )
+        ).return_value
 
         withdrawn = (
             (localFromLiquidator * discount / 100 - collateralBalance)
@@ -634,7 +623,7 @@ class TestLiquidateCollateral:
             (1e18, 1e18, 140, 100, 105),
             cashGroup[2],
             cashGroup,
-            [],
+            False,
         )
 
         discount = max(factors[6][-1], factors[7][-1])
@@ -643,10 +632,9 @@ class TestLiquidateCollateral:
             newBalanceState,
             localFromLiquidator,
             newPortfolioState,
-            markets,
         ) = liquidation.liquidateCollateralCurrency(
             get_balance_state(2), factors, portfolioState, 0, 0, START_TIME
-        )
+        ).return_value
 
         assert pytest.approx(localFromLiquidator, abs=2) == cashClaim * 100 / discount
         assert newBalanceState[4] == cashClaim
