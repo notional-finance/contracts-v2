@@ -265,7 +265,18 @@ rule ifCashNetPresentValueAccountsForAllAssets(address account) {
 // }
 /*
 methods {
-    getPresentValue(int256, uint256, uint256, uint256) returns (int256) envfree
+    getMaturityAtMarketIndex(uint256 marketIndex, uint256 blockTime) returns (uint256) envfree;
+    calculateOracleRate(uint256 maturity, uint256 blockTime) returns (uint256) envfree;
+    getMarketValues() returns (uint256, uint256, uint256, uint256) envfree;
+    getLiquidityHaircut(uint256 assetType) returns (uint256) envfree;
+    getPresentValue(int256 notional, uint256 maturity, uint256 blockTime, uint256 oracleRate) returns (int256) envfree;
+    getRiskAdjustedPresentValue(int256 notional, uint256 maturity, uint256 blockTime, uint256 oracleRate) returns (int256) envfree;
+    getLiquidityTokenValue(int256 fCashNotional, uint256 tokens, uint256 assetType, uint256 blockTime, bool riskAdjusted) returns (int256, int256) envfree;
+    checkPortfolioSorted(address account) returns (bool) envfree;
+    getPortfolioCurrencyIdAtIndex(address account, uint256 index) returns (uint256) envfree;
+    getNetCashGroupValue(address account, uint256 portfolioIndex, uint256 blockTime) returns (int256, uint256) envfree;
+    getifCashNetPresentValue(address account, uint256 blockTime, bool riskAdjusted) returns (int256) envfree;
+    getNumBitmapAssets(address account) returns (int256) envfree;
 }
 
 definition abs(int256 x) returns int256 = x >= 0 ? x : -1 * x;
@@ -274,31 +285,43 @@ definition isBetween(uint256 x, uint256 y, uint256 z) returns bool = (y <= x && 
 definition BASIS_POINT() returns uint256 = 100000;
 definition MAX_PV_BASIS_POINTS() returns uint256 = BASIS_POINT() * 5 * 255;
 
-// SLOAD hooks
-hook Sload cashGroup {
-    require(oracleRate == 0)
-    require(fCashHaircut == x)
-    require(debtBuffer == x)
-    require(liquidityTokenHaircut == 100)
+// invariant convertToETHBuffersAndHaircuts {
+//     // show that balances > 0 will be haircut
+//     // show that balances < 0 will be buffered
+// }
 
-hook Sload market {
-    require(market.totalfCash == 1000e9)
-    require(market.totalAssetCash == 1000e9)
-    require(market.totalLiquidity == 1000e9)
-}
+// rule getBitmapPortfolioValueSetsDebtFlag {
+//     // if any ifCash asset is < 0 then hasDebt will be set to true
+//     // else will be set to false
+// }
 
+// rule getFreeCollateralSetsCashDebt {
+//     // if any cash debt is < 0 then hasCashDebt will be set to true
+//     // else will be set to false
+// }
 
-// This requires multi markets, should be in a valuation spec
-invariant idiosyncraticOracleRatesAreBetweenOnChainRates(
+/**
+ * Present value calculations have a long chain of logic they follow:
+ *  - market.getOracleRate()
+ *  - cashGroup.calculateOracleRate()
+ *  - assetHandler.getRiskAdjustedPresentValue()
+ *     - cashGroup.getDebtBuffer or cashGroup.getfCashHaircut
+ */
+
+// rule oracleRatesAreBlendedIntoTheRateWindow will cover `getOracleRate`
+
+// This should show that the oracle rate is the linear interpolation between two on chain rates.
+invariant calculateOracleRateIsBetweenOnChainRates(
     uint256 currencyId,
     uint256 maturity,
     uint256 shortMarketIndex,
-    uint256 longMarketIndex
+    uint256 longMarketIndex,
+    uint256 blockTime
 )
     isBetween(
         maturity,
-        getMaturityAtMarketIndex(currencyId, shortMarketIndex),
-        getMaturityAtMarketIndex(currencyId, longMarketIndex),
+        getMaturityAtMarketIndex(shortMarketIndex, blockTime),
+        getMaturityAtMarketIndex(longMarketIndex, blockTime)
     ) => 
     isBetween(
         getOracleRateAtMaturity(currencyId, maturity),
@@ -306,7 +329,9 @@ invariant idiosyncraticOracleRatesAreBetweenOnChainRates(
         getOracleAtMarketIndex(currencyId, longMarketIndex)
     ), "idiosyncratic oracle rate is not between market rates"
 
-rule presentValueIsLessThanFutureValue(
+// For any given asset and oracle rate, the absolute present value of a shorted dated asset will
+// always be less than the absolute present value of a longer dated asset.
+rule presentValueDecreasesForLongerMaturities(
     int256 notional,
     uint256 maturity,
     uint256 oracleRate,
