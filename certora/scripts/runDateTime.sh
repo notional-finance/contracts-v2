@@ -6,4 +6,4 @@ certoraRun contracts/mocks/certora/MathHarness.sol \
  	--settings -smt_bitVectorTheory=true \
  	--packages_path $HOME'/.brownie/packages' \
  	--packages @openzeppelin=$HOME/.brownie/packages/OpenZeppelin/openzeppelin-contracts@3.4.2-solc-0.7 compound-finance=$HOME/.brownie/packages/compound-finance \
- 	--solc_args "['--optimize', '--optimize-runs', '200']"  --staging --msg "Date time - bv" 
+ 	--solc_args "['--optimize', '--optimize-runs', '200']"  --staging --msg "Date Time" 
