@@ -27,7 +27,7 @@ rule setsAssetBitmapProperly(
     assert getAssetsBitmap(account, currencyId) == bitmap;
 }
 
-// PASSES
+// FAILING
 rule setsBitmapfCashProperly(
     address account,
     uint256 currencyId,

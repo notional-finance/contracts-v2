@@ -1,5 +1,39 @@
 # Certora Verification Notes
 
+Discarded changes from account action
+
+## Storage
+- GovernanceOwner
+  - Mostly passing, but fallback is failing:
+  https://vaas-stg.certora.com/output/42394/20e8d6b7b03138ac8125/?anonymousKey=fb94fb5cefbae9e5e1cdf00378b7b882f8055cda#onlyOwnerCanUpdateGovernaceResults
+- GovernanceAction
+  - Failing (same as before...)
+  - https://vaas-stg.certora.com/output/42394/6ef56e843c5e832abcd8/?anonymousKey=5bb1856f28ee6d755e10b3dc777b3cf202852a6c
+- AccountStorage
+  - setsBitmapfCashProperly not passing anymore: https://vaas-stg.certora.com/output/42394/9f7aeddb24ee2f74cd84/?anonymousKey=9d19f5bac1ef5661833c30b5c313be9bfab40568
+
+## Math
+- Bitmap
+  - FloatingPointOver48: this says its failing but the assertion message looks like it should be correct
+  https://vaas-stg.certora.com/output/42394/72853481013d915351e3/?anonymousKey=7e430593fe4f29548c8ae646653b3c65cec8fa66
+- DateTime (all passing)
+- Incentives (still failing)
+- Rates (failing for all sorts of reasons)
+  - https://vaas-stg.certora.com/output/42394/6a37f2ba27e951251ba7/?anonymousKey=73e1258a01075dbc12a5763da10d87b2ecad9c97
+- SafeInt256
+
+## Asset
+- AccountContext todo: move currencies checking into a solidity method
+- BalanceState
+- LiquidityCurve -- how can we merge this? there are many changes to the code...
+- Settlement -- still have a sanity issue
+- Portfolio todo: does not work
+
+## Future Work:
+- nTokenPortfolio
+- Balances
+- Valuation
+
 ## Verify all Math Specs:
 
 - DateTime.sol

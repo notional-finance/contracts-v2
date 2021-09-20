@@ -4,7 +4,7 @@ using AccountAction as accountAction
 
 methods {
     // harnessed
-    depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) returns (int256, int256) envfree
+    depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) returns (int256) envfree
     depositUnderlyingToken(
         address account,
         int256 underlyingAmountExternal
