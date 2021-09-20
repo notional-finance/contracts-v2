@@ -1,4 +1,6 @@
 using DummyERC20A as token
+using AccountAction as accountAction
+// todo: use SymbolicCERC20 
 
 methods {
     // harnessed
@@ -25,17 +27,42 @@ methods {
     transfer(address,uint) => DISPATCHER(true)
     balanceOf(address) => DISPATCHER(true)
     transferFrom(address,address,uint) => DISPATCHER(true)
+
+    // accountAction
+    accountAction.depositAssetToken(address,uint16,uint256)
+
+    // summaries
+    getToken(uint256,bool) => chosenToken()
 }
 
-rule integrity_depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) {
+ghost chosenToken() returns address;
+
+rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
     require account != currentContract;
+    require account != 0;
+    require chosenToken() == token;
     uint _balance = token.balanceOf(account);
 
+    require forceTransfer; // otherwise no transfer will occur and will await finalize
     depositAssetToken(account, assetAmountExternal, forceTransfer);
 
     uint balance_ = token.balanceOf(account);
 
-    assert balance_ == _balance + to_mathint(assetAmountExternal);
+    assert balance_ == _balance - to_mathint(assetAmountExternal);
+    // if !forceTransfer, check netAssetTransferInternalPrecision
+}
+
+rule integrity_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
+    require account != currentContract;
+    require chosenToken() == token;
+    uint _balance = token.balanceOf(account);
+
+    env e;
+    accountAction.depositAssetToken(e, account, currencyId, assetAmountExternal);
+
+    uint balance_ = token.balanceOf(account);
+
+    assert balance_ == _balance - to_mathint(assetAmountExternal);
 }
 
 // exploratory

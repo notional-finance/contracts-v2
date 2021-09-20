@@ -81,6 +81,11 @@ contract AccountAction is ActionGuards {
         return uint256(assetTokensReceivedInternal);
     }
 
+    /************** CERTORA TEST CODE ********************/
+    mapping(address => AccountContext) accountContexts;
+    BalanceState balanceState;
+    /************** CERTORA TEST CODE ********************/
+
     /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
     /// make deposit as gas efficient as possible during potential liquidation events.
     /// @param account the account to deposit into
@@ -98,9 +103,12 @@ contract AccountAction is ActionGuards {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
         requireValidAccount(account);
 
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        BalanceState memory balanceState;
-        balanceState.loadBalanceState(account, currencyId, accountContext);
+    /************** CERTORA TEST CODE ********************/
+        // AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        AccountContext memory accountContext = accountContexts[account];
+        // BalanceState memory balanceState;
+        //balanceState.loadBalanceState(account, currencyId, accountContext);
+    /************** CERTORA TEST CODE ********************/
 
         // Int conversion overflow check done inside this method call. msg.sender
         // is used as the account in deposit to allow for other accounts to deposit
