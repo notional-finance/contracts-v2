@@ -85,31 +85,31 @@ library PortfolioHandlerHarness {
             uint40
         )
     {
-        uint256 slot =
-            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
-        bool hasDebt;
-        bytes32 portfolioActiveCurrencies;
-        uint256 nextSettleTime;
+        // uint256 slot =
+        //     uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
+        // bool hasDebt;
+        // bytes32 portfolioActiveCurrencies;
+        // uint256 nextSettleTime;
 
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (asset.storageState == AssetStorageState.Delete || asset.notional == 0) {
-                continue;
-            }
+        // for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+        //     PortfolioAsset memory asset = portfolioState.storedAssets[i];
+        //     if (asset.storageState == AssetStorageState.Delete || asset.notional == 0) {
+        //         continue;
+        //     }
 
-            (hasDebt, portfolioActiveCurrencies, nextSettleTime) = PortfolioHandler._updatePortfolioContext(
-                asset,
-                hasDebt,
-                portfolioActiveCurrencies,
-                nextSettleTime
-            );
+        //     (hasDebt, portfolioActiveCurrencies, nextSettleTime) = PortfolioHandler._updatePortfolioContext(
+        //         asset,
+        //         hasDebt,
+        //         portfolioActiveCurrencies,
+        //         nextSettleTime
+        //     );
 
-            bytes32 encodedAsset = PortfolioHandler._encodeAssetToBytes(asset);
-            assembly {
-                sstore(slot, encodedAsset)
-            }
-            slot = slot + 1;
-        }
+        //     bytes32 encodedAsset = PortfolioHandler._encodeAssetToBytes(asset);
+        //     assembly {
+        //         sstore(slot, encodedAsset)
+        //     }
+        //     slot = slot + 1;
+        // }
 
         // In the simplified version we assume that new assets is unused
     }

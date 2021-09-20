@@ -21,7 +21,7 @@ contract SettlementHarness {
         return symbolicAccountContext.bitmapCurrencyId;
     }
 
-    function getTotalBitmapAssets(address account, uint256 currencyId)
+    function getTotalBitmapAssets(address account, uint16 currencyId)
         external
         view
         returns (uint256)
@@ -46,7 +46,7 @@ contract SettlementHarness {
         return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
 
-    function getSettlementRate(uint256 currencyId, uint256 maturity)
+    function getSettlementRate(uint16 currencyId, uint256 maturity)
         external
         view
         returns (int256)
@@ -55,7 +55,7 @@ contract SettlementHarness {
         return ar.rate;
     }
 
-    function getCashBalance(address account, uint256 currencyId) external view returns (int256) {
+    function getCashBalance(address account, uint16 currencyId) external view returns (int256) {
         BalanceState memory balanceState;
         BalanceHandler.loadBalanceState(balanceState, account, currencyId, symbolicAccountContext);
 
@@ -115,28 +115,7 @@ contract SettlementHarness {
     }
 
     function settleAccount(address account) external {
-        // This is an approximation of what happens in SettleAssetsExternal._settleAccount
-        SettleAmount[] memory settleAmounts;
-
-        if (symbolicAccountContext.bitmapCurrencyId != 0) {
-            settleAmounts = SettleAssetsExternal._settleBitmappedAccountStateful(
-                account,
-                symbolicAccountContext
-            );
-        } else {
-            settleAmounts = SettlePortfolioAssets.settlePortfolio(
-                symbolicPortfolioState,
-                block.timestamp
-            );
-
-            symbolicAccountContext.storeAssetsAndUpdateContext(
-                account,
-                symbolicPortfolioState,
-                false
-            );
-        }
-
-        BalanceHandler.finalizeSettleAmounts(account, symbolicAccountContext, settleAmounts);
+        SettleAssetsExternal.settleAccount(account, symbolicAccountContext);
     }
 
     function setifCashAsset(
@@ -146,18 +125,13 @@ contract SettlementHarness {
         uint256 nextSettleTime,
         int256 notional
     ) external returns (int256) {
-        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        (bytes32 newBitmap, int256 finalNotional) = BitmapAssetsHandler.addifCashAsset(
+        return BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             nextSettleTime,
-            notional,
-            bitmap
+            notional
         );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
-
-        return finalNotional;
     }
 
     function validateAssetExists(

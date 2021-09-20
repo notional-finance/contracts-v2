@@ -31,9 +31,9 @@ contract StorageHarness is GovernanceAction {
         uint8 liquidationDiscount
     ) external {
         this.listCurrency(
-            TokenStorage(assetToken, assetTokenHasFee, assetTokenType),
-            TokenStorage(underlyingToken, underlyingTokenHasFee, underlyingTokenType),
-            rateOracle,
+            TokenStorage(assetToken, assetTokenHasFee, assetTokenType, 8, 0),
+            TokenStorage(underlyingToken, underlyingTokenHasFee, underlyingTokenType, 18, 0),
+            AggregatorV2V3Interface(rateOracle),
             mustInvert,
             buffer,
             haircut,
@@ -51,7 +51,12 @@ contract StorageHarness is GovernanceAction {
             uint8 tokenType
         )
     {
-        Token memory t = TokenHandler.getToken(currencyId, isUnderlying);
+        Token memory t;
+        if (isUnderlying) {
+            t = TokenHandler.getUnderlyingToken(currencyId);
+        } else {
+            t = TokenHandler.getAssetToken(currencyId);
+        }
         return (t.tokenAddress, t.hasTransferFee, t.decimals, uint8(t.tokenType));
     }
 
@@ -67,7 +72,8 @@ contract StorageHarness is GovernanceAction {
             uint256 totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters,
+            uint8 assetArrayLength,
+            bytes5 nTokenParameters,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
         )
@@ -76,6 +82,7 @@ contract StorageHarness is GovernanceAction {
             currencyId,
             incentiveAnnualEmissionRate,
             lastInitializedTime,
+            assetArrayLength,
             nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
@@ -111,7 +118,8 @@ contract StorageHarness is GovernanceAction {
             uint256 currencyId,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
-            bytes6 nTokenParameters
+            uint8 assetArrayLength,
+            bytes5 nTokenParameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
         return (
@@ -120,7 +128,7 @@ contract StorageHarness is GovernanceAction {
             uint8(nTokenParameters[Constants.RESIDUAL_PURCHASE_TIME_BUFFER]),
             uint8(nTokenParameters[Constants.CASH_WITHHOLDING_BUFFER]),
             uint8(nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]),
-            uint8(nTokenParameters[Constants.ASSET_ARRAY_LENGTH]),
+            assetArrayLength,
             currencyId,
             incentiveAnnualEmissionRate,
             lastInitializedTime
@@ -278,7 +286,7 @@ contract StorageHarness is GovernanceAction {
     {
         AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(currencyId);
 
-        return (ar.rateOracle, ar.rate, ar.underlyingDecimals);
+        return (address(ar.rateOracle), ar.rate, ar.underlyingDecimals);
     }
 
     function verifySetAccountContext(address account, AccountContext memory accountContext)
@@ -333,18 +341,13 @@ contract StorageHarness is GovernanceAction {
         uint256 nextSettleTime,
         int256 notional
     ) external returns (int256) {
-        bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        (bytes32 newBitmap, int256 finalNotional) = BitmapAssetsHandler.addifCashAsset(
+        return BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             nextSettleTime,
-            notional,
-            bitmap
+            notional
         );
-        BitmapAssetsHandler.setAssetsBitmap(account, currencyId, newBitmap);
-
-        return finalNotional;
     }
 
     function verifyfCashNotional(

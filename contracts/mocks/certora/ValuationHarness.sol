@@ -64,7 +64,7 @@ contract ValuationHarness {
         uint256 blockTime,
         uint256 oracleRate
     ) external view returns (int256) {
-        return AssetHandler.getPresentValue(notional, maturity, blockTime, oracleRate);
+        return AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
     }
 
     function getRiskAdjustedPresentValue(
@@ -74,7 +74,7 @@ contract ValuationHarness {
         uint256 oracleRate
     ) external view returns (int256) {
         return
-            AssetHandler.getRiskAdjustedPresentValue(
+            AssetHandler.getRiskAdjustedPresentfCashValue(
                 symbolicCashGroup,
                 notional,
                 maturity,
@@ -169,11 +169,6 @@ contract ValuationHarness {
         bool riskAdjusted
     ) external view returns (int256) {
         require(symbolicAccountContext.nextSettleTime >= blockTime);
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(
-            account,
-            symbolicAccountContext.bitmapCurrencyId
-        );
-
         // prettier-ignore
         (int256 pv, /* hasDebt */) =
             BitmapAssetsHandler.getifCashNetPresentValue(
@@ -181,7 +176,6 @@ contract ValuationHarness {
                 symbolicAccountContext.bitmapCurrencyId,
                 symbolicAccountContext.nextSettleTime,
                 blockTime,
-                assetsBitmap,
                 symbolicCashGroup,
                 riskAdjusted
             );

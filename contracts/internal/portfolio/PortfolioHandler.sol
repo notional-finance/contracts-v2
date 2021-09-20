@@ -258,7 +258,7 @@ library PortfolioHandler {
         bytes32 portfolioActiveCurrencies,
         uint256 nextSettleTime
     )
-        private
+        internal
         pure
         returns (
             bool,
@@ -397,7 +397,7 @@ library PortfolioHandler {
     }
 
     function _loadAssetArray(address account, uint8 length)
-        private
+        internal
         view
         returns (PortfolioAsset[] memory)
     {

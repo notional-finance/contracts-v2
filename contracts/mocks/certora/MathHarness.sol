@@ -135,7 +135,7 @@ contract MathHarness {
 
     ///////////// Floating 56 //////////////////
     function packTo56Bits(uint256 value) public pure returns (bytes32) {
-        return FloatingPoint56.packTo56Bits(value);
+        return bytes32(uint256(FloatingPoint56.packTo56Bits(value)));
     }
 
     function unpackFrom56Bits(uint256 value) public pure returns (uint256) {
@@ -160,7 +160,7 @@ contract MathHarness {
         int256 balance,
         uint8 decimals
     ) public pure returns (int256) {
-        AssetRateParameters memory ar = AssetRateParameters(address(0), rate, int256(10**decimals));
+        AssetRateParameters memory ar = AssetRateParameters(AssetRateAdapter(address(0)), rate, int256(10**decimals));
         return AssetRate.convertToUnderlying(ar, balance);
     }
 
@@ -169,7 +169,7 @@ contract MathHarness {
         int256 balance,
         uint8 decimals
     ) public pure returns (int256) {
-        AssetRateParameters memory ar = AssetRateParameters(address(0), rate, int256(10**decimals));
+        AssetRateParameters memory ar = AssetRateParameters(AssetRateAdapter(address(0)), rate, int256(10**decimals));
         return AssetRate.convertFromUnderlying(ar, balance);
     }
 

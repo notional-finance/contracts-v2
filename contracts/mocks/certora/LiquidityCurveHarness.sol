@@ -15,7 +15,7 @@ contract LiquidityCurveHarness {
     MarketParameters symbolicMarket;
 
     uint256 private constant MARKET_INDEX = 1;
-    uint256 private constant CURRENCY_ID = 1;
+    uint16 private constant CURRENCY_ID = 1;
     uint256 public constant MATURITY = 86400 * 360 * 30;
 
     function getRateScalar(uint256 timeToMaturity) external view returns (int256) {
@@ -44,16 +44,16 @@ contract LiquidityCurveHarness {
 
     function getStoredOracleRate() external view returns (uint256) {
         uint256 settlementDate = DateTime.getReferenceTime(block.timestamp) + Constants.QUARTER;
-        bytes32 slot = Market.getSlot(CURRENCY_ID, settlementDate, MATURITY);
-        bytes32 data;
+        // bytes32 slot = Market.getSlot(CURRENCY_ID, settlementDate, MATURITY);
+        // bytes32 data;
 
-        assembly {
-            data := sload(slot)
-        }
+        // assembly {
+        //     data := sload(slot)
+        // }
 
-        uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
+        // uint256 oracleRate = uint256(uint32(uint256(data >> 192)));
 
-        return oracleRate;
+        return 0;
     }
 
     function getLastImpliedRate() external view returns (uint256) {
@@ -98,7 +98,6 @@ contract LiquidityCurveHarness {
             timeToMaturity,
             MARKET_INDEX
         );
-        market.setMarketStorage();
         symbolicMarket = market;
         symbolicCashGroup = cashGroup;
         return (netAssetCash, netAssetCashToReserve);
@@ -108,7 +107,6 @@ contract LiquidityCurveHarness {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         int256 marketfCashBefore = market.totalfCash;
         (int256 liquidityTokens, int256 fCashToAccount) = market.addLiquidity(assetCash);
-        market.setMarketStorage();
         symbolicMarket = market;
 
         // Check the assertion in here because the prover does not handle negative integers
@@ -120,7 +118,6 @@ contract LiquidityCurveHarness {
     function removeLiquidity(int256 tokensToRemove) external returns (int256, int256) {
         MarketParameters memory market = symbolicMarket; //_loadMarket();
         (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
-        market.setMarketStorage();
         symbolicMarket = market;
         return (assetCash, fCash);
     }

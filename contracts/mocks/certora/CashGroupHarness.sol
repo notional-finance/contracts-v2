@@ -12,7 +12,7 @@ contract CashGroupHarness {
     }
 
     function getRateScalar(
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 marketIndex,
         uint256 timeToMaturity
     ) public returns (int256 rateScalar) {
@@ -22,14 +22,14 @@ contract CashGroupHarness {
         assert(cgv.getRateScalar(marketIndex, timeToMaturity) == rateScalar);
     }
 
-    function getTotalFee(uint256 currencyId) public returns (uint256 fee) {
+    function getTotalFee(uint16 currencyId) public returns (uint256 fee) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         fee = cg.getTotalFee();
         assert(cgv.getTotalFee() == fee);
     }
 
-    function getReserveFeeShare(uint256 currencyId) public returns (int256 share) {
+    function getReserveFeeShare(uint16 currencyId) public returns (int256 share) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         share = cg.getReserveFeeShare();
@@ -37,7 +37,7 @@ contract CashGroupHarness {
         return share;
     }
 
-    function getLiquidityHaircut(uint256 currencyId, uint256 assetType)
+    function getLiquidityHaircut(uint16 currencyId, uint256 assetType)
         public
         returns (uint256 haircut)
     {
@@ -47,49 +47,49 @@ contract CashGroupHarness {
         assert(cgv.getLiquidityHaircut(assetType) == haircut);
     }
 
-    function getfCashHaircut(uint256 currencyId) public returns (uint256 haircut) {
+    function getfCashHaircut(uint16 currencyId) public returns (uint256 haircut) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         haircut = cg.getfCashHaircut();
         assert(cgv.getfCashHaircut() == haircut);
     }
 
-    function getDebtBuffer(uint256 currencyId) public returns (uint256 buffer) {
+    function getDebtBuffer(uint16 currencyId) public returns (uint256 buffer) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         buffer = cg.getDebtBuffer();
         assert(cgv.getDebtBuffer() == buffer);
     }
 
-    function getRateOracleTimeWindow(uint256 currencyId) public returns (uint256 window) {
+    function getRateOracleTimeWindow(uint16 currencyId) public returns (uint256 window) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         window = cg.getRateOracleTimeWindow();
         assert(cgv.getRateOracleTimeWindow() == window);
     }
 
-    function getSettlementPenalty(uint256 currencyId) public returns (uint256 penalty) {
+    function getSettlementPenalty(uint16 currencyId) public returns (uint256 penalty) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         penalty = cg.getSettlementPenalty();
         assert(cgv.getSettlementPenalty() == penalty);
     }
 
-    function getLiquidationfCashHaircut(uint256 currencyId) public returns (uint256 haircut) {
+    function getLiquidationfCashHaircut(uint16 currencyId) public returns (uint256 haircut) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         haircut = cg.getLiquidationfCashHaircut();
         assert(cgv.getLiquidationfCashHaircut() == haircut);
     }
 
-    function getLiquidationDebtBuffer(uint256 currencyId) public returns (uint256 buffer) {
+    function getLiquidationDebtBuffer(uint16 currencyId) public returns (uint256 buffer) {
         CashGroupParameters memory cg = CashGroup.buildCashGroupStateful(currencyId);
         CashGroupParameters memory cgv = CashGroup.buildCashGroupView(currencyId);
         buffer = cg.getLiquidationDebtBuffer();
         assert(cgv.getLiquidationDebtBuffer() == buffer);
     }
 
-    function deserializeCashGroupStorage(uint256 currencyId)
+    function deserializeCashGroupStorage(uint16 currencyId)
         public
         view
         returns (CashGroupSettings memory)

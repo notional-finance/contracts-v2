@@ -109,7 +109,7 @@ contract AccountPortfolioHarness {
 
     function enableBitmapForAccount(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = symbolicAccountContext;
@@ -129,7 +129,7 @@ contract AccountPortfolioHarness {
 
         PortfolioState memory portfolioState = symbolicPortfolioState;
             
-        portfolioState.addAsset(currencyId, maturity, assetType, notional, false);
+        portfolioState.addAsset(currencyId, maturity, assetType, notional);
 
         symbolicAccountContext = accountContext;
     }
@@ -140,17 +140,12 @@ contract AccountPortfolioHarness {
         int256 notional
     ) public {
         AccountContext memory accountContext = symbolicAccountContext;
-        bytes32 ifCashBitmap =
-            BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-        int256 finalfCashAmount;
-
-        (ifCashBitmap, finalfCashAmount) = BitmapAssetsHandler.addifCashAsset(
+        int256 finalfCashAmount = BitmapAssetsHandler.addifCashAsset(
             account,
             accountContext.bitmapCurrencyId,
             maturity,
             accountContext.nextSettleTime,
-            notional,
-            ifCashBitmap
+            notional
         );
 
         // This is a replication of logic in trading action...
@@ -158,13 +153,12 @@ contract AccountPortfolioHarness {
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
         }
 
-        BitmapAssetsHandler.setAssetsBitmap(account, accountContext.bitmapCurrencyId, ifCashBitmap);
         symbolicAccountContext = accountContext;
     }
 
     function finalizeCashBalance(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         int256 netCashChange,
         int256 netAssetTransferInternalPrecision,
         bool redeemToUnderlying
@@ -181,17 +175,17 @@ contract AccountPortfolioHarness {
 
     function setBalanceStorageForSettleCashDebt(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         int256 amountToSettleAsset
     ) external {
-        AccountContext memory accountContext = symbolicAccountContext;
-        BalanceHandler.setBalanceStorageForSettleCashDebt(
-            account,
-            currencyId,
-            amountToSettleAsset,
-            accountContext
-        );
-        symbolicAccountContext = accountContext;
+        // AccountContext memory accountContext = symbolicAccountContext;
+        // BalanceHandler.setBalanceStorageForSettleCashDebt(
+        //     account,
+        //     currencyId,
+        //     amountToSettleAsset,
+        //     accountContext
+        // );
+        // symbolicAccountContext = accountContext;
     }
 
 

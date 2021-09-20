@@ -85,4 +85,12 @@ contract GovernanceActionHarness is GovernanceAction {
     function getOwner() external view returns (address) {
         return owner;
     }
+
+    function getPauseGuardian() external view returns (address) {
+        return pauseGuardian;
+    }
+
+    function getPauseRouter() external view returns (address) {
+        return pauseRouter;
+    }
 }
