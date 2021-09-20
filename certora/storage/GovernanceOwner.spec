@@ -2,7 +2,9 @@ methods {
     getOwner() returns address envfree
 }
 
-rule onlyOwnerCanUpdateGovernace(method f) filtered { f -> !f.isView } {
+rule onlyOwnerCanUpdateGovernace(method f) filtered { f -> !f.isView } 
+description "all methods exposed on governance can only be called by the owner"
+{
     env e;
     calldataarg arg;
     address ownerBefore = getOwner();

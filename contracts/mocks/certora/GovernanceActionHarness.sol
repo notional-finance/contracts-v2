@@ -2,6 +2,7 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
+import "../../global/LibStorage.sol";
 import "../../external/actions/GovernanceAction.sol";
 
 contract GovernanceActionHarness is GovernanceAction {
@@ -29,8 +30,8 @@ contract GovernanceActionHarness is GovernanceAction {
         view
         returns (Token memory assetToken, Token memory underlyingToken)
     {
-        assetToken = TokenHandler.getToken(currencyId, false);
-        underlyingToken = TokenHandler.getToken(currencyId, true);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
     }
 
     /// @notice Returns the ETH and Asset rates for a currency as stored, useful for viewing how they are configured
@@ -39,8 +40,10 @@ contract GovernanceActionHarness is GovernanceAction {
         view
         returns (ETHRateStorage memory ethRate, AssetRateStorage memory assetRate)
     {
-        ethRate = underlyingToETHRateMapping[currencyId];
-        assetRate = assetToUnderlyingRateMapping[currencyId];
+        mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        ethRate = ethStore[currencyId];
+        assetRate = assetStore[currencyId];
     }
 
     function getMaxMarketIndex(uint16 currencyId) external view returns (uint256) {
