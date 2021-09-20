@@ -5,7 +5,8 @@ methods {
         uint256 totalSupply,
         uint256 incentiveAnnualEmissionRate,
         uint256 lastInitializedTime,
-        bytes6 nTokenParameters,
+        uint8 arrayLen,
+        bytes5 nTokenParameters,
         uint256 integralTotalSupply,
         uint256 lastSupplyChangeTime
     ) envfree;
@@ -49,7 +50,6 @@ methods {
         ) envfree;
     addIsEqual(uint256 totalSupply, int256 netChange, uint256 totalSupplyAfter) returns (bool) envfree;
 
-    decimals() => ALWAYS(6);
     approve(address, uint256) => DISPATCHER(true);
 }
 
@@ -89,19 +89,22 @@ rule updateIncentiveEmissionRateSetsProperly(
     require nTokenAddress(currencyId) == tokenAddress;
     uint256 _currencyId;
     uint256 _lastInitializedTime;
-    bytes6 _nTokenParameters;
-    _currencyId, _, _, _lastInitializedTime, _nTokenParameters, _, _ = getNTokenAccount(tokenAddress);
+    uint8 _arrayLen;
+    bytes5 _nTokenParameters;
+    _currencyId, _, _, _lastInitializedTime, _arrayLen, _nTokenParameters, _, _ = getNTokenAccount(tokenAddress);
 
     updateIncentiveEmissionRate(e, currencyId, newEmissionRate);
     uint256 incentiveEmissionRate;
     uint256 currencyId_;
     uint256 lastInitializedTime_;
-    bytes6 nTokenParameters_;
-    currencyId_, _, incentiveEmissionRate, lastInitializedTime_, nTokenParameters_, _, _ = getNTokenAccount(tokenAddress);
+    uint8 arrayLen_;
+    bytes5 nTokenParameters_;
+    currencyId_, _, incentiveEmissionRate, lastInitializedTime_, arrayLen_, nTokenParameters_, _, _ = getNTokenAccount(tokenAddress);
     assert incentiveEmissionRate == newEmissionRate;
     assert _currencyId == currencyId_;
     assert _lastInitializedTime == lastInitializedTime_;
     assert _nTokenParameters == nTokenParameters_;
+    assert _arrayLen == arrayLen_;
 }
 
 // PASSES
@@ -160,7 +163,7 @@ rule updateNTokenSupplySetsProperly(
     uint256 _integralTotalSupply;
     uint256 _lastSupplyChangeTime;
 
-    _, _totalSupply, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
+    _, _totalSupply, _, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
     require _lastSupplyChangeTime < e.block.timestamp;
     // It cannot be that there is an integral total supply value if last supply change time is zero.
     require _lastSupplyChangeTime == 0 => _integralTotalSupply == 0;
@@ -169,7 +172,7 @@ rule updateNTokenSupplySetsProperly(
     uint256 totalSupply_;
     uint256 integralTotalSupply_;
     uint256 lastSupplyChangeTime_;
-    _, totalSupply_, _, _, _, integralTotalSupply_, lastSupplyChangeTime_ = getNTokenAccount(tokenAddress);
+    _, totalSupply_, _, _, _, _, integralTotalSupply_, lastSupplyChangeTime_ = getNTokenAccount(tokenAddress);
 
     assert netChange != 0 => addIsEqual(_totalSupply, netChange, totalSupply_);
     assert netChange != 0 => lastSupplyChangeTime_ == e.block.timestamp;
@@ -193,7 +196,7 @@ rule updateNTokenIntegralSupplyCalculatesProperly(
     uint256 _integralTotalSupply;
     uint256 _lastSupplyChangeTime;
 
-    _, _totalSupply, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
+    _, _totalSupply, _, _, _, _, _integralTotalSupply, _lastSupplyChangeTime = getNTokenAccount(tokenAddress);
     require _lastSupplyChangeTime < e.block.timestamp;
     // It cannot be that there is an integral total supply value if last supply change time is zero.
     require _lastSupplyChangeTime == 0 => _integralTotalSupply == 0;
@@ -378,7 +381,7 @@ rule listingCurrencySetsProperly(
 
     assert assetToken_ == assetToken;
     assert assetTokenHasFee_ == false;
-    assert assetTokenDecimals_ == 1;
+    assert assetTokenDecimals_ == 10^8;
 
     address underlyingToken_;
     bool underlyingTokenHasFee_;
@@ -387,5 +390,5 @@ rule listingCurrencySetsProperly(
 
     assert underlyingToken_ == underlyingToken;
     assert underlyingTokenHasFee_ == false;
-    assert underlyingTokenDecimals_ == 1;
+    assert underlyingTokenDecimals_ == 10^18;
 }
