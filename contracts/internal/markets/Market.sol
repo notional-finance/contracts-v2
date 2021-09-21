@@ -689,7 +689,7 @@ library Market {
     }
 
     function setSettlementMarket(SettlementMarket memory market) internal {
-        bytes32 slot = market.storageSlot;
+        /*bytes32 slot = market.storageSlot;
         bytes32 data;
         require(market.totalfCash >= 0 && market.totalfCash <= type(uint80).max); // dev: settlement market storage totalfCash overflow
         require(market.totalAssetCash >= 0 && market.totalAssetCash <= type(uint80).max); // dev: settlement market storage totalAssetCash overflow
@@ -709,7 +709,7 @@ library Market {
         bytes32 totalLiquidity = bytes32(market.totalLiquidity);
         assembly {
             sstore(slot, totalLiquidity)
-        }
+        }*/
     }
 
     /// Uses Newton's method to converge on an fCash amount given the amount of
