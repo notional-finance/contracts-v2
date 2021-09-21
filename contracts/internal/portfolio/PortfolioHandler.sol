@@ -176,20 +176,20 @@ library PortfolioHandler {
 
             if (asset.storageState == AssetStorageState.Delete) {
                 // Delete asset from storage
-                uint256 currentSlot = asset.storageSlot;
+                /*uint256 currentSlot = asset.storageSlot;
                 assembly {
                     sstore(currentSlot, 0x00)
-                }
+                }*/
                 continue;
             }
 
             if (portfolioState.storedAssets[i].storageState == AssetStorageState.Update) {
                 // Apply updates
-                uint256 currentSlot = asset.storageSlot;
+                /*uint256 currentSlot = asset.storageSlot;
                 bytes32 encodedAsset = _encodeAssetToBytes(portfolioState.storedAssets[i]);
                 assembly {
                     sstore(currentSlot, encodedAsset)
-                }
+                }*/
             }
 
             (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
@@ -379,7 +379,7 @@ library PortfolioHandler {
     {
         PortfolioAsset[] memory assets = new PortfolioAsset[](length);
         uint256 slot =
-            uint256(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)));
+            uint256(keccak256(abi.encode(keccak256(abi.encode(account, Constants.PORTFOLIO_ARRAY_STORAGE_OFFSET)))));
 
         for (uint256 i; i < length; i++) {
             bytes32 data;
