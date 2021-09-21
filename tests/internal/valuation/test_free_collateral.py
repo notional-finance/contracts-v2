@@ -1,7 +1,10 @@
 import logging
 import random
+from collections import OrderedDict
 
 import pytest
+from brownie.convert import to_bytes
+from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import (
@@ -41,6 +44,23 @@ class TestFreeCollateral:
         netLocal = txn.events["FreeCollateralResult"][0]["netLocal"]
 
         return (fc, netLocal, txn)
+
+    def set_random_balances(self, freeCollateral, accounts, bitmapCurrency=0):
+        balanceAssetPV = OrderedDict({})
+
+        for currency in range(1, 5):
+            if bitmapCurrency == currency:
+                cashBalance = random.randint(0, 100_000e8)
+            else:
+                cashBalance = random.randint(-100_000e8, 100_000e8)
+
+            nTokens = random.randint(0, 100_000e8)
+            freeCollateral.mock.setBalance(accounts[0], currency, cashBalance, nTokens)
+            nTokenAsset = freeCollateral.calculate_ntoken_to_asset(currency, nTokens)
+
+            balanceAssetPV[currency] = nTokenAsset + cashBalance
+
+        return balanceAssetPV
 
     # Test Single Free Collateral Components
     @given(
@@ -90,9 +110,9 @@ class TestFreeCollateral:
         numAssets=strategy("uint", min_value=0, max_value=6),
         numCurrencies=strategy("uint", min_value=1, max_value=4),
     )
-    @pytest.mark.only
     def test_portfolio_valuation(self, freeCollateral, accounts, numAssets, numCurrencies):
-        # TODO: set additional balances...
+        balanceAssetPV = self.set_random_balances(freeCollateral, accounts)
+
         cashGroups = []
         for i in range(1, numCurrencies + 1):
             cashGroups.append(freeCollateral.cashGroups[i])
@@ -100,19 +120,13 @@ class TestFreeCollateral:
         freeCollateral.mock.setPortfolio(accounts[0], assets)
 
         i = 0
-        netLocalIndex = 0
-        ethFC = 0
         (fc, netLocal, _) = self.get_fc_and_net_local(freeCollateral, accounts)
         while i < len(assets):
             currency = assets[i][0]
             (assetCashValue, i) = freeCollateral.mock.getNetCashGroupValue(assets, START_TIME, i)
 
             # Check that net local is correct on each loop
-            assert netLocal[netLocalIndex] == assetCashValue
-            netLocalIndex += 1
-
-            underlying = freeCollateral.calculate_to_underlying(currency, assetCashValue)
-            ethFC += freeCollateral.calculate_to_eth(currency, underlying)
+            balanceAssetPV[currency] += assetCashValue
 
             if i < len(assets):
                 # Assert that the currency id is split
@@ -124,6 +138,16 @@ class TestFreeCollateral:
                 # Should not reach this condition
                 assert False
 
+        # Get any other currencies that we haven't caught in the loop above
+        ethFC = 0
+        netLocalIndex = 0
+        for currency in balanceAssetPV.keys():
+            underlying = freeCollateral.calculate_to_underlying(currency, balanceAssetPV[currency])
+            ethFC += freeCollateral.calculate_to_eth(currency, underlying)
+
+            assert netLocal[netLocalIndex] == balanceAssetPV[currency]
+            netLocalIndex += 1
+
         assert pytest.approx(fc, abs=20) == ethFC
 
     @given(
@@ -131,9 +155,9 @@ class TestFreeCollateral:
         currency=strategy("uint", min_value=1, max_value=4),
     )
     def test_bitmap_valuation(self, freeCollateral, accounts, numAssets, currency):
-        # TODO: set additional balances...
-
         freeCollateral.mock.enableBitmapForAccount(accounts[0], currency, START_TIME_TREF)
+        balanceAssetPV = self.set_random_balances(freeCollateral, accounts, bitmapCurrency=currency)
+
         for i in range(0, numAssets):
             bitNum = random.randint(1, 130)
             maturity = freeCollateral.mock.getMaturityFromBitNum(START_TIME_TREF, bitNum)
@@ -150,10 +174,23 @@ class TestFreeCollateral:
 
         (fc, netLocal, _) = self.get_fc_and_net_local(freeCollateral, accounts, START_TIME_TREF)
 
-        netLocalAsset = freeCollateral.calculate_from_underlying(currency, presentValue)
-        assert pytest.approx(netLocal[0], abs=1) == netLocalAsset
+        balanceAssetPV[currency] += freeCollateral.calculate_from_underlying(currency, presentValue)
+        bitmapBalanceUnderlying = freeCollateral.calculate_to_underlying(
+            currency, balanceAssetPV[currency]
+        )
+        # The first netLocal value will be the bitmap portfolio's currency
+        assert pytest.approx(netLocal[0], abs=1) == balanceAssetPV.pop(currency)
 
-        ethFC = freeCollateral.calculate_to_eth(currency, presentValue)
+        netLocalIndex = 1
+        ethFC = freeCollateral.calculate_to_eth(currency, bitmapBalanceUnderlying)
+        # Check the remaining keys
+        for c in balanceAssetPV.keys():
+            underlying = freeCollateral.calculate_to_underlying(c, balanceAssetPV[c])
+            ethFC += freeCollateral.calculate_to_eth(c, underlying)
+
+            assert netLocal[netLocalIndex] == balanceAssetPV[c]
+            netLocalIndex += 1
+
         assert pytest.approx(fc, abs=20) == ethFC
 
     # Test Update Context, these tests also check that FC does NOT update the
@@ -317,12 +354,17 @@ class TestFreeCollateral:
         else:
             assert factors[9][0] == 0
 
-        # Cash group asset rate reference (must be set regardless)
-        assert (
-            factors[9][2][0] == freeCollateral.cTokenAdapters[local].address
-            if collateral == 0
-            else freeCollateral.cTokenAdapters[collateral].address
-        )
+        if collateral != 0:
+            # Cash group asset rate reference set to collateral
+            assert factors[9][2][0] == freeCollateral.cTokenAdapters[collateral].address
+        elif len(localAssets) > 0 or localBalance[2] > 0:
+            # Cash group asset rate reference set to local if it has assets
+            assert factors[9][2][0] == freeCollateral.cTokenAdapters[local].address
+        else:
+            # This is the case during local liquidation if there are only cash assets in
+            # the local currency, there is no way to liquidate in this way
+            assert factors[9][2][0] == HexString(to_bytes(0, "bytes20"), "bytes")
+
         # isCalculation == false
         assert not factors[10]
 
@@ -357,8 +399,8 @@ class TestFreeCollateral:
         freeCollateral.mock.setPortfolio(
             accounts[0],
             [
-                get_fcash_token(1, currency=1, notional=-10000e8),
-                get_fcash_token(1, currency=3, notional=-10000e8),
+                get_fcash_token(1, currencyId=1, notional=-10000e8),
+                get_fcash_token(1, currencyId=3, notional=-10000e8),
             ],
         )
 
