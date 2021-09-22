@@ -271,7 +271,7 @@ library LiquidateCurrency {
             int256 liquidationDiscount
         )
     {
-        // This function will give us the ETHDenominatedFreeCollateralShortfall and liquidation Discount which
+        // This function will give us the collateralDenominatedFreeCollateralShortfall and liquidation Discount which
         // we will need for the following calculations.
         int256 assetCashBenefitRequired;
         (assetCashBenefitRequired, liquidationDiscount) = LiquidationHelpers
