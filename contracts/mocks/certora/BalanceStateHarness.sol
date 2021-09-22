@@ -30,4 +30,14 @@ contract BalanceStateHarness {
     function getNetNTokenSupplyChange() external returns (int256) { return symbolicBalanceState.netNTokenSupplyChange; }
     function getLastClaimTime() external returns (uint256) { return symbolicBalanceState.lastClaimTime; }
     function getLastClaimSupply() external returns (uint256) { return symbolicBalanceState.lastClaimSupply; }
+
+// function getToken(uint x, bool y) external returns (address) {
+//     if (y) {
+//         return chosenUnderlyingToken();
+//     } else {
+//         return chosenAssetToken();
+//     }
+// }
+
+
 }

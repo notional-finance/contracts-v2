@@ -107,6 +107,25 @@ library TokenHandler {
         }
     }
 
+    // contract cDAI is ERC20 {
+    //     IERC20 DAI = 0x31214434134234235;
+    //     mapping(address => uint256) balances;
+    //     function mint(uint value) external {
+    //         DAI.transferFrom(msg.sender, value);
+    //         balances[msg.sender] += value;
+    //         totalSupply += value;
+    //     }
+
+    //     function mint() external payable {
+    //         balances[msg.sender] += msg.value;
+    //         totalSupply += msg.value;
+    //     }
+
+    //     function withdraw() {
+
+    //     }
+    // }
+
     /// @notice This method only works with cTokens, it's unclear how we can make this more generic
     function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
         uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));

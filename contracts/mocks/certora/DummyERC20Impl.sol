@@ -3,9 +3,9 @@ pragma solidity ^0.7.0;
 
 // with mint
 contract DummyERC20Impl {
-    uint256 t;
-    mapping (address => uint256) b;
-    mapping (address => mapping (address => uint256)) a;
+    uint256 totalSupplys;
+    mapping (address => uint256) balances;
+    mapping (address => mapping (address => uint256)) allowances;
 
     string public name;
     string public symbol;
@@ -16,31 +16,31 @@ contract DummyERC20Impl {
     }
 
     function add(uint a, uint b) internal pure returns (uint256) {
-        uint c = a +b;
+        uint c = a + b;
         require (c >= a);
         return c;
     }
-    function sub(uint a, uint b) internal pure returns (uint256) {
-        require (a>=b);
-        return a-b;
+    function sub(uint a, uint balance) internal pure returns (uint256) {
+        require (a>=balance);
+        return a-balance;
     }
 
     function totalSupply() external view returns (uint256) {
-        return t;
+        return totalSupplys;
     }
     function balanceOf(address account) external view returns (uint256) {
-        return b[account];
+        return balances[account];
     }
     function transfer(address recipient, uint256 amount) external returns (bool) {
-        b[msg.sender] = sub(b[msg.sender], amount);
-        b[recipient] = add(b[recipient], amount);
+        balances[msg.sender] = sub(balances[msg.sender], amount);
+        balances[recipient] = add(balances[recipient], amount);
         return true;
     }
     function allowance(address owner, address spender) external view returns (uint256) {
-        return a[owner][spender];
+        return allowances[owner][spender];
     }
     function approve(address spender, uint256 amount) external returns (bool) {
-        a[msg.sender][spender] = amount;
+        allowances[msg.sender][spender] = amount;
         return true;
     }
 
@@ -49,9 +49,14 @@ contract DummyERC20Impl {
         address recipient,
         uint256 amount
     ) external returns (bool) {
-        b[sender] = sub(b[sender], amount);
-        b[recipient] = add(b[recipient], amount);
-        a[sender][msg.sender] = sub(a[sender][msg.sender], amount);
+        balances[sender] = sub(balances[sender], amount);
+        balances[recipient] = add(balances[recipient], amount);
+        allowances[sender][msg.sender] = sub(allowances[sender][msg.sender], amount);
         return true;
+    }
+
+    function mint() external payable virtual {
+        totalSupplys = add(totalSupplys, msg.value);
+        balances[msg.sender] = add(balances[msg.sender], msg.value);
     }
 }
