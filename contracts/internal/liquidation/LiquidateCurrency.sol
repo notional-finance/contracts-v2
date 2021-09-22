@@ -394,7 +394,10 @@ library LiquidateCurrency {
         // Do this to deal with stack issues
         WithdrawFactors memory w;
 
-        for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
+        // Loop through the stored assets in reverse order. This ensures that we withdraw the longest dated
+        // liquidity tokens first. Longer dated liquidity tokens will generally have larger haircuts and therefore
+        // provide more benefit when withdrawn.
+        for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             // NOTE: during local liquidation, if the account has assets in local currency then
             // collateral cash group will be set to the local cash group
@@ -492,7 +495,10 @@ library LiquidateCurrency {
         require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
         MarketParameters memory market;
 
-        for (uint256 i = 0; i < portfolioState.storedAssets.length; i++) {
+        // Loop through the stored assets in reverse order. This ensures that we withdraw the longest dated
+        // liquidity tokens first. Longer dated liquidity tokens will generally have larger haircuts and therefore
+        // provide more benefit when withdrawn.
+        for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
             if (!_isValidWithdrawToken(asset, factors.collateralCashGroup.currencyId)) continue;
 

@@ -7,6 +7,7 @@ from brownie.network.state import Chain
 from tests.constants import (
     BASIS_POINT,
     RATE_PRECISION,
+    REPO_INCENTIVE,
     SECONDS_IN_YEAR,
     SETTLEMENT_DATE,
     START_TIME,
@@ -205,6 +206,7 @@ class ValuationMock:
         totalfCashResidual = 0
         totalHaircutCashClaim = 0
         totalCashClaimCalculated = 0
+        benefitsPerAsset = []
 
         if shares is None:
             shares = [random.randint(1, 100) for i in range(0, numTokens)]
@@ -228,8 +230,10 @@ class ValuationMock:
                 assets.append(get_fcash_token(marketIndex, currencyId=currency, notional=fCash))
 
             cashClaim = Wei((tokens * market[3]) / market[4])
+            haircutCashClaim = Wei(cashClaim * haircuts[i] / 100)
             totalCashClaimCalculated += cashClaim
-            totalHaircutCashClaim += Wei(cashClaim * haircuts[i] / 100)
+            totalHaircutCashClaim += haircutCashClaim
+            maxIncentive = Wei((cashClaim - haircutCashClaim) * REPO_INCENTIVE / 100)
 
             residualfCash = Wei((tokens * market[2]) / market[4]) + fCash
             haircutResidual = Wei((tokens * market[2] * haircuts[i]) / (market[4] * 100)) + fCash
@@ -250,12 +254,22 @@ class ValuationMock:
                 ),
             )
 
+            # Calculate the max incentive per asset withdrawn
+            benefitsPerAsset.append(
+                {
+                    "benefit": cashClaim - haircutCashClaim,
+                    "maxIncentive": maxIncentive,
+                    "fCashResidualPVAsset": totalfCashResidual - totalHaircutfCashResidual,
+                }
+            )
+
         return (
             assets,
             totalCashClaimCalculated,
             totalHaircutCashClaim,
             totalfCashResidual,
             totalHaircutfCashResidual,
+            benefitsPerAsset,
         )
 
     def validate_market_changes(self, assetsBefore, assetsAfter, marketsBefore, marketsAfter):

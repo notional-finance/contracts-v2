@@ -8,7 +8,6 @@ from brownie.test import given, strategy
 from tests.internal.liquidation.liquidation_helpers import ValuationMock
 
 chain = Chain()
-REPO_INCENTIVE = 10
 
 """
 Liquidate Local Currency Test Matrix:
@@ -62,21 +61,32 @@ class TestLiquidateLocalNTokens:
         ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
 
     def get_liquidity_token_benefit(
-        self, liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
+        self, liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, benefitsPerAsset
     ):
         # The amount of benefit to the account is totalCashClaim - totalHaircutCashClaim - incentive
         benefit = totalCashClaim - totalHaircutCashClaim
         # Set a negative balance that is more than the haircut cash claim but less than the
         # total cash claim
         benefitPreIncentive = (benefit * ratio * 1e8) / 1e10
-        # Incentive cannot be above the total benefit amount
-        # TODO: expectedIncentive has to be calculated on a per asset basis based on the haircut
-        expectedIncentive = Wei(
-            min((benefitPreIncentive * REPO_INCENTIVE) / 100, benefit * REPO_INCENTIVE / 100)
-        )
-        benefitSubIncentive = benefitPreIncentive - expectedIncentive
 
-        return (benefitSubIncentive, expectedIncentive)
+        expectedIncentive = 0
+        fCashResidualPVAsset = 0
+        benefitsRequired = benefitPreIncentive
+        for b in reversed(benefitsPerAsset):
+            if (b["benefit"] - b["maxIncentive"]) > benefitsRequired:
+                # In this case we will withdraw all that remains
+                portion = benefitsRequired / (b["benefit"] - b["maxIncentive"])
+                expectedIncentive += Wei(b["maxIncentive"] * portion)
+                fCashResidualPVAsset += Wei(b["fCashResidualPVAsset"] * portion)
+                benefitsRequired = 0
+                break
+            else:
+                # In this case we have less benefit than required, withdraw part of it
+                expectedIncentive += b["maxIncentive"]
+                fCashResidualPVAsset += b["fCashResidualPVAsset"]
+                benefitsRequired = benefitsRequired - b["benefit"] + b["maxIncentive"]
+
+        return (benefitPreIncentive, expectedIncentive, fCashResidualPVAsset)
 
     @given(
         nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
@@ -354,18 +364,24 @@ class TestLiquidateLocalNTokens:
             totalHaircutCashClaim,
             totalfCashResidual,
             totalHaircutfCashResidual,
+            benefitsPerAsset,
         ) = liquidation.get_liquidity_tokens(currency, totalCashClaim, numTokens, blockTime)
         liquidation.mock.setPortfolio(accounts[0], assets)
 
         # Get the expected benefit and incentive paid
-        (benefitSubIncentive, expectedIncentive) = self.get_liquidity_token_benefit(
-            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
+        (
+            benefitPreIncentive,
+            expectedIncentive,
+            fCashResidualPVAsset,
+        ) = self.get_liquidity_token_benefit(
+            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, benefitsPerAsset
         )
         cashBalance = -Wei(
-            (totalHaircutCashClaim + totalHaircutfCashResidual) + benefitSubIncentive
+            (totalHaircutCashClaim + totalHaircutfCashResidual) + benefitPreIncentive
         )
         liquidation.mock.setBalance(accounts[0], currency, cashBalance, 0)
 
+        # FC here is -(benefitPreIncentive * buffer)
         (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
         # Check that the amounts are correct
@@ -395,16 +411,13 @@ class TestLiquidateLocalNTokens:
 
         # Test the liquidator side of the transaction
         assert nTokensPurchased == 0
-        # TODO: these are incorrect over multiple tokens because they assume an average,
-        # which is not true...
-        # assert pytest.approx(localAssetCashFromLiquidator, abs=10) == -expectedIncentive
+        assert pytest.approx(localAssetCashFromLiquidator, rel=500) == -expectedIncentive
 
-        # # Assert that the net local after is equal to the fcash residual withdrawn
-        # assert pytest.approx(netLocalAfter[0], abs=100) == Wei(
-        #     (totalfCashResidual - totalHaircutfCashResidual) * ratio / 100
-        # )
+        # Assert that the net local after is equal to the fcash residual withdrawn
+        # TODO: not sure if this is true...
+        # assert pytest.approx(netLocalAfter[0], rel=1e-6, abs=500) == fCashResidualPVAsset
+        assert fcAfter > 0
 
-    @pytest.mark.only
     @given(
         currency=strategy("uint", min_value=1, max_value=4),
         ratio=strategy("uint", min_value=5, max_value=150),
@@ -426,16 +439,21 @@ class TestLiquidateLocalNTokens:
             totalHaircutCashClaim,
             totalfCashResidual,
             totalHaircutfCashResidual,
+            benefitsPerAsset,
         ) = liquidation.get_liquidity_tokens(currency, totalCashClaim, numTokens, blockTime)
         liquidation.mock.setPortfolio(accounts[0], assets)
 
         # Get the expected benefit and incentive paid
-        (benefitSubIncentive, expectedIncentive) = self.get_liquidity_token_benefit(
-            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
+        (
+            benefitPreIncentive,
+            expectedIncentive,
+            fCashResidualPVAsset,
+        ) = self.get_liquidity_token_benefit(
+            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, benefitsPerAsset
         )
 
         benefitInETH = liquidation.calculate_to_eth(
-            currency, liquidation.calculate_to_underlying(currency, benefitSubIncentive)
+            currency, liquidation.calculate_to_underlying(currency, benefitPreIncentive)
         )
 
         haircutInETH = liquidation.calculate_to_eth(
@@ -488,14 +506,11 @@ class TestLiquidateLocalNTokens:
         # Test the liquidator side of the transaction
         assert nTokensPurchased == 0
 
-        # TODO: these are incorrect over multiple tokens because they assume an average
-        # which is not true...
-        # assert pytest.approx(localAssetCashFromLiquidator, abs=10) == -expectedIncentive
+        assert pytest.approx(localAssetCashFromLiquidator, rel=500) == -expectedIncentive
 
-        # # Assert that the net local after is equal to the fcash residual withdrawn
-        # assert pytest.approx(netLocalAfter[0], abs=100) == Wei(
-        #     (totalfCashResidual - totalHaircutfCashResidual) * ratio / 100
-        # )
+        # Assert that the net local after is equal to the fcash residual withdrawn
+        # TODO: what is the net local after withdrawing tokens?
+        # assert pytest.approx(netLocalAfter[0], abs=100) == fCashResidualPVAsset
         assert fcAfter > 0
 
     @pytest.mark.todo
