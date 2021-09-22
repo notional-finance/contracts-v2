@@ -11,7 +11,13 @@ from tests.constants import (
     SETTLEMENT_DATE,
     START_TIME,
 )
-from tests.helpers import get_cash_group_with_max_markets, get_eth_rate_mapping, get_market_curve
+from tests.helpers import (
+    get_cash_group_with_max_markets,
+    get_eth_rate_mapping,
+    get_fcash_token,
+    get_liquidity_token,
+    get_market_curve,
+)
 
 chain = Chain()
 
@@ -189,6 +195,109 @@ class ValuationMock:
         )
         expValue = math.trunc((-adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
         return Wei(math.trunc(fCash * math.exp(expValue / RATE_PRECISION)))
+
+    def get_liquidity_tokens(
+        self, currency, totalCashClaim, numTokens, blockTime, shares=None, matchfCash=None
+    ):
+        assets = []
+        haircuts = self.mock.getLiquidityTokenHaircuts(currency)
+        totalHaircutfCashResidual = 0
+        totalfCashResidual = 0
+        totalHaircutCashClaim = 0
+        totalCashClaimCalculated = 0
+
+        if shares is None:
+            shares = [random.randint(1, 100) for i in range(0, numTokens)]
+            totalShares = sum(shares)
+            shares = [s / totalShares for s in shares]
+        if matchfCash is None:
+            matchfCash = [True] * numTokens
+
+        for i in range(numTokens):
+            # cashClaim = totalCash * tokens / totalLiquidity
+            # tokens = cashClaim * totalLiquidity / totalCash
+            marketIndex = i + 1
+            market = self.markets[currency][i]
+            tokens = Wei((totalCashClaim * shares[i] * market[4]) / market[3])
+            assets.append(get_liquidity_token(marketIndex, currencyId=currency, notional=tokens))
+
+            fCash = 0
+            if matchfCash[i]:
+                # fCash = tokens * totalfCash / totalLiquidity
+                fCash = -Wei(tokens * market[2] / market[4])
+                assets.append(get_fcash_token(marketIndex, currencyId=currency, notional=fCash))
+
+            cashClaim = Wei((tokens * market[3]) / market[4])
+            totalCashClaimCalculated += cashClaim
+            totalHaircutCashClaim += Wei(cashClaim * haircuts[i] / 100)
+
+            residualfCash = Wei((tokens * market[2]) / market[4]) + fCash
+            haircutResidual = Wei((tokens * market[2] * haircuts[i]) / (market[4] * 100)) + fCash
+
+            totalfCashResidual += self.calculate_from_underlying(
+                currency,
+                self.mock.getRiskAdjustedPresentfCashValue(
+                    get_fcash_token(marketIndex, currencyId=currency, notional=residualfCash),
+                    blockTime,
+                ),
+            )
+
+            totalHaircutfCashResidual += self.calculate_from_underlying(
+                currency,
+                self.mock.getRiskAdjustedPresentfCashValue(
+                    get_fcash_token(marketIndex, currencyId=currency, notional=haircutResidual),
+                    blockTime,
+                ),
+            )
+
+        return (
+            assets,
+            totalCashClaimCalculated,
+            totalHaircutCashClaim,
+            totalfCashResidual,
+            totalHaircutfCashResidual,
+        )
+
+    def validate_market_changes(self, assetsBefore, assetsAfter, marketsBefore, marketsAfter):
+        totalCashChange = 0
+        tokensBefore = [a for a in assetsBefore if a[2] != 1]
+
+        for t in tokensBefore:
+            i = t[2] - 2
+            marketTokenChange = marketsBefore[i][4] - marketsAfter[i][4]
+            marketfCashChange = marketsBefore[i][2] - marketsAfter[i][2]
+            totalCashChange += marketsBefore[i][3] - marketsAfter[i][3]
+
+            # Validate token change is exact
+            finalTokenAsset = list(filter(lambda x: x[0] == t[0] and x[2] == t[2], assetsAfter))
+            if len(finalTokenAsset) > 0:
+                assert marketTokenChange == t[3] - finalTokenAsset[0][3]
+            else:
+                assert marketTokenChange == t[3]
+
+            # Validate fCash change is exact
+            prefCashAsset = list(
+                filter(lambda x: x[0] == t[0] and x[1] == t[1] and x[2] == 1, assetsBefore)
+            )
+            postfCashAsset = list(
+                filter(lambda x: x[0] == t[0] and x[1] == t[1] and x[2] == 1, assetsAfter)
+            )
+
+            if len(prefCashAsset) == 0 and len(postfCashAsset) == 0:
+                # This is not likely to happen, but will happen if totalfCash rounds down to zero
+                # and there is no prefCashAsset
+                assert marketfCashChange == 0
+            elif len(prefCashAsset) == 1 and len(postfCashAsset) == 0:
+                # Exact amount of fCash has been withdrawn to net off the prefCash asset
+                assert marketfCashChange == -prefCashAsset[0][3]
+            elif len(prefCashAsset) == 0 and len(postfCashAsset) == 1:
+                # There was no pre fcash asset so the entire change goes into the fCash balance
+                assert marketfCashChange == postfCashAsset[0][3]
+            elif len(prefCashAsset) == 1 and len(postfCashAsset) == 1:
+                # Difference is in the fCash withdrawn
+                assert marketfCashChange == postfCashAsset[0][3] - prefCashAsset[0][3]
+
+        return totalCashChange
 
     def get_liquidation_factors(self, local, collateral, **kwargs):
         account = 0 if "account" not in kwargs else kwargs["account"].address

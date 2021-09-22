@@ -5,7 +5,6 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from tests.helpers import get_fcash_token, get_liquidity_token
 from tests.internal.liquidation.liquidation_helpers import ValuationMock
 
 chain = Chain()
@@ -39,14 +38,11 @@ class TestLiquidateLocalNTokens:
         FreeCollateralExternal.deploy({"from": accounts[0]})
         return ValuationMock(accounts[0], MockLocalLiquidation)
 
-    @given(
-        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
-        currency=strategy("uint", min_value=1, max_value=4),
-        ratio=strategy("uint", min_value=1, max_value=150),
-    )
-    def test_ntoken_negative_local_available(
-        self, liquidation, accounts, currency, nTokenBalance, ratio
-    ):
+    @pytest.fixture(autouse=True)
+    def isolation(self, fn_isolation):
+        pass
+
+    def get_ntoken_benefit(self, liquidation, currency, nTokenBalance, ratio):
         haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
         liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
         benefit = liquidator - haircut
@@ -55,7 +51,47 @@ class TestLiquidateLocalNTokens:
         # if cashBalance < -liquidator then insolvent
         # ratio of 100 == liquidator, ratio > 100 is insolvent
         cashBalance = -Wei(haircut + (benefit * ratio * 1e8) / 1e10)
+
+        return (benefit, cashBalance, haircut)
+
+    def validate_ntoken_price(
+        self, liquidation, currency, localAssetCashFromLiquidator, nTokensPurchased
+    ):
+        assert pytest.approx(
+            localAssetCashFromLiquidator, abs=5
+        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+
+    def get_liquidity_token_benefit(
+        self, liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
+    ):
+        # The amount of benefit to the account is totalCashClaim - totalHaircutCashClaim - incentive
+        benefit = totalCashClaim - totalHaircutCashClaim
+        # Set a negative balance that is more than the haircut cash claim but less than the
+        # total cash claim
+        benefitPreIncentive = (benefit * ratio * 1e8) / 1e10
+        # Incentive cannot be above the total benefit amount
+        # TODO: expectedIncentive has to be calculated on a per asset basis based on the haircut
+        expectedIncentive = Wei(
+            min((benefitPreIncentive * REPO_INCENTIVE) / 100, benefit * REPO_INCENTIVE / 100)
+        )
+        benefitSubIncentive = benefitPreIncentive - expectedIncentive
+
+        return (benefitSubIncentive, expectedIncentive)
+
+    @given(
+        nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=1, max_value=150),
+    )
+    def test_ntoken_negative_local_available(
+        self, liquidation, accounts, currency, nTokenBalance, ratio
+    ):
+        # Gets the benefit for liquidating the nToken and the cash balance for the given ratio
+        (benefit, cashBalance, _) = self.get_ntoken_benefit(
+            liquidation, currency, nTokenBalance, ratio
+        )
         liquidation.mock.setBalance(accounts[0], currency, cashBalance, nTokenBalance)
+
         (
             localAssetCashFromLiquidator,
             nTokensPurchased,
@@ -63,10 +99,10 @@ class TestLiquidateLocalNTokens:
             accounts[0], currency, 0, {"from": accounts[1]}
         )
         # Check that the price returned is correct
-        assert pytest.approx(
-            localAssetCashFromLiquidator, abs=5
-        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        self.validate_ntoken_price(
+            liquidation, currency, localAssetCashFromLiquidator, nTokensPurchased
+        )
+        (_, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
         # Simulate the transfer above and check the FC afterwards
         liquidation.mock.setBalance(
@@ -102,14 +138,10 @@ class TestLiquidateLocalNTokens:
     def test_ntoken_negative_local_available_user_limit(
         self, liquidation, accounts, currency, nTokenBalance, ratio, nTokenLimit
     ):
-        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
-        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
-        benefit = liquidator - haircut
-
-        # if cashBalance < -haircut then under fc
-        # if cashBalance < -liquidator then insolvent
-        # ratio of 100 == liquidator, ratio > 100 is insolvent
-        cashBalance = -Wei(haircut + (benefit * ratio * 1e8) / 1e10)
+        # Gets the benefit for liquidating the nToken and the cash balance for the given ratio
+        (benefit, cashBalance, _) = self.get_ntoken_benefit(
+            liquidation, currency, nTokenBalance, ratio
+        )
         liquidation.mock.setBalance(accounts[0], currency, cashBalance, nTokenBalance)
         (
             localAssetCashFromLiquidator,
@@ -120,9 +152,9 @@ class TestLiquidateLocalNTokens:
 
         assert nTokensPurchased <= nTokenLimit
         # Check that the price returned is correct
-        assert pytest.approx(
-            localAssetCashFromLiquidator, abs=5
-        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+        self.validate_ntoken_price(
+            liquidation, currency, localAssetCashFromLiquidator, nTokensPurchased
+        )
 
     @given(
         nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
@@ -132,9 +164,7 @@ class TestLiquidateLocalNTokens:
     def test_ntoken_positive_local_available(
         self, liquidation, accounts, currency, nTokenBalance, ratio
     ):
-        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
-        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
-        benefit = liquidator - haircut
+        (benefit, _, haircut) = self.get_ntoken_benefit(liquidation, currency, nTokenBalance, ratio)
         # Choose a random currency for the debt to be in
         debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
 
@@ -181,10 +211,10 @@ class TestLiquidateLocalNTokens:
             accounts[0], currency, 0, {"from": accounts[1]}
         )
         # Check that the price is correct
-        assert pytest.approx(
-            localAssetCashFromLiquidator, abs=5
-        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        self.validate_ntoken_price(
+            liquidation, currency, localAssetCashFromLiquidator, nTokensPurchased
+        )
+        (_, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
 
         # Simulate the transfer above and check the FC afterwards
         liquidation.mock.setBalance(
@@ -219,9 +249,7 @@ class TestLiquidateLocalNTokens:
     def test_ntoken_positive_local_available_user_limit(
         self, liquidation, accounts, currency, nTokenBalance, nTokenLimit, ratio
     ):
-        haircut = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "haircut")
-        liquidator = liquidation.calculate_ntoken_to_asset(currency, nTokenBalance, "liquidator")
-        benefit = liquidator - haircut
+        (benefit, _, haircut) = self.get_ntoken_benefit(liquidation, currency, nTokenBalance, ratio)
         # Choose a random currency for the debt to be in
         debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
 
@@ -269,9 +297,9 @@ class TestLiquidateLocalNTokens:
 
         assert nTokensPurchased <= nTokenLimit
         # Check that the price returned is correct
-        assert pytest.approx(
-            localAssetCashFromLiquidator, abs=5
-        ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
+        self.validate_ntoken_price(
+            liquidation, currency, localAssetCashFromLiquidator, nTokensPurchased
+        )
 
     @given(
         debtBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
@@ -308,59 +336,34 @@ class TestLiquidateLocalNTokens:
         assert localAssetCashFromLiquidator == 0
         assert nTokensPurchased == 0
 
-    @pytest.mark.only
     @given(
-        marketIndex=strategy("uint", min_value=1, max_value=3),
         currency=strategy("uint", min_value=1, max_value=4),
         ratio=strategy("uint", min_value=5, max_value=150),
-        tokens=strategy("uint", min_value=1e8, max_value=100_000_000e8),
+        numTokens=strategy("uint", min_value=1, max_value=3),
+        totalCashClaim=strategy("uint", min_value=100e8, max_value=10_000_000e8),
     )
     def test_liquidity_token_negative_available(
-        self, liquidation, accounts, marketIndex, currency, ratio, tokens
+        self, liquidation, accounts, currency, ratio, numTokens, totalCashClaim
     ):
-        # TODO: allow for multiple liquidity tokens
         marketsBefore = liquidation.mock.getActiveMarkets(currency)
-        haircuts = liquidation.mock.getLiquidityTokenHaircuts(currency)
+        blockTime = chain.time()
+        # Will generate matching fCash and shares
+        (
+            assets,
+            totalCashClaim,  # This is recalculated from the tokens
+            totalHaircutCashClaim,
+            totalfCashResidual,
+            totalHaircutfCashResidual,
+        ) = liquidation.get_liquidity_tokens(currency, totalCashClaim, numTokens, blockTime)
+        liquidation.mock.setPortfolio(accounts[0], assets)
 
-        # Need to calculate the value of any fCash residual from the haircut
-        totalfCashClaim = Wei(
-            (tokens * marketsBefore[marketIndex - 1][2]) / marketsBefore[marketIndex - 1][4]
+        # Get the expected benefit and incentive paid
+        (benefitSubIncentive, expectedIncentive) = self.get_liquidity_token_benefit(
+            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
         )
-        totalHaircutfCashClaim = Wei(totalfCashClaim * haircuts[marketIndex - 1] / 100)
-        fCashResidualPV = liquidation.mock.getRiskAdjustedPresentfCashValue(
-            get_fcash_token(
-                marketIndex,
-                currencyId=currency,
-                notional=-(totalfCashClaim - totalHaircutfCashClaim),
-            ),
-            chain.time(),
+        cashBalance = -Wei(
+            (totalHaircutCashClaim + totalHaircutfCashResidual) + benefitSubIncentive
         )
-        fCashResidualAssetValue = liquidation.calculate_from_underlying(currency, fCashResidualPV)
-
-        # The amount of benefit to the account is totalCashClaim - totalHaircutCashClaim - incentive
-        totalCashClaim = Wei(
-            (tokens * marketsBefore[marketIndex - 1][3]) / marketsBefore[marketIndex - 1][4]
-        )
-        totalHaircutCashClaim = totalCashClaim * haircuts[marketIndex - 1] / 100
-        benefit = totalCashClaim - totalHaircutCashClaim
-
-        liquidation.mock.setPortfolio(
-            accounts[0],
-            [
-                get_liquidity_token(marketIndex, currencyId=currency, notional=tokens),
-                get_fcash_token(marketIndex, currencyId=currency, notional=-totalfCashClaim),
-            ],
-        )
-
-        # Set a negative balance that is more than the haircut cash claim but less than the
-        # total cash claim
-        benefitPreIncentive = (benefit * ratio * 1e8) / 1e10
-        # Incentive cannot be above the total benefit amount
-        expectedIncentive = Wei(
-            min((benefitPreIncentive * REPO_INCENTIVE) / 100, benefit * REPO_INCENTIVE / 100)
-        )
-        benefitSubIncentive = benefitPreIncentive - expectedIncentive
-        cashBalance = -Wei((totalHaircutCashClaim + fCashResidualAssetValue) + benefitSubIncentive)
         liquidation.mock.setBalance(accounts[0], currency, cashBalance, 0)
 
         (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
@@ -374,11 +377,6 @@ class TestLiquidateLocalNTokens:
             "LocalLiquidationTokens"
         ][0].values()
 
-        # Test the liquidator side of the transaction
-        # TODO: this fails...
-        # assert pytest.approx(localAssetCashFromLiquidator, abs=10) == -expectedIncentive
-        assert nTokensPurchased == 0
-
         # Set the new liquidated side of the transaction
         liquidation.mock.setPortfolioState(accounts[0], portfolio)
         liquidation.mock.setBalance(accounts[0], currency, cashBalance + netCashChange, 0)
@@ -386,48 +384,119 @@ class TestLiquidateLocalNTokens:
         (_, _, portfolioAfter) = liquidation.mock.getAccount(accounts[0])
         marketsAfter = liquidation.mock.getActiveMarkets(currency)
 
+        # This checks that the tokens and fCash withdrawn align with markets exactly
+        totalCashChange = liquidation.validate_market_changes(
+            assets, portfolioAfter, marketsBefore, marketsAfter
+        )
+
         # Test that the cash claims net off
-        totalCashChange = marketsBefore[marketIndex - 1][3] - marketsAfter[marketIndex - 1][3]
         assert pytest.approx(totalCashChange, abs=1) == netCashChange - localAssetCashFromLiquidator
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
 
-        # Test that the tokens withdrawn correspond to the ratio, within 0.5% of the ratio
-        totalTokenChange = marketsBefore[marketIndex - 1][4] - marketsAfter[marketIndex - 1][4]
-        # TODO: errors
-        # assert pytest.approx(totalTokenChange / tokens, abs=5e-3) == min((ratio / 100), 1)
+        # Test the liquidator side of the transaction
+        assert nTokensPurchased == 0
+        # TODO: these are incorrect over multiple tokens because they assume an average,
+        # which is not true...
+        # assert pytest.approx(localAssetCashFromLiquidator, abs=10) == -expectedIncentive
 
-        # Test that the fCash claim was withdrawn properly, within 0.5% of the ratio
-        totalfCashChange = marketsBefore[marketIndex - 1][2] - marketsAfter[marketIndex - 1][2]
-        # TODO: errors
-        # assert pytest.approx(totalfCashChange / totalfCashClaim, abs=5e-3) ==
-        # min((ratio / 100), 1)
+        # # Assert that the net local after is equal to the fcash residual withdrawn
+        # assert pytest.approx(netLocalAfter[0], abs=100) == Wei(
+        #     (totalfCashResidual - totalHaircutfCashResidual) * ratio / 100
+        # )
 
-        finalTokenAsset = list(
-            filter(lambda x: x[0] == currency and x[2] == marketIndex + 1, portfolioAfter)
+    @pytest.mark.only
+    @given(
+        currency=strategy("uint", min_value=1, max_value=4),
+        ratio=strategy("uint", min_value=5, max_value=150),
+        numTokens=strategy("uint", min_value=1, max_value=3),
+        totalCashClaim=strategy("uint", min_value=100e8, max_value=10_000_000e8),
+    )
+    def test_liquidity_token_positive_available(
+        self, liquidation, accounts, currency, ratio, numTokens, totalCashClaim
+    ):
+        # Choose a random currency for the debt to be in
+        debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
+        marketsBefore = liquidation.mock.getActiveMarkets(currency)
+        blockTime = chain.time()
+
+        # Will generate matching fCash and shares
+        (
+            assets,
+            totalCashClaim,  # This is recalculated from the tokens
+            totalHaircutCashClaim,
+            totalfCashResidual,
+            totalHaircutfCashResidual,
+        ) = liquidation.get_liquidity_tokens(currency, totalCashClaim, numTokens, blockTime)
+        liquidation.mock.setPortfolio(accounts[0], assets)
+
+        # Get the expected benefit and incentive paid
+        (benefitSubIncentive, expectedIncentive) = self.get_liquidity_token_benefit(
+            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, assets
         )
-        finalfCashAsset = list(
-            filter(
-                lambda x: x[0] == currency
-                and x[2] == 1
-                and x[1] == marketsBefore[marketIndex - 1][1],
-                portfolioAfter,
-            )
+
+        benefitInETH = liquidation.calculate_to_eth(
+            currency, liquidation.calculate_to_underlying(currency, benefitSubIncentive)
         )
 
-        # Assert portfolio updated properly, DO NOT use pytest.approx here. Must be exact.
-        if totalTokenChange == tokens:
-            assert len(finalTokenAsset) == 0
-        else:
-            assert finalTokenAsset[0][3] == tokens - totalTokenChange
+        haircutInETH = liquidation.calculate_to_eth(
+            currency,
+            liquidation.calculate_to_underlying(
+                currency, Wei(totalHaircutCashClaim + totalHaircutfCashResidual)
+            ),
+        )
 
-        if totalfCashChange == totalfCashClaim:
-            assert len(finalfCashAsset) == 0
-        else:
-            # Portfolio is updated with the negative side of the fcash claim
-            assert finalfCashAsset[0][3] == -(totalfCashClaim - totalfCashChange)
+        # This is the amount of debt post buffer we can offset with the benefit in ETH
+        debtInUnderlyingBuffered = liquidation.calculate_from_eth(
+            debtCurrency, benefitInETH + haircutInETH
+        )
+        # Undo the buffer when calculating the cash balance
+        debtCashBalance = liquidation.calculate_from_underlying(
+            debtCurrency,
+            Wei(
+                (debtInUnderlyingBuffered * 100)
+                / liquidation.bufferHaircutDiscount[debtCurrency][0]
+            ),
+        )
 
-    @pytest.mark.todo
-    def test_liquidity_token_positive_available():
-        pass
+        liquidation.mock.setBalance(accounts[0], debtCurrency, -debtCashBalance, 0)
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+
+        # Check that the amounts are correct
+        txn = liquidation.mock.calculateLocalCurrencyLiquidationTokens(
+            accounts[0], currency, 0, {"from": accounts[1]}
+        )
+
+        (localAssetCashFromLiquidator, nTokensPurchased, netCashChange, portfolio) = txn.events[
+            "LocalLiquidationTokens"
+        ][0].values()
+
+        liquidation.mock.setPortfolioState(accounts[0], portfolio)
+        liquidation.mock.setBalance(accounts[0], currency, netCashChange, 0)
+
+        (_, _, portfolioAfter) = liquidation.mock.getAccount(accounts[0])
+        marketsAfter = liquidation.mock.getActiveMarkets(currency)
+
+        # This checks that the tokens and fCash withdrawn align with markets exactly
+        totalCashChange = liquidation.validate_market_changes(
+            assets, portfolioAfter, marketsBefore, marketsAfter
+        )
+
+        # Test that the cash claims net off
+        assert pytest.approx(totalCashChange, abs=1) == netCashChange - localAssetCashFromLiquidator
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
+
+        # Test the liquidator side of the transaction
+        assert nTokensPurchased == 0
+
+        # TODO: these are incorrect over multiple tokens because they assume an average
+        # which is not true...
+        # assert pytest.approx(localAssetCashFromLiquidator, abs=10) == -expectedIncentive
+
+        # # Assert that the net local after is equal to the fcash residual withdrawn
+        # assert pytest.approx(netLocalAfter[0], abs=100) == Wei(
+        #     (totalfCashResidual - totalHaircutfCashResidual) * ratio / 100
+        # )
+        assert fcAfter > 0
 
     @pytest.mark.todo
     def test_liquidity_token_to_ntoken_pass_through():
