@@ -4,12 +4,15 @@ Agenda:
 - FloatingPointOver56Bits
 - Incentives failing
 - Balance State:
+  - Gadi will push up diff
   - What are next steps?
   - Discarded changes from account action
 - Liquidity Curve:
   - How can we merge w/ all the changes?
+  - Apply a git diff to the master for changes...
 - Settlement
   - Sanity issue...
+  - Try to increase loop iters and see what happens
 
 ## Storage
 - GovernanceOwner (PASSING)

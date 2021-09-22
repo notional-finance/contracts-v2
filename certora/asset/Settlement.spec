@@ -65,13 +65,13 @@ rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 m
 rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uint256 nextSettleTime) {
     env e;
     uint256 currencyId = getBitmapCurrencyId(account);
-    // require currencyId != 0;
-    // require nextSettleTime % 86400 == 0;
-    // require nextSettleTime < e.block.timestamp;
-    // require maturity > nextSettleTime;
-    // bool isValid;
-    // _, isValid = getBitNumFromMaturity(nextSettleTime, maturity);
-    // require isValid;
+    require currencyId != 0;
+    require nextSettleTime % 86400 == 0;
+    require nextSettleTime < e.block.timestamp;
+    require maturity > nextSettleTime;
+    bool isValid;
+    _, isValid = getBitNumFromMaturity(nextSettleTime, maturity);
+    require isValid;
 
     setifCashAsset(e, account, currencyId, maturity, nextSettleTime, 1);
     // require getTotalBitmapAssets(account, currencyId) == 1;

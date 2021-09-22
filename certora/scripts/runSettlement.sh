@@ -2,7 +2,7 @@ certoraRun contracts/mocks/certora/SettlementHarness.sol \
  	--verify SettlementHarness:certora/asset/Settlement.spec \
  	--solc solc7.6 \
 	--optimistic_loop \
- 	--loop_iter 1 \
+ 	--loop_iter 3 \
 	--rule_sanity \
 	--settings -smt_bitVectorTheory=true,-smt_hashingScheme=plainInjectivity \
 	--packages_path ${BROWNIE_PATH}/packages \
