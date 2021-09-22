@@ -43,12 +43,6 @@ contract MockLiquidationSetup is MockValuationBase {
         );
     }
 
-    function calculateCrossCurrencyBenefitAndDiscount(
-        LiquidationFactors memory factors
-    ) external pure returns (int256 assetCashBenefitRequired, int256 liquidationDiscount) {
-        return LiquidationHelpers.calculateCrossCurrencyBenefitAndDiscount(factors);
-    }
-
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
@@ -85,7 +79,7 @@ contract MockLocalLiquidation is MockValuationBase {
         (
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
-            PortfolioState memory portfolio,
+            /* PortfolioState memory portfolio*/,
             /* AccountContext memory accountContext */
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, true);
 
@@ -316,6 +310,14 @@ contract MockCollateralLiquidation is MockValuationBase {
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
         return FreeCollateralExternal.getFreeCollateralView(account);
+    }
+
+    function getFreeCollateralAtTime(address account, uint256 blockTime)
+        external
+        view
+        returns (int256, int256[] memory)
+    {
+        return FreeCollateralAtTime.getFreeCollateralViewAtTime(account, blockTime);
     }
 }
 

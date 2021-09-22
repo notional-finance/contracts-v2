@@ -435,16 +435,29 @@ def get_expected(
     # new exchange rate
     if collateral == 1:
         # In this case it is ETH
-        fcInCollateral = -fc
+        collateralDenominatedFC = -fc
     else:
-        fcInCollateral = liquidation.calculate_from_eth(collateral, -fc, rate=newExchangeRate)
+        collateralDenominatedFC = liquidation.calculate_from_eth(
+            collateral, -fc, rate=newExchangeRate
+        )
+
+    # This is the original formula:
+    # collateralDenominatedFC = localPurchased * localBuffer * exRateLocalToCollateral -
+    #      collateralToSell * collateralHaircut
+    # Solve for:
+    # collateralToSell = collateralDenominatedFC / ((buffer / liquidationDiscount) - haircut)
+    buffer = liquidation.bufferHaircutDiscount[local][0]
+    haircut = liquidation.bufferHaircutDiscount[collateral][1]
+    liquidationDiscount = liquidation.get_discount(local, collateral)
+    denominator = math.trunc((buffer * 100 / liquidationDiscount) - haircut)
+    collateralToSell = Wei((collateralDenominatedFC * 100) / denominator)
 
     # Apply the default liquidation buffer and cap at the total balance
-    if fcInCollateral < collateralUnderlying * 0.4:
+    if collateralToSell < collateralUnderlying * 0.4:
         expectedCollateralTrade = collateralUnderlying * 0.4
     else:
-        # Cannot go above the total balance
-        expectedCollateralTrade = min(collateralUnderlying, fcInCollateral)
+        # Cannot go above the collateral available
+        expectedCollateralTrade = min(collateralUnderlying, collateralToSell)
 
     expectedLocalCash = Wei(expectedCollateralTrade * 1e18 / discountedExchangeRate)
 
@@ -468,4 +481,9 @@ def get_expected(
     # Total benefit is:
     expectedNetETHBenefit = collateralETHHaircutValue + debtETHBufferValue
 
-    return (expectedCollateralTrade, expectedNetETHBenefit)
+    return (
+        expectedCollateralTrade,
+        expectedNetETHBenefit,
+        collateralToSell,
+        collateralDenominatedFC,
+    )

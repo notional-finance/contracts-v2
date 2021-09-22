@@ -107,23 +107,16 @@ library LiquidationHelpers {
     }
 
     /// @dev Calculates factors when liquidating across two currencies
-    function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
+    function calculateCrossCurrencyFactors(LiquidationFactors memory factors)
         internal
         pure
-        returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
+        returns (int256 collateralDenominatedFC, int256 liquidationDiscount)
     {
-        require(factors.collateralETHRate.haircut > 0);
-        // This calculation returns the amount of benefit that selling collateral for local currency will
-        // be back to the account.
-        // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
-        // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
-        assetCashBenefitRequired = factors.collateralCashGroup.assetRate.convertFromUnderlying(
+        collateralDenominatedFC = factors.collateralCashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 // netETHValue must be negative to be in liquidation
                 .convertETHTo(factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(factors.collateralETHRate.haircut)
         );
 
         liquidationDiscount = SafeInt256.max(

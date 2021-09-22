@@ -273,26 +273,40 @@ library LiquidateCurrency {
             int256 liquidationDiscount
         )
     {
-        int256 assetCashBenefitRequired;
-        (assetCashBenefitRequired, liquidationDiscount) = LiquidationHelpers
-            .calculateCrossCurrencyBenefitAndDiscount(factors);
+        int256 collateralDenominatedFC;
+        (collateralDenominatedFC, liquidationDiscount) = LiquidationHelpers.calculateCrossCurrencyFactors(factors);
         {
-            // collateralCurrencyBenefit = localPurchased * localBuffer * exchangeRate -
-            //      collateralToSell * collateralHaircut
-            // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
+            // Solve for the amount of collateral to sell to recoup the free collateral shortfall,
+            // accounting for the buffer to local currency debt and the haircut on collateral. The
+            // total amount of shortfall that we want to recover is the netETHValue (the total negative
+            // free collateral).
             //
-            // collateralCurrencyBenefit = [collateralToSell / (exchangeRate * liquidationDiscount)] * localBuffer * exchangeRate -
+            // netETHValue.neg() = localPurchased * localBuffer * exRateLocalToETH -
+            //      collateralToSell * collateralHaircut * exRateCollateralToETH
+            //
+            // We can multiply both sides by 1/exRateCollateralToETH:
+            //
+            // collateralDenominatedFC = localPurchased * localBuffer * exRateLocalToCollateral -
             //      collateralToSell * collateralHaircut
-            // collateralCurrencyBenefit = (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
-            // collateralCurrencyBenefit = collateralToSell * ((localBuffer / liquidationDiscount) - collateralHaircut)
-            // collateralToSell = collateralCurrencyBenefit / ((localBuffer / liquidationDiscount) - collateralHaircut)
+            // 
+            // where localPurchased is defined as:
+            // localPurchased = collateralToSell / (exRateLocalToCollateral * liquidationDiscount)
+            //
+            // collateralDenominatedFC = [
+            //    (collateralToSell / (exRateLocalToCollateral * liquidationDiscount)) * localBuffer * exRateLocalToCollateral -
+            //    collateralToSell * collateralHaircut
+            // ]
+            // collateralDenominatedFC =
+            //    (collateralToSell * localBuffer) / liquidationDiscount - collateralToSell * collateralHaircut
+            // collateralDenominatedFC = collateralToSell * ((localBuffer / liquidationDiscount) - collateralHaircut)
+            // collateralToSell = collateralDenominatedFC / ((localBuffer / liquidationDiscount) - collateralHaircut)
             int256 denominator =
                 factors.localETHRate.buffer
                     .mul(Constants.PERCENTAGE_DECIMALS)
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
-            requiredCollateralAssetCash = assetCashBenefitRequired
+            requiredCollateralAssetCash = collateralDenominatedFC
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(denominator);
         }
