@@ -197,6 +197,35 @@ class ValuationMock:
         expValue = math.trunc((-adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
         return Wei(math.trunc(fCash * math.exp(expValue / RATE_PRECISION)))
 
+    def get_fcash_portfolio(
+        self, currency, presentValue, numAssets, blockTime, shares=None, maturities=None
+    ):
+        assets = []
+        markets = self.mock.getActiveMarkets(currency)
+        (maxBitNum, _) = self.mock.getBitNumFromMaturity(blockTime, markets[-1][1])
+
+        if shares is None:
+            # TODO: allow shares to be positive or negative to offset each other...
+            shares = [random.randint(1, 100) for i in range(0, numAssets)]
+            totalShares = sum(shares)
+            shares = [s / totalShares for s in shares]
+
+        if maturities is None:
+            # Choose n random maturities
+            bitNums = random.sample(range(1, maxBitNum + 1), numAssets)
+            maturities = [self.mock.getMaturityFromBitNum(blockTime, b) for b in bitNums]
+
+        for i in range(numAssets):
+            pv = Wei(shares[i] * presentValue)
+            fCash = self.notional_from_pv(
+                currency, pv, maturities[i], blockTime, valueType="haircut"
+            )
+            assets.append(
+                get_fcash_token(1, currencyId=currency, maturity=maturities[i], notional=fCash)
+            )
+
+        return assets
+
     def get_liquidity_tokens(
         self, currency, totalCashClaim, numTokens, blockTime, shares=None, matchfCash=None
     ):

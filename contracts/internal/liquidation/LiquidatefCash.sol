@@ -239,10 +239,11 @@ library LiquidatefCash {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         {
             // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
-            // for the purposes of this method. The underlyingBenefitRequired is denominated in local currency terms.
+            // for the purposes of this method. The underlyingBenefitRequired is denominated in collateral currency
+            // and equivalent to convertToCollateral(netETHValue.neg()).
             (c.underlyingBenefitRequired, c.liquidationDiscount) = LiquidationHelpers
-                .calculateCrossCurrencyBenefitAndDiscount(c.factors);
-            c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
+                .calculateCrossCurrencyFactors(c.factors);
+            c.underlyingBenefitRequired = c.factors.collateralCashGroup.assetRate.convertToUnderlying(
                 c.underlyingBenefitRequired
             );
         }
@@ -294,7 +295,6 @@ library LiquidatefCash {
         // ]
         int256 benefitDivisor;
         {
-            // -ok
             // prettier-ignore
             int256 termTwo = (
                     c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
