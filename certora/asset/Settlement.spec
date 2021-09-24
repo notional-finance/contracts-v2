@@ -74,7 +74,7 @@ rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uin
     require isValid;
 
     setifCashAsset(e, account, currencyId, maturity, nextSettleTime, 1);
-    // require getTotalBitmapAssets(account, currencyId) == 1;
+    require getTotalBitmapAssets(account, currencyId) == 1;
 
     settleAccount(e, account);
 
