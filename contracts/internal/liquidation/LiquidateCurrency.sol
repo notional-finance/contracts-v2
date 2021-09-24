@@ -63,6 +63,10 @@ library LiquidateCurrency {
                 factors.localETHRate.haircut :
                 factors.localETHRate.buffer;
 
+            // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
+            // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
+            require(multiple > 0);
+
             assetBenefitRequired =
                 factors.localAssetRate.convertFromUnderlying(
                     factors

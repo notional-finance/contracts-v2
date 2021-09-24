@@ -257,6 +257,21 @@ library MockValuationLib {
             );
     }
 
+    function getPresentfCashValue(
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime,
+        uint256 oracleRate
+    ) external pure returns (int256) {
+        return
+            AssetHandler.getPresentfCashValue(
+                notional,
+                maturity,
+                blockTime,
+                oracleRate
+            );
+    }
+
     function calculateOracleRate(
         uint16 currencyId,
         uint256 maturity,
@@ -428,5 +443,13 @@ contract MockValuationBase {
         return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
 
+    function getPresentfCashValue(
+        int256 notional,
+        uint256 maturity,
+        uint256 blockTime,
+        uint256 oracleRate
+    ) external pure returns (int256) {
+        return MockValuationLib.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
+    }
 
 }

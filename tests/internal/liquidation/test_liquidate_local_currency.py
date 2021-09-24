@@ -5,7 +5,10 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from tests.internal.liquidation.liquidation_helpers import ValuationMock
+from tests.internal.liquidation.liquidation_helpers import (
+    ValuationMock,
+    calculate_local_debt_cash_balance,
+)
 
 chain = Chain()
 
@@ -126,7 +129,7 @@ class TestLiquidateLocalNTokens:
         if ratio <= 40:
             # In the case that the ratio is less than 40%, we liquidate up to 40%
             assert pytest.approx(Wei(netLocal[0] + benefit * 0.40), abs=5) == netLocalAfter[0]
-            assert fcAfter > 0
+            assert fcAfter >= 0
         elif ratio > 100:
             # In this scenario we liquidate all the nTokens and are still undercollateralized
             assert nTokenBalance == nTokensPurchased
@@ -175,45 +178,17 @@ class TestLiquidateLocalNTokens:
         self, liquidation, accounts, currency, nTokenBalance, ratio
     ):
         (benefit, _, haircut) = self.get_ntoken_benefit(liquidation, currency, nTokenBalance, ratio)
-        # Choose a random currency for the debt to be in
-        debtCurrency = random.choice([c for c in range(1, 5) if c != currency])
 
         # Convert from nToken asset value to debt balance value
         # if (signed terms) debt cash balance < -(benefit + nTokenHaircutValue) then insolvent
         # if -(benefit + nTokenHaircutValue) < debt cash balance < 0 then ok
-
-        # Max benefit to the debt currency is going to be, we don't actually pay off any
-        # debt in this liquidation type:
-        # convertToETHWithHaircut(benefit) + convertToETHWithBuffer(debt)
-        benefitInUnderlying = liquidation.calculate_to_underlying(
-            currency, Wei((benefit * ratio * 1e8) / 1e10)
-        )
-        # Since this benefit is cross currency, apply the haircut here
-        benefitInETH = liquidation.calculate_to_eth(currency, benefitInUnderlying)
-
-        # However, we need to also ensure that this account is undercollateralized, so the debt cash
-        # balance needs to be lower than the value of the haircut nToken value:
-        # convertToETHWithHaircut(nTokenHaircut) = convertToETHWithBuffer(debt)
-        haircutInETH = liquidation.calculate_to_eth(
-            currency, liquidation.calculate_to_underlying(currency, Wei(haircut))
-        )
-
-        # This is the amount of debt post buffer we can offset with the benefit in ETH
-        debtInUnderlyingBuffered = liquidation.calculate_from_eth(
-            debtCurrency, benefitInETH + haircutInETH
-        )
-        # Undo the buffer when calculating the cash balance
-        debtCashBalance = liquidation.calculate_from_underlying(
-            debtCurrency,
-            Wei(
-                (debtInUnderlyingBuffered * 100)
-                / liquidation.bufferHaircutDiscount[debtCurrency][0]
-            ),
+        (debtCurrency, debtCashBalance) = calculate_local_debt_cash_balance(
+            liquidation, currency, ratio, benefit, haircut
         )
 
         # Set the proper balances
         liquidation.mock.setBalance(accounts[0], currency, 0, nTokenBalance)
-        liquidation.mock.setBalance(accounts[0], debtCurrency, -debtCashBalance, 0)
+        liquidation.mock.setBalance(accounts[0], debtCurrency, debtCashBalance, 0)
         (
             localAssetCashFromLiquidator,
             nTokensPurchased,
@@ -238,7 +213,7 @@ class TestLiquidateLocalNTokens:
         if ratio <= 40:
             # In the case that the ratio is less than 40%, we liquidate up to 40%
             assert pytest.approx(Wei(nTokenNetLocal + benefit * 0.40), abs=5) == nTokenNetLocalAfter
-            assert fcAfter > 0
+            assert fcAfter >= 0
         elif ratio > 100:
             # In this scenario we liquidate all the nTokens and are still undercollateralized
             assert nTokenBalance == nTokensPurchased

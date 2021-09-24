@@ -56,6 +56,10 @@ class TestLiquidatefCash:
         FreeCollateralAtTime.deploy({"from": accounts[0]})
         return ValuationMock(accounts[0], MockCrossCurrencyfCashLiquidation)
 
+    @pytest.fixture(autouse=True)
+    def isolation(self, fn_isolation):
+        pass
+
     @pytest.mark.only
     @given(
         localDebt=strategy("int", min_value=-1_000_000e8, max_value=-1e8),

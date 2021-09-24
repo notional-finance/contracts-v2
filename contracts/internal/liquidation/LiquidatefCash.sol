@@ -215,6 +215,11 @@ library LiquidatefCash {
                     .abs()
             );
 
+            // Depending on the way that the fCash notionals are structured between the maturities it is possible
+            // that we liquidate up to a little less than zero free collateral. This would happen if we liquidate
+            // slightly above 40% of a notional value and the notional value is large enough that there is some
+            // remaining dust due precision loss from discount factors. If this is the case then the liquidator
+            // can liquidate a second time to take 40% of a remaining fCash asset.
             if (c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST) break;
         }
 

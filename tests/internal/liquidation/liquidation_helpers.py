@@ -194,8 +194,7 @@ class ValuationMock:
         adjustedOracleRate = self.get_adjusted_oracle_rate(
             oracleRate, currency, fCash > 0, valueType
         )
-        expValue = math.trunc((-adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
-        return Wei(math.trunc(fCash * math.exp(expValue / RATE_PRECISION)))
+        return self.mock.getPresentfCashValue(fCash, maturity, blockTime, adjustedOracleRate)
 
     def get_fcash_portfolio(
         self, currency, presentValue, numAssets, blockTime, shares=None, maturities=None
@@ -516,3 +515,38 @@ def get_expected(
         collateralToSell,
         collateralDenominatedFC,
     )
+
+
+def calculate_local_debt_cash_balance(liquidation, local, ratio, benefitAsset, haircutAsset):
+    # Choose a random currency for the debt to be in
+    debtCurrency = random.choice([c for c in range(1, 5) if c != local])
+
+    # Max benefit to the debt currency is going to be, we don't actually pay off any
+    # debt in this liquidation type:
+    # convertToETHWithHaircut(benefit) + convertToETHWithBuffer(debt)
+    benefitInUnderlying = liquidation.calculate_to_underlying(
+        local, Wei((benefitAsset * ratio * 1e8) / 1e10)
+    )
+    # Since this benefit is cross currency, apply the haircut here
+    benefitInETH = liquidation.calculate_to_eth(local, benefitInUnderlying)
+
+    # However, we need to also ensure that this account is undercollateralized, so the debt cash
+    # balance needs to be lower than the value of the haircut value:
+    # convertToETHWithHaircut(haircut) = convertToETHWithBuffer(debt)
+    haircutInETH = liquidation.calculate_to_eth(
+        local, liquidation.calculate_to_underlying(local, Wei(haircutAsset))
+    )
+
+    # This is the amount of debt post buffer we can offset with the benefit in ETH
+    debtInUnderlyingBuffered = liquidation.calculate_from_eth(
+        # NOTE: change here...
+        debtCurrency,
+        -(benefitInETH + haircutInETH),
+    )
+    # Undo the buffer when calculating the cash balance
+    debtCashBalance = liquidation.calculate_from_underlying(
+        debtCurrency,
+        Wei((debtInUnderlyingBuffered * 100) / liquidation.bufferHaircutDiscount[debtCurrency][0]),
+    )
+
+    return (debtCurrency, debtCashBalance)
