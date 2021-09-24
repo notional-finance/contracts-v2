@@ -219,13 +219,14 @@ class TestLiquidateCollateral:
             accounts[0], local, localDebtAsset + localAssetCashFromLiquidator, 0
         )
 
-        # Cannot liquidate to negative collateral
+        # Cannot liquidate to negative cash balances
         assert (collateralCashAsset - collateralAssetCashToLiquidator + netCashWithdrawn) >= 0
+        assert (nTokenBalance - nTokensPurchased) >= 0
         liquidation.mock.setBalance(
             accounts[0],
             collateral,
             collateralCashAsset - collateralAssetCashToLiquidator + netCashWithdrawn,
-            0,
+            nTokenBalance - nTokensPurchased,
         )
         # ASSET VALUES
 
