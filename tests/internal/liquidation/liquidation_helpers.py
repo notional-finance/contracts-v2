@@ -165,6 +165,24 @@ class ValuationMock:
                 / (self.nTokenTotalSupply[currency] * 100)
             )
 
+    def calculate_ntoken_from_asset(self, currency, asset, valueType="haircut"):
+        # asset = (nToken * cashBalance * param) / (totalSupply * 100)
+        # nToken = (asset * totalSupply * 100) / (cashBalance * param)
+        if valueType == "haircut":
+            return math.trunc(
+                (asset * self.nTokenTotalSupply[currency] * 100)
+                / (self.nTokenCashBalance[currency] * self.nTokenParameters[currency][0])
+            )
+        elif valueType == "no-haircut":
+            return math.trunc(
+                (asset * self.nTokenTotalSupply[currency]) / self.nTokenCashBalance[currency]
+            )
+        elif valueType == "liquidator":
+            return math.trunc(
+                (asset * self.nTokenTotalSupply[currency] * 100)
+                / (self.nTokenCashBalance[currency] * self.nTokenParameters[currency][1])
+            )
+
     def get_adjusted_oracle_rate(self, oracleRate, currency, isPositive, valueType):
         if valueType == "haircut" and isPositive:
             adjustment = self.cashGroups[currency][5] * 5 * BASIS_POINT
