@@ -1,13 +1,13 @@
 methods {
-    getBitmapCurrencyId(address account) returns (uint256) envfree;
-    getSettlementRate(uint256 currencyId, uint256 maturity) returns (int256) envfree;
-    getCashBalance(address account, uint256 currencyId) returns (int256) envfree;
+    getBitmapCurrencyId(address account) returns (uint16) envfree;
+    getSettlementRate(uint16 currencyId, uint256 maturity) returns (int256) envfree;
+    getCashBalance(address account, uint16 currencyId) returns (int256) envfree;
     getNumSettleableAssets(address account, uint256 blockTime) returns (uint256) envfree;
-    getAmountToSettle(uint256 currencyId, address account, uint256 blockTime) returns (int256) envfree;
+    getAmountToSettle(uint16 currencyId, address account, uint256 blockTime) returns (int256) envfree;
     getNumAssets(address account) returns (uint256) envfree;
     validateAssetExists(address account, uint256 maturity, int256 notional) returns (bool) envfree;
     getBitNumFromMaturity(uint256 blockTime, uint256 maturity) returns (uint256, bool) envfree;
-    getTotalBitmapAssets(address account, uint256 currencyId) returns (uint256) envfree;
+    getTotalBitmapAssets(address account, uint16 currencyId) returns (uint256) envfree;
 
     getExchangeRateStateful() => CONSTANT;
     getExchangeRateView() => CONSTANT;
@@ -27,7 +27,7 @@ rule settleAssetsDeletesSettleableAssets(address account) {
 // Once a settlement rate is set then it can never be reset to another value. If a settlement rate is zero
 // before an asset is settled then it must be some non-zero value afterwards.
 // PASSES
-rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 maturity) {
+rule settlementRatesAreNeverReset(address account, uint16 currencyId, uint256 maturity) {
     env e;
     require maturity < e.block.timestamp;
     // TODO: need to specify that the asset that is being settled exists at the maturity provided here.
@@ -64,7 +64,7 @@ rule settlementRatesAreNeverReset(address account, uint256 currencyId, uint256 m
 // SANITY FAILED: https://vaas-stg.certora.com/output/42394/d8169a7ba67b892ea89b/?anonymousKey=66de06ec230098e95ace88c9549cf5c1b0f188b0
 rule settlingBitmapAssetsDoesNotLoseTrack(address account, uint256 maturity, uint256 nextSettleTime) {
     env e;
-    uint256 currencyId = getBitmapCurrencyId(account);
+    uint16 currencyId = getBitmapCurrencyId(account);
     require currencyId != 0;
     require nextSettleTime % 86400 == 0;
     require nextSettleTime < e.block.timestamp;

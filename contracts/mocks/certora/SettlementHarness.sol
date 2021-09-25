@@ -17,7 +17,7 @@ contract SettlementHarness {
     AccountContext symbolicAccountContext;
     PortfolioState symbolicPortfolioState;
 
-    function getBitmapCurrencyId(address account) external view returns (uint256) {
+    function getBitmapCurrencyId(address account) external view returns (uint16) {
         return symbolicAccountContext.bitmapCurrencyId;
     }
 
@@ -91,7 +91,7 @@ contract SettlementHarness {
     }
 
     function getAmountToSettle(
-        uint256 currencyId,
+        uint16 currencyId,
         address account,
         uint256 blockTime
     ) external view returns (int256) {
@@ -120,7 +120,7 @@ contract SettlementHarness {
 
     function setifCashAsset(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 nextSettleTime,
         int256 notional
