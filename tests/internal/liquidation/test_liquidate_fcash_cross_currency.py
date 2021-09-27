@@ -1,4 +1,8 @@
+import random
+
+import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.helpers import get_fcash_token
@@ -60,7 +64,6 @@ class TestLiquidatefCash:
     def isolation(self, fn_isolation):
         pass
 
-    @pytest.mark.only
     @given(
         localDebt=strategy("int", min_value=-1_000_000e8, max_value=-1e8),
         local=strategy("uint", min_value=1, max_value=4),
@@ -87,7 +90,7 @@ class TestLiquidatefCash:
 
         # FC should be ~0 at this point
         (fc, _) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
-        assert pytest.approx(fc, abs=1e6) == 0
+        assert pytest.approx(fc, abs=1e8) == 0
 
         # Moves the exchange rate based on the ratio
         (newExchangeRate, discountedExchangeRate) = move_collateral_exchange_rate(
@@ -109,7 +112,7 @@ class TestLiquidatefCash:
         )
 
         # Convert to expected fCash trade
-        maturities = [a[1] for a in assets]
+        maturities = sorted([a[1] for a in assets], reverse=True)
         (
             notionalTransfers,
             localAssetCashFromLiquidator,
@@ -145,7 +148,7 @@ class TestLiquidatefCash:
         # Check price is correct
         localCashFinal = liquidation.calculate_to_underlying(local, localAssetCashFromLiquidator)
         assert (
-            pytest.approx((localCashFinal * discountedExchangeRate) / 1e18, rel=1e-6)
+            pytest.approx(Wei((localCashFinal * discountedExchangeRate) / 1e18), rel=1e-5, abs=10)
             == liquidatorPrice
         )
 
@@ -169,5 +172,22 @@ class TestLiquidatefCash:
     def test_cross_currency_fcash_user_limit(self, liquidation, accounts):
         pass
 
-    def test_cross_currency_fcash_no_duplicate_maturities(self, liquidation, accounts):
-        pass
+    @given(local=strategy("uint", min_value=1, max_value=4))
+    def test_cross_currency_fcash_no_duplicate_maturities(self, liquidation, accounts, local):
+        blockTime = chain.time()
+        collateral = random.choice([c for c in range(1, 5) if c != local])
+        assets = liquidation.get_fcash_portfolio(collateral, 100e8, 1, blockTime)
+        liquidation.mock.setPortfolio(accounts[0], assets)
+        liquidation.mock.setBalance(accounts[0], local, -20000e8, 0)
+
+        maturities = sorted([a[1] for a in assets], reverse=True) * 2
+        with brownie.reverts():
+            liquidation.mock.calculatefCashCrossCurrencyLiquidation(
+                accounts[0],
+                local,
+                collateral,
+                maturities,
+                [0] * len(maturities),
+                blockTime,
+                {"from": accounts[1]},
+            )

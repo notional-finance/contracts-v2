@@ -1,5 +1,6 @@
 import logging
 
+import brownie
 import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
@@ -87,7 +88,7 @@ class TestLiquidatefCash:
             liquidation.mock.setPortfolio(accounts[0], assets)
 
         (fcBefore, netLocalBefore) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
-        maturities = [a[1] for a in assets]
+        maturities = sorted([a[1] for a in assets], reverse=True)
         (
             notionalTransfers,
             localAssetCashFromLiquidator,
@@ -287,5 +288,20 @@ class TestLiquidatefCash:
     def test_local_fcash_negative_available_user_limit(self, liquidation, accounts):
         pass
 
-    def test_local_fcash_no_duplicate_maturities(self, liquidation, accounts):
-        pass
+    @given(local=strategy("uint", min_value=1, max_value=4))
+    def test_local_fcash_no_duplicate_maturities(self, liquidation, accounts, local):
+        blockTime = chain.time()
+        assets = liquidation.get_fcash_portfolio(local, 100e8, 1, blockTime)
+        liquidation.mock.setPortfolio(accounts[0], assets)
+        liquidation.mock.setBalance(accounts[0], local, -200e8, 0)
+
+        maturities = sorted([a[1] for a in assets], reverse=True) * 2
+        with brownie.reverts():
+            liquidation.mock.calculatefCashLocalLiquidation(
+                accounts[0],
+                local,
+                maturities,
+                [0] * len(maturities),
+                blockTime,
+                {"from": accounts[1]},
+            )

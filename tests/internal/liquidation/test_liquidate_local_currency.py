@@ -488,10 +488,10 @@ class TestLiquidateLocalNTokens:
         # assert pytest.approx(netLocalAfter[0], abs=100) == fCashResidualPVAsset
         assert fcAfter > 0
 
-    @pytest.mark.todo
+    @pytest.mark.skip
     def test_liquidity_token_to_ntoken_pass_through():
         pass
 
-    @pytest.mark.todo
+    @pytest.mark.skip
     def test_liquidity_token_calculate_no_changes():
         pass

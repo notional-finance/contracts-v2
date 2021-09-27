@@ -143,6 +143,11 @@ library LiquidatefCash {
         }
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
+            // Require that fCash maturities are sorted descending. This ensures that a maturity can only
+            // be specified exactly once. It also ensures that the longest dated assets (most risky) are
+            // liquidated first.
+            if (i > 0) require(fCashMaturities[i - 1] > fCashMaturities[i]);
+
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
             // If a notional balance is negative, ensure that there is some local cash balance to
@@ -254,6 +259,11 @@ library LiquidatefCash {
         }
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
+            // Require that fCash maturities are sorted descending. This ensures that a maturity can only
+            // be specified exactly once. It also ensures that the longest dated assets (most risky) are
+            // liquidated first.
+            if (i > 0) require(fCashMaturities[i - 1] > fCashMaturities[i]);
+
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
             if (notional == 0) continue;

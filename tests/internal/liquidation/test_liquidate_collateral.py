@@ -1,6 +1,7 @@
 import random
 
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.internal.liquidation.liquidation_helpers import (
@@ -116,7 +117,7 @@ class TestLiquidateCollateral:
 
         # Splits the required cash between cash and nTokens. Use the haircut nToken value to
         # determine the nToken balance so that the collateral value sums properly
-        assetBalanceShare = collateralAssetRequired * balanceShare / 100
+        assetBalanceShare = Wei(collateralAssetRequired * balanceShare / 100)
         nTokenShare = random.randint(0, 100)
         nTokenAssetHaircut = assetBalanceShare * nTokenShare / 100
         nTokenBalance = liquidation.calculate_ntoken_from_asset(
@@ -187,7 +188,6 @@ class TestLiquidateCollateral:
             collateralAssetCashToLiquidator,
             nTokensPurchased,
             netCashWithdrawn,
-            balanceState,
             portfolio,
         ) = txn.events["CollateralLiquidationTokens"][0].values()
 
