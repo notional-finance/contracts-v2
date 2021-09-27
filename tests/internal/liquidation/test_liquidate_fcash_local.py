@@ -89,6 +89,7 @@ class TestLiquidatefCash:
 
         (fcBefore, netLocalBefore) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
         maturities = sorted([a[1] for a in assets], reverse=True)
+        chain.mine(1, timestamp=blockTime)
         (
             notionalTransfers,
             localAssetCashFromLiquidator,
@@ -97,6 +98,7 @@ class TestLiquidatefCash:
         )
 
         # FOR TESTING
+        chain.mine(1, timestamp=blockTime)
         txn = liquidation.mock.calculatefCashLocalLiquidation(
             accounts[0], local, maturities, [0] * len(maturities), blockTime, {"from": accounts[1]}
         )
@@ -135,6 +137,8 @@ class TestLiquidatefCash:
         (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
         (_, _, portfolioAfter) = liquidation.mock.getAccount(accounts[0])
 
+        # There cannot be a situation with a negative benefit
+        assert fCashBenefit > 0
         return (fcBefore, netLocalBefore, fcAfter, netLocalAfter, portfolioAfter, fCashBenefit, txn)
 
     @given(
@@ -175,6 +179,7 @@ class TestLiquidatefCash:
         )
 
         actualBenefitAsset = liquidation.calculate_from_underlying(local, fCashBenefit)
+        # This will guarantee that netLocal increases
         assert pytest.approx(netLocalAfter[0] - netLocalBefore[0], rel=1e-5) == actualBenefitAsset
 
         if ratio > 100:
@@ -184,20 +189,18 @@ class TestLiquidatefCash:
             (_, balances, _) = liquidation.mock.getAccount(accounts[0])
             assert len(portfolioAfter) == 0 or balances[0][1] < 100
             assert fcAfter < 0
-        elif ratio <= 40:
-            # TODO: this scenario does not consistently present itself due to the break statement
-            # from underlyingBenefitRequired
-            # In the case that the ratio is less than 40%, we liquidate up to 40%
-            # assert pytest.approx(totalBenefitAsset * 0.4, rel=1e-5) == actualBenefitAsset
-            assert fcAfter > -1000
         else:
-            # In each of these scenarios sufficient fCash exists to liquidate to zero fc,
-            # some dust will exist when rounding this back to zero, we may undershoot due to
-            # truncation in solidity math
-            # TODO: this is not accurate either...
-            # assert pytest.approx(netLocalAfter[0], abs=1e5) == 0
-            # assert pytest.approx(fcAfter, abs=1e5) == 0
-            assert fcAfter > fcBefore
+            # In this case we should have sufficient fCash to liquidate, the last fCash asset that
+            # remains should have been liquidated by at least 40% (i.e. < 60% remains), whether or
+            # not the randomized collateral ratio given into this method is less than or equal to
+            # 40% does not matter since each fCash asset is treated discretely. It is possible that
+            # there is a given ratio of 40% but we can still end up liquidating well into positive
+            # free collateral
+            remainingAssetBefore = list(filter(lambda a: a[1] == portfolioAfter[-1][1], assets))
+            liquidatedNotional = portfolioAfter[-1][3] / remainingAssetBefore[0][3]
+            assert liquidatedNotional <= 0.600001
+
+            assert fcAfter > fcBefore and fcAfter >= -10
 
     @given(
         fCashPV=strategy(
@@ -255,6 +258,7 @@ class TestLiquidatefCash:
 
         actualBenefitAsset = liquidation.calculate_from_underlying(local, fCashBenefit)
         index = 0 if bitmap or local < debtCurrency else 1
+        # This will guarantee that netLocal increases
         assert (
             pytest.approx(netLocalAfter[index] - netLocalBefore[index], rel=1e-5, abs=500)
             == actualBenefitAsset
@@ -267,20 +271,19 @@ class TestLiquidatefCash:
             (_, balances, _) = liquidation.mock.getAccount(accounts[0])
             assert len(portfolioAfter) == 0 or balances[index][1] < 100
             assert fcAfter < 0
-        # elif ratio <= 40:
-        #     # TODO: this scenario does not consistently present itself due to the break statement
-        #     # from underlyingBenefitRequired
-        #     # In the case that the ratio is less than 40%, we liquidate up to 40%
-        #     # assert pytest.approx(totalBenefitAsset * 0.4, rel=1e-5) == actualBenefitAsset
-        #     assert fcAfter > -1000
         else:
-            # In each of these scenarios sufficient fCash exists to liquidate to zero fc,
-            # some dust will exist when rounding this back to zero, we may undershoot due to
-            # truncation in solidity math
-            # TODO: this is not accurate either...
-            # assert pytest.approx(netLocalAfter[0], abs=1e5) == 0
-            # assert pytest.approx(fcAfter, abs=1e5) == 0
-            assert fcAfter > fcBefore
+            # In this case we should have sufficient fCash to liquidate, the last fCash asset that
+            # remains should have been liquidated by at least 40% (i.e. < 60% remains), whether or
+            # not the randomized collateral ratio given into this method is less than or equal to
+            # 40% does not matter since each fCash asset is treated discretely. It is possible that
+            # there is a given ratio of 40% but we can still end up liquidating well into positive
+            # free collateral
+            remainingAssetBefore = list(filter(lambda a: a[1] == portfolioAfter[-1][1], assets))
+            liquidatedNotional = portfolioAfter[-1][3] / remainingAssetBefore[0][3]
+            assert liquidatedNotional <= 0.600001
+
+            assert fcAfter > fcBefore and fcAfter >= -10
+            assert netLocalAfter[0]
 
     def test_local_fcash_positive_available_user_limit(self, liquidation, accounts):
         pass

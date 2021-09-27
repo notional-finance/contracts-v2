@@ -117,30 +117,17 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
-        if (c.factors.localAssetAvailable > 0) {
-            require(c.factors.localETHRate.haircut > 0);
-            // If local available is positive then we can bring it down to zero, this can occur when the
-            // account is undercollateralized and there is value in trading it's fCash for cash. The value
-            // will be in the difference between the risk adjusted haircut value and the resulting cash it
-            // receives from the liquidator. This will likely be a very small amount.
-
-            // Formula here: convertToLocal(netETHFCShortfall) = localRequired * haircut
-            // localRequired = convertToLocal(netETHFCShortfall) / haircut
-            // haircut is used because localAssetAvailable > 0
-
-            // prettier-ignore
-            c.underlyingBenefitRequired = c.factors.localETHRate
-                .convertETHTo(c.factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(c.factors.localETHRate.haircut);
-        } else {
-            // If local available is negative then we can bring it up to zero. In this case positive
-            // local collateral (either cash or fCash) will be exchanged for either removing debt (transfer
-            // of negative fCash) or purchasing positive fCash for cash (removing the haircut on fCash).
-            c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
-                c.factors.localAssetAvailable.neg()
-            );
-        }
+        // If local available is positive then we can trade fCash to cash to increase the total free
+        // collateral of the account. Local available will always increase due to the removal of the haircut
+        // on fCash assets as they are converted to cash. The increase will be the difference between the
+        // risk adjusted haircut value and the liquidation value. Note that negative fCash assets can also be
+        // liquidated via this method, the liquidator will receive negative fCash and cash as a result -- in effect
+        // they will be borrowing at a discount to the oracle rate.
+        c.underlyingBenefitRequired = LiquidationHelpers.calculateLocalLiquidationUnderlyingRequired(
+            c.factors.localAssetAvailable,
+            c.factors.netETHValue,
+            c.factors.localETHRate
+        );
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
             // Require that fCash maturities are sorted descending. This ensures that a maturity can only
@@ -216,16 +203,12 @@ library LiquidatefCash {
             // Deduct the total benefit gained from liquidating this fCash position
             c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(
                 c.fCashNotionalTransfers[i]
-                    .mulInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs())
+                    .mulInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
                     .abs()
             );
 
-            // Depending on the way that the fCash notionals are structured between the maturities it is possible
-            // that we liquidate up to a little less than zero free collateral. This would happen if we liquidate
-            // slightly above 40% of a notional value and the notional value is large enough that there is some
-            // remaining dust due precision loss from discount factors. If this is the case then the liquidator
-            // can liquidate a second time to take 40% of a remaining fCash asset.
-            if (c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST) break;
+            // Once the underlying benefit is reduced below zero then we have liquidated a sufficient amount
+            if (c.underlyingBenefitRequired <= 0) break;
         }
 
         // Convert local to purchase to asset terms for transfers

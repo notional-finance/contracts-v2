@@ -52,28 +52,14 @@ library LiquidateCurrency {
             //
             // If localAssetAvailable is negative then this will reduce free collateral by trading
             // nTokens or liquidity tokens back to cash in this currency.
-            //
-            // Formula in both cases requires dividing by the haircut or buffer:
-            // convertToLocal(netFCShortfallInETH) = localRequired * haircut
-            // convertToLocal(netFCShortfallInETH) / haircut = localRequired
-            //
-            // convertToLocal(netFCShortfallInETH) = localRequired * buffer
-            // convertToLocal(netFCShortfallInETH) / buffer = localRequired
-            int256 multiple = factors.localAssetAvailable > 0 ? 
-                factors.localETHRate.haircut :
-                factors.localETHRate.buffer;
-
-            // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
-            // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
-            require(multiple > 0);
 
             assetBenefitRequired =
                 factors.localAssetRate.convertFromUnderlying(
-                    factors
-                        .localETHRate
-                        .convertETHTo(factors.netETHValue.neg())
-                        .mul(Constants.PERCENTAGE_DECIMALS)
-                        .div(multiple)
+                    LiquidationHelpers.calculateLocalLiquidationUnderlyingRequired(
+                        factors.localAssetAvailable,
+                        factors.netETHValue,
+                        factors.localETHRate
+                    )
                 );
         }
 
