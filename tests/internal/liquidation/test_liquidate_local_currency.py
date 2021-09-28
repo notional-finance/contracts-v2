@@ -1,3 +1,4 @@
+import logging
 import random
 
 import brownie
@@ -10,6 +11,7 @@ from tests.internal.liquidation.liquidation_helpers import (
     calculate_local_debt_cash_balance,
 )
 
+LOGGER = logging.getLogger(__name__)
 chain = Chain()
 
 """
@@ -34,10 +36,16 @@ Liquidate Local Currency Test Matrix:
 class TestLiquidateLocalNTokens:
     @pytest.fixture(scope="module", autouse=True)
     def liquidation(
-        self, MockLocalLiquidation, SettleAssetsExternal, FreeCollateralExternal, accounts
+        self,
+        MockLocalLiquidation,
+        SettleAssetsExternal,
+        FreeCollateralExternal,
+        FreeCollateralAtTime,
+        accounts,
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
         FreeCollateralExternal.deploy({"from": accounts[0]})
+        FreeCollateralAtTime.deploy({"from": accounts[0]})
         return ValuationMock(accounts[0], MockLocalLiquidation)
 
     @pytest.fixture(autouse=True)
@@ -63,33 +71,55 @@ class TestLiquidateLocalNTokens:
             localAssetCashFromLiquidator, abs=5
         ) == liquidation.calculate_ntoken_to_asset(currency, nTokensPurchased, "liquidator")
 
-    def get_liquidity_token_benefit(
-        self, liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, benefitsPerAsset
-    ):
+    def get_liquidity_token_benefit(self, totalCashClaim, totalHaircutCashClaim, ratio):
         # The amount of benefit to the account is totalCashClaim - totalHaircutCashClaim - incentive
         benefit = totalCashClaim - totalHaircutCashClaim
         # Set a negative balance that is more than the haircut cash claim but less than the
         # total cash claim
         benefitPreIncentive = (benefit * ratio * 1e8) / 1e10
 
+        return benefitPreIncentive
+
+    def get_liquidity_expected_outcomes(
+        self, liquidation, currency, fc, netLocal, benefitsPerAsset
+    ):
+        # We don't use the netLocal directly here, use fc and convert back to local asset values
+        # similar LiquidationHelpers.calculateLocalLiquidationUnderlyingRequired. If we don't we
+        # get some significant loss of precision.
         expectedIncentive = 0
         fCashResidualPVAsset = 0
-        benefitsRequired = benefitPreIncentive
+        multiple = liquidation.bufferHaircutDiscount[currency][0 if netLocal < 0 else 1]
+        amountRequired = liquidation.calculate_from_underlying(
+            currency, liquidation.calculate_from_eth(currency, -fc) * 100 / multiple
+        )
+        benefitsRequired = amountRequired
+        LOGGER.info("*************** start")
+        LOGGER.info("amount required: {}".format(amountRequired))
+
         for b in reversed(benefitsPerAsset):
             if (b["benefit"] - b["maxIncentive"]) > benefitsRequired:
-                # In this case we will withdraw all that remains
-                portion = benefitsRequired / (b["benefit"] - b["maxIncentive"])
+                # In this case we have less benefit than required, withdraw part of it
+                # NOTE: this is imprecise...
+                tokensToRemove = Wei(
+                    Wei(Wei(b["tokens"]) * Wei(benefitsRequired))
+                    / Wei(b["benefit"] - b["maxIncentive"])
+                )
+                portion = tokensToRemove / b["tokens"]
+                LOGGER.info("portion: {}, {}, {}".format(portion, tokensToRemove, b["tokens"]))
                 expectedIncentive += Wei(b["maxIncentive"] * portion)
                 fCashResidualPVAsset += Wei(b["fCashResidualPVAsset"] * portion)
                 benefitsRequired = 0
                 break
             else:
-                # In this case we have less benefit than required, withdraw part of it
+                # In this case we will withdraw all that remains
                 expectedIncentive += b["maxIncentive"]
                 fCashResidualPVAsset += b["fCashResidualPVAsset"]
                 benefitsRequired = benefitsRequired - b["benefit"] + b["maxIncentive"]
+                LOGGER.info("benefits required: {}".format(benefitsRequired))
+        realizedBenefit = amountRequired - benefitsRequired
+        LOGGER.info("*************** end")
 
-        return (benefitPreIncentive, expectedIncentive, fCashResidualPVAsset)
+        return (expectedIncentive, fCashResidualPVAsset, realizedBenefit)
 
     @given(
         nTokenBalance=strategy("uint", min_value=1e8, max_value=100_000_000e8),
@@ -321,6 +351,7 @@ class TestLiquidateLocalNTokens:
         assert localAssetCashFromLiquidator == 0
         assert nTokensPurchased == 0
 
+    @pytest.mark.only
     @given(
         currency=strategy("uint", min_value=1, max_value=4),
         ratio=strategy("uint", min_value=5, max_value=150),
@@ -344,20 +375,26 @@ class TestLiquidateLocalNTokens:
         liquidation.mock.setPortfolio(accounts[0], assets)
 
         # Get the expected benefit and incentive paid
-        (
-            benefitPreIncentive,
-            expectedIncentive,
-            fCashResidualPVAsset,
-        ) = self.get_liquidity_token_benefit(
-            liquidation, currency, totalCashClaim, totalHaircutCashClaim, ratio, benefitsPerAsset
+        benefitPreIncentive = self.get_liquidity_token_benefit(
+            totalCashClaim, totalHaircutCashClaim, ratio
         )
+
         cashBalance = -Wei(
             (totalHaircutCashClaim + totalHaircutfCashResidual) + benefitPreIncentive
         )
         liquidation.mock.setBalance(accounts[0], currency, cashBalance, 0)
 
         # FC here is -(benefitPreIncentive * buffer)
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        (fc, netLocalBefore) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
+
+        # Returns the expected
+        (
+            expectedIncentive,
+            fCashResidualPVAsset,
+            realizedBenefit,
+        ) = self.get_liquidity_expected_outcomes(
+            liquidation, currency, fc, netLocalBefore[0], benefitsPerAsset
+        )
 
         # Check that the amounts are correct
         txn = liquidation.mock.calculateLocalCurrencyLiquidationTokens(
@@ -382,15 +419,17 @@ class TestLiquidateLocalNTokens:
 
         # Test that the cash claims net off
         assert pytest.approx(totalCashChange, abs=1) == netCashChange - localAssetCashFromLiquidator
-        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0])
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
 
         # Test the liquidator side of the transaction
         assert nTokensPurchased == 0
         assert pytest.approx(localAssetCashFromLiquidator, rel=500) == -expectedIncentive
 
-        # Assert that the net local after is equal to the fcash residual withdrawn
-        # TODO: not sure if this is true...
-        # assert pytest.approx(netLocalAfter[0], rel=1e-6, abs=500) == fCashResidualPVAsset
+        # Assert that the net local after is equal to the fcash residual withdrawn plus the net
+        # benefit
+        assert pytest.approx(netLocalAfter[0] - netLocalBefore[0], rel=1e-6, abs=500) == (
+            fCashResidualPVAsset + realizedBenefit
+        )
         assert fcAfter > 0
 
     @given(
@@ -452,7 +491,7 @@ class TestLiquidateLocalNTokens:
         )
 
         liquidation.mock.setBalance(accounts[0], debtCurrency, -debtCashBalance, 0)
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0])
+        (fc, netLocalBefore) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
 
         # Check that the amounts are correct
         txn = liquidation.mock.calculateLocalCurrencyLiquidationTokens(

@@ -303,6 +303,7 @@ class ValuationMock:
             # Calculate the max incentive per asset withdrawn
             benefitsPerAsset.append(
                 {
+                    "tokens": tokens,
                     "benefit": cashClaim - haircutCashClaim,
                     "maxIncentive": maxIncentive,
                     "fCashResidualPVAsset": totalfCashResidual - totalHaircutfCashResidual,

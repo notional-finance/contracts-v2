@@ -385,6 +385,7 @@ library LiquidateCurrency {
         int256 incentivePaid;
     }
 
+    event Test(int256 a, int256 t, WithdrawFactors w);
     /// @notice Withdraws local liquidity tokens from a portfolio and pays an incentive to the liquidator.
     /// @return withdraw factors to update liquidator and liquidated cash balances, the asset amount remaining
     function _withdrawLocalLiquidityTokens(
@@ -432,6 +433,7 @@ library LiquidateCurrency {
                 int256 tokensToRemove = asset.notional
                     .mul(assetAmountRemaining)
                     .div(w.netCashIncrease.subNoNeg(w.incentivePaid));
+                emit Test(assetAmountRemaining, tokensToRemove, w);
 
                 if (!factors.isCalculation) {
                     (w.assetCash, w.fCash) = market.removeLiquidity(tokensToRemove);

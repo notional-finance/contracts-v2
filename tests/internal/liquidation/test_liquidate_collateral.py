@@ -1,3 +1,4 @@
+import logging
 import random
 
 import pytest
@@ -11,6 +12,7 @@ from tests.internal.liquidation.liquidation_helpers import (
     setup_collateral_liquidation,
 )
 
+LOGGER = logging.getLogger(__name__)
 chain = Chain()
 
 """
@@ -86,6 +88,7 @@ class TestLiquidateCollateral:
     def isolation(self, fn_isolation):
         pass
 
+    @pytest.mark.only
     @given(
         local=strategy("uint", min_value=1, max_value=4),
         localDebt=strategy("int", min_value=-100_000e8, max_value=-1e8),
@@ -244,8 +247,74 @@ class TestLiquidateCollateral:
         localAvailable = netLocalAfter[0 if collateral > local else 1]
         assert collateralAvailable >= 0
         assert localAvailable <= 0
+
+        ethBenefitAdjustment = 0
+        nTokenHaircutBenefit = 0
+        localBenefit = 0
+        if nTokensPurchased > 0:
+            collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
+
+            # This is the haircut benefit in collateral underlying terms
+            nTokenHaircutBenefit = Wei(
+                liquidation.calculate_to_underlying(
+                    collateral,
+                    liquidation.calculate_ntoken_to_asset(
+                        collateral, nTokensPurchased, "liquidator"
+                    )
+                    - liquidation.calculate_ntoken_to_asset(
+                        collateral, nTokensPurchased, "haircut"
+                    ),
+                )
+                * collateralHaircut
+                / 100
+            )
+
+            # All of this benefit has been traded to local currency, so convert it at the new
+            # exchange rate, do not replicate the haircut on collateral since it has already
+            # been accounted for in expectedNetETHBenefit
+            if local == 1:
+                # TODO: this looks like the wrong exchange rate
+                localBenefit = Wei(nTokenHaircutBenefit * discountedExchangeRate / 1e18)
+            else:
+                localBenefit = Wei(nTokenHaircutBenefit * 1e18 / discountedExchangeRate)
+
+            # Convert the local benefit to ETH terms at the new exchange rate
+            if collateral == 1:
+                localBenefitETH = liquidation.calculate_to_eth(
+                    local, -localBenefit, valueType="no-haircut", rate=newExchangeRate
+                )
+            else:
+                localBenefitETH = liquidation.calculate_to_eth(
+                    local, -localBenefit, valueType="no-haircut"
+                )
+
+            # Factor in the liquidation discount
+            ethBenefitAdjustment += localBenefitETH
+        LOGGER.info("**** fc start *****")
+        if (
+            pytest.approx(fc + expectedNetETHBenefit + ethBenefitAdjustment, rel=1e-6, abs=100)
+            == fcAfter
+        ):
+            LOGGER.info("PASS")
+        elif numTokens == 0:
+            LOGGER.info("local: {}, collateral: {}".format(local, collateral))
+            LOGGER.info("fcBefore: {}, fcAfter: {}, diff: {}".format(fc, fcAfter, (fcAfter - fc)))
+            LOGGER.info("expectedNetETHBenefit: {}".format(expectedNetETHBenefit))
+            LOGGER.info("newExchangeRate: {}".format(Wei(newExchangeRate)))
+            LOGGER.info("ethBenefitAdjustment: {}".format(Wei(ethBenefitAdjustment)))
+            LOGGER.info("nTokenHaircutBenefit: {}".format(Wei(nTokenHaircutBenefit)))
+            LOGGER.info("localBenefit: {}".format(Wei(localBenefit)))
+            LOGGER.info(
+                "fc calculated: {}".format(fc + expectedNetETHBenefit + ethBenefitAdjustment)
+            )
+            LOGGER.info("fc after: {}".format(fcAfter))
+            LOGGER.info("FAIL")
+        LOGGER.info("**** fc end *****")
+
         # TODO: this does not work, need to include haircut from removed tokens
-        # assert pytest.approx(fc - expectedNetETHBenefit, rel=1e-6, abs=100) == fcAfter
+        # assert pytest.approx(fc + expectedNetETHBenefit + ethBenefitAdjustment,
+        # rel=1e-6, abs=100) == fcAfter
+        assert fcAfter > fc
 
     # def test_liquidate_limits(self, liquidation, accounts, local, localDebt, ratio):
     #     pass
