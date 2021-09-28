@@ -99,6 +99,7 @@ class TestLiquidateCollateral:
     def test_liquidate_cash_and_liquidity_tokens(
         self, liquidation, accounts, local, localDebt, ratio, numTokens, balanceShare
     ):
+        numTokens = 0
         blockTime = chain.time()
 
         # Set the local debt amount
@@ -164,7 +165,8 @@ class TestLiquidateCollateral:
 
         (
             expectedCollateralTrade,
-            expectedNetETHBenefit,
+            collateralETHHaircutValue,
+            debtETHBufferValue,
             collateralToSell,
             collateralDenominatedFC,
         ) = get_expected(
@@ -248,72 +250,33 @@ class TestLiquidateCollateral:
         assert collateralAvailable >= 0
         assert localAvailable <= 0
 
-        ethBenefitAdjustment = 0
-        nTokenHaircutBenefit = 0
-        localBenefit = 0
+        collateralETHHaircutDiff = 0
         if nTokensPurchased > 0:
-            collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
-
-            # This is the haircut benefit in collateral underlying terms
-            nTokenHaircutBenefit = Wei(
-                liquidation.calculate_to_underlying(
-                    collateral,
-                    liquidation.calculate_ntoken_to_asset(
-                        collateral, nTokensPurchased, "liquidator"
-                    )
-                    - liquidation.calculate_ntoken_to_asset(
-                        collateral, nTokensPurchased, "haircut"
-                    ),
-                )
-                * collateralHaircut
-                / 100
+            # The nToken haircut is split between a discount given to the liquidator,
+            # and a collateral benefit given to the liquidated account
+            liquidate = liquidation.calculate_ntoken_to_asset(
+                collateral, nTokensPurchased, "liquidator"
             )
+            haircut = liquidation.calculate_ntoken_to_asset(collateral, nTokensPurchased, "haircut")
+            collateralDiff = liquidation.calculate_to_underlying(collateral, liquidate - haircut)
 
-            # All of this benefit has been traded to local currency, so convert it at the new
-            # exchange rate, do not replicate the haircut on collateral since it has already
-            # been accounted for in expectedNetETHBenefit
-            if local == 1:
-                # TODO: this looks like the wrong exchange rate
-                localBenefit = Wei(nTokenHaircutBenefit * discountedExchangeRate / 1e18)
-            else:
-                localBenefit = Wei(nTokenHaircutBenefit * 1e18 / discountedExchangeRate)
-
-            # Convert the local benefit to ETH terms at the new exchange rate
             if collateral == 1:
-                localBenefitETH = liquidation.calculate_to_eth(
-                    local, -localBenefit, valueType="no-haircut", rate=newExchangeRate
-                )
+                collateralETHHaircutDiff = liquidation.calculate_to_eth(collateral, collateralDiff)
             else:
-                localBenefitETH = liquidation.calculate_to_eth(
-                    local, -localBenefit, valueType="no-haircut"
+                collateralETHHaircutDiff = liquidation.calculate_to_eth(
+                    collateral, collateralDiff, rate=newExchangeRate
                 )
 
-            # Factor in the liquidation discount
-            ethBenefitAdjustment += localBenefitETH
-        LOGGER.info("**** fc start *****")
-        if (
-            pytest.approx(fc + expectedNetETHBenefit + ethBenefitAdjustment, rel=1e-6, abs=100)
-            == fcAfter
-        ):
-            LOGGER.info("PASS")
-        elif numTokens == 0:
-            LOGGER.info("local: {}, collateral: {}".format(local, collateral))
-            LOGGER.info("fcBefore: {}, fcAfter: {}, diff: {}".format(fc, fcAfter, (fcAfter - fc)))
-            LOGGER.info("expectedNetETHBenefit: {}".format(expectedNetETHBenefit))
-            LOGGER.info("newExchangeRate: {}".format(Wei(newExchangeRate)))
-            LOGGER.info("ethBenefitAdjustment: {}".format(Wei(ethBenefitAdjustment)))
-            LOGGER.info("nTokenHaircutBenefit: {}".format(Wei(nTokenHaircutBenefit)))
-            LOGGER.info("localBenefit: {}".format(Wei(localBenefit)))
-            LOGGER.info(
-                "fc calculated: {}".format(fc + expectedNetETHBenefit + ethBenefitAdjustment)
-            )
-            LOGGER.info("fc after: {}".format(fcAfter))
-            LOGGER.info("FAIL")
-        LOGGER.info("**** fc end *****")
+        if netCashWithdrawn > 0:
+            # TODO: need to add this here
+            pass
+
+        finalExpectedFC = (
+            fc - collateralETHHaircutValue - debtETHBufferValue + collateralETHHaircutDiff
+        )
 
         # TODO: this does not work, need to include haircut from removed tokens
-        # assert pytest.approx(fc + expectedNetETHBenefit + ethBenefitAdjustment,
-        # rel=1e-6, abs=100) == fcAfter
+        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
         assert fcAfter > fc
 
     # def test_liquidate_limits(self, liquidation, accounts, local, localDebt, ratio):
