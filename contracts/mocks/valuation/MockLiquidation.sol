@@ -159,6 +159,10 @@ contract MockLocalLiquidation is MockValuationBase {
     function getFreeCollateral(address account) external view returns (int256, int256[] memory) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
+
+    function getFreeCollateralAtTime(address account, uint256 blockTime) external view returns (int256, int256[] memory) {
+        return FreeCollateralAtTime.getFreeCollateralViewAtTime(account, blockTime);
+    }
 }
 
 contract MockCollateralLiquidation is MockValuationBase {

@@ -130,9 +130,6 @@ class TestLiquidatefCash:
         liquidatorPrice = 0
         fCashBenefit = 0
         for (m, t) in zip(maturities, notionalTransfers):
-            # Test the expected fcash transfer
-            # assert pytest.approx(e, rel=1e-6) == t
-
             matchingfCash = list(filter(lambda x: x[1] == m, assets))[0]
             # Transfer cannot exceed fCash balance.
             assert matchingfCash[3] >= t

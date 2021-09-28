@@ -524,8 +524,9 @@ def get_expected(
         )
         debtETHBufferValue = liquidation.calculate_to_eth(local, -expectedLocalCash)
 
-    # Total benefit is:
-    expectedNetETHBenefit = collateralETHHaircutValue + debtETHBufferValue
+    # Calculates total benefit, the debtETHBuffer value is negative so we subtract it
+    # here to get a total positive value
+    expectedNetETHBenefit = -(collateralETHHaircutValue + debtETHBufferValue)
 
     return (
         expectedCollateralTrade,
