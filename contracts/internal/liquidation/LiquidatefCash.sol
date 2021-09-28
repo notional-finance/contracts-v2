@@ -78,7 +78,9 @@ library LiquidatefCash {
         }
 
         PortfolioAsset[] memory portfolio = context.portfolio.storedAssets;
-        for (uint256 i = 0; i < portfolio.length; i++) {
+        // Loop backwards through the portfolio since we require fCash maturities to be sorted
+        // descending
+        for (uint256 i = portfolio.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolio[i];
             if (
                 asset.currencyId == currencyId &&

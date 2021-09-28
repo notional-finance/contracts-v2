@@ -34,10 +34,16 @@ Liquidate Local Currency Test Matrix:
 class TestLiquidateLocalNTokens:
     @pytest.fixture(scope="module", autouse=True)
     def liquidation(
-        self, MockLocalLiquidation, SettleAssetsExternal, FreeCollateralExternal, accounts
+        self,
+        MockLocalLiquidation,
+        SettleAssetsExternal,
+        FreeCollateralExternal,
+        FreeCollateralAtTime,
+        accounts,
     ):
         SettleAssetsExternal.deploy({"from": accounts[0]})
         FreeCollateralExternal.deploy({"from": accounts[0]})
+        FreeCollateralAtTime.deploy({"from": accounts[0]})
         return ValuationMock(accounts[0], MockLocalLiquidation)
 
     @pytest.fixture(autouse=True)
