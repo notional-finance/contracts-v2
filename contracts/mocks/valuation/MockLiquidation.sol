@@ -70,6 +70,7 @@ contract MockLocalLiquidation is MockValuationBase {
         PortfolioState portfolioState
     );
 
+    event Test(int256 a, int256 t, LiquidateCurrency.WithdrawFactors w);
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,

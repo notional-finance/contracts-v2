@@ -1,3 +1,4 @@
+import logging
 import random
 
 import pytest
@@ -11,6 +12,7 @@ from tests.internal.liquidation.liquidation_helpers import (
     setup_collateral_liquidation,
 )
 
+LOGGER = logging.getLogger(__name__)
 chain = Chain()
 
 """
@@ -86,6 +88,7 @@ class TestLiquidateCollateral:
     def isolation(self, fn_isolation):
         pass
 
+    @pytest.mark.only
     @given(
         local=strategy("uint", min_value=1, max_value=4),
         localDebt=strategy("int", min_value=-100_000e8, max_value=-1e8),
@@ -161,7 +164,8 @@ class TestLiquidateCollateral:
 
         (
             expectedCollateralTrade,
-            expectedNetETHBenefit,
+            collateralETHHaircutValue,
+            debtETHBufferValue,
             collateralToSell,
             collateralDenominatedFC,
         ) = get_expected(
@@ -244,8 +248,35 @@ class TestLiquidateCollateral:
         localAvailable = netLocalAfter[0 if collateral > local else 1]
         assert collateralAvailable >= 0
         assert localAvailable <= 0
+
+        collateralETHHaircutDiff = 0
+        if nTokensPurchased > 0:
+            # The nToken haircut is split between a discount given to the liquidator,
+            # and a collateral benefit given to the liquidated account
+            liquidate = liquidation.calculate_ntoken_to_asset(
+                collateral, nTokensPurchased, "liquidator"
+            )
+            haircut = liquidation.calculate_ntoken_to_asset(collateral, nTokensPurchased, "haircut")
+            collateralDiff = liquidation.calculate_to_underlying(collateral, liquidate - haircut)
+
+            if collateral == 1:
+                collateralETHHaircutDiff = liquidation.calculate_to_eth(collateral, collateralDiff)
+            else:
+                collateralETHHaircutDiff = liquidation.calculate_to_eth(
+                    collateral, collateralDiff, rate=newExchangeRate
+                )
+
+        if netCashWithdrawn > 0:
+            # TODO: need to add this here
+            pass
+
+        finalExpectedFC = (
+            fc - collateralETHHaircutValue - debtETHBufferValue + collateralETHHaircutDiff
+        )
+
         # TODO: this does not work, need to include haircut from removed tokens
-        # assert pytest.approx(fc - expectedNetETHBenefit, rel=1e-6, abs=100) == fcAfter
+        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
+        assert fcAfter > fc
 
     # def test_liquidate_limits(self, liquidation, accounts, local, localDebt, ratio):
     #     pass
