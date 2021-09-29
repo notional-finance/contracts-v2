@@ -1,3 +1,4 @@
+import logging
 import random
 
 import brownie
@@ -8,11 +9,11 @@ from brownie.test import given, strategy
 from tests.helpers import get_fcash_token
 from tests.internal.liquidation.liquidation_helpers import (
     ValuationMock,
-    get_expected,
     move_collateral_exchange_rate,
     setup_collateral_liquidation,
 )
 
+LOGGER = logging.getLogger(__name__)
 chain = Chain()
 
 """
@@ -64,6 +65,7 @@ class TestLiquidatefCash:
     def isolation(self, fn_isolation):
         pass
 
+    @pytest.mark.only
     @given(
         localDebt=strategy("int", min_value=-1_000_000e8, max_value=-1e8),
         local=strategy("uint", min_value=1, max_value=4),
@@ -100,17 +102,6 @@ class TestLiquidatefCash:
         # FC is be negative at this point
         (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
 
-        # expectedNetETHBenefit only includes collateral benefit
-        (expectedCollateralTrade, expectedNetETHBenefit, _, _) = get_expected(
-            liquidation,
-            local,
-            collateral,
-            newExchangeRate,
-            discountedExchangeRate,
-            collateralUnderlying,
-            fc,
-        )
-
         # Convert to expected fCash trade
         maturities = sorted([a[1] for a in assets], reverse=True)
         (
@@ -128,7 +119,7 @@ class TestLiquidatefCash:
 
         transfers = []
         liquidatorPrice = 0
-        fCashBenefit = 0
+        fCashHaircut = 0
         for (m, t) in zip(maturities, notionalTransfers):
             matchingfCash = list(filter(lambda x: x[1] == m, assets))[0]
             # Transfer cannot exceed fCash balance.
@@ -139,8 +130,7 @@ class TestLiquidatefCash:
             haircut = liquidation.discount_to_pv(collateral, t, m, blockTime, "haircut")
 
             liquidatorPrice += liquidator
-            fCashBenefit += liquidator - haircut
-        expectedNetETHBenefit -= liquidation.calculate_to_eth(collateral, fCashBenefit)
+            fCashHaircut += haircut
 
         # Check price is correct
         localCashFinal = liquidation.calculate_to_underlying(local, localAssetCashFromLiquidator)
@@ -157,14 +147,38 @@ class TestLiquidatefCash:
         (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
 
         # Check that we did not cross available boundaries in the trade
-        collateralAvailable = netLocalAfter[1 if collateral > local else 0]
+        collateralAvailableBefore = netLocal[1 if collateral > local else 0]
+        collateralAvailableAfter = netLocalAfter[1 if collateral > local else 0]
+        assert pytest.approx(
+            Wei(fCashHaircut), rel=1e-6, abs=100
+        ) == liquidation.calculate_to_underlying(
+            collateral, collateralAvailableBefore - collateralAvailableAfter
+        )
+        assert collateralAvailableAfter >= 0
+
         localAvailable = netLocalAfter[0 if collateral > local else 1]
-        assert collateralAvailable >= 0
         assert localAvailable <= 0
 
-        # Account for the fCash benefit in the trade
-        # TODO: this is wrong...
-        # assert pytest.approx(fc - expectedNetETHBenefit, rel=1e-2) == fcAfter
+        # We calculate the difference in fc by looking at the fCashHaircut and the localCash traded
+        # rather than using the get_expected method as we do in collateral currency. The reason is
+        # that the default liquidation portion is not always applied due to how fCash notionals are
+        # distributed
+        if collateral == 1:
+            debtETHBuffer = liquidation.calculate_to_eth(
+                local, -localCashFinal, rate=newExchangeRate
+            )
+            collateralETHValue = liquidation.calculate_to_eth(collateral, fCashHaircut)
+        else:
+            debtETHBuffer = liquidation.calculate_to_eth(local, -localCashFinal)
+            collateralETHValue = liquidation.calculate_to_eth(
+                collateral, fCashHaircut, rate=newExchangeRate
+            )
+
+        finalExpectedFC = fc - collateralETHValue - debtETHBuffer
+
+        # fCash haircut is used to determine the amount of collateral traded
+        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
+        assert fcAfter > fc
 
     def test_cross_currency_fcash_user_limit(self, liquidation, accounts):
         pass

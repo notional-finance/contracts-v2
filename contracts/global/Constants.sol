@@ -114,9 +114,6 @@ library Constants {
     int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
     // Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
     int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
-    // Denominated in units of fCash, any value lower than this will terminate the fCash liquidation loop. Because
-    // the discount to present value is asymptotic (it uses exp), it's unlikely that we will get down to exactly zero.
-    int256 internal constant LIQUIDATION_DUST = 10;
 
     // Pause Router liquidation enabled states
     bytes1 internal constant LOCAL_CURRENCY_ENABLED = 0x01;

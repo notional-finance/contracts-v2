@@ -261,8 +261,7 @@ library LiquidatefCash {
             );
 
             if (
-                c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST ||
-                c.factors.collateralAssetAvailable == 0
+                c.underlyingBenefitRequired <= 0 || c.factors.collateralAssetAvailable == 0
             ) break;
         }
     }

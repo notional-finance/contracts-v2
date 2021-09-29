@@ -99,7 +99,6 @@ class TestLiquidateCollateral:
     def test_liquidate_cash_and_liquidity_tokens(
         self, liquidation, accounts, local, localDebt, ratio, numTokens, balanceShare
     ):
-        numTokens = 0
         blockTime = chain.time()
 
         # Set the local debt amount
