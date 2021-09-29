@@ -119,6 +119,9 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
+        // If local asset available == 0 then there is nothing that this liquidation can do.
+        require(c.factors.localAssetAvailable != 0);
+
         // If local available is positive then we can trade fCash to cash to increase the total free
         // collateral of the account. Local available will always increase due to the removal of the haircut
         // on fCash assets as they are converted to cash. The increase will be the difference between the
@@ -159,7 +162,9 @@ library LiquidatefCash {
             // abs is used here to ensure positive values
             c.fCashNotionalTransfers[i] = c.underlyingBenefitRequired
             // NOTE: Governance should be set such that these discount factors are unlikely to be zero. It's
-            // possible that the interest rates are so low that this situation can occur.
+            // possible that the interest rates are so low or that the fCash asset is very close to maturity
+            // that this situation can occur. In this case, there would be almost zero benefit to liquidating
+            // the particular fCash asset.
                 .divInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs());
 
             // fCashNotionalTransfers[i] is always positive at this point. The max liquidate amount is
@@ -263,7 +268,10 @@ library LiquidatefCash {
             );
 
             if (
-                c.underlyingBenefitRequired <= 0 || c.factors.collateralAssetAvailable == 0
+                c.underlyingBenefitRequired <= 0 ||
+                // These two factors will be capped and floored at zero inside `_limitPurchaseByAvailableAmounts`
+                c.factors.collateralAssetAvailable == 0 ||
+                c.factors.localAssetAvailable == 0
             ) break;
         }
     }
