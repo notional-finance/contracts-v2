@@ -40,31 +40,17 @@ contract MockBalanceHandler is StorageLayoutV1 {
         int256 cashBalance,
         int256 nTokenBalance
     ) external {
-        bytes32 slot = keccak256(
-            abi.encode(currencyId, keccak256(abi.encode(account, Constants.BALANCE_STORAGE_OFFSET)))
-        );
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
 
-        bytes32 data = ((bytes32(uint256(nTokenBalance))) |
-            (bytes32(0) << 80) |
-            (bytes32(0) << 112) |
-            (bytes32(cashBalance) << 168));
-
-        assembly {
-            sstore(slot, data)
-        }
-    }
-
-    function getData(address account, uint256 currencyId) external view returns (bytes32) {
-        bytes32 slot = keccak256(abi.encode(currencyId, account, "account.balances"));
-        bytes32 data;
-        assembly {
-            data := sload(slot)
-        }
-
-        return data;
+        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        balanceStorage.cashBalance = int88(cashBalance);
+        balanceStorage.lastClaimTime = 0;
+        balanceStorage.packedLastClaimIntegralSupply = 0;
     }
 
     function finalize(
