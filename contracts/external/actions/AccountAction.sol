@@ -87,37 +87,67 @@ contract AccountAction {
     /// @return asset tokens minted and deposited to the account in internal decimals (8)
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
     /// @dev auth:none
+    // function depositAssetToken(
+    //     address account,
+    //     uint16 currencyId,
+    //     uint256 amountExternalPrecision
+    // ) external returns (uint256) {
+    //     require(msg.sender != address(this)); // dev: no internal call to deposit asset
+
+    //     // AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+    //     AccountContext memory accountContext = accountContexts[account];
+    //     // BalanceState memory balanceState;
+    //     //balanceState.loadBalanceState(account, currencyId, accountContext);
+
+    //     // prettier-ignore
+    //     // Int conversion overflow check done inside this method call, useCashBalance is set to false. msg.sender
+    //     // is used as the account in deposit to allow for other accounts to deposit on behalf of the given account.
+    //     (
+    //         int256 assetTokensReceivedInternal,
+    //         /* assetAmountTransferred */
+    //     ) = balanceState.depositAssetToken(
+    //         msg.sender,
+    //         int256(amountExternalPrecision),
+    //         true // force transfer to ensure that msg.sender does the transfer, not account
+    //     );
+
+    //     balanceState.finalize(account, accountContext, false);
+    //     accountContext.setAccountContext(account);
+
+    //     require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
+
+    //     // NOTE: no free collateral checks required for depositing
+    //     return uint256(assetTokensReceivedInternal);
+    // }
     function depositAssetToken(
         address account,
         uint16 currencyId,
         uint256 amountExternalPrecision
+    // ) external nonReentrant returns (uint256) {
     ) external returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
+        // requireValidAccount(account);
 
-        // AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        AccountContext memory accountContext = accountContexts[account];
-        // BalanceState memory balanceState;
-        //balanceState.loadBalanceState(account, currencyId, accountContext);
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        BalanceState memory balanceState;
+        balanceState.loadBalanceState(account, currencyId, accountContext);
 
-        // prettier-ignore
-        // Int conversion overflow check done inside this method call, useCashBalance is set to false. msg.sender
-        // is used as the account in deposit to allow for other accounts to deposit on behalf of the given account.
-        (
-            int256 assetTokensReceivedInternal,
-            /* assetAmountTransferred */
-        ) = balanceState.depositAssetToken(
+        // Int conversion overflow check done inside this method call. msg.sender
+        // is used as the account in deposit to allow for other accounts to deposit
+        // on behalf of the given account.
+        (int256 assetTokensReceivedInternal,) = balanceState.depositAssetToken(
             msg.sender,
-            int256(amountExternalPrecision),
+            int256(amountExternalPrecision),    //SafeInt256.toInt(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
+
+        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative
-
         // NOTE: no free collateral checks required for depositing
-        return uint256(assetTokensReceivedInternal);
+        return uint256(assetTokensReceivedInternal);    //SafeInt256.toUint(assetTokensReceivedInternal);
     }
 
     /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. Will settle

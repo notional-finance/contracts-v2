@@ -1,12 +1,12 @@
-using DummyERC20A as tokenA
-using DummyERC20B as tokenB
+using DummyERC20ImplCToken as tokenB
+using DummyERC20Impl as tokenA
 using AccountAction as accountAction
 // todo: use SymbolicCERC20 
 
 methods {
     // harnessed
-    depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) returns (int256, int256) envfree
-    depositUnderlyingToken(address account, int256 underlyingAmountExternal) returns (int256) envfree
+    depositAssetToken(address account, int256 assetAmountExternal, bool forceTransfer) returns (int256, int256)
+    depositUnderlyingToken(address account, int256 underlyingAmountExternal) returns (int256) 
 
     // getters
     tokenA.balanceOf(address) returns (uint) envfree
@@ -26,8 +26,8 @@ methods {
     transfer(address,uint) => DISPATCHER(true)
     balanceOf(address) => DISPATCHER(true)
     transferFrom(address,address,uint) => DISPATCHER(true)
+    mint(uint256) => DISPATCHER(true)
     mint() => DISPATCHER(true)
-
     // accountAction
     accountAction.depositAssetToken(address,uint16,uint256)
 
@@ -42,63 +42,83 @@ ghost chosenTokenAssetOrUnderlying(bool) returns address {
     axiom chosenTokenAssetOrUnderlying(true) != chosenTokenAssetOrUnderlying(false);
 }
 
-// ghost chosenAssetToken() returns address;
-// ghost chosenUnderlyingToken() returns address;
-
-// function getRightToken(uint256 currencyId) {
-//     bool b;
-//     address tokenB = getToken(currencyId, b);
-//     require b => token == chosenUnderlyingToken();
-//     require !b => token == chosenAssetToken();
-//     require chosenUnderlyingToken() != chosenAssetToken();
-// }
 
 rule integrity_depositAssetToken_old(address account, int256 assetAmountExternal, bool forceTransfer) {
     require account != currentContract;
-    require account != 0;
-    require chosenToken() == tokenA;
-    uint _balance = tokenA.balanceOf(account);
+    require account != tokenB;
+    require chosenToken() == tokenB;
+    require tokenA != tokenB;
+ 
+ env e;
+    require e.msg.sender == account;
+    // require tokenB.erc20A(e) == tokenA; // The underlying token of B is A
 
     require forceTransfer; // otherwise no transfer will occur and will await finalize
-    depositAssetToken(account, assetAmountExternal, forceTransfer);
+    
+    uint _balanceA = tokenA.balanceOf(account);
+    uint _balanceB = tokenB.balanceOf(account);
+    depositAssetToken(e,account, assetAmountExternal, forceTransfer);
+    uint balanceA_ = tokenA.balanceOf(account);
+    uint balanceB_ = tokenB.balanceOf(account);
 
-    uint balance_ = tokenA.balanceOf(account);
-
-    assert balance_ == _balance - to_mathint(assetAmountExternal);
+    assert balanceA_ == _balanceA - to_mathint(assetAmountExternal) ||
+           balanceB_ == _balanceB - to_mathint(assetAmountExternal);
     // if !forceTransfer, check netAssetTransferInternalPrecision
 }
 
 rule integrity_depositAssetToken(address account, uint256 assetAmountExternal, uint16 currencyId) {
     require account != currentContract;
-    require chosenToken() == tokenA;
-    uint _balance = tokenA.balanceOf(account);
-
+    require account != accountAction;
+    require account != tokenB;
+    require chosenToken() == tokenB;
+    require tokenA != tokenB;
+    
     env e;
+    require e.msg.sender == account;
+    require tokenB.erc20A(e) == tokenA; // The underlying token of B is A
+
+    uint _balanceA = tokenA.balanceOf(account);
+    uint _balanceB = tokenB.balanceOf(account);
     accountAction.depositAssetToken(e, account, currencyId, assetAmountExternal);
+    uint balanceA_ = tokenA.balanceOf(account);
+    uint balanceB_ = tokenB.balanceOf(account);
 
-    uint balance_ = tokenA.balanceOf(account);
-
-    assert balance_ == _balance + to_mathint(assetAmountExternal);
+    assert _balanceA == balanceA_ + to_mathint(assetAmountExternal) ||
+           _balanceB == balanceB_ + to_mathint(assetAmountExternal);
 }
 rule deposit_underlyingToken(address account, int256 underlyingAmountExternal){
     require account != currentContract;
+    require account != tokenA;
+    require chosenToken() == tokenA;
+    require tokenA != tokenB;
+
+    env e;
+    require e.msg.sender == account;
+    require tokenB.erc20A(e) == tokenA; // The underlying token of B is A
+ 
     int _netCachChange = getNetCashChange();    
-    int256 assetTokensReceivedInternal = depositUnderlyingToken(account,underlyingAmountExternal);
+    int256 assetTokensReceivedInternal = depositUnderlyingToken(e,account,underlyingAmountExternal);
     int netCachChange_ = getNetCashChange();
+
     assert to_mathint(netCachChange_) == to_mathint(_netCachChange) + to_mathint(assetTokensReceivedInternal);
     // assert false;
 }
 
 rule underlying_doesnot_change(address account, int256 underlyingAmountExternal)
 {
-    // uint256 currencyId;
-    // getRightToken(currencyId);
     require account != currentContract;
     require chosenToken() == tokenA;
+    require tokenA != tokenB;
+    
+    // tokenA is underlying
+    // tokenB is cToken
+    env e;
+    require tokenB.erc20A(e) == tokenA; // The underlying token of B is A
+    require e.msg.sender == account;
 
     // uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
     uint256 startingBalance = tokenA.balanceOf(currentContract);
-    int256 assetTokensReceivedInternal = depositUnderlyingToken(account,underlyingAmountExternal);
+    int256 assetTokensReceivedInternal = depositUnderlyingToken(e,account,underlyingAmountExternal);
     uint256 endBalance = tokenA.balanceOf(currentContract);
     
     assert startingBalance == endBalance;

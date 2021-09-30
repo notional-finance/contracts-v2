@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 
 // with mint
-contract DummyERC20Impl {
+contract DummyERC20Impl { // Underlying token
     uint256 totalSupplys;
     mapping (address => uint256) balances;
     mapping (address => mapping (address => uint256)) allowances;
@@ -10,6 +10,8 @@ contract DummyERC20Impl {
     string public name;
     string public symbol;
     uint public decimals;
+
+    DummyERC20Impl public erc20A; // underlying token
 
     function myAddress() public returns (address) {
         return address(this);
@@ -55,8 +57,30 @@ contract DummyERC20Impl {
         return true;
     }
 
-    function mint() external payable virtual {
-        totalSupplys = add(totalSupplys, msg.value);
-        balances[msg.sender] = add(balances[msg.sender], msg.value);
-    }
+    // function mint() external payable virtual {
+    //     totalSupplys = add(totalSupplys, msg.value);
+    //     balances[msg.sender] = add(balances[msg.sender], msg.value);
+    // }
+
+    // function mint(uint256 amount) external returns(uint256) {
+    //     totalSupplys = add(totalSupplys, amount);
+    //     balances[msg.sender] = add(balances[msg.sender], amount);
+    //     return 0;
+    // }
+
+    // function mint(uint256 mintAmount) external returns (uint256) {
+    //     require (address(erc20A) != address(this)); // underlying != cToken by comptroller
+    //     erc20A.transferFrom(msg.sender, address(this), mintAmount);
+    //     balances[msg.sender] = add(balances[msg.sender], mintAmount);
+    //     totalSupplys = add(totalSupplys, mintAmount);
+    //     return 0;
+    // }
+    
+    // function mint() external payable returns (uint256) {
+    //     uint mintAmount = msg.value;
+    //     balances[msg.sender] = add(balances[msg.sender], mintAmount);
+    //     totalSupplys = add(totalSupplys, mintAmount);
+    //     return 0;
+    // }
+
 }

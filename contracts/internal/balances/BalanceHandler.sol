@@ -84,6 +84,7 @@ library BalanceHandler {
         require(underlyingAmountExternal > 0); // dev: deposit underlying token negative
 
         Token memory underlyingToken = TokenHandler.getToken(balanceState.currencyId, true);
+        
         // This is the exact amount of underlying tokens the account has in external precision.
         if (underlyingToken.tokenType == TokenType.Ether) {
             require(underlyingAmountExternal == int256(msg.value), "Invalid ETH balance");
@@ -92,10 +93,13 @@ library BalanceHandler {
         }
 
         Token memory assetToken = TokenHandler.getToken(balanceState.currencyId, false);
+        
+        require((underlyingToken.tokenType == TokenType.Ether && assetToken.tokenType == TokenType.cETH) ||
+        (underlyingToken.tokenType != TokenType.Ether && assetToken.tokenType == TokenType.cToken));
+        require(underlyingToken.tokenAddress != assetToken.tokenAddress);
         // Tokens that are not mintable like cTokens will be deposited as assetTokens
         require(assetToken.tokenType == TokenType.cToken || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type
-        int256 assetTokensReceivedExternalPrecision =
-            assetToken.mint(uint256(underlyingAmountExternal));
+        int256 assetTokensReceivedExternalPrecision = assetToken.mint(uint256(underlyingAmountExternal));
 
         // cTokens match INTERNAL_TOKEN_PRECISION so this will short circuit but we leave this here in case a different
         // type of asset token is listed in the future. It's possible if those tokens have a different precision dust may
