@@ -181,9 +181,11 @@ class TestMarket:
             marketState[4] = 0
             market.addLiquidity(marketState, 1e9)
 
-    @given(fCashAmount=strategy("int", min_value=-10000e8, max_value=-10e8))
+    @given(fCashAmount=strategy("int", min_value=-10000e8, max_value=-1e8))
     def test_borrow_state(self, market, fCashAmount):
-        marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
+        marketState = get_market_state(
+            MARKETS[0], totalLiquidity=1000000e8, totalfCash=1000000e8, totalAssetCash=1000000e8
+        )
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
         cashGroup = market.buildCashGroupView(1)
@@ -206,7 +208,9 @@ class TestMarket:
 
     @given(fCashAmount=strategy("int", min_value=1e8, max_value=10000e8))
     def test_lend_state(self, market, fCashAmount):
-        marketState = get_market_state(MARKETS[0], totalLiquidity=1000000e8, proportion=0.5)
+        marketState = get_market_state(
+            MARKETS[0], totalLiquidity=1000000e8, totalfCash=1000000e8, totalAssetCash=1000000e8
+        )
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
         cashGroup = market.buildCashGroupView(1)
@@ -228,6 +232,21 @@ class TestMarket:
         # Trade time has changed
         assert newMarket[7] > marketState[7]
 
-    @pytest.mark.todo
-    def test_oracle_rates_only_change_on_trading(self):
-        pass
+    def test_max_market_proportion(self, market):
+        # Sets the proportion at 0.99
+        marketState = get_market_state(MARKETS[0], totalfCash=0.99e15, totalAssetCash=0.01e15)
+        market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
+        marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
+        cashGroup = market.buildCashGroupView(1)
+
+        # Borrowing at max proportion should fail
+        (_, assetCash, _) = market.calculateTrade(
+            marketState, cashGroup, -1e8, 30 * SECONDS_IN_DAY, 1
+        )
+        assert assetCash == 0
+
+        # Lending at max proportion should succeed
+        (_, assetCash, _) = market.calculateTrade(
+            marketState, cashGroup, 100e8, 30 * SECONDS_IN_DAY, 1
+        )
+        assert assetCash < 0
