@@ -26,7 +26,7 @@ library SettlePortfolioAssets {
         uint256 lastCurrencyId;
         if (portfolioState.storedAssets.length == 0) return new SettleAmount[](0);
 
-        // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
+       /* // Loop backwards so "lastCurrencyId" will be set to the first currency in the portfolio
         // NOTE: if this contract is ever upgraded to Solidity 0.8+ then this i-- will underflow and cause
         // a revert, must wrap in an unchecked.
         for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
@@ -42,10 +42,10 @@ library SettlePortfolioAssets {
                 currenciesSettled++;
             }
         }
-
+*/
         // Actual currency ids will be set in the loop
         SettleAmount[] memory settleAmounts = new SettleAmount[](currenciesSettled);
-        if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
+       // if (currenciesSettled > 0) settleAmounts[0].currencyId = lastCurrencyId;
         return settleAmounts;
     }
 
@@ -61,15 +61,15 @@ library SettlePortfolioAssets {
     {
         SettlementMarket memory market =
             Market.getSettlementMarket(asset.currencyId, asset.maturity, asset.getSettlementDate());
-
+/*
         int256 assetCash = market.totalAssetCash.mul(asset.notional).div(market.totalLiquidity);
         int256 fCash = market.totalfCash.mul(asset.notional).div(market.totalLiquidity);
 
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
         market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
         market.totalLiquidity = market.totalLiquidity.subNoNeg(asset.notional);
-
-        return (assetCash, fCash, market);
+*/
+        return (0,0,/*assetCash, fCash,*/ market);
     }
 
     /// @notice Settles a liquidity token which requires getting the claims on both cash and fCash,
@@ -94,7 +94,7 @@ library SettlePortfolioAssets {
         PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
         (int256 assetCash, int256 fCash, SettlementMarket memory market) =
             _calculateMarketStorage(liquidityToken);
-
+/*
         // If the liquidity token's maturity is still in the future then we change the entry to be
         // an idiosyncratic fCash entry with the net fCash amount.
         if (index != 0) {
@@ -119,7 +119,7 @@ library SettlePortfolioAssets {
         liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
         liquidityToken.notional = fCash;
         liquidityToken.storageState = AssetStorageState.Update;
-
+*/
         return (assetCash, market);
     }
 
@@ -130,7 +130,7 @@ library SettlePortfolioAssets {
     {
         AssetRateParameters memory settlementRate;
         SettleAmount[] memory settleAmounts = _getSettleAmountArray(portfolioState, blockTime);
-        if (settleAmounts.length == 0) return settleAmounts;
+       /* if (settleAmounts.length == 0) return settleAmounts;
         uint256 settleAmountIndex;
         uint256 lastMaturity;
 
@@ -175,7 +175,7 @@ library SettlePortfolioAssets {
                 .netCashChange
                 .add(assetCash);
         }
-
+*/
         return settleAmounts;
     }
 }

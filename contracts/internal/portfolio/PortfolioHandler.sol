@@ -75,7 +75,7 @@ library PortfolioHandler {
         int256 notional,
         bool isNewHint
     ) internal pure {
-        if (!isNewHint) {
+      /*  if (!isNewHint) {
             bool merged =
                 _mergeAssetIntoArray(
                     portfolioState.storedAssets,
@@ -97,7 +97,7 @@ library PortfolioHandler {
                     notional
                 );
             if (merged) return;
-        }
+        }*/
 
         // At this point if we have not merged the asset then append to the array
         // Cannot remove liquidity that the portfolio does not have
@@ -161,7 +161,7 @@ library PortfolioHandler {
         uint256 nextSettleTime;
 
         // Mark any zero notional assets as deleted
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+       /* for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             if (
                 portfolioState.storedAssets[i].storageState != AssetStorageState.Delete &&
                 portfolioState.storedAssets[i].notional == 0
@@ -169,7 +169,7 @@ library PortfolioHandler {
                 deleteAsset(portfolioState, i);
             }
         }
-
+*/
         // First delete assets from asset storage to maintain asset storage indexes
         for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.storedAssets[i];
@@ -192,17 +192,17 @@ library PortfolioHandler {
                 }*/
             }
 
-            (hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
+            /*(hasDebt, portfolioActiveCurrencies, nextSettleTime) = _updatePortfolioContext(
                 asset,
                 hasDebt,
                 portfolioActiveCurrencies,
                 nextSettleTime
-            );
+            );*/
         }
 
         // Add new assets
         uint256 assetStorageLength = portfolioState.storedAssetLength;
-        for (uint256 i; i < portfolioState.newAssets.length; i++) {
+    /*    for (uint256 i; i < portfolioState.newAssets.length; i++) {
             PortfolioAsset memory asset = portfolioState.newAssets[i];
             if (asset.notional == 0) continue;
 
@@ -220,7 +220,7 @@ library PortfolioHandler {
                 sstore(newAssetSlot, encodedAsset)
             }
             assetStorageLength += 1;
-        }
+        }*/
 
         return (
             hasDebt,
@@ -282,7 +282,7 @@ library PortfolioHandler {
         uint256 maxActiveSlot;
         // The max active slot is the last storage slot where an asset exists, it's not clear where this will be in the
         // array so we search for it here.
-        for (uint256 i; i < portfolioState.storedAssets.length; i++) {
+       /* for (uint256 i; i < portfolioState.storedAssets.length; i++) {
             if (
                 portfolioState.storedAssets[i].storageSlot > maxActiveSlot &&
                 portfolioState.storedAssets[i].storageState != AssetStorageState.Delete
@@ -308,7 +308,7 @@ library PortfolioHandler {
             portfolioState.storedAssets[maxActiveSlotIndex].storageSlot
         );
         portfolioState.storedAssets[maxActiveSlotIndex].storageState = AssetStorageState.Update;
-        portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;
+        portfolioState.storedAssets[index].storageState = AssetStorageState.Delete;*/
     }
 
     /// @notice Returns a portfolio array, will be sorted
@@ -321,7 +321,7 @@ library PortfolioHandler {
         // No sorting required for length of 1
         if (assets.length <= 1) return assets;
 
-        _quickSortInPlace(assets, 0, int256(assets.length) - 1);
+        //_quickSortInPlace(assets, 0, int256(assets.length) - 1);
         return assets;
     }
 

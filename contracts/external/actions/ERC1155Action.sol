@@ -88,7 +88,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         pure
         returns (int256)
     {
-        for (uint256 i; i < portfolio.length; i++) {
+       /* for (uint256 i; i < portfolio.length; i++) {
             if (
                 TransferAssets.encodeAssetId(
                     portfolio[i].currencyId,
@@ -96,7 +96,8 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
                     portfolio[i].assetType
                 ) == id
             ) return portfolio[i].notional;
-        }
+        }*/
+        return portfolio[0].notional;
     }
 
     /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows `from` account to transfer more fCash
