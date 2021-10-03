@@ -1,0 +1,7 @@
+{
+	RegisteredRule(rule=accountContextMustBeReadAndWrittenExactlyOnce, ruleType=spec.cvlast.CVLRuleType$Single$FromUser$SpecFile@517d4a0d, parentCVLDeclarationId=null, isCounted=true):true,
+	RegisteredRule(rule=safeBatchTransferFrom(address,address,uint256[],uint256[],bytes), ruleType=spec.cvlast.CVLRuleType$Single$FromUser$SpecFile@517d4a0d, parentCVLDeclarationId=accountContextMustBeReadAndWrittenExactlyOnce, isCounted=true):true,
+	RegisteredRule(rule=setApprovalForAll(address,bool), ruleType=spec.cvlast.CVLRuleType$Single$FromUser$SpecFile@517d4a0d, parentCVLDeclarationId=accountContextMustBeReadAndWrittenExactlyOnce, isCounted=true):true,
+	RegisteredRule(rule=safeTransferFrom(address,address,uint256,uint256,bytes), ruleType=spec.cvlast.CVLRuleType$Single$FromUser$SpecFile@517d4a0d, parentCVLDeclarationId=accountContextMustBeReadAndWrittenExactlyOnce, isCounted=true):true,
+	RegisteredRule(rule=certorafallback_0(), ruleType=spec.cvlast.CVLRuleType$Single$FromUser$SpecFile@517d4a0d, parentCVLDeclarationId=accountContextMustBeReadAndWrittenExactlyOnce, isCounted=true):true
+	}

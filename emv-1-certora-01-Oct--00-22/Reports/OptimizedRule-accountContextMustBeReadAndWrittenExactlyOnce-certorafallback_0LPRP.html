@@ -1,0 +1,1180 @@
+        <!DOCTYPE html>
+        <html>
+        <!-- Fri Oct 01 01:01:29 IDT 2021 -->
+        <head>
+            <title>OptimizedRule-accountContextMustBeReadAndWrittenExactlyOnce-certorafallback_0() - Code Map</title>
+            <meta charset="utf-8"/>
+            <style>
+                .tooltip {
+                  position: relative;
+                  display: inline-block;
+                  border-bottom: 1px dotted black;
+                }
+
+                .tooltip .tooltiptext {
+                  visibility: hidden;
+                  width: 900px;
+                  background-color: red;
+                  color: #fff;
+                  text-align: center;
+                  border-radius: 6px;
+                  padding: 5px 0;
+
+                  /* Position the tooltip */
+                  position: fixed;
+                  z-index: 100000;
+                  top: 0;
+                  left: 25%;
+                  margin-left: -60px;
+                }
+            </style>
+            <script src="https://certora-web-resources.s3-us-west-2.amazonaws.com/svg-pan-zoom.min.js"></script>
+            <script type="text/javascript">
+                var highlightedAnchor = null;
+                
+                function highlightAnchor(anchorId) {
+                    var messagesDiv = document.getElementById("messages"); // must be not null
+                    messagesDiv.innerHTML = "";
+                    if (highlightedAnchor != null) {
+                        var lastBlock = document.getElementById("block"+highlightedAnchor);
+                        var lastEdgeS = document.getElementById("edgeS"+highlightedAnchor);
+                        var lastEdgeT = document.getElementById("edgeT"+highlightedAnchor);
+                        var lastEdgeP = document.getElementById("edgeP"+highlightedAnchor);
+                        var lastNode = document.getElementById(highlightedAnchor);
+                        if (lastBlock != null) {
+                            lastBlock.style.backgroundColor="white";
+                            if (lastEdgeS != null) lastEdgeS.style.backgroundColor="white";
+                            if (lastEdgeT != null) lastEdgeT.style.backgroundColor="white";
+                            if (lastEdgeP != null) lastEdgeP.style.backgroundColor="white";
+                        } else {
+                            //messagesDiv.innerHTML += "block " + highlightedAnchor + " does not exist.<br/>";
+                        }
+                        if (lastNode != null) {
+                            lastNode.children[1].attributes[0].value="white";
+                        }
+                    }
+                    highlightedAnchor = anchorId;
+                    var newBlock = document.getElementById("block"+highlightedAnchor);
+                    var newEdgeS = document.getElementById("edgeS"+highlightedAnchor);
+                    var newEdgeT = document.getElementById("edgeT"+highlightedAnchor);
+                    var newEdgeP = document.getElementById("edgeP"+highlightedAnchor);
+                    var newNode = document.getElementById(highlightedAnchor);
+                    if (newBlock != null) {
+                        newBlock.style.backgroundColor="yellow";
+                        if (newEdgeS != null) newEdgeS.style.backgroundColor="yellow";
+                        if (newEdgeT != null) newEdgeT.style.backgroundColor="yellow";
+                        if (newEdgeP != null) newEdgeP.style.backgroundColor="yellow";
+                    } else {
+                        messagesDiv.innerHTML += "block " + highlightedAnchor + " does not exist.<br/>";
+                    }
+                    if (newNode != null) {
+                        newNode.children[1].attributes[0].value="yellow";
+                    }
+                    if (newEdgeS != null) {
+                        newEdgeS.scrollIntoView();
+                        //location.href = "#"+newEdgeS.id;
+                    }
+                    if (newEdgeP != null) {
+                        newEdgeP.scrollIntoView();
+                    }
+                }
+
+                function toggleSize() {
+                    var divCex = document.getElementById("cex");
+                    if (divCex != null) {
+                        if (divCex.style.width == "250px") {
+                            divCex.style.width = "900px";
+                        } else {
+                            divCex.style.width = "250px";
+                        }
+                    }
+                }
+
+                var lastSvgEventListener = null;
+
+                var currentSVG = "0";
+                function toggleSVG(svgId) {
+                    var _svgcurrent = document.getElementById("svgOf"+currentSVG);
+                    var _svgnew = document.getElementById("svgOf"+svgId);
+                    _svgcurrent.style.visibility = "hidden";
+                    _svgnew.style.visibility = "visible";
+
+                    var _blockscurrent = document.getElementById("blocksAndEdges"+currentSVG);
+                    var _blocksnew = document.getElementById("blocksAndEdges"+svgId);
+                    _blockscurrent.style.visibility = "hidden";
+                    _blocksnew.style.visibility = "visible";
+
+                    if (currentSVG != "0")
+						var _pannedsvgcurrent = document.getElementById("theSVG"+currentSVG)
+					else
+						var _pannedsvgcurrent = document.getElementById("theSVG");
+					if (svgId != "0")
+						var svgsuffix = svgId
+					else
+						var svgsuffix = "";
+					var _pannedsvgnew = document.getElementById("theSVG"+svgsuffix);
+
+                    if (_pannedsvgcurrent != null) {
+					    svgPanZoom(_pannedsvgcurrent).destroy();
+                    }
+
+                    if (_pannedsvgnew != null) {
+                        lastSvgEventListener = svgPanZoom('#theSVG'+svgsuffix, {
+                                      zoomEnabled: true,
+                                      controlIconsEnabled: true,
+                                      fit: true,
+                                      center: true,
+                                      // viewportSelector: document.getElementById('theSVG').querySelector('#g4') // this option will make library to misbehave. Viewport should have no transform attribute
+                                    });
+                    }
+
+                    currentSVG = svgId;
+                }
+
+            </script>
+            <style>
+                html {
+                    height:100%;
+                    margin:0;
+                    padding:0;
+                }
+                body {
+                    font-family: Consolas;
+                    height:100%;
+                    overflow: hidden;
+                    margin:0;
+                    padding:0;
+                }
+                svg { width: 100%; height: auto; }
+            </style>
+        </head>
+        <body>
+
+            <div style="position:fixed;width:250px;top:0;right:0;color:white;background-color:blue;z-index:100;overflow-y: auto;max-height:400px;" id="cex" ondblclick="toggleSize()">
+                <div style="display:inline-block;z-index:100;">
+                <br/><br/>
+                <b>Double click to show/hide</b></div>
+            </div>
+
+            <div style="position:fixed;width:300px;top:420px;right:0;color:blue;background-color:grey;z-index:100;overflow-y:auto;max-height:200px;" id="tabs">
+                <div style="display:inline-block;z-index:100;">
+                    <a href="#blank0" onclick="toggleSVG('0')">0: main</a><br/><a href="#blank14" onclick="toggleSVG('14')">14: ERC1155Action.certorafallback_0</a>
+                </div>
+            </div>
+
+            <div style="position:fixed;bottom:0;left:0;color:white;background-color:red;" id="messages"></div>
+
+            <!-- SVG -->
+                                <div id="svgOf0" style="position:absolute;left:40%;top:0;overflow:scroll;height:90%;visibility:visible"><svg id="theSVG" width="406pt" height="385pt"
+ viewBox="0.00 0.00 406.13 385.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 381)">
+<title>OptimizedRule&#45;accountContextMustBeReadAndWrittenExactlyOnce&#45;certorafallback_0()_main</title>
+<polygon fill="white" stroke="transparent" points="-4,4 -4,-381 402.13,-381 402.13,4 -4,4"/>
+<!-- 0_0_0_0_0_0_0_0 -->
+<g id="0_0_0_0_0_0_0_0" class="node">
+<title>0_0_0_0_0_0_0_0</title>
+<ellipse fill="none" stroke="black" cx="258.89" cy="-359" rx="76.89" ry="18"/>
+<a href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')"><text text-anchor="middle" x="258.89" y="-355.3" font-family="Times,serif" font-size="14.00">0_0_0_0_0_0_0_0</text></a>
+</g>
+<!-- 43_0_0_0_0_0_0_0 -->
+<g id="43_0_0_0_0_0_0_0" class="node">
+<title>43_0_0_0_0_0_0_0</title>
+<ellipse fill="none" stroke="black" cx="195.89" cy="-272" rx="81.49" ry="18"/>
+<a href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')"><text text-anchor="middle" x="195.89" y="-268.3" font-family="Times,serif" font-size="14.00">43_0_0_0_0_0_0_0</text></a>
+</g>
+<!-- 0_0_0_0_0_0_0_0&#45;&gt;43_0_0_0_0_0_0_0 -->
+<g id="edge2" class="edge">
+<title>0_0_0_0_0_0_0_0&#45;&gt;43_0_0_0_0_0_0_0</title>
+<path fill="none" stroke="black" d="M246.44,-341.21C237.35,-328.95 224.88,-312.11 214.59,-298.24"/>
+<polygon fill="black" stroke="black" points="217.29,-296 208.52,-290.05 211.67,-300.17 217.29,-296"/>
+<text text-anchor="middle" x="259.39" y="-311.8" font-family="Times,serif" font-size="14.00">!B26:bool</text>
+</g>
+<!-- 44_0_0_0_0_0_0_0 -->
+<g id="44_0_0_0_0_0_0_0" class="node">
+<title>44_0_0_0_0_0_0_0</title>
+<ellipse fill="none" stroke="black" cx="316.89" cy="-218" rx="81.49" ry="18"/>
+<a href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')"><text text-anchor="middle" x="316.89" y="-214.3" font-family="Times,serif" font-size="14.00">44_0_0_0_0_0_0_0</text></a>
+</g>
+<!-- 0_0_0_0_0_0_0_0&#45;&gt;44_0_0_0_0_0_0_0 -->
+<g id="edge1" class="edge">
+<title>0_0_0_0_0_0_0_0&#45;&gt;44_0_0_0_0_0_0_0</title>
+<path fill="none" stroke="black" d="M277.38,-341.17C282.39,-335.79 287.38,-329.53 290.89,-323 303.84,-298.87 310.49,-268.12 313.81,-246.34"/>
+<polygon fill="black" stroke="black" points="317.32,-246.52 315.22,-236.13 310.38,-245.56 317.32,-246.52"/>
+<text text-anchor="middle" x="323.39" y="-311.8" font-family="Times,serif" font-size="14.00">B26:bool</text>
+</g>
+<!-- 14: ERC1155Action.certorafallback_0 -->
+<g id="14: ERC1155Action.certorafallback_0" class="node">
+<title>14: ERC1155Action.certorafallback_0</title>
+<ellipse fill="none" stroke="black" stroke-dasharray="5,2" cx="146.89" cy="-164" rx="146.77" ry="18"/>
+<a href="#blank14" onclick="toggleSVG('14')"><text text-anchor="middle" x="146.89" y="-160.3" font-family="Times,serif" font-size="14.00">14: ERC1155Action.certorafallback_0</text></a>
+</g>
+<!-- 43_0_0_0_0_0_0_0&#45;&gt;14: ERC1155Action.certorafallback_0 -->
+<g id="edge3" class="edge">
+<title>43_0_0_0_0_0_0_0&#45;&gt;14: ERC1155Action.certorafallback_0</title>
+<path fill="none" stroke="black" d="M188.01,-253.97C180.19,-237.05 168.09,-210.86 159.03,-191.28"/>
+<polygon fill="black" stroke="black" points="162.11,-189.6 154.74,-181.99 155.76,-192.53 162.11,-189.6"/>
+</g>
+<!-- 45_0_0_0_0_0_0_1 -->
+<g id="45_0_0_0_0_0_0_1" class="node">
+<title>45_0_0_0_0_0_0_1</title>
+<ellipse fill="none" stroke="black" cx="258.89" cy="-18" rx="81.49" ry="18"/>
+<a href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')"><text text-anchor="middle" x="258.89" y="-14.3" font-family="Times,serif" font-size="14.00">45_0_0_0_0_0_0_1</text></a>
+</g>
+<!-- 44_0_0_0_0_0_0_0&#45;&gt;45_0_0_0_0_0_0_1 -->
+<g id="edge4" class="edge">
+<title>44_0_0_0_0_0_0_0&#45;&gt;45_0_0_0_0_0_0_1</title>
+<path fill="none" stroke="black" d="M314.9,-199.72C311.37,-172.25 302.87,-117.19 286.89,-73 283.46,-63.52 278.69,-53.6 274.06,-44.89"/>
+<polygon fill="black" stroke="black" points="277.05,-43.06 269.17,-35.99 270.92,-46.43 277.05,-43.06"/>
+</g>
+<!-- 59_0_0_0_0_0_0_0 -->
+<g id="59_0_0_0_0_0_0_0" class="node">
+<title>59_0_0_0_0_0_0_0</title>
+<ellipse fill="none" stroke="black" cx="196.89" cy="-91" rx="81.49" ry="18"/>
+<a href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')"><text text-anchor="middle" x="196.89" y="-87.3" font-family="Times,serif" font-size="14.00">59_0_0_0_0_0_0_0</text></a>
+</g>
+<!-- 59_0_0_0_0_0_0_0&#45;&gt;45_0_0_0_0_0_0_1 -->
+<g id="edge5" class="edge">
+<title>59_0_0_0_0_0_0_0&#45;&gt;45_0_0_0_0_0_0_1</title>
+<path fill="none" stroke="black" d="M211.58,-73.17C219.19,-64.46 228.63,-53.65 237.07,-43.98"/>
+<polygon fill="black" stroke="black" points="239.93,-46.03 243.87,-36.2 234.65,-41.43 239.93,-46.03"/>
+</g>
+<!-- 14: ERC1155Action.certorafallback_0&#45;&gt;59_0_0_0_0_0_0_0 -->
+<g id="edge6" class="edge">
+<title>14: ERC1155Action.certorafallback_0&#45;&gt;59_0_0_0_0_0_0_0</title>
+<path fill="none" stroke="black" d="M158.99,-145.81C165.01,-137.27 172.4,-126.77 179.05,-117.32"/>
+<polygon fill="black" stroke="black" points="182,-119.22 184.89,-109.03 176.28,-115.19 182,-119.22"/>
+</g>
+</g>
+</svg></div>
+                                <div id="svgOf14" style="position:absolute;left:40%;top:0;overflow:scroll;height:90%;visibility:hidden"><svg id="theSVG14" width="337pt" height="204pt"
+ viewBox="0.00 0.00 337.13 204.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 200)">
+<title>OptimizedRule&#45;accountContextMustBeReadAndWrittenExactlyOnce&#45;certorafallback_0()14</title>
+<polygon fill="white" stroke="transparent" points="-4,4 -4,-200 333.13,-200 333.13,4 -4,4"/>
+<!-- 0_0_0_0_14_0_38555_0 -->
+<g id="0_0_0_0_14_0_38555_0" class="node">
+<title>0_0_0_0_14_0_38555_0</title>
+<ellipse fill="none" stroke="black" cx="230.34" cy="-178" rx="98.58" ry="18"/>
+<a href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')"><text text-anchor="middle" x="230.34" y="-174.3" font-family="Times,serif" font-size="14.00">0_0_0_0_14_0_38555_0</text></a>
+</g>
+<!-- 13_1025_0_0_14_0_38556_0 -->
+<g id="13_1025_0_0_14_0_38556_0" class="node">
+<title>13_1025_0_0_14_0_38556_0</title>
+<ellipse fill="none" stroke="black" cx="116.34" cy="-91" rx="116.18" ry="18"/>
+<a href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')"><text text-anchor="middle" x="116.34" y="-87.3" font-family="Times,serif" font-size="14.00">13_1025_0_0_14_0_38556_0</text></a>
+</g>
+<!-- 0_0_0_0_14_0_38555_0&#45;&gt;13_1025_0_0_14_0_38556_0 -->
+<g id="edge2" class="edge">
+<title>0_0_0_0_14_0_38555_0&#45;&gt;13_1025_0_0_14_0_38556_0</title>
+<path fill="none" stroke="black" d="M208.09,-160.41C190.7,-147.45 166.35,-129.28 147.1,-114.93"/>
+<polygon fill="black" stroke="black" points="149.03,-112.01 138.92,-108.84 144.85,-117.62 149.03,-112.01"/>
+<text text-anchor="middle" x="207.84" y="-130.8" font-family="Times,serif" font-size="14.00">!B43:bool</text>
+</g>
+<!-- 59_0_0_0_14_0_38562_0 -->
+<g id="59_0_0_0_14_0_38562_0" class="node">
+<title>59_0_0_0_14_0_38562_0</title>
+<ellipse fill="none" stroke="black" cx="192.34" cy="-18" rx="102.88" ry="18"/>
+<a href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')"><text text-anchor="middle" x="192.34" y="-14.3" font-family="Times,serif" font-size="14.00">59_0_0_0_14_0_38562_0</text></a>
+</g>
+<!-- 0_0_0_0_14_0_38555_0&#45;&gt;59_0_0_0_14_0_38562_0 -->
+<g id="edge1" class="edge">
+<title>0_0_0_0_14_0_38555_0&#45;&gt;59_0_0_0_14_0_38562_0</title>
+<path fill="none" stroke="black" d="M236.87,-159.8C243.86,-138.64 252.52,-101.96 241.34,-73 237,-61.77 229.12,-51.42 220.93,-42.86"/>
+<polygon fill="black" stroke="black" points="223.33,-40.31 213.73,-35.82 218.43,-45.31 223.33,-40.31"/>
+<text text-anchor="middle" x="271.84" y="-87.3" font-family="Times,serif" font-size="14.00">B43:bool</text>
+</g>
+<!-- 13_1025_0_0_14_0_38556_0&#45;&gt;59_0_0_0_14_0_38562_0 -->
+<g id="edge3" class="edge">
+<title>13_1025_0_0_14_0_38556_0&#45;&gt;59_0_0_0_14_0_38562_0</title>
+<path fill="none" stroke="black" d="M134.35,-73.17C144.03,-64.13 156.13,-52.83 166.76,-42.89"/>
+<polygon fill="black" stroke="black" points="169.28,-45.34 174.19,-35.95 164.5,-40.22 169.28,-45.34"/>
+</g>
+</g>
+</svg></div>
+
+            <!-- BLOCKS -->
+            <div id="blocksAndEdges0" style="position:fixed;height:100%;width:40%;display:inline-block;border:1px">
+                            <div id="blocksHtml0" style="overflow: scroll; height: 90%;"><a name="block0_0_0_0_0_0_0_0" id="block0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">Block 0_0_0_0_0_0_0_0:</a>
+R0 = havoc</br>R1 = havoc</br>R2 = havoc</br>W3 = havoc</br>W4 = havoc</br>UR5 = havoc</br>UR6 = havoc</br>e.msg.sender = havoc</br>e.msg.value = havoc</br>args = havoc</br>R7 = havoc</br>R8 = havoc</br>e.msg.address = havoc</br>R9 = havoc</br>e.block.number = havoc</br>e.block.timestamp = havoc</br>R10 = havoc</br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=multi contract setup::</span></br>currentContract = 0xce4604a000000000000000000000002a</br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=rule parameters setup::</span></br>account = havoc</br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=account)&&(account&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=last storage initialize::</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R0)&&(R0&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R1)&&(R1&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R2)&&(R2&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=assumptions about extcodesize::</span></br>B18 = W4[0xce4604a000000000000000000000002a]&gt;0x0</br><span style="color:#CC29E9;">assume B18</span></br>B19 = W4[0xce4604a0000000000000000000000028]&gt;0x0</br><span style="color:#CC29E9;">assume B19</span></br>B20 = W4[0xce4604a0000000000000000000000029]&gt;0x0</br><span style="color:#CC29E9;">assume B20</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=require forall address a. g_readsToAccountContext(a) == 0::</span></br>certoraAssume85268 = forall( QVars(a:bv256 bv256) true&&true&&(UR5:uf(a)==0x0))</br><span style="color:#CC29E9;">assume certoraAssume85268</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=require forall address a1. g_writesToAccountContext(a1) == 0::</span></br>certoraAssume85269 = forall( QVars(a1:bv256 bv256) true&&true&&(UR6:uf(a1)==0x0))</br><span style="color:#CC29E9;">assume certoraAssume85269</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=f(e,args)::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=call.trace.push, typ=class analysis.icfg.Inliner$CallStack$PushRecord)=PushRecord(callee=MethodRef(contractAddress=274184521717934524641157099916833587242, sigHash=SigHash(0), attr=FALLBACK), summary=null, id=17)::</span></br>NOP</br><span style="color:#CC29E9;">assume e.msg.sender&lt;0x10000000000000000000000000000000000000000</span></br>B22 = e.msg.sender&gt;0x0</br>B23 = e.msg.sender==0x0</br>NOP</br><span style="color:#CC29E9;">assume B22||B23</span></br>R25 = W3[e.msg.sender]</br>B26 = R25&lt;e.msg.value</br>if B26:bool goto <a href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a> else goto <a href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+<br/></br><a name="block43_0_0_0_0_0_0_0" id="block43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">Block 43_0_0_0_0_0_0_0:</a>
+NOP</br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=e.msg.sender)&&(e.msg.sender&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume R8==e.msg.address</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R8)&&(R8&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R9)&&(R9&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>I37 = W3[e.msg.sender] -int e.msg.value</br>W38 = W3[e.msg.sender] = I37</br>B40 = add_noofl:bif(W38[0xce4604a000000000000000000000002a],e.msg.value)</br><span style="color:#CC29E9;">assume B40</span></br><span style="color:#156194;">::Invoke f args :14::</span></br>goto: <a href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+<br/></br><a name="block45_0_0_0_0_0_0_1" id="block45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">Block 45_0_0_0_0_0_0_1:</a>
+<span style="color:#CC29E9;">assume !B27</span></br><span style="color:#CC29E9;">assume !B29</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=call.trace.pop, typ=class analysis.icfg.Inliner$CallStack$PopRecord)=PopRecord(id=17)::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=assert forall address a2. g_readsToAccountContext(a2) == g_writesToAccountContext(a2) && g_readsToAccountContext(a2) <= 1 || g_writesToAccountContext(a2) == 0::</span></br>certoraAssert_1 = forall( QVars(a2:bv256 bv256) true&&true&&((true&&true&&true&&true&&(UR5:uf(a2)==UR6:uf(a2))&&true&&true&&(UR5:uf(a2)&lt;=0x1))||(true&&true&&(UR6:uf(a2)==0x0))))</br><span style="color:#FF8C00;">assert certoraAssert_1, </span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span>
+<br/></br><a name="block44_0_0_0_0_0_0_0" id="block44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">Block 44_0_0_0_0_0_0_0:</a>
+NOP</br>NOP</br><span style="color:#156194;">::Parallel assignment for 27, 29 := 28, 30::</span></br>B27 = true</br>B29 = false
+<br/></br><a name="block59_0_0_0_0_0_0_0" id="block59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">Block 59_0_0_0_0_0_0_0:</a>
+NOP</br><span style="color:#156194;">::Parallel assignment for 27, 29 := 44, 45::</span></br>B27 = true</br>B29 = false
+<br/></br><a name="block0_0_0_0_14_0_38555_0" id="block0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">Block 0_0_0_0_14_0_38555_0:</a>
+<span style="color:#156194;">::14: ERC1155Action.certorafallback_0::</span>
+<br/></div>
+            <div id="edgesHtml0" style="overflow: scroll; height: 10%;">Edge <a name="edgeS0_0_0_0_0_0_0_0" id="edgeS0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT44_0_0_0_0_0_0_0" id="edgeT44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>:
+ </br>Edge <a name="edgeS0_0_0_0_0_0_0_0" id="edgeS0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT43_0_0_0_0_0_0_0" id="edgeT43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>:
+ </br>Edge <a name="edgeS43_0_0_0_0_0_0_0" id="edgeS43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT0_0_0_0_14_0_38555_0" id="edgeT0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>:
+ </br>Edge <a name="edgeS44_0_0_0_0_0_0_0" id="edgeS44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT45_0_0_0_0_0_0_1" id="edgeT45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">45_0_0_0_0_0_0_1</a>:
+ </br>Edge <a name="edgeS59_0_0_0_0_0_0_0" id="edgeS59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT45_0_0_0_0_0_0_1" id="edgeT45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">45_0_0_0_0_0_0_1</a>:
+ </br>Edge <a name="edgeS59_0_0_0_14_0_38562_0" id="edgeS59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>
+    -> <a name="edgeT59_0_0_0_0_0_0_0" id="edgeT59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>:
+ </div>
+            </div>
+                                    <div id="blocksAndEdges0" style="position:fixed;height:100%;width:40%;display:inline-block;border:1px;visibility:hidden;">
+                                    <div id="blocksHtml0" style="overflow: scroll; height: 90%;"><a name="block0_0_0_0_0_0_0_0" id="block0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">Block 0_0_0_0_0_0_0_0:</a>
+R0 = havoc</br>R1 = havoc</br>R2 = havoc</br>W3 = havoc</br>W4 = havoc</br>UR5 = havoc</br>UR6 = havoc</br>e.msg.sender = havoc</br>e.msg.value = havoc</br>args = havoc</br>R7 = havoc</br>R8 = havoc</br>e.msg.address = havoc</br>R9 = havoc</br>e.block.number = havoc</br>e.block.timestamp = havoc</br>R10 = havoc</br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=multi contract setup::</span></br>currentContract = 0xce4604a000000000000000000000002a</br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=rule parameters setup::</span></br>account = havoc</br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=account)&&(account&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=last storage initialize::</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R0)&&(R0&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R1)&&(R1&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R2)&&(R2&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=assumptions about extcodesize::</span></br>B18 = W4[0xce4604a000000000000000000000002a]&gt;0x0</br><span style="color:#CC29E9;">assume B18</span></br>B19 = W4[0xce4604a0000000000000000000000028]&gt;0x0</br><span style="color:#CC29E9;">assume B19</span></br>B20 = W4[0xce4604a0000000000000000000000029]&gt;0x0</br><span style="color:#CC29E9;">assume B20</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=require forall address a. g_readsToAccountContext(a) == 0::</span></br>certoraAssume85268 = forall( QVars(a:bv256 bv256) true&&true&&(UR5:uf(a)==0x0))</br><span style="color:#CC29E9;">assume certoraAssume85268</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=require forall address a1. g_writesToAccountContext(a1) == 0::</span></br>certoraAssume85269 = forall( QVars(a1:bv256 bv256) true&&true&&(UR6:uf(a1)==0x0))</br><span style="color:#CC29E9;">assume certoraAssume85269</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=f(e,args)::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=call.trace.push, typ=class analysis.icfg.Inliner$CallStack$PushRecord)=PushRecord(callee=MethodRef(contractAddress=274184521717934524641157099916833587242, sigHash=SigHash(0), attr=FALLBACK), summary=null, id=17)::</span></br>NOP</br><span style="color:#CC29E9;">assume e.msg.sender&lt;0x10000000000000000000000000000000000000000</span></br>B22 = e.msg.sender&gt;0x0</br>B23 = e.msg.sender==0x0</br>NOP</br><span style="color:#CC29E9;">assume B22||B23</span></br>R25 = W3[e.msg.sender]</br>B26 = R25&lt;e.msg.value</br>if B26:bool goto <a href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a> else goto <a href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+<br/></br><a name="block43_0_0_0_0_0_0_0" id="block43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">Block 43_0_0_0_0_0_0_0:</a>
+NOP</br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=e.msg.sender)&&(e.msg.sender&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume R8==e.msg.address</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R8)&&(R8&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>NOP</br><span style="color:#CC29E9;">assume (0x0&lt;=R9)&&(R9&lt;=0xffffffffffffffffffffffffffffffffffffffff)</span></br>I37 = W3[e.msg.sender] -int e.msg.value</br>W38 = W3[e.msg.sender] = I37</br>B40 = add_noofl:bif(W38[0xce4604a000000000000000000000002a],e.msg.value)</br><span style="color:#CC29E9;">assume B40</span></br><span style="color:#156194;">::Invoke f args :14::</span></br>goto: <a href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+<br/></br><a name="block45_0_0_0_0_0_0_1" id="block45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">Block 45_0_0_0_0_0_0_1:</a>
+<span style="color:#CC29E9;">assume !B27</span></br><span style="color:#CC29E9;">assume !B29</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=call.trace.pop, typ=class analysis.icfg.Inliner$CallStack$PopRecord)=PopRecord(id=17)::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.start, typ=class java.lang.String)=assert forall address a2. g_readsToAccountContext(a2) == g_writesToAccountContext(a2) && g_readsToAccountContext(a2) <= 1 || g_writesToAccountContext(a2) == 0::</span></br>certoraAssert_1 = forall( QVars(a2:bv256 bv256) true&&true&&((true&&true&&true&&true&&(UR5:uf(a2)==UR6:uf(a2))&&true&&true&&(UR5:uf(a2)&lt;=0x1))||(true&&true&&(UR6:uf(a2)==0x0))))</br><span style="color:#FF8C00;">assert certoraAssert_1, </span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=cvl.label.end, typ=class java.lang.Boolean)=true::</span>
+<br/></br><a name="block44_0_0_0_0_0_0_0" id="block44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">Block 44_0_0_0_0_0_0_0:</a>
+NOP</br>NOP</br><span style="color:#156194;">::Parallel assignment for 27, 29 := 28, 30::</span></br>B27 = true</br>B29 = false
+<br/></br><a name="block59_0_0_0_0_0_0_0" id="block59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">Block 59_0_0_0_0_0_0_0:</a>
+NOP</br><span style="color:#156194;">::Parallel assignment for 27, 29 := 44, 45::</span></br>B27 = true</br>B29 = false
+<br/></br><a name="block0_0_0_0_14_0_38555_0" id="block0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">Block 0_0_0_0_14_0_38555_0:</a>
+<span style="color:#156194;">::14: ERC1155Action.certorafallback_0::</span>
+<br/></div>
+            <div id="edgesHtml0" style="overflow: scroll; height: 10%;">Edge <a name="edgeS0_0_0_0_0_0_0_0" id="edgeS0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT44_0_0_0_0_0_0_0" id="edgeT44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>:
+ </br>Edge <a name="edgeS0_0_0_0_0_0_0_0" id="edgeS0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT43_0_0_0_0_0_0_0" id="edgeT43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>:
+ </br>Edge <a name="edgeS43_0_0_0_0_0_0_0" id="edgeS43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT0_0_0_0_14_0_38555_0" id="edgeT0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>:
+ </br>Edge <a name="edgeS44_0_0_0_0_0_0_0" id="edgeS44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT45_0_0_0_0_0_0_1" id="edgeT45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">45_0_0_0_0_0_0_1</a>:
+ </br>Edge <a name="edgeS59_0_0_0_0_0_0_0" id="edgeS59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT45_0_0_0_0_0_0_1" id="edgeT45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">45_0_0_0_0_0_0_1</a>:
+ </br>Edge <a name="edgeS59_0_0_0_14_0_38562_0" id="edgeS59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>
+    -> <a name="edgeT59_0_0_0_0_0_0_0" id="edgeT59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>:
+ </div>
+                        </div>
+                        <div id="blocksAndEdges14" style="position:fixed;height:100%;width:40%;display:inline-block;border:1px;visibility:hidden;">
+                                    <div id="blocksHtml14" style="overflow: scroll; height: 90%;"><a name="block0_0_0_0_14_0_38555_0" id="block0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">Block 0_0_0_0_14_0_38555_0:</a>
+<span style="color:#156194;">::Start procedure ERC1155Action-fallback::</span></br><span style="color:#156194;">TRANSIENT::MetaKey(name=internal.func.finder.info, typ=class analysis.ip.InternalFunctionFinderReport)=InternalFunctionFinderReport(unresolvedFunctions=[], attemptedToFind=[add(uint256,uint256), div(uint256,uint256), _clearPortfolioActiveFlags(bytes18), getBalanceStorage(address,uint256), incrementFeeToReserve(uint256,int256), setBalanceStorageForNToken(address,uint256,int256), calculateIncentivesToClaim(address,uint256,uint256,uint256,uint256,uint256), transferIncentive(address,uint256), getMaxMarketIndex(uint256), interpolateOracleRate(uint256,uint256,uint256,uint256,uint256), getBitNumFromMaturity(uint256,uint256), getMarketIndex(uint256,uint256,uint256), mod(uint256,uint256), getMaturityFromBitNum(uint256,uint256), getReferenceTime(uint256), getTimeUTC0(uint256), getTradedMarket(uint256), isValidMarketMaturity(uint256,uint256,uint256), isValidMaturity(uint256,uint256,uint256), _getExchangeRate(int256,int256,int256,int256,int256), _getRateAnchor(int256,uint256,int256,int256,uint256), _logProportion(int256), getExchangeRateFromImpliedRate(uint256,uint256), mul(uint256,uint256), getImpliedRate(int256,int256,int256,int256,uint256), getOracleRate(uint256,uint256,uint256,uint256), getSlot(uint256,uint256,uint256), getfCashGivenCashAmount(int256,int256,int256,int256,int256,int256,uint256), calculateIntegralTotalSupply(address,uint256), changeNTokenSupply(address,int256,uint256), getNTokenContext(address), getStoredNTokenSupplyFactors(address), nTokenAddress(uint256), setArrayLengthAndInitializedTime(address,uint8,uint256), sub(uint256,uint256), setIncentiveEmissionRate(address,uint32), setNTokenAddress(uint16,address), setNTokenCollateralParameters(address,uint8,uint8,uint8,uint8,uint8), addifCashAsset(address,uint256,uint256,uint256,int256,bytes32), getAssetsBitmap(address,uint256), getifCashNotional(address,uint256,uint256), getifCashSlot(address,uint256,uint256), setAssetsBitmap(address,uint256,bytes32), decodeAssetId(uint256), encodeAssetId(uint256,uint256,uint256), tryAdd(uint256,uint256), settleBitmappedCashGroup(address,uint256,uint256,uint256), getDiscountFactor(uint256,uint256), getPresentValue(int256,uint256,uint256,uint256), isLiquidityToken(uint256), add(int128,int128), div(int128,int128), exp(int128), exp_2(int128), fromInt(int256), fromUInt(uint256), tryDiv(uint256,uint256), ln(int128), log_2(int128), mul(int128,int128), sub(int128,int128), toInt(int128), toUInt(int128), getMSB(uint256), getNextBitNum(bytes32), isBitSet(bytes32,uint256), setBit(bytes32,uint256,bool), tryMod(uint256,uint256), totalBitsSet(bytes32), packTo56Bits(uint256), unpackFrom56Bits(uint256), abs(int256), add(int256,int256), div(int256,int256), divInRatePrecision(int256,int256), mul(int256,int256), mulInRatePrecision(int256,int256), neg(int256), tryMul(uint256,uint256), sub(int256,int256), subNoNeg(int256,int256), _assertValidMaturity(uint256,uint256,uint256), _balanceInBitmap(address,uint256,uint256), _validateAccounts(address,address), balanceOf(address,uint256), isApprovedForAll(address,address), trySub(uint256,uint256)], duplicateStartPCs={})::</span></br>R41 = W4[0xce4604a000000000000000000000002a]</br>NOP</br><span style="color:#CC29E9;">assume R41&gt;0x0</span></br>B43 = R7&lt;0x4</br><span class="tooltip">if B43:bool goto <a href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a> else goto <a href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">13_1025_0_0_14_0_38556_0</a> <span class="tooltiptext" tooltipatt="1"></span></span>
+<br/></br><a name="block13_1025_0_0_14_0_38556_0" id="block13_1025_0_0_14_0_38556_0" href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">Block 13_1025_0_0_14_0_38556_0:</a>
+NOP</br><span style="color:#CC29E9;">assume !(0x8167aae8&gt;R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xb3094c95&gt;R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xd07bc0fb&gt;R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xeb67b1d8&gt;R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xf1e03874&gt;R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xf1e03874==R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xf242432a==R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xf682bb50==R10)</span></br>NOP</br><span style="color:#CC29E9;">assume !(0xfe09f2f9==R10)</span>
+<br/></br><a name="block59_0_0_0_14_0_38562_0" id="block59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">Block 59_0_0_0_14_0_38562_0:</a>
+<span style="color:#156194;">TRANSIENT::MetaKey(name=tac.revert.path, typ=class java.lang.Boolean)=true::</span></br><span style="color:#156194;">::End procedure ERC1155Action-fallback::</span></br>NOP</br>NOP</br><span style="color:#156194;">::Jump to [59_0_0_0_0_0_0_0]::</span>
+<br/></div>
+            <div id="edgesHtml14" style="overflow: scroll; height: 10%;">Edge <a name="edgeS43_0_0_0_0_0_0_0" id="edgeS43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+    -> <a name="edgeT0_0_0_0_14_0_38555_0" id="edgeT0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>:
+ </br>Edge <a name="edgeS0_0_0_0_14_0_38555_0" id="edgeS0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+    -> <a name="edgeT59_0_0_0_14_0_38562_0" id="edgeT59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>:
+ </br>Edge <a name="edgeS0_0_0_0_14_0_38555_0" id="edgeS0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+    -> <a name="edgeT13_1025_0_0_14_0_38556_0" id="edgeT13_1025_0_0_14_0_38556_0" href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">13_1025_0_0_14_0_38556_0</a>:
+ </br>Edge <a name="edgeS13_1025_0_0_14_0_38556_0" id="edgeS13_1025_0_0_14_0_38556_0" href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">13_1025_0_0_14_0_38556_0</a>
+    -> <a name="edgeT59_0_0_0_14_0_38562_0" id="edgeT59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>:
+ </br>Edge <a name="edgeS59_0_0_0_14_0_38562_0" id="edgeS59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>
+    -> <a name="edgeT59_0_0_0_0_0_0_0" id="edgeT59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>:
+ </div>
+                        </div>
+            <div style="position:fixed;left:40%;top:90%;width:60%;overflow:scroll;height:10%;">
+            Previous:<br/>
+                       
+   <a name="edgeP44_0_0_0_0_0_0_0" id="edgeP44_0_0_0_0_0_0_0" href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>
+<- 
+   <a href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+
+<br/>
+           
+   <a name="edgeP43_0_0_0_0_0_0_0" id="edgeP43_0_0_0_0_0_0_0" href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+<- 
+   <a href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+
+<br/>
+           
+   <a name="edgeP0_0_0_0_14_0_38555_0" id="edgeP0_0_0_0_14_0_38555_0" href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+<- 
+   <a href="#block43_0_0_0_0_0_0_0" onclick="highlightAnchor('43_0_0_0_0_0_0_0')">43_0_0_0_0_0_0_0</a>
+
+<br/>
+            
+    <a name="edgeP45_0_0_0_0_0_0_1" id="edgeP45_0_0_0_0_0_0_1" href="#block45_0_0_0_0_0_0_1" onclick="highlightAnchor('45_0_0_0_0_0_0_1')">45_0_0_0_0_0_0_1</a>
+ <- 
+    <a href="#block44_0_0_0_0_0_0_0" onclick="highlightAnchor('44_0_0_0_0_0_0_0')">44_0_0_0_0_0_0_0</a>
+,
+    <a href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>
+
+<br/>
+            
+    <a name="edgeP59_0_0_0_14_0_38562_0" id="edgeP59_0_0_0_14_0_38562_0" href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>
+ <- 
+    <a href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+,
+    <a href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">13_1025_0_0_14_0_38556_0</a>
+
+<br/>
+           
+   <a name="edgeP13_1025_0_0_14_0_38556_0" id="edgeP13_1025_0_0_14_0_38556_0" href="#block13_1025_0_0_14_0_38556_0" onclick="highlightAnchor('13_1025_0_0_14_0_38556_0')">13_1025_0_0_14_0_38556_0</a>
+<- 
+   <a href="#block0_0_0_0_14_0_38555_0" onclick="highlightAnchor('0_0_0_0_14_0_38555_0')">0_0_0_0_14_0_38555_0</a>
+
+<br/>
+           
+   <a name="edgeP59_0_0_0_0_0_0_0" id="edgeP59_0_0_0_0_0_0_0" href="#block59_0_0_0_0_0_0_0" onclick="highlightAnchor('59_0_0_0_0_0_0_0')">59_0_0_0_0_0_0_0</a>
+<- 
+   <a href="#block59_0_0_0_14_0_38562_0" onclick="highlightAnchor('59_0_0_0_14_0_38562_0')">59_0_0_0_14_0_38562_0</a>
+
+<br/>
+           
+   <a name="edgeP0_0_0_0_0_0_0_0" id="edgeP0_0_0_0_0_0_0_0" href="#block0_0_0_0_0_0_0_0" onclick="highlightAnchor('0_0_0_0_0_0_0_0')">0_0_0_0_0_0_0_0</a>
+<- 
+            </div>
+
+            <script>
+            // Load tooltips callbacks
+            var tooltip_cache = {1:`.certora_config/autoFinder_ERC1155Action.sol_0/9_autoFinder_ERC1155Action.sol:15: contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
+    using AccountContextHandler for AccountContext;
+
+    // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))
+    bytes4 internal constant ERC1155_ACCEPTED = 0xf23a6e61;
+    // bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))
+    bytes4 internal constant ERC1155_BATCH_ACCEPTED = 0xbc197c81;
+
+    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
+        return interfaceId == type(nERC1155Interface).interfaceId;
+    }
+
+    /// @notice Returns the balance of an ERC1155 id on an account. WARNING: the balances returned by
+    /// this method are int256 not uint256 as specified in ERC1155. Modify smart contracts accordingly.
+    /// @param account account to get the id for
+    /// @param id the ERC1155 id
+    /// @return Balance of the ERC1155 id as a signed integer
+    function balanceOf(address account, uint256 id) public view override returns (int256) {
+        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        int256 notional;
+
+        if (accountContext.bitmapCurrencyId != 0) {
+            notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, id);
+        } else {
+            notional = _balanceInArray(
+                PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength),
+                id
+            );
+        }
+
+        return notional;
+    }
+
+    /// @notice Returns the balance of a batch of accounts and ids. WARNING: these balances are signed integers, not
+    /// unsigned integers as the ERC1155 spec designates
+    /// @param accounts array of accounts to get balances for
+    /// @param ids array of ids to get balances for
+    /// @return Returns an array of balances as signed integers
+    function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
+        external
+        view
+        override
+        returns (int256[] memory)
+    {
+        require(accounts.length == ids.length);
+        int256[] memory amounts = new int256[](accounts.length);
+
+        for (uint256 i; i < accounts.length; i++) {
+            // This is pretty inefficient but gets the job done
+            amounts[i] = balanceOf(accounts[i], ids[i]);
+        }
+
+        return amounts;
+    }
+
+    /// @dev Returns the balance from a bitmap given the id
+    function _balanceInBitmap(
+        address account,
+        uint256 bitmapCurrencyId,
+        uint256 id
+    ) internal view returns (int256) {
+        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(
+            id
+        );
+        if (currencyId != bitmapCurrencyId) return 0;
+        if (assetType != Constants.FCASH_ASSET_TYPE) return 0;
+
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+    }
+
+    /// @dev Searches an array for the matching asset
+    function _balanceInArray(PortfolioAsset[] memory portfolio, uint256 id)
+        internal
+        pure
+        returns (int256)
+    {
+       /* for (uint256 i; i < portfolio.length; i++) {
+            if (
+                TransferAssets.encodeAssetId(
+                    portfolio[i].currencyId,
+                    portfolio[i].maturity,
+                    portfolio[i].assetType
+                ) == id
+            ) return portfolio[i].notional;
+        }*/
+        return portfolio[0].notional;
+    }
+
+    /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows 'from' account to transfer more fCash
+    /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
+    /// @param from account to transfer from
+    /// @param to account to transfer to
+    /// @param id ERC1155 id of the asset
+    /// @param amount amount to transfer
+    /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// a trading action on Notional for the 'from' address
+    /// @dev emit:TransferSingle
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes calldata data
+    ) external payable override {
+        require(amount <= uint256(type(int256).max)); // dev: int overflow
+        _validateAccounts(from, to);
+
+        // If code size > 0 call onERC1155received
+        uint256 codeSize;
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            codeSize := extcodesize(to)
+        }
+        if (codeSize > 0) {
+            require(
+                IERC1155TokenReceiver(to).onERC1155Received(msg.sender, from, id, amount, data) ==
+                    ERC1155_ACCEPTED,
+                "Not accepted"
+            );
+        }
+
+        // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
+        AccountContext memory fromContext;
+        if (amount > 0) {
+            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
+            (assets[0].currencyId, assets[0].maturity, assets[0].assetType) = TransferAssets
+                .decodeAssetId(id);
+            assets[0].notional = int256(amount);
+            _assertValidMaturity(assets[0].currencyId, assets[0].maturity, block.timestamp);
+
+            // prettier-ignore
+            (fromContext, /* toContext */) = _transfer(from, to, assets);
+
+            emit TransferSingle(msg.sender, from, to, id, amount);
+        } else {
+            fromContext = AccountContextHandler.getAccountContext(from);
+        }
+
+        // toContext is always empty here because we cannot have bidirectional transfers in 'safeTransferFrom'
+        AccountContext memory toContext;
+        _checkPostTransferEvent(from, to, fromContext, toContext, data, false);
+    }
+
+    /// @notice Transfer of a batch of fCash or liquidity token assets between accounts. Allows 'from' account to transfer more fCash
+    /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
+    /// @param from account to transfer from
+    /// @param to account to transfer to
+    /// @param ids ERC1155 ids of the assets
+    /// @param amounts amounts to transfer
+    /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
+    /// a trading action on Notional for the 'from' address
+    /// @dev emit:TransferBatch
+    function safeBatchTransferFrom(
+        address from,
+        address to,
+        uint256[] calldata ids,
+        uint256[] calldata amounts,
+        bytes calldata data
+    ) external override {
+        _validateAccounts(from, to);
+
+        // If code size > 0 call onERC1155received
+        uint256 codeSize;
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            codeSize := extcodesize(to)
+        }
+        if (codeSize > 0) {
+            require(
+                IERC1155TokenReceiver(to).onERC1155BatchReceived(
+                    msg.sender,
+                    from,
+                    ids,
+                    amounts,
+                    data
+                ) == ERC1155_BATCH_ACCEPTED,
+                "Not accepted"
+            );
+        }
+
+        (PortfolioAsset[] memory assets, bool toTransferNegative) = _decodeToAssets(ids, amounts);
+        // When doing a bidirectional transfer must ensure that the 'to' account has given approval
+        // to msg.sender as well.
+        if (toTransferNegative) require(isApprovedForAll(to, msg.sender), "Unauthorized");
+
+        (AccountContext memory fromContext, AccountContext memory toContext) = _transfer(
+            from,
+            to,
+            assets
+        );
+
+        _checkPostTransferEvent(from, to, fromContext, toContext, data, toTransferNegative);
+
+        emit TransferBatch(msg.sender, from, to, ids, amounts);
+    }
+
+    /// @dev Validates accounts on transfer
+    function _validateAccounts(address from, address to) private view {
+        require(from != to && to != address(0), "Invalid address");
+        require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
+    }
+
+    /// @notice Decodes ids and amounts to PortfolioAsset objects
+    /// @param ids array of ERC1155 ids
+    /// @param amounts amounts to transfer
+    /// @return array of portfolio asset objects
+    function decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
+        external
+        view
+        override
+        returns (PortfolioAsset[] memory)
+    {
+        // prettier-ignore
+        (PortfolioAsset[] memory assets, /* */) = _decodeToAssets(ids, amounts);
+        return assets;
+    }
+
+    function _decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
+        internal
+        view
+        returns (PortfolioAsset[] memory, bool)
+    {
+        uint256 blockTime = block.timestamp;
+        bool toTransferNegative = false;
+        PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
+
+        for (uint256 i; i < ids.length; i++) {
+            (assets[i].currencyId, assets[i].maturity, assets[i].assetType) = TransferAssets
+                .decodeAssetId(ids[i]);
+
+            _assertValidMaturity(assets[i].currencyId, assets[i].maturity, blockTime);
+            // Although amounts is encoded as uint256 we allow it to be negative here. This will
+            // allow for bidirectional transfers of fCash. Internally fCash assets are always stored
+            // as int128 (for bitmap portfolio) or int88 (for array portfolio) so there is no potential
+            // that a uint256 value that is greater than type(int256).max would actually valid.
+            assets[i].notional = int256(amounts[i]);
+            // If there is a negative transfer we mark it as such, this will force us to do a free collateral
+            // check on the 'to' address as well.
+            if (assets[i].notional < 0) toTransferNegative = true;
+        }
+
+        return (assets, toTransferNegative);
+    }
+
+    /// @notice Encodes parameters into an ERC1155 id
+    /// @param currencyId currency id of the asset
+    /// @param maturity timestamp of the maturity
+    /// @param assetType id of the asset type
+    /// @return ERC1155 id
+    function encodeToId(
+        uint16 currencyId,
+        uint40 maturity,
+        uint8 assetType
+    ) external pure override returns (uint256) {
+        return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
+    }
+
+    /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
+    /// go past the max maturity date)
+    function _assertValidMaturity(
+        uint256 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) private view {
+        require(
+            DateTime.isValidMaturity(CashGroup.getMaxMarketIndex(currencyId), maturity, blockTime),
+            "Invalid maturity"
+        );
+    }
+
+    /// @dev Internal asset transfer event between accounts
+    function _transfer(
+        address from,
+        address to,
+        PortfolioAsset[] memory assets
+    ) internal returns (AccountContext memory, AccountContext memory) {
+        AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
+        AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
+
+        toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
+        TransferAssets.invertNotionalAmountsInPlace(assets);
+        fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
+
+        toContext.setAccountContext(to);
+        fromContext.setAccountContext(from);
+
+        return (fromContext, toContext);
+    }
+
+    /// @dev Checks post transfer events which will either be initiating one of the batch trading events or a free collateral
+    /// check if required.
+    function _checkPostTransferEvent(
+        address from,
+        address to,
+        AccountContext memory fromContext,
+        AccountContext memory toContext,
+        bytes calldata data,
+        bool toTransferNegative
+    ) internal {
+        bytes4 sig;
+        address transactedAccount;
+        if (data.length >= 32) {
+            // Method signature is not abi encoded so decode to bytes32 first and take the first 4 bytes. This works
+            // because all the methods we want to call below require more than 32 bytes in the calldata
+            bytes32 tmp = abi.decode(data, (bytes32));
+            sig = bytes4(tmp);
+        }
+
+        // These are the only three methods allowed to occur in a post transfer event. These actions allow 'from'
+        // accounts to take any sort of trading action as a result of their transfer. All of these actions will
+        // handle checking free collateral so no additional check is necessary here.
+        if (
+            sig == nTokenRedeemAction.nTokenRedeem.selector ||
+            sig == BatchAction.batchBalanceAction.selector ||
+            sig == BatchAction.batchBalanceAndTradeAction.selector
+        ) {
+            transactedAccount = abi.decode(data[4:36], (address));
+            // Ensure that the "transactedAccount" parameter of the call is set to the from address or the
+            // to address. If it is the "to" address then ensure that the msg.sender has approval to
+            // execute operations
+            require(
+                transactedAccount == from ||
+                    (transactedAccount == to && isApprovedForAll(to, msg.sender)),
+                "Unauthorized call"
+            );
+
+            (bool status, bytes memory result) = address(this).call{value: msg.value}(data);
+            // TODO: retrieve revert string
+            require(status, "Call failed");
+        }
+
+        // The transacted account will have its free collateral checked above so there is
+        // no need to recheck here.
+        if (transactedAccount != from && fromContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(from);
+        }
+
+        // Check free collateral if the 'to' account has taken on a negative fCash amount
+        if (transactedAccount != to && toTransferNegative && toContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(to);
+        }
+    }
+
+    /// @notice Allows an account to set approval for an operator
+    /// @param operator address of the operator
+    /// @param approved state of the approval
+    /// @dev emit:ApprovalForAll
+    function setApprovalForAll(address operator, bool approved) external override {
+        accountAuthorizedTransferOperator[msg.sender][operator] = approved;
+        emit ApprovalForAll(msg.sender, operator, approved);
+    }
+
+    /// @notice Checks approval state for an account, will first check if global transfer operator is enabled
+    /// before falling through to an account specific transfer operator.
+    /// @param account address of the account
+    /// @param operator address of the operator
+    /// @return true for approved
+    function isApprovedForAll(address account, address operator)
+        public
+        view
+        override
+        returns (bool)
+    {
+        if (globalTransferOperator[operator]) return true;
+
+        return accountAuthorizedTransferOperator[account][operator];
+    }
+	function certoraFunctionFinder82(uint256 p0, uint256 p1, uint256 p2) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 _assertValidMaturity(p0, p1, p2);
+	}
+	function certoraFunctionFinder83(address p0, uint256 p1, uint256 p2) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return _balanceInBitmap(p0, p1, p2);
+	}
+	function certoraFunctionFinder84(address p0, address p1) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 _validateAccounts(p0, p1);
+	}
+	function certoraFunctionFinder85(address p0, uint256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return balanceOf(p0, p1);
+	}
+	function certoraFunctionFinder86(address p0, address p1) external returns (bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return isApprovedForAll(p0, p1);
+	}
+	function certoraFunctionFinder0(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.add(p0, p1);
+	}
+	function certoraFunctionFinder1(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.div(p0, p1);
+	}
+	function certoraFunctionFinder2(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.mod(p0, p1);
+	}
+	function certoraFunctionFinder3(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.mul(p0, p1);
+	}
+	function certoraFunctionFinder4(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.sub(p0, p1);
+	}
+	function certoraFunctionFinder5(uint256 p0, uint256 p1) external returns (bool,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.tryAdd(p0, p1);
+	}
+	function certoraFunctionFinder6(uint256 p0, uint256 p1) external returns (bool,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.tryDiv(p0, p1);
+	}
+	function certoraFunctionFinder7(uint256 p0, uint256 p1) external returns (bool,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.tryMod(p0, p1);
+	}
+	function certoraFunctionFinder8(uint256 p0, uint256 p1) external returns (bool,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.tryMul(p0, p1);
+	}
+	function certoraFunctionFinder9(uint256 p0, uint256 p1) external returns (bool,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeMath.trySub(p0, p1);
+	}
+	function certoraFunctionFinder10(bytes18 p0) external returns (bytes18) {
+		require(block.gaslimit == 0xbeef1b01);
+		return AccountContextHandler._clearPortfolioActiveFlags(p0);
+	}
+	function certoraFunctionFinder11(address p0, uint256 p1) external returns (int256,int256,uint256,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return BalanceHandler.getBalanceStorage(p0, p1);
+	}
+	function certoraFunctionFinder12(uint256 p0, int256 p1) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 BalanceHandler.incrementFeeToReserve(p0, p1);
+	}
+	function certoraFunctionFinder13(address p0, uint256 p1, int256 p2) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 BalanceHandler.setBalanceStorageForNToken(p0, p1, p2);
+	}
+	function certoraFunctionFinder14(address p0, uint256 p1, uint256 p2, uint256 p3, uint256 p4, uint256 p5) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Incentives.calculateIncentivesToClaim(p0, p1, p2, p3, p4, p5);
+	}
+	function certoraFunctionFinder15(address p0, uint256 p1) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 TokenHandler.transferIncentive(p0, p1);
+	}
+	function certoraFunctionFinder16(uint256 p0) external returns (uint8) {
+		require(block.gaslimit == 0xbeef1b01);
+		return CashGroup.getMaxMarketIndex(p0);
+	}
+	function certoraFunctionFinder17(uint256 p0, uint256 p1, uint256 p2, uint256 p3, uint256 p4) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return CashGroup.interpolateOracleRate(p0, p1, p2, p3, p4);
+	}
+	function certoraFunctionFinder18(uint256 p0, uint256 p1) external returns (uint256,bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getBitNumFromMaturity(p0, p1);
+	}
+	function certoraFunctionFinder19(uint256 p0, uint256 p1, uint256 p2) external returns (uint256,bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getMarketIndex(p0, p1, p2);
+	}
+	function certoraFunctionFinder20(uint256 p0, uint256 p1) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getMaturityFromBitNum(p0, p1);
+	}
+	function certoraFunctionFinder21(uint256 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getReferenceTime(p0);
+	}
+	function certoraFunctionFinder22(uint256 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getTimeUTC0(p0);
+	}
+	function certoraFunctionFinder23(uint256 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.getTradedMarket(p0);
+	}
+	function certoraFunctionFinder24(uint256 p0, uint256 p1, uint256 p2) external returns (bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.isValidMarketMaturity(p0, p1, p2);
+	}
+	function certoraFunctionFinder25(uint256 p0, uint256 p1, uint256 p2) external returns (bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return DateTime.isValidMaturity(p0, p1, p2);
+	}
+	function certoraFunctionFinder26(int256 p0, int256 p1, int256 p2, int256 p3, int256 p4) external returns (int256,bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market._getExchangeRate(p0, p1, p2, p3, p4);
+	}
+	function certoraFunctionFinder27(int256 p0, uint256 p1, int256 p2, int256 p3, uint256 p4) external returns (int256,bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market._getRateAnchor(p0, p1, p2, p3, p4);
+	}
+	function certoraFunctionFinder28(int256 p0) external returns (int256,bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market._logProportion(p0);
+	}
+	function certoraFunctionFinder29(uint256 p0, uint256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market.getExchangeRateFromImpliedRate(p0, p1);
+	}
+	function certoraFunctionFinder30(int256 p0, int256 p1, int256 p2, int256 p3, uint256 p4) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market.getImpliedRate(p0, p1, p2, p3, p4);
+	}
+	function certoraFunctionFinder31(uint256 p0, uint256 p1, uint256 p2, uint256 p3) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market.getOracleRate(p0, p1, p2, p3);
+	}
+	function certoraFunctionFinder32(uint256 p0, uint256 p1, uint256 p2) external returns (bytes32) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market.getSlot(p0, p1, p2);
+	}
+	function certoraFunctionFinder33(int256 p0, int256 p1, int256 p2, int256 p3, int256 p4, int256 p5, uint256 p6) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Market.getfCashGivenCashAmount(p0, p1, p2, p3, p4, p5, p6);
+	}
+	function certoraFunctionFinder34(address p0, uint256 p1) external returns (uint256,uint256,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return nTokenHandler.calculateIntegralTotalSupply(p0, p1);
+	}
+	function certoraFunctionFinder35(address p0, int256 p1, uint256 p2) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return nTokenHandler.changeNTokenSupply(p0, p1, p2);
+	}
+	function certoraFunctionFinder36(address p0) external returns (uint256,uint256,uint256,bytes6) {
+		require(block.gaslimit == 0xbeef1b01);
+		return nTokenHandler.getNTokenContext(p0);
+	}
+	function certoraFunctionFinder37(address p0) external returns (uint256,uint256,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return nTokenHandler.getStoredNTokenSupplyFactors(p0);
+	}
+	function certoraFunctionFinder38(uint256 p0) external returns (address) {
+		require(block.gaslimit == 0xbeef1b01);
+		return nTokenHandler.nTokenAddress(p0);
+	}
+	function certoraFunctionFinder39(address p0, uint8 p1, uint256 p2) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 nTokenHandler.setArrayLengthAndInitializedTime(p0, p1, p2);
+	}
+	function certoraFunctionFinder40(address p0, uint32 p1) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 nTokenHandler.setIncentiveEmissionRate(p0, p1);
+	}
+	function certoraFunctionFinder41(uint16 p0, address p1) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 nTokenHandler.setNTokenAddress(p0, p1);
+	}
+	function certoraFunctionFinder42(address p0, uint8 p1, uint8 p2, uint8 p3, uint8 p4, uint8 p5) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 nTokenHandler.setNTokenCollateralParameters(p0, p1, p2, p3, p4, p5);
+	}
+	function certoraFunctionFinder43(address p0, uint256 p1, uint256 p2, uint256 p3, int256 p4, bytes32 p5) external returns (bytes32,int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return BitmapAssetsHandler.addifCashAsset(p0, p1, p2, p3, p4, p5);
+	}
+	function certoraFunctionFinder44(address p0, uint256 p1) external returns (bytes32) {
+		require(block.gaslimit == 0xbeef1b01);
+		return BitmapAssetsHandler.getAssetsBitmap(p0, p1);
+	}
+	function certoraFunctionFinder45(address p0, uint256 p1, uint256 p2) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return BitmapAssetsHandler.getifCashNotional(p0, p1, p2);
+	}
+	function certoraFunctionFinder46(address p0, uint256 p1, uint256 p2) external returns (bytes32) {
+		require(block.gaslimit == 0xbeef1b01);
+		return BitmapAssetsHandler.getifCashSlot(p0, p1, p2);
+	}
+	function certoraFunctionFinder47(address p0, uint256 p1, bytes32 p2) external  {
+		require(block.gaslimit == 0xbeef1b01);
+		 BitmapAssetsHandler.setAssetsBitmap(p0, p1, p2);
+	}
+	function certoraFunctionFinder48(uint256 p0) external returns (uint16,uint40,uint8) {
+		require(block.gaslimit == 0xbeef1b01);
+		return TransferAssets.decodeAssetId(p0);
+	}
+	function certoraFunctionFinder49(uint256 p0, uint256 p1, uint256 p2) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return TransferAssets.encodeAssetId(p0, p1, p2);
+	}
+	function certoraFunctionFinder50(address p0, uint256 p1, uint256 p2, uint256 p3) external returns (bytes32,int256,uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SettleBitmapAssets.settleBitmappedCashGroup(p0, p1, p2, p3);
+	}
+	function certoraFunctionFinder51(uint256 p0, uint256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return AssetHandler.getDiscountFactor(p0, p1);
+	}
+	function certoraFunctionFinder52(int256 p0, uint256 p1, uint256 p2, uint256 p3) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return AssetHandler.getPresentValue(p0, p1, p2, p3);
+	}
+	function certoraFunctionFinder53(uint256 p0) external returns (bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return AssetHandler.isLiquidityToken(p0);
+	}
+	function certoraFunctionFinder54(int128 p0, int128 p1) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.add(p0, p1);
+	}
+	function certoraFunctionFinder55(int128 p0, int128 p1) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.div(p0, p1);
+	}
+	function certoraFunctionFinder56(int128 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.exp(p0);
+	}
+	function certoraFunctionFinder57(int128 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.exp_2(p0);
+	}
+	function certoraFunctionFinder58(int256 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.fromInt(p0);
+	}
+	function certoraFunctionFinder59(uint256 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.fromUInt(p0);
+	}
+	function certoraFunctionFinder60(int128 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.ln(p0);
+	}
+	function certoraFunctionFinder61(int128 p0) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.log_2(p0);
+	}
+	function certoraFunctionFinder62(int128 p0, int128 p1) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.mul(p0, p1);
+	}
+	function certoraFunctionFinder63(int128 p0, int128 p1) external returns (int128) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.sub(p0, p1);
+	}
+	function certoraFunctionFinder64(int128 p0) external returns (int64) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.toInt(p0);
+	}
+	function certoraFunctionFinder65(int128 p0) external returns (uint64) {
+		require(block.gaslimit == 0xbeef1b01);
+		return ABDKMath64x64.toUInt(p0);
+	}
+	function certoraFunctionFinder66(uint256 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Bitmap.getMSB(p0);
+	}
+	function certoraFunctionFinder67(bytes32 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Bitmap.getNextBitNum(p0);
+	}
+	function certoraFunctionFinder68(bytes32 p0, uint256 p1) external returns (bool) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Bitmap.isBitSet(p0, p1);
+	}
+	function certoraFunctionFinder69(bytes32 p0, uint256 p1, bool p2) external returns (bytes32) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Bitmap.setBit(p0, p1, p2);
+	}
+	function certoraFunctionFinder70(bytes32 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return Bitmap.totalBitsSet(p0);
+	}
+	function certoraFunctionFinder71(uint256 p0) external returns (bytes32) {
+		require(block.gaslimit == 0xbeef1b01);
+		return FloatingPoint56.packTo56Bits(p0);
+	}
+	function certoraFunctionFinder72(uint256 p0) external returns (uint256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return FloatingPoint56.unpackFrom56Bits(p0);
+	}
+	function certoraFunctionFinder73(int256 p0) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.abs(p0);
+	}
+	function certoraFunctionFinder74(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.add(p0, p1);
+	}
+	function certoraFunctionFinder75(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.div(p0, p1);
+	}
+	function certoraFunctionFinder76(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.divInRatePrecision(p0, p1);
+	}
+	function certoraFunctionFinder77(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.mul(p0, p1);
+	}
+	function certoraFunctionFinder78(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.mulInRatePrecision(p0, p1);
+	}
+	function certoraFunctionFinder79(int256 p0) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.neg(p0);
+	}
+	function certoraFunctionFinder80(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.sub(p0, p1);
+	}
+	function certoraFunctionFinder81(int256 p0, int256 p1) external returns (int256) {
+		require(block.gaslimit == 0xbeef1b01);
+		return SafeInt256.subNoNeg(p0, p1);
+	}
+}`};
+            
+            var tooltips_spans = document.getElementsByClassName('tooltip');
+            for (var i=0; i<tooltips_spans.length; ++i) {
+                var me = tooltips_spans[i];
+                tooltips_spans[i].addEventListener("mouseover", function() {
+                     for (var j=0; j < this.children.length ; ++j) {
+                        if (this.children[j].className=="tooltiptext") {
+                            var attribs = this.children[j].attributes;
+                            if (attribs["tooltipatt"] != null) {
+                                var id = attribs["tooltipatt"].value;
+                                this.children[j].innerHTML = tooltip_cache[id];
+                                this.children[j].style.visibility = "visible";
+                            }
+                        }
+                    }
+                }.bind(me));
+				tooltips_spans[i].addEventListener("mouseout", function() {
+                    for (var j=0; j < this.children.length ; ++j) {
+                        if (this.children[j].className=="tooltiptext") {
+                            this.children[j].innerHTML = "";
+                            this.children[j].style.visibility="hidden";
+                        }
+                    }
+				}.bind(me));
+            }
+            
+            
+            lastSvgEventListener = svgPanZoom('#theSVG', {
+								  zoomEnabled: true,
+								  controlIconsEnabled: true,
+								  fit: true,
+								  center: true,
+								  // viewportSelector: document.getElementById('theSVG').querySelector('#g4') // this option will make library to misbehave. Viewport should have no transform attribute
+								});
+                document.getElementById("cex").style.display = "none";
+            </script>
+        </body>
+        </html>

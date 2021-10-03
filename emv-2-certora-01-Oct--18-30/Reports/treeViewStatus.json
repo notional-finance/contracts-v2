@@ -1,0 +1,26 @@
+{
+	"rules":[ 	{
+		"name":"accountContextMustBeReadAndWrittenExactlyOnce",
+		"status":"TIMEOUT",
+		"duration":4650,
+		"children":[ 		{
+			"name":"safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)",
+			"status":"TIMEOUT",
+			"duration":2370
+			},		{
+			"name":"setApprovalForAll(address,bool)",
+			"status":"VERIFIED",
+			"duration":0
+			},		{
+			"name":"safeTransferFrom(address,address,uint256,uint256,bytes)",
+			"status":"TIMEOUT",
+			"duration":2280
+			},		{
+			"name":"certorafallback_0()",
+			"status":"VERIFIED",
+			"duration":0
+			} ]
+		} ],
+	"path":"emv-2-certora-01-Oct--18-30/Reports/output.json",
+	"timestamp":1633106098326
+	}

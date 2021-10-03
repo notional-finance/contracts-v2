@@ -1,0 +1,2866 @@
+{
+	"":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1,1,73,73,120,120,122,70,70,117,117,119,78,78,125,8,136,136,138,71,71,118,8,129,129,131,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1,1,2,2,4,4,4,2,2,4,4,4,2,2,4,1,6,6,6,2,2,4,1,6,6,6,1 ]
+		},
+	"ALL":	{
+		"STORAGE":		{
+			"0xce4604a0000000000000000000000029":true,
+			"0xce4604a0000000000000000000000028":true,
+			"0xce4604a000000000000000000000002a":true
+			}
+		},
+	"ANALYSIS":	{
+		"POINTSTO":		{
+			"0":false,
+			"constructor()":[ false,false,false ],
+			"certorafallback_0()":[ true,true,true ],
+			"settleAssetsAndFinalize(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndStorePortfolio(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndReturnAll(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndReturnPortfolio(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"checkFreeCollateralAndRevert(address)":true,
+			"getFreeCollateralView(address)":true,
+			"getLiquidationFactors(address,uint256,uint256)":true,
+			"safeTransferFrom(address,address,uint256,uint256,bytes)":true,
+			"isApprovedForAll(address,address)":true,
+			"setApprovalForAll(address,bool)":true,
+			"owner()":true,
+			"pauseRouter()":true,
+			"encodeToId(uint16,uint40,uint8)":true,
+			"balanceOfBatch(address[],uint256[])":true,
+			"decodeToAssets(uint256[],uint256[])":true,
+			"safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)":true,
+			"pauseGuardian()":true,
+			"supportsInterface(bytes4)":true,
+			"balanceOf(address,uint256)":true,
+			"SettleAssetsExternal-fallback":true,
+			"SettleAssetsExternal-settleAssetsAndFinalize":true,
+			"SettleAssetsExternal-settleAssetsAndStorePortfolio":true,
+			"SettleAssetsExternal-settleAssetsAndReturnAll":true,
+			"SettleAssetsExternal-settleAssetsAndReturnPortfolio":true,
+			"FreeCollateralExternal-fallback":true,
+			"FreeCollateralExternal-checkFreeCollateralAndRevert":true,
+			"FreeCollateralExternal-getFreeCollateralView":true,
+			"FreeCollateralExternal-getLiquidationFactors":true,
+			"ERC1155Action-fallback":true,
+			"ERC1155Action-safeTransferFrom":true,
+			"ERC1155Action-isApprovedForAll":true,
+			"ERC1155Action-setApprovalForAll":true,
+			"ERC1155Action-owner":true,
+			"ERC1155Action-pauseRouter":true,
+			"ERC1155Action-encodeToId":true,
+			"ERC1155Action-balanceOfBatch":true,
+			"ERC1155Action-decodeToAssets":true,
+			"ERC1155Action-safeBatchTransferFrom":true,
+			"ERC1155Action-pauseGuardian":true,
+			"ERC1155Action-supportsInterface":true,
+			"ERC1155Action-balanceOf":true
+			},
+		"CALLGRAPH":		{
+			"0":false,
+			"constructor()":[ false,false,false ],
+			"certorafallback_0()":[ true,true,true ],
+			"settleAssetsAndFinalize(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndStorePortfolio(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndReturnAll(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"settleAssetsAndReturnPortfolio(address,(uint40,bytes1,uint8,uint16,bytes18))":true,
+			"checkFreeCollateralAndRevert(address)":true,
+			"getFreeCollateralView(address)":true,
+			"getLiquidationFactors(address,uint256,uint256)":true,
+			"safeTransferFrom(address,address,uint256,uint256,bytes)":true,
+			"isApprovedForAll(address,address)":true,
+			"setApprovalForAll(address,bool)":true,
+			"owner()":true,
+			"pauseRouter()":true,
+			"encodeToId(uint16,uint40,uint8)":true,
+			"balanceOfBatch(address[],uint256[])":true,
+			"decodeToAssets(uint256[],uint256[])":true,
+			"safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)":true,
+			"pauseGuardian()":true,
+			"supportsInterface(bytes4)":true,
+			"balanceOf(address,uint256)":true
+			},
+		"MEMORY_MODEL":		{
+			"ecrecover":false,
+			"constructor_SettleAssetsExternal":false,
+			"SettleAssetsExternal-fallback":true,
+			"SettleAssetsExternal-settleAssetsAndFinalize":true,
+			"SettleAssetsExternal-settleAssetsAndStorePortfolio":true,
+			"SettleAssetsExternal-settleAssetsAndReturnAll":true,
+			"SettleAssetsExternal-settleAssetsAndReturnPortfolio":true,
+			"constructor_FreeCollateralExternal":false,
+			"FreeCollateralExternal-fallback":true,
+			"FreeCollateralExternal-checkFreeCollateralAndRevert":true,
+			"FreeCollateralExternal-getFreeCollateralView":true,
+			"FreeCollateralExternal-getLiquidationFactors":true,
+			"constructor_ERC1155Action":false,
+			"ERC1155Action-fallback":true,
+			"ERC1155Action-safeTransferFrom":true,
+			"ERC1155Action-isApprovedForAll":true,
+			"ERC1155Action-setApprovalForAll":true,
+			"ERC1155Action-owner":true,
+			"ERC1155Action-pauseRouter":true,
+			"ERC1155Action-encodeToId":true,
+			"ERC1155Action-balanceOfBatch":true,
+			"ERC1155Action-decodeToAssets":true,
+			"ERC1155Action-safeBatchTransferFrom":true,
+			"ERC1155Action-pauseGuardian":true,
+			"ERC1155Action-supportsInterface":true,
+			"ERC1155Action-balanceOf":true
+			},
+		"POINTSTO_MEMORY":		{
+			"ecrecover":false,
+			"constructor_SettleAssetsExternal":false,
+			"SettleAssetsExternal-fallback":true,
+			"SettleAssetsExternal-settleAssetsAndFinalize":true,
+			"SettleAssetsExternal-settleAssetsAndStorePortfolio":true,
+			"SettleAssetsExternal-settleAssetsAndReturnAll":true,
+			"SettleAssetsExternal-settleAssetsAndReturnPortfolio":true,
+			"constructor_FreeCollateralExternal":false,
+			"FreeCollateralExternal-fallback":true,
+			"FreeCollateralExternal-checkFreeCollateralAndRevert":true,
+			"FreeCollateralExternal-getFreeCollateralView":true,
+			"FreeCollateralExternal-getLiquidationFactors":true,
+			"constructor_ERC1155Action":false,
+			"ERC1155Action-fallback":true,
+			"ERC1155Action-safeTransferFrom":true,
+			"ERC1155Action-isApprovedForAll":true,
+			"ERC1155Action-setApprovalForAll":true,
+			"ERC1155Action-owner":true,
+			"ERC1155Action-pauseRouter":true,
+			"ERC1155Action-encodeToId":true,
+			"ERC1155Action-balanceOfBatch":true,
+			"ERC1155Action-decodeToAssets":true,
+			"ERC1155Action-safeBatchTransferFrom":true,
+			"ERC1155Action-pauseGuardian":true,
+			"ERC1155Action-supportsInterface":true,
+			"ERC1155Action-balanceOf":true
+			},
+		"INIT":		{
+			"SettleAssetsExternal-fallback":true,
+			"SettleAssetsExternal-settleAssetsAndFinalize":true,
+			"SettleAssetsExternal-settleAssetsAndStorePortfolio":true,
+			"SettleAssetsExternal-settleAssetsAndReturnAll":true,
+			"SettleAssetsExternal-settleAssetsAndReturnPortfolio":true,
+			"FreeCollateralExternal-fallback":true,
+			"FreeCollateralExternal-checkFreeCollateralAndRevert":true,
+			"FreeCollateralExternal-getFreeCollateralView":true,
+			"FreeCollateralExternal-getLiquidationFactors":true,
+			"ERC1155Action-fallback":true,
+			"ERC1155Action-safeTransferFrom":true,
+			"ERC1155Action-isApprovedForAll":true,
+			"ERC1155Action-setApprovalForAll":true,
+			"ERC1155Action-owner":true,
+			"ERC1155Action-pauseRouter":true,
+			"ERC1155Action-encodeToId":true,
+			"ERC1155Action-balanceOfBatch":true,
+			"ERC1155Action-decodeToAssets":true,
+			"ERC1155Action-safeBatchTransferFrom":true,
+			"ERC1155Action-pauseGuardian":true,
+			"ERC1155Action-supportsInterface":true,
+			"ERC1155Action-balanceOf":true
+			}
+		},
+	"CVL parametric method":	{
+		"commands":[ 1,72,1,69,1,77,1,70 ],
+		"blocks":[ 1,1,1,1,1,1,1,1 ]
+		},
+	"ERC1155Action":	{
+		"FUNCTION_BUILDER":26620,
+		"commands":[ 153656,159797,169984,205854,205854,205854,205854,205854,88346,67785,59769,205854,59769,205854,59769,205854,205854,205854 ],
+		"blocks":[ 13220,13220,13220,13220,13220,13220,13220,13220,15388,15388,7372,13220,7372,13220,7372,13220,13220,13220 ],
+		"ALIAS":293,
+		"SINGLE_SUCC_JUMP_NORMALIZATION":386,
+		"JUMP_COND_NORMALIZATION":1328,
+		"UNREACHABLE_UNPACKING_CODE_FINDER":717,
+		"DSA":12070,
+		"ANNOTATION_REMOVER":1544,
+		"UNOPTIMIZE_HASHES":1336,
+		"FREE_MEM_POINTER_SCALARIZE":1864,
+		"SIMPLE_HASH":1549,
+		"TYPE":4085,
+		"NO_RECYCLE":1271,
+		"ENV_START_BLOCK":1282,
+		"INTERNAL_FUNCTION_ANNOTATOR":2048,
+		"JIMPLE":5164
+		},
+	"ERC1155Action-balanceOf":	{
+		"UNUSED_ASSIGNMENTS":10,
+		"commands":[ 675,675,681,681,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,682,643,639,682,639,682,682,682,639,682,639,682,682,649,682,649,682,637,649,637,649,637,649,682,637,638,638,638,638,638,640,640,640,674,674,674,674,674,664,664,664,664,660 ],
+		"blocks":[ 50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,47,50,47,50,47,50,50,47,47,47,47,47,47,47,47,47,50,50,50,50,50,36,36,36,36,36 ],
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":3,
+		"MERGED_TAC_OPTIMIZATIONS":1,
+		"BITWISE_OPTIMIZE":13,
+		"UNROLL":12,
+		"UNROLL_FIX_JUMP_PCS":1,
+		"UNROLL_REMOVE_UNREACHABLE":2,
+		"UNROLL_PRE_CLEANUP":9,
+		"INLINED":1,
+		"RETURN_SYMBOL_OPTIMIZE2":2,
+		"POINTSTO":[ 260,60 ],
+		"CALLGRAPHBUILDER":3,
+		"CALLGRAPH_FULL":65,
+		"HASH_OPTIMIZE":4,
+		"RETURN_SYMBOL_OPTIMIZE1":3,
+		"MEMORY_OPTIMIZE":67,
+		"MEMORY_MODEL":65,
+		"POINTSTO_MEMORY":48,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":279,
+		"PATH_OPTIMIZE_AFTER_PTA":3,
+		"MEMORY_SPLITTER":8,
+		"REMOVE_UNREACHABLE_POST_PTA":3,
+		"COPY_LOOP_SUMMARIZATION":463,
+		"29120_1004_0_0_0_0_0_0":		{
+			"summarySearch":410
+			},
+		"loop":[ 273,433 ],
+		"29242_1005_0_0_0_0_0_0":		{
+			"summarySearch":268
+			},
+		"INITIALIZATION":213,
+		"OPTIMIZE_REVERT_STRINGS":2,
+		"REWRITE_ALLOCATIONS":26,
+		"COLLAPSE_EMPTY_DSA":2,
+		"OPTIMIZE_STORAGE_READS":6,
+		"SUMMARIZE_STORAGE_LENGTH":52,
+		"FIXED_FREE_PTR_READ":6,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":159,
+		"USE_LATEST_FREEMEM":4,
+		"HOIST_LOOPS":7,
+		"FIXED_BOOL_COMPARISON":6,
+		"LOOP_SUMMARY_INSTRUMENTATION":33,
+		"ADDED_MISSING_FREE_PTR_WRITE":7,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":8,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":7,
+		"CONSTANT_FOLDING":11,
+		"INSTRUMENT_RETURN_BUFFERS":3,
+		"PLUS_NEG_31_SIMPLIFY":2,
+		"RETSIZE_SIMPLIFY":2,
+		"SIMPLIFIED":2,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-balanceOfBatch":	{
+		"UNUSED_ASSIGNMENTS":4,
+		"commands":[ 901,901,907,907,908,908,908,908,908,908,908,908,908,908,908,908,908,908,908,908,920,908,920,920,908,908,920,908,920,846,842,908,842,908,908,908,842,908,842,908,908,853,908,854,908,842,854,842,854,838,854,908,838,838,838,838,838,838,840,840,840,972,972,972,972,972,961,961,961,961,961 ],
+		"blocks":[ 84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,85,84,82,85,82,85,81,85,84,81,81,81,81,81,81,81,81,81,92,92,92,92,92,70,70,70,70,70 ],
+		"REMOVE_UNREACHABLE":2,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":3,
+		"MERGED_TAC_OPTIMIZATIONS":2,
+		"BITWISE_OPTIMIZE":4,
+		"UNROLL":10,
+		"UNROLL_FIX_JUMP_PCS":2,
+		"UNROLL_REMOVE_UNREACHABLE":2,
+		"UNROLL_PRE_CLEANUP":6,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":2,
+		"POINTSTO":[ 213,161 ],
+		"CALLGRAPHBUILDER":6,
+		"CALLGRAPH_FULL":167,
+		"HASH_OPTIMIZE":2,
+		"RETURN_SYMBOL_OPTIMIZE1":2,
+		"MEMORY_OPTIMIZE":192,
+		"MEMORY_MODEL":190,
+		"POINTSTO_MEMORY":181,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":233,
+		"PATH_OPTIMIZE_AFTER_PTA":5,
+		"MEMORY_SPLITTER":4,
+		"REMOVE_UNREACHABLE_POST_PTA":3,
+		"COPY_LOOP_SUMMARIZATION":844,
+		"41600_1012_0_0_0_0_0_0":		{
+			"summarySearch":810,
+			"fixupSearch":1
+			},
+		"loop":[ 4,628,653,815 ],
+		"29120_996_0_0_0_0_0_0":		{
+			"summarySearch":634
+			},
+		"29242_997_0_0_0_0_0_0":		{
+			"summarySearch":625
+			},
+		"9022_1016_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":118,
+		"OPTIMIZE_REVERT_STRINGS":1,
+		"REWRITE_ALLOCATIONS":30,
+		"COLLAPSE_EMPTY_DSA":2,
+		"OPTIMIZE_STORAGE_READS":5,
+		"SUMMARIZE_STORAGE_LENGTH":38,
+		"FIXED_FREE_PTR_READ":3,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":91,
+		"USE_LATEST_FREEMEM":3,
+		"HOIST_LOOPS":8,
+		"FIXED_BOOL_COMPARISON":4,
+		"LOOP_SUMMARY_INSTRUMENTATION":87,
+		"ADDED_MISSING_FREE_PTR_WRITE":5,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":4,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":2,
+		"CONSTANT_FOLDING":3,
+		"INSTRUMENT_RETURN_BUFFERS":3,
+		"PLUS_NEG_31_SIMPLIFY":3,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":2,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-certoraFunctionFinder0":	{
+		"INTERNAL_FUNCTION_FINDER":50,
+		"commands":[ 172,172 ],
+		"blocks":[ 21,21 ]
+		},
+	"ERC1155Action-certoraFunctionFinder1":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 180,180 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder10":	{
+		"INTERNAL_FUNCTION_FINDER":62,
+		"commands":[ 192,192 ],
+		"blocks":[ 25,25 ]
+		},
+	"ERC1155Action-certoraFunctionFinder11":	{
+		"INTERNAL_FUNCTION_FINDER":78,
+		"commands":[ 296,296 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder12":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 590,590 ],
+		"blocks":[ 67,67 ]
+		},
+	"ERC1155Action-certoraFunctionFinder13":	{
+		"INTERNAL_FUNCTION_FINDER":58,
+		"commands":[ 480,480 ],
+		"blocks":[ 63,63 ]
+		},
+	"ERC1155Action-certoraFunctionFinder14":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 688,688 ],
+		"blocks":[ 84,84 ]
+		},
+	"ERC1155Action-certoraFunctionFinder15":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 322,322 ],
+		"blocks":[ 34,34 ]
+		},
+	"ERC1155Action-certoraFunctionFinder16":	{
+		"INTERNAL_FUNCTION_FINDER":61,
+		"commands":[ 183,183 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder17":	{
+		"INTERNAL_FUNCTION_FINDER":62,
+		"commands":[ 462,462 ],
+		"blocks":[ 60,60 ]
+		},
+	"ERC1155Action-certoraFunctionFinder18":	{
+		"INTERNAL_FUNCTION_FINDER":62,
+		"commands":[ 401,401 ],
+		"blocks":[ 64,64 ]
+		},
+	"ERC1155Action-certoraFunctionFinder19":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 479,479 ],
+		"blocks":[ 57,57 ]
+		},
+	"ERC1155Action-certoraFunctionFinder2":	{
+		"INTERNAL_FUNCTION_FINDER":63,
+		"commands":[ 173,173 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder20":	{
+		"INTERNAL_FUNCTION_FINDER":58,
+		"commands":[ 261,261 ],
+		"blocks":[ 38,38 ]
+		},
+	"ERC1155Action-certoraFunctionFinder21":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 153,153 ],
+		"blocks":[ 23,23 ]
+		},
+	"ERC1155Action-certoraFunctionFinder22":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 141,141 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder23":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 229,229 ],
+		"blocks":[ 33,33 ]
+		},
+	"ERC1155Action-certoraFunctionFinder24":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 446,446 ],
+		"blocks":[ 57,57 ]
+		},
+	"ERC1155Action-certoraFunctionFinder25":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 598,598 ],
+		"blocks":[ 95,95 ]
+		},
+	"ERC1155Action-certoraFunctionFinder26":	{
+		"INTERNAL_FUNCTION_FINDER":64,
+		"commands":[ 993,993 ],
+		"blocks":[ 151,151 ]
+		},
+	"ERC1155Action-certoraFunctionFinder27":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 2341,2341 ],
+		"blocks":[ 380,380 ]
+		},
+	"ERC1155Action-certoraFunctionFinder28":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 593,593 ],
+		"blocks":[ 91,91 ]
+		},
+	"ERC1155Action-certoraFunctionFinder29":	{
+		"INTERNAL_FUNCTION_FINDER":75,
+		"commands":[ 1531,1531 ],
+		"blocks":[ 252,252 ]
+		},
+	"ERC1155Action-certoraFunctionFinder3":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 191,191 ],
+		"blocks":[ 25,25 ]
+		},
+	"ERC1155Action-certoraFunctionFinder30":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 1402,1402 ],
+		"blocks":[ 216,216 ]
+		},
+	"ERC1155Action-certoraFunctionFinder31":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 693,693 ],
+		"blocks":[ 73,73 ]
+		},
+	"ERC1155Action-certoraFunctionFinder32":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 288,288 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder33":	{
+		"INTERNAL_FUNCTION_FINDER":61,
+		"commands":[ 2469,2469 ],
+		"blocks":[ 425,425 ]
+		},
+	"ERC1155Action-certoraFunctionFinder34":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 363,363 ],
+		"blocks":[ 46,46 ]
+		},
+	"ERC1155Action-certoraFunctionFinder35":	{
+		"INTERNAL_FUNCTION_FINDER":77,
+		"commands":[ 459,459 ],
+		"blocks":[ 54,54 ]
+		},
+	"ERC1155Action-certoraFunctionFinder36":	{
+		"INTERNAL_FUNCTION_FINDER":60,
+		"commands":[ 207,207 ],
+		"blocks":[ 15,15 ]
+		},
+	"ERC1155Action-certoraFunctionFinder37":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 194,194 ],
+		"blocks":[ 15,15 ]
+		},
+	"ERC1155Action-certoraFunctionFinder38":	{
+		"INTERNAL_FUNCTION_FINDER":63,
+		"commands":[ 171,171 ],
+		"blocks":[ 18,18 ]
+		},
+	"ERC1155Action-certoraFunctionFinder39":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 227,227 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder4":	{
+		"INTERNAL_FUNCTION_FINDER":50,
+		"commands":[ 166,166 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder40":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 183,183 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder41":	{
+		"INTERNAL_FUNCTION_FINDER":75,
+		"commands":[ 285,285 ],
+		"blocks":[ 23,23 ]
+		},
+	"ERC1155Action-certoraFunctionFinder42":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 408,408 ],
+		"blocks":[ 34,34 ]
+		},
+	"ERC1155Action-certoraFunctionFinder43":	{
+		"INTERNAL_FUNCTION_FINDER":63,
+		"commands":[ 868,868 ],
+		"blocks":[ 115,115 ]
+		},
+	"ERC1155Action-certoraFunctionFinder44":	{
+		"INTERNAL_FUNCTION_FINDER":52,
+		"commands":[ 249,249 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder45":	{
+		"INTERNAL_FUNCTION_FINDER":59,
+		"commands":[ 294,294 ],
+		"blocks":[ 21,21 ]
+		},
+	"ERC1155Action-certoraFunctionFinder46":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 292,292 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder47":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 317,317 ],
+		"blocks":[ 26,26 ]
+		},
+	"ERC1155Action-certoraFunctionFinder48":	{
+		"INTERNAL_FUNCTION_FINDER":62,
+		"commands":[ 162,162 ],
+		"blocks":[ 18,18 ]
+		},
+	"ERC1155Action-certoraFunctionFinder49":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 190,190 ],
+		"blocks":[ 23,23 ]
+		},
+	"ERC1155Action-certoraFunctionFinder5":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 185,185 ],
+		"blocks":[ 23,23 ]
+		},
+	"ERC1155Action-certoraFunctionFinder50":	{
+		"INTERNAL_FUNCTION_FINDER":58,
+		"commands":[ 2427,2427 ],
+		"blocks":[ 347,347 ]
+		},
+	"ERC1155Action-certoraFunctionFinder51":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 1530,1530 ],
+		"blocks":[ 252,252 ]
+		},
+	"ERC1155Action-certoraFunctionFinder52":	{
+		"INTERNAL_FUNCTION_FINDER":65,
+		"commands":[ 1739,1739 ],
+		"blocks":[ 285,285 ]
+		},
+	"ERC1155Action-certoraFunctionFinder53":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 152,152 ],
+		"blocks":[ 21,21 ]
+		},
+	"ERC1155Action-certoraFunctionFinder54":	{
+		"INTERNAL_FUNCTION_FINDER":58,
+		"commands":[ 196,196 ],
+		"blocks":[ 26,26 ]
+		},
+	"ERC1155Action-certoraFunctionFinder55":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 207,207 ],
+		"blocks":[ 27,27 ]
+		},
+	"ERC1155Action-certoraFunctionFinder56":	{
+		"INTERNAL_FUNCTION_FINDER":59,
+		"commands":[ 1298,1298 ],
+		"blocks":[ 220,220 ]
+		},
+	"ERC1155Action-certoraFunctionFinder57":	{
+		"INTERNAL_FUNCTION_FINDER":60,
+		"commands":[ 1264,1264 ],
+		"blocks":[ 215,215 ]
+		},
+	"ERC1155Action-certoraFunctionFinder58":	{
+		"INTERNAL_FUNCTION_FINDER":50,
+		"commands":[ 159,159 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder59":	{
+		"INTERNAL_FUNCTION_FINDER":74,
+		"commands":[ 142,142 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder6":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 190,190 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder60":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 308,308 ],
+		"blocks":[ 48,48 ]
+		},
+	"ERC1155Action-certoraFunctionFinder61":	{
+		"INTERNAL_FUNCTION_FINDER":74,
+		"commands":[ 280,280 ],
+		"blocks":[ 44,44 ]
+		},
+	"ERC1155Action-certoraFunctionFinder62":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 198,198 ],
+		"blocks":[ 26,26 ]
+		},
+	"ERC1155Action-certoraFunctionFinder63":	{
+		"INTERNAL_FUNCTION_FINDER":59,
+		"commands":[ 197,197 ],
+		"blocks":[ 26,26 ]
+		},
+	"ERC1155Action-certoraFunctionFinder64":	{
+		"INTERNAL_FUNCTION_FINDER":55,
+		"commands":[ 142,142 ],
+		"blocks":[ 20,20 ]
+		},
+	"ERC1155Action-certoraFunctionFinder65":	{
+		"INTERNAL_FUNCTION_FINDER":61,
+		"commands":[ 145,145 ],
+		"blocks":[ 19,19 ]
+		},
+	"ERC1155Action-certoraFunctionFinder66":	{
+		"INTERNAL_FUNCTION_FINDER":61,
+		"commands":[ 239,239 ],
+		"blocks":[ 39,39 ]
+		},
+	"ERC1155Action-certoraFunctionFinder67":	{
+		"INTERNAL_FUNCTION_FINDER":52,
+		"commands":[ 277,277 ],
+		"blocks":[ 47,47 ]
+		},
+	"ERC1155Action-certoraFunctionFinder68":	{
+		"INTERNAL_FUNCTION_FINDER":58,
+		"commands":[ 177,177 ],
+		"blocks":[ 23,23 ]
+		},
+	"ERC1155Action-certoraFunctionFinder69":	{
+		"INTERNAL_FUNCTION_FINDER":57,
+		"commands":[ 221,221 ],
+		"blocks":[ 31,31 ]
+		},
+	"ERC1155Action-certoraFunctionFinder7":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 189,189 ],
+		"blocks":[ 24,24 ]
+		},
+	"ERC1155Action-certoraFunctionFinder70":	{
+		"INTERNAL_FUNCTION_FINDER":50,
+		"commands":[ 152,152 ],
+		"blocks":[ 17,17 ]
+		},
+	"ERC1155Action-certoraFunctionFinder71":	{
+		"INTERNAL_FUNCTION_FINDER":52,
+		"commands":[ 271,271 ],
+		"blocks":[ 45,45 ]
+		},
+	"ERC1155Action-certoraFunctionFinder72":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 132,132 ],
+		"blocks":[ 18,18 ]
+		},
+	"ERC1155Action-certoraFunctionFinder73":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 200,200 ],
+		"blocks":[ 31,31 ]
+		},
+	"ERC1155Action-certoraFunctionFinder74":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 166,166 ],
+		"blocks":[ 20,20 ]
+		},
+	"ERC1155Action-certoraFunctionFinder75":	{
+		"INTERNAL_FUNCTION_FINDER":72,
+		"commands":[ 188,188 ],
+		"blocks":[ 27,27 ]
+		},
+	"ERC1155Action-certoraFunctionFinder76":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 260,260 ],
+		"blocks":[ 43,43 ]
+		},
+	"ERC1155Action-certoraFunctionFinder77":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 205,205 ],
+		"blocks":[ 32,32 ]
+		},
+	"ERC1155Action-certoraFunctionFinder78":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 255,255 ],
+		"blocks":[ 41,41 ]
+		},
+	"ERC1155Action-certoraFunctionFinder79":	{
+		"INTERNAL_FUNCTION_FINDER":53,
+		"commands":[ 182,182 ],
+		"blocks":[ 28,28 ]
+		},
+	"ERC1155Action-certoraFunctionFinder8":	{
+		"INTERNAL_FUNCTION_FINDER":85,
+		"commands":[ 204,204 ],
+		"blocks":[ 27,27 ]
+		},
+	"ERC1155Action-certoraFunctionFinder80":	{
+		"INTERNAL_FUNCTION_FINDER":79,
+		"commands":[ 173,173 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder81":	{
+		"INTERNAL_FUNCTION_FINDER":54,
+		"commands":[ 177,177 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-certoraFunctionFinder82":	{
+		"INTERNAL_FUNCTION_FINDER":79,
+		"commands":[ 671,671 ],
+		"blocks":[ 98,98 ]
+		},
+	"ERC1155Action-certoraFunctionFinder83":	{
+		"INTERNAL_FUNCTION_FINDER":60,
+		"commands":[ 331,331 ],
+		"blocks":[ 25,25 ]
+		},
+	"ERC1155Action-certoraFunctionFinder84":	{
+		"INTERNAL_FUNCTION_FINDER":56,
+		"commands":[ 283,283 ],
+		"blocks":[ 34,34 ]
+		},
+	"ERC1155Action-certoraFunctionFinder85":	{
+		"INTERNAL_FUNCTION_FINDER":65,
+		"commands":[ 694,694 ],
+		"blocks":[ 54,54 ]
+		},
+	"ERC1155Action-certoraFunctionFinder86":	{
+		"INTERNAL_FUNCTION_FINDER":51,
+		"commands":[ 192,192 ],
+		"blocks":[ 21,21 ]
+		},
+	"ERC1155Action-certoraFunctionFinder9":	{
+		"INTERNAL_FUNCTION_FINDER":52,
+		"commands":[ 182,182 ],
+		"blocks":[ 22,22 ]
+		},
+	"ERC1155Action-decodeToAssets":	{
+		"UNUSED_ASSIGNMENTS":5,
+		"commands":[ 1085,1085,1091,1091,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,1092,967,961,1092,961,1092,1092,1092,961,1092,961,1092,1092,964,1092,964,1092,884,964,884,964,884,964,1092,884,884,884,884,884,884,884,884,884,921,921,921,921,921,890,890,890,890,887 ],
+		"blocks":[ 144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,144,124,144,124,144,124,144,144,124,124,124,124,124,124,124,124,124,128,128,128,128,128,91,91,91,91,91 ],
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":2,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":3,
+		"MERGED_TAC_OPTIMIZATIONS":2,
+		"BITWISE_OPTIMIZE":5,
+		"UNROLL":12,
+		"UNROLL_FIX_JUMP_PCS":2,
+		"UNROLL_REMOVE_UNREACHABLE":1,
+		"UNROLL_PRE_CLEANUP":9,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":2,
+		"POINTSTO":[ 246,166 ],
+		"CALLGRAPHBUILDER":12,
+		"CALLGRAPH_FULL":178,
+		"HASH_OPTIMIZE":2,
+		"RETURN_SYMBOL_OPTIMIZE1":2,
+		"MEMORY_OPTIMIZE":176,
+		"MEMORY_MODEL":173,
+		"POINTSTO_MEMORY":162,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":267,
+		"PATH_OPTIMIZE_AFTER_PTA":3,
+		"MEMORY_SPLITTER":3,
+		"REMOVE_UNREACHABLE_POST_PTA":9,
+		"COPY_LOOP_SUMMARIZATION":441,
+		"41694_1012_0_0_0_0_0_0":		{
+			"summarySearch":405
+			},
+		"loop":[ 3,303,409 ],
+		"15209_1004_0_0_0_0_0_0":		{
+			"summarySearch":282
+			},
+		"15242_1006_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":176,
+		"OPTIMIZE_REVERT_STRINGS":4,
+		"REWRITE_ALLOCATIONS":28,
+		"COLLAPSE_EMPTY_DSA":2,
+		"OPTIMIZE_STORAGE_READS":13,
+		"SUMMARIZE_STORAGE_LENGTH":41,
+		"FIXED_FREE_PTR_READ":2,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":146,
+		"USE_LATEST_FREEMEM":3,
+		"HOIST_LOOPS":14,
+		"FIXED_BOOL_COMPARISON":5,
+		"LOOP_SUMMARY_INSTRUMENTATION":29,
+		"ADDED_MISSING_FREE_PTR_WRITE":5,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":6,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":2,
+		"CONSTANT_FOLDING":6,
+		"INSTRUMENT_RETURN_BUFFERS":3,
+		"PLUS_NEG_31_SIMPLIFY":3,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":3,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-encodeToId":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 176,176,177,177,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,178,162,178,162,178,178,178,162,178,162,178,178,162,178,162,178,162,162,162,162,162,162,178,162,163,163,163,163,163,163,163,163,163,163,163,163,156,156,156,156,152 ],
+		"blocks":[ 18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,18,11,11,11,11,11 ],
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":1,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":1,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":1,
+		"POINTSTO":[ 5,3 ],
+		"CALLGRAPHBUILDER":1,
+		"CALLGRAPH_FULL":4,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":5,
+		"MEMORY_MODEL":5,
+		"POINTSTO_MEMORY":4,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":8,
+		"PATH_OPTIMIZE_AFTER_PTA":1,
+		"MEMORY_SPLITTER":0,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":20,
+		"INITIALIZATION":22,
+		"OPTIMIZE_REVERT_STRINGS":1,
+		"REWRITE_ALLOCATIONS":19,
+		"COLLAPSE_EMPTY_DSA":1,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":33,
+		"FIXED_FREE_PTR_READ":1,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":5,
+		"USE_LATEST_FREEMEM":1,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":21,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":1,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-fallback":	{
+		"commands":[ 54,54,54,54,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,55,50,55,50,55,55,55,50,55,50,55,55,50,55,50,55,50,50,50,50,50,50,55,50,50,50,50,50,50,50,50,50,50,50,50,50,40,40,40,40,39,39,40,42,42,46,46 ],
+		"blocks":[ 13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,3,3,3,3,3,3,3,3,3,3,3 ],
+		"UNUSED_ASSIGNMENTS":1,
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":1,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":1,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 2,3 ],
+		"CALLGRAPHBUILDER":1,
+		"CALLGRAPH_FULL":4,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":2,
+		"MEMORY_MODEL":2,
+		"POINTSTO_MEMORY":2,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":4,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":0,
+		"REMOVE_UNREACHABLE_POST_PTA":1,
+		"COPY_LOOP_SUMMARIZATION":19,
+		"INITIALIZATION":19,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":18,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":34,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":2,
+		"USE_LATEST_FREEMEM":0,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":21,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":0,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-isApprovedForAll":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 189,189,189,189,190,190,190,190,190,190,190,190,190,190,190,190,190,190,190,190,190,190,191,191,190,190,191,190,176,175,190,175,190,190,190,175,190,175,190,190,175,190,175,190,175,175,175,175,175,175,190,175,176,176,176,176,176,176,176,176,176,176,176,176,176,165,165,165,165,161 ],
+		"blocks":[ 23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,12,12,12,12,12 ],
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":1,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":2,
+		"UNROLL_FIX_JUMP_PCS":1,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":1,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 5,4 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":4,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":6,
+		"MEMORY_MODEL":5,
+		"POINTSTO_MEMORY":4,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":8,
+		"PATH_OPTIMIZE_AFTER_PTA":1,
+		"MEMORY_SPLITTER":1,
+		"REMOVE_UNREACHABLE_POST_PTA":1,
+		"COPY_LOOP_SUMMARIZATION":19,
+		"INITIALIZATION":20,
+		"OPTIMIZE_REVERT_STRINGS":1,
+		"REWRITE_ALLOCATIONS":19,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":33,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":7,
+		"USE_LATEST_FREEMEM":1,
+		"HOIST_LOOPS":1,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":19,
+		"ADDED_MISSING_FREE_PTR_WRITE":1,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":0,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":1,
+		"CONSTANT_FOLDING":2,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":1,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":1,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-owner":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 81,81,81,81,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,82,78,82,78,82,82,82,78,82,78,82,82,78,82,78,82,78,78,78,78,78,78,82,78,79,79,79,79,79,79,79,79,79,79,79,79,79,71,71,71,71,65 ],
+		"blocks":[ 11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":1,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":0,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 3,2 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":2,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":0,
+		"MEMORY_OPTIMIZE":3,
+		"MEMORY_MODEL":2,
+		"POINTSTO_MEMORY":2,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":5,
+		"PATH_OPTIMIZE_AFTER_PTA":1,
+		"MEMORY_SPLITTER":1,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":19,
+		"INITIALIZATION":25,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":23,
+		"COLLAPSE_EMPTY_DSA":1,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":42,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":4,
+		"USE_LATEST_FREEMEM":0,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":0,
+		"LOOP_SUMMARY_INSTRUMENTATION":22,
+		"ADDED_MISSING_FREE_PTR_WRITE":1,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":1,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":1,
+		"PLUS_NEG_31_SIMPLIFY":1,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-pauseGuardian":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 91,91,91,91,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,92,88,92,88,92,92,92,88,92,88,92,92,88,92,88,92,88,88,88,88,88,88,92,88,89,89,89,89,89,89,89,89,89,89,89,89,89,78,78,78,78,72 ],
+		"blocks":[ 14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":1,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 6,2 ],
+		"CALLGRAPHBUILDER":1,
+		"CALLGRAPH_FULL":3,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":6,
+		"MEMORY_MODEL":5,
+		"POINTSTO_MEMORY":3,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":8,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":0,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":18,
+		"INITIALIZATION":21,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":20,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":36,
+		"FIXED_FREE_PTR_READ":1,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":6,
+		"USE_LATEST_FREEMEM":0,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":22,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":0,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":0,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-pauseRouter":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 82,82,82,82,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,83,79,83,79,83,83,83,79,83,79,83,83,79,83,79,83,79,79,79,79,79,79,83,79,80,80,80,80,80,80,80,80,80,80,80,80,80,72,72,72,72,66 ],
+		"blocks":[ 11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":1,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":0,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 4,2 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":3,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":3,
+		"MEMORY_MODEL":3,
+		"POINTSTO_MEMORY":3,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":6,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":1,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":18,
+		"INITIALIZATION":19,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":20,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":34,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":3,
+		"USE_LATEST_FREEMEM":0,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":23,
+		"ADDED_MISSING_FREE_PTR_WRITE":1,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":1,
+		"PLUS_NEG_31_SIMPLIFY":1,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-safeBatchTransferFrom":	{
+		"commands":[ 10504,10504,10538,10538,10539,10539,10539,10539,10539,10539,10539,10543,10539,10543,10539,10543,10539,10543,10539,10543,10539,10543,10539,10557,10557,10539,10539,10557,10539,10557,9585,9546,9538,10539,9538,10539,10539,10539,9538,10539,9538,10539,10539,9618,10539,9618,10539,8450,9618,8450,9618,8446,9618,10539,8446,8446,8446,8477,8477,97397,97397,97421,97421,97421,97421,155557,156491,156491,156491,156491,156491,155109,142925,142869,142869,142856,141910,141910,141911,141912,141912,141914,141914,141914 ],
+		"blocks":[ 1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,1143,914,1143,914,1143,913,1143,1143,913,913,913,913,913,12755,12755,12755,12755,12755,12755,12755,12881,12881,12881,12881,12881,11169,10429,10331,10331,10331,10116,10116,10116,10116,10116,10116,10116,10116 ],
+		"UNUSED_ASSIGNMENTS":1539,
+		"REMOVE_UNREACHABLE":781,
+		"MERGED":3127,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":12515,
+		"MERGED_TAC_OPTIMIZATIONS":4252,
+		"BITWISE_OPTIMIZE":2903,
+		"UNROLL":12747,
+		"UNROLL_FIX_JUMP_PCS":1117,
+		"UNROLL_REMOVE_UNREACHABLE":1143,
+		"UNROLL_PRE_CLEANUP":10487,
+		"INLINED":420,
+		"RETURN_SYMBOL_OPTIMIZE2":18,
+		"POINTSTO":[ 3539,2625 ],
+		"CALLGRAPHBUILDER":98,
+		"CALLGRAPH_FULL":2723,
+		"HASH_OPTIMIZE":22,
+		"RETURN_SYMBOL_OPTIMIZE1":19,
+		"MEMORY_OPTIMIZE":3074,
+		"MEMORY_MODEL":3055,
+		"POINTSTO_MEMORY":2920,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":3754,
+		"PATH_OPTIMIZE_AFTER_PTA":57,
+		"MEMORY_SPLITTER":32,
+		"REMOVE_UNREACHABLE_POST_PTA":53,
+		"COPY_LOOP_SUMMARIZATION":1981,
+		"36479_967_3_0_0_0_0_0":		{
+			"summarySearch":965
+			},
+		"loop":[ 7,7,1,9,1,0,3,4,0,0,0,0,40,0,55,55,792,949,950,1160,1163,1166,679,660,638,648,649,430,966 ],
+		"29120_972_1_0_0_0_0_0":		{
+			"summarySearch":415
+			},
+		"36046_973_0_0_0_0_0_0":		{
+			"summarySearch":632
+			},
+		"32939_982_0_0_0_0_0_0":		{
+			"summarySearch":631
+			},
+		"29120_972_0_0_0_0_0_0":		{
+			"summarySearch":621
+			},
+		"15209_999_0_0_0_0_0_0":		{
+			"summarySearch":645
+			},
+		"36046_973_1_0_0_0_0_0":		{
+			"summarySearch":663
+			},
+		"36479_967_0_0_0_0_0_0":		{
+			"summarySearch":1165
+			},
+		"36479_967_1_0_0_0_0_0":		{
+			"summarySearch":1162
+			},
+		"36479_967_2_0_0_0_0_0":		{
+			"summarySearch":1159
+			},
+		"29242_973_0_0_0_0_0_0":		{
+			"summarySearch":891
+			},
+		"29242_973_1_0_0_0_0_0":		{
+			"summarySearch":890
+			},
+		"32939_982_1_0_0_0_0_0":		{
+			"summarySearch":716
+			},
+		"32990_987_1_0_0_0_0_0":		{
+
+			},
+		"32990_987_0_0_0_0_0_0":		{
+
+			},
+		"36079_975_1_0_0_0_0_0":		{
+			"summarySearch":0
+			},
+		"36079_975_0_0_0_0_0_0":		{
+			"summarySearch":0
+			},
+		"34780_972_1_0_0_0_0_0":		{
+
+			},
+		"34780_972_0_0_0_0_0_0":		{
+
+			},
+		"34513_970_1_0_0_0_0_0":		{
+
+			},
+		"34513_970_0_0_0_0_0_0":		{
+
+			},
+		"33658_985_1_0_0_0_0_0":		{
+
+			},
+		"33658_985_0_0_0_0_0_0":		{
+
+			},
+		"33539_981_1_0_0_0_0_0":		{
+
+			},
+		"33539_981_0_0_0_0_0_0":		{
+
+			},
+		"15242_1001_0_0_0_0_0_0":		{
+
+			},
+		"29928_999_0_0_0_0_0_0":		{
+
+			},
+		"19481_975_0_0_0_0_0_0":		{
+
+			},
+		"19481_975_1_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":1518,
+		"OPTIMIZE_REVERT_STRINGS":169,
+		"REWRITE_ALLOCATIONS":109,
+		"COLLAPSE_EMPTY_DSA":25,
+		"OPTIMIZE_STORAGE_READS":55,
+		"SUMMARIZE_STORAGE_LENGTH":50,
+		"FIXED_FREE_PTR_READ":28,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":2111,
+		"USE_LATEST_FREEMEM":53,
+		"HOIST_LOOPS":35,
+		"FIXED_BOOL_COMPARISON":67,
+		"LOOP_SUMMARY_INSTRUMENTATION":73,
+		"ADDED_MISSING_FREE_PTR_WRITE":106,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":93,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":34,
+		"CONSTANT_FOLDING":55,
+		"INSTRUMENT_RETURN_BUFFERS":112,
+		"PLUS_NEG_31_SIMPLIFY":30,
+		"RETSIZE_SIMPLIFY":31,
+		"SIMPLIFIED":27,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-safeTransferFrom":	{
+		"commands":[ 10336,10336,10372,10372,10373,10373,10373,10373,10373,10373,10373,10377,10373,10377,10373,10377,10373,10377,10373,10377,10373,10377,10373,10391,10391,10373,10373,10391,10373,10391,9440,9407,9399,10373,9399,10373,10373,10373,9399,10373,9399,10373,10373,9484,10373,9484,10373,8197,9484,8197,9484,8193,9484,10373,8193,8193,8193,8224,8224,97144,97144,97168,97168,97168,97168,155304,156147,156147,156147,156147,156147,154736,142552,142496,142496,142486,141685,141685,141686,141687,141687,141689,141689,141689 ],
+		"blocks":[ 1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,1104,846,1104,846,1104,845,1104,1104,845,845,845,845,845,12687,12687,12687,12687,12687,12687,12687,12806,12806,12806,12806,12806,11070,10330,10232,10232,10232,10057,10057,10057,10057,10057,10057,10057,10057 ],
+		"UNUSED_ASSIGNMENTS":1255,
+		"REMOVE_UNREACHABLE":774,
+		"MERGED":3411,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":12480,
+		"MERGED_TAC_OPTIMIZATIONS":4191,
+		"BITWISE_OPTIMIZE":2786,
+		"UNROLL":11155,
+		"UNROLL_FIX_JUMP_PCS":1091,
+		"UNROLL_REMOVE_UNREACHABLE":1124,
+		"UNROLL_PRE_CLEANUP":8940,
+		"INLINED":413,
+		"RETURN_SYMBOL_OPTIMIZE2":20,
+		"POINTSTO":[ 2953,2715 ],
+		"CALLGRAPHBUILDER":90,
+		"CALLGRAPH_FULL":2805,
+		"HASH_OPTIMIZE":25,
+		"RETURN_SYMBOL_OPTIMIZE1":20,
+		"MEMORY_OPTIMIZE":2684,
+		"MEMORY_MODEL":2663,
+		"POINTSTO_MEMORY":2551,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":3161,
+		"PATH_OPTIMIZE_AFTER_PTA":46,
+		"MEMORY_SPLITTER":37,
+		"REMOVE_UNREACHABLE_POST_PTA":51,
+		"COPY_LOOP_SUMMARIZATION":1881,
+		"29120_976_1_0_0_0_0_0":		{
+			"summarySearch":418
+			},
+		"loop":[ 8,8,9,0,1,3,5,1,0,0,0,53,5,72,73,755,887,903,1066,1070,1077,633,632,621,619,634,932,432 ],
+		"36479_971_3_0_0_0_0_0":		{
+			"summarySearch":931
+			},
+		"32939_986_0_0_0_0_0_0":		{
+			"summarySearch":620
+			},
+		"36046_977_0_0_0_0_0_0":		{
+			"summarySearch":605
+			},
+		"29120_976_0_0_0_0_0_0":		{
+			"summarySearch":607
+			},
+		"12398_1011_0_0_0_0_0_0":		{
+			"summarySearch":618
+			},
+		"36046_977_1_0_0_0_0_0":		{
+			"summarySearch":618
+			},
+		"36479_971_2_0_0_0_0_0":		{
+			"summarySearch":1076
+			},
+		"36479_971_0_0_0_0_0_0":		{
+			"summarySearch":1069
+			},
+		"36479_971_1_0_0_0_0_0":		{
+			"summarySearch":1065
+			},
+		"29242_977_0_0_0_0_0_0":		{
+			"summarySearch":830
+			},
+		"29242_977_1_0_0_0_0_0":		{
+			"summarySearch":814
+			},
+		"32939_986_1_0_0_0_0_0":		{
+			"summarySearch":662
+			},
+		"32990_991_1_0_0_0_0_0":		{
+
+			},
+		"32990_991_0_0_0_0_0_0":		{
+
+			},
+		"36079_979_1_0_0_0_0_0":		{
+			"summarySearch":0
+			},
+		"36079_979_0_0_0_0_0_0":		{
+			"summarySearch":0
+			},
+		"34780_976_1_0_0_0_0_0":		{
+
+			},
+		"34780_976_0_0_0_0_0_0":		{
+
+			},
+		"34513_974_1_0_0_0_0_0":		{
+
+			},
+		"34513_974_0_0_0_0_0_0":		{
+
+			},
+		"33658_989_1_0_0_0_0_0":		{
+
+			},
+		"33658_989_0_0_0_0_0_0":		{
+
+			},
+		"33539_985_1_0_0_0_0_0":		{
+
+			},
+		"33539_985_0_0_0_0_0_0":		{
+
+			},
+		"29928_1003_0_0_0_0_0_0":		{
+
+			},
+		"19481_979_1_0_0_0_0_0":		{
+
+			},
+		"19481_979_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":1260,
+		"OPTIMIZE_REVERT_STRINGS":140,
+		"REWRITE_ALLOCATIONS":114,
+		"COLLAPSE_EMPTY_DSA":24,
+		"OPTIMIZE_STORAGE_READS":54,
+		"SUMMARIZE_STORAGE_LENGTH":47,
+		"FIXED_FREE_PTR_READ":25,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":1408,
+		"USE_LATEST_FREEMEM":45,
+		"HOIST_LOOPS":31,
+		"FIXED_BOOL_COMPARISON":56,
+		"LOOP_SUMMARY_INSTRUMENTATION":52,
+		"ADDED_MISSING_FREE_PTR_WRITE":85,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":73,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":28,
+		"CONSTANT_FOLDING":40,
+		"INSTRUMENT_RETURN_BUFFERS":97,
+		"PLUS_NEG_31_SIMPLIFY":27,
+		"RETSIZE_SIMPLIFY":27,
+		"SIMPLIFIED":26,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-setApprovalForAll":	{
+		"commands":[ 176,176,176,176,177,177,177,177,177,177,177,177,177,177,177,177,177,177,177,177,177,177,179,179,177,177,179,177,163,161,160,177,160,177,177,177,160,177,160,177,177,160,177,160,177,156,160,156,160,156,160,177,156,156,156,156,156,156,156,156,156,156,156,156,156,156,144,144,144,144,139,130,130,131,132,132,134,134,134 ],
+		"blocks":[ 20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,19,20,19,20,19,20,20,19,19,19,19,19,19,19,19,19,19,19,19,19,19,7,7,7,7,7,4,4,4,4,4,4,4,4 ],
+		"UNUSED_ASSIGNMENTS":0,
+		"REMOVE_UNREACHABLE":1,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":1,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":1,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":1,
+		"POINTSTO":[ 6,3 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":3,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":4,
+		"MEMORY_MODEL":3,
+		"POINTSTO_MEMORY":3,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":9,
+		"PATH_OPTIMIZE_AFTER_PTA":1,
+		"MEMORY_SPLITTER":1,
+		"REMOVE_UNREACHABLE_POST_PTA":1,
+		"COPY_LOOP_SUMMARIZATION":20,
+		"INITIALIZATION":23,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":19,
+		"COLLAPSE_EMPTY_DSA":1,
+		"OPTIMIZE_STORAGE_READS":1,
+		"SUMMARIZE_STORAGE_LENGTH":36,
+		"FIXED_FREE_PTR_READ":1,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":8,
+		"USE_LATEST_FREEMEM":1,
+		"HOIST_LOOPS":1,
+		"FIXED_BOOL_COMPARISON":3,
+		"LOOP_SUMMARY_INSTRUMENTATION":18,
+		"ADDED_MISSING_FREE_PTR_WRITE":1,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":0,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":1,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":1,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"ERC1155Action-supportsInterface":	{
+		"UNUSED_ASSIGNMENTS":1,
+		"commands":[ 119,119,119,119,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,120,121,121,120,120,121,120,109,108,120,108,120,120,120,108,120,108,120,120,108,120,108,120,108,108,108,108,108,108,120,108,109,109,109,109,109,109,109,109,109,109,109,109,102,102,102,102,98 ],
+		"blocks":[ 14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,7,7,7,7,7 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":1,
+		"UNROLL":0,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 9,5 ],
+		"CALLGRAPHBUILDER":1,
+		"CALLGRAPH_FULL":6,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":5,
+		"MEMORY_MODEL":5,
+		"POINTSTO_MEMORY":4,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":12,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":1,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":21,
+		"INITIALIZATION":26,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":20,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":38,
+		"FIXED_FREE_PTR_READ":1,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":10,
+		"USE_LATEST_FREEMEM":1,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":0,
+		"LOOP_SUMMARY_INSTRUMENTATION":20,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":2,
+		"INSTRUMENT_RETURN_BUFFERS":1,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":0,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"FreeCollateralExternal":	{
+		"FUNCTION_BUILDER":58792,
+		"commands":[ 381632,389875,422204,508037,508037,508037,508037,508037,231577,185335,169015,508037,169015,508037,169015,508037,508037,169015,508037 ],
+		"blocks":[ 29448,29448,29448,29448,29448,29448,29448,29448,40786,40786,24466,29448,24466,29448,24466,29448,29448,24466,29448 ],
+		"ALIAS":1179,
+		"SINGLE_SUCC_JUMP_NORMALIZATION":5534,
+		"JUMP_COND_NORMALIZATION":6170,
+		"UNREACHABLE_UNPACKING_CODE_FINDER":985,
+		"DSA":56577,
+		"ANNOTATION_REMOVER":2042,
+		"UNOPTIMIZE_HASHES":2397,
+		"FREE_MEM_POINTER_SCALARIZE":5258,
+		"SIMPLE_HASH":4878,
+		"TYPE":11594,
+		"NO_RECYCLE":1537,
+		"ENV_START_BLOCK":995,
+		"INTERNAL_FUNCTION_ANNOTATOR":1903,
+		"JIMPLE":31590
+		},
+	"FreeCollateralExternal-checkFreeCollateralAndRevert":	{
+		"UNUSED_ASSIGNMENTS":246,
+		"commands":[ 55933,55933,55933,55933,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55934,55953,55953,55934,55934,55953,55934,55953,49570,49570,49510,49477,49473,49469,55934,49469,55934,55934,55934,49469,55934,49469,55934,55934,49625,55934,49625,55934,33092,49625,33092,49625,33092,49625,55934,33092,33092,33281,33281,33281,33281,33281,33281,33282,33839,33281,33844,34402,33281,34402,33281,34407,33281,34964,33281,34964,33281,35522,33281,33281,33281,33281,33282,33839,33281,33844,34402,33281,34402,33281,34407,33281,34964,33281,34964,33281,35522,33281,33281,33281,33281,33282,33839,33281,33844,34402,33281,34402,33281,34407,33281,34964,33281,34964,33281,35522,33281,33281,33281,33281,33282,33839,33281,33844,34402,33281,34402,33281,34407,33281,34964,33281,34964,33281,35522,33281,33281,33281,33287,33287,33287,33287,33910,33910,33910,33910,33910,33454,32576,32538,32538,32336 ],
+		"blocks":[ 8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,8149,4929,8149,4929,8149,4929,8149,8149,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,4929,5072,5072,5072,5072,5072,4521,4337,4282,4282,4282 ],
+		"REMOVE_UNREACHABLE":147,
+		"MERGED":481,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":648,
+		"MERGED_TAC_OPTIMIZATIONS":602,
+		"BITWISE_OPTIMIZE":559,
+		"UNROLL":1539,
+		"UNROLL_FIX_JUMP_PCS":181,
+		"UNROLL_REMOVE_UNREACHABLE":187,
+		"UNROLL_PRE_CLEANUP":1171,
+		"INLINED":0,
+		"NONE":[ 439,260,82,141,133,122,115,346,249,80,137,127,121,109,331,252,82,128,123,111,111,416,228,81,124,127,102,99 ],
+		"RETURN_SYMBOL_OPTIMIZE2":87,
+		"POINTSTO":[ 73594,67806 ],
+		"CALLGRAPHBUILDER":3394,
+		"CALLGRAPH_FULL":71200,
+		"HASH_OPTIMIZE":155,
+		"RETURN_SYMBOL_OPTIMIZE1":91,
+		"MEMORY_OPTIMIZE":72373,
+		"MEMORY_MODEL":72278,
+		"POINTSTO_MEMORY":69486,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":74840,
+		"PATH_OPTIMIZE_AFTER_PTA":209,
+		"MEMORY_SPLITTER":105,
+		"REMOVE_UNREACHABLE_POST_PTA":410,
+		"COPY_LOOP_SUMMARIZATION":2206,
+		"6608_963_1_0_0_0_0_0":		{
+			"summarySearch":285
+			},
+		"loop":[ 36,36,36,0,0,1,1,0,0,0,0,0,0,0,0,1507,1469,1469,1580,1606,1644,270,298 ],
+		"11124_976_0_0_0_0_0_0":		{
+			"summarySearch":257
+			},
+		"6730_967_0_0_0_0_0_0":		{
+			"summarySearch":782
+			},
+		"6730_997_0_0_0_0_0_0":		{
+			"summarySearch":781
+			},
+		"6730_964_1_0_0_0_0_0":		{
+			"summarySearch":718
+			},
+		"6608_996_0_0_0_0_0_0":		{
+			"summarySearch":631
+			},
+		"6608_966_0_0_0_0_0_0":		{
+			"summarySearch":630
+			},
+		"11124_973_1_0_0_0_0_0":		{
+			"summarySearch":631
+			},
+		"5497_984_0_0_0_0_0_0":		{
+
+			},
+		"11761_967_1_0_0_0_0_0":		{
+
+			},
+		"11761_962_1_0_0_0_0_0":		{
+
+			},
+		"11761_958_0_0_0_0_0_0":		{
+
+			},
+		"11761_957_0_0_0_0_0_0":		{
+
+			},
+		"11761_955_1_0_0_0_0_0":		{
+
+			},
+		"11761_941_0_0_0_0_0_0":		{
+
+			},
+		"11761_938_1_0_0_0_0_0":		{
+
+			},
+		"5497_965_1_0_0_0_0_0":		{
+
+			},
+		"5497_968_0_0_0_0_0_0":		{
+
+			},
+		"6977_984_1_0_0_0_0_0":		{
+
+			},
+		"7153_984_1_0_0_0_0_0":		{
+
+			},
+		"8470_977_1_0_0_0_0_0":		{
+
+			},
+		"8470_980_0_0_0_0_0_0":		{
+
+			},
+		"2630_1008_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":54794,
+		"OPTIMIZE_REVERT_STRINGS":14540,
+		"REWRITE_ALLOCATIONS":329,
+		"COLLAPSE_EMPTY_DSA":163,
+		"OPTIMIZE_STORAGE_READS":1572,
+		"SUMMARIZE_STORAGE_LENGTH":136,
+		"FIXED_FREE_PTR_READ":161,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":39629,
+		"USE_LATEST_FREEMEM":524,
+		"HOIST_LOOPS":500,
+		"FIXED_BOOL_COMPARISON":393,
+		"LOOP_SUMMARY_INSTRUMENTATION":289,
+		"ADDED_MISSING_FREE_PTR_WRITE":1018,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1012,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":201,
+		"CONSTANT_FOLDING":239,
+		"INSTRUMENT_RETURN_BUFFERS":546,
+		"PLUS_NEG_31_SIMPLIFY":190,
+		"RETSIZE_SIMPLIFY":218,
+		"SIMPLIFIED":178,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"FreeCollateralExternal-fallback":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 37,30,30,30,30,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,26,25,31,25,31,31,31,25,31,25,31,31,25,31,25,31,25,25,25,25,25,25,31,25,25,25,25,25,25,25,25,25,25,25,25,25,23,23,23,23,23 ],
+		"blocks":[ 6,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":0,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 1,1 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":1,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":0,
+		"MEMORY_OPTIMIZE":2,
+		"MEMORY_MODEL":2,
+		"POINTSTO_MEMORY":1,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":3,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":0,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":19,
+		"INITIALIZATION":18,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":17,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":0,
+		"SUMMARIZE_STORAGE_LENGTH":35,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":2,
+		"USE_LATEST_FREEMEM":1,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":1,
+		"LOOP_SUMMARY_INSTRUMENTATION":21,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":0,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":1,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"FreeCollateralExternal-getFreeCollateralView":	{
+		"UNUSED_ASSIGNMENTS":242,
+		"commands":[ 55893,55893,55893,55893,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55894,55906,55894,55925,55925,55894,55894,55925,55894,55925,49545,49545,49481,49448,49444,49440,55894,49440,55894,55894,55894,49440,55894,49440,55894,55894,49596,55894,49597,55894,33044,49597,33044,49597,33044,49597,55894,33044,33044,33233,33233,33233,33233,33233,33239,33239,33239,33239,33956,33956,33956,33956,33956,33494,32616,32578,32578,32377 ],
+		"blocks":[ 8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8150,8151,8150,4926,8151,4926,8151,4926,8151,8150,4926,4926,4926,4926,4926,4926,4926,4926,4926,4926,4926,5076,5076,5076,5076,5076,4514,4330,4275,4275,4275 ],
+		"REMOVE_UNREACHABLE":179,
+		"MERGED":451,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":663,
+		"MERGED_TAC_OPTIMIZATIONS":592,
+		"BITWISE_OPTIMIZE":523,
+		"UNROLL":1650,
+		"UNROLL_FIX_JUMP_PCS":214,
+		"UNROLL_REMOVE_UNREACHABLE":183,
+		"UNROLL_PRE_CLEANUP":1253,
+		"INLINED":1,
+		"RETURN_SYMBOL_OPTIMIZE2":88,
+		"POINTSTO":[ 74180,66177 ],
+		"CALLGRAPHBUILDER":2818,
+		"CALLGRAPH_FULL":68995,
+		"HASH_OPTIMIZE":162,
+		"RETURN_SYMBOL_OPTIMIZE1":95,
+		"MEMORY_OPTIMIZE":69124,
+		"MEMORY_MODEL":69027,
+		"POINTSTO_MEMORY":66176,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":75349,
+		"PATH_OPTIMIZE_AFTER_PTA":254,
+		"MEMORY_SPLITTER":107,
+		"REMOVE_UNREACHABLE_POST_PTA":412,
+		"COPY_LOOP_SUMMARIZATION":2587,
+		"20469_1010_0_0_0_0_0_0":		{
+			"summarySearch":1360,
+			"fixupSearch":0
+			},
+		"loop":[ 38,37,37,0,0,1,1,0,0,0,0,0,0,0,1,1620,1581,1726,1765,1766,485,531,700,2281 ],
+		"11124_975_0_0_0_0_0_0":		{
+			"summarySearch":685
+			},
+		"6608_963_0_0_0_0_0_0":		{
+			"summarySearch":516
+			},
+		"6608_965_0_0_0_0_0_0":		{
+			"summarySearch":470
+			},
+		"6730_966_0_0_0_0_0_0":		{
+			"summarySearch":806
+			},
+		"6730_964_0_0_0_0_0_0":		{
+			"summarySearch":806
+			},
+		"6730_996_0_0_0_0_0_0":		{
+			"summarySearch":803
+			},
+		"6608_995_0_0_0_0_0_0":		{
+			"summarySearch":646
+			},
+		"11124_973_0_0_0_0_0_0":		{
+			"summarySearch":646
+			},
+		"5497_983_0_0_0_0_0_0":		{
+
+			},
+		"11761_967_0_0_0_0_0_0":		{
+
+			},
+		"11761_962_0_0_0_0_0_0":		{
+
+			},
+		"11761_957_1_0_0_0_0_0":		{
+
+			},
+		"11761_956_0_0_0_0_0_0":		{
+
+			},
+		"11761_955_0_0_0_0_0_0":		{
+
+			},
+		"11761_940_0_0_0_0_0_0":		{
+
+			},
+		"11761_938_0_0_0_0_0_0":		{
+
+			},
+		"5497_967_0_0_0_0_0_0":		{
+
+			},
+		"5497_965_0_0_0_0_0_0":		{
+
+			},
+		"6977_984_0_0_0_0_0_0":		{
+
+			},
+		"7153_984_0_0_0_0_0_0":		{
+
+			},
+		"8470_979_0_0_0_0_0_0":		{
+
+			},
+		"2039_1007_0_0_0_0_0_0":		{
+
+			},
+		"8470_977_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":55668,
+		"OPTIMIZE_REVERT_STRINGS":14640,
+		"REWRITE_ALLOCATIONS":236,
+		"COLLAPSE_EMPTY_DSA":131,
+		"OPTIMIZE_STORAGE_READS":1585,
+		"SUMMARIZE_STORAGE_LENGTH":129,
+		"FIXED_FREE_PTR_READ":169,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":40376,
+		"USE_LATEST_FREEMEM":446,
+		"HOIST_LOOPS":535,
+		"FIXED_BOOL_COMPARISON":427,
+		"LOOP_SUMMARY_INSTRUMENTATION":1316,
+		"ADDED_MISSING_FREE_PTR_WRITE":1130,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1090,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":196,
+		"CONSTANT_FOLDING":241,
+		"INSTRUMENT_RETURN_BUFFERS":373,
+		"PLUS_NEG_31_SIMPLIFY":181,
+		"RETSIZE_SIMPLIFY":209,
+		"SIMPLIFIED":184,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"FreeCollateralExternal-getLiquidationFactors":	{
+		"UNUSED_ASSIGNMENTS":301,
+		"commands":[ 57218,57218,57218,57218,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57219,57231,57219,57252,57252,57219,57219,57252,57219,57252,50836,50836,50766,50728,50724,50720,57219,50720,57219,57219,57219,50720,57219,50720,57219,57219,50901,57219,50901,57219,34229,50901,34229,50901,34229,50901,57219,34229,34229,34394,34400,34400,38625,38625,38635,38635,38635,38635,41301,42039,42039,42039,42039,42039,41502,40624,40586,40586,40395 ],
+		"blocks":[ 8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,8170,4944,8170,4944,8170,4944,8170,8170,4944,4944,4944,4944,4944,5453,5453,5453,5453,5453,5453,5453,5612,5612,5612,5612,5612,4954,4770,4715,4715,4715 ],
+		"REMOVE_UNREACHABLE":175,
+		"MERGED":570,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":797,
+		"MERGED_TAC_OPTIMIZATIONS":854,
+		"BITWISE_OPTIMIZE":582,
+		"UNROLL":1914,
+		"UNROLL_FIX_JUMP_PCS":244,
+		"UNROLL_REMOVE_UNREACHABLE":234,
+		"UNROLL_PRE_CLEANUP":1436,
+		"INLINED":104,
+		"RETURN_SYMBOL_OPTIMIZE2":95,
+		"POINTSTO":[ 89705,90212 ],
+		"CALLGRAPHBUILDER":3652,
+		"CALLGRAPH_FULL":93864,
+		"HASH_OPTIMIZE":174,
+		"RETURN_SYMBOL_OPTIMIZE1":106,
+		"MEMORY_OPTIMIZE":93254,
+		"MEMORY_MODEL":93146,
+		"POINTSTO_MEMORY":89020,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":90946,
+		"PATH_OPTIMIZE_AFTER_PTA":254,
+		"MEMORY_SPLITTER":120,
+		"REMOVE_UNREACHABLE_POST_PTA":445,
+		"COPY_LOOP_SUMMARIZATION":3082,
+		"20657_1009_0_0_0_0_0_0":		{
+			"summarySearch":832
+			},
+		"loop":[ 5,37,37,1,0,1,1,0,0,0,0,0,0,0,0,1814,1953,1953,1949,1919,2178,646,645,646,649,469,832 ],
+		"6608_950_0_0_0_0_0_0":		{
+			"summarySearch":454
+			},
+		"6608_992_0_0_0_0_0_0":		{
+			"summarySearch":634
+			},
+		"6608_962_0_0_0_0_0_0":		{
+			"summarySearch":632
+			},
+		"6608_993_0_0_0_0_0_0":		{
+			"summarySearch":630
+			},
+		"11124_972_0_0_0_0_0_0":		{
+			"summarySearch":633
+			},
+		"20563_1003_0_0_0_0_0_0":		{
+			"summarySearch":1057
+			},
+		"6730_994_0_0_0_0_0_0":		{
+			"summarySearch":793
+			},
+		"6730_993_0_0_0_0_0_0":		{
+			"summarySearch":791
+			},
+		"6730_963_0_0_0_0_0_0":		{
+			"summarySearch":790
+			},
+		"6730_951_0_0_0_0_0_0":		{
+			"summarySearch":791
+			},
+		"11124_960_0_0_0_0_0_0":		{
+			"summarySearch":634
+			},
+		"11761_954_1_0_0_0_0_0":		{
+
+			},
+		"11761_954_0_0_0_0_0_0":		{
+
+			},
+		"11761_953_0_0_0_0_0_0":		{
+
+			},
+		"11761_949_0_0_0_0_0_0":		{
+
+			},
+		"11761_942_0_0_0_0_0_0":		{
+
+			},
+		"11761_937_0_0_0_0_0_0":		{
+
+			},
+		"11761_925_0_0_0_0_0_0":		{
+
+			},
+		"5497_980_0_0_0_0_0_0":		{
+
+			},
+		"5497_964_0_0_0_0_0_0":		{
+
+			},
+		"5497_952_0_0_0_0_0_0":		{
+
+			},
+		"7153_971_0_0_0_0_0_0":		{
+
+			},
+		"6977_971_0_0_0_0_0_0":		{
+
+			},
+		"8470_964_0_0_0_0_0_0":		{
+
+			},
+		"8470_976_0_0_0_0_0_0":		{
+
+			},
+		"1301_1005_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":64364,
+		"OPTIMIZE_REVERT_STRINGS":15461,
+		"REWRITE_ALLOCATIONS":293,
+		"COLLAPSE_EMPTY_DSA":176,
+		"OPTIMIZE_STORAGE_READS":1876,
+		"SUMMARIZE_STORAGE_LENGTH":156,
+		"FIXED_FREE_PTR_READ":162,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":48997,
+		"USE_LATEST_FREEMEM":778,
+		"HOIST_LOOPS":475,
+		"FIXED_BOOL_COMPARISON":437,
+		"LOOP_SUMMARY_INSTRUMENTATION":1480,
+		"ADDED_MISSING_FREE_PTR_WRITE":1274,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":1169,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":201,
+		"CONSTANT_FOLDING":318,
+		"INSTRUMENT_RETURN_BUFFERS":410,
+		"PLUS_NEG_31_SIMPLIFY":193,
+		"RETSIZE_SIMPLIFY":293,
+		"SIMPLIFIED":187,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"Precompiled244":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled245":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled246":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled247":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled248":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled249":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled250":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled251":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled252":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled253":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"Precompiled254":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"SettleAssetsExternal":	{
+		"FUNCTION_BUILDER":10079,
+		"commands":[ 54116,56085,60095,72796,72796,72796,72796,72796,30896,23654,21042,72796,21042,72796,21042,72796,72796,21042,72796 ],
+		"blocks":[ 4365,4365,4365,4365,4365,4365,4365,4365,5225,5225,2613,4365,2613,4365,2613,4365,4365,2613,4365 ],
+		"ALIAS":103,
+		"SINGLE_SUCC_JUMP_NORMALIZATION":107,
+		"JUMP_COND_NORMALIZATION":189,
+		"UNREACHABLE_UNPACKING_CODE_FINDER":80,
+		"DSA":1675,
+		"ANNOTATION_REMOVER":209,
+		"UNOPTIMIZE_HASHES":210,
+		"FREE_MEM_POINTER_SCALARIZE":297,
+		"SIMPLE_HASH":262,
+		"TYPE":1023,
+		"NO_RECYCLE":192,
+		"ENV_START_BLOCK":139,
+		"INTERNAL_FUNCTION_ANNOTATOR":231,
+		"JIMPLE":775
+		},
+	"SettleAssetsExternal-fallback":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 40,33,33,33,33,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,34,29,28,34,28,34,34,34,28,34,28,34,34,28,34,28,34,28,28,28,28,28,28,34,28,28,28,28,28,28,28,28,28,28,28,28,28,25,25,25,25,25 ],
+		"blocks":[ 7,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":1,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":[ 1,2 ],
+		"CALLGRAPHBUILDER":0,
+		"CALLGRAPH_FULL":2,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":0,
+		"MEMORY_OPTIMIZE":1,
+		"MEMORY_MODEL":1,
+		"POINTSTO_MEMORY":1,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":2,
+		"PATH_OPTIMIZE_AFTER_PTA":0,
+		"MEMORY_SPLITTER":0,
+		"REMOVE_UNREACHABLE_POST_PTA":0,
+		"COPY_LOOP_SUMMARIZATION":17,
+		"INITIALIZATION":16,
+		"OPTIMIZE_REVERT_STRINGS":0,
+		"REWRITE_ALLOCATIONS":17,
+		"COLLAPSE_EMPTY_DSA":0,
+		"OPTIMIZE_STORAGE_READS":1,
+		"SUMMARIZE_STORAGE_LENGTH":33,
+		"FIXED_FREE_PTR_READ":0,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":2,
+		"USE_LATEST_FREEMEM":0,
+		"HOIST_LOOPS":0,
+		"FIXED_BOOL_COMPARISON":0,
+		"LOOP_SUMMARY_INSTRUMENTATION":17,
+		"ADDED_MISSING_FREE_PTR_WRITE":0,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":0,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":0,
+		"CONSTANT_FOLDING":1,
+		"INSTRUMENT_RETURN_BUFFERS":0,
+		"PLUS_NEG_31_SIMPLIFY":0,
+		"RETSIZE_SIMPLIFY":0,
+		"SIMPLIFIED":1,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"SettleAssetsExternal-settleAssetsAndFinalize":	{
+		"UNUSED_ASSIGNMENTS":15,
+		"commands":[ 5068,5068,5068,5068,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,5069,4586,4571,4568,5069,4568,5069,5069,5069,4565,5069,4565,5069,5069,4603,5069,4603,5069,3859,4603,3859,4603,3859,4603,5069,3859,3859,3859,3859,3859,3859,3859,3859,3860,3922,3859,3932,4032,3859,4032,3859,4037,3859,4099,3859,4099,3859,4162,3859,3859,3859,3859,3860,3922,3859,3932,4032,3859,4032,3859,4037,3859,4099,3859,4099,3859,4162,3859,3859,3859,3859,3860,3922,3859,3932,4032,3859,4032,3859,4037,3859,4099,3859,4099,3859,4162,3859,3859,3859,3859,3860,3922,3859,3932,4032,3859,4032,3859,4037,3859,4099,3859,4099,3859,4162,3859,3859,3859,3859,3860,3922,3859,3932,4032,3859,4032,3859,4037,3859,4099,3859,4099,3859,4162,3859,3859,3859,3861,3861,3861,3861,3938,3938,3938,3938,3938,3851,3851,3851,3851,3836 ],
+		"blocks":[ 650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,650,649,650,649,650,650,649,650,649,650,507,649,507,649,507,649,650,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,507,519,519,519,519,519,410,410,410,410,410 ],
+		"REMOVE_UNREACHABLE":6,
+		"MERGED":9,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":19,
+		"MERGED_TAC_OPTIMIZATIONS":12,
+		"BITWISE_OPTIMIZE":27,
+		"UNROLL":31,
+		"UNROLL_FIX_JUMP_PCS":6,
+		"UNROLL_REMOVE_UNREACHABLE":6,
+		"UNROLL_PRE_CLEANUP":19,
+		"INLINED":0,
+		"NONE":[ 27,21,7,10,10,10,10,30,20,7,10,9,11,9,29,17,7,8,8,9,8,26,19,7,9,9,8,10,25,20,7,9,10,9,10 ],
+		"RETURN_SYMBOL_OPTIMIZE2":6,
+		"POINTSTO":[ 650,796 ],
+		"CALLGRAPHBUILDER":23,
+		"CALLGRAPH_FULL":819,
+		"HASH_OPTIMIZE":8,
+		"RETURN_SYMBOL_OPTIMIZE1":8,
+		"MEMORY_OPTIMIZE":929,
+		"MEMORY_MODEL":922,
+		"POINTSTO_MEMORY":893,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":709,
+		"PATH_OPTIMIZE_AFTER_PTA":18,
+		"MEMORY_SPLITTER":7,
+		"REMOVE_UNREACHABLE_POST_PTA":13,
+		"COPY_LOOP_SUMMARIZATION":720,
+		"6611_992_0_0_0_0_0_0":		{
+			"summarySearch":670
+			},
+		"loop":[ 0,0,3,3,3,3,4,2,647,646,653,651,652,682 ],
+		"2736_995_0_0_0_0_0_0":		{
+			"summarySearch":626
+			},
+		"2829_994_0_0_0_0_0_0":		{
+			"summarySearch":624
+			},
+		"901_999_0_0_0_0_0_0":		{
+			"summarySearch":624
+			},
+		"1134_1001_0_0_0_0_0_0":		{
+			"summarySearch":621
+			},
+		"6489_991_0_0_0_0_0_0":		{
+			"summarySearch":620
+			},
+		"2264_990_0_0_0_0_0_0":		{
+
+			},
+		"2376_989_0_0_0_0_0_0":		{
+
+			},
+		"2936_989_0_0_0_0_0_0":		{
+
+			},
+		"1672_1005_0_0_0_0_0_0":		{
+
+			},
+		"1594_1000_0_0_0_0_0_0":		{
+
+			},
+		"3156_994_0_0_0_0_0_0":		{
+
+			},
+		"3459_993_0_0_0_0_0_0":		{
+
+			},
+		"3459_991_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":338,
+		"OPTIMIZE_REVERT_STRINGS":48,
+		"REWRITE_ALLOCATIONS":34,
+		"COLLAPSE_EMPTY_DSA":10,
+		"OPTIMIZE_STORAGE_READS":17,
+		"SUMMARIZE_STORAGE_LENGTH":40,
+		"FIXED_FREE_PTR_READ":8,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":548,
+		"USE_LATEST_FREEMEM":17,
+		"HOIST_LOOPS":11,
+		"FIXED_BOOL_COMPARISON":20,
+		"LOOP_SUMMARY_INSTRUMENTATION":44,
+		"ADDED_MISSING_FREE_PTR_WRITE":21,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":28,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":9,
+		"CONSTANT_FOLDING":12,
+		"INSTRUMENT_RETURN_BUFFERS":14,
+		"PLUS_NEG_31_SIMPLIFY":10,
+		"RETSIZE_SIMPLIFY":11,
+		"SIMPLIFIED":10,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"SettleAssetsExternal-settleAssetsAndReturnAll":	{
+		"UNUSED_ASSIGNMENTS":11,
+		"commands":[ 5483,5483,5483,5483,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5484,5496,5484,5496,5496,5484,5484,5496,5484,5496,5008,4995,4992,5484,4992,5484,5484,5484,4992,5484,4992,5484,5484,5031,5484,5031,5484,3048,5031,3048,5031,3048,5031,5484,3048,3048,3048,3048,3048,3048,3048,3050,3050,3050,3050,3113,3113,3113,3113,3113,3040,3040,3040,3040,3039 ],
+		"blocks":[ 661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,661,360,661,360,661,360,661,661,360,360,360,360,360,360,360,360,360,360,360,370,370,370,370,370,279,279,279,279,279 ],
+		"REMOVE_UNREACHABLE":5,
+		"MERGED":5,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":17,
+		"MERGED_TAC_OPTIMIZATIONS":7,
+		"BITWISE_OPTIMIZE":17,
+		"UNROLL":23,
+		"UNROLL_FIX_JUMP_PCS":5,
+		"UNROLL_REMOVE_UNREACHABLE":4,
+		"UNROLL_PRE_CLEANUP":14,
+		"INLINED":1,
+		"RETURN_SYMBOL_OPTIMIZE2":6,
+		"POINTSTO":[ 567,456 ],
+		"CALLGRAPHBUILDER":13,
+		"CALLGRAPH_FULL":470,
+		"HASH_OPTIMIZE":7,
+		"RETURN_SYMBOL_OPTIMIZE1":7,
+		"MEMORY_OPTIMIZE":630,
+		"MEMORY_MODEL":624,
+		"POINTSTO_MEMORY":608,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":625,
+		"PATH_OPTIMIZE_AFTER_PTA":16,
+		"MEMORY_SPLITTER":6,
+		"REMOVE_UNREACHABLE_POST_PTA":11,
+		"COPY_LOOP_SUMMARIZATION":1272,
+		"2736_991_0_0_0_0_0_0":		{
+			"summarySearch":413
+			},
+		"loop":[ 0,0,4,4,4,4,4,2,671,667,804,1052,1054,1053,513,534,427 ],
+		"2829_990_0_0_0_0_0_0":		{
+			"summarySearch":520
+			},
+		"1134_997_0_0_0_0_0_0":		{
+			"summarySearch":499
+			},
+		"9379_1003_1_0_0_0_0_0":		{
+			"summarySearch":1039
+			},
+		"9473_1009_0_0_0_0_0_0":		{
+			"summarySearch":1039
+			},
+		"9379_1003_0_0_0_0_0_0":		{
+			"summarySearch":1036
+			},
+		"6611_988_0_0_0_0_0_0":		{
+			"summarySearch":789
+			},
+		"6489_987_0_0_0_0_0_0":		{
+			"summarySearch":639
+			},
+		"901_995_0_0_0_0_0_0":		{
+			"summarySearch":636
+			},
+		"2264_986_0_0_0_0_0_0":		{
+
+			},
+		"2376_985_0_0_0_0_0_0":		{
+
+			},
+		"2936_985_0_0_0_0_0_0":		{
+
+			},
+		"1672_1001_0_0_0_0_0_0":		{
+
+			},
+		"1594_996_0_0_0_0_0_0":		{
+
+			},
+		"3156_990_0_0_0_0_0_0":		{
+
+			},
+		"3459_989_2_0_0_0_0_0":		{
+
+			},
+		"3459_987_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":355,
+		"OPTIMIZE_REVERT_STRINGS":52,
+		"REWRITE_ALLOCATIONS":34,
+		"COLLAPSE_EMPTY_DSA":9,
+		"OPTIMIZE_STORAGE_READS":16,
+		"SUMMARIZE_STORAGE_LENGTH":39,
+		"FIXED_FREE_PTR_READ":8,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":692,
+		"USE_LATEST_FREEMEM":21,
+		"HOIST_LOOPS":11,
+		"FIXED_BOOL_COMPARISON":19,
+		"LOOP_SUMMARY_INSTRUMENTATION":105,
+		"ADDED_MISSING_FREE_PTR_WRITE":28,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":34,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":14,
+		"CONSTANT_FOLDING":19,
+		"INSTRUMENT_RETURN_BUFFERS":19,
+		"PLUS_NEG_31_SIMPLIFY":11,
+		"RETSIZE_SIMPLIFY":14,
+		"SIMPLIFIED":11,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"SettleAssetsExternal-settleAssetsAndReturnPortfolio":	{
+		"UNUSED_ASSIGNMENTS":15,
+		"commands":[ 5399,5399,5399,5399,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,5400,4914,4901,4898,5400,4898,5400,5400,5400,4898,5400,4898,5400,5400,4937,5400,4937,5400,3849,4937,3849,4937,3849,4937,5400,3849,3849,3849,3849,3849,3849,3849,3849,3850,3907,3849,3917,3977,3849,3977,3849,3982,3849,4039,3849,4039,3849,4097,3849,3849,3849,3849,3850,3907,3849,3917,3977,3849,3977,3849,3982,3849,4039,3849,4039,3849,4097,3849,3849,3849,3849,3850,3907,3849,3917,3977,3849,3977,3849,3982,3849,4039,3849,4039,3849,4097,3849,3849,3849,3849,3850,3907,3849,3917,3977,3849,3977,3849,3982,3849,4039,3849,4039,3849,4097,3849,3849,3849,3851,3851,3851,3851,3920,3920,3920,3920,3920,3843,3843,3843,3843,3840 ],
+		"blocks":[ 657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,657,479,657,479,657,479,657,657,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,479,490,490,490,490,490,393,393,393,393,393 ],
+		"REMOVE_UNREACHABLE":6,
+		"MERGED":7,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":19,
+		"MERGED_TAC_OPTIMIZATIONS":12,
+		"BITWISE_OPTIMIZE":26,
+		"UNROLL":35,
+		"UNROLL_FIX_JUMP_PCS":7,
+		"UNROLL_REMOVE_UNREACHABLE":6,
+		"UNROLL_PRE_CLEANUP":22,
+		"INLINED":0,
+		"NONE":[ 28,19,7,10,9,9,10,28,18,7,9,8,9,8,26,19,6,9,9,10,9,24,17,6,7,9,9,10 ],
+		"RETURN_SYMBOL_OPTIMIZE2":7,
+		"POINTSTO":[ 665,755 ],
+		"CALLGRAPHBUILDER":25,
+		"CALLGRAPH_FULL":780,
+		"HASH_OPTIMIZE":13,
+		"RETURN_SYMBOL_OPTIMIZE1":12,
+		"MEMORY_OPTIMIZE":1302,
+		"MEMORY_MODEL":1290,
+		"POINTSTO_MEMORY":1250,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":730,
+		"PATH_OPTIMIZE_AFTER_PTA":20,
+		"MEMORY_SPLITTER":8,
+		"REMOVE_UNREACHABLE_POST_PTA":12,
+		"COPY_LOOP_SUMMARIZATION":1173,
+		"1134_999_0_0_0_0_0_0":		{
+			"summarySearch":422
+			},
+		"loop":[ 0,0,3,4,3,3,4,3,698,692,695,774,998,1048,369,437 ],
+		"2736_993_0_0_0_0_0_0":		{
+			"summarySearch":355
+			},
+		"9379_1004_1_0_0_0_0_0":		{
+			"summarySearch":1034
+			},
+		"9379_1004_0_0_0_0_0_0":		{
+			"summarySearch":984
+			},
+		"6611_990_0_0_0_0_0_0":		{
+			"summarySearch":760
+			},
+		"6489_989_0_0_0_0_0_0":		{
+			"summarySearch":665
+			},
+		"2829_992_0_0_0_0_0_0":		{
+			"summarySearch":664
+			},
+		"901_997_0_0_0_0_0_0":		{
+			"summarySearch":664
+			},
+		"2264_988_0_0_0_0_0_0":		{
+
+			},
+		"2376_987_0_0_0_0_0_0":		{
+
+			},
+		"2936_987_0_0_0_0_0_0":		{
+
+			},
+		"1672_1003_0_0_0_0_0_0":		{
+
+			},
+		"1594_998_0_0_0_0_0_0":		{
+
+			},
+		"3156_992_0_0_0_0_0_0":		{
+
+			},
+		"3459_991_1_0_0_0_0_0":		{
+
+			},
+		"3459_989_0_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":356,
+		"OPTIMIZE_REVERT_STRINGS":50,
+		"REWRITE_ALLOCATIONS":34,
+		"COLLAPSE_EMPTY_DSA":11,
+		"OPTIMIZE_STORAGE_READS":16,
+		"SUMMARIZE_STORAGE_LENGTH":39,
+		"FIXED_FREE_PTR_READ":8,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":719,
+		"USE_LATEST_FREEMEM":24,
+		"HOIST_LOOPS":13,
+		"FIXED_BOOL_COMPARISON":24,
+		"LOOP_SUMMARY_INSTRUMENTATION":52,
+		"ADDED_MISSING_FREE_PTR_WRITE":31,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":36,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":13,
+		"CONSTANT_FOLDING":16,
+		"INSTRUMENT_RETURN_BUFFERS":20,
+		"PLUS_NEG_31_SIMPLIFY":12,
+		"RETSIZE_SIMPLIFY":12,
+		"SIMPLIFIED":12,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"SettleAssetsExternal-settleAssetsAndStorePortfolio":	{
+		"UNUSED_ASSIGNMENTS":11,
+		"commands":[ 5146,5146,5146,5146,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5147,5159,5147,5159,5159,5147,5147,5159,5147,5159,4673,4658,4655,5147,4655,5147,5147,5147,4652,5147,4652,5147,5147,4690,5147,4690,5147,3051,4690,3051,4690,3051,4690,5147,3051,3051,3051,3051,3051,3051,3051,3053,3053,3053,3053,3124,3124,3124,3124,3124,3043,3043,3043,3043,3042 ],
+		"blocks":[ 652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,652,651,652,651,652,652,651,652,651,652,386,651,386,651,386,651,652,386,386,386,386,386,386,386,386,386,386,386,397,397,397,397,397,296,296,296,296,296 ],
+		"REMOVE_UNREACHABLE":5,
+		"MERGED":5,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":16,
+		"MERGED_TAC_OPTIMIZATIONS":8,
+		"BITWISE_OPTIMIZE":17,
+		"UNROLL":24,
+		"UNROLL_FIX_JUMP_PCS":5,
+		"UNROLL_REMOVE_UNREACHABLE":5,
+		"UNROLL_PRE_CLEANUP":14,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":6,
+		"POINTSTO":[ 564,482 ],
+		"CALLGRAPHBUILDER":13,
+		"CALLGRAPH_FULL":495,
+		"HASH_OPTIMIZE":7,
+		"RETURN_SYMBOL_OPTIMIZE1":6,
+		"MEMORY_OPTIMIZE":560,
+		"MEMORY_MODEL":553,
+		"POINTSTO_MEMORY":535,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":625,
+		"PATH_OPTIMIZE_AFTER_PTA":17,
+		"MEMORY_SPLITTER":7,
+		"REMOVE_UNREACHABLE_POST_PTA":12,
+		"COPY_LOOP_SUMMARIZATION":886,
+		"9473_1010_0_0_0_0_0_0":		{
+			"summarySearch":830
+			},
+		"loop":[ 0,0,3,3,3,3,5,4,665,661,668,664,702,570,845 ],
+		"1134_999_1_0_0_0_0_0":		{
+			"summarySearch":555
+			},
+		"6611_990_1_0_0_0_0_0":		{
+			"summarySearch":687
+			},
+		"2829_992_1_0_0_0_0_0":		{
+			"summarySearch":635
+			},
+		"901_997_1_0_0_0_0_0":		{
+			"summarySearch":634
+			},
+		"2736_993_1_0_0_0_0_0":		{
+			"summarySearch":635
+			},
+		"6489_989_1_0_0_0_0_0":		{
+			"summarySearch":634
+			},
+		"2264_988_1_0_0_0_0_0":		{
+
+			},
+		"2376_987_1_0_0_0_0_0":		{
+
+			},
+		"2936_987_1_0_0_0_0_0":		{
+
+			},
+		"1672_1003_1_0_0_0_0_0":		{
+
+			},
+		"1594_998_1_0_0_0_0_0":		{
+
+			},
+		"3156_992_1_0_0_0_0_0":		{
+
+			},
+		"3459_991_2_0_0_0_0_0":		{
+
+			},
+		"3459_989_1_0_0_0_0_0":		{
+
+			},
+		"INITIALIZATION":392,
+		"OPTIMIZE_REVERT_STRINGS":50,
+		"REWRITE_ALLOCATIONS":35,
+		"COLLAPSE_EMPTY_DSA":9,
+		"OPTIMIZE_STORAGE_READS":15,
+		"SUMMARIZE_STORAGE_LENGTH":39,
+		"FIXED_FREE_PTR_READ":8,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":578,
+		"USE_LATEST_FREEMEM":21,
+		"HOIST_LOOPS":12,
+		"FIXED_BOOL_COMPARISON":19,
+		"LOOP_SUMMARY_INSTRUMENTATION":112,
+		"ADDED_MISSING_FREE_PTR_WRITE":26,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":33,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":12,
+		"CONSTANT_FOLDING":14,
+		"INSTRUMENT_RETURN_BUFFERS":18,
+		"PLUS_NEG_31_SIMPLIFY":11,
+		"RETSIZE_SIMPLIFY":12,
+		"SIMPLIFIED":11,
+		"INTERNAL_FUNCTION_FINDER":0
+		},
+	"TIMES":	{
+		"DSA_TO_SSA":417,
+		"DSA":74481,
+		"SINK_OPTIMIZER":376,
+		"REMOVE_UNUSED":6472,
+		"FOLD_SPLIT_STORES":1649,
+		"INIT_VARS":692,
+		"SIMPLE_SIMPLE":455,
+		"FLATTEN_STRUCTS":486,
+		"SIMPLE_SUMMARIES":5,
+		"OPTIMIZE_MERGE_BLOCKS":1076,
+		"PATH_OPTIMIZE2":1481,
+		"OPTIMIZE_PROPAGATE_CONSTANTS2":8413,
+		"OPTIMIZE_VALUE_RANGE":2013,
+		"OPTIMIZE_TRIANGLES":3811,
+		"APPLIED_SUMMARIES":89648,
+		"OPTIMIZE_OVERFLOW":2726,
+		"OPTIMIZE_INFEASIBLE_PATHS":3454693,
+		"PATH_OPTIMIZE1":8225,
+		"OPTIMIZE":2216,
+		"OPTIMIZE_SHL_REMOVAL":2264,
+		"OPTIMIZE_LSHR_SIMPLIFY":3913,
+		"OPTIMIZE_BITWISE_CLEANING":683634,
+		"OPTIMIZE_PROPAGATE_CONSTANTS1":7001187,
+		"TYPE_INT_PROPAGATE":7087,
+		"GHOST_ANNOTATION":2133,
+		"INLINED_HOOKS":4591,
+		"RULE_COMPILE":95,
+		"UNUSED_ASSIGNMENTS":3656,
+		"REMOVE_UNREACHABLE":2086,
+		"MERGED":8074,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":27188,
+		"MERGED_TAC_OPTIMIZATIONS":10537,
+		"BITWISE_OPTIMIZE":7470,
+		"UNROLL":29162,
+		"UNROLL_FIX_JUMP_PCS":2877,
+		"UNROLL_REMOVE_UNREACHABLE":2899,
+		"UNROLL_PRE_CLEANUP":23385,
+		"INLINED":940,
+		"NONE":5580,
+		"RETURN_SYMBOL_OPTIMIZE2":341,
+		"POINTSTO":479618,
+		"CALLED_CONTRACT":0,
+		"CALLGRAPH_FULL":242597,
+		"CALLGRAPHBUILDER":10151,
+		"HASH_OPTIMIZE":581,
+		"RETURN_SYMBOL_OPTIMIZE1":380,
+		"MEMORY_OPTIMIZE":244407,
+		"MEMORY_MODEL":244023,
+		"POINTSTO_MEMORY":233861,
+		"MEMORY_SPLITTER_AND_BRANCH_PRUNER":251583,
+		"PATH_OPTIMIZE_AFTER_PTA":906,
+		"MEMORY_SPLITTER":449,
+		"REMOVE_UNREACHABLE_POST_PTA":1437,
+		"COPY_LOOP_SUMMARIZATION":17726,
+		"INITIALIZATION":179761,
+		"OPTIMIZE_REVERT_STRINGS":45159,
+		"REWRITE_ALLOCATIONS":1494,
+		"COLLAPSE_EMPTY_DSA":567,
+		"OPTIMIZE_STORAGE_READS":5232,
+		"SUMMARIZE_STORAGE_LENGTH":1160,
+		"FIXED_FREE_PTR_READ":592,
+		"BASIC_ARITH_SIMPLIFY_POINTER_SIMPLE":135503,
+		"USE_LATEST_FREEMEM":1944,
+		"HOIST_LOOPS":1654,
+		"FIXED_BOOL_COMPARISON":1486,
+		"LOOP_SUMMARY_INSTRUMENTATION":3876,
+		"ADDED_MISSING_FREE_PTR_WRITE":3740,
+		"BASIC_ARITH_SIMPLIFY_CONST_SUB_THEN_ADD":3591,
+		"TRIVIAL_SUBTRACT_SIMPLIFY":722,
+		"CONSTANT_FOLDING":984,
+		"INSTRUMENT_RETURN_BUFFERS":1622,
+		"PLUS_NEG_31_SIMPLIFY":677,
+		"RETSIZE_SIMPLIFY":829,
+		"SIMPLIFIED":656,
+		"INTERNAL_FUNCTION_FINDER":5090,
+		"ANNOTATION_REMOVER":3795,
+		"UNOPTIMIZE_HASHES":3943,
+		"FREE_MEM_POINTER_SCALARIZE":7419,
+		"SIMPLE_HASH":6690,
+		"TYPE":16704,
+		"NO_RECYCLE":3001,
+		"ENV_START_BLOCK":2416,
+		"ALIAS":1575,
+		"SINGLE_SUCC_JUMP_NORMALIZATION":6027,
+		"JUMP_COND_NORMALIZATION":7687,
+		"UNREACHABLE_UNPACKING_CODE_FINDER":1782
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce":	{
+		"RULE_COMPILE":95,
+		"commands":[ 67,68,70,71,72,74,75,76,77,78,200,197,216,209,201,198,217,210,202,199,218,211,204,201,220,213,205,202,221,214,210,207,226,218,210,207,226,218 ],
+		"blocks":[ 1,2,4,5,6,8,9,10,11,12,16,16,18,18,17,17,19,19,18,18,20,20,20,20,22,22,21,21,23,23,21,21,23,23,21,21,23,23 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-certorafallback_0()":	{
+		"SMT solving (ms)":[ 5,62 ],
+		"verifier.ParallelVJob@38452dff-UFLIA":		{
+			"success":"cvc4 --lang smt2 --no-incremental --tlimit-per=5000 --decision=justification"
+			},
+		"commands":[ 218,267,267,270,270,272,272,272,271,271,271,271,271,271,271,271,271,271,271,271,271,271,271,271,271,263,319,319,319,312,123,122,122,122,122,122,122,122,122,122,122,122,122,122,122,122,68 ],
+		"blocks":[ 23,27,27,27,27,27,27,27,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,2 ],
+		"Splitting (ms)":2,
+		"DSA_TO_SSA":4,
+		"DSA":15,
+		"SINK_OPTIMIZER":4,
+		"REMOVE_UNUSED":13,
+		"FOLD_SPLIT_STORES":8,
+		"INIT_VARS":8,
+		"SIMPLE_SIMPLE":3,
+		"FLATTEN_STRUCTS":3,
+		"SIMPLE_SUMMARIES":0,
+		"OPTIMIZE_MERGE_BLOCKS":1,
+		"PATH_OPTIMIZE2":2,
+		"OPTIMIZE_PROPAGATE_CONSTANTS2":5,
+		"OPTIMIZE_VALUE_RANGE":2,
+		"OPTIMIZE_TRIANGLES":4,
+		"APPLIED_SUMMARIES":[ 3,1 ],
+		"OPTIMIZE_OVERFLOW":11,
+		"OPTIMIZE_INFEASIBLE_PATHS":407,
+		"PATH_OPTIMIZE1":1,
+		"OPTIMIZE":2,
+		"OPTIMIZE_SHL_REMOVAL":3,
+		"OPTIMIZE_LSHR_SIMPLIFY":4,
+		"OPTIMIZE_BITWISE_CLEANING":17,
+		"OPTIMIZE_PROPAGATE_CONSTANTS1":8,
+		"TYPE_INT_PROPAGATE":4,
+		"GHOST_ANNOTATION":2,
+		"INLINED_HOOKS":[ 3,6 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-certorafallback_0()_solving_summary":	{
+		"#splits":1,
+		"split+solve time":		{
+			"SMT solving (ms)":67
+			}
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)":	{
+		"commands":[ 210,142126,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142368,142334,142337,142433,143667,143667,143667,143403,143403,143403,143439,143647,143647,141671,76537,75325,75144,75144,60899,60899,60899,60797,59240,59240,39628,39726,39726,39726,39078,34002,33254,33067,32770,32770,32770,32770,32770,3754,30047,30390 ],
+		"blocks":[ 21,10138,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,10186,9903,9903,9903,9903,9903,9903,9857,9857,7461,7461,7461,4323,4323,4323,4317,2754,2754,2754,2754,2754,2754,2756,3062,3062,2875,2875,2875,2875,2875,2875,248,2599,2615 ],
+		"SMT solving (ms)":[ 1,53054922 ],
+		"Splitting (ms)":0,
+		"DSA_TO_SSA":210,
+		"DSA":2166,
+		"SINK_OPTIMIZER":180,
+		"REMOVE_UNUSED":3473,
+		"FOLD_SPLIT_STORES":830,
+		"INIT_VARS":322,
+		"SIMPLE_SIMPLE":237,
+		"FLATTEN_STRUCTS":291,
+		"SIMPLE_SUMMARIES":1,
+		"OPTIMIZE_MERGE_BLOCKS":553,
+		"PATH_OPTIMIZE2":802,
+		"OPTIMIZE_PROPAGATE_CONSTANTS2":4980,
+		"OPTIMIZE_VALUE_RANGE":1111,
+		"OPTIMIZE_TRIANGLES":1859,
+		"APPLIED_SUMMARIES":[ 44298,594 ],
+		"OPTIMIZE_OVERFLOW":1343,
+		"OPTIMIZE_INFEASIBLE_PATHS":1729522,
+		"PATH_OPTIMIZE1":3793,
+		"OPTIMIZE":1001,
+		"OPTIMIZE_SHL_REMOVAL":1062,
+		"OPTIMIZE_LSHR_SIMPLIFY":1997,
+		"OPTIMIZE_BITWISE_CLEANING":346360,
+		"OPTIMIZE_PROPAGATE_CONSTANTS1":3550160,
+		"TYPE_INT_PROPAGATE":3519,
+		"GHOST_ANNOTATION":1065,
+		"INLINED_HOOKS":[ 1073,1244 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)_3":	{
+		"commands":[ 30047,3417 ],
+		"blocks":[ 2599,231 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)_4":	{
+		"commands":30390,
+		"blocks":2615
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeTransferFrom(address,address,uint256,uint256,bytes)":	{
+		"commands":[ 226,141917,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142159,142123,142126,142234,143468,143468,143468,143244,143244,143244,143280,143490,143490,141514,76380,75168,74987,74987,60729,60729,60729,60627,59069,59069,39464,39562,39562,39562,38914,33664,32918,32738,32444,32444,32444,32444,32444,3770,29788,30034 ],
+		"blocks":[ 23,10081,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,10129,9887,9887,9887,9887,9887,9887,9841,9841,7445,7445,7445,4305,4305,4305,4299,2735,2735,2735,2735,2735,2735,2737,3029,3029,2849,2849,2849,2849,2849,2849,249,2579,2587 ],
+		"SMT solving (ms)":[ 0,52093313 ],
+		"Splitting (ms)":0,
+		"DSA_TO_SSA":201,
+		"DSA":1965,
+		"SINK_OPTIMIZER":190,
+		"REMOVE_UNUSED":2971,
+		"FOLD_SPLIT_STORES":808,
+		"INIT_VARS":356,
+		"SIMPLE_SIMPLE":208,
+		"FLATTEN_STRUCTS":190,
+		"SIMPLE_SUMMARIES":4,
+		"OPTIMIZE_MERGE_BLOCKS":521,
+		"PATH_OPTIMIZE2":674,
+		"OPTIMIZE_PROPAGATE_CONSTANTS2":3416,
+		"OPTIMIZE_VALUE_RANGE":893,
+		"OPTIMIZE_TRIANGLES":1942,
+		"APPLIED_SUMMARIES":[ 44229,517 ],
+		"OPTIMIZE_OVERFLOW":1366,
+		"OPTIMIZE_INFEASIBLE_PATHS":1724261,
+		"PATH_OPTIMIZE1":4429,
+		"OPTIMIZE":1210,
+		"OPTIMIZE_SHL_REMOVAL":1196,
+		"OPTIMIZE_LSHR_SIMPLIFY":1910,
+		"OPTIMIZE_BITWISE_CLEANING":337235,
+		"OPTIMIZE_PROPAGATE_CONSTANTS1":3451008,
+		"TYPE_INT_PROPAGATE":3557,
+		"GHOST_ANNOTATION":1064,
+		"INLINED_HOOKS":[ 1000,1257 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeTransferFrom(address,address,uint256,uint256,bytes)_1":	{
+		"commands":[ 29788,3431 ],
+		"blocks":[ 2579,232 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-safeTransferFrom(address,address,uint256,uint256,bytes)_2":	{
+		"commands":30034,
+		"blocks":2587
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-setApprovalForAll(address,bool)":	{
+		"SMT solving (ms)":[ 3,91 ],
+		"verifier.ParallelVJob@1febb503-UFLIA":		{
+			"success":"cvc4 --lang smt2 --no-incremental --tlimit-per=5000 --decision=justification"
+			},
+		"commands":[ 207,343,343,346,346,348,348,348,344,344,344,344,344,344,344,344,344,344,344,344,344,344,344,344,344,284,343,343,343,343,127,118,118,118,118,118,118,118,118,118,118,118,118,118,118,118,77 ],
+		"blocks":[ 21,26,26,26,26,26,26,26,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2 ],
+		"Splitting (ms)":0,
+		"DSA_TO_SSA":2,
+		"DSA":7,
+		"SINK_OPTIMIZER":2,
+		"REMOVE_UNUSED":15,
+		"FOLD_SPLIT_STORES":3,
+		"INIT_VARS":6,
+		"SIMPLE_SIMPLE":7,
+		"FLATTEN_STRUCTS":2,
+		"SIMPLE_SUMMARIES":0,
+		"OPTIMIZE_MERGE_BLOCKS":1,
+		"PATH_OPTIMIZE2":3,
+		"OPTIMIZE_PROPAGATE_CONSTANTS2":12,
+		"OPTIMIZE_VALUE_RANGE":7,
+		"OPTIMIZE_TRIANGLES":6,
+		"APPLIED_SUMMARIES":[ 3,3 ],
+		"OPTIMIZE_OVERFLOW":6,
+		"OPTIMIZE_INFEASIBLE_PATHS":503,
+		"PATH_OPTIMIZE1":2,
+		"OPTIMIZE":3,
+		"OPTIMIZE_SHL_REMOVAL":3,
+		"OPTIMIZE_LSHR_SIMPLIFY":2,
+		"OPTIMIZE_BITWISE_CLEANING":22,
+		"OPTIMIZE_PROPAGATE_CONSTANTS1":11,
+		"TYPE_INT_PROPAGATE":7,
+		"GHOST_ANNOTATION":2,
+		"INLINED_HOOKS":[ 2,6 ]
+		},
+	"accountContextMustBeReadAndWrittenExactlyOnce-setApprovalForAll(address,bool)_solving_summary":	{
+		"#splits":1,
+		"split+solve time":		{
+			"SMT solving (ms)":94
+			}
+		},
+	"available_solvers":"[Z3, Yices, CVC5, CVC4]",
+	"balanceCheck":	{
+		"commands":2,
+		"blocks":1
+		},
+	"bigmod":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"bn256Add":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"bn256Pairing":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"bn256ScalarMul":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"constructor_ERC1155Action":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 26,31,32,41,41,41,41,41,41,41,42,31,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27 ],
+		"blocks":[ 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":1,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":1,
+		"CALLED_CONTRACT":0,
+		"CALLGRAPH_FULL":2,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":2,
+		"MEMORY_MODEL":2,
+		"POINTSTO_MEMORY":2,
+		"DSA":4,
+		"INTERNAL_FUNCTION_FINDER":2,
+		"ANNOTATION_REMOVER":0,
+		"UNOPTIMIZE_HASHES":0,
+		"FREE_MEM_POINTER_SCALARIZE":0,
+		"SIMPLE_HASH":0,
+		"TYPE":2,
+		"NO_RECYCLE":0,
+		"ENV_START_BLOCK":0,
+		"INTERNAL_FUNCTION_ANNOTATOR":1,
+		"JIMPLE":6
+		},
+	"constructor_FreeCollateralExternal":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 33,38,39,44,44,44,44,44,44,44,45,32,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,29 ],
+		"blocks":[ 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":1,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":1,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":1,
+		"CALLED_CONTRACT":0,
+		"CALLGRAPH_FULL":1,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":0,
+		"MEMORY_OPTIMIZE":2,
+		"MEMORY_MODEL":1,
+		"POINTSTO_MEMORY":1,
+		"DSA":1,
+		"INTERNAL_FUNCTION_FINDER":1,
+		"ANNOTATION_REMOVER":0,
+		"UNOPTIMIZE_HASHES":0,
+		"FREE_MEM_POINTER_SCALARIZE":0,
+		"SIMPLE_HASH":1,
+		"TYPE":0,
+		"NO_RECYCLE":1,
+		"ENV_START_BLOCK":0,
+		"INTERNAL_FUNCTION_ANNOTATOR":1,
+		"JIMPLE":1
+		},
+	"constructor_SettleAssetsExternal":	{
+		"UNUSED_ASSIGNMENTS":0,
+		"commands":[ 33,38,39,44,44,44,44,44,44,44,45,32,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,29 ],
+		"blocks":[ 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3 ],
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":1,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":1,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":0,
+		"CALLED_CONTRACT":0,
+		"CALLGRAPH_FULL":1,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":1,
+		"MEMORY_OPTIMIZE":0,
+		"MEMORY_MODEL":0,
+		"POINTSTO_MEMORY":0,
+		"DSA":1,
+		"INTERNAL_FUNCTION_FINDER":0,
+		"ANNOTATION_REMOVER":0,
+		"UNOPTIMIZE_HASHES":0,
+		"FREE_MEM_POINTER_SCALARIZE":0,
+		"SIMPLE_HASH":0,
+		"TYPE":0,
+		"NO_RECYCLE":0,
+		"ENV_START_BLOCK":0,
+		"INTERNAL_FUNCTION_ANNOTATOR":1,
+		"JIMPLE":1
+		},
+	"contractSucceeded":	{
+		"commands":[ 44,47,44,47,44,47,44,47 ],
+		"blocks":[ 1,2,1,2,1,2,1,2 ]
+		},
+	"datacopy":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"ecrecover":	{
+		"commands":[ 2,1,1,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,2,2,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 ],
+		"UNUSED_ASSIGNMENTS":0,
+		"REMOVE_UNREACHABLE":0,
+		"MERGED":0,
+		"PATH_OPTIMIZE_TAC_OPTIMIZATIONS":0,
+		"MERGED_TAC_OPTIMIZATIONS":0,
+		"BITWISE_OPTIMIZE":0,
+		"UNROLL":0,
+		"UNROLL_FIX_JUMP_PCS":0,
+		"UNROLL_REMOVE_UNREACHABLE":0,
+		"UNROLL_PRE_CLEANUP":0,
+		"INLINED":0,
+		"RETURN_SYMBOL_OPTIMIZE2":0,
+		"POINTSTO":0,
+		"CALLED_CONTRACT":0,
+		"CALLGRAPH_FULL":0,
+		"HASH_OPTIMIZE":0,
+		"RETURN_SYMBOL_OPTIMIZE1":0,
+		"MEMORY_OPTIMIZE":1,
+		"MEMORY_MODEL":1,
+		"POINTSTO_MEMORY":1
+		},
+	"rets":	{
+		"commands":[ 3,3,3,3 ],
+		"blocks":[ 1,1,1,1 ]
+		},
+	"revertByContract":	{
+		"commands":44,
+		"blocks":1
+		},
+	"ripemd160":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"run_id":	{
+		"CVL":		{
+			"-1d0526fd":".certora_config/0_shellyActions.spec"
+			},
+		"end_timestamp":"10/01/2021 17:59:31",
+		"start_to_end_time":63437700,
+		"start_timestamp":"10/01/2021 00:22:13"
+		},
+	"sha256":	{
+		"commands":[ 1,1,1,1,1,1,1,1,1,1 ],
+		"blocks":[ 1,1,1,1,1,1,1,1,1,1 ]
+		},
+	"used_solvers":"[CVC4]"
+	}
