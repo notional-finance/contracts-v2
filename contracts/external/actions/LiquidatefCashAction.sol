@@ -15,6 +15,7 @@ contract LiquidatefCashAction is ActionGuards {
 
     event LiquidatefCashEvent(
         address indexed liquidated,
+        address indexed liquidator,
         uint16 localCurrencyId,
         uint16 fCashCurrency,
         int256 netLocalFromLiquidator,
@@ -87,6 +88,7 @@ contract LiquidatefCashAction is ActionGuards {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
+            msg.sender,
             localCurrency,
             localCurrency,
             c.localAssetCashFromLiquidator,
@@ -168,6 +170,7 @@ contract LiquidatefCashAction is ActionGuards {
 
         emit LiquidatefCashEvent(
             liquidateAccount,
+            msg.sender,
             localCurrency,
             fCashCurrency,
             c.localAssetCashFromLiquidator,
