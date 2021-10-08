@@ -71,6 +71,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     event LiquidatefCashEvent(
         address indexed liquidated,
+        address indexed liquidator,
         uint16 localCurrencyId,
         uint16 fCashCurrency,
         int256 netLocalFromLiquidator,
