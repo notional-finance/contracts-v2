@@ -65,7 +65,6 @@ class TestLiquidatefCash:
     def isolation(self, fn_isolation):
         pass
 
-    @pytest.mark.only
     @given(
         localDebt=strategy("int", min_value=-1_000_000e8, max_value=-1e8),
         local=strategy("uint", min_value=1, max_value=4),
@@ -180,8 +179,43 @@ class TestLiquidatefCash:
         assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
         assert fcAfter > fc
 
-    def test_cross_currency_fcash_user_limit(self, liquidation, accounts):
-        pass
+    @given(numAssets=strategy("uint", min_value=1, max_value=5))
+    def test_cross_currency_fcash_user_limit(self, liquidation, accounts, numAssets):
+        collateral = 1
+        local = 2
+        localDebt = -500_000e8
+        collateralUnderlying = 10e8
+        numAssets = 1
+        blockTime = chain.time()
+
+        # Set the local debt amount
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        assets = liquidation.get_fcash_portfolio(
+            collateral, collateralUnderlying, numAssets, blockTime
+        )
+
+        # Set the fCash asset (note: bitmaps cannot have cross currency fCash liquidations)
+        liquidation.mock.setPortfolio(accounts[0], assets)
+
+        # Convert to expected fCash trade
+        maturities = sorted([a[1] for a in assets], reverse=True)
+        maxNotionalToTransfer = [Wei(1e8)] * len(maturities)
+        (
+            notionalTransfers,
+            localAssetCashFromLiquidator,
+        ) = liquidation.mock.calculatefCashCrossCurrencyLiquidation.call(
+            accounts[0],
+            local,
+            collateral,
+            maturities,
+            maxNotionalToTransfer,
+            blockTime,
+            {"from": accounts[1]},
+        )
+
+        for (i, n) in enumerate(notionalTransfers):
+            assert n <= maxNotionalToTransfer[i]
 
     @given(local=strategy("uint", min_value=1, max_value=4))
     def test_cross_currency_fcash_no_duplicate_maturities(self, liquidation, accounts, local):

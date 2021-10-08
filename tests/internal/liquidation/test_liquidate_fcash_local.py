@@ -141,6 +141,7 @@ class TestLiquidatefCash:
         assert fCashBenefit > 0
         return (fcBefore, netLocalBefore, fcAfter, netLocalAfter, portfolioAfter, fCashBenefit, txn)
 
+    @pytest.mark.only
     @given(
         fCashPV=strategy(
             "int",
@@ -200,7 +201,7 @@ class TestLiquidatefCash:
             liquidatedNotional = portfolioAfter[-1][3] / remainingAssetBefore[0][3]
             assert liquidatedNotional <= 0.600001
 
-            assert fcAfter > fcBefore and fcAfter >= -10
+            assert fcAfter > fcBefore and fcAfter >= -100
 
     @given(
         fCashPV=strategy(
@@ -285,11 +286,50 @@ class TestLiquidatefCash:
             assert fcAfter > fcBefore and fcAfter >= -10
             assert netLocalAfter[0]
 
-    def test_local_fcash_positive_available_user_limit(self, liquidation, accounts):
-        pass
+    @given(
+        fCashPV=strategy(
+            "int",
+            min_value=-100_000_000e8,
+            max_value=100_000_000e8,
+            exclude=lambda x: not (-100e8 < x and x < 100e8),
+        ),
+        bitmap=strategy("bool"),
+        numAssets=strategy("uint", min_value=1, max_value=5),
+    )
+    def test_local_fcash_user_limit(self, liquidation, accounts, fCashPV, bitmap, numAssets):
+        local = 1
+        fCashPV = 1000e8
+        ratio = 100
 
-    def test_local_fcash_negative_available_user_limit(self, liquidation, accounts):
-        pass
+        blockTime = chain.time()
+        if bitmap:
+            liquidation.mock.enableBitmapForAccount(accounts[0], local, blockTime)
+
+        assets = liquidation.get_fcash_portfolio(local, fCashPV, numAssets, blockTime)
+        (cashAsset, totalBenefit, _) = self.calculate_local_benefit(
+            liquidation, local, assets, ratio, blockTime
+        )
+        liquidation.mock.setBalance(accounts[0], local, cashAsset, 0)
+
+        # Set fCash assets
+        if bitmap:
+            for a in assets:
+                liquidation.mock.setifCashAsset(accounts[0], local, a[1], a[3])
+        else:
+            liquidation.mock.setPortfolio(accounts[0], assets)
+
+        maturities = sorted([a[1] for a in assets], reverse=True)
+        maxNotionalToTransfer = [1e8] * len(maturities)
+        chain.mine(1, timestamp=blockTime)
+        (
+            notionalTransfers,
+            localAssetCashFromLiquidator,
+        ) = liquidation.mock.calculatefCashLocalLiquidation.call(
+            accounts[0], local, maturities, maxNotionalToTransfer, blockTime, {"from": accounts[1]}
+        )
+
+        for (i, n) in enumerate(notionalTransfers):
+            assert abs(n) <= maxNotionalToTransfer[i]
 
     @given(local=strategy("uint", min_value=1, max_value=4))
     def test_local_fcash_no_duplicate_maturities(self, liquidation, accounts, local):

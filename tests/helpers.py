@@ -99,7 +99,11 @@ def get_tref(blockTime):
 def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
-        assert False
+        # proportion = totalfCash / (totalfCash + totalAssetCash)
+        # totalfCash * p + totalAssetCash * p = totalfCash
+        # totalfCash * (1 - p) / p = totalAssetCash
+        totalfCash = 1e18
+        totalAssetCash = Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"])
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
         totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
