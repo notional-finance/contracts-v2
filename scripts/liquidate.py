@@ -17,6 +17,7 @@ from tests.helpers import get_balance_action, get_balance_trade_action, get_tref
 
 chain = Chain()
 CollateralCurrency_NoTransferFee_Withdraw = 1
+CollateralCurrency_NoTransferFee_NoWithdraw = 9
 CrossCurrencyfCash_NoTransferFee_Withdraw = 3
 zeroAddress = HexString(0, "bytes20")
 
@@ -78,7 +79,7 @@ def collateralLiquidate(env):
             "bytes",
         ],
         [
-            CollateralCurrency_NoTransferFee_Withdraw,
+            CollateralCurrency_NoTransferFee_NoWithdraw,
             accounts[1].address,
             2,
             env.token['DAI'].address,
@@ -199,6 +200,9 @@ def crossCurrencyLiquidate(env):
 
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
     maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    limits = [0 for mat in maturities]
+
+    print(limits)
 
     calldata = eth_abi.encode_abi(
         [
@@ -222,7 +226,7 @@ def crossCurrencyLiquidate(env):
             env.cToken['ETH'].address,
             env.weth.address,
             maturities,
-            [0, 0],
+            limits,
             tradeCalldata,
         ],
     )
@@ -267,7 +271,7 @@ def main():
 
     # Create exchange
     env.weth = MockWETH.deploy({"from": deployer})
-    env.swapRouter = MockUniV3SwapRouter.deploy({"from": deployer})
+    env.swapRouter = MockUniV3SwapRouter.deploy(env.weth, deployer, {"from": deployer})
     env.weth.deposit({"from": accounts[0], "value": 50e18})
     env.weth.transfer(env.swapRouter.address, 50e18, {"from": accounts[0]})
 
@@ -275,7 +279,7 @@ def main():
     env.token["USDT"].transfer(env.swapRouter.address, 1000e6, {"from": accounts[0]})
     
     # Create flash lender
-    env.flashLender = MockAaveFlashLender.deploy({"from": deployer})
+    env.flashLender = MockAaveFlashLender.deploy(env.weth, deployer, {"from": deployer})
     # Give flash lender assets
     env.weth.deposit({"from": accounts[0], "value": 5000e18})
     env.weth.transfer(env.flashLender.address, 100e18, {"from": accounts[0]})
@@ -311,11 +315,6 @@ def main():
     env.flashLiquidator.approveToken(env.cToken["ETH"].address, env.notional.address, {"from": accounts[0]})
     env.flashLiquidator.approveToken(env.weth.address, env.flashLender.address, {"from": accounts[0]})
     env.flashLiquidator.approveToken(env.weth.address, env.swapRouter.address, {"from": accounts[0]})
-
-    # Set time
-    blockTime = chain.time()
-    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
-    chain.mine(1, timestamp=newTime)
 
     cToken = env.cToken["DAI"]
     env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})
@@ -362,6 +361,7 @@ def main():
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
 
     chain.snapshot()
-    collateralLiquidate(env)
+    #collateralLiquidate(env)
     #chain.revert()
-    #crossCurrencyLiquidate(env)
+    crossCurrencyLiquidate(env)
+    

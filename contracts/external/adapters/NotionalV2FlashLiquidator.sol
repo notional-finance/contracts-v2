@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./NotionalV2BaseLiquidator.sol";
+import "../../math/SafeInt256.sol";
 import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/compound/CTokenInterface.sol";
 import "interfaces/compound/CErc20Interface.sol";
@@ -53,6 +54,14 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
     ) internal initializer {
         __NotionalV2BaseLiquidator_init(notionalV2_, weth_, cETH_, owner_);
         LENDING_POOL = lendingPool_;
+        ADDRESS_PROVIDER = addressProvider_;
+    }
+
+    function setLendingPool(address lendingPool_) external onlyOwner {
+        LENDING_POOL = lendingPool_;
+    }
+
+    function setAddressProvider(address addressProvider_) external onlyOwner {
         ADDRESS_PROVIDER = addressProvider_;
     }
 
@@ -229,14 +238,6 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             amountOutMin,
             tradeCallData
         );
-    }
-
-    function wrap() public {
-        WETH9(WETH).deposit{value: address(this).balance}();
-    }
-
-    function withdraw(address token, uint256 amount) public {
-        IERC20(token).transfer(OWNER, amount);
     }
 
     receive() external payable {}

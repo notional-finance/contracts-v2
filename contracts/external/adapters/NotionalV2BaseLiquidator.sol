@@ -68,6 +68,10 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         OWNER = owner_;
     }
 
+    function setNotionalProxy(NotionalProxy notionalV2_) external onlyOwner {
+        NotionalV2 = notionalV2_;
+    }
+
     function executeDexTrade(
         address from,
         address to,
@@ -369,5 +373,13 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         action[0].withdrawEntireCashBalance = true;
         action[0].redeemToUnderlying = redeemToUnderlying;
         NotionalV2.batchBalanceAction(address(this), action);
+    }
+
+    function wrap() public {
+        WETH9(WETH).deposit{value: address(this).balance}();
+    }
+
+    function withdraw(address token, uint256 amount) public {
+        IERC20(token).transfer(OWNER, amount);
     }
 }

@@ -4,6 +4,14 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+interface WETH9 {
+    function deposit() external payable;
+
+    function withdraw(uint256 wad) external;
+
+    function transfer(address dst, uint256 wad) external returns (bool);
+}
+
 interface IFlashLoanReceiver {
     function executeOperation(
         address[] calldata assets,
@@ -19,6 +27,22 @@ interface IFlashLoanReceiver {
 }
 
 contract MockAaveFlashLender {
+    address public WETH;
+    address public OWNER;
+
+    constructor(address weth_, address owner_) {
+        WETH = weth_;
+        OWNER = owner_;
+    }
+
+    function wrap() external {
+        WETH9(WETH).deposit{value: address(this).balance}();
+    }
+
+    function withdraw(address asset, uint256 amount) external {
+        IERC20(asset).transfer(OWNER, amount);
+    }
+
     function flashLoan(
         address receiverAddress,
         address[] calldata assets,
@@ -47,4 +71,6 @@ contract MockAaveFlashLender {
             );
         }
     }
+
+    receive() external payable {}
 }

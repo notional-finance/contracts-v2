@@ -33,6 +33,10 @@ contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
         EXCHANGE = exchange_;
     }
 
+    function setExchange(address exchange_) external onlyOwner {
+        EXCHANGE = exchange_;
+    }
+
     function executeDexTrade(
         address from,
         address to,
