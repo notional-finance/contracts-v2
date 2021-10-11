@@ -102,4 +102,18 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
         return (balanceState, assetTokensReceivedInternal);
     }
+
+    function convertToExternal(uint16 currencyId, int256 amount) external view returns (int256) {
+        return TokenHandler.convertToExternal(
+            TokenHandler.getAssetToken(currencyId),
+            amount
+        );
+    }
+
+    function convertToInternal(uint16 currencyId, int256 amount) external view returns (int256) {
+        return TokenHandler.convertToInternal(
+            TokenHandler.getAssetToken(currencyId),
+            amount
+        );
+    }
 }
