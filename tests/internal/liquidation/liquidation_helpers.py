@@ -307,6 +307,8 @@ class ValuationMock:
                     "benefit": cashClaim - haircutCashClaim,
                     "maxIncentive": maxIncentive,
                     "fCashResidualPVAsset": totalfCashResidual - totalHaircutfCashResidual,
+                    "totalCashClaim": cashClaim,
+                    "haircutCashClaim": haircutCashClaim,
                 }
             )
 

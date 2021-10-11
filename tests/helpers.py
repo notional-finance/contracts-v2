@@ -157,7 +157,7 @@ def get_settlement_date(asset, blockTime):
 def get_portfolio_array(length, cashGroups, **kwargs):
     portfolio = []
     attempts = 0
-    while len(portfolio) < length or attempts < 50:
+    while len(portfolio) < length and attempts < 50:
         attempts += 1
         isLiquidity = random.randint(0, 1)
         cashGroup = random.choice(cashGroups)
