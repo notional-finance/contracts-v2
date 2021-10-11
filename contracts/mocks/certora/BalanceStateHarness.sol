@@ -17,7 +17,10 @@ contract BalanceStateHarness {
         address account,
         int256 underlyingAmountExternal
     ) public returns (int256) {
-        return symbolicBalanceState.depositUnderlyingToken(account, underlyingAmountExternal);
+        BalanceState memory mbs = symbolicBalanceState;
+        int256 ret = mbs.depositUnderlyingToken(account, underlyingAmountExternal);
+        symbolicBalanceState = mbs;
+        return ret;
     }
 
     // getters

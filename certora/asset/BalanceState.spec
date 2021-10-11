@@ -89,7 +89,7 @@ rule integrity_depositAssetToken(address account, uint256 assetAmountExternal, u
 rule deposit_underlyingToken(address account, int256 underlyingAmountExternal){
     require account != currentContract;
     require account != tokenA;
-    require chosenToken() == tokenA;
+    require chosenToken() == tokenA || chosenToken() == tokenB;
     require tokenA != tokenB;
 
     env e;
