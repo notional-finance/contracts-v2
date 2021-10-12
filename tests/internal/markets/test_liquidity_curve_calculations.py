@@ -67,6 +67,12 @@ class TestLiquidityCurve:
         (exchangeRate, success) = market.getExchangeRate(
             totalfCash, totalCashUnderlying, rateScalar, rateAnchor, 0
         )
+
+        # We do not allow proportion to exceed this max
+        if proportion > 990000000:
+            assert not success
+            return
+
         assert success
 
         (logP, success) = market.logProportion(proportion)

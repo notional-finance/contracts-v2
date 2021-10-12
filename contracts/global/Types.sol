@@ -134,7 +134,7 @@ struct LiquidationFactors {
     // Asset rate for the local currency, used in cross currency calculations to calculate local asset cash required
     AssetRateParameters localAssetRate;
     // Used during currency liquidations if the account has liquidity tokens
-    CashGroupParameters cashGroup;
+    CashGroupParameters collateralCashGroup;
     // Used during currency liquidations if it is only a calculation, defaults to false
     bool isCalculation;
 }

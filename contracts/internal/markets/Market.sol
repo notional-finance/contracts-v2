@@ -428,6 +428,14 @@ library Market {
         int256 proportion =
             numerator.divInRatePrecision(totalfCash.add(totalCashUnderlying));
 
+        // This limit is here to prevent the market from reaching extremely high interest rates via an
+        // excessively large proportion (high amounts of fCash relative to cash).
+        // Market proportion can only increase via borrowing (fCash is added to the market and cash is
+        // removed). Over time, the returns from asset cash will slightly decrease the proportion (the
+        // value of cash underlying in the market must be monotonically increasing). Therefore it is not
+        // possible for the proportion to go over max market proportion unless borrowing occurs.
+        if (proportion > Constants.MAX_MARKET_PROPORTION) return (0, false);
+
         (int256 lnProportion, bool success) = _logProportion(proportion);
         if (!success) return (0, false);
 
@@ -448,17 +456,13 @@ library Market {
         // This will result in divide by zero, short circuit
         if (proportion == Constants.RATE_PRECISION) return (0, false);
 
-        proportion = proportion.divInRatePrecision(Constants.RATE_PRECISION.sub(proportion));
-
-        // This is the max 64 bit integer for ABDKMath. This is unlikely to trip because the
-        // value is 9.2e18 and the proportion is scaled by 1e9. We can hit very high levels of
-        // pool utilization before this returns false.
-        if (proportion > MAX64) return (0, false);
+        // Convert proportion to what is used inside the logit function (p / (1-p))
+        int256 logitP = proportion.divInRatePrecision(Constants.RATE_PRECISION.sub(proportion));
 
         // ABDK does not handle log of numbers that are less than 1, in order to get the right value
         // scaled by RATE_PRECISION we use the log identity:
-        // (ln(proportion / RATE_PRECISION)) * RATE_PRECISION = (ln(proportion) - ln(RATE_PRECISION)) * RATE_PRECISION
-        int128 abdkProportion = ABDKMath64x64.fromInt(proportion);
+        // (ln(logitP / RATE_PRECISION)) * RATE_PRECISION = (ln(logitP) - ln(RATE_PRECISION)) * RATE_PRECISION
+        int128 abdkProportion = ABDKMath64x64.fromInt(logitP);
         // Here, abdk will revert due to negative log so abort
         if (abdkProportion <= 0) return (0, false);
         int256 result =

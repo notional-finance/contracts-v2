@@ -258,34 +258,8 @@ def check_liquidation_invariants(environment, liquidatedAccount, fcBefore):
     check_system_invariants(environment, accounts)
 
 
-def move_oracle_rate(environment, marketIndex):
-    # TODO: Why am I getting a trade failed liquidity error?
-    lend = get_balance_trade_action(
-        2,
-        "DepositUnderlying",
-        [
-            {
-                "tradeActionType": "Lend",
-                "marketIndex": marketIndex,
-                "notional": 100000e8,
-                "minSlippage": 0,
-            }
-        ],
-        depositActionAmount=100000e18,
-    )
-    environment.notional.batchBalanceAndTradeAction(accounts[9], [lend], {"from": accounts[9]})
-
-
-# given different max liquidation amounts
 @pytest.mark.liquidation
 def test_liquidate_local_currency(currencyLiquidation, accounts):
-    # Increase oracle rate
-    # marketsBefore = currencyLiquidation.notional.getActiveMarkets(2)
-    # nTokenPVBefore = currencyLiquidation.nToken[2].getPresentValueUnderlyingDenominated()
-    # move_oracle_rate(currencyLiquidation, 3)
-    # marketsAfter = currencyLiquidation.notional.getActiveMarkets(2)
-    # nTokenPVAfter = currencyLiquidation.nToken[2].getPresentValueUnderlyingDenominated()
-
     # Change the governance parameters
     tokenDefaults = nTokenDefaults["Collateral"]
     tokenDefaults[1] = 80
@@ -312,7 +286,7 @@ def test_liquidate_local_currency(currencyLiquidation, accounts):
     check_liquidation_invariants(currencyLiquidation, accounts[5], fcBeforeNToken)
 
     # liquidate account[6]
-    # DISABLED
+    # DISABLED LIQUIDITY TOKENS
     # fcBeforeLiquidityToken = currencyLiquidation.notional.getFreeCollateral(accounts[6])
     # (
     #     liquidityTokenNetRequired,
@@ -389,7 +363,7 @@ def test_liquidate_local_fcash(fCashLiquidation, accounts):
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
-    maturities = [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]
+    maturities = list(reversed([asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]))
     (
         fCashNotionalCalculated,
         netLocalCalculated,
@@ -426,7 +400,7 @@ def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
-    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    maturities = list(reversed([asset[1] for asset in liquidatedPortfolioBefore]))
     (
         fCashNotionalCalculated,
         netLocalCalculated,
@@ -467,7 +441,7 @@ def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
-    maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    maturities = list(reversed([asset[1] for asset in liquidatedPortfolioBefore]))
     (
         fCashNotionalCalculated,
         netLocalCalculated,
@@ -506,7 +480,7 @@ def test_cannot_liquidate_self(fCashLiquidation, accounts):
 
 
 @pytest.mark.liquidation
-@pytest.mark.skip
+@pytest.mark.skip(reason="currently no settlement in liquidation")
 def test_liquidator_settle_array_assets(fCashLiquidation, accounts):
     liquidated = accounts[7]
     collateral = get_balance_trade_action(
@@ -541,7 +515,7 @@ def test_liquidator_settle_array_assets(fCashLiquidation, accounts):
 
 
 @pytest.mark.liquidation
-@pytest.mark.skip
+@pytest.mark.skip(reason="currently no settlement in liquidation")
 def test_liquidator_settle_bitmap_assets(fCashLiquidation, accounts):
     liquidated = accounts[7]
     collateral = get_balance_trade_action(
@@ -574,3 +548,22 @@ def test_liquidator_settle_bitmap_assets(fCashLiquidation, accounts):
         fCashLiquidation.notional.liquidatefCashCrossCurrency(
             liquidated, 2, 1, maturities, [0, 0, 0], {"from": accounts[0]}
         )
+
+
+@pytest.mark.liquidation
+@pytest.mark.skip(reason="liquidity tokens are disabled")
+def test_calculations_dont_change_markets(currencyLiquidation, accounts):
+    cashGroup = list(currencyLiquidation.notional.getCashGroup(2))
+    cashGroup[9] = [80, 80, 80]
+    currencyLiquidation.notional.updateCashGroup(2, cashGroup)
+
+    marketsBefore2 = currencyLiquidation.notional.getActiveMarkets(2)
+    currencyLiquidation.notional.calculateLocalCurrencyLiquidation(accounts[6], 2, 0)
+    marketsAfter2 = currencyLiquidation.notional.getActiveMarkets(2)
+    assert marketsBefore2 == marketsAfter2
+
+    marketsBefore1 = currencyLiquidation.notional.getActiveMarkets(1)
+    currencyLiquidation.ethOracle["DAI"].setAnswer(0.0135e18)
+    currencyLiquidation.notional.calculateCollateralCurrencyLiquidation(accounts[4], 2, 1, 0, 0)
+    marketsAfter1 = currencyLiquidation.notional.getActiveMarkets(1)
+    assert marketsBefore1 == marketsAfter1

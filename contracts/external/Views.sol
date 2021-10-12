@@ -338,6 +338,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         uint256 i = 0;
         if (accountContext.isBitmapEnabled()) {
             AccountBalance memory b = accountBalances[0];
+            b.currencyId = accountContext.bitmapCurrencyId;
             (
                 b.cashBalance,
                 b.nTokenBalance,

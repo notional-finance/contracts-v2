@@ -50,7 +50,12 @@ contract LiquidateCurrencyAction is ActionGuards {
             BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
-        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, false);
+        ) = _localCurrencyLiquidation(
+            liquidateAccount,
+            localCurrency,
+            maxNTokenLiquidation,
+            true // Is Calculation
+        );
 
         return (
             localAssetCashFromLiquidator,
@@ -75,7 +80,12 @@ contract LiquidateCurrencyAction is ActionGuards {
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext
-        ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, true);
+        ) = _localCurrencyLiquidation(
+            liquidateAccount,
+            localCurrency,
+            maxNTokenLiquidation,
+            false // is not calculation
+        );
 
         // Transfers a positive or negative amount of local currency as well as the net nToken
         // amounts to the liquidator
@@ -146,7 +156,7 @@ contract LiquidateCurrencyAction is ActionGuards {
                 collateralCurrency,
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
-                true
+                true // is calculation
             );
 
         return (
@@ -197,7 +207,7 @@ contract LiquidateCurrencyAction is ActionGuards {
                 collateralCurrency,
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
-                false
+                false // is not calculation
             );
 
         _finalizeLiquidatorBalances(
@@ -262,7 +272,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint96 maxNTokenLiquidation,
         bool isCalculation
     )
-        private
+        internal
         returns (
             int256,
             BalanceState memory,

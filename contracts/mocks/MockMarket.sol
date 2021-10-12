@@ -168,6 +168,15 @@ contract MockMarket is StorageLayoutV1 {
         return market;
     }
 
+    function getExchangeRateFactors(
+        MarketParameters memory market,
+        CashGroupParameters memory cashGroup,
+        uint256 marketIndex,
+        uint256 timeToMaturity
+    ) external pure returns (int256, int256, int256) {
+        return Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
+    }
+
     function getfCashAmountGivenCashAmount(
         MarketParameters memory market,
         CashGroupParameters memory cashGroup,
