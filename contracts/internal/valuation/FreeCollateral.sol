@@ -492,7 +492,7 @@ library FreeCollateral {
                 liquidationFactors.localETHRate = ethRate;
                 liquidationFactors.localAssetRate = factors.assetRate;
                 // If this is local fCash liquidation, the cash group information is required
-                // to calculate fCash haircuts and buffers and it will have been set in 
+                // to calculate fCash haircuts and buffers and it will have been set in
                 // _calculateLiquidationAssetValue above because the account must have fCash assets,
                 // there is no need to set cash group in this branch.
             }
