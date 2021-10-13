@@ -9,17 +9,16 @@ import "interfaces/notional/NotionalProxy.sol";
 contract InitializeMarketsTask is KeeperCompatibleInterface {
     NotionalProxy public NotionalV2;
     address public OWNER;
-    uint16 public CURRENCY_ID;
     uint256 public LAST_TIMESTAMP;
 
-    constructor(uint16 currencyId_, NotionalProxy notionalV2_, address owner_) {
+    constructor(NotionalProxy notionalV2_, address owner_) {
         NotionalV2 = notionalV2_;
         OWNER = owner_;
-        CURRENCY_ID = currencyId_;
     }
 
-    function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory /*performData*/) {
-        address nToken = NotionalV2.nTokenAddress(CURRENCY_ID);
+    function checkUpkeep(bytes calldata checkData) external override returns (bool upkeepNeeded, bytes memory performData) {
+        uint16 currencyId = abi.decode(checkData, (uint16));
+        address nToken = NotionalV2.nTokenAddress(currencyId);
         (
             /*uint16 currencyId*/,
             /*uint256 totalSupply*/,
@@ -31,10 +30,12 @@ contract InitializeMarketsTask is KeeperCompatibleInterface {
             /*uint256 lastSupplyChangeTime*/
         ) = NotionalV2.getNTokenAccount(nToken);
         upkeepNeeded = (block.timestamp - lastInitializedTime) > Constants.QUARTER;
+        performData = checkData;
     }
 
     function performUpkeep(bytes calldata performData) external override {
+        uint16 currencyId = abi.decode(performData, (uint16));
+        NotionalV2.initializeMarkets(currencyId, false);
         LAST_TIMESTAMP = block.timestamp;
-        NotionalV2.initializeMarkets(CURRENCY_ID, false);
     }   
 }
