@@ -134,7 +134,7 @@ library AssetHandler {
 
         require(token.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
         // This won't overflow, the liquidity token haircut is stored as an uint8
-        int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
+        int256 haircut = int256(uint256(cashGroup.getLiquidityHaircut(token.assetType)));
 
         assetCash = IA.wrap(
             _calcToken(IA.unwrap(market.totalAssetCash), token.notional, haircut, LT.unwrap(market.totalLiquidity))

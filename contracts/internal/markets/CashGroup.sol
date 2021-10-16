@@ -56,7 +56,7 @@ library CashGroup {
         require(1 <= marketIndex && marketIndex <= cashGroup.maxMarketIndex); // dev: invalid market index
 
         uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
-        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
+        int256 scalar = int256(uint256(uint8(uint256(cashGroup.data >> offset)))) * Constants.RATE_PRECISION;
         int256 rateScalar =
             scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(SafeInt256.toInt(timeToMaturity));
 
@@ -93,7 +93,7 @@ library CashGroup {
         pure
         returns (int256)
     {
-        return uint8(uint256(cashGroup.data >> RESERVE_FEE_SHARE));
+        return int256(uint256(uint8(uint256(cashGroup.data >> RESERVE_FEE_SHARE))));
     }
 
     /// @notice fCash haircut for valuation denominated in rate precision with five basis point increments
@@ -272,7 +272,7 @@ library CashGroup {
             "CG: invalid market index"
         );
         require(
-            cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS,
+            int256(uint256(cashGroup.reserveFeeShare)) <= Constants.PERCENTAGE_DECIMALS,
             "CG: invalid reserve share"
         );
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
@@ -304,7 +304,7 @@ library CashGroup {
         // Per market group settings
         for (uint256 i = 0; i < cashGroup.liquidityTokenHaircuts.length; i++) {
             require(
-                cashGroup.liquidityTokenHaircuts[i] <= Constants.PERCENTAGE_DECIMALS,
+                int256(uint256(cashGroup.liquidityTokenHaircuts[i])) <= Constants.PERCENTAGE_DECIMALS,
                 "CG: invalid token haircut"
             );
 

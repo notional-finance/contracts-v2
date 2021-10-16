@@ -7,12 +7,15 @@ import "../markets/CashGroup.sol";
 import "../valuation/AssetHandler.sol";
 import "../../math/Bitmap.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
 import "../../global/Types.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library BitmapAssetsHandler {
+    using UserDefinedType for IU;
+    using UserDefinedType for IA;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using Bitmap for bytes32;
@@ -38,10 +41,10 @@ library BitmapAssetsHandler {
         address account,
         uint256 currencyId,
         uint256 maturity
-    ) internal view returns (int256 notional) {
+    ) internal view returns (IU notional) {
         mapping(address => mapping(uint256 =>
             mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
-        return store[account][currencyId][maturity].notional;
+        return IU.wrap(int256(store[account][currencyId][maturity].notional));
     }
 
     /// @notice Adds multiple assets to a bitmap portfolio
@@ -126,8 +129,8 @@ library BitmapAssetsHandler {
         uint256 blockTime,
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
-    ) private view returns (int256) {
-        int256 notional = getifCashNotional(account, currencyId, maturity);
+    ) private view returns (IU) {
+        IU notional = getifCashNotional(account, currencyId, maturity);
 
         // In this case the asset has matured and the total value is just the notional amount
         if (maturity <= blockTime) {
@@ -161,13 +164,13 @@ library BitmapAssetsHandler {
         uint256 blockTime,
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
-    ) internal view returns (int256 totalValueUnderlying, bool hasDebt) {
+    ) internal view returns (IU totalValueUnderlying, bool hasDebt) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 bitNum = assetsBitmap.getNextBitNum();
 
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-            int256 pv = _getPresentValue(
+            IU pv = _getPresentValue(
                 account,
                 currencyId,
                 maturity,
@@ -177,7 +180,7 @@ library BitmapAssetsHandler {
             );
             totalValueUnderlying = totalValueUnderlying.add(pv);
 
-            if (pv < 0) hasDebt = true;
+            if (IU.unwrap(pv) < 0) hasDebt = true;
 
             // Turn off the bit and look for the next one
             assetsBitmap = assetsBitmap.setBit(bitNum, false);
@@ -199,13 +202,13 @@ library BitmapAssetsHandler {
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-            int256 notional = getifCashNotional(account, currencyId, maturity);
+            IU notional = getifCashNotional(account, currencyId, maturity);
 
             PortfolioAsset memory asset = assets[index];
             asset.currencyId = currencyId;
             asset.maturity = maturity;
             asset.assetType = Constants.FCASH_ASSET_TYPE;
-            asset.notional = notional;
+            asset.notional = IU.unwrap(notional);
             index += 1;
 
             // Turn off the bit and look for the next one
