@@ -24,7 +24,7 @@ library SettleAssetsExternal {
         PortfolioState memory portfolioState;
 
         if (accountContext.isBitmapEnabled()) {
-            (int256 settledCash, uint256 blockTimeUTC0) =
+            (IA settledCash, uint256 blockTimeUTC0) =
                 SettleBitmapAssets.settleBitmappedCashGroup(
                     account,
                     accountContext.bitmapCurrencyId,

@@ -7,6 +7,7 @@ import "../../global/LibStorage.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
+import "../../math/UserDefinedType.sol";
 import "../../global/Constants.sol";
 import "../../global/Types.sol";
 
@@ -20,6 +21,7 @@ import "../../global/Types.sol";
  */
 library SettleBitmapAssets {
     using SafeInt256 for int256;
+    using UserDefinedType for IA;
     using AssetRate for AssetRateParameters;
     using Bitmap for bytes32;
 
@@ -30,7 +32,7 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 oldSettleTime,
         uint256 blockTime
-    ) internal returns (int256 totalAssetCash, uint256 newSettleTime) {
+    ) internal returns (IA totalAssetCash, uint256 newSettleTime) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
         // This newSettleTime will be set to the new `oldSettleTime`. The bits between 1 and
@@ -82,10 +84,10 @@ library SettleBitmapAssets {
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime
-    ) private returns (int256 assetCash) {
+    ) private returns (IA assetCash) {
         mapping(address => mapping(uint256 =>
             mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
-        int256 notional = store[account][currencyId][maturity].notional;
+        IU notional = IU.wrap(int256(store[account][currencyId][maturity].notional));
         
         // Gets the current settlement rate or will store a new settlement rate if it does not
         // yet exist.

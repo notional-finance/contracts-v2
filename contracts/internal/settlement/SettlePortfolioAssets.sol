@@ -6,12 +6,14 @@ import "../valuation/AssetHandler.sol";
 import "../markets/Market.sol";
 import "../markets/AssetRate.sol";
 import "../portfolio/PortfolioHandler.sol";
+import "../../math/UserDefinedType.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/Constants.sol";
 import "../../global/Types.sol";
 
 library SettlePortfolioAssets {
     using SafeInt256 for int256;
+    using UserDefinedType for IA;
     using AssetRate for AssetRateParameters;
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
@@ -79,14 +81,14 @@ library SettlePortfolioAssets {
                 blockTime
             );
 
-            int256 assetCash;
+            IA assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
-                assetCash = settlementRate.convertFromUnderlying(asset.notional);
+                assetCash = settlementRate.convertFromUnderlying(IU.wrap(asset.notional));
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
                 Market.loadSettlementMarket(market, asset.currencyId, asset.maturity, settleDate);
-                int256 fCash;
-                (assetCash, fCash) = market.removeLiquidity(asset.notional);
+                IU fCash;
+                (assetCash, fCash) = market.removeLiquidity(LT.wrap(asset.notional));
 
                 // Assets mature exactly on block time
                 if (asset.maturity > blockTime) {
@@ -110,7 +112,7 @@ library SettlePortfolioAssets {
     function _settleLiquidityTokenTofCash(
         PortfolioState memory portfolioState,
         uint256 index,
-        int256 fCash
+        IU fCash
     ) private pure {
         PortfolioAsset memory liquidityToken = portfolioState.storedAssets[index];
         // If the liquidity token's maturity is still in the future then we change the entry to be
@@ -126,7 +128,7 @@ library SettlePortfolioAssets {
                 fCashAsset.assetType == Constants.FCASH_ASSET_TYPE
             ) {
                 // This fCash asset has not matured if we are settling to fCash
-                fCashAsset.notional = fCashAsset.notional.add(fCash);
+                fCashAsset.notional = fCashAsset.notional.add(IU.unwrap(fCash));
                 fCashAsset.storageState = AssetStorageState.Update;
                 portfolioState.deleteAsset(index);
             }
@@ -134,7 +136,7 @@ library SettlePortfolioAssets {
 
         // We are going to delete this asset anyway, convert to an fCash position
         liquidityToken.assetType = Constants.FCASH_ASSET_TYPE;
-        liquidityToken.notional = fCash;
+        liquidityToken.notional = IU.unwrap(fCash);
         liquidityToken.storageState = AssetStorageState.Update;
     }
 }

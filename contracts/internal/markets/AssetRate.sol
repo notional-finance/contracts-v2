@@ -19,37 +19,37 @@ library AssetRate {
     /// @notice Converts an internal asset cash value to its underlying token value.
     /// @param ar exchange rate object between asset and underlying
     /// @param assetBalance amount to convert to underlying
-    function convertToUnderlying(AssetRateParameters memory ar, int256 assetBalance)
+    function convertToUnderlying(AssetRateParameters memory ar, IA assetBalance)
         internal
         pure
-        returns (int256)
+        returns (IU)
     {
         // Calculation here represents:
         // rate * balance * internalPrecision / rateDecimals * underlyingPrecision
         int256 underlyingBalance = ar.rate
-            .mul(assetBalance)
+            .mul(IA.unwrap(assetBalance))
             .div(ASSET_RATE_DECIMAL_DIFFERENCE)
             .div(ar.underlyingDecimals);
 
-        return underlyingBalance;
+        return IU.wrap(underlyingBalance);
     }
 
     /// @notice Converts an internal underlying cash value to its asset cash value
     /// @param ar exchange rate object between asset and underlying
     /// @param underlyingBalance amount to convert to asset cash, denominated in internal token precision
-    function convertFromUnderlying(AssetRateParameters memory ar, int256 underlyingBalance)
+    function convertFromUnderlying(AssetRateParameters memory ar, IU underlyingBalance)
         internal
         pure
-        returns (int256)
+        returns (IA)
     {
         // Calculation here represents:
         // rateDecimals * balance * underlyingPrecision / rate * internalPrecision
-        int256 assetBalance = underlyingBalance
+        int256 assetBalance = IU.unwrap(underlyingBalance)
             .mul(ASSET_RATE_DECIMAL_DIFFERENCE)
             .mul(ar.underlyingDecimals)
             .div(ar.rate);
 
-        return assetBalance;
+        return IA.wrap(assetBalance);
     }
 
     /// @notice Returns the current per block supply rate, is used when calculating oracle rates
@@ -176,7 +176,7 @@ library AssetRate {
     {
         mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
         SettlementRateStorage storage rateStorage = store[currencyId][maturity];
-        settlementRate = rateStorage.settlementRate;
+        settlementRate = int128(rateStorage.settlementRate);
         underlyingDecimalPlaces = rateStorage.underlyingDecimalPlaces;
     }
 
@@ -237,13 +237,13 @@ library AssetRate {
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
                 require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
-                require(0 < settlementRate && settlementRate <= type(uint128).max); // dev: settlement rate overflow
+                require(0 < settlementRate && settlementRate <= int256(uint256(type(uint128).max))); // dev: settlement rate overflow
 
                 SettlementRateStorage storage rateStorage = store[currencyId][maturity];
                 rateStorage.blockTime = uint40(blockTime);
-                rateStorage.settlementRate = uint128(settlementRate);
+                rateStorage.settlementRate = uint128(int128(settlementRate));
                 rateStorage.underlyingDecimalPlaces = underlyingDecimalPlaces;
-                emit SetSettlementRate(currencyId, maturity, uint128(settlementRate));
+                emit SetSettlementRate(currencyId, maturity, uint128(int128(settlementRate)));
             }
         }
 

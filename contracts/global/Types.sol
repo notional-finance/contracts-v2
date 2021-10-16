@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 pragma abicoder v2;
 
+import "../math/UserDefinedType.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 
@@ -90,7 +91,7 @@ struct BalanceActionWithTrades {
 /// @notice Internal object that represents settled cash balances
 struct SettleAmount {
     uint256 currencyId;
-    int256 netCashChange;
+    IA netCashChange;
 }
 
 /// @notice Internal object that represents a token
@@ -224,11 +225,11 @@ struct MarketParameters {
     bytes32 storageSlot;
     uint256 maturity;
     // Total amount of fCash available for purchase in the market.
-    int256 totalfCash;
+    IU totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
+    IA totalAssetCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
-    int256 totalLiquidity;
+    LT totalLiquidity;
     // This is the previous annualized interest rate in RATE_PRECISION that the market traded
     // at. This is used to calculate the rate anchor to smooth interest rates over time.
     uint256 lastImpliedRate;
