@@ -7,33 +7,16 @@ import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
-    struct ExactOutputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 deadline;
-        uint256 amountOut;
-        uint256 amountInMaximum;
-        uint160 sqrtPriceLimitX96;
-    }
+    ISwapRouter public immutable EXCHANGE;
 
-    address public EXCHANGE;
-
-    function initialize(
+    constructor(
         NotionalProxy notionalV2_,
         address lendingPool_,
-        address addressProvider_,
         address weth_,
         address cETH_,
         address owner_,
-        address exchange_
-    ) public initializer {
-        __NotionalV2FlashLiquidator_init(notionalV2_, lendingPool_, addressProvider_, weth_, cETH_, owner_);
-        EXCHANGE = exchange_;
-    }
-
-    function setExchange(address exchange_) external onlyOwner {
+        ISwapRouter exchange_
+    ) NotionalV2FlashLiquidator(notionalV2_, lendingPool_, weth_, cETH_, owner_) {
         EXCHANGE = exchange_;
     }
 

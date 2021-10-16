@@ -363,5 +363,5 @@ def main():
     chain.snapshot()
     #collateralLiquidate(env)
     #chain.revert()
-    crossCurrencyLiquidate(env)
+    #crossCurrencyLiquidate(env)
     

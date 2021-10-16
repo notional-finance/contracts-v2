@@ -2,24 +2,15 @@
 pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
+import "interfaces/WETH9.sol";
 import "../../internal/markets/DateTime.sol";
-import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../../math/SafeInt256.sol";
 
-interface WETH9 {
-    function deposit() external payable;
-
-    function withdraw(uint256 wad) external;
-
-    function transfer(address dst, uint256 wad) external returns (bool);
-}
-
-abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
+abstract contract NotionalV2BaseLiquidator {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -28,48 +19,41 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         CollateralCurrency_NoTransferFee_Withdraw,
         LocalfCash_NoTransferFee_Withdraw,
         CrossCurrencyfCash_NoTransferFee_Withdraw,
-        LocalCurrency_WithTransferFee_Withdraw,
-        CollateralCurrency_WithTransferFee_Withdraw,
-        LocalfCash_WithTransferFee_Withdraw,
-        CrossCurrencyfCash_WithTransferFee_Withdraw,
         LocalCurrency_NoTransferFee_NoWithdraw,
         CollateralCurrency_NoTransferFee_NoWithdraw,
         LocalfCash_NoTransferFee_NoWithdraw,
         CrossCurrencyfCash_NoTransferFee_NoWithdraw,
+        LocalCurrency_WithTransferFee_Withdraw,
+        CollateralCurrency_WithTransferFee_Withdraw,
+        LocalfCash_WithTransferFee_Withdraw,
+        CrossCurrencyfCash_WithTransferFee_Withdraw,
         LocalCurrency_WithTransferFee_NoWithdraw,
         CollateralCurrency_WithTransferFee_NoWithdraw,
         LocalfCash_WithTransferFee_NoWithdraw,
         CrossCurrencyfCash_WithTransferFee_NoWithdraw
     }
 
-    NotionalProxy public NotionalV2;
+    NotionalProxy public immutable NotionalV2;
     mapping(address => address) underlyingToCToken;
-    address public WETH;
-    address public cETH;
-    address public OWNER;
+    address public immutable WETH;
+    address public immutable cETH;
+    address public immutable OWNER;
 
     modifier onlyOwner() {
         require(OWNER == msg.sender, "Ownable: caller is not the owner");
         _;
     }
 
-    /// @dev Only the owner may upgrade the contract
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-
-    function __NotionalV2BaseLiquidator_init(
+    constructor(
         NotionalProxy notionalV2_,
         address weth_,
         address cETH_,
         address owner_
-    ) internal initializer {
+    ) {
         NotionalV2 = notionalV2_;
         WETH = weth_;
         cETH = cETH_;
         OWNER = owner_;
-    }
-
-    function setNotionalProxy(NotionalProxy notionalV2_) external onlyOwner {
-        NotionalV2 = notionalV2_;
     }
 
     function executeDexTrade(
@@ -87,14 +71,7 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
     }
 
     function _hasTransferFees(LiquidationAction action) internal pure returns (bool) {
-        return (action == LiquidationAction.LocalCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.LocalfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalfCash_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_NoWithdraw);
+        return action >= LiquidationAction.LocalCurrency_WithTransferFee_Withdraw;
     }
 
     function _mintCTokens(address[] calldata assets, uint256[] calldata amounts) internal {
@@ -121,9 +98,7 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
 
             CErc20Interface(cToken).redeem(IERC20(cToken).balanceOf(address(this)));
             // Wrap ETH into WETH for repayment
-            if (assets[i] == WETH && address(this).balance > 0) {
-                WETH9(WETH).deposit{value: address(this).balance}();
-            }
+            if (assets[i] == WETH && address(this).balance > 0) _wrapToWETH();
         }
     }
 
@@ -206,7 +181,7 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         );
 
         // Wrap everything to WETH for trading
-        if (collateralCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
+        if (collateralCurrency == 1) _wrapToWETH();
 
         // Will withdraw all cash balance, no need to redeem local currency, it will be
         // redeemed later
@@ -301,7 +276,7 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         // Redeem to underlying here, collateral is not specified as an input asset
         _sellfCashAssets(fCashCurrency, fCashMaturities, fCashNotionalTransfers, 0, true);
         // Wrap everything to WETH for trading
-        if (fCashCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
+        if (fCashCurrency == 1) _wrapToWETH();
 
         // NOTE: no withdraw if _hasTransferFees, _sellfCashAssets with withdraw everything
     }
@@ -375,11 +350,7 @@ abstract contract NotionalV2BaseLiquidator is Initializable, UUPSUpgradeable {
         NotionalV2.batchBalanceAction(address(this), action);
     }
 
-    function wrap() public {
+    function _wrapToWETH() internal {
         WETH9(WETH).deposit{value: address(this).balance}();
-    }
-
-    function withdraw(address token, uint256 amount) public {
-        IERC20(token).transfer(OWNER, amount);
     }
 }

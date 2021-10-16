@@ -5,18 +5,19 @@ pragma experimental ABIEncoderV2;
 import "./NotionalV2BaseLiquidator.sol";
 
 contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
-    address public EXCHANGE;
-    address public LOCAL_CURRENCY;
+    address public immutable EXCHANGE;
+    address public immutable LOCAL_CURRENCY;
 
-    function initialize(
+    constructor(
         NotionalProxy notionalV2_,
         address weth_,
         address cETH_,
         address owner_,
-        address exchange_
-    ) public initializer {
-        __NotionalV2BaseLiquidator_init(notionalV2_, weth_, cETH_, owner_);
+        address exchange_,
+        address localCurrency_
+    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) {
         EXCHANGE = exchange_;
+        LOCAL_CURRENCY = localCurrency_;
     }
 
     function localLiquidateNoTransferFee(address account) public {}

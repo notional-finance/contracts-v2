@@ -41,28 +41,16 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    address public LENDING_POOL;
-    address public ADDRESS_PROVIDER;
+    address public immutable LENDING_POOL;
 
-    function __NotionalV2FlashLiquidator_init(
+    constructor(
         NotionalProxy notionalV2_,
         address lendingPool_,
-        address addressProvider_,
         address weth_,
         address cETH_,
         address owner_
-    ) internal initializer {
-        __NotionalV2BaseLiquidator_init(notionalV2_, weth_, cETH_, owner_);
+    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) {
         LENDING_POOL = lendingPool_;
-        ADDRESS_PROVIDER = addressProvider_;
-    }
-
-    function setLendingPool(address lendingPool_) external onlyOwner {
-        LENDING_POOL = lendingPool_;
-    }
-
-    function setAddressProvider(address addressProvider_) external onlyOwner {
-        ADDRESS_PROVIDER = addressProvider_;
     }
 
     function setCTokenAddress(address cToken) external onlyOwner {
@@ -161,7 +149,8 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             _executeDexTrade(
                 action,
                 assets[0],
-                amounts[0].add(premiums[0]), // Amount needed to pay back flash loan
+                amounts[0],
+                premiums[0],
                 params
             );
         }
@@ -190,11 +179,13 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
     function _executeDexTrade(
         LiquidationAction action,
         address to,
-        uint256 amountOutMin,
+        uint256 amount,
+        uint256 premium,
         bytes calldata params
     ) internal {
         address collateralUnderlyingAddress;
         bytes memory tradeCallData;
+        uint256 bal = IERC20(to).balanceOf(address(this));
 
         if (
             action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
@@ -235,9 +226,17 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             collateralUnderlyingAddress,
             to,
             IERC20(collateralUnderlyingAddress).balanceOf(address(this)),
-            amountOutMin,
+            amount.sub(bal).add(premium), // Amount needed to pay back flash loan
             tradeCallData
         );
+    }
+
+    function wrapToWETH() public {
+        _wrapToWETH();
+    }
+
+    function withdraw(address token, uint256 amount) public {
+        IERC20(token).transfer(OWNER, amount);
     }
 
     receive() external payable {}
