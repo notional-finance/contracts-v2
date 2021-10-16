@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "interfaces/notional/INoteERC20.sol";
-import "@openzeppelin/contracts/access/TimelockController.sol";
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/governance/TimelockController.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /**

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "./nTokenMintAction.sol";
@@ -13,7 +13,7 @@ import "../../internal/settlement/SettleBitmapAssets.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /// @notice Initialize markets is called once every quarter to setup the new markets. Only the nToken account
 /// can initialize markets, and this method will be called on behalf of that account. In this action

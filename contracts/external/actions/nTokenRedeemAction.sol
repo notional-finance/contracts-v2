@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../../internal/markets/Market.sol";
@@ -11,7 +11,7 @@ import "../../external/FreeCollateralExternal.sol";
 import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
 import "./ActionGuards.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract nTokenRedeemAction is ActionGuards {
     using SafeInt256 for int256;

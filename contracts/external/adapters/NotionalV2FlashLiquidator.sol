@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../../internal/markets/DateTime.sol";
@@ -9,7 +9,7 @@ import "interfaces/compound/CTokenInterface.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IFlashLoanReceiver {
     function executeOperation(

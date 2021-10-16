@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 // Bring these open zeppelin contracts into the build for brownie
-import "@openzeppelin/contracts/proxy/ProxyAdmin.sol";
-import "@openzeppelin/contracts/proxy/TransparentUpgradeableProxy.sol";
+import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract nProxyAdmin is ProxyAdmin { }
 contract nTransparentUpgradeableProxy is TransparentUpgradeableProxy {

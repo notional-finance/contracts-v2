@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../internal/valuation/AssetHandler.sol";
 import "../internal/markets/Market.sol";
 import "../global/StorageLayoutV1.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract MockAssetHandler is StorageLayoutV1 {
     using SafeInt256 for int256;

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/compound/CTokenInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract cTokenAggregator is AssetRateAdapter {
     using SafeMath for uint256;

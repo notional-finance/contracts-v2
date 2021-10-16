@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "interfaces/notional/NotionalProxy.sol";
-import "@openzeppelin/contracts/proxy/Initializable.sol";
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 
 /// @title Note ERC20 Token

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/GSN/Context.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
 
 contract MockERC20 is IERC20, Context {
     uint public transferFee;

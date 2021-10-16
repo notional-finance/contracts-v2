@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "./AssetRate.sol";
@@ -11,7 +11,7 @@ import "../../global/Types.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/ABDKMath64x64.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library Market {
     using SafeMath for uint256;

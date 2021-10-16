@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "./LiquidationHelpers.sol";
@@ -11,7 +11,7 @@ import "../valuation/ExchangeRate.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library LiquidatefCash {
     using SafeMath for uint256;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../AccountContextHandler.sol";
@@ -10,7 +10,7 @@ import "../../math/SafeInt256.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
 import "../../global/Types.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library BitmapAssetsHandler {
     using SafeMath for uint256;

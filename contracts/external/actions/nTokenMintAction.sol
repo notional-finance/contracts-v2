@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../../global/Constants.sol";
@@ -10,7 +10,7 @@ import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library nTokenMintAction {
     using SafeInt256 for int256;

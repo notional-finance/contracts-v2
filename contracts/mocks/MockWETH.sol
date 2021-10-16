@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 
 contract MockWETH {
     string public name = "Wrapped Ether";
@@ -41,7 +41,7 @@ contract MockWETH {
         balanceOf[msg.sender] -= wad;
         // WARNING: msg.sender.transfer fails in buidler, not sure if this will fail
         // on real environments
-        msg.sender.transfer(wad);
+        payable(msg.sender).transfer(wad);
         emit Withdrawal(msg.sender, wad);
     }
 

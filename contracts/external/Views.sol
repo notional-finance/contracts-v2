@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../external/FreeCollateralExternal.sol";
@@ -12,9 +12,9 @@ import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
+import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "interfaces/notional/NotionalViews.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Views is StorageLayoutV1, NotionalViews {
     using CashGroup for CashGroupParameters;
