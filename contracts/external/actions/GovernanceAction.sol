@@ -230,7 +230,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(nTokenAddress != address(0), "Invalid currency");
         // Sanity check that emissions rate is not specified in 1e8 terms.
-        require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
+        require(int256(uint256(newEmissionRate)) < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
 
         nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
@@ -412,10 +412,10 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
             require(address(rateOracle) != address(0), "G: zero rate oracle address");
             rateDecimalPlaces = rateOracle.decimals();
         }
-        require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
-        require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
+        require(int256(uint256(buffer)) >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
+        require(int256(uint256(haircut)) <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
         require(
-            liquidationDiscount > Constants.PERCENTAGE_DECIMALS,
+            int256(uint256(liquidationDiscount)) > Constants.PERCENTAGE_DECIMALS,
             "G: discount must be gt decimals"
         );
 

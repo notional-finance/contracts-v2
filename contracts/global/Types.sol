@@ -417,7 +417,7 @@ struct nTokenTotalSupplyStorage {
 /// @dev Used in view methods to return account balances in a developer friendly manner
 struct AccountBalance {
     uint16 currencyId;
-    int256 cashBalance;
+    IA cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
     uint256 lastClaimIntegralSupply;

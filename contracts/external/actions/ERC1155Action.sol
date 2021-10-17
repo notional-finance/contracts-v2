@@ -6,6 +6,7 @@ import "./BatchAction.sol";
 import "./nTokenRedeemAction.sol";
 import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../math/UserDefinedType.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
@@ -110,7 +111,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
             // Neither of these are possible for a bitmap group
             return 0;
         } else {
-            return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+            return IU.unwrap(BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity));
         }
     }
 

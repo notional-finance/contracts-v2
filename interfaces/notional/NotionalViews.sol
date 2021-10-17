@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
+import "../../contracts/math/UserDefinedType.sol";
 
 interface NotionalViews {
     function getMaxCurrencyId() external view returns (uint16);
@@ -65,7 +66,7 @@ interface NotionalViews {
         view
         returns (MarketParameters[] memory);
 
-    function getReserveBalance(uint16 currencyId) external view returns (int256 reserveBalance);
+    function getReserveBalance(uint16 currencyId) external view returns (IA reserveBalance);
 
     function getNTokenPortfolio(address tokenAddress)
         external
@@ -81,7 +82,7 @@ interface NotionalViews {
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
-            int256 cashBalance,
+            IA cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
         );
@@ -101,7 +102,7 @@ interface NotionalViews {
         external
         view
         returns (
-            int256 cashBalance,
+            IA cashBalance,
             int256 nTokenBalance,
             uint256 lastClaimTime
         );
@@ -112,11 +113,11 @@ interface NotionalViews {
         address account,
         uint16 currencyId,
         uint256 maturity
-    ) external view returns (int256);
+    ) external view returns (IU);
 
     function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
 
-    function getFreeCollateral(address account) external view returns (int256, int256[] memory);
+    function getFreeCollateral(address account) external view returns (IU, IA[] memory);
 
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
         external
@@ -128,14 +129,14 @@ interface NotionalViews {
         int88 netCashToAccount,
         uint256 marketIndex,
         uint256 blockTime
-    ) external view returns (int256);
+    ) external view returns (IU);
 
     function getCashAmountGivenfCashAmount(
         uint16 currencyId,
         int88 fCashAmount,
         uint256 marketIndex,
         uint256 blockTime
-    ) external view returns (int256, int256);
+    ) external view returns (IA, IU);
 
     function nTokenGetClaimableIncentives(address account, uint256 blockTime)
         external

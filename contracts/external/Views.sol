@@ -12,6 +12,7 @@ import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV1.sol";
 import "../math/SafeInt256.sol";
+import "../math/UserDefinedType.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "interfaces/notional/NotionalViews.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -244,7 +245,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         external
         view
         override
-        returns (int256 reserveBalance)
+        returns (IA reserveBalance)
     {
         _checkValidCurrency(currencyId);
         // prettier-ignore
@@ -290,7 +291,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
-            int256 cashBalance,
+            IA cashBalance,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
         )
@@ -394,7 +395,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         view
         override
         returns (
-            int256 cashBalance,
+            IA cashBalance,
             int256 nTokenBalance,
             uint256 lastClaimTime
         )
@@ -434,7 +435,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         address account,
         uint16 currencyId,
         uint256 maturity
-    ) external view override returns (int256) {
+    ) external view override returns (IU) {
         _checkValidCurrency(currencyId);
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
@@ -456,7 +457,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         external
         view
         override
-        returns (int256, int256[] memory)
+        returns (IU, IA[] memory)
     {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
@@ -472,8 +473,8 @@ contract Views is StorageLayoutV1, NotionalViews {
     {
         _checkValidCurrency(currencyId);
         Token memory token = TokenHandler.getAssetToken(currencyId);
-        int256 amountToDepositInternal =
-            token.convertToInternal(int256(amountToDepositExternalPrecision));
+        IA amountToDepositInternal =
+            IA.wrap(token.convertToInternal(int256(uint256(amountToDepositExternalPrecision))));
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
@@ -493,7 +494,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         int88 netCashToAccount,
         uint256 marketIndex,
         uint256 blockTime
-    ) external view override returns (int256) {
+    ) external view override returns (IU) {
         _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
@@ -501,14 +502,14 @@ contract Views is StorageLayoutV1, NotionalViews {
 
         require(market.maturity > blockTime, "Invalid block time");
         uint256 timeToMaturity = market.maturity - blockTime;
-        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
+        (int256 rateScalar, IU totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return
             Market.getfCashGivenCashAmount(
                 market.totalfCash,
-                netCashToAccount,
+                IU.wrap(netCashToAccount),
                 totalCashUnderlying,
                 rateScalar,
                 rateAnchor,
@@ -524,7 +525,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         int88 fCashAmount,
         uint256 marketIndex,
         uint256 blockTime
-    ) external view override returns (int256, int256) {
+    ) external view override returns (IA, IU) {
         _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
@@ -534,8 +535,8 @@ contract Views is StorageLayoutV1, NotionalViews {
         uint256 timeToMaturity = market.maturity - blockTime;
 
         // prettier-ignore
-        (int256 assetCash, /* int fee */) =
-            market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        (IA assetCash, /* int fee */) =
+            market.calculateTrade(cashGroup, IU.wrap(fCashAmount), timeToMaturity, marketIndex);
 
         return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));
     }
