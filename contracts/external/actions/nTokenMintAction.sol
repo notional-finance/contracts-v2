@@ -10,9 +10,12 @@ import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library nTokenMintAction {
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
@@ -60,11 +63,11 @@ library nTokenMintAction {
     /// @return the amount of tokens to mint, the ifCash bitmap
     function calculateTokensToMint(
         nTokenPortfolio memory nToken,
-        int256 amountToDepositInternal,
+        IA amountToDepositInternal,
         uint256 blockTime
     ) internal view returns (int256) {
-        require(amountToDepositInternal >= 0); // dev: deposit amount negative
-        if (amountToDepositInternal == 0) return 0;
+        require(amountToDepositInternal.isPosOrZero()); // dev: deposit amount negative
+        if (amountToDepositInternal.isZero()) return 0;
 
         if (nToken.lastInitializedTime != 0) {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
@@ -74,20 +77,20 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "Requires settlement");
         }
 
-        int256 assetCashPV = nToken.getNTokenAssetPV(blockTime);
+        IA assetCashPV = nToken.getNTokenAssetPV(blockTime);
         // Defensive check to ensure PV remains positive
-        require(assetCashPV >= 0);
+        require(assetCashPV.isPosOrZero());
 
         // Allow for the first deposit
         if (nToken.totalSupply == 0) {
-            return amountToDepositInternal;
+            return IA.unwrap(amountToDepositInternal);
         } else {
             // assetCashPVPost = assetCashPV + amountToDeposit
             // (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
             // (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
             // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
             // tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
-            return amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV);
+            return IA.unwrap(amountToDepositInternal.scale(nToken.totalSupply, IA.unwrap(assetCashPV)));
         }
     }
 
@@ -96,7 +99,7 @@ library nTokenMintAction {
     /// initialized to have liquidity tokens.
     function _depositIntoPortfolio(
         nTokenPortfolio memory nToken,
-        int256 assetCashDeposit,
+        IA assetCashDeposit,
         uint256 blockTime
     ) private {
         (int256[] memory depositShares, int256[] memory leverageThresholds) =
@@ -111,10 +114,10 @@ library nTokenMintAction {
         // slippage and therefore the residual from the perMarketDeposit will be lower as the maturities get
         // closer to the current block time. Any residual cash from lending will be rolled into shorter
         // markets as this loop progresses.
-        int256 residualCash;
+        IA residualCash;
         MarketParameters memory market;
         for (uint256 marketIndex = nToken.cashGroup.maxMarketIndex; marketIndex > 0; marketIndex--) {
-            int256 fCashAmount;
+            IU fCashAmount;
             // Loads values into the market memory slot
             nToken.cashGroup.loadMarket(
                 market,
@@ -124,14 +127,13 @@ library nTokenMintAction {
             );
             // If market has not been initialized, continue. This can occur when cash groups extend maxMarketIndex
             // before initializing
-            if (market.totalLiquidity == 0) continue;
+            if (LT.unwrap(market.totalLiquidity) == 0) continue;
 
             // Checked that assetCashDeposit must be positive before entering
-            int256 perMarketDeposit =
-                assetCashDeposit
-                    .mul(depositShares[marketIndex - 1])
-                    .div(Constants.DEPOSIT_PERCENT_BASIS)
-                    .add(residualCash);
+            IA perMarketDeposit = assetCashDeposit.scale(
+                depositShares[marketIndex - 1],
+                Constants.DEPOSIT_PERCENT_BASIS
+            ).add(residualCash);
 
             (fCashAmount, residualCash) = _lendOrAddLiquidity(
                 nToken,
@@ -142,7 +144,7 @@ library nTokenMintAction {
                 blockTime
             );
 
-            if (fCashAmount != 0) {
+            if (IU.unwrap(fCashAmount) != 0) {
                 BitmapAssetsHandler.addifCashAsset(
                     nToken.tokenAddress,
                     nToken.cashGroup.currencyId,
@@ -157,9 +159,9 @@ library nTokenMintAction {
         nToken.portfolioState.storeAssets(nToken.tokenAddress);
 
         // Defensive check to ensure that we do not somehow accrue negative residual cash.
-        require(residualCash >= 0, "Negative residual cash");
+        require(residualCash.isPosOrZero(), "Negative residual cash");
         // This will occur if the three month market is over levered and we cannot lend into it
-        if (residualCash > 0) {
+        if (residualCash.isPosNotZero()) {
             // Any remaining residual cash will be put into the nToken balance and added as liquidity on the
             // next market initialization
             nToken.cashBalance = nToken.cashBalance.add(residualCash);
@@ -176,11 +178,11 @@ library nTokenMintAction {
     function _lendOrAddLiquidity(
         nTokenPortfolio memory nToken,
         MarketParameters memory market,
-        int256 perMarketDeposit,
+        IA perMarketDeposit,
         int256 leverageThreshold,
         uint256 marketIndex,
         uint256 blockTime
-    ) private returns (int256 fCashAmount, int256 residualCash) {
+    ) private returns (IU fCashAmount, IA residualCash) {
         // We start off with the entire per market deposit as residuals
         residualCash = perMarketDeposit;
 
@@ -210,7 +212,7 @@ library nTokenMintAction {
             _addLiquidityToMarket(nToken, market, marketIndex - 1, residualCash)
         );
         // No residual cash if we're adding liquidity
-        return (fCashAmount, 0);
+        return (fCashAmount, IA.wrap(0));
     }
 
     /// @notice Markets are over levered when their proportion is greater than a governance set
@@ -222,15 +224,15 @@ library nTokenMintAction {
         MarketParameters memory market,
         int256 leverageThreshold
     ) private pure returns (bool) {
-        int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
+        IU totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
         // Comparison we want to do:
         // (totalfCash) / (totalfCash + totalCashUnderlying) > leverageThreshold
         // However, the division will introduce rounding errors so we change this to:
         // totalfCash * RATE_PRECISION > leverageThreshold * (totalfCash + totalCashUnderlying)
         // Leverage threshold is denominated in rate precision.
         return (
-            market.totalfCash.mul(Constants.RATE_PRECISION) >
-            leverageThreshold.mul(market.totalfCash.add(totalCashUnderlying))
+            IU.unwrap(market.totalfCash).mul(Constants.RATE_PRECISION) >
+            leverageThreshold.mul(IU.unwrap(market.totalfCash.add(totalCashUnderlying)))
         );
     }
 
@@ -238,8 +240,8 @@ library nTokenMintAction {
         nTokenPortfolio memory nToken,
         MarketParameters memory market,
         uint256 index,
-        int256 perMarketDeposit
-    ) private returns (int256) {
+        IA perMarketDeposit
+    ) private returns (IU) {
         // Add liquidity to the market
         PortfolioAsset memory asset = nToken.portfolioState.storedAssets[index];
         // We expect that all the liquidity tokens are in the portfolio in order.
@@ -253,8 +255,8 @@ library nTokenMintAction {
         );
 
         // This will update the market state as well, fCashAmount returned here is negative
-        (int256 liquidityTokens, int256 fCashAmount) = market.addLiquidity(perMarketDeposit);
-        asset.notional = asset.notional.add(liquidityTokens);
+        (LT liquidityTokens, IU fCashAmount) = market.addLiquidity(perMarketDeposit);
+        asset.notional = asset.notional.add(LT.unwrap(liquidityTokens));
         asset.storageState = AssetStorageState.Update;
 
         return fCashAmount;
@@ -265,10 +267,10 @@ library nTokenMintAction {
     function _deleverageMarket(
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
-        int256 perMarketDeposit,
+        IA perMarketDeposit,
         uint256 blockTime,
         uint256 marketIndex
-    ) private returns (int256, int256) {
+    ) private returns (IA, IU) {
         uint256 timeToMaturity = market.maturity.sub(blockTime);
 
         // Shift the last implied rate by some buffer and calculate the exchange rate to fCash. Hope that this
@@ -285,23 +287,23 @@ library nTokenMintAction {
             );
         }
 
-        int256 fCashAmount;
+        IU fCashAmount;
         {
-            int256 perMarketDepositUnderlying =
+            IU perMarketDepositUnderlying =
                 cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
             // NOTE: cash * exchangeRate = fCash
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
-        int256 netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        IA netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         // This means that the trade failed
-        if (netAssetCash == 0) {
-            return (perMarketDeposit, 0);
+        if (netAssetCash.isZero()) {
+            return (perMarketDeposit, IU.wrap(0));
         } else {
             // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
             // given how we've calculated the exchange rate but extra caution here
-            int256 residual = perMarketDeposit.add(netAssetCash);
-            require(residual >= 0); // dev: insufficient cash
+            IA residual = perMarketDeposit.add(netAssetCash);
+            require(residual.isPosOrZero()); // dev: insufficient cash
             return (residual, fCashAmount);
         }
     }

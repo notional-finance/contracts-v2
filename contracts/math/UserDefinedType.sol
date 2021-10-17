@@ -31,10 +31,6 @@ library UserDefinedType {
         return IA.wrap(-IA.unwrap(a));
     }
 
-    function isZero(IA a) internal pure returns (bool) {
-        return IA.unwrap(a) == 0;
-    }
-
     function gt(IA a, IA b) internal pure returns (bool) {
         return IA.unwrap(a) > IA.unwrap(b);
     }
@@ -59,6 +55,30 @@ library UserDefinedType {
         return IA.unwrap(a) != IA.unwrap(b);
     }
 
+    function isNotZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) != 0;
+    }
+
+    function isZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) == 0;
+    }
+
+    function isNegOrZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) <= 0;
+    }
+
+    function isNegNotZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) < 0;
+    }
+
+    function isPosOrZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) >= 0;
+    }
+
+    function isPosNotZero(IA a) internal pure returns (bool) {
+        return IA.unwrap(a) > 0;
+    }
+
     function toMarketStorage(IA a) internal pure returns (uint80) {
         require(0 <= IA.unwrap(a) && IA.unwrap(a) <= int256(uint256(type(uint80).max))); // dev: storage overflow
         return uint80(uint256(IA.unwrap(a)));
@@ -73,10 +93,6 @@ library UserDefinedType {
 
     function scale(IU a, int256 numerator, int256 divisor) internal pure returns (IU) {
         return IU.wrap((IU.unwrap(a) * numerator) / divisor);
-    }
-
-    function isZero(IU a) internal pure returns (bool) {
-        return IU.unwrap(a) == 0;
     }
 
     function add(IU a, IU b) internal pure returns (IU) {
@@ -115,6 +131,30 @@ library UserDefinedType {
 
     function eq(IU a, IU b) internal pure returns (bool) {
         return IU.unwrap(a) == IU.unwrap(b);
+    }
+
+    function isNotZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) != 0;
+    }
+
+    function isZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) == 0;
+    }
+
+    function isNegOrZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) <= 0;
+    }
+
+    function isNegNotZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) < 0;
+    }
+
+    function isPosOrZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) >= 0;
+    }
+
+    function isPosNotZero(IU a) internal pure returns (bool) {
+        return IU.unwrap(a) > 0;
     }
 
     function divInRatePrecision(IU x, int256 y) internal pure returns (IU) {
