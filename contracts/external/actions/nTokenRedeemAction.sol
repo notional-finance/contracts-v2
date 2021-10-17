@@ -10,10 +10,13 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 import "./ActionGuards.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract nTokenRedeemAction is ActionGuards {
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using BalanceHandler for BalanceState;
@@ -40,13 +43,13 @@ contract nTokenRedeemAction is ActionGuards {
         uint256 blockTime = block.timestamp;
         // prettier-ignore
         (
-            int256 totalAssetCash,
+            IA totalAssetCash,
             bool hasResidual,
             /* PortfolioAssets[] memory newfCashAssets */
         ) = _redeem(currencyId, tokensToRedeem, true, blockTime);
 
         require(!hasResidual, "Cannot redeem via batch, residual");
-        return totalAssetCash;
+        return IA.unwrap(totalAssetCash);
     }
 
     /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets
@@ -69,7 +72,7 @@ contract nTokenRedeemAction is ActionGuards {
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
         uint256 blockTime = block.timestamp;
-        int256 tokensToRedeem = int256(tokensToRedeem_);
+        int256 tokensToRedeem = int256(uint256(tokensToRedeem_));
 
         AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
         if (context.mustSettleAssets()) {
@@ -82,7 +85,7 @@ contract nTokenRedeemAction is ActionGuards {
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
+        (IA totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
             _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
 
         // Set balances before transferring assets
@@ -100,7 +103,7 @@ contract nTokenRedeemAction is ActionGuards {
         }
 
         emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-        return totalAssetCash;
+        return IA.unwrap(totalAssetCash);
     }
 
     /// @notice Redeems nTokens for asset cash and fCash
@@ -116,7 +119,7 @@ contract nTokenRedeemAction is ActionGuards {
     )
         private
         returns (
-            int256,
+            IA,
             bool,
             PortfolioAsset[] memory
         )
@@ -128,13 +131,13 @@ contract nTokenRedeemAction is ActionGuards {
         require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
 
         // Get the assetCash and fCash assets as a result of redeeming tokens
-        (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
+        (PortfolioAsset[] memory newfCashAssets, IA totalAssetCash) =
             _reduceTokenAssets(nToken, tokensToRedeem, blockTime);
 
         // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
         bool hasResidual = true;
         if (sellTokenAssets) {
-            int256 assetCash;
+            IA assetCash;
             // NOTE: newfCashAssets is modified in place during this method
             (assetCash, hasResidual) = _sellfCashAssets(
                 nToken.cashGroup,
@@ -156,7 +159,7 @@ contract nTokenRedeemAction is ActionGuards {
         nTokenPortfolio memory nToken,
         int256 tokensToRedeem,
         uint256 blockTime
-    ) private returns (PortfolioAsset[] memory, int256) {
+    ) private returns (PortfolioAsset[] memory, IA) {
         // Get share of ifCash assets to remove
         PortfolioAsset[] memory newifCashAssets =
             BitmapAssetsHandler.reduceifCashAssetsProportional(
@@ -169,8 +172,8 @@ contract nTokenRedeemAction is ActionGuards {
 
         // Get asset cash share for the nToken, if it exists. It is required in balance handler that the
         // nToken can never have a negative cash asset cash balance so what we get here is always positive.
-        int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
-        if (assetCashShare > 0) {
+        IA assetCashShare = nToken.cashBalance.scale(tokensToRedeem, nToken.totalSupply);
+        if (assetCashShare.isPosNotZero()) {
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
@@ -221,7 +224,7 @@ contract nTokenRedeemAction is ActionGuards {
         int256 tokensToRedeem,
         int256 totalSupply,
         uint256 blockTime
-    ) private returns (int256 totalAssetCash) {
+    ) private returns (IA totalAssetCash) {
         MarketParameters memory market;
 
         for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
@@ -237,7 +240,7 @@ contract nTokenRedeemAction is ActionGuards {
             // This will load a market object in memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             // Remove liquidity from the market
-            (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
+            (IA assetCash, IU fCash) = market.removeLiquidity(LT.wrap(tokensToRemove));
             totalAssetCash = totalAssetCash.add(assetCash);
 
             // It is improbable but possible that an fcash asset does not exist if the fCash position for an active liquidity token
@@ -251,7 +254,7 @@ contract nTokenRedeemAction is ActionGuards {
                     require(ifCashIndex < newifCashAssets.length, "Error removing tokens");
                 }
                 newifCashAssets[ifCashIndex].notional = newifCashAssets[ifCashIndex].notional.add(
-                    fCash
+                    IU.unwrap(fCash)
                 );
             }
         }
@@ -266,7 +269,7 @@ contract nTokenRedeemAction is ActionGuards {
         CashGroupParameters memory cashGroup,
         PortfolioAsset[] memory fCashAssets,
         uint256 blockTime
-    ) private returns (int256 totalAssetCash, bool hasResidual) {
+    ) private returns (IA totalAssetCash, bool hasResidual) {
         MarketParameters memory market;
 
         for (uint256 i = 0; i < fCashAssets.length; i++) {
@@ -283,15 +286,15 @@ contract nTokenRedeemAction is ActionGuards {
                 hasResidual = true;
             } else {
                 cashGroup.loadMarket(market, marketIndex, false, blockTime);
-                int256 netAssetCash = market.executeTrade(
+                IA netAssetCash = market.executeTrade(
                     cashGroup,
                     // Use the negative of fCash notional here since we want to net it out
-                    asset.notional.neg(),
+                    IU.wrap(asset.notional.neg()),
                     asset.maturity.sub(blockTime),
                     marketIndex
                 );
 
-                if (netAssetCash == 0) {
+                if (netAssetCash.isZero()) {
                     // This means that the trade failed
                     hasResidual = true;
                 } else {
