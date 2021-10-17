@@ -7,8 +7,10 @@ import "../../internal/AccountContextHandler.sol";
 import "../../internal/liquidation/LiquidateCurrency.sol";
 import "../../internal/liquidation/LiquidationHelpers.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 
 contract LiquidateCurrencyAction is ActionGuards {
+    using UserDefinedType for IA;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
@@ -17,7 +19,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         address indexed liquidated,
         address indexed liquidator,
         uint16 localCurrencyId,
-        int256 localAssetCashFromLiquidator
+        IA localAssetCashFromLiquidator
     );
 
     event LiquidateCollateralCurrency(
@@ -25,8 +27,8 @@ contract LiquidateCurrencyAction is ActionGuards {
         address indexed liquidator,
         uint16 localCurrencyId,
         uint16 collateralCurrencyId,
-        int256 localAssetCashFromLiquidator,
-        int256 netCollateralTransfer,
+        IA localAssetCashFromLiquidator,
+        IA netCollateralTransfer,
         int256 netNTokenTransfer
     );
 
@@ -43,10 +45,10 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256, int256) {
+    ) external returns (IA, int256) {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            IA localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
@@ -74,9 +76,9 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external nonReentrant returns (int256, int256) {
+    ) external nonReentrant returns (IA, int256) {
         (
-            int256 localAssetCashFromLiquidator,
+            IA localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext
@@ -139,14 +141,14 @@ contract LiquidateCurrencyAction is ActionGuards {
     )
         external
         returns (
-            int256,
-            int256,
+            IA,
+            IA,
             int256
         )
     {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            IA localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
@@ -190,13 +192,13 @@ contract LiquidateCurrencyAction is ActionGuards {
         external
         nonReentrant
         returns (
-            int256,
-            int256,
+            IA,
+            IA,
             int256
         )
     {
         (
-            int256 localAssetCashFromLiquidator,
+            IA localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             PortfolioState memory portfolio,
             AccountContext memory accountContext
@@ -252,7 +254,7 @@ contract LiquidateCurrencyAction is ActionGuards {
     function _emitCollateralEvent(
         address liquidateAccount,
         uint16 localCurrency,
-        int256 localAssetCashFromLiquidator,
+        IA localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState
     ) private {
         emit LiquidateCollateralCurrency(
@@ -274,7 +276,7 @@ contract LiquidateCurrencyAction is ActionGuards {
     )
         internal
         returns (
-            int256,
+            IA,
             BalanceState memory,
             PortfolioState memory,
             AccountContext memory
@@ -289,7 +291,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
         factors.isCalculation = isCalculation;
 
-        int256 localAssetCashFromLiquidator =
+        IA localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
@@ -317,7 +319,7 @@ contract LiquidateCurrencyAction is ActionGuards {
     )
         private
         returns (
-            int256,
+            IA,
             BalanceState memory,
             PortfolioState memory,
             AccountContext memory
@@ -343,7 +345,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         );
         factors.isCalculation = isCalculation;
 
-        int256 localAssetCashFromLiquidator =
+        IA localAssetCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
@@ -365,7 +367,7 @@ contract LiquidateCurrencyAction is ActionGuards {
     function _finalizeLiquidatorBalances(
         uint16 localCurrency,
         uint16 collateralCurrency,
-        int256 localAssetCashFromLiquidator,
+        IA localAssetCashFromLiquidator,
         BalanceState memory collateralBalanceState,
         bool withdrawCollateral,
         bool redeemToUnderlying
@@ -396,7 +398,7 @@ contract LiquidateCurrencyAction is ActionGuards {
     function _collateralAssetCashToLiquidator(BalanceState memory collateralBalanceState)
         private
         pure
-        returns (int256)
+        returns (IA)
     {
         // netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
         // liquidity tokens.

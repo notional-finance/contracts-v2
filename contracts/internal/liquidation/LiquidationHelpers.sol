@@ -14,6 +14,8 @@ import "../../external/FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 
 library LiquidationHelpers {
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using SafeInt256 for int256;
     using ExchangeRate for ETHRate;
     using BalanceHandler for BalanceState;
@@ -111,33 +113,32 @@ library LiquidationHelpers {
     /// gained from local liquidations.
     /// @return the amount of underlying asset required
     function calculateLocalLiquidationUnderlyingRequired(
-        int256 localAssetAvailable,
-        int256 netETHValue,
+        IA localAssetAvailable,
+        IU netETHValue,
         ETHRate memory localETHRate
-    ) internal pure returns (int256) {
-            // Formula in both cases requires dividing by the haircut or buffer:
-            // convertToLocal(netFCShortfallInETH) = localRequired * haircut
-            // convertToLocal(netFCShortfallInETH) / haircut = localRequired
-            //
-            // convertToLocal(netFCShortfallInETH) = localRequired * buffer
-            // convertToLocal(netFCShortfallInETH) / buffer = localRequired
-            int256 multiple = localAssetAvailable > 0 ? localETHRate.haircut : localETHRate.buffer;
+    ) internal pure returns (IU) {
+        // Formula in both cases requires dividing by the haircut or buffer:
+        // convertToLocal(netFCShortfallInETH) = localRequired * haircut
+        // convertToLocal(netFCShortfallInETH) / haircut = localRequired
+        //
+        // convertToLocal(netFCShortfallInETH) = localRequired * buffer
+        // convertToLocal(netFCShortfallInETH) / buffer = localRequired
+        int256 multiple = localAssetAvailable.isPosOrZero() ? localETHRate.haircut : localETHRate.buffer;
 
-            // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
-            // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
-            require(multiple > 0); // dev: cannot liquidate haircut asset
+        // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
+        // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
+        require(multiple > 0); // dev: cannot liquidate haircut asset
 
-            // netETHValue must be negative to be inside liquidation
-            return localETHRate.convertETHTo(netETHValue.neg())
-                    .mul(Constants.PERCENTAGE_DECIMALS)
-                    .div(multiple);
+        // netETHValue must be negative to be inside liquidation
+        return localETHRate.convertETHTo(netETHValue.neg())
+                .scale(Constants.PERCENTAGE_DECIMALS, multiple);
     }
 
     /// @dev Calculates factors when liquidating across two currencies
     function calculateCrossCurrencyFactors(LiquidationFactors memory factors)
         internal
         pure
-        returns (int256 collateralDenominatedFC, int256 liquidationDiscount)
+        returns (IA collateralDenominatedFC, int256 liquidationDiscount)
     {
         collateralDenominatedFC = factors.collateralCashGroup.assetRate.convertFromUnderlying(
             factors
@@ -160,31 +161,31 @@ library LiquidationHelpers {
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
-        int256 collateralUnderlyingPresentValue,
-        int256 collateralAssetBalanceToSell
-    ) internal pure returns (int256, int256) {
+        IU collateralUnderlyingPresentValue,
+        IA collateralAssetBalanceToSell
+    ) internal pure returns (IA, IA) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        int256 localUnderlyingFromLiquidator =
-            collateralUnderlyingPresentValue
+        IU localUnderlyingFromLiquidator = IU.wrap(
+            IU.unwrap(collateralUnderlyingPresentValue)
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .mul(factors.localETHRate.rateDecimals)
                 .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
-                .div(liquidationDiscount);
+                .div(liquidationDiscount)
+        );
 
-        int256 localAssetFromLiquidator =
+        IA localAssetFromLiquidator =
             factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
         // localAssetAvailable must be negative in cross currency liquidations
-        int256 maxLocalAsset = factors.localAssetAvailable.neg();
+        IA maxLocalAsset = factors.localAssetAvailable.neg();
 
-        if (localAssetFromLiquidator > maxLocalAsset) {
+        if (localAssetFromLiquidator.gt(maxLocalAsset)) {
             // If the local to purchase will flip the sign of localAssetAvailable then the calculations
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
             // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
             collateralAssetBalanceToSell = collateralAssetBalanceToSell
-                .mul(maxLocalAsset)
-                .div(localAssetFromLiquidator);
+                .scale(IA.unwrap(maxLocalAsset), IA.unwrap(localAssetFromLiquidator));
 
             localAssetFromLiquidator = maxLocalAsset;
         }
@@ -195,7 +196,7 @@ library LiquidationHelpers {
     function finalizeLiquidatorLocal(
         address liquidator,
         uint16 localCurrencyId,
-        int256 netLocalFromLiquidator,
+        IA netLocalFromLiquidator,
         int256 netLocalNTokens
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
@@ -206,18 +207,18 @@ library LiquidationHelpers {
         BalanceState memory liquidatorLocalBalance;
         liquidatorLocalBalance.loadBalanceState(liquidator, localCurrencyId, liquidatorContext);
 
-        if (token.hasTransferFee && netLocalFromLiquidator > 0) {
+        if (token.hasTransferFee && netLocalFromLiquidator.isPosNotZero()) {
             // If a token has a transfer fee then it must have been deposited prior to the liquidation
             // or else we won't be able to net off the correct amount. We also require that the account
             // does not have debt so that we do not have to run a free collateral check here
             require(
-                liquidatorLocalBalance.storedCashBalance >= netLocalFromLiquidator &&
+                liquidatorLocalBalance.storedCashBalance.gte(netLocalFromLiquidator) &&
                     liquidatorContext.hasDebt == 0x00,
                 "No cash"
             ); // dev: token has transfer fee, no liquidator balance
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
+            token.transfer(liquidator, token.convertToExternal(IA.unwrap(netLocalFromLiquidator)));
         }
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
@@ -229,7 +230,7 @@ library LiquidationHelpers {
         address liquidator,
         AccountContext memory liquidatorContext,
         uint16 collateralCurrencyId,
-        int256 netCollateralToLiquidator,
+        IA netCollateralToLiquidator,
         int256 netCollateralNTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
@@ -255,7 +256,7 @@ library LiquidationHelpers {
         address liquidateAccount,
         uint16 localCurrency,
         AccountContext memory accountContext,
-        int256 netLocalFromLiquidator
+        IA netLocalFromLiquidator
     ) internal {
         BalanceState memory balance;
         balance.loadBalanceState(liquidateAccount, localCurrency, accountContext);

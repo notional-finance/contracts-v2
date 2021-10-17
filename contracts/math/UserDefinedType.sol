@@ -157,6 +157,10 @@ library UserDefinedType {
         return IU.unwrap(a) > 0;
     }
 
+    function abs(IU a) internal pure returns (IU) {
+        return IU.unwrap(a) < 0 ? IU.wrap(-IU.unwrap(a)) : a;
+    }
+
     function divInRatePrecision(IU x, int256 y) internal pure returns (IU) {
         return IU.wrap(IU.unwrap(x) * Constants.RATE_PRECISION / y);
     }

@@ -159,7 +159,7 @@ contract NotionalV1ToNotionalV2 {
         // collateral to be USDC or DAI during migration.
         int256 collateralBalance =
             (v1CollateralId == V1_ETH ? balances[V1_ETH] : balances[V1_WBTC]);
-        require(0 < collateralBalance && collateralBalance <= type(uint128).max);
+        require(0 < collateralBalance && collateralBalance <= int256(uint256(type(uint128).max)));
 
         {
             INotionalV1Erc1155.Deposit[] memory deposits = new INotionalV1Erc1155.Deposit[](1);
@@ -174,7 +174,7 @@ contract NotionalV1ToNotionalV2 {
             withdraws[0] = INotionalV1Erc1155.Withdraw(
                 address(this), // Will withdraw collateral to this contract, to be deposited below
                 v1CollateralId,
-                uint128(collateralBalance)
+                uint128(uint256(collateralBalance))
             );
 
             NotionalV1Erc1155.batchOperationWithdraw(

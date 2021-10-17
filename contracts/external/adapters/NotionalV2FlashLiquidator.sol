@@ -239,7 +239,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
 
         // Will withdraw entire cash balance. Don't redeem local currency here because it has been flash
         // borrowed and we need to redeem the entire balance to underlying for the flash loan repayment.
-        _redeemAndWithdraw(localCurrency, uint96(netNTokens), false);
+        _redeemAndWithdraw(localCurrency, uint96(uint256(netNTokens)), false);
     }
 
     function _liquidateCollateral(
@@ -280,7 +280,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
         );
 
         // Redeem to underlying for collateral because it needs to be traded on the DEX
-        _redeemAndWithdraw(collateralCurrency, uint96(collateralNTokens), true);
+        _redeemAndWithdraw(collateralCurrency, uint96(uint256(collateralNTokens)), true);
         // Wrap everything to WETH for trading
         if (collateralCurrency == 1) WETH9(WETH).deposit{value: address(this).balance}();
 
@@ -448,7 +448,7 @@ contract NotionalV2FlashLiquidator is IFlashLoanReceiver {
                 (uint256(fCashNotional[i] > 0 ? TradeActionType.Borrow : TradeActionType.Lend) <<
                     248) |
                     (marketIndex << 240) |
-                    (uint256(uint88(fCashNotional[i].abs())) << 152)
+                    (uint256(uint88(uint256(fCashNotional[i].abs()))) << 152)
             );
             numTrades++;
         }

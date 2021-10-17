@@ -18,9 +18,9 @@ contract LiquidatefCashAction is ActionGuards {
         address indexed liquidator,
         uint16 localCurrencyId,
         uint16 fCashCurrency,
-        int256 netLocalFromLiquidator,
+        IA netLocalFromLiquidator,
         uint256[] fCashMaturities,
-        int256[] fCashNotionalTransfer
+        IU[] fCashNotionalTransfer
     );
 
     /// @notice Calculates fCash local liquidation amounts, may settle account so this can be called off chain using
@@ -38,7 +38,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external returns (IU[] memory, IA) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -66,7 +66,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external nonReentrant returns (int256[] memory, int256) {
+    ) external nonReentrant returns (IU[] memory, IA) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -115,7 +115,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external returns (IU[] memory, IA) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateCrossCurrency(
@@ -146,7 +146,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external nonReentrant returns (int256[] memory, int256) {
+    ) external nonReentrant returns (IU[] memory, IA) {
         uint256 blockTime = block.timestamp;
 
         LiquidatefCash.fCashContext memory c =
@@ -198,14 +198,14 @@ contract LiquidatefCashAction is ActionGuards {
 
         // prettier-ignore
         (
-            int256 cashBalance,
+            IA cashBalance,
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
             /* uint256 lastClaimIntegralSupply*/
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
         // Cash balance is used if liquidating negative fCash
         c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
-        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
+        c.fCashNotionalTransfers = new IU[](fCashMaturities.length);
 
         LiquidatefCash.liquidatefCashLocal(
             liquidateAccount,
@@ -234,7 +234,7 @@ contract LiquidatefCashAction is ActionGuards {
             localCurrency,
             fCashCurrency
         );
-        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
+        c.fCashNotionalTransfers = new IU[](fCashMaturities.length);
 
         LiquidatefCash.liquidatefCashCrossCurrency(
             liquidateAccount,
