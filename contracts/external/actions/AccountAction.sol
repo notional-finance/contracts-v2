@@ -5,11 +5,13 @@ pragma abicoder v2;
 import "./ActionGuards.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
+import "../../math/UserDefinedType.sol";
 import "../../math/SafeInt256.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 
 contract AccountAction is ActionGuards {
+    using UserDefinedType for IA;
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
@@ -67,18 +69,18 @@ contract AccountAction is ActionGuards {
         // the specified account. This may be useful for on-demand collateral top ups from a
         // third party. If called with currencyId == 1 then `depositAssetToken` will access
         // msg.value to mint cETH from ETH.
-        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+        IA assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             msg.sender,
             SafeInt256.toInt(amountExternalPrecision)
         );
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+        require(assetTokensReceivedInternal.isPosNotZero()); // dev: asset tokens negative or zero
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return uint256(assetTokensReceivedInternal);
+        return uint256(IA.unwrap(assetTokensReceivedInternal));
     }
 
     /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
@@ -105,26 +107,26 @@ contract AccountAction is ActionGuards {
         // Int conversion overflow check done inside this method call. msg.sender
         // is used as the account in deposit to allow for other accounts to deposit
         // on behalf of the given account.
-        int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
+        IA assetTokensReceivedInternal = balanceState.depositAssetToken(
             msg.sender,
             SafeInt256.toInt(amountExternalPrecision),
             true // force transfer to ensure that msg.sender does the transfer, not account
         );
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+        require(assetTokensReceivedInternal.isPosNotZero()); // dev: asset tokens negative or zero
 
         balanceState.finalize(account, accountContext, false);
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return SafeInt256.toUint(assetTokensReceivedInternal);
+        return SafeInt256.toUint(IA.unwrap(assetTokensReceivedInternal));
     }
 
     /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. Will settle
     /// and do free collateral checks if required. Can only be called by msg.sender, operators who want to withdraw for
     /// an account must do an authenticated call via ERC1155Action `safeTransferFrom` or `safeBatchTransferFrom`
     /// @param currencyId currency id of the asset token
-    /// @param amountInternalPrecision the amount of asset tokens in its native decimal precision
+    /// @param amountInternalPrecision_ the amount of asset tokens in its native decimal precision
     /// (i.e. 8 decimals for cTokens). This will be converted to 8 decimals during transfer if necessary.
     /// @param redeemToUnderlying true if the tokens should be converted to underlying assets
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
@@ -133,19 +135,20 @@ contract AccountAction is ActionGuards {
     // redeeming to underlying the amount will be the underlying amount received in that token's native precision)
     function withdraw(
         uint16 currencyId,
-        uint88 amountInternalPrecision,
+        uint88 amountInternalPrecision_,
         bool redeemToUnderlying
     ) external nonReentrant returns (uint256) {
         // This happens before reading the balance state to get the most up to date cash balance
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(msg.sender);
+        IA amountInternalPrecision = IA.wrap(int256(uint256(amountInternalPrecision_)));
 
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
-        require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
+        require(balanceState.storedCashBalance.gte(amountInternalPrecision), "Insufficient balance");
         // Overflow is not possible due to uint88
-        balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
+        balanceState.netAssetTransferInternalPrecision = amountInternalPrecision.neg();
 
-        int256 amountWithdrawn = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
+        int256 amountWithdrawnExternal = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
 
         accountContext.setAccountContext(msg.sender);
 
@@ -153,8 +156,8 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
         }
 
-        require(amountWithdrawn <= 0);
-        return amountWithdrawn.neg().toUint();
+        require(amountWithdrawnExternal <= 0);
+        return amountWithdrawnExternal.neg().toUint();
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also

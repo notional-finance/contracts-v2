@@ -36,7 +36,7 @@ contract nTokenRedeemAction is ActionGuards {
     /// @return amount of asset cash to return to the account, denominated in internal token decimals
     function nTokenRedeemViaBatch(uint16 currencyId, int256 tokensToRedeem)
         external
-        returns (int256)
+        returns (IA)
     {
         // Only self call allowed
         require(msg.sender == address(this), "Unauthorized caller");
@@ -49,7 +49,7 @@ contract nTokenRedeemAction is ActionGuards {
         ) = _redeem(currencyId, tokensToRedeem, true, blockTime);
 
         require(!hasResidual, "Cannot redeem via batch, residual");
-        return IA.unwrap(totalAssetCash);
+        return totalAssetCash;
     }
 
     /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets

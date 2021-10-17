@@ -9,6 +9,7 @@ import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
@@ -16,6 +17,7 @@ import "../../internal/AccountContextHandler.sol";
 import "interfaces/notional/NotionalCallback.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
+    using UserDefinedType for IA;
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
@@ -139,7 +141,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
 
             if (action.trades.length > 0) {
-                int256 netCash;
+                IA netCash;
                 if (accountContext.isBitmapEnabled()) {
                     require(
                         accountContext.bitmapCurrencyId == action.currencyId,
@@ -167,7 +169,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 }
 
                 // If the account owes cash after trading, ensure that it has enough
-                if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
+                if (netCash.isNegNotZero()) _checkSufficientCash(balanceState, netCash.neg());
                 balanceState.netCashChange = balanceState.netCashChange.add(netCash);
             }
 
@@ -200,7 +202,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         uint256 depositActionAmount_
     ) private {
         int256 depositActionAmount = SafeInt256.toInt(depositActionAmount_);
-        int256 assetInternalAmount;
+        IA assetInternalAmount;
         require(depositActionAmount >= 0);
 
         if (depositType == DepositActionType.None) {
@@ -224,7 +226,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
         } else if (depositType == DepositActionType.ConvertCashToNToken) {
             // _executeNTokenAction, will check if the account has sufficient cash
-            assetInternalAmount = depositActionAmount;
+            assetInternalAmount = IA.wrap(depositActionAmount);
         }
 
         _executeNTokenAction(
@@ -240,7 +242,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         BalanceState memory balanceState,
         DepositActionType depositType,
         int256 depositActionAmount,
-        int256 assetInternalAmount
+        IA assetInternalAmount
     ) private {
         // After deposits have occurred, check if we are minting nTokens
         if (
@@ -275,7 +277,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 depositActionAmount
             );
 
-            int256 assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
+            IA assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );
@@ -293,8 +295,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         bool withdrawEntireCashBalance,
         bool redeemToUnderlying
     ) private {
-        int256 withdrawAmount = SafeInt256.toInt(withdrawAmountInternalPrecision);
-        require(withdrawAmount >= 0); // dev: withdraw action overflow
+        IA withdrawAmount = IA.wrap(SafeInt256.toInt(withdrawAmountInternalPrecision));
+        require(withdrawAmount.isNegOrZero()); // dev: withdraw action overflow
 
         if (withdrawEntireCashBalance) {
             // This option is here so that accounts do not end up with dust after lending since we generally
@@ -304,7 +306,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 .add(balanceState.netAssetTransferInternalPrecision);
 
             // If the account has a negative cash balance then cannot withdraw
-            if (withdrawAmount < 0) withdrawAmount = 0;
+            if (withdrawAmount.isNegNotZero()) withdrawAmount = IA.wrap(0);
         }
 
         // prettier-ignore
@@ -328,16 +330,16 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
     /// @notice When lending, adding liquidity or minting nTokens the account must have a sufficient cash balance
     /// to do so.
-    function _checkSufficientCash(BalanceState memory balanceState, int256 amountInternalPrecision)
+    function _checkSufficientCash(BalanceState memory balanceState, IA amountInternalPrecision)
         private
         pure
     {
         // The total cash position at this point is: storedCashBalance + netCashChange + netAssetTransferInternalPrecision
         require(
-            amountInternalPrecision >= 0 &&
+            amountInternalPrecision.isPosOrZero() &&
                 balanceState.storedCashBalance
                 .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
+                .add(balanceState.netAssetTransferInternalPrecision).gte(amountInternalPrecision),
             "Insufficient cash"
         );
     }
