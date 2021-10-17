@@ -118,14 +118,14 @@ struct nTokenPortfolio {
 struct LiquidationFactors {
     address account;
     // Aggregate free collateral of the account denominated in ETH underlying, 8 decimal precision
-    int256 netETHValue;
+    IU netETHValue;
     // Amount of net local currency asset cash before haircuts and buffers available
-    int256 localAssetAvailable;
+    IA localAssetAvailable;
     // Amount of net collateral currency asset cash before haircuts and buffers available
-    int256 collateralAssetAvailable;
+    IA collateralAssetAvailable;
     // Haircut value of nToken holdings denominated in asset cash, will be local or collateral nTokens based
     // on liquidation type
-    int256 nTokenHaircutAssetValue;
+    IA nTokenHaircutAssetValue;
     // nToken parameters for calculating liquidation amount
     bytes6 nTokenParameters;
     // ETH exchange rate from local currency to ETH

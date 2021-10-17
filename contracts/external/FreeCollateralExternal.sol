@@ -3,10 +3,12 @@ pragma solidity ^0.8.9;
 pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
+import "../math/UserDefinedType.sol";
 import "../internal/valuation/FreeCollateral.sol";
 
 /// @title Externally deployed library for free collateral calculations
 library FreeCollateralExternal {
+    using UserDefinedType for IU;
     using AccountContextHandler for AccountContext;
 
     /// @notice Returns the ETH denominated free collateral of an account, represents the amount of
@@ -20,7 +22,7 @@ library FreeCollateralExternal {
     function getFreeCollateralView(address account)
         external
         view
-        returns (int256, int256[] memory)
+        returns (IU, IA[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // The internal free collateral function does not account for settled assets. The Notional SDK
@@ -37,14 +39,14 @@ library FreeCollateralExternal {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         require(!accountContext.mustSettleAssets(), "Assets not settled");
 
-        (int256 ethDenominatedFC, bool updateContext) =
+        (IU ethDenominatedFC, bool updateContext) =
             FreeCollateral.getFreeCollateralStateful(account, accountContext, block.timestamp);
 
         if (updateContext) {
             accountContext.setAccountContext(account);
         }
 
-        require(ethDenominatedFC >= 0, "Insufficient free collateral");
+        require(ethDenominatedFC.isPosOrZero(), "Insufficient free collateral");
     }
 
     /// @notice Calculates liquidation factors for an account

@@ -4,39 +4,39 @@ pragma abicoder v2;
 
 import "../balances/TokenHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/UserDefinedType.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 library ExchangeRate {
+    using UserDefinedType for IU;
     using SafeInt256 for int256;
 
     /// @notice Converts a balance to ETH from a base currency. Buffers or haircuts are
     /// always applied in this method.
     /// @param er exchange rate object from base to ETH
     /// @return the converted balance denominated in ETH with Constants.INTERNAL_TOKEN_PRECISION
-    function convertToETH(ETHRate memory er, int256 balance) internal pure returns (int256) {
-        int256 multiplier = balance > 0 ? er.haircut : er.buffer;
+    function convertToETH(ETHRate memory er, IU balance) internal pure returns (IU) {
+        int256 multiplier = balance.isPosNotZero() ? er.haircut : er.buffer;
 
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
         // internalDecimals * rateDecimals * multiplier /  (rateDecimals * multiplierDecimals)
         // Therefore the result is in ethDecimals
         int256 result =
-            balance.mul(er.rate).mul(multiplier).div(Constants.PERCENTAGE_DECIMALS).div(
+            IU.unwrap(balance).mul(er.rate).mul(multiplier).div(Constants.PERCENTAGE_DECIMALS).div(
                 er.rateDecimals
             );
 
-        return result;
+        return IU.wrap(result);
     }
 
     /// @notice Converts the balance denominated in ETH to the equivalent value in a base currency.
     /// Buffers and haircuts ARE NOT applied in this method.
     /// @param er exchange rate object from base to ETH
     /// @param balance amount (denominated in ETH) to convert
-    function convertETHTo(ETHRate memory er, int256 balance) internal pure returns (int256) {
+    function convertETHTo(ETHRate memory er, IU balance) internal pure returns (IU) {
         // We are converting internal balances here so we know they have INTERNAL_TOKEN_PRECISION decimals
         // internalDecimals * rateDecimals / rateDecimals
-        int256 result = balance.mul(er.rateDecimals).div(er.rate);
-
-        return result;
+        return balance.scale(er.rateDecimals, er.rate);
     }
 
     /// @notice Calculates the exchange rate between two currencies via ETH. Returns the rate denominated in
@@ -85,9 +85,9 @@ library ExchangeRate {
             ETHRate({
                 rateDecimals: rateDecimals,
                 rate: rate,
-                buffer: ethStorage.buffer,
-                haircut: ethStorage.haircut,
-                liquidationDiscount: ethStorage.liquidationDiscount
+                buffer: int256(uint256(ethStorage.buffer)),
+                haircut: int256(uint256(ethStorage.haircut)),
+                liquidationDiscount: int256(uint256(ethStorage.liquidationDiscount))
             });
     }
 }
