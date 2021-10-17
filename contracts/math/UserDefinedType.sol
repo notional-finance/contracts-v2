@@ -55,9 +55,18 @@ library UserDefinedType {
         return IA.unwrap(a) == IA.unwrap(b);
     }
 
-    function toStorage(IA a) internal pure returns (uint80) {
+    function neq(IA a, IA b) internal pure returns (bool) {
+        return IA.unwrap(a) != IA.unwrap(b);
+    }
+
+    function toMarketStorage(IA a) internal pure returns (uint80) {
         require(0 <= IA.unwrap(a) && IA.unwrap(a) <= int256(uint256(type(uint80).max))); // dev: storage overflow
         return uint80(uint256(IA.unwrap(a)));
+    }
+
+    function toBalanceStorage(IA a) internal pure returns (int88) {
+        require(type(int88).min <= IA.unwrap(a) && IA.unwrap(a) <= type(int88).max); // dev: stored cash balance overflow
+        return int88(IA.unwrap(a));
     }
 
     /**** INTERNAL UNDERLYING ****************/

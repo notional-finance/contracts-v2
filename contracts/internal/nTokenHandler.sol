@@ -10,8 +10,11 @@ import "./portfolio/BitmapAssetsHandler.sol";
 import "./portfolio/PortfolioHandler.sol";
 import "./balances/BalanceHandler.sol";
 import "../math/SafeInt256.sol";
+import "../math/UserDefinedType.sol";
 
 library nTokenHandler {
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
@@ -74,7 +77,7 @@ library nTokenHandler {
         mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
         nTokenContext storage context = store[tokenAddress];
 
-        require(liquidationHaircutPercentage <= Constants.PERCENTAGE_DECIMALS, "Invalid haircut");
+        require(int256(uint256(liquidationHaircutPercentage)) <= Constants.PERCENTAGE_DECIMALS, "Invalid haircut");
         // The pv haircut percentage must be less than the liquidation percentage or else liquidators will not
         // get profit for liquidating nToken.
         require(pvHaircutPercentage < liquidationHaircutPercentage, "Invalid pv haircut");
@@ -167,7 +170,7 @@ library nTokenHandler {
             mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
             nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
 
-            nTokenStorage.totalSupply = uint96(newTotalSupply);
+            nTokenStorage.totalSupply = uint96(uint256(newTotalSupply));
             // NOTE: overflows checked in calculateIntegralTotalSupply
             nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
             nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
@@ -224,7 +227,7 @@ library nTokenHandler {
             // This cannot overflow in uint 256 with 9 max slots
             shareSum = shareSum + depositShares[i];
             require(
-                leverageThresholds[i] > 0 && leverageThresholds[i] < Constants.RATE_PRECISION,
+                0 < leverageThresholds[i] && int256(uint256(leverageThresholds[i])) < Constants.RATE_PRECISION,
                 "PT: leverage threshold"
             );
         }
@@ -250,7 +253,7 @@ library nTokenHandler {
         for (uint256 i; i < proportions.length; i++) {
             // Proportions must be between zero and the rate precision
             require(
-                proportions[i] > 0 && proportions[i] < Constants.RATE_PRECISION,
+                0 < proportions[i] && int256(uint256(proportions[i])) < Constants.RATE_PRECISION,
                 "PT: invalid proportion"
             );
         }
@@ -280,9 +283,9 @@ library nTokenHandler {
         int256[] memory array1 = new int256[](maxMarketIndex);
         int256[] memory array2 = new int256[](maxMarketIndex);
         for (uint256 i; i < maxMarketIndex; i++) {
-            array1[i] = slot[index];
+            array1[i] = int256(uint256(slot[index]));
             index++;
-            array2[i] = slot[index];
+            array2[i] = int256(uint256(slot[index]));
             index++;
 
             if (noUnset) {
@@ -375,10 +378,10 @@ library nTokenHandler {
     function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
-        returns (int256)
+        returns (IA)
     {
-        int256 totalAssetPV;
-        int256 totalUnderlyingPV;
+        IA totalAssetPV;
+        IU totalUnderlyingPV;
 
         {
             uint256 nextSettleTime = getNextSettleTime(nToken);
@@ -405,7 +408,7 @@ library nTokenHandler {
             for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
                 // NOTE: getLiquidityTokenValue can rewrite fCash values in memory, however, that does not
                 // happen in this call because there are no fCash values in the nToken portfolio.
-                (int256 assetCashClaim, int256 pv) =
+                (IA assetCashClaim, IU pv) =
                     AssetHandler.getLiquidityTokenValue(
                         i,
                         nToken.cashGroup,
@@ -423,7 +426,7 @@ library nTokenHandler {
         // Then iterate over bitmapped assets and get present value
         // prettier-ignore
         (
-            int256 bitmapPv, 
+            IU bitmapPv, 
             /* hasDebt */
         ) = BitmapAssetsHandler.getifCashNetPresentValue(
             nToken.tokenAddress,

@@ -108,7 +108,7 @@ struct nTokenPortfolio {
     CashGroupParameters cashGroup;
     PortfolioState portfolioState;
     int256 totalSupply;
-    int256 cashBalance;
+    IA cashBalance;
     uint256 lastInitializedTime;
     bytes6 parameters;
     address tokenAddress;
@@ -170,13 +170,13 @@ struct ETHRate {
 struct BalanceState {
     uint16 currencyId;
     // Cash balance stored in balance state at the beginning of the transaction
-    int256 storedCashBalance;
+    IA storedCashBalance;
     // nToken balance stored at the beginning of the transaction
     int256 storedNTokenBalance;
     // The net cash change as a result of asset settlement or trading
-    int256 netCashChange;
+    IA netCashChange;
     // Net asset transfers into or out of the account
-    int256 netAssetTransferInternalPrecision;
+    IA netAssetTransferInternalPrecision;
     // Net token transfers into or out of the account
     int256 netNTokenTransfer;
     // Net token supply change from minting or redeeming

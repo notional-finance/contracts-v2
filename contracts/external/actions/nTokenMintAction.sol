@@ -27,7 +27,7 @@ library nTokenMintAction {
     /// @param currencyId the currency associated the nToken
     /// @param amountToDepositInternal the amount of asset tokens to deposit denominated in internal decimals
     /// @return nTokens minted by this action
-    function nTokenMint(uint16 currencyId, int256 amountToDepositInternal)
+    function nTokenMint(uint16 currencyId, IA amountToDepositInternal)
         external
         returns (int256)
     {

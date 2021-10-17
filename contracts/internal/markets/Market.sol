@@ -676,7 +676,7 @@ library Market {
         require(0 <= previousTradeTime && previousTradeTime <= type(uint32).max); // dev: storage previous trade time overflow
 
         marketStorage.totalfCash = totalfCash.toStorage();
-        marketStorage.totalAssetCash = totalAssetCash.toStorage();
+        marketStorage.totalAssetCash = totalAssetCash.toMarketStorage();
         marketStorage.lastImpliedRate = uint32(lastImpliedRate);
         marketStorage.oracleRate = uint32(oracleRate);
         marketStorage.previousTradeTime = uint32(previousTradeTime);
