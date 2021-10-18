@@ -121,6 +121,7 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
+        IU localUnderlyingFromLiquidator = IU.wrap(0);
         // If local asset available == 0 then there is nothing that this liquidation can do.
         require(c.factors.localAssetAvailable.isNotZero());
 
@@ -203,9 +204,7 @@ library LiquidatefCash {
 
             // NOTE: localAssetCashFromLiquidator is actually in underlying terms during this loop, it is converted to asset terms just once
             // at the end of the loop to limit loss of precision
-            c.localAssetCashFromLiquidator = c.localAssetCashFromLiquidator.add(
-                fCashLiquidationValueUnderlying
-            );
+            localUnderlyingFromLiquidator = localUnderlyingFromLiquidator.add(fCashLiquidationValueUnderlying);
             c.localCashBalanceUnderlying = c.localCashBalanceUnderlying.add(
                 fCashLiquidationValueUnderlying
             );
@@ -222,9 +221,7 @@ library LiquidatefCash {
         }
 
         // Convert local to purchase to asset terms for transfers
-        c.localAssetCashFromLiquidator = c.factors.localAssetRate.convertFromUnderlying(
-            c.localAssetCashFromLiquidator
-        );
+        c.localAssetCashFromLiquidator = c.factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
     }
 
     /// @notice Allows the liquidator to purchase fCash in a different currency that a debt is denominated in.
@@ -244,11 +241,10 @@ library LiquidatefCash {
             // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
             // for the purposes of this method. The underlyingBenefitRequired is denominated in collateral currency
             // and equivalent to convertToCollateral(netETHValue.neg()).
-            (c.underlyingBenefitRequired, c.liquidationDiscount) = LiquidationHelpers
+            IA tmp;
+            (tmp, c.liquidationDiscount) = LiquidationHelpers
                 .calculateCrossCurrencyFactors(c.factors);
-            c.underlyingBenefitRequired = c.factors.collateralCashGroup.assetRate.convertToUnderlying(
-                c.underlyingBenefitRequired
-            );
+            c.underlyingBenefitRequired = c.factors.collateralCashGroup.assetRate.convertToUnderlying(tmp);
         }
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
@@ -379,12 +375,14 @@ library LiquidatefCash {
         }
 
         IA localAssetCashFromLiquidator;
-        (fCashToLiquidate, localAssetCashFromLiquidator) = LiquidationHelpers.calculateLocalToPurchase(
+        int256 tmp;
+        (tmp, localAssetCashFromLiquidator) = LiquidationHelpers.calculateLocalToPurchase(
             c.factors,
             c.liquidationDiscount,
             fCashLiquidationUnderlyingPV,
-            fCashToLiquidate
+            IU.unwrap(fCashToLiquidate)
         );
+        fCashToLiquidate = IU.wrap(tmp);
 
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.

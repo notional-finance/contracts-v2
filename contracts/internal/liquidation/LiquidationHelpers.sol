@@ -162,8 +162,8 @@ library LiquidationHelpers {
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
         IU collateralUnderlyingPresentValue,
-        IA collateralAssetBalanceToSell
-    ) internal pure returns (IA, IA) {
+        int256 collateralBalanceToSell
+    ) internal pure returns (int256, IA) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
         IU localUnderlyingFromLiquidator = IU.wrap(
@@ -184,13 +184,14 @@ library LiquidationHelpers {
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
             // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
-            collateralAssetBalanceToSell = collateralAssetBalanceToSell
-                .scale(IA.unwrap(maxLocalAsset), IA.unwrap(localAssetFromLiquidator));
+            collateralBalanceToSell = collateralBalanceToSell
+                .mul(IA.unwrap(maxLocalAsset))
+                .div(IA.unwrap(localAssetFromLiquidator));
 
             localAssetFromLiquidator = maxLocalAsset;
         }
 
-        return (collateralAssetBalanceToSell, localAssetFromLiquidator);
+        return (collateralBalanceToSell, localAssetFromLiquidator);
     }
 
     function finalizeLiquidatorLocal(

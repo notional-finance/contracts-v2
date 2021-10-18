@@ -247,7 +247,7 @@ library LiquidateCurrency {
                 factors,
                 liquidationDiscount,
                 collateralUnderlyingPresentValue,
-                actualCollateralAssetSold
+                IA.unwrap(actualCollateralAssetSold)
             );
         }
 
@@ -312,17 +312,18 @@ library LiquidateCurrency {
         ));
 
         // In this case the collateral asset present value and the collateral asset balance to sell are the same
-        // value since cash is always equal to present value. That is why the last two parameters in calculateLocalToPurchase
-        // are the same value.
+        // value since cash is always equal to present value.
+        int256 tmp;
         IU collateralUnderlyingPresentValue =
             factors.collateralCashGroup.assetRate.convertToUnderlying(requiredCollateralAssetCash);
-        (requiredCollateralAssetCash, localAssetCashFromLiquidator) = LiquidationHelpers
+        (tmp, localAssetCashFromLiquidator) = LiquidationHelpers
             .calculateLocalToPurchase(
                 factors,
                 liquidationDiscount,
                 collateralUnderlyingPresentValue,
-                requiredCollateralAssetCash
+                IA.unwrap(requiredCollateralAssetCash)
             );
+        requiredCollateralAssetCash = IA.wrap(tmp);
 
         return (requiredCollateralAssetCash, localAssetCashFromLiquidator, liquidationDiscount);
     }
