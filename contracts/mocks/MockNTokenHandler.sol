@@ -125,7 +125,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
     function getNTokenAssetPV(uint16 currencyId, uint256 blockTime)
         external
         view
-        returns (int256)
+        returns (IA)
     {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);

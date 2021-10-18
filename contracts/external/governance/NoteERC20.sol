@@ -239,7 +239,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         require(block.timestamp <= expiry, "Note::delegateBySig: signature expired");
         bytes32 domainSeparator =
             keccak256(
-                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), _getChainId(), address(this))
+                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), block.chainid, address(this))
             );
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
@@ -410,13 +410,5 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
     ) private pure returns (uint96) {
         require(b <= a, errorMessage);
         return a - b;
-    }
-
-    function _getChainId() private pure returns (uint256) {
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
-        return chainId;
     }
 }

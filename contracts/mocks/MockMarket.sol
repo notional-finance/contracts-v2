@@ -8,6 +8,9 @@ import "../internal/markets/Market.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockMarket is StorageLayoutV1 {
+    using UserDefinedType for LT;
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
     using AssetRate for AssetRateParameters;
@@ -35,11 +38,11 @@ contract MockMarket is StorageLayoutV1 {
     }
 
     function getExchangeRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
+        IU totalfCash,
+        IU totalCashUnderlying,
         int256 rateScalar,
         int256 rateAnchor,
-        int256 fCashAmount
+        IU fCashAmount
     ) external pure returns (int256, bool) {
         return
             Market._getExchangeRate(
@@ -56,8 +59,8 @@ contract MockMarket is StorageLayoutV1 {
     }
 
     function getImpliedRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
+        IU totalfCash,
+        IU totalCashUnderlying,
         int256 rateScalar,
         int256 rateAnchor,
         uint256 timeToMaturity
@@ -73,9 +76,9 @@ contract MockMarket is StorageLayoutV1 {
     }
 
     function getRateAnchor(
-        int256 totalfCash,
+        IU totalfCash,
         uint256 lastImpliedRate,
-        int256 totalCashUnderlying,
+        IU totalCashUnderlying,
         int256 rateScalar,
         uint256 timeToMaturity
     ) external pure returns (int256, bool) {
@@ -92,7 +95,7 @@ contract MockMarket is StorageLayoutV1 {
     function calculateTrade(
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup,
-        int256 fCashAmount,
+        IU fCashAmount,
         uint256 timeToMaturity,
         uint256 marketIndex
     )
@@ -100,42 +103,42 @@ contract MockMarket is StorageLayoutV1 {
         view
         returns (
             MarketParameters memory,
-            int256,
-            int256
+            IA,
+            IA
         )
     {
-        (int256 assetCash, int256 fee) =
+        (IA assetCash, IA fee) =
             marketState.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         return (marketState, assetCash, fee);
     }
 
-    function addLiquidity(MarketParameters memory marketState, int256 assetCash)
+    function addLiquidity(MarketParameters memory marketState, IA assetCash)
         public
         returns (
             MarketParameters memory,
-            int256,
-            int256
+            LT,
+            IU
         )
     {
-        (int256 liquidityTokens, int256 fCash) = marketState.addLiquidity(assetCash);
-        assert(liquidityTokens >= 0);
-        assert(fCash <= 0);
+        (LT liquidityTokens, IU fCash) = marketState.addLiquidity(assetCash);
+        assert(LT.unwrap(liquidityTokens) >= 0);
+        assert(fCash.isNegOrZero());
         return (marketState, liquidityTokens, fCash);
     }
 
-    function removeLiquidity(MarketParameters memory marketState, int256 tokensToRemove)
+    function removeLiquidity(MarketParameters memory marketState, LT tokensToRemove)
         public
         returns (
             MarketParameters memory,
-            int256,
-            int256
+            IA,
+            IU
         )
     {
-        (int256 assetCash, int256 fCash) = marketState.removeLiquidity(tokensToRemove);
+        (IA assetCash, IU fCash) = marketState.removeLiquidity(tokensToRemove);
 
-        assert(assetCash >= 0);
-        assert(fCash >= 0);
+        assert(assetCash.isPosOrZero());
+        assert(fCash.isPosOrZero());
         return (marketState, assetCash, fCash);
     }
 
@@ -173,19 +176,19 @@ contract MockMarket is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         uint256 marketIndex,
         uint256 timeToMaturity
-    ) external pure returns (int256, int256, int256) {
+    ) external pure returns (int256, IU, int256) {
         return Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
     }
 
     function getfCashAmountGivenCashAmount(
         MarketParameters memory market,
         CashGroupParameters memory cashGroup,
-        int256 netCashToAccount,
+        IU netCashToAccount,
         uint256 marketIndex,
         uint256 timeToMaturity,
         int256 maxfCashDelta
-    ) external pure returns (int256) {
-        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
+    ) external pure returns (IU) {
+        (int256 rateScalar, IU totalCashUnderlying, int256 rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         // Rate scalar can never be zero so this signifies a failure and we return zero
         if (rateScalar == 0) revert();

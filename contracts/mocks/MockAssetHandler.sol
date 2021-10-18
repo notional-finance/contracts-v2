@@ -8,6 +8,8 @@ import "../global/StorageLayoutV1.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract MockAssetHandler is StorageLayoutV1 {
+    using UserDefinedType for IA;
+    using UserDefinedType for IU;
     using SafeInt256 for int256;
     using AssetHandler for PortfolioAsset;
     using Market for MarketParameters;
@@ -53,27 +55,27 @@ contract MockAssetHandler is StorageLayoutV1 {
     }
 
     function getPresentValue(
-        int256 notional,
+        IU notional,
         uint256 maturity,
         uint256 blockTime,
         uint256 oracleRate
-    ) public pure returns (int256) {
-        int256 pv = AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
-        if (notional > 0) assert(pv > 0);
-        if (notional < 0) assert(pv < 0);
+    ) public pure returns (IU) {
+        IU pv = AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
+        if (notional.isPosNotZero()) assert(pv.isPosNotZero());
+        if (notional.isNegNotZero()) assert(pv.isNegNotZero());
 
-        assert(pv.abs() <= notional.abs());
+        assert(pv.abs().lte(notional.abs()));
         return pv;
     }
 
     function getRiskAdjustedPresentValue(
         CashGroupParameters memory cashGroup,
-        int256 notional,
+        IU notional,
         uint256 maturity,
         uint256 blockTime,
         uint256 oracleRate
-    ) public pure returns (int256) {
-        int256 riskPv =
+    ) public pure returns (IU) {
+        IU riskPv =
             AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
@@ -81,22 +83,22 @@ contract MockAssetHandler is StorageLayoutV1 {
                 blockTime,
                 oracleRate
             );
-        int256 pv = getPresentValue(notional, maturity, blockTime, oracleRate);
+        IU pv = getPresentValue(notional, maturity, blockTime, oracleRate);
 
-        assert(riskPv <= pv);
-        assert(riskPv.abs() <= notional.abs());
+        assert(riskPv.lte(pv));
+        assert(riskPv.abs().lte(notional.abs()));
         return riskPv;
     }
 
     function getCashClaims(
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState
-    ) public pure returns (int256, int256) {
-        (int256 cash, int256 fCash) = liquidityToken.getCashClaims(marketState);
-        assert(cash > 0);
-        assert(fCash > 0);
-        assert(cash <= marketState.totalAssetCash);
-        assert(fCash <= marketState.totalfCash);
+    ) public pure returns (IA, IU) {
+        (IA cash, IU fCash) = liquidityToken.getCashClaims(marketState);
+        assert(cash.isPosNotZero());
+        assert(fCash.isPosNotZero());
+        assert(cash.lte(marketState.totalAssetCash));
+        assert(fCash.lte(marketState.totalfCash));
 
         return (cash, fCash);
     }
@@ -105,13 +107,13 @@ contract MockAssetHandler is StorageLayoutV1 {
         PortfolioAsset memory liquidityToken,
         MarketParameters memory marketState,
         CashGroupParameters memory cashGroup
-    ) public pure returns (int256, int256) {
-        (int256 haircutCash, int256 haircutfCash) =
+    ) public pure returns (IA, IU) {
+        (IA haircutCash, IU haircutfCash) =
             liquidityToken.getHaircutCashClaims(marketState, cashGroup);
-        (int256 cash, int256 fCash) = liquidityToken.getCashClaims(marketState);
+        (IA cash, IU fCash) = liquidityToken.getCashClaims(marketState);
 
-        assert(haircutCash < cash);
-        assert(haircutfCash < fCash);
+        assert(haircutCash.lt(cash));
+        assert(haircutfCash.lt(fCash));
 
         return (haircutCash, haircutfCash);
     }
@@ -125,13 +127,13 @@ contract MockAssetHandler is StorageLayoutV1 {
         public
         view
         returns (
-            int256,
-            int256,
+            IA,
+            IU,
             PortfolioAsset[] memory
         )
     {
         MarketParameters memory market;
-        (int256 assetValue, int256 pv) =
+        (IA assetValue, IU pv) =
             AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, true);
 
         return (assetValue, pv, assets);
@@ -146,13 +148,13 @@ contract MockAssetHandler is StorageLayoutV1 {
         public
         view
         returns (
-            int256,
-            int256,
+            IA,
+            IU,
             PortfolioAsset[] memory
         )
     {
         MarketParameters memory market;
-        (int256 assetValue, int256 pv) =
+        (IA assetValue, IU pv) =
             AssetHandler.getLiquidityTokenValue(index, cashGroup, market, assets, blockTime, false);
 
         return (assetValue, pv, assets);
@@ -163,7 +165,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         uint256 blockTime,
         uint256 portfolioIndex
-    ) public view returns (int256, uint256) {
+    ) public view returns (IA, uint256) {
         MarketParameters memory market;
         return
             AssetHandler.getNetCashGroupValue(assets, cashGroup, market, blockTime, portfolioIndex);

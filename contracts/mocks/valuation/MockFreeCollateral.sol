@@ -6,18 +6,20 @@ import "../../internal/valuation/FreeCollateral.sol";
 import "./MockValuationLib.sol";
 
 contract MockFreeCollateral is MockValuationBase {
+    using UserDefinedType for IU;
+    using UserDefinedType for IA;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
     event Liquidation(LiquidationFactors factors);
-    event FreeCollateralResult(int256 fc, int256[] netLocal);
+    event FreeCollateralResult(IU fc, IA[] netLocal);
     event AccountContextUpdate(address indexed account);
 
     function getNetCashGroupValue(
         PortfolioAsset[] memory assets,
         uint256 blockTime,
         uint256 portfolioIndex
-    ) external view returns (int256, uint256) {
+    ) external view returns (IA, uint256) {
         uint16 currencyId = uint16(assets[portfolioIndex].currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         MarketParameters memory market;
@@ -33,7 +35,7 @@ contract MockFreeCollateral is MockValuationBase {
     function getFreeCollateralView(address account, uint256 blockTime)
         external
         view
-        returns (int256, int256[] memory)
+        returns (IU, IA[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
@@ -41,10 +43,10 @@ contract MockFreeCollateral is MockValuationBase {
 
     function getFreeCollateralStateful(address account, uint256 blockTime)
         external
-        returns (int256, bool)
+        returns (IU, bool)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        (int256 ethFC, bool updateContext) = FreeCollateral.getFreeCollateralStateful(account, accountContext, blockTime);
+        (IU ethFC, bool updateContext) = FreeCollateral.getFreeCollateralStateful(account, accountContext, blockTime);
         if (updateContext) accountContext.setAccountContext(account);
 
         return (ethFC, updateContext);
@@ -64,31 +66,31 @@ contract MockFreeCollateral is MockValuationBase {
 
     function testFreeCollateral(address account, uint256 blockTime)
         external
-        returns (int256, int256[] memory)
+        returns (IU, IA[] memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        (int256 fcView, int256[] memory netLocal) =
+        (IU fcView, IA[] memory netLocal) =
             FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
 
         AccountContext memory accountContextNew =
             AccountContextHandler.getAccountContext(account);
 
         // prettier-ignore
-        (int256 ethDenominatedFC, bool updateContext) =
+        (IU ethDenominatedFC, bool updateContext) =
             FreeCollateral.getFreeCollateralStateful(account, accountContextNew, blockTime);
 
         if (updateContext) {
             accountContextNew.setAccountContext(account);
         }
 
-        assert(fcView == ethDenominatedFC);
+        assert(fcView.eq(ethDenominatedFC));
 
-        if (fcView < 0) {
+        if (fcView.isNegNotZero()) {
             (LiquidationFactors memory factors, /* */) = FreeCollateral.getLiquidationFactors(
                 account, accountContext, blockTime, 1, 0);
             emit Liquidation(factors);
 
-            assert(fcView == factors.netETHValue);
+            assert(fcView.eq(factors.netETHValue));
         }
 
         emit FreeCollateralResult(fcView, netLocal);

@@ -45,9 +45,9 @@ contract MockBalanceHandler is StorageLayoutV1 {
 
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
-        require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
+        require(nTokenBalance >= 0 && nTokenBalance <= int256(uint256(type(uint80).max))); // dev: stored nToken balance overflow
 
-        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        balanceStorage.nTokenBalance = uint80(uint256(nTokenBalance));
         balanceStorage.cashBalance = int88(cashBalance);
         balanceStorage.lastClaimTime = 0;
         balanceStorage.packedLastClaimIntegralSupply = 0;
@@ -80,8 +80,8 @@ contract MockBalanceHandler is StorageLayoutV1 {
         address account,
         int256 assetAmountExternal,
         bool forceTransfer
-    ) external returns (BalanceState memory, int256) {
-        int256 assetAmountInternal = balanceState.depositAssetToken(
+    ) external returns (BalanceState memory, IA) {
+        IA assetAmountInternal = balanceState.depositAssetToken(
             account,
             assetAmountExternal,
             forceTransfer
@@ -94,8 +94,8 @@ contract MockBalanceHandler is StorageLayoutV1 {
         BalanceState memory balanceState,
         address account,
         int256 underlyingAmountExternal
-    ) external returns (BalanceState memory, int256) {
-        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+    ) external returns (BalanceState memory, IA) {
+        IA assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
             account,
             underlyingAmountExternal
         );

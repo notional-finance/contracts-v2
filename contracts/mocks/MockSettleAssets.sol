@@ -22,7 +22,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint256 currencyId,
         uint256 maturity
-    ) public view returns (int256) {
+    ) public view returns (IU) {
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
@@ -91,7 +91,7 @@ contract MockSettleAssets is StorageLayoutV1 {
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional,
+        IU notional,
         uint256 nextSettleTime
     ) external {
         BitmapAssetsHandler.addifCashAsset(
@@ -154,7 +154,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     }
 
     bytes32 public newBitmapStorage;
-    int256 public totalAssetCash;
+    IA public totalAssetCash;
 
     function _settleBitmappedCashGroup(
         address account,
@@ -165,7 +165,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (int256 newAssetCash, /* uint256 blockTimeUTC0 */) =
+        (IA newAssetCash, /* uint256 blockTimeUTC0 */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -181,8 +181,8 @@ contract MockSettleAssets is StorageLayoutV1 {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external returns (int256, uint256) {
-        (int256 newAssetCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
+    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external returns (IA, uint256) {
+        (IA newAssetCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
             account,
             currencyId,
             nextSettleTime,

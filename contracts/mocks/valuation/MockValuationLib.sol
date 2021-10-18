@@ -46,8 +46,8 @@ library MockValuationLib {
     function setNTokenValue(
         uint16 currencyId,
         address nTokenAddress,
-        uint96 totalSupply,
-        int88 cashBalance,
+        int256 totalSupply,
+        IA cashBalance,
         uint8 pvHaircutPercentage,
         uint8 liquidationHaircutPercentage
     ) public {
@@ -88,7 +88,7 @@ library MockValuationLib {
             .getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
-        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        balanceStorage.nTokenBalance = uint80(uint256(nTokenBalance));
         balanceStorage.cashBalance = int88(cashBalance);
     }
 
@@ -125,43 +125,43 @@ library MockValuationLib {
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional
+        IU notional
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
+        IU finalNotional = BitmapAssetsHandler.addifCashAsset(
             account,
             currencyId,
             maturity,
             accountContext.nextSettleTime,
             notional
         );
-        if (finalNotional < 0)
+        if (IU.unwrap(finalNotional) < 0)
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_ASSET_DEBT;
 
         accountContext.setAccountContext(account);
     }
 
     // View Methods Start Here
-    function convertToUnderlying(uint256 currencyId, int256 balance) public view returns (int256) {
+    function convertToUnderlying(uint256 currencyId, IA balance) public view returns (IU) {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
         return AssetRate.convertToUnderlying(assetRate, balance);
     }
 
-    function convertFromUnderlying(uint256 currencyId, int256 balance)
+    function convertFromUnderlying(uint256 currencyId, IU balance)
         public
         view
-        returns (int256)
+        returns (IA)
     {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
         return AssetRate.convertFromUnderlying(assetRate, balance);
     }
 
-    function convertToETH(uint256 currencyId, int256 balance) public view returns (int256) {
+    function convertToETH(uint256 currencyId, IU balance) public view returns (IU) {
         ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
         return ExchangeRate.convertToETH(ethRate, balance);
     }
 
-    function convertETHTo(uint256 currencyId, int256 balance) public view returns (int256) {
+    function convertETHTo(uint256 currencyId, IU balance) public view returns (IU) {
         ETHRate memory ethRate = ExchangeRate.buildExchangeRate(currencyId);
         return ExchangeRate.convertETHTo(ethRate, balance);
     }
@@ -221,7 +221,7 @@ library MockValuationLib {
         }
     }
 
-    function getNTokenPV(uint16 currencyId) external view returns (int256) {
+    function getNTokenPV(uint16 currencyId) external view returns (IA) {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
         return nToken.getNTokenAssetPV(block.timestamp);
@@ -241,7 +241,7 @@ library MockValuationLib {
     function getRiskAdjustedPresentfCashValue(PortfolioAsset memory asset, uint256 blockTime)
         external
         view
-        returns (int256)
+        returns (IU)
     {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(
             uint16(asset.currencyId)
@@ -250,7 +250,7 @@ library MockValuationLib {
         return
             AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
-                asset.notional,
+                IU.wrap(asset.notional),
                 asset.maturity,
                 blockTime,
                 cashGroup.calculateOracleRate(asset.maturity, blockTime)
@@ -258,11 +258,11 @@ library MockValuationLib {
     }
 
     function getPresentfCashValue(
-        int256 notional,
+        IU notional,
         uint256 maturity,
         uint256 blockTime,
         uint256 oracleRate
-    ) external pure returns (int256) {
+    ) external pure returns (IU) {
         return
             AssetHandler.getPresentfCashValue(
                 notional,
@@ -309,8 +309,8 @@ contract MockValuationBase {
     function setNTokenValue(
         uint16 currencyId,
         address nTokenAddress,
-        uint96 totalSupply,
-        int88 cashBalance,
+        int256 totalSupply,
+        IA cashBalance,
         uint8 pvHaircutPercentage,
         uint8 liquidationHaircutPercentage
     ) public {
@@ -361,7 +361,7 @@ contract MockValuationBase {
         address account,
         uint256 currencyId,
         uint256 maturity,
-        int256 notional
+        IU notional
     ) external {
         MockValuationLib.setifCashAsset(account, currencyId, maturity, notional);
     }
@@ -406,7 +406,7 @@ contract MockValuationBase {
     function getRiskAdjustedPresentfCashValue(PortfolioAsset memory asset, uint256 blockTime)
         external
         view
-        returns (int256)
+        returns (IU)
     {
         return MockValuationLib.getRiskAdjustedPresentfCashValue(asset, blockTime);
     }
@@ -444,11 +444,11 @@ contract MockValuationBase {
     }
 
     function getPresentfCashValue(
-        int256 notional,
+        IU notional,
         uint256 maturity,
         uint256 blockTime,
         uint256 oracleRate
-    ) external pure returns (int256) {
+    ) external pure returns (IU) {
         return MockValuationLib.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
     }
 

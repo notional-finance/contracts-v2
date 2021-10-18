@@ -434,7 +434,7 @@ contract GovernorAlpha is TimelockController {
     ) public {
         bytes32 domainSeparator =
             keccak256(
-                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), _getChainId(), address(this))
+                abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), block.chainid, address(this))
             );
         bytes32 structHash = keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
@@ -542,14 +542,5 @@ contract GovernorAlpha is TimelockController {
         uint32 c = a + b;
         require(c >= a, "addition overflow");
         return c;
-    }
-
-    /// @dev Helper method for signature check
-    function _getChainId() private pure returns (uint256) {
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
-        return chainId;
     }
 }

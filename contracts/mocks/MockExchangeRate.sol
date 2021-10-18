@@ -40,7 +40,7 @@ contract MockExchangeRate is StorageLayoutV1 {
 
     function convertToETH(ETHRate memory er, int256 balance) external pure returns (int256) {
         require(er.rate > 0);
-        int256 result = er.convertToETH(balance);
+        int256 result = IU.unwrap(er.convertToETH(IU.wrap(balance)));
         assertBalanceSign(balance, result);
 
         return result;
@@ -48,7 +48,7 @@ contract MockExchangeRate is StorageLayoutV1 {
 
     function convertETHTo(ETHRate memory er, int256 balance) external pure returns (int256) {
         require(er.rate > 0);
-        int256 result = er.convertETHTo(balance);
+        int256 result = IU.unwrap(er.convertETHTo(IU.wrap(balance)));
         assertBalanceSign(balance, result);
         assertRateDirection(result, balance, er);
 
