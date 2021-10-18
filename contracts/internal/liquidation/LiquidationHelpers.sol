@@ -155,13 +155,15 @@ library LiquidationHelpers {
     /// @notice Calculates the local to purchase in cross currency liquidations. Ensures that local to purchase
     /// is not so large that the account is put further into debt.
     /// @return
-    ///     collateralAssetBalanceToSell: the amount of collateral asset balance to be sold to the liquidator
+    ///     collateralBalanceToSell: the amount of collateral balance to be sold to the liquidator (it can either
+    ///     be asset cash in the case of currency liquidations or fcash in the case of cross currency fcash liquidation,
+    ///     this is scaled by a unitless proportion in the method).
     ///     localAssetFromLiquidator: the amount of asset cash from the liquidator
     function calculateLocalToPurchase(
         LiquidationFactors memory factors,
         int256 liquidationDiscount,
         int256 collateralUnderlyingPresentValue,
-        int256 collateralAssetBalanceToSell
+        int256 collateralBalanceToSell
     ) internal pure returns (int256, int256) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
@@ -182,14 +184,14 @@ library LiquidationHelpers {
             // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
             // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
-            collateralAssetBalanceToSell = collateralAssetBalanceToSell
+            collateralBalanceToSell = collateralBalanceToSell
                 .mul(maxLocalAsset)
                 .div(localAssetFromLiquidator);
 
             localAssetFromLiquidator = maxLocalAsset;
         }
 
-        return (collateralAssetBalanceToSell, localAssetFromLiquidator);
+        return (collateralBalanceToSell, localAssetFromLiquidator);
     }
 
     function finalizeLiquidatorLocal(

@@ -145,7 +145,7 @@ contract AccountAction is ActionGuards {
         // Overflow is not possible due to uint88
         balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
 
-        int256 amountWithdrawn = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
+        int256 amountWithdrawnExternal = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
 
         accountContext.setAccountContext(msg.sender);
 
@@ -153,8 +153,8 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
         }
 
-        require(amountWithdrawn <= 0);
-        return amountWithdrawn.neg().toUint();
+        require(amountWithdrawnExternal <= 0);
+        return amountWithdrawnExternal.neg().toUint();
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also
