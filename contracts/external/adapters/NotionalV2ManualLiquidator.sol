@@ -95,8 +95,6 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator {
     // tradeAll
 
     function executeDexTrade(
-        address from,
-        address to,
         uint256 amountIn,
         uint256 amountOutMin,
         bytes memory params

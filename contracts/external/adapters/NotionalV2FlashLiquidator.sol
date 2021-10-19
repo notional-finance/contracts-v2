@@ -223,8 +223,6 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         }
 
         executeDexTrade(
-            collateralUnderlyingAddress,
-            to,
             IERC20(collateralUnderlyingAddress).balanceOf(address(this)),
             amount.sub(bal).add(premium), // Amount needed to pay back flash loan
             tradeCallData

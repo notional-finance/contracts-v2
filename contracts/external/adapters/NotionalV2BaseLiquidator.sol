@@ -57,8 +57,6 @@ abstract contract NotionalV2BaseLiquidator {
     }
 
     function executeDexTrade(
-        address from,
-        address to,
         uint256 amountIn,
         uint256 amountOutMin,
         bytes memory params
