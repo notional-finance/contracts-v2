@@ -31,6 +31,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 library InitializeMarketsAction {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
+    using UserDefinedType for IR;
     using Bitmap for bytes32;
     using SafeMath for uint256;
     using SafeInt256 for int256;
@@ -182,8 +183,8 @@ library InitializeMarketsAction {
         bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
         // This buffer is denominated in rate precision with 10 basis point increments. It is used to shift the
         // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
-        uint256 oracleRateBuffer =
-            uint256(uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS;
+        IR oracleRateBuffer =
+            IR.wrap((uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS);
 
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
@@ -215,7 +216,7 @@ library InitializeMarketsAction {
 
             // Withholding only applies for negative cash balances
             if (notional.isNegNotZero()) {
-                uint256 oracleRate;
+                IR oracleRate;
                 if (previousMarkets.length > 0) {
                     // During initialize markets we will have access to the previous markets
                     // and their oracle rates.
@@ -229,8 +230,8 @@ library InitializeMarketsAction {
                     oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
                 }
 
-                if (oracleRateBuffer > oracleRate) {
-                    oracleRate = 0;
+                if (oracleRateBuffer.gt(oracleRate)) {
+                    oracleRate = IR.wrap(0);
                 } else {
                     oracleRate = oracleRate.sub(oracleRateBuffer);
                 }
@@ -253,7 +254,7 @@ library InitializeMarketsAction {
         MarketParameters[] memory markets,
         uint256 maturity,
         uint256 blockTime
-    ) private pure returns (uint256) {
+    ) private pure returns (IR) {
         // Get the market index referenced in the previous quarter
         (uint256 marketIndex, bool idiosyncratic) =
             DateTime.getMarketIndex(
@@ -315,7 +316,7 @@ library InitializeMarketsAction {
     function _getSixMonthImpliedRate(
         MarketParameters[] memory previousMarkets,
         uint256 referenceTime
-    ) private pure returns (uint256) {
+    ) private pure returns (IR) {
         // Cannot interpolate six month rate without a 1 year market
         require(previousMarkets.length >= 3, "IM: six month error");
 
@@ -323,8 +324,8 @@ library InitializeMarketsAction {
             CashGroup.interpolateOracleRate(
                 previousMarkets[1].maturity,
                 previousMarkets[2].maturity,
-                previousMarkets[1].oracleRate,
-                previousMarkets[2].oracleRate,
+                IR.unwrap(previousMarkets[1].oracleRate),
+                IR.unwrap(previousMarkets[2].oracleRate),
                 // Maturity date == 6 months from reference time
                 referenceTime + 2 * Constants.QUARTER
             );
@@ -342,14 +343,14 @@ library InitializeMarketsAction {
     ///    exp = proportion * (1 + exp)
     ///    proportion = exp / (1 + exp)
     function _getProportionFromOracleRate(
-        uint256 oracleRate,
+        IR oracleRate,
         uint256 timeToMaturity,
         int256 rateScalar,
-        uint256 annualizedAnchorRate
+        IR annualizedAnchorRate
     ) private pure returns (int256) {
-        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
+        int256 rateAnchor = ER.unwrap(Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity));
         // Exchange rate value here will be floored at Constants.RATE_PRECISION when the oracleRate is zero
-        int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
+        int256 exchangeRate = ER.unwrap(Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity));
 
         int128 expValue = ABDKMath64x64.fromInt(
             // (exchangeRate - rateAnchor) * rateScalar
@@ -378,11 +379,11 @@ library InitializeMarketsAction {
         IU fCashAmount,
         IU underlyingCashToMarket,
         int256 rateScalar,
-        uint256 annualizedAnchorRate,
+        IR annualizedAnchorRate,
         uint256 timeToMaturity
-    ) internal pure returns (uint256) {
-        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
-        uint256 oracleRate = Market.getImpliedRate(
+    ) internal pure returns (IR) {
+        ER rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
+        IR oracleRate = Market.getImpliedRate(
             fCashAmount,
             underlyingCashToMarket,
             rateScalar,
@@ -400,9 +401,9 @@ library InitializeMarketsAction {
         uint256 shortMaturity,
         uint256 shortRate,
         MarketParameters memory longMarket
-    ) private pure returns (uint256) {
+    ) private pure returns (IR) {
         uint256 longMaturity = longMarket.maturity;
-        uint256 longRate = longMarket.oracleRate;
+        uint256 longRate = IR.unwrap(longMarket.oracleRate);
         // the next market maturity is always a quarter away
         uint256 newMaturity = longMarket.maturity + Constants.QUARTER;
         require(shortMaturity < longMaturity, "IM: interpolation error");
@@ -411,11 +412,11 @@ library InitializeMarketsAction {
         // we will get an underflow here so we check for that
         if (longRate >= shortRate) {
             return
-                (longRate - shortRate)
+                IR.wrap((longRate - shortRate)
                     .mul(newMaturity - shortMaturity)
                 // No underflow here, checked above
                     .div(longMaturity - shortMaturity)
-                    .add(shortRate);
+                    .add(shortRate));
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
@@ -426,7 +427,7 @@ library InitializeMarketsAction {
                     .div(longMaturity - shortMaturity);
 
             // This interpolation may go below zero so we bottom out interpolated rates at zero
-            return shortRate > diff ? shortRate - diff : 0;
+            return IR.wrap(shortRate > diff ? shortRate - diff : 0);
         }
     }
 
@@ -545,7 +546,7 @@ library InitializeMarketsAction {
 
         MarketParameters memory newMarket;
         // Oracle rate is carried over between loops
-        uint256 oracleRate;
+        IR oracleRate;
         for (uint256 i = 0; i < nToken.cashGroup.maxMarketIndex; i++) {
             // Traded markets are 1-indexed
             newMarket.maturity = DateTime.getReferenceTime(blockTime).add(
@@ -575,7 +576,7 @@ library InitializeMarketsAction {
                 // At this point, these are new markets and they must be initialized
                 (i >= nToken.portfolioState.storedAssets.length) ||
                 // When extending from the 6 month to 1 year market we must initialize both 6 and 1 year as new
-                (i == 1 && previousMarkets[2].oracleRate == 0)
+                (i == 1 && previousMarkets[2].oracleRate.isZero())
             ) {
                 // Any newly added markets cannot have their implied rates interpolated via the previous
                 // markets. In this case we initialize the markets using the rate anchor and proportion.
@@ -586,13 +587,13 @@ library InitializeMarketsAction {
                     fCashAmount,
                     underlyingCashToMarket,
                     rateScalar,
-                    uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
+                    IR.wrap(uint256(parameters.annualizedAnchorRates[i])), // No overflow, uint32 when set
                     timeToMaturity
                 );
 
                 // If this fails it is because the rate anchor and proportion are not set properly by
                 // governance.
-                require(newMarket.oracleRate > 0, "IM: implied rate failed");
+                require(newMarket.oracleRate.isPosNotZero(), "IM: implied rate failed");
             } else {
                 // Two special cases for the 3 month and 6 month market when interpolating implied rates. The 3 month market
                 // inherits the implied rate from the previous 6 month market (they are now at the same maturity).
@@ -624,7 +625,7 @@ library InitializeMarketsAction {
                         // This is the oracle rate from the previous iteration in the loop,
                         // refers to the new oracle rate set on the newly initialized market
                         // that is adjacent to the market currently being initialized.
-                        oracleRate,
+                        IR.unwrap(oracleRate),
                         // This is the previous version of the current market
                         previousMarkets[i]
                     );
@@ -638,7 +639,7 @@ library InitializeMarketsAction {
                         oracleRate,
                         timeToMaturity,
                         rateScalar,
-                        uint256(parameters.annualizedAnchorRates[i]) // No overflow, uint32 when set
+                        IR.wrap(uint256(parameters.annualizedAnchorRates[i])) // No overflow, uint32 when set
                     );
 
                 // If the calculated proportion is greater than the leverage threshold then we cannot
@@ -654,11 +655,11 @@ library InitializeMarketsAction {
                         newMarket.totalfCash,
                         underlyingCashToMarket,
                         rateScalar,
-                        uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
+                        IR.wrap(uint256(parameters.annualizedAnchorRates[i])), // No overflow, uint32 when set
                         timeToMaturity
                     );
 
-                    require(oracleRate != 0, "Oracle rate overflow");
+                    require(oracleRate.isNotZero(), "Oracle rate overflow");
                 } else {
                     newMarket.totalfCash = _calculatefCashAmountFromProportion(underlyingCashToMarket, proportion);
                 }

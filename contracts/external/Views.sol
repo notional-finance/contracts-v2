@@ -502,9 +502,9 @@ contract Views is StorageLayoutV1, NotionalViews {
 
         require(market.maturity > blockTime, "Invalid block time");
         uint256 timeToMaturity = market.maturity - blockTime;
-        (int256 rateScalar, IU totalCashUnderlying, int256 rateAnchor) =
+        (int256 rateScalar, IU totalCashUnderlying, ER rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        ER fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return
             Market.getfCashGivenCashAmount(

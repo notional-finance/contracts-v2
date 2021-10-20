@@ -277,10 +277,10 @@ library nTokenMintAction {
         // Shift the last implied rate by some buffer and calculate the exchange rate to fCash. Hope that this
         // is sufficient to cover all potential slippage. We don't use the `getfCashGivenCashAmount` method here
         // because it is very gas inefficient.
-        int256 assumedExchangeRate;
+        ER assumedExchangeRate;
         if (market.lastImpliedRate.lt(IR.wrap(Constants.DELEVERAGE_BUFFER))) {
             // Floor the exchange rate at zero interest rate
-            assumedExchangeRate = Constants.RATE_PRECISION;
+            assumedExchangeRate = ER.wrap(Constants.RATE_PRECISION);
         } else {
             assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
                 market.lastImpliedRate.sub(IR.wrap(Constants.DELEVERAGE_BUFFER)),

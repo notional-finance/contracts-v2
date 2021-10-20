@@ -18,6 +18,7 @@ library TradingAction {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
     using UserDefinedType for LT;
+    using UserDefinedType for IR;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
@@ -278,12 +279,12 @@ library TradingAction {
         }
 
         {
-            uint256 minImpliedRate = uint32(uint256(trade) >> 120);
-            uint256 maxImpliedRate = uint32(uint256(trade) >> 88);
+            IR minImpliedRate = IR.wrap(uint32(uint256(trade) >> 120));
+            IR maxImpliedRate = IR.wrap(uint32(uint256(trade) >> 88));
             // If minImpliedRate is not set then it will be zero
-            require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
-            if (maxImpliedRate != 0)
-                require(market.lastImpliedRate <= maxImpliedRate, "Trade failed, slippage");
+            require(market.lastImpliedRate.gte(minImpliedRate), "Trade failed, slippage");
+            if (maxImpliedRate.isNotZero())
+                require(market.lastImpliedRate.lte(maxImpliedRate), "Trade failed, slippage");
         }
 
         // Add the assets in this order so they are sorted
@@ -352,14 +353,14 @@ library TradingAction {
         );
         require(cashAmount.isNotZero(), "Trade failed, liquidity");
 
-        uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
-        if (rateLimit != 0) {
+        IR rateLimit = IR.wrap(uint32(bytes4(trade << 104)));
+        if (rateLimit.isNotZero()) {
             if (tradeType == TradeActionType.Borrow) {
                 // Do not allow borrows over the rate limit
-                require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
+                require(market.lastImpliedRate.lte(rateLimit), "Trade failed, slippage");
             } else {
                 // Do not allow lends under the rate limit
-                require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
+                require(market.lastImpliedRate.gte(rateLimit), "Trade failed, slippage");
             }
         }
     }
@@ -445,9 +446,9 @@ library TradingAction {
         uint256 blockTime,
         IA amountToSettleAsset
     ) private view returns (IU) {
-        uint256 oracleRate = cashGroup.calculateOracleRate(threeMonthMaturity, blockTime);
+        IR oracleRate = cashGroup.calculateOracleRate(threeMonthMaturity, blockTime);
 
-        int256 exchangeRate =
+        ER exchangeRate =
             Market.getExchangeRateFromImpliedRate(
                 oracleRate.add(cashGroup.getSettlementPenalty()),
                 threeMonthMaturity.sub(blockTime)
@@ -562,26 +563,26 @@ library TradingAction {
         IU fCashAmount,
         bytes6 parameters
     ) internal view returns (IA) {
-        uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+        IR oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
         // Residual purchase incentive is specified in ten basis point increments
-        uint256 purchaseIncentive =
-            uint256(uint8(parameters[Constants.RESIDUAL_PURCHASE_INCENTIVE])) *
-                Constants.TEN_BASIS_POINTS;
+        IR purchaseIncentive =
+            IR.wrap((uint8(parameters[Constants.RESIDUAL_PURCHASE_INCENTIVE])) *
+                Constants.TEN_BASIS_POINTS);
 
         if (fCashAmount.isPosNotZero()) {
             // When fCash is positive then we add the purchase incentive, the purchaser
             // can pay less cash for the fCash relative to the oracle rate
             oracleRate = oracleRate.add(purchaseIncentive);
-        } else if (oracleRate > purchaseIncentive) {
+        } else if (oracleRate.gt(purchaseIncentive)) {
             // When fCash is negative, we reduce the interest rate that the purchaser will
             // borrow at, we do this check to ensure that we floor the oracle rate at zero.
             oracleRate = oracleRate.sub(purchaseIncentive);
         } else {
             // If the oracle rate is less than the purchase incentive floor the interest rate at zero
-            oracleRate = 0;
+            oracleRate = IR.wrap(0);
         }
 
-        int256 exchangeRate =
+        ER exchangeRate =
             Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount

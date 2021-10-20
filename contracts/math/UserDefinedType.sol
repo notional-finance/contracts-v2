@@ -256,6 +256,10 @@ library UserDefinedType {
         else return IR.wrap(IR.unwrap(a) - IR.unwrap(b));
     }
 
+    function isNotZero(IR a) internal pure returns (bool) {
+        return IR.unwrap(a) != 0;
+    }
+
     function gt(IR a, IR b) internal pure returns (bool) {
         return IR.unwrap(a) > IR.unwrap(b);
     }
@@ -285,7 +289,15 @@ library UserDefinedType {
         return ER.unwrap(a) <= Constants.RATE_PRECISION;
     }
 
+    function add(ER a, ER b) internal pure returns (ER) {
+        return ER.wrap(ER.unwrap(a) + ER.unwrap(b));
+    }
+
     function sub(ER a, ER b) internal pure returns (ER) {
         return ER.wrap(ER.unwrap(a) - ER.unwrap(b));
+    }
+
+    function abs(ER a) internal pure returns (ER) {
+        return ER.unwrap(a) < 0 ? ER.wrap(-ER.unwrap(a)) : a;
     }
 }

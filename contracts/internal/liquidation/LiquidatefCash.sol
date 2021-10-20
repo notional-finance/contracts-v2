@@ -16,6 +16,8 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 library LiquidatefCash {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
+    using UserDefinedType for IR;
+    using UserDefinedType for ER;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using ExchangeRate for ETHRate;
@@ -34,8 +36,8 @@ library LiquidatefCash {
         uint256 maturity,
         uint256 blockTime,
         bool isNotionalPositive
-    ) private view returns (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) {
-        uint256 oracleRate = factors.collateralCashGroup.calculateOracleRate(maturity, blockTime);
+    ) private view returns (ER riskAdjustedDiscountFactor, ER liquidationDiscountFactor) {
+        IR oracleRate = factors.collateralCashGroup.calculateOracleRate(maturity, blockTime);
         uint256 timeToMaturity = maturity.sub(blockTime);
 
         if (isNotionalPositive) {
@@ -52,16 +54,16 @@ library LiquidatefCash {
                 oracleRate.add(factors.collateralCashGroup.getLiquidationfCashHaircut())
             );
         } else {
-            uint256 buffer = factors.collateralCashGroup.getDebtBuffer();
+            IR buffer = factors.collateralCashGroup.getDebtBuffer();
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate < buffer ? 0 : oracleRate.sub(buffer)
+                oracleRate.subFloorZero(buffer)
             );
 
             buffer = factors.collateralCashGroup.getLiquidationDebtBuffer();
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate < buffer ? 0 : oracleRate.sub(buffer)
+                oracleRate.subFloorZero(buffer)
             );
         }
     }
@@ -155,7 +157,7 @@ library LiquidatefCash {
             //    this is because the liquidation oracle rate < risk adjusted oracle rate
             // If notional < 0 then liquidation discount < risk adjusted discount
             //    this is because the liquidation oracle rate > risk adjusted oracle rate
-            (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
+            (ER riskAdjustedDiscountFactor, ER liquidationDiscountFactor) =
                 _calculatefCashDiscounts(c.factors, fCashMaturities[i], blockTime, notional.isPosNotZero());
 
             // The benefit to the liquidated account is the difference between the liquidation discount factor
@@ -282,7 +284,7 @@ library LiquidatefCash {
         IU maxfCashLiquidateAmount,
         IU notional
     ) private view returns (IU) {
-        (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) =
+        (ER riskAdjustedDiscountFactor, ER liquidationDiscountFactor) =
             _calculatefCashDiscounts(c.factors, maturity, blockTime, true);
 
         // collateralPurchased = fCashToLiquidate * fCashDiscountFactor
@@ -299,7 +301,7 @@ library LiquidatefCash {
         //      (liquidationDiscountFactor - riskAdjustedDiscountFactor) +
         //      (liquidationDiscountFactor * (localBuffer / liquidationDiscount - collateralHaircut))
         // ]
-        int256 benefitDivisor;
+        ER benefitDivisor;
         {
             // prettier-ignore
             int256 termTwo = (
@@ -307,9 +309,9 @@ library LiquidatefCash {
                         c.liquidationDiscount
                     )
                 ).sub(c.factors.collateralETHRate.haircut);
-            termTwo = liquidationDiscountFactor.mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
-            int256 termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
-            benefitDivisor = termOne.add(termTwo);
+            termTwo = ER.unwrap(liquidationDiscountFactor).mul(termTwo).div(Constants.PERCENTAGE_DECIMALS);
+            ER termOne = liquidationDiscountFactor.sub(riskAdjustedDiscountFactor);
+            benefitDivisor = termOne.add(ER.wrap(termTwo));
         }
 
         IU fCashToLiquidate =
@@ -349,8 +351,8 @@ library LiquidatefCash {
     /// in both those cases the liquidated account would incur debt
     function _limitPurchaseByAvailableAmounts(
         fCashContext memory c,
-        int256 liquidationDiscountFactor,
-        int256 riskAdjustedDiscountFactor,
+        ER liquidationDiscountFactor,
+        ER riskAdjustedDiscountFactor,
         IU fCashToLiquidate
     ) private pure returns (IU, IA) {
         // The collateral value of the fCash is discounted back to PV given the liquidation discount factor,

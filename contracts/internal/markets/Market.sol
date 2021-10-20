@@ -764,7 +764,7 @@ library Market {
         IU totalCashUnderlying,
         int256 rateScalar,
         ER rateAnchor,
-        int256 feeRate,
+        ER feeRate,
         int256 maxDelta
     ) internal pure returns (IU) {
         require(maxDelta >= 0);
@@ -788,7 +788,7 @@ library Market {
                     rateScalar,
                     IU.unwrap(fCashChangeToAccountGuess),
                     ER.unwrap(exchangeRate),
-                    feeRate
+                    ER.unwrap(feeRate)
                 );
 
             if (delta.abs() <= maxDelta) return fCashChangeToAccountGuess;
