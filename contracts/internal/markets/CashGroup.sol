@@ -83,8 +83,8 @@ library CashGroup {
     }
 
     /// @notice Total trading fee denominated in RATE_PRECISION with basis point increments
-    function getTotalFee(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Constants.BASIS_POINT;
+    function getTotalFee(CashGroupParameters memory cashGroup) internal pure returns (IR) {
+        return IR.wrap(uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Constants.BASIS_POINT);
     }
 
     /// @notice Percentage of the total trading fee that goes to the reserve
@@ -97,14 +97,14 @@ library CashGroup {
     }
 
     /// @notice fCash haircut for valuation denominated in rate precision with five basis point increments
-    function getfCashHaircut(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
+    function getfCashHaircut(CashGroupParameters memory cashGroup) internal pure returns (IR) {
         return
-            uint256(uint8(uint256(cashGroup.data >> FCASH_HAIRCUT))) * Constants.FIVE_BASIS_POINTS;
+            IR.wrap(uint256(uint8(uint256(cashGroup.data >> FCASH_HAIRCUT))) * Constants.FIVE_BASIS_POINTS);
     }
 
     /// @notice fCash debt buffer for valuation denominated in rate precision with five basis point increments
-    function getDebtBuffer(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS;
+    function getDebtBuffer(CashGroupParameters memory cashGroup) internal pure returns (IR) {
+        return IR.wrap(uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS);
     }
 
     /// @notice Time window factor for the rate oracle denominated in seconds with one minute increments.
@@ -122,10 +122,10 @@ library CashGroup {
     function getSettlementPenalty(CashGroupParameters memory cashGroup)
         internal
         pure
-        returns (uint256)
+        returns (IR)
     {
         return
-            uint256(uint8(uint256(cashGroup.data >> SETTLEMENT_PENALTY))) * Constants.FIVE_BASIS_POINTS;
+            IR.wrap(uint256(uint8(uint256(cashGroup.data >> SETTLEMENT_PENALTY))) * Constants.FIVE_BASIS_POINTS);
     }
 
     /// @notice Haircut for positive fCash during liquidation denominated rate precision
@@ -133,10 +133,10 @@ library CashGroup {
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)
         internal
         pure
-        returns (uint256)
+        returns (IR)
     {
         return
-            uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_FCASH_HAIRCUT))) * Constants.FIVE_BASIS_POINTS;
+            IR.wrap(uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_FCASH_HAIRCUT))) * Constants.FIVE_BASIS_POINTS);
     }
 
     /// @notice Haircut for negative fCash during liquidation denominated rate precision
@@ -144,10 +144,10 @@ library CashGroup {
     function getLiquidationDebtBuffer(CashGroupParameters memory cashGroup)
         internal
         pure
-        returns (uint256)
+        returns (IR)
     {
         return
-            uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS;
+            IR.wrap(uint256(uint8(uint256(cashGroup.data >> LIQUIDATION_DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS);
     }
 
     function loadMarket(
@@ -179,7 +179,7 @@ library CashGroup {
         uint256 shortRate,
         uint256 longRate,
         uint256 assetMaturity
-    ) internal pure returns (uint256) {
+    ) internal pure returns (IR) {
         require(shortMaturity < assetMaturity); // dev: cash group interpolation error, short maturity
         require(assetMaturity < longMaturity); // dev: cash group interpolation error, long maturity
 
@@ -187,24 +187,24 @@ library CashGroup {
         // we will get an underflow here so we check for that
         if (longRate >= shortRate) {
             return
-                (longRate - shortRate)
+                IR.wrap((longRate - shortRate)
                     .mul(assetMaturity - shortMaturity)
                 // No underflow here, checked above
                     .div(longMaturity - shortMaturity)
-                    .add(shortRate);
+                    .add(shortRate));
         } else {
             // In this case the slope is negative so:
             // interpolatedRate = shortMarket.oracleRate - slope * (assetMaturity - shortMarket.maturity)
             // NOTE: this subtraction should never overflow, the linear interpolation between two points above zero
             // cannot go below zero
             return
-                shortRate.sub(
+                IR.wrap(shortRate.sub(
                     // This is reversed to keep it it positive
                     (shortRate - longRate)
                         .mul(assetMaturity - shortMaturity)
                     // No underflow here, checked above
                         .div(longMaturity - shortMaturity)
-                );
+                ));
         }
     }
 
@@ -213,7 +213,7 @@ library CashGroup {
         CashGroupParameters memory cashGroup,
         uint256 maturity,
         uint256 blockTime
-    ) internal view returns (uint256) {
+    ) internal view returns (IR) {
         (uint256 marketIndex, bool idiosyncratic) =
             DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         uint256 timeWindow = getRateOracleTimeWindow(cashGroup);
@@ -224,11 +224,11 @@ library CashGroup {
             uint256 referenceTime = DateTime.getReferenceTime(blockTime);
             // DateTime.getMarketIndex returns the market that is past the maturity if idiosyncratic
             uint256 longMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex));
-            uint256 longRate =
+            IR longRate =
                 Market.getOracleRate(cashGroup.currencyId, longMaturity, timeWindow, blockTime);
 
             uint256 shortMaturity;
-            uint256 shortRate;
+            IR shortRate;
             if (marketIndex == 1) {
                 // In this case the short market is the annualized asset supply rate
                 shortMaturity = blockTime;
@@ -245,7 +245,13 @@ library CashGroup {
                 );
             }
 
-            return interpolateOracleRate(shortMaturity, longMaturity, shortRate, longRate, maturity);
+            return interpolateOracleRate(
+                shortMaturity,
+                longMaturity,
+                IR.unwrap(shortRate),
+                IR.unwrap(longRate),
+                maturity
+            );
         }
     }
 

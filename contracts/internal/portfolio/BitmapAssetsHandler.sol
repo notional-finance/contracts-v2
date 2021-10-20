@@ -137,7 +137,7 @@ library BitmapAssetsHandler {
         if (maturity <= blockTime) {
             return notional;
         } else {
-            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+            IR oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
             if (riskAdjusted) {
                 return AssetHandler.getRiskAdjustedPresentfCashValue(
                     cashGroup,

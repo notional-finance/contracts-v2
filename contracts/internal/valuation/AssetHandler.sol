@@ -15,6 +15,8 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 library AssetHandler {
     using UserDefinedType for IU;
     using UserDefinedType for IA;
+    using UserDefinedType for ER;
+    using UserDefinedType for IR;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using CashGroup for CashGroupParameters;
@@ -43,19 +45,19 @@ library AssetHandler {
 
     /// @notice Returns the continuously compounded discount rate given an oracle rate and a time to maturity.
     /// The formula is: e^(-rate * timeToMaturity).
-    function getDiscountFactor(uint256 timeToMaturity, uint256 oracleRate)
+    function getDiscountFactor(uint256 timeToMaturity, IR oracleRate)
         internal
         pure
-        returns (int256)
+        returns (ER)
     {
         int128 expValue =
-            ABDKMath64x64.fromUInt(oracleRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME));
+            ABDKMath64x64.fromUInt(IR.unwrap(oracleRate).mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME));
         expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         expValue = ABDKMath64x64.exp(ABDKMath64x64.neg(expValue));
         expValue = ABDKMath64x64.mul(expValue, Constants.RATE_PRECISION_64x64);
         int256 discountFactor = ABDKMath64x64.toInt(expValue);
 
-        return discountFactor;
+        return ER.wrap(discountFactor);
     }
 
     /// @notice Present value of an fCash asset without any risk adjustments.
@@ -63,16 +65,16 @@ library AssetHandler {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) internal pure returns (IU) {
         if (IU.unwrap(notional) == 0) return IU.wrap(0);
 
         // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
         // discount matured assets.
         uint256 timeToMaturity = maturity.sub(blockTime);
-        int256 discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
+        ER discountFactor = getDiscountFactor(timeToMaturity, oracleRate);
 
-        require(discountFactor <= Constants.RATE_PRECISION); // dev: get present value invalid discount factor
+        require(discountFactor.isValidDiscountFactor()); // dev: get present value invalid discount factor
         return notional.mulInRatePrecision(discountFactor);
     }
 
@@ -83,14 +85,14 @@ library AssetHandler {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) internal pure returns (IU) {
         if (IU.unwrap(notional) == 0) return IU.wrap(0);
         // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
         // discount matured assets.
         uint256 timeToMaturity = maturity.sub(blockTime);
 
-        int256 discountFactor;
+        ER discountFactor;
         if (IU.unwrap(notional) > 0) {
             // If fCash is positive then discounting by a higher rate will result in a smaller
             // discount factor (e ^ -x), meaning a lower positive fCash value.
@@ -99,16 +101,17 @@ library AssetHandler {
                 oracleRate.add(cashGroup.getfCashHaircut())
             );
         } else {
-            uint256 debtBuffer = cashGroup.getDebtBuffer();
+            IR debtBuffer = cashGroup.getDebtBuffer();
             // If the adjustment exceeds the oracle rate we floor the value of the fCash
             // at the notional value. We don't want to require the account to hold more than
             // absolutely required.
-            if (debtBuffer >= oracleRate) return notional;
+            if (debtBuffer.gte(oracleRate)) return notional;
 
-            discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
+            // NOTE: this redoes the gte check above, inefficient
+            discountFactor = getDiscountFactor(timeToMaturity, oracleRate.sub(debtBuffer));
         }
 
-        require(discountFactor <= Constants.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
+        require(discountFactor.isValidDiscountFactor()); // dev: get risk adjusted pv, invalid discount factor
         return notional.mulInRatePrecision(discountFactor);
     }
 
@@ -270,7 +273,7 @@ library AssetHandler {
             // j will mark the index where we don't have this currency anymore
             if (a.currencyId != cashGroup.currencyId) break;
 
-            uint256 oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
+            IR oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
 
             IU pv =
                 getRiskAdjustedPresentfCashValue(

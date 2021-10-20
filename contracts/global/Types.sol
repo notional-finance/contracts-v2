@@ -232,10 +232,10 @@ struct MarketParameters {
     LT totalLiquidity;
     // This is the previous annualized interest rate in RATE_PRECISION that the market traded
     // at. This is used to calculate the rate anchor to smooth interest rates over time.
-    uint256 lastImpliedRate;
+    IR lastImpliedRate;
     // Time lagged version of lastImpliedRate, used to value fCash assets at market rates while
     // remaining resistent to flash loan attacks.
-    uint256 oracleRate;
+    IR oracleRate;
     // This is the timestamp of the previous trade
     uint256 previousTradeTime;
 }

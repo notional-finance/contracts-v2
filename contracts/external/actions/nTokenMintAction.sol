@@ -16,6 +16,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 library nTokenMintAction {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
+    using UserDefinedType for IR;
     using SafeInt256 for int256;
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
@@ -277,12 +278,12 @@ library nTokenMintAction {
         // is sufficient to cover all potential slippage. We don't use the `getfCashGivenCashAmount` method here
         // because it is very gas inefficient.
         int256 assumedExchangeRate;
-        if (market.lastImpliedRate < Constants.DELEVERAGE_BUFFER) {
+        if (market.lastImpliedRate.lt(IR.wrap(Constants.DELEVERAGE_BUFFER))) {
             // Floor the exchange rate at zero interest rate
             assumedExchangeRate = Constants.RATE_PRECISION;
         } else {
             assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
-                market.lastImpliedRate.sub(Constants.DELEVERAGE_BUFFER),
+                market.lastImpliedRate.sub(IR.wrap(Constants.DELEVERAGE_BUFFER)),
                 timeToMaturity
             );
         }

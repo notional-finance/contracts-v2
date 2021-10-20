@@ -20,6 +20,8 @@ library Market {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
     using UserDefinedType for LT;
+    using UserDefinedType for IR;
+    using UserDefinedType for ER;
     using CashGroup for CashGroupParameters;
     using AssetRate for AssetRateParameters;
 
@@ -33,9 +35,9 @@ library Market {
         internal
         returns (LT liquidityTokens, IU fCash)
     {
-        require(LT.unwrap(market.totalLiquidity) > 0, "M: zero liquidity");
+        require(market.totalLiquidity.isPosNotZero(), "M: zero liquidity");
         if (assetCash.isZero()) return (LT.wrap(0), IU.wrap(0));
-        require(IA.unwrap(assetCash) > 0); // dev: negative asset cash
+        require(assetCash.isPosNotZero()); // dev: negative asset cash
 
         liquidityTokens = market.totalLiquidity.scale(
             IA.unwrap(assetCash),
@@ -62,10 +64,10 @@ library Market {
         internal
         returns (IA assetCash, IU fCash)
     {
-        if (LT.unwrap(tokensToRemove) == 0) {
+        if (tokensToRemove.isZero()) {
             return (IA.wrap(0), IU.wrap(0));
         }
-        require(LT.unwrap(tokensToRemove) > 0); // dev: negative tokens to remove
+        require(tokensToRemove.isPosNotZero()); // dev: negative tokens to remove
 
         assetCash = market.totalAssetCash.scale(
             LT.unwrap(tokensToRemove),
@@ -135,12 +137,12 @@ library Market {
         }
 
         // Calculates initial rate factors for the trade
-        (int256 rateScalar, IU totalCashUnderlying, int256 rateAnchor) =
+        (int256 rateScalar, IU totalCashUnderlying, ER rateAnchor) =
             getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
 
         // Calculates the exchange rate from cash to fCash before any liquidity fees
         // are applied
-        int256 preFeeExchangeRate;
+        ER preFeeExchangeRate;
         {
             bool success;
             (preFeeExchangeRate, success) = _getExchangeRate(
@@ -180,7 +182,7 @@ library Market {
             // It's technically possible that the implied rate is actually exactly zero (or
             // more accurately the natural log rounds down to zero) but we will still fail
             // in this case. If this does happen we may assume that markets are not initialized.
-            if (market.lastImpliedRate == 0) return (IA.wrap(0), IA.wrap(0));
+            if (market.lastImpliedRate.isZero()) return (IA.wrap(0), IA.wrap(0));
         }
 
         return
@@ -210,18 +212,18 @@ library Market {
         returns (
             int256,
             IU,
-            int256
+            ER
         )
     {
         int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
         IU totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
 
         // This would result in a divide by zero
-        if (market.totalfCash.isZero() || totalCashUnderlying.isZero()) return (0, IU.wrap(0), 0);
+        if (market.totalfCash.isZero() || totalCashUnderlying.isZero()) return (0, IU.wrap(0), ER.wrap(0));
 
         // Get the rate anchor given the market state, this will establish the baseline for where
         // the exchange rate is set.
-        int256 rateAnchor;
+        ER rateAnchor;
         {
             bool success;
             (rateAnchor, success) = _getRateAnchor(
@@ -231,7 +233,7 @@ library Market {
                 rateScalar,
                 timeToMaturity
             );
-            if (!success) return (0, IU.wrap(0), 0);
+            if (!success) return (0, IU.wrap(0), ER.wrap(0));
         }
 
         return (rateScalar, totalCashUnderlying, rateAnchor);
@@ -244,7 +246,7 @@ library Market {
     //      netCashToReserve: this is always a positive amount of cash accrued to the reserve
     function _getNetCashAmountsUnderlying(
         CashGroupParameters memory cashGroup,
-        int256 preFeeExchangeRate,
+        ER preFeeExchangeRate,
         IU fCashToAccount,
         uint256 timeToMaturity
     ) private pure returns (IU, IU, IU) {
@@ -256,15 +258,16 @@ library Market {
         // cash = fCash / exchangeRate, exchangeRate > 1
         IU preFeeCashToAccount =
             fCashToAccount.divInRatePrecision(preFeeExchangeRate).neg();
-        int256 fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        IU feeUnderlying;
+        ER fee = getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         if (fCashToAccount.gt(IU.wrap(0))) {
             // Lending
             // Dividing reduces exchange rate, lending should receive less fCash for cash
-            int256 postFeeExchangeRate = preFeeExchangeRate.divInRatePrecision(fee);
+            ER postFeeExchangeRate = ER.wrap(ER.unwrap(preFeeExchangeRate).divInRatePrecision(ER.unwrap(fee)));
             // It's possible that the fee pushes exchange rates into negative territory. This is not possible
             // when borrowing. If this happens then the trade has failed.
-            if (postFeeExchangeRate < Constants.RATE_PRECISION) {
+            if (postFeeExchangeRate.isInvalidExchangeRate()) {
                 return (IU.wrap(0), IU.wrap(0), IU.wrap(0));
             }
 
@@ -279,7 +282,7 @@ library Market {
             // netFee = -(preFeeCashToAccount) * (feeExchangeRate - 1)
             // netFee = preFeeCashToAccount * (1 - feeExchangeRate)
             // RATE_PRECISION - fee will be negative here, preFeeCashToAccount < 0, fee > 0
-            fee = IU.unwrap(preFeeCashToAccount.mulInRatePrecision(Constants.RATE_PRECISION.sub(fee)));
+            feeUnderlying = preFeeCashToAccount.mulInRatePrecision(ER.wrap(Constants.RATE_PRECISION).sub(fee));
         } else {
             // Borrowing
             // cashToAccount = -(fCashToAccount / exchangeRate)
@@ -293,20 +296,19 @@ library Market {
             // NOTE: preFeeCashToAccount is negative in this branch so we negate it to ensure that fee is a positive number
             // preFee * (1 - fee) / fee will be negative, use neg() to flip to positive
             // RATE_PRECISION - fee will be negative
-            fee = IU.unwrap(preFeeCashToAccount.scale(
-                Constants.RATE_PRECISION.sub(fee),
-                fee
-            ).neg());
+            feeUnderlying = preFeeCashToAccount.scale(
+                Constants.RATE_PRECISION.sub(ER.unwrap(fee)),
+                ER.unwrap(fee)
+            ).neg();
         }
 
-        IU cashToReserve =
-            IU.wrap(fee.mul(cashGroup.getReserveFeeShare()).div(Constants.PERCENTAGE_DECIMALS));
+        IU cashToReserve = feeUnderlying.scale(cashGroup.getReserveFeeShare(), Constants.PERCENTAGE_DECIMALS);
 
         return (
             // postFeeCashToAccount = preFeeCashToAccount - fee
-            preFeeCashToAccount.sub(IU.wrap(fee)),
+            preFeeCashToAccount.sub(feeUnderlying),
             // netCashToMarket = -(preFeeCashToAccount - fee + cashToReserve)
-            (preFeeCashToAccount.sub(IU.wrap(fee)).add(cashToReserve)).neg(),
+            (preFeeCashToAccount.sub(feeUnderlying).add(cashToReserve)).neg(),
             cashToReserve
         );
     }
@@ -349,26 +351,25 @@ library Market {
     /// @return the new rate anchor and a boolean that signifies success
     function _getRateAnchor(
         IU totalfCash,
-        uint256 lastImpliedRate,
+        IR lastImpliedRate,
         IU totalCashUnderlying,
         int256 rateScalar,
         uint256 timeToMaturity
-    ) internal pure returns (int256, bool) {
+    ) internal pure returns (ER, bool) {
         // This is the exchange rate at the new time to maturity
-        int256 newExchangeRate = getExchangeRateFromImpliedRate(lastImpliedRate, timeToMaturity);
-        if (newExchangeRate < Constants.RATE_PRECISION) return (0, false);
+        ER newExchangeRate = getExchangeRateFromImpliedRate(lastImpliedRate, timeToMaturity);
+        if (newExchangeRate.isInvalidExchangeRate()) return (ER.wrap(0), false);
 
-        int256 rateAnchor;
+        ER rateAnchor;
         {
             // totalfCash / (totalfCash + totalCashUnderlying)
-            int256 proportion =
-                IU.unwrap(totalfCash).divInRatePrecision(IU.unwrap(totalfCash.add(totalCashUnderlying)));
+            int256 proportion = IU.unwrap(totalfCash).divInRatePrecision(IU.unwrap(totalfCash.add(totalCashUnderlying)));
 
             (int256 lnProportion, bool success) = _logProportion(proportion);
-            if (!success) return (0, false);
+            if (!success) return (ER.wrap(0), false);
 
             // newExchangeRate - ln(proportion / (1 - proportion)) / rateScalar
-            rateAnchor = newExchangeRate.sub(lnProportion.divInRatePrecision(rateScalar));
+            rateAnchor = newExchangeRate.sub(ER.wrap(lnProportion.divInRatePrecision(rateScalar)));
         }
 
         return (rateAnchor, true);
@@ -380,17 +381,17 @@ library Market {
         IU totalfCash,
         IU totalCashUnderlying,
         int256 rateScalar,
-        int256 rateAnchor,
+        ER rateAnchor,
         uint256 timeToMaturity
-    ) internal pure returns (uint256) {
+    ) internal pure returns (IR) {
         // This will check for exchange rates < Constants.RATE_PRECISION
-        (int256 exchangeRate, bool success) =
+        (ER exchangeRate, bool success) =
             _getExchangeRate(totalfCash, totalCashUnderlying, rateScalar, rateAnchor, IU.wrap(0));
-        if (!success) return 0;
+        if (!success) return IR.wrap(0);
 
         // Uses continuous compounding to calculate the implied rate:
         // ln(exchangeRate) * Constants.IMPLIED_RATE_TIME / timeToMaturity
-        int128 rate = ABDKMath64x64.fromInt(exchangeRate);
+        int128 rate = ABDKMath64x64.fromInt(ER.unwrap(exchangeRate));
         // Scales down to a floating point for LN
         int128 rateScaled = ABDKMath64x64.div(rate, Constants.RATE_PRECISION_64x64);
         // We will not have a negative log here because we check that exchangeRate > Constants.RATE_PRECISION
@@ -404,27 +405,27 @@ library Market {
         uint256 impliedRate = lnRate.mul(Constants.IMPLIED_RATE_TIME).div(timeToMaturity);
 
         // Implied rates over 429% will overflow, this seems like a safe assumption
-        if (impliedRate > type(uint32).max) return 0;
+        if (impliedRate > type(uint32).max) return IR.wrap(0);
 
-        return impliedRate;
+        return IR.wrap(impliedRate);
     }
 
     /// @notice Converts an implied rate to an exchange rate given a time to maturity. The
     /// formula is E = e^rt
-    function getExchangeRateFromImpliedRate(uint256 impliedRate, uint256 timeToMaturity)
+    function getExchangeRateFromImpliedRate(IR impliedRate, uint256 timeToMaturity)
         internal
         pure
-        returns (int256)
+        returns (ER)
     {
         int128 expValue =
             ABDKMath64x64.fromUInt(
-                impliedRate.mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME)
+                IR.unwrap(impliedRate).mul(timeToMaturity).div(Constants.IMPLIED_RATE_TIME)
             );
         int128 expValueScaled = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
         int128 expResult = ABDKMath64x64.exp(expValueScaled);
         int128 expResultScaled = ABDKMath64x64.mul(expResult, Constants.RATE_PRECISION_64x64);
 
-        return ABDKMath64x64.toInt(expResultScaled);
+        return ER.wrap(ABDKMath64x64.toInt(expResultScaled));
     }
 
     /// @notice Returns the exchange rate between fCash and cash for the given market
@@ -437,9 +438,9 @@ library Market {
         IU totalfCash,
         IU totalCashUnderlying,
         int256 rateScalar,
-        int256 rateAnchor,
+        ER rateAnchor,
         IU fCashToAccount
-    ) internal pure returns (int256, bool) {
+    ) internal pure returns (ER, bool) {
         IU numerator = totalfCash.subNoNeg(fCashToAccount);
 
         // This is the proportion scaled by Constants.RATE_PRECISION
@@ -453,16 +454,16 @@ library Market {
         // removed). Over time, the returns from asset cash will slightly decrease the proportion (the
         // value of cash underlying in the market must be monotonically increasing). Therefore it is not
         // possible for the proportion to go over max market proportion unless borrowing occurs.
-        if (proportion > Constants.MAX_MARKET_PROPORTION) return (0, false);
+        if (proportion > Constants.MAX_MARKET_PROPORTION) return (ER.wrap(0), false);
 
         (int256 lnProportion, bool success) = _logProportion(proportion);
-        if (!success) return (0, false);
+        if (!success) return (ER.wrap(0), false);
 
         // lnProportion / rateScalar + rateAnchor
-        int256 rate = lnProportion.divInRatePrecision(rateScalar).add(rateAnchor);
+        ER rate = ER.wrap(lnProportion.divInRatePrecision(rateScalar).add(ER.unwrap(rateAnchor)));
         // Do not succeed if interest rates fall below 1
-        if (rate < Constants.RATE_PRECISION) {
-            return (0, false);
+        if (rate.isInvalidExchangeRate()) {
+            return (ER.wrap(0), false);
         } else {
             return (rate, true);
         }
@@ -513,11 +514,11 @@ library Market {
     ///         oracleRatePrevious * (1 - (currentTs - previousTs) / timeWindow)
     function _updateRateOracle(
         uint256 previousTradeTime,
-        uint256 lastImpliedRate,
-        uint256 oracleRate,
+        IR lastImpliedRate,
+        IR oracleRate,
         uint256 rateOracleTimeWindow,
         uint256 blockTime
-    ) private pure returns (uint256) {
+    ) private pure returns (IR) {
         require(rateOracleTimeWindow > 0); // dev: update rate oracle, time window zero
 
         // This can occur when using a view function get to a market state in the past
@@ -537,11 +538,11 @@ library Market {
         uint256 oracleWeight = uint256(Constants.RATE_PRECISION).sub(lastTradeWeight);
 
         uint256 newOracleRate =
-            (lastImpliedRate.mul(lastTradeWeight).add(oracleRate.mul(oracleWeight))).div(
+            (IR.unwrap(lastImpliedRate).mul(lastTradeWeight).add(IR.unwrap(oracleRate).mul(oracleWeight))).div(
                 uint256(Constants.RATE_PRECISION)
             );
 
-        return newOracleRate;
+        return IR.wrap(newOracleRate);
     }
 
     function getOracleRate(
@@ -549,21 +550,21 @@ library Market {
         uint256 maturity,
         uint256 rateOracleTimeWindow,
         uint256 blockTime
-    ) internal view returns (uint256) {
+    ) internal view returns (IR) {
         mapping(uint256 => mapping(uint256 => 
             mapping(uint256 => MarketStorage))) storage store = LibStorage.getMarketStorage();
         uint256 settlementDate = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
         MarketStorage storage marketStorage = store[currencyId][maturity][settlementDate];
 
-        uint256 lastImpliedRate = marketStorage.lastImpliedRate;
-        uint256 oracleRate = marketStorage.oracleRate;
+        IR lastImpliedRate = IR.wrap(marketStorage.lastImpliedRate);
+        IR oracleRate = IR.wrap(marketStorage.oracleRate);
         uint256 previousTradeTime = marketStorage.previousTradeTime;
 
         // If the oracle rate is set to zero this can only be because the markets have past their settlement
         // date but the new set of markets has not yet been initialized. This means that accounts cannot be liquidated
         // during this time, but market initialization can be called by anyone so the actual time that this condition
         // exists for should be quite short.
-        require(oracleRate > 0, "Market not initialized");
+        require(oracleRate.isPosNotZero(), "Market not initialized");
 
         return
             _updateRateOracle(
@@ -597,8 +598,8 @@ library Market {
         market.maturity = maturity;
         market.totalfCash = IU.wrap(int256(uint256(marketStorage.totalfCash)));
         market.totalAssetCash = IA.wrap(int256(uint256(marketStorage.totalAssetCash)));
-        market.lastImpliedRate = marketStorage.lastImpliedRate;
-        market.oracleRate = marketStorage.oracleRate;
+        market.lastImpliedRate = IR.wrap(marketStorage.lastImpliedRate);
+        market.oracleRate = IR.wrap(marketStorage.oracleRate);
         market.previousTradeTime = marketStorage.previousTradeTime;
 
         if (needsLiquidity) {
@@ -620,7 +621,7 @@ library Market {
     function _setMarketStorageForLiquidity(MarketParameters memory market) internal {
         MarketStorage storage marketStorage = _getMarketStoragePointer(market);
         // Oracle rate does not change on liquidity
-        uint32 storedOracleRate = marketStorage.oracleRate;
+        IR storedOracleRate = IR.wrap(marketStorage.oracleRate);
 
         _setMarketStorage(
             marketStorage,
@@ -667,18 +668,16 @@ library Market {
         MarketStorage storage marketStorage,
         IU totalfCash,
         IA totalAssetCash,
-        uint256 lastImpliedRate,
-        uint256 oracleRate,
+        IR lastImpliedRate,
+        IR oracleRate,
         uint256 previousTradeTime
     ) private {
-        require(0 < lastImpliedRate && lastImpliedRate <= type(uint32).max); // dev: storage lastImpliedRate overflow
-        require(0 < oracleRate && oracleRate <= type(uint32).max); // dev: storage oracleRate overflow
         require(0 <= previousTradeTime && previousTradeTime <= type(uint32).max); // dev: storage previous trade time overflow
 
         marketStorage.totalfCash = totalfCash.toStorage();
         marketStorage.totalAssetCash = totalAssetCash.toMarketStorage();
-        marketStorage.lastImpliedRate = uint32(lastImpliedRate);
-        marketStorage.oracleRate = uint32(oracleRate);
+        marketStorage.lastImpliedRate = lastImpliedRate.toStorage();
+        marketStorage.oracleRate = oracleRate.toStorage();
         marketStorage.previousTradeTime = uint32(previousTradeTime);
     }
 
@@ -764,14 +763,14 @@ library Market {
         IU netCashToAccount,
         IU totalCashUnderlying,
         int256 rateScalar,
-        int256 rateAnchor,
+        ER rateAnchor,
         int256 feeRate,
         int256 maxDelta
     ) internal pure returns (IU) {
         require(maxDelta >= 0);
         IU fCashChangeToAccountGuess = netCashToAccount.mulInRatePrecision(rateAnchor).neg();
         for (uint8 i = 0; i < 250; i++) {
-            (int256 exchangeRate, bool success) =
+            (ER exchangeRate, bool success) =
                 _getExchangeRate(
                     totalfCash,
                     totalCashUnderlying,
@@ -788,7 +787,7 @@ library Market {
                     IU.unwrap(totalCashUnderlying),
                     rateScalar,
                     IU.unwrap(fCashChangeToAccountGuess),
-                    exchangeRate,
+                    ER.unwrap(exchangeRate),
                     feeRate
                 );
 
