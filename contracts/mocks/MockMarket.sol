@@ -41,9 +41,9 @@ contract MockMarket is StorageLayoutV1 {
         IU totalfCash,
         IU totalCashUnderlying,
         int256 rateScalar,
-        int256 rateAnchor,
+        ER rateAnchor,
         IU fCashAmount
-    ) external pure returns (int256, bool) {
+    ) external pure returns (ER, bool) {
         return
             Market._getExchangeRate(
                 totalfCash,
@@ -62,9 +62,9 @@ contract MockMarket is StorageLayoutV1 {
         IU totalfCash,
         IU totalCashUnderlying,
         int256 rateScalar,
-        int256 rateAnchor,
+        ER rateAnchor,
         uint256 timeToMaturity
-    ) external pure returns (uint256) {
+    ) external pure returns (IR) {
         return
             Market.getImpliedRate(
                 totalfCash,
@@ -77,11 +77,11 @@ contract MockMarket is StorageLayoutV1 {
 
     function getRateAnchor(
         IU totalfCash,
-        uint256 lastImpliedRate,
+        IR lastImpliedRate,
         IU totalCashUnderlying,
         int256 rateScalar,
         uint256 timeToMaturity
-    ) external pure returns (int256, bool) {
+    ) external pure returns (ER, bool) {
         return
             Market._getRateAnchor(
                 totalfCash,
@@ -176,7 +176,7 @@ contract MockMarket is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         uint256 marketIndex,
         uint256 timeToMaturity
-    ) external pure returns (int256, IU, int256) {
+    ) external pure returns (int256, IU, ER) {
         return Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
     }
 
@@ -188,11 +188,11 @@ contract MockMarket is StorageLayoutV1 {
         uint256 timeToMaturity,
         int256 maxfCashDelta
     ) external pure returns (IU) {
-        (int256 rateScalar, IU totalCashUnderlying, int256 rateAnchor) =
+        (int256 rateScalar, IU totalCashUnderlying, ER rateAnchor) =
             Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
         // Rate scalar can never be zero so this signifies a failure and we return zero
         if (rateScalar == 0) revert();
-        int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        ER fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
 
         return
             Market.getfCashGivenCashAmount(

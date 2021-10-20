@@ -261,7 +261,7 @@ library MockValuationLib {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) external pure returns (IU) {
         return
             AssetHandler.getPresentfCashValue(
@@ -276,7 +276,7 @@ library MockValuationLib {
         uint16 currencyId,
         uint256 maturity,
         uint256 blockTime
-    ) external view returns (uint256) {
+    ) external view returns (IR) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
         return cashGroup.calculateOracleRate(maturity, blockTime);
     }
@@ -423,7 +423,7 @@ contract MockValuationBase {
         uint16 currencyId,
         uint256 maturity,
         uint256 blockTime
-    ) external view returns (uint256) {
+    ) external view returns (IR) {
         return MockValuationLib.calculateOracleRate(currencyId, maturity, blockTime);
     }
 
@@ -447,7 +447,7 @@ contract MockValuationBase {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) external pure returns (IU) {
         return MockValuationLib.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
     }

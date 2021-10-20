@@ -95,7 +95,7 @@ contract MockCashGroup is StorageLayoutV1 {
         return rateScalar;
     }
 
-    function getTotalFee(CashGroupParameters memory cashGroup) public pure returns (uint256) {
+    function getTotalFee(CashGroupParameters memory cashGroup) public pure returns (IR) {
         return cashGroup.getTotalFee();
     }
 
@@ -111,11 +111,11 @@ contract MockCashGroup is StorageLayoutV1 {
         return cashGroup.getLiquidityHaircut(timeToMaturity);
     }
 
-    function getfCashHaircut(CashGroupParameters memory cashGroup) public pure returns (uint256) {
+    function getfCashHaircut(CashGroupParameters memory cashGroup) public pure returns (IR) {
         return cashGroup.getfCashHaircut();
     }
 
-    function getDebtBuffer(CashGroupParameters memory cashGroup) public pure returns (uint256) {
+    function getDebtBuffer(CashGroupParameters memory cashGroup) public pure returns (IR) {
         return cashGroup.getDebtBuffer();
     }
 
@@ -130,7 +130,7 @@ contract MockCashGroup is StorageLayoutV1 {
     function getSettlementPenalty(CashGroupParameters memory cashGroup)
         public
         pure
-        returns (uint256)
+        returns (IR)
     {
         return cashGroup.getSettlementPenalty();
     }
@@ -138,7 +138,7 @@ contract MockCashGroup is StorageLayoutV1 {
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)
         public
         pure
-        returns (uint256)
+        returns (IR)
     {
         return cashGroup.getLiquidationfCashHaircut();
     }
@@ -146,7 +146,7 @@ contract MockCashGroup is StorageLayoutV1 {
     function getLiquidationDebtBuffer(CashGroupParameters memory cashGroup)
         public
         pure
-        returns (uint256)
+        returns (IR)
     {
         return cashGroup.getLiquidationDebtBuffer();
     }
@@ -176,13 +176,13 @@ contract MockCashGroup is StorageLayoutV1 {
         uint256 assetMaturity
     ) public pure returns (uint256) {
         uint256 rate =
-            CashGroup.interpolateOracleRate(
+            IR.unwrap(CashGroup.interpolateOracleRate(
                 shortMaturity,
                 longMaturity,
                 shortRate,
                 longRate,
                 assetMaturity
-            );
+            ));
 
         if (shortRate == longRate) {
             assert(rate == shortRate);
@@ -199,7 +199,7 @@ contract MockCashGroup is StorageLayoutV1 {
         CashGroupParameters memory cashGroup,
         uint256 assetMaturity,
         uint256 blockTime
-    ) public view returns (uint256) {
+    ) public view returns (IR) {
         return cashGroup.calculateOracleRate(assetMaturity, blockTime);
     }
 

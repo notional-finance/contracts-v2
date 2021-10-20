@@ -58,7 +58,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) public pure returns (IU) {
         IU pv = AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate);
         if (notional.isPosNotZero()) assert(pv.isPosNotZero());
@@ -73,7 +73,7 @@ contract MockAssetHandler is StorageLayoutV1 {
         IU notional,
         uint256 maturity,
         uint256 blockTime,
-        uint256 oracleRate
+        IR oracleRate
     ) public pure returns (IU) {
         IU riskPv =
             AssetHandler.getRiskAdjustedPresentfCashValue(
