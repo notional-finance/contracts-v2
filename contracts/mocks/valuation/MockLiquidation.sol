@@ -59,13 +59,14 @@ contract MockLiquidationSetup is MockValuationBase {
 }
 
 contract MockLocalLiquidation is MockValuationBase {
+    using UserDefinedType for NT;
     using SafeInt256 for int256;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
 
     event LocalLiquidationTokens(
         IA localAssetCashFromLiquidator,
-        int256 nTokensPurchased,
+        NT nTokensPurchased,
         IA netCashChange,
         PortfolioState portfolioState
     );
@@ -74,7 +75,7 @@ contract MockLocalLiquidation is MockValuationBase {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (IA, int256) {
+    ) external returns (IA, NT) {
         // prettier-ignore
         (
             IA localAssetCashFromLiquidator,
@@ -167,6 +168,7 @@ contract MockLocalLiquidation is MockValuationBase {
 
 contract MockCollateralLiquidation is MockValuationBase {
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using SafeInt256 for int256;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
@@ -174,7 +176,7 @@ contract MockCollateralLiquidation is MockValuationBase {
     event CollateralLiquidationTokens(
         IA localAssetCashFromLiquidator,
         IA collateralCashToLiquidator,
-        int256 collateralNTokensToLiquidator,
+        NT collateralNTokensToLiquidator,
         IA cashClaimToLiquidator,
         PortfolioState portfolioState
     );
@@ -190,7 +192,7 @@ contract MockCollateralLiquidation is MockValuationBase {
         returns (
             IA,
             IA,
-            int256
+            NT
         )
     {
         // prettier-ignore

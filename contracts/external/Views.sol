@@ -18,6 +18,7 @@ import "interfaces/notional/NotionalViews.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Views is StorageLayoutV1, NotionalViews {
+    using UserDefinedType for NT;
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
     using Market for MarketParameters;
@@ -287,7 +288,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (
             uint16 currencyId,
-            uint256 totalSupply,
+            NT totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
@@ -396,7 +397,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         override
         returns (
             IA cashBalance,
-            int256 nTokenBalance,
+            NT nTokenBalance,
             uint256 lastClaimTime
         )
     {
@@ -478,13 +479,13 @@ contract Views is StorageLayoutV1, NotionalViews {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
+        NT tokensToMint = nTokenMintAction.calculateTokensToMint(
             nToken,
             amountToDepositInternal,
             block.timestamp
         );
 
-        return SafeCast.toUint256(tokensToMint);
+        return SafeCast.toUint256(NT.unwrap(tokensToMint));
     }
 
     /// @notice Returns the fCash amount to send when given a cash amount, be sure to buffer these amounts
@@ -557,7 +558,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
         if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
-            if (balanceState.storedNTokenBalance > 0) {
+            if (balanceState.storedNTokenBalance.isPosNotZero()) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
 
                 // prettier-ignore
@@ -569,7 +570,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     tokenAddress,
-                    SafeInt256.toUint(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(NT.unwrap(balanceState.storedNTokenBalance)),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,
@@ -584,7 +585,7 @@ contract Views is StorageLayoutV1, NotionalViews {
             uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
             balanceState.loadBalanceState(account, currencyId, accountContext);
 
-            if (balanceState.storedNTokenBalance > 0) {
+            if (balanceState.storedNTokenBalance.isPosNotZero()) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
 
                 (
@@ -595,7 +596,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    SafeInt256.toUint(balanceState.storedNTokenBalance),
+                    SafeInt256.toUint(NT.unwrap(balanceState.storedNTokenBalance)),
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,

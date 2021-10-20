@@ -14,6 +14,7 @@ import "../../math/UserDefinedType.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library nTokenMintAction {
+    using UserDefinedType for NT;
     using UserDefinedType for IA;
     using UserDefinedType for IU;
     using UserDefinedType for IR;
@@ -33,14 +34,14 @@ library nTokenMintAction {
     /// @return nTokens minted by this action
     function nTokenMint(uint16 currencyId, IA amountToDepositInternal)
         external
-        returns (int256)
+        returns (NT)
     {
         uint256 blockTime = block.timestamp;
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
 
-        int256 tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
-        require(tokensToMint >= 0, "Invalid token amount");
+        NT tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
+        require(tokensToMint.isPosOrZero(), "Invalid token amount");
 
         if (nToken.portfolioState.storedAssets.length == 0) {
             // If the token does not have any assets, then the markets must be initialized first.
@@ -66,9 +67,9 @@ library nTokenMintAction {
         nTokenPortfolio memory nToken,
         IA amountToDepositInternal,
         uint256 blockTime
-    ) internal view returns (int256) {
+    ) internal view returns (NT) {
         require(amountToDepositInternal.isPosOrZero()); // dev: deposit amount negative
-        if (amountToDepositInternal.isZero()) return 0;
+        if (amountToDepositInternal.isZero()) return NT.wrap(0);
 
         if (nToken.lastInitializedTime != 0) {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
@@ -83,15 +84,15 @@ library nTokenMintAction {
         require(assetCashPV.isPosOrZero());
 
         // Allow for the first deposit
-        if (nToken.totalSupply == 0) {
-            return IA.unwrap(amountToDepositInternal);
+        if (nToken.totalSupply.isZero()) {
+            return NT.wrap(IA.unwrap(amountToDepositInternal));
         } else {
             // assetCashPVPost = assetCashPV + amountToDeposit
             // (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
             // (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
             // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
             // tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
-            return IA.unwrap(amountToDepositInternal.scale(nToken.totalSupply, IA.unwrap(assetCashPV)));
+            return nToken.totalSupply.scale(IA.unwrap(amountToDepositInternal), IA.unwrap(assetCashPV));
         }
     }
 

@@ -198,7 +198,7 @@ library LiquidationHelpers {
         address liquidator,
         uint16 localCurrencyId,
         IA netLocalFromLiquidator,
-        int256 netLocalNTokens
+        NT netLocalNTokens
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
@@ -232,7 +232,7 @@ library LiquidationHelpers {
         AccountContext memory liquidatorContext,
         uint16 collateralCurrencyId,
         IA netCollateralToLiquidator,
-        int256 netCollateralNTokens,
+        NT netCollateralNTokens,
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountContext memory) {

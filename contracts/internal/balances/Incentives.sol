@@ -86,7 +86,7 @@ library Incentives {
 
         uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
-            balanceState.storedNTokenBalance.toUint(),
+            NT.unwrap(balanceState.storedNTokenBalance).toUint(),
             balanceState.lastClaimTime,
             balanceState.lastClaimIntegralSupply,
             blockTime,

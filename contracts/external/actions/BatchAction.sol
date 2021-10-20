@@ -18,6 +18,7 @@ import "interfaces/notional/NotionalCallback.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
@@ -255,7 +256,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
-            int256 tokensMinted = nTokenMintAction.nTokenMint(
+            NT tokensMinted = nTokenMintAction.nTokenMint(
                 balanceState.currencyId,
                 assetInternalAmount
             );
@@ -269,17 +270,17 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 balanceState
                     .storedNTokenBalance
                     .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
-                    .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
+                    .add(balanceState.netNTokenSupplyChange).gte(NT.wrap(depositActionAmount)),
                 "Insufficient token balance"
             );
 
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(
-                depositActionAmount
+                NT.wrap(depositActionAmount)
             );
 
             IA assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
                 balanceState.currencyId,
-                depositActionAmount
+                NT.wrap(depositActionAmount)
             );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);

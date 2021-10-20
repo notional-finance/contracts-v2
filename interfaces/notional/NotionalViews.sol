@@ -78,7 +78,7 @@ interface NotionalViews {
         view
         returns (
             uint16 currencyId,
-            uint256 totalSupply,
+            NT totalSupply,
             uint256 incentiveAnnualEmissionRate,
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
@@ -103,7 +103,7 @@ interface NotionalViews {
         view
         returns (
             IA cashBalance,
-            int256 nTokenBalance,
+            NT nTokenBalance,
             uint256 lastClaimTime
         );
 

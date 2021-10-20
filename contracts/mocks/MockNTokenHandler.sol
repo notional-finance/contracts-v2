@@ -64,7 +64,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
 
     function changeNTokenSupply(
         address tokenAddress,
-        int256 netChange,
+        NT netChange,
         uint256 blockTime
     ) external returns (uint256) {
         return nTokenHandler.changeNTokenSupply(tokenAddress, netChange, blockTime);
@@ -74,7 +74,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         external
         view
         returns (
-            uint256,
+            NT,
             uint256,
             uint256
         )

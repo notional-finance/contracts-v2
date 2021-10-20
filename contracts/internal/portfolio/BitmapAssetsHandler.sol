@@ -16,6 +16,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 library BitmapAssetsHandler {
     using UserDefinedType for IU;
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using Bitmap for bytes32;
@@ -226,12 +227,12 @@ library BitmapAssetsHandler {
         address account,
         uint256 currencyId,
         uint256 nextSettleTime,
-        int256 tokensToRedeem,
-        int256 totalSupply
+        NT tokensToRedeem,
+        NT totalSupply
     ) internal returns (PortfolioAsset[] memory) {
         // It is not possible to redeem the entire token supply because some liquidity tokens must remain
         // in the liquidity token portfolio in order to re-initialize markets.
-        require(tokensToRedeem < totalSupply, "Cannot redeem");
+        require(tokensToRedeem.lt(totalSupply), "Cannot redeem");
 
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 index = assetsBitmap.totalBitsSet();
@@ -247,7 +248,7 @@ library BitmapAssetsHandler {
             ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
             int256 notional = fCashSlot.notional;
 
-            int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+            int256 notionalToTransfer = notional.mul(NT.unwrap(tokensToRedeem)).div(NT.unwrap(totalSupply));
             int256 finalNotional = notional.sub(notionalToTransfer);
 
             require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow

@@ -13,6 +13,7 @@ import "../balances/BalanceHandler.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library LiquidateCurrency {
+    using UserDefinedType for NT;
     using UserDefinedType for IA;
     using UserDefinedType for IU;
     using UserDefinedType for LT;
@@ -83,7 +84,7 @@ library LiquidateCurrency {
         }
 
         if (factors.nTokenHaircutAssetValue.isPosNotZero()) {
-            int256 nTokensToLiquidate;
+            NT nTokensToLiquidate;
             {
                 // This check is applied when saving parameters but we double check it here.
                 require(
@@ -131,17 +132,19 @@ library LiquidateCurrency {
                             uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))
                 ));
 
-                nTokensToLiquidate = IA.unwrap(assetBenefitRequired)
-                    .mul(balanceState.storedNTokenBalance)
-                    .mul(int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
-                    .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(haircutDiff));
+                nTokensToLiquidate = NT.wrap(
+                    IA.unwrap(assetBenefitRequired)
+                        .mul(NT.unwrap(balanceState.storedNTokenBalance))
+                        .mul(int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
+                        .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(haircutDiff))
+                );
             }
 
-            nTokensToLiquidate = LiquidationHelpers.calculateLiquidationAmount(
-                nTokensToLiquidate,
-                balanceState.storedNTokenBalance,
+            nTokensToLiquidate = NT.wrap(LiquidationHelpers.calculateLiquidationAmount(
+                NT.unwrap(nTokensToLiquidate),
+                NT.unwrap(balanceState.storedNTokenBalance),
                 int256(uint256(maxNTokenLiquidation))
-            );
+            ));
             balanceState.netNTokenTransfer = nTokensToLiquidate.neg();
 
             {
@@ -155,11 +158,11 @@ library LiquidateCurrency {
                 //      (tokenBalance * PV_HAIRCUT_PERCENTAGE)
                 // prettier-ignore
                 IA localAssetCash = IA.wrap(
-                    nTokensToLiquidate
+                    NT.unwrap(nTokensToLiquidate)
                         .mul(int256(uint256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]))))
                         .mul(IA.unwrap(factors.nTokenHaircutAssetValue))
                         .div(int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
-                        .div(balanceState.storedNTokenBalance)
+                        .div(NT.unwrap(balanceState.storedNTokenBalance))
                 );
 
                 balanceState.netCashChange = balanceState.netCashChange.add(localAssetCash);
@@ -230,7 +233,7 @@ library LiquidateCurrency {
                 balanceState,
                 factors,
                 collateralAssetRemaining,
-                int256(uint256(maxNTokenLiquidation))
+                NT.wrap(int256(uint256(maxNTokenLiquidation)))
             );
         }
 
@@ -333,7 +336,7 @@ library LiquidateCurrency {
         BalanceState memory balanceState,
         LiquidationFactors memory factors,
         IA collateralAssetRemaining,
-        int256 maxNTokenLiquidation
+        NT maxNTokenLiquidation
     ) internal pure returns (IA) {
         // See longer comment in `liquidateLocalCurrency`, the main difference here is that we know how much
         // collateral we want to raise instead of calculating a "benefitGained" difference in a single currency.
@@ -350,17 +353,18 @@ library LiquidateCurrency {
             int256(uint256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])));
         int256 nTokenHaircut =
             int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])));
-        int256 nTokensToLiquidate =
+        NT nTokensToLiquidate = NT.wrap(
             IA.unwrap(collateralAssetRemaining)
-                .mul(balanceState.storedNTokenBalance)
+                .mul(NT.unwrap(balanceState.storedNTokenBalance))
                 .mul(nTokenHaircut)
-                .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(nTokenLiquidationHaircut));
+                .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(nTokenLiquidationHaircut))
+        );
 
-        if (maxNTokenLiquidation > 0 && nTokensToLiquidate > maxNTokenLiquidation) {
+        if (maxNTokenLiquidation.isPosNotZero() && nTokensToLiquidate.gt(maxNTokenLiquidation)) {
             nTokensToLiquidate = maxNTokenLiquidation;
         }
 
-        if (nTokensToLiquidate > balanceState.storedNTokenBalance) {
+        if (nTokensToLiquidate.gt(balanceState.storedNTokenBalance)) {
             nTokensToLiquidate = balanceState.storedNTokenBalance;
         }
 
@@ -371,11 +375,11 @@ library LiquidateCurrency {
         // Formula here:
         // collateralToRaise = (tokensToLiquidate * nTokenHaircutAssetValue * LIQUIDATION_HAIRCUT) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
         collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
-            IA.wrap(nTokensToLiquidate
+            IA.wrap(NT.unwrap(nTokensToLiquidate)
                 .mul(IA.unwrap(factors.nTokenHaircutAssetValue))
                 .mul(nTokenLiquidationHaircut)
                 .div(nTokenHaircut)
-                .div(balanceState.storedNTokenBalance))
+                .div(NT.unwrap(balanceState.storedNTokenBalance)))
         );
 
         return collateralAssetRemaining;

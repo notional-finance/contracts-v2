@@ -46,7 +46,7 @@ library MockValuationLib {
     function setNTokenValue(
         uint16 currencyId,
         address nTokenAddress,
-        int256 totalSupply,
+        NT totalSupply,
         IA cashBalance,
         uint8 pvHaircutPercentage,
         uint8 liquidationHaircutPercentage
@@ -309,7 +309,7 @@ contract MockValuationBase {
     function setNTokenValue(
         uint16 currencyId,
         address nTokenAddress,
-        int256 totalSupply,
+        NT totalSupply,
         IA cashBalance,
         uint8 pvHaircutPercentage,
         uint8 liquidationHaircutPercentage

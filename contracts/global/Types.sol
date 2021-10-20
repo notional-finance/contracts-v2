@@ -107,7 +107,7 @@ struct Token {
 struct nTokenPortfolio {
     CashGroupParameters cashGroup;
     PortfolioState portfolioState;
-    int256 totalSupply;
+    NT totalSupply;
     IA cashBalance;
     uint256 lastInitializedTime;
     bytes6 parameters;
@@ -172,15 +172,15 @@ struct BalanceState {
     // Cash balance stored in balance state at the beginning of the transaction
     IA storedCashBalance;
     // nToken balance stored at the beginning of the transaction
-    int256 storedNTokenBalance;
+    NT storedNTokenBalance;
     // The net cash change as a result of asset settlement or trading
     IA netCashChange;
     // Net asset transfers into or out of the account
     IA netAssetTransferInternalPrecision;
     // Net token transfers into or out of the account
-    int256 netNTokenTransfer;
+    NT netNTokenTransfer;
     // Net token supply change from minting or redeeming
-    int256 netNTokenSupplyChange;
+    NT netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
     uint256 lastClaimTime;
     // The last integral supply amount when tokens were claimed
@@ -418,7 +418,7 @@ struct nTokenTotalSupplyStorage {
 struct AccountBalance {
     uint16 currencyId;
     IA cashBalance;
-    int256 nTokenBalance;
+    NT nTokenBalance;
     uint256 lastClaimTime;
     uint256 lastClaimIntegralSupply;
 }

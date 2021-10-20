@@ -12,6 +12,7 @@ import "../../math/FloatingPoint56.sol";
 
 library BalanceHandler {
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using UserDefinedType for IU;
     using SafeInt256 for int256;
     using TokenHandler for Token;
@@ -19,11 +20,11 @@ library BalanceHandler {
     using AccountContextHandler for AccountContext;
 
     /// @notice Emitted when a cash balance changes
-    event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
+    event CashBalanceChange(address indexed account, uint16 indexed currencyId, IA netCashChange);
     /// @notice Emitted when nToken supply changes (not the same as transfers)
-    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
+    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, NT tokenSupplyChange);
     /// @notice Emitted when reserve fees are accrued
-    event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
+    event ReserveFeeAccrued(uint16 indexed currencyId, IA fee);
 
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
@@ -119,20 +120,20 @@ library BalanceHandler {
         bool redeemToUnderlying
     ) internal returns (int256 transferAmountExternal) {
         bool mustUpdate;
-        if (balanceState.netNTokenTransfer < 0) {
+        if (balanceState.netNTokenTransfer.isNegNotZero()) {
             require(
                 balanceState.storedNTokenBalance
                     .add(balanceState.netNTokenSupplyChange)
-                    .add(balanceState.netNTokenTransfer) >= 0,
+                    .add(balanceState.netNTokenTransfer).isPosOrZero(),
                 "Neg nToken"
             );
         }
 
-        if (IA.unwrap(balanceState.netAssetTransferInternalPrecision) < 0) {
+        if (balanceState.netAssetTransferInternalPrecision.isNegNotZero()) {
             require(
-                IA.unwrap(balanceState.storedCashBalance
+                balanceState.storedCashBalance
                     .add(balanceState.netCashChange)
-                    .add(balanceState.netAssetTransferInternalPrecision)) >= 0,
+                    .add(balanceState.netAssetTransferInternalPrecision).isPosOrZero(),
                 "Neg Cash"
             );
         }
@@ -146,18 +147,18 @@ library BalanceHandler {
         // No changes to total cash after this point
         IA totalCashChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
 
-        if (IA.unwrap(totalCashChange) != 0) {
+        if (totalCashChange.isNotZero()) {
             balanceState.storedCashBalance = balanceState.storedCashBalance.add(totalCashChange);
             mustUpdate = true;
 
             emit CashBalanceChange(
                 account,
                 uint16(balanceState.currencyId),
-                IA.unwrap(totalCashChange)
+                totalCashChange
             );
         }
 
-        if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
+        if (balanceState.netNTokenTransfer.isNotZero() || balanceState.netNTokenSupplyChange.isNotZero()) {
             // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
             // of the system. This method will update the lastClaimTime time and lastIntegralTotalSupply in balance
             // state in place.
@@ -169,7 +170,7 @@ library BalanceHandler {
                 .add(balanceState.netNTokenTransfer)
                 .add(balanceState.netNTokenSupplyChange);
 
-            if (balanceState.netNTokenSupplyChange != 0) {
+            if (balanceState.netNTokenSupplyChange.isNotZero()) {
                 emit nTokenSupplyChange(
                     account,
                     uint16(balanceState.currencyId),
@@ -194,11 +195,11 @@ library BalanceHandler {
         accountContext.setActiveCurrency(
             balanceState.currencyId,
             // Set active currency to true if either balance is non-zero
-            IA.unwrap(balanceState.storedCashBalance) != 0 || balanceState.storedNTokenBalance != 0,
+            balanceState.storedCashBalance.isNotZero() || balanceState.storedNTokenBalance.isNotZero(),
             Constants.ACTIVE_IN_BALANCES
         );
 
-        if (IA.unwrap(balanceState.storedCashBalance) < 0) {
+        if (balanceState.storedCashBalance.isNegNotZero()) {
             // NOTE: HAS_CASH_DEBT cannot be extinguished except by a free collateral check where all balances
             // are examined
             accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
@@ -260,13 +261,13 @@ library BalanceHandler {
         IA amountToSettleAsset,
         AccountContext memory accountContext
     ) internal returns (IA) {
-        require(IA.unwrap(amountToSettleAsset) >= 0); // dev: amount to settle negative
-        (IA cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
+        require(amountToSettleAsset.isPosOrZero()); // dev: amount to settle negative
+        (IA cashBalance, NT nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         // Prevents settlement of positive balances
-        require(IA.unwrap(cashBalance) < 0, "Invalid settle balance");
-        if (IA.unwrap(amountToSettleAsset) == 0) {
+        require(cashBalance.isNegNotZero(), "Invalid settle balance");
+        if (amountToSettleAsset.isZero()) {
             // Symbolizes that the entire debt should be settled
             amountToSettleAsset = cashBalance.neg();
             cashBalance = IA.wrap(0);
@@ -278,7 +279,7 @@ library BalanceHandler {
 
         // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
         // also have cash debts
-        if (IA.unwrap(cashBalance) == 0 && nTokenBalance == 0) {
+        if (cashBalance.isZero() && nTokenBalance.isZero()) {
             accountContext.setActiveCurrency(
                 cashGroup.currencyId,
                 false,
@@ -296,7 +297,7 @@ library BalanceHandler {
         );
 
         // Emit the event here, we do not call finalize
-        emit CashBalanceChange(account, cashGroup.currencyId, IA.unwrap(amountToSettleAsset));
+        emit CashBalanceChange(account, cashGroup.currencyId, amountToSettleAsset);
 
         return amountToSettleAsset;
     }
@@ -309,11 +310,11 @@ library BalanceHandler {
     ) internal {
         for (uint256 i = 0; i < settleAmounts.length; i++) {
             SettleAmount memory amt = settleAmounts[i];
-            if (IA.unwrap(amt.netCashChange) == 0) continue;
+            if (amt.netCashChange.isZero()) continue;
 
             (
                 IA cashBalance,
-                int256 nTokenBalance,
+                NT nTokenBalance,
                 uint256 lastClaimTime,
                 uint256 lastClaimIntegralSupply
             ) = getBalanceStorage(account, amt.currencyId);
@@ -321,18 +322,18 @@ library BalanceHandler {
             cashBalance = cashBalance.add(amt.netCashChange);
             accountContext.setActiveCurrency(
                 amt.currencyId,
-                IA.unwrap(cashBalance) != 0 || nTokenBalance != 0,
+                cashBalance.isNotZero() || nTokenBalance.isNotZero(),
                 Constants.ACTIVE_IN_BALANCES
             );
 
-            if (IA.unwrap(cashBalance) < 0) {
+            if (cashBalance.isNegNotZero()) {
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
             }
 
             emit CashBalanceChange(
                 account,
                 uint16(amt.currencyId),
-                IA.unwrap(amt.netCashChange)
+                amt.netCashChange
             );
 
             _setBalanceStorage(
@@ -352,8 +353,8 @@ library BalanceHandler {
         uint256 currencyId,
         IA cashBalance
     ) internal {
-        require(IA.unwrap(cashBalance) >= 0); // dev: invalid nToken cash balance
-        _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
+        require(cashBalance.isPosOrZero()); // dev: invalid nToken cash balance
+        _setBalanceStorage(nTokenAddress, currencyId, cashBalance, NT.wrap(0), 0, 0);
     }
 
     /// @notice increments fees to the reserve
@@ -362,8 +363,8 @@ library BalanceHandler {
         // prettier-ignore
         (IA totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
-        _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
-        emit ReserveFeeAccrued(uint16(currencyId), IA.unwrap(fee));
+        _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, NT.wrap(0), 0, 0);
+        emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
     /// @notice Sets internal balance storage.
@@ -371,7 +372,7 @@ library BalanceHandler {
         address account,
         uint256 currencyId,
         IA cashBalance,
-        int256 nTokenBalance,
+        NT nTokenBalance,
         uint256 lastClaimTime,
         uint256 lastClaimIntegralSupply
     ) private {
@@ -379,10 +380,9 @@ library BalanceHandler {
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
-        require(nTokenBalance >= 0 && nTokenBalance <= int256(uint256(type(uint80).max))); // dev: stored nToken balance overflow
         require(lastClaimTime <= type(uint32).max); // dev: last claim time overflow
 
-        balanceStorage.nTokenBalance = uint80(uint256(nTokenBalance));
+        balanceStorage.nTokenBalance = nTokenBalance.toStorage();
         balanceStorage.lastClaimTime = uint32(lastClaimTime);
         balanceStorage.cashBalance = cashBalance.toBalanceStorage();
 
@@ -398,7 +398,7 @@ library BalanceHandler {
         view
         returns (
             IA cashBalance,
-            int256 nTokenBalance,
+            NT nTokenBalance,
             uint256 lastClaimTime,
             uint256 lastClaimIntegralSupply
         )
@@ -406,7 +406,7 @@ library BalanceHandler {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
-        nTokenBalance = int256(uint256(balanceStorage.nTokenBalance));
+        nTokenBalance = NT.wrap(int256(uint256(balanceStorage.nTokenBalance)));
         lastClaimTime = balanceStorage.lastClaimTime;
         lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(balanceStorage.packedLastClaimIntegralSupply);
         cashBalance = IA.wrap(balanceStorage.cashBalance);
@@ -433,15 +433,15 @@ library BalanceHandler {
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = IA.wrap(0);
-            balanceState.storedNTokenBalance = 0;
+            balanceState.storedNTokenBalance = NT.wrap(0);
             balanceState.lastClaimTime = 0;
             balanceState.lastClaimIntegralSupply = 0;
         }
 
         balanceState.netCashChange = IA.wrap(0);
         balanceState.netAssetTransferInternalPrecision = IA.wrap(0);
-        balanceState.netNTokenTransfer = 0;
-        balanceState.netNTokenSupplyChange = 0;
+        balanceState.netNTokenTransfer = NT.wrap(0);
+        balanceState.netNTokenSupplyChange = NT.wrap(0);
     }
 
     /// @notice Used when manually claiming incentives in nTokenAction. Also sets the balance state

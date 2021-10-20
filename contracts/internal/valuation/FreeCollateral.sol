@@ -13,6 +13,7 @@ import "../../math/UserDefinedType.sol";
 
 library FreeCollateral {
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using UserDefinedType for IU;
     using SafeInt256 for int256;
     using Bitmap for bytes;
@@ -43,14 +44,14 @@ library FreeCollateral {
     function _getCurrencyBalances(address account, bytes2 currencyBytes)
         private
         view
-        returns (IA, int256)
+        returns (IA, NT)
     {
         if (currencyBytes & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
             uint256 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
             // prettier-ignore
             (
                 IA cashBalance,
-                int256 nTokenBalance,
+                NT nTokenBalance,
                 /* lastClaimTime */,
                 /* lastClaimIntegralSupply */
             ) = BalanceHandler.getBalanceStorage(account, currencyId);
@@ -58,7 +59,7 @@ library FreeCollateral {
             return (cashBalance, nTokenBalance);
         }
 
-        return (IA.wrap(0), 0);
+        return (IA.wrap(0), NT.wrap(0));
     }
 
     /// @notice Calculates the nToken asset value with a haircut set by governance
@@ -66,7 +67,7 @@ library FreeCollateral {
     function _getNTokenHaircutAssetPV(
         CashGroupParameters memory cashGroup,
         nTokenPortfolio memory nToken,
-        int256 tokenBalance,
+        NT tokenBalance,
         uint256 blockTime
     ) internal view returns (IA, bytes6) {
         nToken.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId);
@@ -76,11 +77,11 @@ library FreeCollateral {
 
         // (tokenBalance * nTokenValue * haircut) / totalSupply
         IA nTokenHaircutAssetPV = IA.wrap(
-            tokenBalance
+            NT.unwrap(tokenBalance)
                 .mul(IA.unwrap(nTokenAssetPV))
                 .mul(int256(uint256(uint8(nToken.parameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
                 .div(Constants.PERCENTAGE_DECIMALS)
-                .div(nToken.totalSupply)
+                .div(NT.unwrap(nToken.totalSupply))
         );
 
         // nToken.parameters is returned for use in liquidation
@@ -92,7 +93,7 @@ library FreeCollateral {
     /// values.
     function _getPortfolioAndNTokenAssetValue(
         FreeCollateralFactors memory factors,
-        int256 nTokenBalance,
+        NT nTokenBalance,
         uint256 blockTime
     )
         private
@@ -120,7 +121,7 @@ library FreeCollateral {
             netPortfolioValue = IA.wrap(0);
         }
 
-        if (nTokenBalance > 0) {
+        if (nTokenBalance.isPosNotZero()) {
             (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
                 factors.nToken,
@@ -148,7 +149,7 @@ library FreeCollateral {
             bytes6 nTokenParameters
         )
     {
-        int256 nTokenBalance;
+        NT nTokenBalance;
         // prettier-ignore
         (
             cashBalance,
@@ -157,7 +158,7 @@ library FreeCollateral {
             /* lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
-        if (nTokenBalance > 0) {
+        if (nTokenBalance.isPosNotZero()) {
             (nTokenHaircutAssetValue, nTokenParameters) = _getNTokenHaircutAssetPV(
                 factors.cashGroup,
                 factors.nToken,
@@ -257,11 +258,11 @@ library FreeCollateral {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
 
-            (IA netLocalAssetValue, int256 nTokenBalance) =
+            (IA netLocalAssetValue, NT nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
             if (netLocalAssetValue.isNegNotZero()) hasCashDebt = true;
 
-            if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
+            if (_isActiveInPortfolio(currencyBytes) || nTokenBalance.isPosNotZero()) {
                 factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
 
                 // prettier-ignore
@@ -343,13 +344,13 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
-            int256 nTokenBalance;
+            NT nTokenBalance;
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
                 currencyBytes
             );
 
-            if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
+            if (_isActiveInPortfolio(currencyBytes) || nTokenBalance.isPosNotZero()) {
                 factors.cashGroup = CashGroup.buildCashGroupView(currencyId);
                 // prettier-ignore
                 (
@@ -384,10 +385,10 @@ library FreeCollateral {
         uint256 blockTime
     ) private returns (IA) {
         uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
-        (IA netLocalAssetValue, int256 nTokenBalance) =
+        (IA netLocalAssetValue, NT nTokenBalance) =
             _getCurrencyBalances(liquidationFactors.account, currencyBytes);
 
-        if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
+        if (_isActiveInPortfolio(currencyBytes) || nTokenBalance.isPosNotZero()) {
             factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);
             (IA netPortfolioValue, IA nTokenHaircutAssetValue, bytes6 nTokenParameters) =
                 _getPortfolioAndNTokenAssetValue(factors, nTokenBalance, blockTime);

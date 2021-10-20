@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
+    using UserDefinedType for NT;
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
@@ -33,10 +34,12 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     {
         // prettier-ignore
         (
-            totalSupply,
+            NT totalSupply_,
             /* integralTotalSupply */,
             /* lastSupplyChangeTime */
         ) = nTokenHandler.getStoredNTokenSupplyFactors(nTokenAddress);
+
+        totalSupply = uint256(NT.unwrap(totalSupply_));
     }
 
     /// @notice Get the number of tokens held by the `account`
@@ -51,13 +54,13 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         // prettier-ignore
         (
             /* int cashBalance */,
-            int256 nTokenBalance,
+            NT nTokenBalance,
             /* uint lastClaimTime */,
             /* uint lastClaimIntegralSupply */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
-        require(nTokenBalance >= 0); // dev: negative nToken balance
-        return uint256(nTokenBalance);
+        require(nTokenBalance.isPosOrZero()); // dev: negative nToken balance
+        return uint256(NT.unwrap(nTokenBalance));
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -187,7 +190,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
 
         if (accountContext.isBitmapEnabled()) {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
-            if (balanceState.storedNTokenBalance > 0) {
+            if (balanceState.storedNTokenBalance.isPosNotZero()) {
                 // balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = balanceState.claimIncentivesManual(account);
             }
@@ -198,7 +201,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
 
             balanceState.loadBalanceState(account, currencyId, accountContext);
-            if (balanceState.storedNTokenBalance > 0) {
+            if (balanceState.storedNTokenBalance.isPosNotZero()) {
                 // balance state is updated inside claim incentives manual
                 totalIncentivesClaimed = totalIncentivesClaimed
                     .add(balanceState.claimIncentivesManual(account));
@@ -261,7 +264,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
-        int256 amountInt = SafeCast.toInt256(amount);
+        NT amountInt = NT.wrap(SafeCast.toInt256(amount));
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         // If sender has debt then we will check free collateral which will revert if we have not

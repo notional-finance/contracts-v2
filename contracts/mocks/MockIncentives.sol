@@ -9,7 +9,7 @@ contract MockIncentives {
     function setNTokenParameters(
         uint16 currencyId,
         address tokenAddress,
-        int256 totalSupply,
+        NT totalSupply,
         uint32 emissionRate,
         uint32 blockTime
     ) external returns (uint256) {
@@ -21,7 +21,7 @@ contract MockIncentives {
     function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
         external
         view 
-        returns (uint256, uint256, uint256) 
+        returns (NT, uint256, uint256) 
     {
         return nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
     }

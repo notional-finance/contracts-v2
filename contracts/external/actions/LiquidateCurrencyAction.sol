@@ -11,6 +11,7 @@ import "../../math/UserDefinedType.sol";
 
 contract LiquidateCurrencyAction is ActionGuards {
     using UserDefinedType for IA;
+    using UserDefinedType for NT;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
@@ -29,7 +30,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint16 collateralCurrencyId,
         IA localAssetCashFromLiquidator,
         IA netCollateralTransfer,
-        int256 netNTokenTransfer
+        NT netNTokenTransfer
     );
 
     /// @notice Calculates the net local currency required by the liquidator. This is a stateful method
@@ -45,7 +46,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (IA, int256) {
+    ) external returns (IA, NT) {
         // prettier-ignore
         (
             IA localAssetCashFromLiquidator,
@@ -76,7 +77,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external nonReentrant returns (IA, int256) {
+    ) external nonReentrant returns (IA, NT) {
         (
             IA localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
@@ -143,7 +144,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         returns (
             IA,
             IA,
-            int256
+            NT
         )
     {
         // prettier-ignore
@@ -194,7 +195,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         returns (
             IA,
             IA,
-            int256
+            NT
         )
     {
         (
@@ -378,7 +379,7 @@ contract LiquidateCurrencyAction is ActionGuards {
                 msg.sender,
                 localCurrency,
                 localAssetCashFromLiquidator,
-                0 // No nToken transfers
+                NT.wrap(0) // No nToken transfers
             );
 
         // Will transfer collateral to the liquidator

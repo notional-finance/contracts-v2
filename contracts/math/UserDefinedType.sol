@@ -7,6 +7,7 @@ import "../global/Constants.sol";
 type IU is int256;
 type IA is int256;
 type LT is int256;
+type NT is int256;
 type ER is int256; // exchange rate
 type IR is uint256; // implied rate
 
@@ -299,5 +300,82 @@ library UserDefinedType {
 
     function abs(ER a) internal pure returns (ER) {
         return ER.unwrap(a) < 0 ? ER.wrap(-ER.unwrap(a)) : a;
+    }
+
+    /************* nToken **********************/
+    function scale(NT a, int256 numerator, int256 divisor) internal pure returns (NT) {
+        return NT.wrap((NT.unwrap(a) * numerator) / divisor);
+    }
+
+    function add(NT a, NT b) internal pure returns (NT) {
+        return NT.wrap(NT.unwrap(a) + NT.unwrap(b));
+    }
+
+    function sub(NT a, NT b) internal pure returns (NT) {
+        return NT.wrap(NT.unwrap(a) - NT.unwrap(b));
+    }
+
+    function subNoNeg(NT a, NT b) internal pure returns (NT) {
+        int256 c = NT.unwrap(a) - NT.unwrap(b);
+        require(c >= 0);
+        return NT.wrap(c);
+    }
+
+    function neg(NT a) internal pure returns (NT) {
+        return NT.wrap(-NT.unwrap(a));
+    }
+
+    function isZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) == 0;
+    }
+
+    function isNotZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) != 0;
+    }
+
+    function gt(NT a, NT b) internal pure returns (bool) {
+        return NT.unwrap(a) > NT.unwrap(b);
+    }
+
+    function gte(NT a, NT b) internal pure returns (bool) {
+        return NT.unwrap(a) >= NT.unwrap(b);
+    }
+
+    function lt(NT a, NT b) internal pure returns (bool) {
+        return NT.unwrap(a) < NT.unwrap(b);
+    }
+
+    function lte(NT a, NT b) internal pure returns (bool) {
+        return NT.unwrap(a) <= NT.unwrap(b);
+    }
+
+    function eq(NT a, NT b) internal pure returns (bool) {
+        return NT.unwrap(a) == NT.unwrap(b);
+    }
+
+    function isPosNotZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) > 0;
+    }
+
+    function isPosOrZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) >= 0;
+    }
+
+    function isNegNotZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) < 0;
+    }
+
+    function isNegOrZero(NT a) internal pure returns (bool) {
+        return NT.unwrap(a) <= 0;
+    }
+
+    function toStorage(NT a) internal pure returns (uint80) {
+        require(0 <= NT.unwrap(a) && NT.unwrap(a) <= int256(uint256(type(uint80).max))); // dev: storage overflow
+        return uint80(uint256(NT.unwrap(a)));
+    }
+
+    function toTotalSupplyStorage(NT a) internal pure returns (uint96) {
+        require(0 <= NT.unwrap(a) && NT.unwrap(a) <= int256(uint256(type(uint96).max))); // dev: storage overflow
+        return uint96(uint256(NT.unwrap(a)));
     }
 }

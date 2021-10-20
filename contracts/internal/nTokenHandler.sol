@@ -15,6 +15,7 @@ import "../math/UserDefinedType.sol";
 library nTokenHandler {
     using UserDefinedType for IA;
     using UserDefinedType for IU;
+    using UserDefinedType for NT;
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
 
@@ -101,14 +102,14 @@ library nTokenHandler {
         internal
         view
         returns (
-            uint256 totalSupply,
+            NT totalSupply,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
         )
     {
         mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
         nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
-        totalSupply = nTokenStorage.totalSupply;
+        totalSupply = NT.wrap(int256(uint256(nTokenStorage.totalSupply)));
         // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The integral total supply
         // must be updated given the block time. Use `calculateIntegralTotalSupply` instead
         integralTotalSupply = nTokenStorage.integralTotalSupply;
@@ -120,7 +121,7 @@ library nTokenHandler {
         internal
         view 
         returns (
-            uint256 totalSupply,
+            NT totalSupply,
             uint256 integralTotalSupply,
             uint256 lastSupplyChangeTime
         )
@@ -140,7 +141,7 @@ library nTokenHandler {
         // has been the value. This will part of the numerator for the average total supply calculation during
         // minting incentives.
         integralTotalSupply = uint256(int256(integralTotalSupply).add(
-            int256(totalSupply).mul(int256(blockTime - lastSupplyChangeTime))
+            NT.unwrap(totalSupply).mul(int256(blockTime - lastSupplyChangeTime))
         ));
 
         require(integralTotalSupply >= 0 && integralTotalSupply < type(uint128).max); // dev: integral total supply overflow
@@ -151,26 +152,25 @@ library nTokenHandler {
     /// @notice Updates the nToken token supply amount when minting or redeeming.
     function changeNTokenSupply(
         address tokenAddress,
-        int256 netChange,
+        NT netChange,
         uint256 blockTime
     ) internal returns (uint256) {
         (
-            uint256 totalSupply,
+            NT totalSupply,
             uint256 integralTotalSupply,
             /* uint256 lastSupplyChangeTime */
         ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
 
-        if (netChange != 0) {
+        if (netChange.isNotZero()) {
             // If the totalSupply will change then we store the new total supply, the integral total supply and the
             // current block time. We know that this int256 conversion will not overflow because totalSupply is stored
             // as a uint96 and checked in the next line.
-            int256 newTotalSupply = int256(totalSupply).add(netChange);
-            require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
+            NT newTotalSupply = totalSupply.add(netChange);
 
             mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
             nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
 
-            nTokenStorage.totalSupply = uint96(uint256(newTotalSupply));
+            nTokenStorage.totalSupply = newTotalSupply.toTotalSupplyStorage();
             // NOTE: overflows checked in calculateIntegralTotalSupply
             nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
             nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
@@ -327,13 +327,13 @@ library nTokenHandler {
 
         // prettier-ignore
         (
-            uint256 totalSupply,
+            NT totalSupply,
             /* integralTotalSupply */,
             /* lastSupplyChangeTime */
         ) = getStoredNTokenSupplyFactors(nToken.tokenAddress);
 
         nToken.lastInitializedTime = lastInitializedTime;
-        nToken.totalSupply = int256(totalSupply);
+        nToken.totalSupply = totalSupply;
         nToken.parameters = parameters;
 
         nToken.portfolioState = PortfolioHandler.buildPortfolioState(

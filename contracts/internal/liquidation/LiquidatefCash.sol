@@ -416,7 +416,7 @@ library LiquidatefCash {
                 liquidator,
                 localCurrency,
                 c.localAssetCashFromLiquidator,
-                0
+                NT.wrap(0)
             );
 
         // Liquidated account gets the cash from the liquidator
