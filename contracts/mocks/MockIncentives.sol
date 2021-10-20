@@ -28,7 +28,7 @@ contract MockIncentives {
 
     function calculateIncentivesToClaim(
         address tokenAddress,
-        uint256 nTokenBalance,
+        NT nTokenBalance,
         uint256 lastClaimTime,
         uint256 lastClaimIntegralSupply,
         uint256 blockTime

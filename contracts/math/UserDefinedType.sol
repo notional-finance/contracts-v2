@@ -98,6 +98,10 @@ library UserDefinedType {
         return IU.wrap((IU.unwrap(a) * numerator) / divisor);
     }
 
+    function scaleDouble(IU a, int256 num1, int256 num2, int256 div1, int256 div2) internal pure returns (IU) {
+        return IU.wrap((IU.unwrap(a) * num1 * num2) / (div1 * div2));
+    }
+
     function add(IU a, IU b) internal pure returns (IU) {
         return IU.wrap(IU.unwrap(a) + IU.unwrap(b));
     }

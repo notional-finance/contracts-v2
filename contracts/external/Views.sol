@@ -568,7 +568,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     tokenAddress,
-                    SafeInt256.toUint(NT.unwrap(balanceState.storedNTokenBalance)),
+                    balanceState.storedNTokenBalance,
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,
@@ -594,7 +594,7 @@ contract Views is StorageLayoutV1, NotionalViews {
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    SafeInt256.toUint(NT.unwrap(balanceState.storedNTokenBalance)),
+                    balanceState.storedNTokenBalance,
                     balanceState.lastClaimTime,
                     balanceState.lastClaimIntegralSupply,
                     blockTime,

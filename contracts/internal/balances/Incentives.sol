@@ -31,7 +31,7 @@ library Incentives {
     /// @notice Calculates the claimable incentives for a particular nToken and account
     function calculateIncentivesToClaim(
         address tokenAddress,
-        uint256 nTokenBalance,
+        NT nTokenBalance,
         uint256 lastClaimTime,
         uint256 lastClaimIntegralSupply,
         uint256 blockTime,
@@ -63,7 +63,7 @@ library Incentives {
         uint256 avgTotalSupply = integralTotalSupply.sub(lastClaimIntegralSupply).div(timeSinceLastClaim);
         if (avgTotalSupply == 0) return 0;
 
-        uint256 incentivesToClaim = nTokenBalance.mul(incentiveRate).div(avgTotalSupply);
+        uint256 incentivesToClaim = uint256(NT.unwrap(nTokenBalance)).mul(incentiveRate).div(avgTotalSupply);
         // incentiveRate has a decimal basis of 1e16 so divide by token precision to reduce to 1e8
         incentivesToClaim = incentivesToClaim.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
 
@@ -86,7 +86,7 @@ library Incentives {
 
         uint256 incentivesToClaim = calculateIncentivesToClaim(
             tokenAddress,
-            NT.unwrap(balanceState.storedNTokenBalance).toUint(),
+            balanceState.storedNTokenBalance,
             balanceState.lastClaimTime,
             balanceState.lastClaimIntegralSupply,
             blockTime,
