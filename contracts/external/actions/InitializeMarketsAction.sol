@@ -666,7 +666,7 @@ library InitializeMarketsAction {
 
                 // It's possible that totalfCash is zero from rounding errors above, we want to set this to a minimum value
                 // so that we don't have divide by zero errors.
-                if (IU.unwrap(newMarket.totalfCash) < 1) newMarket.totalfCash = IU.wrap(1);
+                if (newMarket.totalfCash.lt(IU.wrap(1))) newMarket.totalfCash = IU.wrap(1);
 
                 newMarket.oracleRate = oracleRate;
                 // The oracle rate has been changed so we set the previous trade time to current

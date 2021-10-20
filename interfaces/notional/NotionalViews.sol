@@ -122,7 +122,7 @@ interface NotionalViews {
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
         external
         view
-        returns (uint256);
+        returns (NT);
 
     function getfCashAmountGivenCashAmount(
         uint16 currencyId,

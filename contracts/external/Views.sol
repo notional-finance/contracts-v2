@@ -470,7 +470,7 @@ contract Views is StorageLayoutV1, NotionalViews {
         external
         view
         override
-        returns (uint256)
+        returns (NT)
     {
         _checkValidCurrency(currencyId);
         Token memory token = TokenHandler.getAssetToken(currencyId);
@@ -479,13 +479,11 @@ contract Views is StorageLayoutV1, NotionalViews {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        NT tokensToMint = nTokenMintAction.calculateTokensToMint(
+        return nTokenMintAction.calculateTokensToMint(
             nToken,
             amountToDepositInternal,
             block.timestamp
         );
-
-        return SafeCast.toUint256(NT.unwrap(tokensToMint));
     }
 
     /// @notice Returns the fCash amount to send when given a cash amount, be sure to buffer these amounts

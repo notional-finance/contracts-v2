@@ -2,6 +2,8 @@
 pragma solidity ^0.8.9;
 pragma abicoder v2;
 
+import "../../contracts/math/UserDefinedType.sol";
+
 interface nTokenERC20 {
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
@@ -43,10 +45,10 @@ interface nTokenERC20 {
 
     function nTokenClaimIncentives() external returns (uint256);
 
-    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (int256);
+    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (IA);
 
     function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
         external
         view
-        returns (int256);
+        returns (IU);
 }

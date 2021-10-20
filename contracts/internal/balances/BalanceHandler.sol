@@ -359,7 +359,7 @@ library BalanceHandler {
 
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, IA fee) internal {
-        require(IA.unwrap(fee) >= 0); // dev: invalid fee
+        require(fee.isPosOrZero()); // dev: invalid fee
         // prettier-ignore
         (IA totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);

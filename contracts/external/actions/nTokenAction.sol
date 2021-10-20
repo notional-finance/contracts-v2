@@ -220,7 +220,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         external
         view
         override
-        returns (int256)
+        returns (IA)
     {
         // prettier-ignore
         (
@@ -228,7 +228,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             /* portfolio */
         ) = _getNTokenPV(currencyId);
 
-        return IA.unwrap(totalAssetPV);
+        return totalAssetPV;
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
@@ -236,11 +236,11 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         external
         view
         override
-        returns (int256)
+        returns (IU)
     {
         (IA totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
 
-        return IU.unwrap(nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV));
+        return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
     function _getNTokenPV(uint16 currencyId)

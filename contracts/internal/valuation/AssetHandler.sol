@@ -67,7 +67,7 @@ library AssetHandler {
         uint256 blockTime,
         IR oracleRate
     ) internal pure returns (IU) {
-        if (IU.unwrap(notional) == 0) return IU.wrap(0);
+        if (notional.isZero()) return IU.wrap(0);
 
         // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
         // discount matured assets.
@@ -87,13 +87,13 @@ library AssetHandler {
         uint256 blockTime,
         IR oracleRate
     ) internal pure returns (IU) {
-        if (IU.unwrap(notional) == 0) return IU.wrap(0);
+        if (notional.isZero()) return IU.wrap(0);
         // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
         // discount matured assets.
         uint256 timeToMaturity = maturity.sub(blockTime);
 
         ER discountFactor;
-        if (IU.unwrap(notional) > 0) {
+        if (notional.isPosNotZero()) {
             // If fCash is positive then discounting by a higher rate will result in a smaller
             // discount factor (e ^ -x), meaning a lower positive fCash value.
             discountFactor = getDiscountFactor(

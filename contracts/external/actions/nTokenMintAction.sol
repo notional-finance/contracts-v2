@@ -15,6 +15,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 library nTokenMintAction {
     using UserDefinedType for NT;
+    using UserDefinedType for LT;
     using UserDefinedType for IA;
     using UserDefinedType for IU;
     using UserDefinedType for IR;
@@ -129,7 +130,7 @@ library nTokenMintAction {
             );
             // If market has not been initialized, continue. This can occur when cash groups extend maxMarketIndex
             // before initializing
-            if (LT.unwrap(market.totalLiquidity) == 0) continue;
+            if (market.totalLiquidity.isZero()) continue;
 
             // Checked that assetCashDeposit must be positive before entering
             IA perMarketDeposit = assetCashDeposit.scale(
@@ -146,7 +147,7 @@ library nTokenMintAction {
                 blockTime
             );
 
-            if (IU.unwrap(fCashAmount) != 0) {
+            if (fCashAmount.isNotZero()) {
                 BitmapAssetsHandler.addifCashAsset(
                     nToken.tokenAddress,
                     nToken.cashGroup.currencyId,

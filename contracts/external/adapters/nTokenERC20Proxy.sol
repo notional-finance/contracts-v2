@@ -104,12 +104,12 @@ contract nTokenERC20Proxy is IERC20 {
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
-    function getPresentValueAssetDenominated() external view returns (int256) {
+    function getPresentValueAssetDenominated() external view returns (IA) {
         return proxy.nTokenPresentValueAssetDenominated(currencyId);
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
-    function getPresentValueUnderlyingDenominated() external view returns (int256) {
+    function getPresentValueUnderlyingDenominated() external view returns (IU) {
         return proxy.nTokenPresentValueUnderlyingDenominated(currencyId);
     }
 }
