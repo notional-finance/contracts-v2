@@ -166,12 +166,11 @@ library LiquidationHelpers {
     ) internal pure returns (int256, IA) {
         // Converts collateral present value to the local amount along with the liquidation discount.
         // localPurchased = collateralToSell / (exchangeRate * liquidationDiscount)
-        IU localUnderlyingFromLiquidator = IU.wrap(
-            IU.unwrap(collateralUnderlyingPresentValue)
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .mul(factors.localETHRate.rateDecimals)
-                .div(ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate))
-                .div(liquidationDiscount)
+        IU localUnderlyingFromLiquidator = collateralUnderlyingPresentValue.scaleDouble(
+            Constants.PERCENTAGE_DECIMALS,
+            factors.localETHRate.rateDecimals
+            ExchangeRate.exchangeRate(factors.localETHRate, factors.collateralETHRate),
+            liquidationDiscount
         );
 
         IA localAssetFromLiquidator =

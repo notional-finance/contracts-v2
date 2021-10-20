@@ -132,11 +132,11 @@ library LiquidateCurrency {
                             uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))
                 ));
 
-                nTokensToLiquidate = NT.wrap(
-                    IA.unwrap(assetBenefitRequired)
-                        .mul(NT.unwrap(balanceState.storedNTokenBalance))
-                        .mul(int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
-                        .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(haircutDiff))
+                nTokensToLiquidate = balanceState.storedNTokenBalance.scaleDouble(
+                    IA.unwrap(assetBenefitRequired),
+                    int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
+                    IA.unwrap(factors.nTokenHaircutAssetValue),
+                    haircutDiff
                 );
             }
 
@@ -157,12 +157,11 @@ library LiquidateCurrency {
                 // nTokenLiquidationPrice = (tokensToLiquidate * LIQUIDATION_HAIRCUT * nTokenHaircutAssetValue) / 
                 //      (tokenBalance * PV_HAIRCUT_PERCENTAGE)
                 // prettier-ignore
-                IA localAssetCash = IA.wrap(
-                    NT.unwrap(nTokensToLiquidate)
-                        .mul(int256(uint256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]))))
-                        .mul(IA.unwrap(factors.nTokenHaircutAssetValue))
-                        .div(int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
-                        .div(NT.unwrap(balanceState.storedNTokenBalance))
+                IA localAssetCash = nTokenHaircutAssetValue.scaleDouble(
+                    NT.unwrap(nTokensToLiquidate),
+                    int256(uint256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE]))),
+                    NT.unwrap(balanceState.storedNTokenBalance),
+                    int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])))
                 );
 
                 balanceState.netCashChange = balanceState.netCashChange.add(localAssetCash);
@@ -353,11 +352,11 @@ library LiquidateCurrency {
             int256(uint256(uint8(factors.nTokenParameters[Constants.LIQUIDATION_HAIRCUT_PERCENTAGE])));
         int256 nTokenHaircut =
             int256(uint256(uint8(factors.nTokenParameters[Constants.PV_HAIRCUT_PERCENTAGE])));
-        NT nTokensToLiquidate = NT.wrap(
+        NT nTokensToLiquidate = balanceState.storedNTokenBalance.scaleDouble(
             IA.unwrap(collateralAssetRemaining)
-                .mul(NT.unwrap(balanceState.storedNTokenBalance))
-                .mul(nTokenHaircut)
-                .div(IA.unwrap(factors.nTokenHaircutAssetValue).mul(nTokenLiquidationHaircut))
+            nTokenHaircut,
+            IA.unwrap(factors.nTokenHaircutAssetValue),
+            nTokenLiquidationHaircut
         );
 
         if (maxNTokenLiquidation.isPosNotZero() && nTokensToLiquidate.gt(maxNTokenLiquidation)) {
@@ -375,11 +374,12 @@ library LiquidateCurrency {
         // Formula here:
         // collateralToRaise = (tokensToLiquidate * nTokenHaircutAssetValue * LIQUIDATION_HAIRCUT) / (PV_HAIRCUT_PERCENTAGE * tokenBalance)
         collateralAssetRemaining = collateralAssetRemaining.subNoNeg(
-            IA.wrap(NT.unwrap(nTokensToLiquidate)
-                .mul(IA.unwrap(factors.nTokenHaircutAssetValue))
-                .mul(nTokenLiquidationHaircut)
-                .div(nTokenHaircut)
-                .div(NT.unwrap(balanceState.storedNTokenBalance)))
+            factors.nTokenHaircutAssetValue.scaleDouble(
+                NT.unwrap(nTokensToLiquidate),
+                nTokenLiquidationHaircut,
+                NT.unwrap(balanceState.storedNTokenBalance),
+                nTokenHaircut
+            )
         );
 
         return collateralAssetRemaining;

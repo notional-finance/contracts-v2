@@ -16,6 +16,10 @@ library UserDefinedType {
         return IA.wrap((IA.unwrap(a) * numerator) / divisor);
     }
 
+    function scaleDouble(IA a, int256 num1, int256 num2, int256 div1, int256 div2) internal pure returns (IA) {
+        return IA.wrap((IA.unwrap(a) * num1 * num2) / (div1 * div2));
+    }
+
     function add(IA a, IA b) internal pure returns (IA) {
         return IA.wrap(IA.unwrap(a) + IA.unwrap(b));
     }
@@ -309,6 +313,10 @@ library UserDefinedType {
     /************* nToken **********************/
     function scale(NT a, int256 numerator, int256 divisor) internal pure returns (NT) {
         return NT.wrap((NT.unwrap(a) * numerator) / divisor);
+    }
+
+    function scaleDouble(NT a, int256 num1, int256 num2, int256 div1, int256 div2) internal pure returns (NT) {
+        return NT.wrap((NT.unwrap(a) * num1 * num2) / (div1 * div2));
     }
 
     function add(NT a, NT b) internal pure returns (NT) {

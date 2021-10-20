@@ -76,12 +76,11 @@ library FreeCollateral {
         IA nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
 
         // (tokenBalance * nTokenValue * haircut) / totalSupply
-        IA nTokenHaircutAssetPV = IA.wrap(
-            NT.unwrap(tokenBalance)
-                .mul(IA.unwrap(nTokenAssetPV))
-                .mul(int256(uint256(uint8(nToken.parameters[Constants.PV_HAIRCUT_PERCENTAGE]))))
-                .div(Constants.PERCENTAGE_DECIMALS)
-                .div(NT.unwrap(nToken.totalSupply))
+        IA nTokenHaircutAssetPV = nTokenAssetPV.scaleDouble(
+            NT.unwrap(tokenBalance),
+            int256(uint256(uint8(nToken.parameters[Constants.PV_HAIRCUT_PERCENTAGE]))),
+            NT.unwrap(nToken.totalSupply),
+            Constants.PERCENTAGE_DECIMALS
         );
 
         // nToken.parameters is returned for use in liquidation
