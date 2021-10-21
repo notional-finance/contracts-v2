@@ -177,7 +177,6 @@ class TestBalanceHandler:
         # initializing supply here
         assert bs_[8] == 0
 
-    @pytest.mark.only
     @given(
         assetBalance=strategy("int88", min_value=1e8, max_value=10e18),
         currencyId=strategy("uint8", min_value=4, max_value=6),
@@ -211,10 +210,10 @@ class TestBalanceHandler:
                 # Dust can accrue in the lower part with 6 decimal precision due to truncation so we
                 # modify the cash balances credited to users by 1 here
                 assert bs_[1] == bsCopy[1] + balanceHandler.convertToInternal(
-                    currencyId, balanceHandler.convertToExternal(currencyId, bsCopy[4]) - 1
+                    currencyId, balanceHandler.convertToExternal(currencyId, bsCopy[4])
                 )
-                assert balanceAfter - balanceBefore == transferAmountExternal + 1
-                assert transferAmountExternal + 1 == balanceHandler.convertToExternal(
+                assert balanceAfter - balanceBefore == transferAmountExternal
+                assert transferAmountExternal == balanceHandler.convertToExternal(
                     currencyId, bsCopy[4]
                 )
         elif currency[2] < 1e8:
@@ -265,7 +264,7 @@ class TestBalanceHandler:
         )
 
         if currency[2] < 1e8 and bsCopy[4] > 0:
-            assert balanceAfter - balanceBefore == transferAmountExternal + 1
+            assert balanceAfter - balanceBefore == transferAmountExternal
         else:
             assert balanceAfter - balanceBefore == transferAmountExternal
 
@@ -337,7 +336,7 @@ class TestBalanceHandler:
         # Need to truncate precision difference
         if currency[2] < 1e8 and currency[1]:
             assetDepositAdjusted = balanceHandler.convertToInternal(
-                currencyId, balanceHandler.convertToExternal(currencyId, assetDeposit) - 1
+                currencyId, balanceHandler.convertToExternal(currencyId, assetDeposit)
             )
         else:
             assetDepositAdjusted = assetDeposit

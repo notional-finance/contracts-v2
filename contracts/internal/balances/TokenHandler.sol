@@ -195,7 +195,6 @@ library TokenHandler {
     ) private returns (int256) {
         uint256 startingBalance;
         uint256 endingBalance;
-        uint256 finalAmountAdjustment;
 
         if (token.hasTransferFee) {
             startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
@@ -213,25 +212,21 @@ library TokenHandler {
             require(internalPrecisionBalance <= SafeInt256.toInt(token.maxCollateralBalance)); // dev: over max collateral balance
         }
 
-        if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION && token.tokenType != TokenType.UnderlyingToken) {
-            // If decimals is less than internal token precision, we change how much the the user is credited
-            // during this deposit so that the protocol accrues the dust (not the user's cash balance)
-            finalAmountAdjustment = 1;
-        }
-
         // Math is done in uint inside these statements and will revert on negative
         if (token.hasTransferFee) {
-            return SafeInt256.toInt(endingBalance.sub(startingBalance).sub(finalAmountAdjustment));
+            return SafeInt256.toInt(endingBalance.sub(startingBalance));
         } else {
-            // If amount == 0 then will revert if final amount adjustment is 1
-            return SafeInt256.toInt(amount.sub(finalAmountAdjustment));
+            return SafeInt256.toInt(amount);
         }
     }
 
     function convertToInternal(Token memory token, int256 amount) internal pure returns (int256) {
-        // If token decimals is greater than INTERNAL_TOKEN_PRECISION then this will truncate
-        // down to the internal precision. Resulting dust will accumulate to the protocol.
-        // If token decimals is less than INTERNAL_TOKEN_PRECISION then this will add zeros to the
+        // If token decimals > INTERNAL_TOKEN_PRECISION:
+        //  on deposit: resulting dust will accumulate to protocol
+        //  on withdraw: protocol may lose dust amount. However, withdraws are only calculated based
+        //    on a conversion from internal token precision to external token precision so therefore dust
+        //    amounts cannot be specified for withdraws.
+        // If token decimals < INTERNAL_TOKEN_PRECISION then this will add zeros to the
         // end of amount and will not result in dust.
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
         return amount.mul(Constants.INTERNAL_TOKEN_PRECISION).div(token.decimals);
@@ -239,16 +234,12 @@ library TokenHandler {
 
     function convertToExternal(Token memory token, int256 amount) internal pure returns (int256) {
         if (token.decimals == Constants.INTERNAL_TOKEN_PRECISION) return amount;
-        // If token decimals is greater than INTERNAL_TOKEN_PRECISION then this will increase amount
-        // by adding a number of zeros to the end. If token decimals is less than INTERNAL_TOKEN_PRECISION
-        // then we will end up truncating off the lower portion of the amount. This can result in the
-        // internal cash balances being different from the actual cash balances. This can result in dust
-        // amounts.
-        // For this case, when withdrawing out of the protocol we want to round down such that the
-        // protocol will retain more balance than the user. This already happens in the conversion below. When
-        // depositing, we want to decrease the amount of cash balance we credit to the user by a dust amount
-        // so that the protocol accrues the dust (rather than the user's balance). This is implemented in _deposit
-        // above.
+        // If token decimals > INTERNAL_TOKEN_PRECISION then this will increase amount
+        // by adding a number of zeros to the end and will not result in dust.
+        // If token decimals < INTERNAL_TOKEN_PRECISION:
+        //  on deposit: Deposits are specified in external token precision and there is no loss of precision when
+        //      tokens are converted from external to internal precision
+        //  on withdraw: this calculation will round down such that the protocol retains the residual cash balance
         return amount.mul(token.decimals).div(Constants.INTERNAL_TOKEN_PRECISION);
     }
 
