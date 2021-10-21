@@ -379,8 +379,11 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
                 // If currencyId is one then this is referring to cETH and there is no underlying() to call
                 underlyingDecimals = Constants.ETH_DECIMAL_PLACES;
             } else {
-                address underlyingToken = AssetRateAdapter(rateOracle).underlying();
-                underlyingDecimals = ERC20(underlyingToken).decimals();
+                address underlyingTokenAddress = AssetRateAdapter(rateOracle).underlying();
+                Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+                // Sanity check to ensure that the asset rate adapter refers to the correct underlying
+                require(underlyingTokenAddress == underlyingToken.tokenAddress, "G: invalid adapter");
+                underlyingDecimals = ERC20(underlyingTokenAddress).decimals();
             }
 
             // Perform this check to ensure that decimal calculations don't overflow
