@@ -369,7 +369,9 @@ def test_local_fcash_no_transfer_fee(env, weth, mockFlashLender, flashLiquidator
     assert fc < 0
 
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(account)
-    maturities = [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]
+    maturities = sorted(
+        [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0], reverse=True
+    )
     calldata = eth_abi.encode_abi(
         ["uint8", "address", "uint256", "uint256[]", "uint256[]"],
         [LocalfCash_NoTransferFee, account.address, 2, maturities, [0, 0]],
@@ -421,7 +423,9 @@ def test_cross_currency_fcash_no_transfer_fee(
     assert fc < 0
 
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(account)
-    maturities = [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0]
+    maturities = sorted(
+        [asset[1] for asset in liquidatedPortfolioBefore if asset[3] > 0], reverse=True
+    )
     (_, netLocalCalculated) = env.notional.calculatefCashCrossCurrencyLiquidation.call(
         account, 2, 1, maturities, [0, 0]
     )

@@ -82,6 +82,18 @@ def isolation(fn_isolation):
     pass
 
 
+def test_authentication_for_migrators(environment, accounts, CompoundToNotionalV2):
+    (v1env, v2env) = environment
+    compToV2 = CompoundToNotionalV2.deploy(v2env.notional.address, {"from": accounts[0]})
+
+    with brownie.reverts("Unauthorized callback"):
+        compToV2.notionalCallback(compToV2.address, accounts[2], "")
+
+    with brownie.reverts("Unauthorized callback"):
+        compToV2.notionalCallback(compToV2.address, accounts[2], "")
+        v1env["Migrator"].notionalCallback(v1env["Migrator"].address, accounts[2], "")
+
+
 def test_migrate_v1_to_comp(
     environment, accounts, NotionalV1ToCompound, nTransparentUpgradeableProxy
 ):

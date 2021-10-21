@@ -106,24 +106,44 @@ library LiquidationHelpers {
         return result;
     }
 
+    /// @notice Calculates the amount of underlying benefit required for local currency and fCash
+    /// liquidations. Uses the netETHValue converted back to local currency to maximize the benefit
+    /// gained from local liquidations.
+    /// @return the amount of underlying asset required
+    function calculateLocalLiquidationUnderlyingRequired(
+        int256 localAssetAvailable,
+        int256 netETHValue,
+        ETHRate memory localETHRate
+    ) internal pure returns (int256) {
+            // Formula in both cases requires dividing by the haircut or buffer:
+            // convertToLocal(netFCShortfallInETH) = localRequired * haircut
+            // convertToLocal(netFCShortfallInETH) / haircut = localRequired
+            //
+            // convertToLocal(netFCShortfallInETH) = localRequired * buffer
+            // convertToLocal(netFCShortfallInETH) / buffer = localRequired
+            int256 multiple = localAssetAvailable > 0 ? localETHRate.haircut : localETHRate.buffer;
+
+            // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
+            // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
+            require(multiple > 0); // dev: cannot liquidate haircut asset
+
+            // netETHValue must be negative to be inside liquidation
+            return localETHRate.convertETHTo(netETHValue.neg())
+                    .mul(Constants.PERCENTAGE_DECIMALS)
+                    .div(multiple);
+    }
+
     /// @dev Calculates factors when liquidating across two currencies
-    function calculateCrossCurrencyBenefitAndDiscount(LiquidationFactors memory factors)
+    function calculateCrossCurrencyFactors(LiquidationFactors memory factors)
         internal
         pure
-        returns (int256 assetCashBenefitRequired, int256 liquidationDiscount)
+        returns (int256 collateralDenominatedFC, int256 liquidationDiscount)
     {
-        require(factors.collateralETHRate.haircut > 0);
-        // This calculation returns the amount of benefit that selling collateral for local currency will
-        // be back to the account.
-        // convertToCollateral(netFCShortfallInETH) = collateralRequired * haircut
-        // collateralRequired = convertToCollateral(netFCShortfallInETH) / haircut
-        assetCashBenefitRequired = factors.cashGroup.assetRate.convertFromUnderlying(
+        collateralDenominatedFC = factors.collateralCashGroup.assetRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 // netETHValue must be negative to be in liquidation
                 .convertETHTo(factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(factors.collateralETHRate.haircut)
         );
 
         liquidationDiscount = SafeInt256.max(

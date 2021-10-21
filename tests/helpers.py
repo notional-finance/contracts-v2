@@ -99,9 +99,11 @@ def get_tref(blockTime):
 def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
-        proportion = kwargs["proportion"]
-        totalfCash = totalLiquidity * (1 - proportion)
-        totalAssetCash = totalLiquidity * proportion
+        # proportion = totalfCash / (totalfCash + totalAssetCash)
+        # totalfCash * p + totalAssetCash * p = totalfCash
+        # totalfCash * (1 - p) / p = totalAssetCash
+        totalfCash = 1e18
+        totalAssetCash = Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"])
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
         totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
@@ -154,21 +156,23 @@ def get_settlement_date(asset, blockTime):
 
 def get_portfolio_array(length, cashGroups, **kwargs):
     portfolio = []
-    while len(portfolio) < length:
+    attempts = 0
+    while len(portfolio) < length and attempts < 50:
+        attempts += 1
         isLiquidity = random.randint(0, 1)
         cashGroup = random.choice(cashGroups)
-        marketIndex = random.randint(1, cashGroup[1])
+        marketIndex = random.randint(1, cashGroup[0])
 
-        if any(
-            a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == marketIndex + 1
-            if isLiquidity
-            else 1
-            for a in portfolio
-        ):
-            # No duplciate assets
+        duplicate = False
+        assetType = marketIndex + 1 if isLiquidity else 1
+        for a in portfolio:
+            if a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == assetType:
+                duplicate = True
+
+        if duplicate:
+            # No duplicate assets
             continue
-
-        if isLiquidity:
+        elif isLiquidity:
             lt = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
             portfolio.append(lt)
             if len(portfolio) < length and random.random() > 0.75:
