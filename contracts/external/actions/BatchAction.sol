@@ -24,7 +24,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// @notice Executes a batch of balance transfers including minting and redeeming nTokens.
     /// @param account the account for the action
     /// @param actions array of balance actions to take, must be sorted by currency id
-    /// @dev emit:CashBalanceChange for each balance
+    /// @dev emit:CashBalanceChange, emit:nTokenSupplyChange
     /// @dev auth:msg.sender auth:ERC1155
     function batchBalanceAction(address account, BalanceAction[] calldata actions)
         external
@@ -32,6 +32,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         nonReentrant
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        requireValidAccount(account);
 
         // Return any settle amounts here to reduce the number of storage writes to balances
         AccountContext memory accountContext = _settleAccountIfRequired(account);
@@ -70,7 +71,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// @notice Executes a batch of balance transfers and trading actions
     /// @param account the account for the action
     /// @param actions array of balance actions with trades to take, must be sorted by currency id
-    /// @dev emit:CashBalanceChange for each balance, emit:BatchTradeExecution for each trade set, emit:nTokenSupplyChange
+    /// @dev emit:CashBalanceChange, emit:nTokenSupplyChange, emit:LendBorrowTrade, emit:AddRemoveLiquidity,
+    /// @dev emit:SettledCashDebt, emit:nTokenResidualPurchase, emit:ReserveFeeAccrued
     /// @dev auth:msg.sender auth:ERC1155
     function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
         external
@@ -78,10 +80,24 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         nonReentrant
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        requireValidAccount(account);
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
         _finalizeAccountContext(account, accountContext);
     }
 
+    /// @notice Executes a batch of balance transfers and trading actions via an authorized callback contract. This
+    /// can be used as a "flash loan" facility for special contracts that migrate assets between protocols or perform
+    /// other actions on behalf of the user.
+    /// Contracts can borrow from Notional and receive a callback prior to an FC check, this can be useful if the contract
+    /// needs to perform a trade or repay a debt on a different protocol before depositing collateral. Since Notional's AMM
+    /// will never be as capital efficient or gas efficient as other flash loan facilities, this method requires whitelisting
+    /// and will mainly be used for contracts that make migrating assets a better user experience.
+    /// @param account the account that will take all the actions
+    /// @param actions array of balance actions with trades to take, must be sorted by currency id
+    /// @param callbackData arbitrary bytes to be passed backed to the caller in the callback
+    /// @dev emit:CashBalanceChange, emit:nTokenSupplyChange, emit:LendBorrowTrade, emit:AddRemoveLiquidity,
+    /// @dev emit:SettledCashDebt, emit:nTokenResidualPurchase, emit:ReserveFeeAccrued
+    /// @dev auth:authorizedCallbackContract
     function batchBalanceAndTradeActionWithCallback(
         address account,
         BalanceActionWithTrades[] calldata actions,
@@ -89,6 +105,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     ) external payable {
         // NOTE: Re-entrancy is allowed for authorized callback functions.
         require(authorizedCallbackContract[msg.sender], "Unauthorized");
+        requireValidAccount(account);
+
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
         accountContext.setAccountContext(account);
 
@@ -223,7 +241,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // NOTE: this deposit will revert on a failed transfer immediately
             assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
         } else if (depositType == DepositActionType.ConvertCashToNToken) {
-            // _executeNTokenAction, will check if the account has sufficient cash
+            // _executeNTokenAction will check if the account has sufficient cash
             assetInternalAmount = depositActionAmount;
         }
 
@@ -296,6 +314,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         int256 withdrawAmount = SafeInt256.toInt(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
 
+        // NOTE: if withdrawEntireCashBalance is set it will override the withdrawAmountInternalPrecision input
         if (withdrawEntireCashBalance) {
             // This option is here so that accounts do not end up with dust after lending since we generally
             // cannot calculate exact cash amounts from the liquidity curve.

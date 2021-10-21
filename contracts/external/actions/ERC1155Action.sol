@@ -4,8 +4,10 @@ pragma abicoder v2;
 
 import "./BatchAction.sol";
 import "./nTokenRedeemAction.sol";
+import "./ActionGuards.sol";
 import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
+import "../../math/SafeInt256.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
@@ -14,7 +16,8 @@ import "interfaces/notional/nERC1155Interface.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
-contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
+contract ERC1155Action is nERC1155Interface, ActionGuards {
+    using SafeInt256 for int256;
     using AccountContextHandler for AccountContext;
 
     bytes4 internal constant ERC1155_ACCEPTED = bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"));
@@ -32,7 +35,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @return Balance of the ERC1155 id as an unsigned integer (negative fCash balances return zero)
     function balanceOf(address account, uint256 id) public view override returns (uint256) {
         int256 notional = signedBalanceOf(account, id);
-        return notional < 0 ? 0 : uint256(notional);
+        return notional < 0 ? 0 : notional.toUint();
     }
 
     /// @notice Returns the balance of an ERC1155 id on an account.
@@ -140,7 +143,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param amount amount to transfer
     /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
     /// a trading action on Notional for the `from` address
-    /// @dev emit:TransferSingle
+    /// @dev emit:TransferSingle, emit:AccountContextUpdate, emit:AccountSettled
     function safeTransferFrom(
         address from,
         address to,
@@ -149,19 +152,21 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         bytes calldata data
     ) external payable override {
         // NOTE: there is no re-entrancy guard on this method because that would prevent a callback in 
-        // _checkPostTransferEvent. The external call to the receiver is done at the very end.
+        // _checkPostTransferEvent. The external call to the receiver is done at the very end after all stateful
+        // updates have occurred.
         _validateAccounts(from, to);
 
         // When amount is set to zero this method can be used as a way to execute trades via a transfer operator
         AccountContext memory fromContext;
         if (amount > 0) {
-            PortfolioAsset memory asset;
-            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
-            asset.notional = SafeInt256.toInt(amount);
-            _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
-
             PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-            assets[0] = asset;
+            PortfolioAsset memory asset = assets[0];
+
+            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
+            // This ensures that asset.notional is always a positive amount
+            asset.notional = SafeInt256.toInt(amount);
+            _requireValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
+
             // prettier-ignore
             (fromContext, /* toContext */) = _transfer(from, to, assets);
 
@@ -192,7 +197,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
     /// @param amounts amounts to transfer
     /// @param data arbitrary data passed to ERC1155Receiver (if contract) and if properly specified can be used to initiate
     /// a trading action on Notional for the `from` address
-    /// @dev emit:TransferBatch
+    /// @dev emit:TransferBatch, emit:AccountContextUpdate, emit:AccountSettled
     function safeBatchTransferFrom(
         address from,
         address to,
@@ -241,6 +246,10 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         require(msg.sender == from || isApprovedForAll(from, msg.sender), "Unauthorized");
         // nTokens will not accept transfers because they do not implement the ERC1155
         // receive method
+
+        // Defensive check to ensure that an authorized operator does not call these methods
+        // with an invalid `from` account
+        requireValidAccount(from);
     }
 
     /// @notice Decodes ids and amounts to PortfolioAsset objects
@@ -268,10 +277,13 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
         PortfolioAsset[] memory assets = new PortfolioAsset[](ids.length);
 
         for (uint256 i; i < ids.length; i++) {
+            // Require that ids are not duplicated, there is no valid reason to have duplicate ids
+            if (i > 0) require(ids[i] > ids[i - 1], "IDs must be sorted");
+
             PortfolioAsset memory asset = assets[i];
             (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(ids[i]);
 
-            _assertValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
+            _requireValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
             // Although amounts is encoded as uint256 we allow it to be negative here. This will
             // allow for bidirectional transfers of fCash. Internally fCash assets are always stored
             // as int128 (for bitmap portfolio) or int88 (for array portfolio) so there is no potential
@@ -300,7 +312,7 @@ contract ERC1155Action is nERC1155Interface, StorageLayoutV1 {
 
     /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
     /// go past the max maturity date)
-    function _assertValidMaturity(
+    function _requireValidMaturity(
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime

@@ -16,11 +16,13 @@ contract AccountAction is ActionGuards {
 
     /// @notice Enables a bitmap currency for msg.sender, account cannot have any assets when this call
     /// occurs.
-    /// @param currencyId the currency to enable the bitmap for
+    /// @param currencyId the currency to enable the bitmap for. If set to zero then will attempt to disable
+    /// the bitmap portfolio for the account
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:msg.sender
     function enableBitmapCurrency(uint16 currencyId) external {
         require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
+        require(currencyId <= maxCurrencyId); // dev: invalid currency id
         address account = msg.sender;
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
         accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
@@ -78,7 +80,7 @@ contract AccountAction is ActionGuards {
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return uint256(assetTokensReceivedInternal);
+        return assetTokensReceivedInternal.toUint();
     }
 
     /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
@@ -86,7 +88,7 @@ contract AccountAction is ActionGuards {
     /// @param account the account to deposit into
     /// @param currencyId currency id of the asset token
     /// @param amountExternalPrecision the amount of asset tokens in its native decimal precision
-    /// (i.e. 8 decimals for cTokens). This will be converted to 8 decimals during transfer if necessary.
+    /// (i.e. 8 decimals for cTokens).
     /// @return asset tokens minted and deposited to the account in internal decimals (8)
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
     /// @dev auth:none
@@ -117,15 +119,15 @@ contract AccountAction is ActionGuards {
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return SafeInt256.toUint(assetTokensReceivedInternal);
+        return assetTokensReceivedInternal.toUint();
     }
 
     /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. Will settle
     /// and do free collateral checks if required. Can only be called by msg.sender, operators who want to withdraw for
     /// an account must do an authenticated call via ERC1155Action `safeTransferFrom` or `safeBatchTransferFrom`
     /// @param currencyId currency id of the asset token
-    /// @param amountInternalPrecision the amount of asset tokens in its native decimal precision
-    /// (i.e. 8 decimals for cTokens). This will be converted to 8 decimals during transfer if necessary.
+    /// @param amountInternalPrecision the amount of cash balance in internal 8 decimal precision to withdraw,
+    /// this is be denominated in asset cash.
     /// @param redeemToUnderlying true if the tokens should be converted to underlying assets
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
     /// @dev auth:msg.sender

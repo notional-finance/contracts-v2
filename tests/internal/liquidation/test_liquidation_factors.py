@@ -99,9 +99,13 @@ class TestLiquidationFactors:
         assert amount <= maxTotalBalance
         assert amount <= userSpecifiedMaximum
 
-    @pytest.mark.todo
-    def test_cross_currency_benefit(self, liquidation, accounts):
-        pass
+    def test_ntoken_cannot_liquidate(self, liquidation, accounts):
+        for currency, address in liquidation.nTokenAddress.items():
+            (fc, _) = liquidation.mock.getFreeCollateral(address)
+            assert fc == 0
+
+            with brownie.reverts():
+                liquidation.mock.preLiquidationActions(address, currency, 0)
 
     @pytest.mark.todo
     def test_local_to_purchase(self, liquidation, accounts):

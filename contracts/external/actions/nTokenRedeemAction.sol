@@ -104,10 +104,9 @@ contract nTokenRedeemAction is ActionGuards {
     }
 
     /// @notice Redeems nTokens for asset cash and fCash
-    /// @return
-    ///     assetCash: positive amount of asset cash to the account
-    ///     hasResidual: true if there are fCash residuals left
-    ///     assets: an array of fCash asset residuals to place into the account
+    /// @return assetCash: positive amount of asset cash to the account
+    /// @return hasResidual: true if there are fCash residuals left
+    /// @return assets: an array of fCash asset residuals to place into the account
     function _redeem(
         uint16 currencyId,
         int256 tokensToRedeem,
@@ -149,9 +148,8 @@ contract nTokenRedeemAction is ActionGuards {
     }
 
     /// @notice Removes nToken assets
-    /// @return
-    ///     newifCashAssets: an array of fCash assets the redeemer will take
-    ///     assetCash: amount of cash the redeemer will take
+    /// @return newifCashAssets: an array of fCash assets the redeemer will take
+    /// @return assetCash: amount of cash the redeemer will take
     function _reduceTokenAssets(
         nTokenPortfolio memory nToken,
         int256 tokensToRedeem,

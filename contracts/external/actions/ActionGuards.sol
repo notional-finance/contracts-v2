@@ -46,6 +46,4 @@ abstract contract ActionGuards is StorageLayoutV1 {
         ) = nTokenHandler.getNTokenContext(account);
         require(isNToken == 0);
     }
-
-
 }
