@@ -407,7 +407,7 @@ library LiquidatefCash {
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) internal returns (int256[] memory, int256) {
-        // Liquidator deposits or receives cash to the liquidated account.
+        // Liquidator deposits or receives cash to/from the liquidated account.
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 liquidator,
@@ -416,7 +416,8 @@ library LiquidatefCash {
                 0
             );
 
-        // Liquidated account gets the cash from the liquidator
+        // Liquidated account gets the cash from the liquidator, does not set the
+        // account context
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,
             localCurrency,
@@ -474,8 +475,7 @@ library LiquidatefCash {
             // Don't use the placeAssetsInAccount method here since we already have the
             // portfolio state.
             c.portfolio.addMultipleAssets(assets);
-            AccountContextHandler.storeAssetsAndUpdateContext(
-                c.accountContext,
+            c.accountContext.storeAssetsAndUpdateContext(
                 liquidateAccount,
                 c.portfolio,
                 false // Although this is liquidation, we should not allow past max assets here

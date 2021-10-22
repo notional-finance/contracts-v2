@@ -23,16 +23,16 @@ contract LiquidatefCashAction is ActionGuards {
         int256[] fCashNotionalTransfer
     );
 
-    /// @notice Calculates fCash local liquidation amounts, may settle account so this can be called off chain using
-    /// a static call
+    /// @notice Calculates fCash local liquidation amounts, may settle account so this can be called off
+    // chain using a static call
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency local currency to liquidate
-    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
-    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
-    /// no maximum
-    /// @return returns two parameters
-    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
-    ///   - amount of local currency required from the liquidator
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase, must be
+    /// ordered descending
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity,
+    /// zero will represent no maximum
+    /// @return an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    /// @return amount of local currency required from the liquidator
     function calculatefCashLocalLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
@@ -55,12 +55,12 @@ contract LiquidatefCashAction is ActionGuards {
     /// @notice Liquidates fCash using local currency
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency local currency to liquidate
-    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
-    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
-    /// no maximum
-    /// @return returns two parameters
-    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
-    ///   - amount of local currency required from the liquidator
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase, must be ordered
+    /// descending
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity,
+    /// zero will represent no maximum
+    /// @return an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    /// @return amount of local currency required from the liquidator
     function liquidatefCashLocal(
         address liquidateAccount,
         uint16 localCurrency,
@@ -103,12 +103,12 @@ contract LiquidatefCashAction is ActionGuards {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency local currency to liquidate
     /// @param fCashCurrency currency of fCash to purchase
-    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
-    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
-    /// no maximum
-    /// @return returns two parameters
-    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
-    ///   - amount of local currency required from the liquidator
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase, must be ordered
+    /// descending
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero
+    /// will represent no maximum
+    /// @return an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    /// @return amount of local currency required from the liquidator
     function calculatefCashCrossCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
@@ -134,12 +134,12 @@ contract LiquidatefCashAction is ActionGuards {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency local currency to liquidate
     /// @param fCashCurrency currency of fCash to purchase
-    /// @param fCashMaturities array of fCash maturities in the local currency to purchase
-    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero will represent
-    /// no maximum
-    /// @return returns two parameters
-    ///   - an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
-    ///   - amount of local currency required from the liquidator
+    /// @param fCashMaturities array of fCash maturities in the local currency to purchase, must be ordered
+    /// descending
+    /// @param maxfCashLiquidateAmounts max notional of fCash to liquidate in corresponding maturity, zero
+    /// will represent no maximum
+    /// @return an array of the notional amounts of fCash to transfer, corresponding to fCashMaturities
+    /// @return amount of local currency required from the liquidator
     function liquidatefCashCrossCurrency(
         address liquidateAccount,
         uint16 localCurrency,

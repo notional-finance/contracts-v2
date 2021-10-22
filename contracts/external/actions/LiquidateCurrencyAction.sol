@@ -36,9 +36,8 @@ contract LiquidateCurrencyAction is ActionGuards {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency id of the local currency
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @return currency transfer amounts:
-    ///   - local currency required from liquidator (positive or negative)
-    ///   - local nTokens paid to liquidator (positive)
+    /// @return local currency required from liquidator (positive or negative)
+    /// @return local nTokens paid to liquidator (positive)
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
@@ -67,14 +66,17 @@ contract LiquidateCurrencyAction is ActionGuards {
     /// @param liquidateAccount account to liquidate
     /// @param localCurrency id of the local currency
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @return currency transfer amounts:
-    ///   - local currency required from liquidator (positive or negative)
-    ///   - local nTokens paid to liquidator (positive)
+    /// @return local currency required from liquidator (positive or negative)
+    /// @return local nTokens paid to liquidator (positive)
     function liquidateLocalCurrency(
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
     ) external nonReentrant returns (int256, int256) {
+        // Calculates liquidation results:
+        //  - withdraws liquidity tokens in local currency
+        //  - ntoken transfers
+        //  - amount of cash paid to/from the liquidator
         (
             int256 localAssetCashFromLiquidator,
             BalanceState memory localBalanceState,
@@ -87,8 +89,10 @@ contract LiquidateCurrencyAction is ActionGuards {
             false // is not calculation
         );
 
-        // Transfers a positive or negative amount of local currency as well as the net nToken
-        // amounts to the liquidator
+        // Finalizes liquidator account changes:
+        //  - transfers local asset cash to/from liquidator wallet (not notional cash
+        //    balance). Exception is with tokens that have a transfer fee
+        //  - transfers ntokens to liquidator
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 msg.sender,
@@ -98,6 +102,11 @@ contract LiquidateCurrencyAction is ActionGuards {
             );
         liquidatorContext.setAccountContext(msg.sender);
 
+        // Finalizes liquidated account changes:
+        //   - credits additional change in localBalanceChange.netCashChange
+        //   - removes transferred nTokens from the account
+        //   - finalizes any liquidity token withdraws in an array portfolio
+        //   - sets the account context
         LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
             liquidateAccount,
             localBalanceState, // In this case, local currency is the collateral
@@ -126,10 +135,9 @@ contract LiquidateCurrencyAction is ActionGuards {
     /// @param collateralCurrency id of the collateral currency
     /// @param maxCollateralLiquidation maximum amount of collateral (inclusive of cash and nTokens) to liquidate
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @return currency transfer amounts:
-    ///   - local currency required from liquidator (negative)
-    ///   - collateral asset cash paid to liquidator (positive)
-    ///   - collateral nTokens paid to liquidator (positive)
+    /// @return local currency required from liquidator (negative)
+    /// @return collateral asset cash paid to liquidator (positive)
+    /// @return collateral nTokens paid to liquidator (positive)
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
@@ -172,12 +180,11 @@ contract LiquidateCurrencyAction is ActionGuards {
     /// @param collateralCurrency id of the collateral currency
     /// @param maxCollateralLiquidation maximum amount of collateral (inclusive of cash and nTokens) to liquidate
     /// @param maxNTokenLiquidation maximum amount of nTokens to purchase (if any)
-    /// @param withdrawCollateral if true, withdraws collateral back to msg.sender
-    /// @param redeemToUnderlying if true, converts collateral from asset cash to underlying
-    /// @return currency transfer amounts:
-    ///   - local currency required from liquidator (negative)
-    ///   - collateral asset cash paid to liquidator (positive)
-    ///   - collateral nTokens paid to liquidator (positive)
+    /// @param withdrawCollateral if true, withdraws collateral cash back to msg.sender
+    /// @param redeemToUnderlying if true, converts collateral cash from asset cash to underlying
+    /// @return local currency required from liquidator (negative)
+    /// @return collateral asset cash paid to liquidator (positive)
+    /// @return collateral nTokens paid to liquidator (positive)
     function liquidateCollateralCurrency(
         address liquidateAccount,
         uint16 localCurrency,
@@ -195,6 +202,10 @@ contract LiquidateCurrencyAction is ActionGuards {
             int256
         )
     {
+        // Calculates currency liquidation:
+        //  - amount of collateral cash balance given to liquidator
+        //  - liquidity tokens withdrawn
+        //  - collateral ntokens transferred to liquidator
         (
             int256 localAssetCashFromLiquidator,
             BalanceState memory collateralBalanceState,
@@ -210,6 +221,13 @@ contract LiquidateCurrencyAction is ActionGuards {
                 false // is not calculation
             );
 
+        // Finalizes the liquidator side of the transaction:
+        //   - transfers local asset cash from the liquidator wallet (exception
+        //     is if local asset has transfer fees)
+        //   - transfers collateral cash to liquidator, withdrawing and redeeming
+        //     if specified
+        //   - transfers ntokens to liquidator
+        //   - sets account context
         _finalizeLiquidatorBalances(
             localCurrency,
             collateralCurrency,
@@ -226,7 +244,8 @@ contract LiquidateCurrencyAction is ActionGuards {
             collateralBalanceState
         );
 
-        // Liquidated local currency balance will increase by the net paid from the liquidator
+        // Finalize liquidated account local balance:
+        //   - adds local asset cash to the balance
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,
             localCurrency,
@@ -234,7 +253,11 @@ contract LiquidateCurrencyAction is ActionGuards {
             localAssetCashFromLiquidator
         );
 
-        // netAssetTransfer is cleared and set back when finalizing inside this function
+        // Finalizes the liquidated account collateral balance:
+        //   - removes collateral cash paid to liquidator from cash balance
+        //   - stores any updates to the portfolio array from removed liquidity tokens
+        //   - removes collateral nTokens from the account
+        //   - sets the account context
         LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
             liquidateAccount,
             collateralBalanceState,
