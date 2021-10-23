@@ -52,18 +52,11 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
     ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) {
         LENDING_POOL = lendingPool_;
     }
-
+    
     function setCTokenAddress(address cToken) external onlyOwner {
-        address underlying = CTokenInterface(cToken).underlying();
-        // Notional V2 needs to be able to pull cTokens
-        checkAllowanceOrSet(cToken, address(NotionalV2));
+        address underlying = _setCTokenAddress(cToken);
         // Lending pool needs to be able to pull underlying
         checkAllowanceOrSet(underlying, LENDING_POOL);
-        underlyingToCToken[underlying] = cToken;
-    }
-
-    function approveToken(address token, address spender) external onlyOwner {
-        IERC20(token).approve(spender, type(uint256).max);
     }
 
     // Profit estimation
@@ -76,8 +69,7 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         address onBehalfOf,
         bytes calldata params,
         uint16 referralCode
-    ) external returns (uint256) {
-        require(msg.sender == OWNER, "Contract owner required");
+    ) external onlyOwner returns (uint256) {
         IFlashLender(flashLender).flashLoan(
             receiverAddress,
             assets,
@@ -168,7 +160,7 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             // Transfer profits to OWNER
             uint256 bal = IERC20(assets[0]).balanceOf(address(this));
             if (bal > amounts[0].add(premiums[0])) {
-                IERC20(assets[0]).transfer(OWNER, bal.sub(amounts[0].add(premiums[0])));
+                IERC20(assets[0]).transfer(owner, bal.sub(amounts[0].add(premiums[0])));
             }
         }
 
@@ -229,12 +221,12 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         );
     }
 
-    function wrapToWETH() public {
+    function wrapToWETH() external {
         _wrapToWETH();
     }
 
-    function withdraw(address token, uint256 amount) public {
-        IERC20(token).transfer(OWNER, amount);
+    function withdraw(address token, uint256 amount) external {
+        IERC20(token).transfer(owner, amount);
     }
 
     receive() external payable {}

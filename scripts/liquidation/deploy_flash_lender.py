@@ -13,8 +13,7 @@ EnvironmentConfig = {
 }
 
 def main():
-    # Deployer = 0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef for kovan
-    deployer = accounts.add("0x43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827")
+    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     config = EnvironmentConfig[network.show_active()]
     lender = MockAaveFlashLender.deploy(config["WETH"], deployer.address, { "from": deployer })
     

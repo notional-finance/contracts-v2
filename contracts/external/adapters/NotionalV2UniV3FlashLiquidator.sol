@@ -3,7 +3,7 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "./NotionalV2FlashLiquidator.sol";
-import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
+import "interfaces/uniswap/v3/ISwapRouter.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {

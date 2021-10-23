@@ -10,7 +10,16 @@ import "interfaces/WETH9.sol";
 import "../../internal/markets/DateTime.sol";
 import "../../math/SafeInt256.sol";
 
-abstract contract NotionalV2BaseLiquidator {
+contract NotionvalV2LiquidatorStorageLayoutV1 {
+    mapping(address => address) internal underlyingToCToken;
+    address public owner;
+    uint16 public localCurrencyId;
+    address public localAssetAddress;
+    address public localUnderlyingAddress;
+    bool public hasTransferFee;
+}
+
+abstract contract NotionalV2BaseLiquidator is NotionvalV2LiquidatorStorageLayoutV1 {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -34,13 +43,11 @@ abstract contract NotionalV2BaseLiquidator {
     }
 
     NotionalProxy public immutable NotionalV2;
-    mapping(address => address) underlyingToCToken;
     address public immutable WETH;
     address public immutable cETH;
-    address public immutable OWNER;
 
     modifier onlyOwner() {
-        require(OWNER == msg.sender, "Ownable: caller is not the owner");
+        require(owner == msg.sender, "Ownable: caller is not the owner");
         _;
     }
 
@@ -53,14 +60,8 @@ abstract contract NotionalV2BaseLiquidator {
         NotionalV2 = notionalV2_;
         WETH = weth_;
         cETH = cETH_;
-        OWNER = owner_;
+        owner = owner_;
     }
-
-    function executeDexTrade(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        bytes memory params
-    ) internal virtual returns(uint256);
 
     function checkAllowanceOrSet(address erc20, address spender) internal {
         if (IERC20(erc20).allowance(address(this), spender) < 2**128) {
@@ -68,11 +69,27 @@ abstract contract NotionalV2BaseLiquidator {
         }
     }
 
+    function enableCToken(address cToken) external onlyOwner {
+        _setCTokenAddress(cToken);
+    }
+
+    function approveToken(address token, address spender) external onlyOwner {
+        IERC20(token).approve(spender, type(uint256).max);
+    }
+
+    function _setCTokenAddress(address cToken) internal returns (address) {
+        address underlying = CTokenInterface(cToken).underlying();
+        // Notional V2 needs to be able to pull cTokens
+        checkAllowanceOrSet(cToken, address(NotionalV2));
+        underlyingToCToken[underlying] = cToken;
+        return underlying;
+    }
+
     function _hasTransferFees(LiquidationAction action) internal pure returns (bool) {
         return action >= LiquidationAction.LocalCurrency_WithTransferFee_Withdraw;
     }
 
-    function _mintCTokens(address[] calldata assets, uint256[] calldata amounts) internal {
+    function _mintCTokens(address[] memory assets, uint256[] memory amounts) internal {
         for (uint256 i; i < assets.length; i++) {
             if (assets[i] == WETH) {
                 // Withdraw WETH to ETH and mint CEth
@@ -88,7 +105,7 @@ abstract contract NotionalV2BaseLiquidator {
         }
     }
 
-    function _redeemCTokens(address[] calldata assets) internal {
+    function _redeemCTokens(address[] memory assets) internal {
         // Redeem cTokens to underlying to repay the flash loan
         for (uint256 i; i < assets.length; i++) {
             address cToken = assets[i] == WETH ? cETH : underlyingToCToken[assets[i]];
@@ -351,4 +368,10 @@ abstract contract NotionalV2BaseLiquidator {
     function _wrapToWETH() internal {
         WETH9(WETH).deposit{value: address(this).balance}();
     }
+
+    function executeDexTrade(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        bytes memory params
+    ) internal virtual returns (uint256);
 }

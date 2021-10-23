@@ -23,9 +23,8 @@ EnvironmentConfig = {
 
 
 def main():
-    # Deployer = 0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef for kovan
     lender = "AaveFlashLender"
-    deployer = accounts.add("0x43a6634021d4b1ff7fd350843eebaa7cf547aefbf9503c33af0ec27c83f76827")
+    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     config = EnvironmentConfig[network.show_active()]
     liquidator = NotionalV2UniV3FlashLiquidator.deploy(
         config["NotionalV2"], 
@@ -40,9 +39,6 @@ def main():
     liquidator.setCTokenAddress(config["cUSDC"], {"from": deployer})
     liquidator.setCTokenAddress(config["cWBTC"], {"from": deployer})
     liquidator.approveToken(config["cETH"], config["NotionalV2"], {"from": deployer})
-    liquidator.approveToken(config["cUSDC"], config["NotionalV2"], {"from": deployer})
-    liquidator.approveToken(config["cWBTC"], config["NotionalV2"], {"from": deployer})
-    liquidator.approveToken(config["cDAI"], config["NotionalV2"], {"from": deployer})
     liquidator.approveToken(config["WETH"], config[lender], {"from": deployer})
     liquidator.approveToken(config["WETH"], config["UniswapRouter"], {"from": deployer})
     liquidator.approveToken(config["DAI"], config[lender], {"from": deployer})
