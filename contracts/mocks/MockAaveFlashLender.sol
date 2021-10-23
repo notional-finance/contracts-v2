@@ -3,28 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-interface WETH9 {
-    function deposit() external payable;
-
-    function withdraw(uint256 wad) external;
-
-    function transfer(address dst, uint256 wad) external returns (bool);
-}
-
-interface IFlashLoanReceiver {
-    function executeOperation(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool);
-
-    //   function ADDRESSES_PROVIDER() external view returns (address);
-
-    //   function LENDING_POOL() external view returns (address);
-}
+import "interfaces/aave/IFlashLoanReceiver.sol";
+import "interfaces/WETH9.sol";
 
 contract MockAaveFlashLender {
     address public WETH;

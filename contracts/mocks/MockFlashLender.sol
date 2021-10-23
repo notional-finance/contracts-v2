@@ -3,20 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-interface IFlashLoanReceiver {
-    function executeOperation(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool);
-
-    //   function ADDRESSES_PROVIDER() external view returns (address);
-
-    //   function LENDING_POOL() external view returns (address);
-}
+import "interfaces/aave/IFlashLoanReceiver.sol";
 
 contract MockFlashLender {
     function executeFlashLoan(
