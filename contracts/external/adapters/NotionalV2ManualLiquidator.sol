@@ -26,9 +26,6 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
     ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) initializer {
         EXCHANGE = exchange_;
         NOTE = note_;
-
-        _setRoleAdmin(USER_ROLE, ADMIN_ROLE);
-        _setupRole(ADMIN_ROLE, owner_);
     }
 
     function initialize(
@@ -41,6 +38,10 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         localAssetAddress = localAssetAddress_;
         localUnderlyingAddress = localUnderlyingAddress_;
         hasTransferFee = hasTransferFee_;
+        owner = msg.sender;
+
+        _setRoleAdmin(USER_ROLE, ADMIN_ROLE);
+        _setupRole(ADMIN_ROLE, msg.sender);
 
         // At this point the contract can only hold assets of this currency id
         NotionalV2.enableBitmapCurrency(localCurrencyId);

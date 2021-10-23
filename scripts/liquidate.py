@@ -306,10 +306,11 @@ def deployManualLiquidator(env, currencyId, assetAddress, underlyingAddress, tra
     )
     proxy = BeaconProxy.deploy(env.manualLiquidatorBeacon.address, initData, {"from": deployer})
     abi = ContractsVProject._build.get("NotionalV2ManualLiquidator")["abi"]
-    env.manualLiquidatorETH = Contract.from_abi(
-        "Notional", proxy.address, abi=abi, owner=deployer
+    liquidator = Contract.from_abi(
+        "NotionalV2ManualLiquidator", proxy.address, abi=abi, owner=deployer
     )
-    setManualLiquidatorApprovals(env, env.manualLiquidatorETH)
+    setManualLiquidatorApprovals(env, liquidator, deployer)
+    return liquidator
 
 def main():
     env = environment(accounts)
@@ -342,7 +343,7 @@ def main():
         env.swapRouter.address,        
         {"from": deployer})
 
-    setFlashLiquidatorAppovals(env)
+    setFlashLiquidatorAppovals(env, deployer)
 
     # Deploy manual liquidator implementation
     env.manualLiquidator = NotionalV2ManualLiquidator.deploy(
@@ -357,10 +358,10 @@ def main():
     # Deploy upgradable beacon
     env.manualLiquidatorBeacon = UpgradeableBeacon.deploy(env.manualLiquidator.address, {"from": deployer})
 
-    deployManualLiquidator(env, 1, env.cToken["ETH"].address, env.weth, False, deployer)
-    deployManualLiquidator(env, 2, env.cToken["DAI"].address, env.token["DAI"].address, False, deployer)
-    deployManualLiquidator(env, 3, env.cToken["USDC"].address, env.token["USDC"].address, False, deployer)
-    deployManualLiquidator(env, 4, env.cToken["WBTC"].address, env.token["WBTC"].address, False, deployer)
+    env.manualLiquidatorETH = deployManualLiquidator(env, 1, env.cToken["ETH"].address, env.weth, False, deployer)
+    env.manualLiquidatorDAI = deployManualLiquidator(env, 2, env.cToken["DAI"].address, env.token["DAI"].address, False, deployer)
+    env.manualLiquidatorUSDC = deployManualLiquidator(env, 3, env.cToken["USDC"].address, env.token["USDC"].address, False, deployer)
+    env.manualLiquidatorWBTC = deployManualLiquidator(env, 4, env.cToken["WBTC"].address, env.token["WBTC"].address, False, deployer)
 
     cToken = env.cToken["DAI"]
     env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})

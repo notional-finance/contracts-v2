@@ -14,6 +14,14 @@ interface ManualLiquidatorProxy {
 
     function approveToken(address token, address spender) external;
 
+    function enableCToken(address cToken) external;
+
+    function transferOwnership(address newOwner) external;
+
+    function grantRole(bytes32 role, address account) external;
+
+    function revokeRole(bytes32 role, address account) external;
+
     function batchBalanceTradeAction(BalanceActionWithTrades[] calldata actions) external;
 
     function batchBalanceAction(BalanceAction[] calldata actions) external;
