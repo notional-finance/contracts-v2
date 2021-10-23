@@ -82,9 +82,9 @@ contract Router is StorageLayoutV1 {
                     TokenStorage(address(0), false, TokenType.Ether, Constants.ETH_DECIMAL_PLACES, 0),
                     address(0),
                     false,
-                    130, // Initial settings of 130 buffer
-                    70,  // 70% haircut
-                    105  // 105 liquidation discount
+                    133, // Initial settings of 133% buffer
+                    75,  // 75% haircut
+                    108  // 8% liquidation discount
                 )
             );
         require(status);

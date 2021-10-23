@@ -107,15 +107,14 @@ library CashGroup {
         return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS;
     }
 
-    /// @notice Time window factor for the rate oracle denominated in seconds with one minute increments.
-    /// We do not need more precision than one minute increments for the rate oracle time window.
+    /// @notice Time window factor for the rate oracle denominated in seconds with five minute increments.
     function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
         internal
         pure
         returns (uint256)
     {
-        // This is denominated in minutes in storage
-        return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
+        // This is denominated in 5 minute increments in storage
+        return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * Constants.FIVE_MINUTES;
     }
 
     /// @notice Penalty rate for settling cash debts denominated in basis points

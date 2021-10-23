@@ -57,9 +57,9 @@ def currencyLiquidation(env, accounts):
         redeemToUnderlying=True,
     )
     # account[1]: DAI borrower with ETH cash
-    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=2.5e18)
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=2.33e18)
     env.notional.batchBalanceAndTradeAction(
-        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 2.5e18}
+        accounts[1], [collateral, borrowAction], {"from": accounts[1], "value": 2.33e18}
     )
 
     # account[2]: DAI borrower with ETH liquidity token collateral (2x)
@@ -91,10 +91,10 @@ def currencyLiquidation(env, accounts):
 
     # account[3]: DAI borrower with ETH ntoken
     collateral = get_balance_trade_action(
-        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=2.5e18
+        1, "DepositUnderlyingAndMintNToken", [], depositActionAmount=2.33e18
     )
     env.notional.batchBalanceAndTradeAction(
-        accounts[3], [collateral, borrowAction], {"from": accounts[3], "value": 2.5e18}
+        accounts[3], [collateral, borrowAction], {"from": accounts[3], "value": 2.33e18}
     )
 
     # account[4]: DAI borrower with ETH cash, liquidity token, nToken
@@ -434,10 +434,11 @@ def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
 
 # given different max liquidation amounts
 @pytest.mark.liquidation
+@pytest.mark.only
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     liquidated = accounts[7]
-    fCashLiquidation.ethOracle["DAI"].setAnswer(0.017e18)
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.016e18)
     fcBefore = fCashLiquidation.notional.getFreeCollateral(liquidated)
     # Get local currency required
     liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)

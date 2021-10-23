@@ -36,6 +36,7 @@ library Constants {
     // Max number of fCash assets in a bitmap, this is based on the gas costs of calculating free collateral
     // for a bitmap portfolio
     uint256 internal constant MAX_BITMAP_ASSETS = 20;
+    uint256 internal constant FIVE_MINUTES = 300;
 
     // Internal date representations, note we use a 6/30/360 week/month/year convention here
     uint256 internal constant DAY = 86400;
@@ -79,7 +80,7 @@ library Constants {
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
     int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
     // Limit the market proportion so that borrowing cannot hit extremely high interest rates
-    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 99 / 100;
+    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 96 / 100;
 
     uint8 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
@@ -115,7 +116,7 @@ library Constants {
     // requires more collateral to be liquidated
     int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
     // Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
-    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
+    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 30;
 
     // Pause Router liquidation enabled states
     bytes1 internal constant LOCAL_CURRENCY_ENABLED = 0x01;
