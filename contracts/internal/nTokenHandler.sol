@@ -249,6 +249,7 @@ library nTokenHandler {
 
         for (uint256 i; i < proportions.length; i++) {
             // Proportions must be between zero and the rate precision
+            require(annualizedAnchorRates[i] > 0, "NT: anchor rate zero");
             require(
                 proportions[i] > 0 && proportions[i] < Constants.RATE_PRECISION,
                 "PT: invalid proportion"
