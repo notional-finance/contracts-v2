@@ -259,4 +259,6 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
     function withdraw(address token, uint256 amount) external ownerOrUser {
         IERC20(token).transfer(owner, amount);
     }
+
+    receive() external payable {}
 }
