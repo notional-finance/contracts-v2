@@ -96,18 +96,18 @@ def collateralLiquidate(env):
         ],
     )
 
-    print(env.notional.getFreeCollateral(accounts[1]))
-    env.flashLender.flashLoan(
-        env.flashLiquidator.address,
-        [env.token["DAI"].address],
-        [100e18],
-        [0],
-        env.flashLiquidator.address,
-        calldata,
-        0,
-        {"from": accounts[0]},
-    )
-    print(env.notional.getFreeCollateral(accounts[1]))
+    #print(env.notional.getFreeCollateral(accounts[1]))
+    #env.flashLender.flashLoan(
+    #    env.flashLiquidator.address,
+    #    [env.token["DAI"].address],
+    #    [100e18],
+    #    [0],
+    #    env.flashLiquidator.address,
+    #    calldata,
+    #    0,
+    #    {"from": accounts[0]},
+    #)
+    #print(env.notional.getFreeCollateral(accounts[1]))
 
 def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
@@ -277,25 +277,21 @@ def setFlashLiquidatorAppovals(env, deployer):
     env.flashLiquidator.approveToken(env.weth.address, env.flashLender.address, {"from": deployer})
     env.flashLiquidator.approveToken(env.weth.address, env.swapRouter.address, {"from": deployer})
     env.flashLiquidator.approveToken(env.token["DAI"].address, env.flashLender.address, {"from": deployer})
-    env.flashLiquidator.approveToken(env.token["DAI"], env.swapRouter.address, {"from": deployer})
+    env.flashLiquidator.approveToken(env.token["DAI"].address, env.swapRouter.address, {"from": deployer})
     env.flashLiquidator.approveToken(env.token["USDC"].address, env.flashLender.address, {"from": deployer})
-    env.flashLiquidator.approveToken(env.token["USDC"], env.swapRouter.address, {"from": deployer})
+    env.flashLiquidator.approveToken(env.token["USDC"].address, env.swapRouter.address, {"from": deployer})
     env.flashLiquidator.approveToken(env.token["WBTC"].address, env.flashLender.address, {"from": deployer})
-    env.flashLiquidator.approveToken(env.token["WBTC"], env.swapRouter.address, {"from": deployer})
+    env.flashLiquidator.approveToken(env.token["WBTC"].address, env.swapRouter.address, {"from": deployer})
 
 def setManualLiquidatorApprovals(env, liquidator, deployer):
     liquidator.enableCToken(env.cToken["DAI"].address, {"from": deployer})
     liquidator.enableCToken(env.cToken["USDC"].address, {"from": deployer})
     liquidator.enableCToken(env.cToken["WBTC"].address, {"from": deployer})
     liquidator.approveToken(env.cToken["ETH"].address, env.notional.address, {"from": deployer})
-    liquidator.approveToken(env.weth.address, env.flashLender.address, {"from": deployer})
     liquidator.approveToken(env.weth.address, env.swapRouter.address, {"from": deployer})
-    liquidator.approveToken(env.token["DAI"].address, env.flashLender.address, {"from": deployer})
-    liquidator.approveToken(env.token["DAI"], env.swapRouter.address, {"from": deployer})
-    liquidator.approveToken(env.token["USDC"].address, env.flashLender.address, {"from": deployer})
-    liquidator.approveToken(env.token["USDC"], env.swapRouter.address, {"from": deployer})
-    liquidator.approveToken(env.token["WBTC"].address, env.flashLender.address, {"from": deployer})
-    liquidator.approveToken(env.token["WBTC"], env.swapRouter.address, {"from": deployer})
+    liquidator.approveToken(env.token["DAI"].address, env.swapRouter.address, {"from": deployer})
+    liquidator.approveToken(env.token["USDC"].address, env.swapRouter.address, {"from": deployer})
+    liquidator.approveToken(env.token["WBTC"].address, env.swapRouter.address, {"from": deployer})
 
 def deployManualLiquidator(env, currencyId, assetAddress, underlyingAddress, transferFee, deployer):
     initData = env.manualLiquidator.initialize.encode_input(
@@ -319,19 +315,19 @@ def main():
     # Create exchange
     env.weth = MockWETH.deploy({"from": deployer})
     env.swapRouter = MockUniV3SwapRouter.deploy(env.weth, deployer, {"from": deployer})
-    env.weth.deposit({"from": accounts[0], "value": 50e18})
-    env.weth.transfer(env.swapRouter.address, 50e18, {"from": accounts[0]})
+    env.weth.deposit({"from": deployer, "value": 50e18})
+    env.weth.transfer(env.swapRouter.address, 50e18, {"from": deployer})
 
-    env.token["DAI"].transfer(env.swapRouter.address, 1000e18, {"from": accounts[0]})
-    env.token["USDT"].transfer(env.swapRouter.address, 1000e6, {"from": accounts[0]})
+    env.token["DAI"].transfer(env.swapRouter.address, 1000e18, {"from": deployer})
+    env.token["USDT"].transfer(env.swapRouter.address, 1000e6, {"from": deployer})
     
     # Create flash lender
     env.flashLender = MockAaveFlashLender.deploy(env.weth, deployer, {"from": deployer})
     # Give flash lender assets
-    env.weth.deposit({"from": accounts[0], "value": 5000e18})
-    env.weth.transfer(env.flashLender.address, 100e18, {"from": accounts[0]})
-    env.token["DAI"].transfer(env.flashLender.address, 100000e18, {"from": accounts[0]})
-    env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": accounts[0]})    
+    env.weth.deposit({"from": deployer, "value": 5000e18})
+    env.weth.transfer(env.flashLender.address, 100e18, {"from": deployer})
+    env.token["DAI"].transfer(env.flashLender.address, 100000e18, {"from": deployer})
+    env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": deployer})    
 
     # Deploy flash liquidator
     env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy(
@@ -407,8 +403,10 @@ def main():
     env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
     env.notional.updateIncentiveEmissionRate(currencyId, CurrencyDefaults["incentiveEmissionRate"])
 
+    env.cToken["DAI"].transfer(env.manualLiquidatorDAI.address, 5000e8, {"from": deployer})
+
     chain.snapshot()
-    #collateralLiquidate(env)
+    collateralLiquidate(env)
     #chain.revert()
     #crossCurrencyLiquidate(env)
     
