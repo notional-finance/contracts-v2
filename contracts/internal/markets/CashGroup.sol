@@ -290,7 +290,7 @@ library CashGroup {
         // Per cash group settings
         bytes32 data =
             (bytes32(uint256(cashGroup.maxMarketIndex)) |
-                (bytes32(uint256(cashGroup.rateOracleTimeWindowMin)) << RATE_ORACLE_TIME_WINDOW) |
+                (bytes32(uint256(cashGroup.rateOracleTimeWindow5Min)) << RATE_ORACLE_TIME_WINDOW) |
                 (bytes32(uint256(cashGroup.totalFeeBPS)) << TOTAL_FEE) |
                 (bytes32(uint256(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE) |
                 (bytes32(uint256(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER) |
@@ -342,7 +342,7 @@ library CashGroup {
         return
             CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
-                rateOracleTimeWindowMin: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
+                rateOracleTimeWindow5Min: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
                 totalFeeBPS: uint8(data[TOTAL_FEE_BIT]),
                 reserveFeeShare: uint8(data[RESERVE_FEE_SHARE_BIT]),
                 debtBuffer5BPS: uint8(data[DEBT_BUFFER_BIT]),

@@ -230,7 +230,7 @@ nTokenCryptoAssetConfig = {
     ],
     "Initialization": [
         # Annualized anchor rate
-        [int(0), int(0)],
+        [int(1), int(1)],
         # Target proportion
         [int(0.54e9), int(0.54e9)],
     ],

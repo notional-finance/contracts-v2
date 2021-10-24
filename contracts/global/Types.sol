@@ -291,8 +291,8 @@ struct CashGroupSettings {
     // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
     // that is dated less than the longest AMM will be tradable.
     uint8 maxMarketIndex;
-    // Time window in minutes that the rate oracle will be averaged over
-    uint8 rateOracleTimeWindowMin;
+    // Time window in 5 minute increments that the rate oracle will be averaged over
+    uint8 rateOracleTimeWindow5Min;
     // Total fees per trade, specified in BPS
     uint8 totalFeeBPS;
     // Share of the fees given to the protocol, denominated in percentage
