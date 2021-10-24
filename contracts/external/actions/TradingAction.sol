@@ -42,6 +42,7 @@ library TradingAction {
     event SettledCashDebt(
         address indexed settledAccount,
         uint16 indexed currencyId,
+        address indexed settler,
         int256 amountToSettleAsset,
         int256 fCashAmount
     );
@@ -49,6 +50,7 @@ library TradingAction {
     event nTokenResidualPurchase(
         uint16 indexed currencyId,
         uint40 indexed maturity,
+        address indexed purchaser,
         int256 fCashAmountToPurchase,
         int256 netAssetCashNToken
     );
@@ -197,6 +199,7 @@ library TradingAction {
         TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
         if (tradeType == TradeActionType.PurchaseNTokenResidual) {
             (maturity, cashAmount, fCashAmount) = _purchaseNTokenResidual(
+                account,
                 cashGroup,
                 blockTime,
                 trade
@@ -430,6 +433,7 @@ library TradingAction {
         emit SettledCashDebt(
             counterparty,
             uint16(cashGroup.currencyId),
+            account,
             amountToSettleAsset,
             fCashAmount.neg()
         );
@@ -462,6 +466,7 @@ library TradingAction {
     }
 
     /// @notice Allows an account to purchase ntoken residuals
+    /// @param purchaser account that is purchasing the residuals
     /// @param cashGroup parameters for the trade
     /// @param blockTime the current block time
     /// @param trade bytes32 encoding of the particular trade
@@ -469,6 +474,7 @@ library TradingAction {
     /// @return cashAmount: a positive or negative cash amount that the account will receive or pay
     /// @return fCashAmount: a positive or negative fCash amount that the account will receive
     function _purchaseNTokenResidual(
+        address purchaser,
         CashGroupParameters memory cashGroup,
         uint256 blockTime,
         bytes32 trade
@@ -551,6 +557,7 @@ library TradingAction {
         emit nTokenResidualPurchase(
             uint16(cashGroup.currencyId),
             uint40(maturity),
+            purchaser,
             fCashAmountToPurchase,
             netAssetCashNToken
         );
