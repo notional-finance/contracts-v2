@@ -1365,7 +1365,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -1918,7 +1918,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -1994,7 +1994,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -3768,7 +3768,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
