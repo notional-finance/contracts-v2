@@ -6,9 +6,9 @@ from brownie import (
     NotionalV2ManualLiquidator,
     MockAaveFlashLender,
     MockUniV3SwapRouter,
-    nProxy,
     UpgradeableBeacon,
-    BeaconProxy
+    BeaconProxy,
+    MockManualLiquidator
 )
 from brownie.convert.datatypes import HexString
 from brownie.project import ContractsVProject
@@ -351,6 +351,8 @@ def main():
         env.noteERC20Proxy.address,
         {"from": deployer})
 
+    env.manualLiquidatorMock = MockManualLiquidator.deploy({"from": deployer})
+        
     # Deploy upgradable beacon
     env.manualLiquidatorBeacon = UpgradeableBeacon.deploy(env.manualLiquidator.address, {"from": deployer})
 

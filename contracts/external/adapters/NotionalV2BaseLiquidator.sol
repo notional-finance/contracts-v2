@@ -7,19 +7,11 @@ import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
 import "interfaces/WETH9.sol";
+import "./NotionalV2LiquidatorStorageLayoutV1.sol";
 import "../../internal/markets/DateTime.sol";
 import "../../math/SafeInt256.sol";
 
-contract NotionvalV2LiquidatorStorageLayoutV1 {
-    mapping(address => address) internal underlyingToCToken;
-    address public owner;
-    uint16 public localCurrencyId;
-    address public localAssetAddress;
-    address public localUnderlyingAddress;
-    bool public hasTransferFee;
-}
-
-abstract contract NotionalV2BaseLiquidator is NotionvalV2LiquidatorStorageLayoutV1 {
+abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV1 {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
