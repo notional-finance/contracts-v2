@@ -452,6 +452,12 @@
                 "type": "uint16"
             },
             {
+                "indexed": true,
+                "internalType": "address",
+                "name": "settler",
+                "type": "address"
+            },
+            {
                 "indexed": false,
                 "internalType": "int256",
                 "name": "amountToSettleAsset",
@@ -772,6 +778,12 @@
                 "internalType": "uint40",
                 "name": "maturity",
                 "type": "uint40"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "purchaser",
+                "type": "address"
             },
             {
                 "indexed": false,
