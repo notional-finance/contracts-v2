@@ -103,7 +103,7 @@ TokenConfig = {
                 18,
                 0,
             ),
-            "ethOracle": "0x773616E4d11A78F511299002da57A0a94577F1f4",
+            "ethOracle": "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B",
             "ethOracleMustInvert": False,
         },
         "USDC": {
@@ -121,7 +121,7 @@ TokenConfig = {
                 6,
                 0,
             ),
-            "ethOracle": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
+            "ethOracle": "0x68225F47813aF66F186b3714Ffe6a91850Bc76B4",
             "ethOracleMustInvert": False,
         },
         "WBTC": {
@@ -139,7 +139,7 @@ TokenConfig = {
                 8,
                 0,
             ),
-            "ethOracle": "0xdeb288F737066589598e9214E782fa5A8eD689e8",
+            "ethOracle": "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
             "ethOracleMustInvert": False,
         },
     },
