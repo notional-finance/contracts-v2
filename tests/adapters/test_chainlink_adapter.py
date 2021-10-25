@@ -8,9 +8,9 @@ def isolation(fn_isolation):
 
 def test_matching_decimals(accounts, MockAggregator, ChainlinkAdapter):
     baseToUSD = MockAggregator.deploy(8, {"from": accounts[0]})
-    baseToUSD.setAnswer(412438918571)
+    baseToUSD.setAnswer(100020410)
     quoteToUSD = MockAggregator.deploy(8, {"from": accounts[0]})
-    quoteToUSD.setAnswer(100020410)
+    quoteToUSD.setAnswer(412438918571)
 
     chainlink = ChainlinkAdapter.deploy(
         baseToUSD.address,
@@ -24,10 +24,10 @@ def test_matching_decimals(accounts, MockAggregator, ChainlinkAdapter):
 
 
 def test_decimal_mismatch(accounts, MockAggregator, ChainlinkAdapter):
-    baseToUSD = MockAggregator.deploy(6, {"from": accounts[0]})
-    baseToUSD.setAnswer(4124389185)
-    quoteToUSD = MockAggregator.deploy(8, {"from": accounts[0]})
-    quoteToUSD.setAnswer(100020410)
+    baseToUSD = MockAggregator.deploy(8, {"from": accounts[0]})
+    baseToUSD.setAnswer(100020410)
+    quoteToUSD = MockAggregator.deploy(6, {"from": accounts[0]})
+    quoteToUSD.setAnswer(4124389185)
 
     chainlink = ChainlinkAdapter.deploy(
         baseToUSD.address,

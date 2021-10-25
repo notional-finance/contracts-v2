@@ -53,13 +53,13 @@ contract ChainlinkAdapter is AggregatorV2V3Interface {
         ) = quoteToUSDOracle.latestRoundData();
         require(quoteToUSD > 0, "Chainlink Rate Error");
 
-        // To convert from ETH/USD (base) and USDC/USD (quote) to USDC/ETH we do:
-        // (USDC/USD * baseDecimals * 1e18) / (ETH/USD * quoteDecimals)
-        answer = quoteToUSD
-            .mul(baseToUSDDecimals)
+        // To convert from USDC/USD (base) and ETH/USD (quote) to USDC/ETH we do:
+        // (USDC/USD * quoteDecimals * 1e18) / (ETH/USD * baseDecimals)
+        answer = baseToUSD
+            .mul(quoteToUSDDecimals)
             .mul(rateDecimals)
-            .div(baseToUSD)
-            .div(quoteToUSDDecimals);
+            .div(quoteToUSD)
+            .div(baseToUSDDecimals);
     }
 
     function latestRoundData() external view override returns (
