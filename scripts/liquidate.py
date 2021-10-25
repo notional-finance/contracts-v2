@@ -2,12 +2,12 @@ import eth_abi
 from brownie import (
     accounts,
     MockWETH,
-    NotionalV2UniV3FlashLiquidator,
+    NotionalV2FlashLiquidator,
     NotionalV2ManualLiquidator,
     MockAaveFlashLender,
     MockUniV3SwapRouter,
     UpgradeableBeacon,
-    BeaconProxy,
+    nBeaconProxy,
     MockManualLiquidator
 )
 from brownie.convert.datatypes import HexString
@@ -293,14 +293,9 @@ def setManualLiquidatorApprovals(env, liquidator, deployer):
     liquidator.approveToken(env.token["USDC"].address, env.swapRouter.address, {"from": deployer})
     liquidator.approveToken(env.token["WBTC"].address, env.swapRouter.address, {"from": deployer})
 
-def deployManualLiquidator(env, currencyId, assetAddress, underlyingAddress, transferFee, deployer):
-    initData = env.manualLiquidator.initialize.encode_input(
-        currencyId, 
-        assetAddress, 
-        underlyingAddress, 
-        transferFee
-    )
-    proxy = BeaconProxy.deploy(env.manualLiquidatorBeacon.address, initData, {"from": deployer})
+def deployManualLiquidator(env, currencyId, deployer):
+    initData = env.manualLiquidator.initialize.encode_input(currencyId)
+    proxy = nBeaconProxy.deploy(env.manualLiquidatorBeacon.address, initData, {"from": deployer})
     abi = ContractsVProject._build.get("NotionalV2ManualLiquidator")["abi"]
     liquidator = Contract.from_abi(
         "NotionalV2ManualLiquidator", proxy.address, abi=abi, owner=deployer
@@ -330,7 +325,7 @@ def main():
     env.token["USDT"].transfer(env.flashLender.address, 100000e6, {"from": deployer})    
 
     # Deploy flash liquidator
-    env.flashLiquidator = NotionalV2UniV3FlashLiquidator.deploy(
+    env.flashLiquidator = NotionalV2FlashLiquidator.deploy(
         env.notional.address,
         env.flashLender.address,
         env.weth,
@@ -355,10 +350,10 @@ def main():
     # Deploy upgradable beacon
     env.manualLiquidatorBeacon = UpgradeableBeacon.deploy(env.manualLiquidator.address, {"from": deployer})
 
-    env.manualLiquidatorETH = deployManualLiquidator(env, 1, env.cToken["ETH"].address, env.weth, False, deployer)
-    env.manualLiquidatorDAI = deployManualLiquidator(env, 2, env.cToken["DAI"].address, env.token["DAI"].address, False, deployer)
-    env.manualLiquidatorUSDC = deployManualLiquidator(env, 3, env.cToken["USDC"].address, env.token["USDC"].address, False, deployer)
-    env.manualLiquidatorWBTC = deployManualLiquidator(env, 4, env.cToken["WBTC"].address, env.token["WBTC"].address, False, deployer)
+    env.manualLiquidatorETH = deployManualLiquidator(env, 1, deployer)
+    env.manualLiquidatorDAI = deployManualLiquidator(env, 2, deployer)
+    env.manualLiquidatorUSDC = deployManualLiquidator(env, 3, deployer)
+    env.manualLiquidatorWBTC = deployManualLiquidator(env, 4, deployer)
 
     cToken = env.cToken["DAI"]
     env.token["DAI"].approve(env.notional.address, 2 ** 255, {"from": accounts[0]})

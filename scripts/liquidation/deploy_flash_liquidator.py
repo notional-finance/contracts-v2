@@ -1,11 +1,11 @@
-from brownie import NotionalV2UniV3FlashLiquidator, accounts, network
+from brownie import NotionalV2FlashLiquidator, accounts, network
 from scripts.liquidation import LiquidationConfig
 
 def main():
     lender = "AaveFlashLender"
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     config = LiquidationConfig[network.show_active()]
-    liquidator = NotionalV2UniV3FlashLiquidator.deploy(
+    liquidator = NotionalV2FlashLiquidator.deploy(
         config["NotionalV2"], 
         config[lender], 
         config["WETH"], 

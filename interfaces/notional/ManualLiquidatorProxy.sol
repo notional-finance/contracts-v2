@@ -5,12 +5,7 @@ pragma abicoder v2;
 import "../../contracts/global/Types.sol";
 
 interface ManualLiquidatorProxy {
-    function initialize(
-        uint16 localCurrencyId_,
-        address localAssetAddress_,
-        address localUnderlyingAddress_,
-        bool hasTransferFee_
-    ) external;
+    function initialize(uint16 ifCashCurrencyId_) external;
 
     function approveToken(address token, address spender) external;
 
@@ -30,35 +25,44 @@ interface ManualLiquidatorProxy {
 
     function claimNOTE() external returns (uint256);
 
-    function localLiquidate(address account, uint96 maxNTokenLiquidation) external;
-
-    function collateralLiquidate(
-        address account,
-        uint16 collateralCurrencyId,
-        address collateralCurrencyAddress,
-        address collateralUnderlyingAddress,
-        uint128 maxCollateralLiquidation,
+    function liquidateLocalCurrency(
+        address liquidateAccount,
+        uint16 localCurrencyId,
         uint96 maxNTokenLiquidation
     ) external;
 
+    function liquidateCollateralCurrency(
+        address liquidateAccount,
+        uint16 localCurrencyId,
+        uint16 collateralCurrencyId,
+        uint128 maxCollateralLiquidation,
+        uint96 maxNTokenLiquidation,
+        bool withdrawCollateral,
+        bool redeemNToken
+    ) external;
+
     function fcashLocalLiquidate(
-        BalanceActionWithTrades[] calldata actions,
-        address account,
+        address liquidateAccount,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external;
 
     function fcashCrossCurrencyLiquidate(
-        BalanceActionWithTrades[] calldata actions,
-        address account,
-        uint16 fCashCurrency,
-        address fCashAddress,
-        address fCashUnderlyingAddress,
+        address liquidateAccount,
+        uint16 localCurrencyId,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external;
 
-    function tradeAndWrap(bytes calldata path, uint256 amountIn, uint256 amountOutMin) external;
+    function mintCTokens(address[] calldata assets, uint256[] calldata amounts) external;
+
+    function redeemCTokens(address[] calldata assets) external;
+
+    function executeDexTrade(
+        bytes calldata path,
+        uint256 amountIn,
+        uint256 amountOutMin
+    ) external;
 
     function wrapToWETH() external;
 

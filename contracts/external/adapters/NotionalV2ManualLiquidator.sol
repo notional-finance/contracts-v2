@@ -6,37 +6,38 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "./NotionalV2BaseLiquidator.sol";
+import "./NotionalV2UniV3SwapRouter.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/compound/CEtherInterface.sol";
 import "interfaces/uniswap/v3/ISwapRouter.sol";
 
-contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, Initializable {
+contract NotionalV2ManualLiquidator is
+    NotionalV2BaseLiquidator,
+    NotionalV2UniV3SwapRouter,
+    AccessControl,
+    Initializable
+{
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
     address public immutable NOTE;
-    address public immutable EXCHANGE;
 
+    // @dev setting owner to address(0) because it is initialized in initialize()
     constructor(
         NotionalProxy notionalV2_,
         address weth_,
         address cETH_,
-        address exchange_,
+        ISwapRouter exchange_,
         address note_
-    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, address(0)) initializer {
-        EXCHANGE = exchange_;
+    )
+        NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, address(0))
+        NotionalV2UniV3SwapRouter(exchange_)
+        initializer
+    {
         NOTE = note_;
     }
 
-    function initialize(
-        uint16 localCurrencyId_,
-        address localAssetAddress_,
-        address localUnderlyingAddress_,
-        bool hasTransferFee_
-    ) external initializer {
-        localCurrencyId = localCurrencyId_;
-        localAssetAddress = localAssetAddress_;
-        localUnderlyingAddress = localUnderlyingAddress_;
-        hasTransferFee = hasTransferFee_;
+    function initialize(uint16 ifCashCurrencyId_) external initializer {
+        ifCashCurrencyId = ifCashCurrencyId_;
         owner = msg.sender;
 
         // Initialize the owner as the USER_ROLE admin
@@ -44,7 +45,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         _setupRole(ADMIN_ROLE, msg.sender);
 
         // At this point the contract can only hold assets of this currency id
-        NotionalV2.enableBitmapCurrency(localCurrencyId);
+        NotionalV2.enableBitmapCurrency(ifCashCurrencyId);
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
@@ -74,7 +75,10 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         _;
     }
 
-    function batchBalanceTradeAction(BalanceActionWithTrades[] calldata actions) external ownerOrUser {
+    function batchBalanceTradeAction(BalanceActionWithTrades[] calldata actions)
+        external
+        ownerOrUser
+    {
         NotionalV2.batchBalanceAndTradeAction(address(this), actions);
     }
 
@@ -90,7 +94,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         return
             NotionalV2.nTokenRedeem(
                 address(this),
-                localCurrencyId,
+                ifCashCurrencyId,
                 tokensToRedeem,
                 sellTokenAssets
             );
@@ -102,159 +106,89 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         return notesClaimed;
     }
 
-    function localLiquidate(address account, uint96 maxNTokenLiquidation) external ownerOrUser {
-        LiquidationAction action = LiquidationAction.LocalCurrency_NoTransferFee_NoWithdraw;
-
-        if (hasTransferFee) {
-            action = LiquidationAction.LocalCurrency_WithTransferFee_NoWithdraw;
-        }
-
-        bytes memory encoded = abi.encode(action, account, localCurrencyId, maxNTokenLiquidation);
-
-        address[] memory assets = new address[](1);
-        assets[0] = localUnderlyingAddress;
-
-        _liquidateLocal(action, encoded, assets);
+    function liquidateLocalCurrency(
+        address liquidateAccount,
+        uint16 localCurrencyId,
+        uint96 maxNTokenLiquidation
+    ) external ownerOrUser returns (int256, int256) {
+        return NotionalV2.liquidateLocalCurrency(liquidateAccount, localCurrencyId, maxNTokenLiquidation);
     }
 
-    function collateralLiquidate(
-        address account,
+    function liquidateCollateralCurrency(
+        address liquidateAccount,
+        uint16 localCurrencyId,
         uint16 collateralCurrencyId,
-        address collateralCurrencyAddress,
-        address collateralUnderlyingAddress,
         uint128 maxCollateralLiquidation,
-        uint96 maxNTokenLiquidation
-    ) external ownerOrUser {
-        LiquidationAction action = LiquidationAction.CollateralCurrency_NoTransferFee_NoWithdraw;
-
-        if (hasTransferFee) {
-            action = LiquidationAction.CollateralCurrency_WithTransferFee_NoWithdraw;
-        }
-
-        bytes memory encoded = abi.encode(
-            action,
-            account,
-            localCurrencyId,
-            localUnderlyingAddress,
-            collateralCurrencyId,
-            collateralCurrencyAddress,
-            collateralUnderlyingAddress,
-            maxCollateralLiquidation,
-            maxNTokenLiquidation
-        );
-
-        address[] memory assets = new address[](1);
-        assets[0] = localUnderlyingAddress;
-
-        _liquidateCollateral(action, encoded, assets);
+        uint96 maxNTokenLiquidation,
+        bool withdrawCollateral,
+        bool redeemNToken
+    )
+        external
+        ownerOrUser
+        returns (
+            int256,
+            int256,
+            int256
+        )
+    {
+        return
+            NotionalV2.liquidateCollateralCurrency(
+                liquidateAccount,
+                localCurrencyId,
+                collateralCurrencyId,
+                maxCollateralLiquidation,
+                maxNTokenLiquidation,
+                withdrawCollateral,
+                redeemNToken
+            );
     }
 
     function fcashLocalLiquidate(
-        BalanceActionWithTrades[] calldata actions,
-        address account,
+        address liquidateAccount,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external ownerOrUser {
-        if (actions.length > 0) {
-            NotionalV2.batchBalanceAndTradeAction(address(this), actions);
-        }
-
-        LiquidationAction action = LiquidationAction.LocalfCash_NoTransferFee_NoWithdraw;
-
-        if (hasTransferFee) {
-            action = LiquidationAction.LocalfCash_WithTransferFee_NoWithdraw;
-        }
-
-        bytes memory encoded = abi.encode(
-            action,
-            account,
-            localCurrencyId,
+        NotionalV2.liquidatefCashLocal(
+            liquidateAccount,
+            ifCashCurrencyId,
             fCashMaturities,
             maxfCashLiquidateAmounts
         );
-
-        address[] memory assets = new address[](1);
-        assets[0] = localUnderlyingAddress;
-
-        _liquidateLocalfCash(action, encoded, assets);
     }
 
     function fcashCrossCurrencyLiquidate(
-        BalanceActionWithTrades[] calldata actions,
-        address account,
-        uint16 fCashCurrency,
-        address fCashAddress,
-        address fCashUnderlyingAddress,
+        address liquidateAccount,
+        uint16 localCurrencyId,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
     ) external ownerOrUser {
-        if (actions.length > 0) {
-            // Need to borrow some amount of ifCashCurrency and trade it for local currency in the next step
-            NotionalV2.batchBalanceAndTradeAction(address(this), actions);
-        }
-
-        LiquidationAction action = LiquidationAction.CrossCurrencyfCash_NoTransferFee_NoWithdraw;
-
-        if (hasTransferFee) {
-            action = LiquidationAction.CrossCurrencyfCash_WithTransferFee_NoWithdraw;
-        }
-
-        address[] memory assets = new address[](1);
-        assets[0] = localUnderlyingAddress;
-
-        bytes memory encoded = abi.encode(
-            action,
-            account,
+        NotionalV2.liquidatefCashCrossCurrency(
+            liquidateAccount,
             localCurrencyId,
-            localUnderlyingAddress,
-            fCashCurrency,
-            fCashAddress,
-            fCashUnderlyingAddress,
+            ifCashCurrencyId,
             fCashMaturities,
             maxfCashLiquidateAmounts
         );
-
-        _liquidateCrossCurrencyfCash(action, encoded, assets);
     }
 
-    // path = [tokenAddr1, fee, tokenAddr2, fee, tokenAddr3]
-    function tradeAndWrap(bytes calldata path, uint256 deadline, uint256 amountIn, uint256 amountOutMin) external ownerOrUser {
-        bytes memory encoded = abi.encode(
-            path,
-            deadline
-        );
-
-        executeDexTrade(amountIn, amountOutMin, encoded);
-
-        // Wrap underlying into cToken
-        address[] memory assets = new address[](1);
-        assets[0] = localUnderlyingAddress;
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = IERC20(localUnderlyingAddress).balanceOf(address(this));
-
+    function mintCTokens(address[] calldata assets, uint256[] calldata amounts) external ownerOrUser {
         _mintCTokens(assets, amounts);
     }
 
+    function redeemCTokens(address[] calldata assets) external ownerOrUser {
+        _redeemCTokens(assets);
+    }
+
+    // path = [tokenAddr1, fee, tokenAddr2, fee, tokenAddr3]
     function executeDexTrade(
+        bytes calldata path,
+        uint256 deadline,
         uint256 amountIn,
-        uint256 amountOutMin,
-        bytes memory params
-    ) internal override ownerOrUser returns (uint256) {
-        // prettier-ignore
-        (
-            bytes memory path,
-            uint256 deadline
-        ) = abi.decode(params, (bytes, uint256));
+        uint256 amountOutMin
+    ) external ownerOrUser {
+        bytes memory encoded = abi.encode(path, deadline);
 
-        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams(
-            path,
-            address(this),
-            deadline,
-            amountIn,
-            amountOutMin
-        );
-
-       return ISwapRouter(EXCHANGE).exactInput(swapParams);
+        _executeDexTrade(amountIn, amountOutMin, encoded);
     }
 
     function wrapToWETH() external ownerOrUser {
@@ -264,6 +198,4 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
     function withdraw(address token, uint256 amount) external ownerOrUser {
         IERC20(token).transfer(owner, amount);
     }
-
-    receive() external payable {}
 }

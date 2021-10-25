@@ -4,8 +4,5 @@ pragma solidity >0.7.0;
 contract NotionalV2LiquidatorStorageLayoutV1 {
     mapping(address => address) internal underlyingToCToken;
     address public owner;
-    uint16 public localCurrencyId;
-    address public localAssetAddress;
-    address public localUnderlyingAddress;
-    bool public hasTransferFee;
+    uint16 public ifCashCurrencyId;
 }

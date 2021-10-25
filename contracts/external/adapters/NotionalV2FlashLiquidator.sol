@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./NotionalV2BaseLiquidator.sol";
+import "./NotionalV2UniV3SwapRouter.sol";
 import "../../math/SafeInt256.sol";
 import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/compound/CTokenInterface.sol";
@@ -13,7 +14,11 @@ import "interfaces/aave/IFlashLoanReceiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashLoanReceiver {
+contract NotionalV2FlashLiquidator is
+    NotionalV2BaseLiquidator,
+    NotionalV2UniV3SwapRouter,
+    IFlashLoanReceiver
+{
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -24,11 +29,15 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         address lendingPool_,
         address weth_,
         address cETH_,
-        address owner_
-    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) {
+        address owner_,
+        ISwapRouter exchange_
+    )
+        NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_)
+        NotionalV2UniV3SwapRouter(exchange_)
+    {
         LENDING_POOL = lendingPool_;
     }
-    
+
     function setCTokenAddress(address cToken) external onlyOwner {
         address underlying = _setCTokenAddress(cToken);
         // Lending pool needs to be able to pull underlying
@@ -114,13 +123,7 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_Withdraw ||
             action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_NoWithdraw
         ) {
-            _executeDexTrade(
-                action,
-                assets[0],
-                amounts[0],
-                premiums[0],
-                params
-            );
+            _dexTrade(action, assets[0], amounts[0], premiums[0], params);
         }
 
         if (
@@ -144,7 +147,7 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
         return true;
     }
 
-    function _executeDexTrade(
+    function _dexTrade(
         LiquidationAction action,
         address to,
         uint256 amount,
@@ -190,7 +193,7 @@ abstract contract NotionalV2FlashLiquidator is NotionalV2BaseLiquidator, IFlashL
             ) = abi.decode(params, (uint8, address, uint256, address, uint256, address, address, uint256[], uint256[], bytes));
         }
 
-        executeDexTrade(
+        _executeDexTrade(
             IERC20(collateralUnderlyingAddress).balanceOf(address(this)),
             amount.sub(bal).add(premium), // Amount needed to pay back flash loan
             tradeCallData

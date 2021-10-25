@@ -360,10 +360,4 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
     function _wrapToWETH() internal {
         WETH9(WETH).deposit{value: address(this).balance}();
     }
-
-    function executeDexTrade(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        bytes memory params
-    ) internal virtual returns (uint256);
 }

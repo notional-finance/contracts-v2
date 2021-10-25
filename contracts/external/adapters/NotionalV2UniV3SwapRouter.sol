@@ -6,25 +6,18 @@ import "./NotionalV2FlashLiquidator.sol";
 import "interfaces/uniswap/v3/ISwapRouter.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract NotionalV2UniV3FlashLiquidator is NotionalV2FlashLiquidator {
+abstract contract NotionalV2UniV3SwapRouter {
     ISwapRouter public immutable EXCHANGE;
 
-    constructor(
-        NotionalProxy notionalV2_,
-        address lendingPool_,
-        address weth_,
-        address cETH_,
-        address owner_,
-        ISwapRouter exchange_
-    ) NotionalV2FlashLiquidator(notionalV2_, lendingPool_, weth_, cETH_, owner_) {
+    constructor(ISwapRouter exchange_) {
         EXCHANGE = exchange_;
     }
 
-    function executeDexTrade(
+    function _executeDexTrade(
         uint256 amountIn,
         uint256 amountOutMin,
         bytes memory params
-    ) internal override returns (uint256) {
+    ) internal returns (uint256) {
         // prettier-ignore
         (
             bytes memory path,
