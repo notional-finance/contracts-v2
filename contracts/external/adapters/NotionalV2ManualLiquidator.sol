@@ -20,10 +20,9 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         NotionalProxy notionalV2_,
         address weth_,
         address cETH_,
-        address owner_,
         address exchange_,
         address note_
-    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_) initializer {
+    ) NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, address(0)) initializer {
         EXCHANGE = exchange_;
         NOTE = note_;
     }
@@ -57,13 +56,15 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
     }
 
     function grantRole(bytes32 role, address account) public virtual override {
-        AccessControl.grantRole(role, account);
+        // Hardcoding role to USER_ROLE for safety
+        AccessControl.grantRole(USER_ROLE, account);
         // Allow ERC1155 trades to be authorized by owner for selling ifCash OTC
         NotionalV2.setApprovalForAll(account, true);
     }
 
     function revokeRole(bytes32 role, address account) public virtual override {
-        AccessControl.revokeRole(role, account);
+        // Hardcoding role to USER_ROLE for safety
+        AccessControl.revokeRole(USER_ROLE, account);
         // Revoke ERC1155 access
         NotionalV2.setApprovalForAll(account, false);
     }

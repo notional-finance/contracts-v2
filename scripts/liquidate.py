@@ -346,7 +346,6 @@ def main():
         env.notional.address,
         env.weth,
         env.cToken["ETH"].address,
-        deployer.address,
         env.swapRouter.address,
         env.noteERC20Proxy.address,
         {"from": deployer})

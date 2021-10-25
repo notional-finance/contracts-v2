@@ -36,7 +36,6 @@ def main():
         config["NotionalV2"],
         config["WETH"],
         config["cETH"],
-        deployer.address,
         config["UniswapRouter"],
         config["NoteToken"],
         {"from": deployer})
