@@ -40,6 +40,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         hasTransferFee = hasTransferFee_;
         owner = msg.sender;
 
+        // Initialize the owner as the USER_ROLE admin
         _setRoleAdmin(USER_ROLE, ADMIN_ROLE);
         _setupRole(ADMIN_ROLE, msg.sender);
 
@@ -50,6 +51,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
+        // Make new user the USER_ROLE admin
         grantRole(ADMIN_ROLE, newOwner);
         revokeRole(ADMIN_ROLE, msg.sender);
     }
@@ -62,6 +64,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
 
     function revokeRole(bytes32 role, address account) public virtual override {
         AccessControl.revokeRole(role, account);
+        // Revoke ERC1155 access
         NotionalV2.setApprovalForAll(account, false);
     }
 
@@ -213,7 +216,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
         _liquidateCrossCurrencyfCash(action, encoded, assets);
     }
 
-
+    // path = [tokenAddr1, fee, tokenAddr2, fee, tokenAddr3]
     function tradeAndWrap(bytes calldata path, uint256 deadline, uint256 amountIn, uint256 amountOutMin) external ownerOrUser {
         bytes memory encoded = abi.encode(
             path,
@@ -222,6 +225,7 @@ contract NotionalV2ManualLiquidator is NotionalV2BaseLiquidator, AccessControl, 
 
         executeDexTrade(amountIn, amountOutMin, encoded);
 
+        // Wrap underlying into cToken
         address[] memory assets = new address[](1);
         assets[0] = localUnderlyingAddress;
         uint256[] memory amounts = new uint256[](1);
