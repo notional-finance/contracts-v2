@@ -1,9 +1,60 @@
 {
   "1": {
+    "AccountAction": [
+      "0x5f11E94E0A69ac8490f45eB27a6478dCDDB0227E"
+    ],
+    "BatchAction": [
+      "0x63757F772B8aab66F4dE09617e8F257249EFcb93"
+    ],
     "ChainlinkAdapter": [
       "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
       "0x68225F47813aF66F186b3714Ffe6a91850Bc76B4",
       "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B"
+    ],
+    "ERC1155Action": [
+      "0xFFd7531ED937F703B269815950cB75bdAAA341c9"
+    ],
+    "FreeCollateralExternal": [
+      "0x422A2e95009f11e9E144FE7fd1a7c7A9C759Bb6A"
+    ],
+    "GovernanceAction": [
+      "0xc2763a6465F5C86769A1Af826dB270A6367b03B7"
+    ],
+    "InitializeMarketsAction": [
+      "0x280deCD520da16e5571A6f2Fb803A57e0c16f423"
+    ],
+    "LiquidateCurrencyAction": [
+      "0x6b986A60216ACA687457782aDFA0B002aD392Ce7"
+    ],
+    "LiquidatefCashAction": [
+      "0xB12b08045c2FB403Fcae579641D0a011AAd8ED70"
+    ],
+    "PauseRouter": [
+      "0xbe401d7e76bb71bf7fa5a4aed7F3b650C6E0bd25"
+    ],
+    "Router": [
+      "0x123fCA954EA894305b684F56A0d043169a5aA7E4"
+    ],
+    "SettleAssetsExternal": [
+      "0xb15167FfF26202Aa3d20Ecfd7f46a34Fa4126e49"
+    ],
+    "TradingAction": [
+      "0x662F1be7f07C90031F7B5264f71Bd1AC0E975526"
+    ],
+    "Views": [
+      "0xdE14D5F07456c86F070C108A04Ae2fafdbD2A939"
+    ],
+    "nProxy": [
+      "0x1344A36A1B56144C3Bc62E7757377D288fDE0369"
+    ],
+    "nTokenAction": [
+      "0x1cd33f81420Bfce8A3622dc56BBD617b7Fa3c93A"
+    ],
+    "nTokenMintAction": [
+      "0x0092A5552162f911ccF7f456e85f473cE259707F"
+    ],
+    "nTokenRedeemAction": [
+      "0x1c510763432C0e65d86f313612d4e1E2D26E4332"
     ]
   },
   "42": {
