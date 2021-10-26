@@ -20,6 +20,7 @@ contract NotionalV2ManualLiquidator is
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
     address public immutable NOTE;
+    address internal immutable DEPLOYER;
 
     // @dev setting owner to address(0) because it is initialized in initialize()
     constructor(
@@ -34,9 +35,11 @@ contract NotionalV2ManualLiquidator is
         initializer
     {
         NOTE = note_;
+        DEPLOYER = msg.sender;
     }
 
     function initialize(uint16 ifCashCurrencyId_) external initializer {
+        require(msg.sender == DEPLOYER);
         ifCashCurrencyId = ifCashCurrencyId_;
         owner = msg.sender;
 
@@ -56,14 +59,14 @@ contract NotionalV2ManualLiquidator is
         revokeRole(ADMIN_ROLE, msg.sender);
     }
 
-    function grantRole(bytes32 role, address account) public virtual override {
+    function grantRole(bytes32 role, address account) public virtual override onlyOwner {
         // Hardcoding role to USER_ROLE for safety
         AccessControl.grantRole(USER_ROLE, account);
         // Allow ERC1155 trades to be authorized by owner for selling ifCash OTC
         NotionalV2.setApprovalForAll(account, true);
     }
 
-    function revokeRole(bytes32 role, address account) public virtual override {
+    function revokeRole(bytes32 role, address account) public virtual override onlyOwner {
         // Hardcoding role to USER_ROLE for safety
         AccessControl.revokeRole(USER_ROLE, account);
         // Revoke ERC1155 access
