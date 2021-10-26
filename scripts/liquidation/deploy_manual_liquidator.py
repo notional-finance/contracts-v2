@@ -1,3 +1,4 @@
+import json
 from brownie import UpgradeableBeacon, BeaconProxy, NotionalV2ManualLiquidator, accounts, network
 from brownie.project import ContractsVProject
 from brownie.network.contract import Contract
@@ -23,6 +24,7 @@ def deployManualLiquidator(beacon, liquidator, currencyId, deployer):
         "NotionalV2ManualLiquidator", proxy.address, abi=abi, owner=deployer
     )
     setManualLiquidatorApprovals(proxyContract, deployer)
+    return proxy
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
@@ -38,7 +40,21 @@ def main():
     # Deploy upgradable beacon
     manualLiquidatorBeacon = UpgradeableBeacon.deploy(manualLiquidator.address, {"from": deployer})
 
-    deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 1, deployer)
-    deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 2, deployer)
-    deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 3, deployer)
-    deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 4, deployer)
+    liquidatorETH = deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 1, deployer)
+    liquidatorDAI = deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 2, deployer)
+    liquidatorUSDC = deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 3, deployer)
+    liquidatorWBTC =  deployManualLiquidator(manualLiquidatorBeacon, manualLiquidator, 4, deployer)
+
+    output_file = "v2.manual.{}.json".format(network.show_active())
+    with open(output_file, "w") as f:
+        json.dump(
+            {
+                "ETH": liquidatorETH.address,
+                "DAI": liquidatorDAI.address,
+                "USDC": liquidatorUSDC.address,
+                "WBTC": liquidatorWBTC.address
+            },
+            f,
+            sort_keys=True,
+            indent=4,
+        )

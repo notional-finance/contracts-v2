@@ -1,3 +1,4 @@
+import json
 from brownie import NotionalV2FlashLiquidator, accounts, network
 from scripts.liquidation.liquidation_config import LiquidationConfig
 
@@ -26,3 +27,14 @@ def main():
     liquidator.approveToken(config["USDC"], config["UniswapRouter"], {"from": deployer})
     liquidator.approveToken(config["WBTC"], config[lender], {"from": deployer})
     liquidator.approveToken(config["WBTC"], config["UniswapRouter"], {"from": deployer})
+
+    output_file = "v2.flash.{}.json".format(network.show_active())
+    with open(output_file, "w") as f:
+        json.dump(
+            {
+                "flashLiquidator": liquidator.address
+            },
+            f,
+            sort_keys=True,
+            indent=4,
+        )
