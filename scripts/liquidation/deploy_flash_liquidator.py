@@ -1,5 +1,5 @@
 from brownie import NotionalV2FlashLiquidator, accounts, network
-from scripts.liquidation import LiquidationConfig
+from scripts.liquidation.liquidation_config import LiquidationConfig
 
 def main():
     lender = "AaveFlashLender"

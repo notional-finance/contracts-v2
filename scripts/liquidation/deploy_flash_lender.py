@@ -1,5 +1,5 @@
 from brownie import MockAaveFlashLender, accounts, network, interface
-from scripts.liquidation import LiquidationConfig
+from scripts.liquidation.liquidation_config import LiquidationConfig
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
