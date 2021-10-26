@@ -20,6 +20,9 @@
     "GovernanceAction": [
       "0xc2763a6465F5C86769A1Af826dB270A6367b03B7"
     ],
+    "GovernorAlpha": [
+      "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3"
+    ],
     "InitializeMarketsAction": [
       "0x280deCD520da16e5571A6f2Fb803A57e0c16f423"
     ],
@@ -28,6 +31,9 @@
     ],
     "LiquidatefCashAction": [
       "0xB12b08045c2FB403Fcae579641D0a011AAd8ED70"
+    ],
+    "NoteERC20": [
+      "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
     ],
     "PauseRouter": [
       "0xbe401d7e76bb71bf7fa5a4aed7F3b650C6E0bd25"
@@ -43,6 +49,12 @@
     ],
     "Views": [
       "0xdE14D5F07456c86F070C108A04Ae2fafdbD2A939"
+    ],
+    "cTokenAggregator": [
+      "0x1ce3D734AAAfaa06c46048D2371c2E507692C988",
+      "0x181900d998A8a922E68b3fc186CE0Fa525c3C424",
+      "0xC7b9C53d345ec7A00D5c085085Cb882Dce79D2E9",
+      "0x5fbf4539A89fBd1E5d784DB3f7Ba6c394AC450fC"
     ],
     "nProxy": [
       "0x1344A36A1B56144C3Bc62E7757377D288fDE0369"
