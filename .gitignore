@@ -2,7 +2,10 @@ __pycache__
 .history
 .hypothesis/
 .tox/
-build/
+!build/deployments/*
+build/contracts/*
+build/interfaces/*
+build/tests.json
 venv/
 chaindb/
 ganache-out.txt

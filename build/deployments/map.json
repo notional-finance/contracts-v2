@@ -1,0 +1,79 @@
+{
+  "1": {
+    "ChainlinkAdapter": [
+      "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
+      "0x68225F47813aF66F186b3714Ffe6a91850Bc76B4",
+      "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B"
+    ]
+  },
+  "42": {
+    "AccountAction": [
+      "0x98A251D9D43c35e7cd9ece91C40E7e3d5a0238ca"
+    ],
+    "BatchAction": [
+      "0x269D5d1cE8C25919c894694a2dd4bE18F79C6CC8"
+    ],
+    "ChainlinkAdapter": [
+      "0x8470516910062633bBF959f940232F9d300eF0f6",
+      "0x0ff45Fd2ad282B7E6E29dc10DbE6B3fc907284b0"
+    ],
+    "ERC1155Action": [
+      "0x8932387c4dE59b6ACb90708C7d0415EEc03bd755"
+    ],
+    "FreeCollateralExternal": [
+      "0xF3A4A14d23a4220ff3425B3E9c8b7D58DE51DE14"
+    ],
+    "GovernanceAction": [
+      "0x269689d148ab0615b329bF092f6f6193D3754549"
+    ],
+    "GovernorAlpha": [
+      "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3"
+    ],
+    "InitializeMarketsAction": [
+      "0x1b3534cA262343E57e837a351100A6Db9E0292d7"
+    ],
+    "LiquidateCurrencyAction": [
+      "0x2b5d343E861C06af1810d7Da571773972A2446c6"
+    ],
+    "LiquidatefCashAction": [
+      "0x84EdDe510f22dc69841660Aa21C73aca7BB73680"
+    ],
+    "NoteERC20": [
+      "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
+    ],
+    "PauseRouter": [
+      "0x2138Ddf29B384f89d1010364d1161dd849EbDB70"
+    ],
+    "Router": [
+      "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e",
+      "0xd85273aC4ada9F3555DC7Cb54b1149B6B38a8991"
+    ],
+    "SettleAssetsExternal": [
+      "0xf06ba1bB1D9de1F4D71dA4Cc15Db7725eD773824"
+    ],
+    "TradingAction": [
+      "0xFb2E3478d7c6EaE7776cb3db7eD21D7Ff02c2709"
+    ],
+    "Views": [
+      "0x0368e160771e037cFd6B855A85cA04795896D567"
+    ],
+    "cTokenAggregator": [
+      "0xd1926e8e2C5A5670A89955Eeec85f3FA41b7fc2c",
+      "0x1d1c4bA73F23606cA843871eaf82BE9514131494",
+      "0x37EA8632B73B2Fab2F014E0002bb9cb6fF2a0610",
+      "0x6d81510Ff0471e88198c6ab5fe5529a65B307A1d"
+    ],
+    "nProxy": [
+      "0x48B7d5AAf0Cc8570E52D5CA783c6969370ea6161"
+    ],
+    "nTokenAction": [
+      "0x67D711ecc44BF8e324cFF30bbeC05bE1AC826cd9"
+    ],
+    "nTokenMintAction": [
+      "0xf2dD74d0B5eAfC68D7FE022E32b54bb8f9D6DE1D"
+    ],
+    "nTokenRedeemAction": [
+      "0xc30e4ac9a5cd2427f2ef847d6cc3b883afCD7aD8"
+    ]
+  }
+}
