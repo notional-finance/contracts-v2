@@ -126,7 +126,7 @@ TokenConfig = {
         },
         "WBTC": {
             "assetToken": (
-                "0xC11b1268C1A384e55C48c2391d8d480264A3A7F4",
+                "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
                 False,
                 TokenType["cToken"],
                 CTOKEN_DECIMALS,

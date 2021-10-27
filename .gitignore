@@ -2,7 +2,7 @@ __pycache__
 .history
 .hypothesis/
 .tox/
-!build/deployments/*
+build/deployments/dev
 build/contracts/*
 build/interfaces/*
 build/tests.json
