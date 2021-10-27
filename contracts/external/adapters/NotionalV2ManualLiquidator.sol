@@ -103,6 +103,14 @@ contract NotionalV2ManualLiquidator is
             );
     }
 
+    function withdrawFromNotional(
+        uint16 currencyId,
+        uint88 amountInternalPrecision,
+        bool redeemToUnderlying
+    ) external ownerOrUser returns (uint256) {
+        return NotionalV2.withdraw(currencyId, amountInternalPrecision, redeemToUnderlying);
+    }
+
     function claimNOTE() external onlyOwner returns (uint256) {
         uint256 notesClaimed = NotionalV2.nTokenClaimIncentives();
         IERC20(NOTE).transfer(owner, notesClaimed);
@@ -114,7 +122,12 @@ contract NotionalV2ManualLiquidator is
         uint16 localCurrencyId,
         uint96 maxNTokenLiquidation
     ) external ownerOrUser returns (int256, int256) {
-        return NotionalV2.liquidateLocalCurrency(liquidateAccount, localCurrencyId, maxNTokenLiquidation);
+        return
+            NotionalV2.liquidateLocalCurrency(
+                liquidateAccount,
+                localCurrencyId,
+                maxNTokenLiquidation
+            );
     }
 
     function liquidateCollateralCurrency(
@@ -174,7 +187,10 @@ contract NotionalV2ManualLiquidator is
         );
     }
 
-    function mintCTokens(address[] calldata assets, uint256[] calldata amounts) external ownerOrUser {
+    function mintCTokens(address[] calldata assets, uint256[] calldata amounts)
+        external
+        ownerOrUser
+    {
         _mintCTokens(assets, amounts);
     }
 
@@ -198,7 +214,7 @@ contract NotionalV2ManualLiquidator is
         _wrapToWETH();
     }
 
-    function withdraw(address token, uint256 amount) external ownerOrUser {
+    function withdrawToOwner(address token, uint256 amount) external ownerOrUser {
         IERC20(token).transfer(owner, amount);
     }
 }

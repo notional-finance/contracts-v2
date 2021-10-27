@@ -21,6 +21,12 @@ interface ManualLiquidatorProxy {
 
     function batchBalanceAction(BalanceAction[] calldata actions) external;
 
+    function withdrawFromNotional(
+        uint16 currencyId,
+        uint88 amountInternalPrecision,
+        bool redeemToUnderlying
+    ) external returns (uint256);
+
     function nTokenRedeem(uint96 tokensToRedeem, bool sellTokenAssets) external returns (uint256);
 
     function claimNOTE() external returns (uint256);
@@ -66,5 +72,5 @@ interface ManualLiquidatorProxy {
 
     function wrapToWETH() external;
 
-    function withdraw(address token, uint256 amount) external;
+    function withdrawToOwner(address token, uint256 amount) external;
 }

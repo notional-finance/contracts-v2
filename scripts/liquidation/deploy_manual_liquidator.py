@@ -49,6 +49,8 @@ def main():
     with open(output_file, "w") as f:
         json.dump(
             {
+                "impl": manualLiquidator.address,
+                "beacon": manualLiquidatorBeacon.address,
                 "ETH": liquidatorETH.address,
                 "DAI": liquidatorDAI.address,
                 "USDC": liquidatorUSDC.address,
