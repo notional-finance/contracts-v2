@@ -204,10 +204,10 @@ contract NotionalV2ManualLiquidator is
         uint256 deadline,
         uint256 amountIn,
         uint256 amountOutMin
-    ) external ownerOrUser {
+    ) external ownerOrUser returns (uint256) {
         bytes memory encoded = abi.encode(path, deadline);
 
-        _executeDexTrade(amountIn, amountOutMin, encoded);
+        return _executeDexTrade(amountIn, amountOutMin, encoded);
     }
 
     function wrapToWETH() external ownerOrUser {

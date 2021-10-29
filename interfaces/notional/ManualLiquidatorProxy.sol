@@ -66,9 +66,10 @@ interface ManualLiquidatorProxy {
 
     function executeDexTrade(
         bytes calldata path,
+        uint256 deadline,
         uint256 amountIn,
         uint256 amountOutMin
-    ) external;
+    ) external returns (uint256);
 
     function wrapToWETH() external;
 
