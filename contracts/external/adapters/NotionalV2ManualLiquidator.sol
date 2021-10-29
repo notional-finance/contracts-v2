@@ -111,7 +111,7 @@ contract NotionalV2ManualLiquidator is
         return NotionalV2.withdraw(currencyId, amountInternalPrecision, redeemToUnderlying);
     }
 
-    function claimNOTE() external onlyOwner returns (uint256) {
+    function claimNOTE() external ownerOrUser returns (uint256) {
         uint256 notesClaimed = NotionalV2.nTokenClaimIncentives();
         IERC20(NOTE).transfer(owner, notesClaimed);
         return notesClaimed;
