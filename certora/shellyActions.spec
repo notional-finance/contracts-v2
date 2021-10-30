@@ -15,6 +15,13 @@
  * - LiquidationHelpers
  */
 
+methods {
+    transfer(address,uint) => NONDET
+    getExchangeRateStateful() => NONDET
+    transfer(uint) => NONDET
+    redeem(uint256) => NONDET
+}
+
 // Tracks the open reads to account context
 ghost g_readsToAccountContext(address) returns uint256;
 ghost g_writesToAccountContext(address) returns uint256;
