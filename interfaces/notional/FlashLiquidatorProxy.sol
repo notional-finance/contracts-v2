@@ -2,6 +2,8 @@
 pragma solidity ^0.7.0;
 
 interface FlashLiquidatorProxy {
+    function transferOwnership(address newOwner) external;
+
     function flashLoan(
         address flashLender,
         address receiverAddress,

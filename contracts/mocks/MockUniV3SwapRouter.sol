@@ -16,15 +16,12 @@ contract MockUniV3SwapRouter {
     address public WETH;
     address public OWNER;
 
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
+    struct ExactInputParams {
+        bytes path;
         address recipient;
         uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
     }
 
     constructor(address weth_, address owner_) {
@@ -42,28 +39,17 @@ contract MockUniV3SwapRouter {
 
     event DexTrade(address from, address to, uint256 amountIn, uint256 amountOutMin);
 
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut) {
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        IERC20(params.tokenOut).transfer(msg.sender, params.amountOutMinimum);
-        emit DexTrade(params.tokenIn, params.tokenOut, params.amountIn, params.amountOutMinimum);
+    function exactInput(ExactInputParams calldata params) external payable returns (uint256 amountOut) {
+        (
+            address from,
+            uint24 fee,
+            address to
+        ) = abi.decode(params.path, (address, uint24, address));
+
+        IERC20(from).transferFrom(msg.sender, address(this), params.amountIn);
+        IERC20(to).transfer(msg.sender, params.amountOutMinimum);
+        emit DexTrade(from, to, params.amountIn, params.amountOutMinimum);
         return params.amountOutMinimum;        
-    }
-
-    struct ExactOutputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 deadline;
-        uint256 amountOut;
-        uint256 amountInMaximum;
-        uint160 sqrtPriceLimitX96;
-    }
-
-    function exactOutputSingle(ExactOutputSingleParams calldata params) external payable returns (uint256 amountIn) {
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountInMaximum);
-        IERC20(params.tokenOut).transfer(msg.sender, params.amountOut);
-        return params.amountInMaximum;
     }
 
     receive() external payable {}

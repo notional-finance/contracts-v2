@@ -44,6 +44,11 @@ contract NotionalV2FlashLiquidator is
         checkAllowanceOrSet(underlying, LENDING_POOL);
     }
 
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        owner = newOwner;
+    }
+
     // Profit estimation
     function flashLoan(
         address flashLender,

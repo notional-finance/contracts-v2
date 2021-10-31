@@ -56,17 +56,13 @@ def collateralLiquidate(env):
 
     env.ethOracle["DAI"].setAnswer(0.017e18)
 
+    pathCalldata = eth_abi.encode_abi(
+        ["address", "uint24", "address"], 
+        [env.weth.address, 3000, env.token["DAI"].address],
+    )
     tradeCalldata = eth_abi.encode_abi(
-        [
-            "uint24", 
-            "uint256", 
-            "uint160"
-        ],
-        [
-            3000,
-            chain.time() + 20000,
-            0
-        ]
+        ["bytes", "uint256"],
+        [pathCalldata, chain.time() + 20000],
     )
 
     calldata = eth_abi.encode_abi(
@@ -83,7 +79,7 @@ def collateralLiquidate(env):
             "bytes",
         ],
         [
-            CollateralCurrency_NoTransferFee_NoWithdraw,
+            CollateralCurrency_NoTransferFee_Withdraw,
             accounts[1].address,
             2,
             env.token['DAI'].address,
@@ -96,18 +92,18 @@ def collateralLiquidate(env):
         ],
     )
 
-    #print(env.notional.getFreeCollateral(accounts[1]))
-    #env.flashLender.flashLoan(
-    #    env.flashLiquidator.address,
-    #    [env.token["DAI"].address],
-    #    [100e18],
-    #    [0],
-    #    env.flashLiquidator.address,
-    #    calldata,
-    #    0,
-    #    {"from": accounts[0]},
-    #)
-    #print(env.notional.getFreeCollateral(accounts[1]))
+    print(env.notional.getFreeCollateral(accounts[1]))
+    env.flashLender.flashLoan(
+        env.flashLiquidator.address,
+        [env.token["DAI"].address],
+        [120e18],
+        [0],
+        env.flashLiquidator.address,
+        calldata,
+        0,
+        {"from": accounts[0]},
+    )
+    print(env.notional.getFreeCollateral(accounts[1]))
 
 def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
@@ -189,21 +185,20 @@ def crossCurrencyLiquidate(env):
     # Drop ETH price
     env.ethOracle["DAI"].setAnswer(0.017e18)
 
+    pathCalldata = eth_abi.encode_abi(
+        ["address", "uint24", "address"], 
+        [env.weth.address, 3000, env.token["DAI"].address],
+    )
     tradeCalldata = eth_abi.encode_abi(
-        [
-            "uint24", 
-            "uint256", 
-            "uint160"
-        ],
-        [
-            3000,
-            chain.time() + 20000,
-            0
-        ]
+        ["bytes", "uint256"],
+        [pathCalldata, chain.time() + 20000],
     )
 
     liquidatedPortfolioBefore = env.notional.getAccountPortfolio(accounts[1])
     maturities = [asset[1] for asset in liquidatedPortfolioBefore]
+    print(maturities)
+    maturities.sort(reverse=True)
+    print(maturities)
     limits = [0 for mat in maturities]
 
     print(limits)
@@ -239,7 +234,7 @@ def crossCurrencyLiquidate(env):
     env.flashLender.flashLoan(
         env.flashLiquidator.address,
         [env.token["DAI"].address],
-        [100e18],
+        [120e18],
         [0],
         env.flashLiquidator.address,
         calldata,
@@ -403,6 +398,6 @@ def main():
 
     chain.snapshot()
     collateralLiquidate(env)
-    #chain.revert()
-    #crossCurrencyLiquidate(env)
+    chain.revert()
+    crossCurrencyLiquidate(env)
     
