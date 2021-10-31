@@ -4,8 +4,9 @@ from scripts.liquidation.liquidation_config import LiquidationConfig
 
 def main():
     lender = "AaveFlashLender"
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    config = LiquidationConfig[network.show_active()]
+    networkName = network.show_active()
+    deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    config = LiquidationConfig[networkName]
     liquidator = NotionalV2FlashLiquidator.deploy(
         config["NotionalV2"], 
         config[lender], 
@@ -27,6 +28,12 @@ def main():
     liquidator.approveToken(config["USDC"], config["UniswapRouter"], {"from": deployer})
     liquidator.approveToken(config["WBTC"], config[lender], {"from": deployer})
     liquidator.approveToken(config["WBTC"], config["UniswapRouter"], {"from": deployer})
+
+    # Kovan has Aave DAI
+    if (networkName == "kovan"):
+        liquidator.setCTokenAddress(config["caDAI"], {"from": deployer})
+        liquidator.approveToken(config["ADAI"], config[lender], {"from": deployer})
+        liquidator.approveToken(config["ADAI"], config["UniswapRouter"], {"from": deployer})
 
     output_file = "v2.flash.{}.json".format(network.show_active())
     with open(output_file, "w") as f:
