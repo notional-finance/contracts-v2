@@ -84,6 +84,12 @@ def deployNotionalContracts(deployer, cETHAddress):
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
+    # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
+    # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
+    # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here will
+    # not be correct for future upgrades.
+    # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
+    #   deployer, "Governance")
     contracts["Views"] = Views.deploy({"from": deployer})
     contracts["InitializeMarketsAction"] = InitializeMarketsAction.deploy({"from": deployer})
     contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
