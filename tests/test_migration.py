@@ -84,7 +84,12 @@ def isolation(fn_isolation):
 
 def test_authentication_for_migrators(environment, accounts, CompoundToNotionalV2):
     (v1env, v2env) = environment
-    compToV2 = CompoundToNotionalV2.deploy(v2env.notional.address, {"from": accounts[0]})
+    compToV2 = CompoundToNotionalV2.deploy(
+        v2env.notional.address,
+        accounts[0].address,
+        v2env.cToken["ETH"].address,
+        {"from": accounts[0]},
+    )
 
     with brownie.reverts("Unauthorized callback"):
         compToV2.notionalCallback(compToV2.address, accounts[2], "")
@@ -172,15 +177,18 @@ def test_migrate_v1_to_comp(
 def test_migrate_comp_to_v2(environment, accounts, CompoundToNotionalV2):
     account = accounts[5]
     (v1env, v2env) = environment
-    compToV2 = CompoundToNotionalV2.deploy(v2env.notional.address, {"from": accounts[0]})
+    compToV2 = CompoundToNotionalV2.deploy(
+        v2env.notional.address,
+        accounts[0].address,
+        v2env.cToken["ETH"].address,
+        {"from": accounts[0]},
+    )
     v2env.notional.updateAuthorizedCallbackContract(compToV2.address, True)
 
-    # NOTE: these approvals allow deposit of collateral
-    compToV2.enableToken(v2env.cToken["USDC"].address, v2env.notional.address)
-    compToV2.enableToken(v2env.cToken["ETH"].address, v2env.notional.address)
-
-    # NOTE: these approvals allow repayBorrowBehalf
-    compToV2.enableToken(v2env.token["USDC"].address, v2env.cToken["USDC"].address)
+    # NOTE: these approvals allow deposit and repayment
+    compToV2.enableTokens(
+        [v2env.cToken["USDC"].address, v2env.cToken["ETH"].address], {"from": accounts[0]}
+    )
 
     v2env.comptroller.enterMarkets(
         [v2env.cToken["USDC"].address, v2env.cToken["ETH"].address], {"from": account}

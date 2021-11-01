@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "../../global/Types.sol";
 import "interfaces/notional/NotionalProxy.sol";
+import "interfaces/notional/NotionalCallback.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface WETH9 {
@@ -59,7 +60,8 @@ interface INotionalV1Erc1155 {
     ) external payable;
 }
 
-contract NotionalV1ToNotionalV2 {
+contract NotionalV1ToNotionalV2 is NotionalCallback {
+    string public name = "Notional V1 to Notional V2";
     IEscrow public immutable Escrow;
     NotionalProxy public immutable NotionalV2;
     INotionalV1Erc1155 public immutable NotionalV1Erc1155;
@@ -72,32 +74,23 @@ contract NotionalV1ToNotionalV2 {
     uint16 internal constant V1_WBTC = 3;
 
     uint16 public constant V2_ETH = 1;
-    uint16 public immutable V2_DAI;
-    uint16 public immutable V2_USDC;
-    uint16 public immutable V2_WBTC;
+    uint16 public constant V2_DAI = 2;
+    uint16 public constant V2_USDC = 3;
+    uint16 public constant V2_WBTC = 4;
 
     constructor(
         IEscrow escrow_,
         NotionalProxy notionalV2_,
         INotionalV1Erc1155 erc1155_,
         WETH9 weth_,
-        IERC20 wbtc_,
-        uint16 v2Dai_,
-        uint16 v2USDC_,
-        uint16 v2WBTC_
+        IERC20 wbtc_
     ) {
         Escrow = escrow_;
         NotionalV2 = notionalV2_;
         NotionalV1Erc1155 = erc1155_;
         WETH = weth_;
         WBTC = wbtc_;
-        V2_DAI = v2Dai_;
-        V2_USDC = v2USDC_;
-        V2_WBTC = v2WBTC_;
-    }
-
-    function enableWBTC() external {
-        require(WBTC.approve(address(NotionalV2), type(uint256).max));
+        wbtc_.approve(address(notionalV2_), type(uint256).max);
     }
 
     function migrateDaiEther(
@@ -145,7 +138,7 @@ contract NotionalV1ToNotionalV2 {
         address sender,
         address account,
         bytes calldata callbackData
-    ) external returns (uint256) {
+    ) external override {
         require(msg.sender == address(NotionalV2) && sender == address(this), "Unauthorized callback");
         (
             uint16 v1DebtCurrencyId,
