@@ -113,6 +113,9 @@
     "NoteERC20": [
       "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
     ],
+    "NotionalV1ToNotionalV2": [
+      "0x3a04991503Dba313FE8bB93c38312C9e1F7d985F"
+    ],
     "PauseRouter": [
       "0x2138Ddf29B384f89d1010364d1161dd849EbDB70"
     ],
