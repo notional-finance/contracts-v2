@@ -44,11 +44,13 @@ contract CompoundToNotionalV2 is NotionalCallback {
         uint256[] memory notionalV2CollateralAmounts,
         BalanceActionWithTrades[] calldata borrowAction
     ) external {
+        require(notionalV2CollateralIds.length == notionalV2CollateralAmounts.length);
         // borrow on notional via special flash loan facility
         //  - borrow repayment amount
         //  - withdraw to wallet, redeem to underlying
         // receive callback (tokens transferred to borrowing account)
         //   -> inside callback
+        //   -> transfer borrowed amount from account (needs to have set approvals)
         //   -> repayBorrowBehalf(account, repayAmount)
         //   -> deposit cToken to notional (account needs to have set approvals)
         //   -> exit callback

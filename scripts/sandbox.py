@@ -212,6 +212,7 @@ def main():
         "directory": v1env["Directory"].address,
         "erc1155": v1env["ERC1155Token"].address,
         "erc1155trade": v1env["ERC1155Trade"].address,
+        "migrator": v1env["Migrator"].address,
         "startBlock": 1,
     }
 
