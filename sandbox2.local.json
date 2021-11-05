@@ -5,6 +5,7 @@
     "erc1155": "0xc2E7787ff39918efF50593eE2695A85d7ea932AC",
     "erc1155trade": "0x9C265adDf736820ac2Ba1E919FDb011734a116dA",
     "escrow": "0xC605a07Af905958b1B69b366Cc6DDbD170A2946c",
+    "migrator": "0xD6Ff2F8445cEd40cF621740BFEBb61ad794Da6fA",
     "networkName": "unknown",
     "portfolios": "0x2e2d7A1E6355EB78D85cAd3866fEDB4765719c1c",
     "startBlock": 1

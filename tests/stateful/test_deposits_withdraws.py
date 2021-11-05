@@ -25,6 +25,12 @@ def isolation(fn_isolation):
     pass
 
 
+@pytest.mark.only
+def test_cannot_enable_bitmap_with_zero(environment, accounts):
+    with brownie.reverts():
+        environment.notional.enableBitmapCurrency(0, {"from": accounts[0]})
+
+
 def test_cannot_deposit_invalid_currency_id(environment, accounts):
     currencyId = 5
 

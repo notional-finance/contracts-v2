@@ -36,6 +36,9 @@
     "NoteERC20": [
       "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
     ],
+    "NotionalV1ToNotionalV2": [
+      "0xf47D7192413aC6558f48594eCCE6d2DfE38b7876"
+    ],
     "PauseRouter": [
       "0xbe401d7e76bb71bf7fa5a4aed7F3b650C6E0bd25"
     ],
@@ -114,14 +117,15 @@
       "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
     ],
     "NotionalV1ToNotionalV2": [
+      "0xa37a279BCb057BCfc544De7D953F940599f74C35",
       "0x3a04991503Dba313FE8bB93c38312C9e1F7d985F"
     ],
     "PauseRouter": [
       "0x2138Ddf29B384f89d1010364d1161dd849EbDB70"
     ],
     "Router": [
-      "0x1A73d64113BF666B102014aA2BdF43021feeB285",
       "0xd85273aC4ada9F3555DC7Cb54b1149B6B38a8991",
+      "0x1A73d64113BF666B102014aA2BdF43021feeB285",
       "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e"
     ],
     "SettleAssetsExternal": [
