@@ -157,16 +157,21 @@ contract nTokenRedeemAction is ActionGuards {
            ifCashBits == 0 // If there is no residual then we need to populate netfCash amounts
         );
 
+        bool netfCashRemaining = true;
         if (sellTokenAssets) {
+            int256 assetCash;
             // NOTE: netfCash is modified in place and set to zero if the fCash is sold
-            int256 assetCash = _sellfCashAssets(nToken, netfCash, blockTime);
+            (assetCash, netfCashRemaining) = _sellfCashAssets(nToken, netfCash, blockTime);
             totalAssetCash = totalAssetCash.add(assetCash);
         }
 
-        // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
-        // this if we just fail on unsuccessful selling of token assets.
-        bool hasResidual = _addResidualsToAssets(newifCashAssets, nToken, netfCash);
-        return (totalAssetCash, hasResidual, newifCashAssets);
+        if (netfCashRemaining) {
+            // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
+            // this if we just fail on unsuccessful selling of token assets.
+            _addResidualsToAssets(nToken, newifCashAssets, netfCash);
+        }
+
+        return (totalAssetCash, newifCashAssets);
     }
 
     /// @notice Removes nToken assets
@@ -284,5 +289,33 @@ contract nTokenRedeemAction is ActionGuards {
                 netfCash[i] = 0;
             }
         }
+    }
+
+    function _addResidualsToAssets(
+        nTokenPortfolio memory nToken,
+        PortfolioAsset[] newifCashAssets,
+        int256[] netfCash
+    ) internal pure (PortfolioAsset[] memory finalfCashAssets) {
+        uint256 numAssetsToExtend;
+        for (uint256 i; i < netfCash.length; i++) {
+            if (netfCash != 0) numAssetsToExtend++;
+        }
+
+        uint256 newLength = newifCashAssets.length + numAssetsToExtend;
+        finalfCashAssets = new PortfolioAsset[](newLength);
+
+        // TODO: this loop needs to have 3 indexes...
+        // while (uint256 i; i < newLength; i++) {
+        //     if (i < numAssetsToExtend) {
+        //         finalfCashAssets[i] = PortfolioAsset(
+        //             nToken.cashGroup.currencyId,
+        //             nToken.portfolioState.storedAssets[i].maturity,
+        //             Constants.FCASH_ASSET_TYPE,
+        //             netfCash[i]
+        //         );
+        //     } else {
+        //         finalfCashAssets[i] = newifCashAssets[i];
+        //     }
+        // }
     }
 }
