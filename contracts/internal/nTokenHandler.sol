@@ -448,18 +448,45 @@ library nTokenHandler {
     }
 
     /**
+     * Handles the case when liquidity tokens should be withdrawn in proportion to their amounts
+     * in the market.
+     */
+    function getProportionalLiquidityTokens(
+        nTokenPortfolio memory nToken,
+        int256 tokensToRedeem,
+    ) internal pure returns (int256[] memory tokensToWithdraw, int256[] memory netfCash) {
+        uint256 numMarkets = nToken.portfolioState.storedAssets.length;
+        tokensToWithdraw = new int256[](numMarkets);
+        netfCash = new int256[](numMarkets);
+
+        for (uint256 i; i < numMarkets; i++) {
+            int256 totalTokens = nToken.portfolioState.storedAssets[i].notional;
+            tokensToWithdraw[i] = totalTokens.mul(tokensToRedeem).div(nToken.totalSupply);
+        }
+    }
+
+    /**
      * Returns the number of liquidity tokens to withdraw from each market if the nToken
      * has idiosyncratic residuals during nToken redeem. In this case the redeemer will take
      * their cash from the rest of the fCash markets, redeeming around the nToken.
+     *
+     * @return tokensToWithdraw array of tokens to withdraw from each corresponding market
+     * @return netfCash array of netfCash amounts to go back to the account
      */
     function getLiquidityTokenWithdraw(
-        nTokenPortfolio memory nToken, int256 tokensToRedeem, uint256 blockTime)
-        internal
-        view
-        returns (int256[] memory)
-    {
-        int256 assetResidualValue = getNTokenResidualValue(nToken, blockTime);
-        (int256 totalAssetValueInMarkets, int256[] memory netAssetValueInMarket) = getNTokenMarketValue(nToken, blockTime);
+        nTokenPortfolio memory nToken,
+        int256 tokensToRedeem,
+        uint256 blockTime,
+        bytes32 ifCashBits
+    ) internal view returns (int256[] memory, int256[] memory) {
+        if (ifCashBits == 0) return getProportionalLiquidityTokens(nToken, tokensToRedeem)
+
+        int256 assetResidualValue = getNTokenResidualValue(nToken, blockTime, ifCashBits);
+        (
+            int256 totalAssetValueInMarkets,
+            int256[] memory netAssetValueInMarket,
+            int256[] memory netfCash
+        ) = getNTokenMarketValue(nToken, blockTime);
         int256[] memory tokensToWithdraw = new int256[](netAssetValueInMarket.length);
 
         int256 totalAssetValue = totalAssetValueInMarkets.add(assetResidualValue);
@@ -483,20 +510,20 @@ library nTokenHandler {
                 .mul(netAssetValueInMarket[i])
                 .div(totalAssetValueInMarkets)
                 .div(totalAssetValue);
+
+            // This is the net fcash to the account
+            netfCash[i] = netfCash[i].mul(tokensToWithdraw[i]).div(totalTokens);
         }
 
-        return tokensToWithdraw;
+        return (tokensToWithdraw, netfCash);
     }
 
-    function getNTokenResidualValue(nTokenPortfolio memory nToken, uint256 blockTime) internal view returns (int256) {
-        // Get the ifCash bits that are idiosyncratic
-        bytes32 ifCashBits = getifCashBits(
-            nToken.tokenAddress,
-            nToken.cashGroup.currencyId,
-            nToken.lastInitializedTime,
-            blockTime
-        );
-        int256 residualValue;
+    function getNTokenResidualValue(
+        nTokenPortfolio memory nToken,
+        uint256 blockTime,
+        bytes32 ifCashBits
+    ) internal view returns (int256) {
+        int256 residualValue = 0;
         uint256 bitNum = ifCashBits.getNextBitNum();
 
         while (bitNum != 0) {
@@ -523,10 +550,15 @@ library nTokenHandler {
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
-        returns (int256 totalAssetValue, int256[] memory netAssetValueInMarket)
+        returns (
+            int256 totalAssetValue,
+            int256[] memory netAssetValueInMarket,
+            int256[] memory netfCash,
+        )
     {
         uint256 numMarkets = nToken.portfolioState.storedAssets.length;
         netAssetValueInMarket = new int256[](numMarkets);
+        netfCash = new int256[](numMarkets);
 
         MarketParameters memory market;
         for (uint256 i; i < numMarkets; i++) {
@@ -537,16 +569,18 @@ library nTokenHandler {
             // Get the fCash claims and fCash assets
             (int256 assetCashClaim, int256 fCashClaim) =
                 AssetHandler.getCashClaims(nToken.portfolioState.storedAssets[i], market);
-            int256 fCashNotional = BitmapAssetsHandler.getifCashNotional(
-                nToken.tokenAddress,
-                nToken.cashGroup.currencyId,
-                maturity
+            netfCash[i] = fCashClaim.add(
+                BitmapAssetsHandler.getifCashNotional(
+                    nToken.tokenAddress,
+                    nToken.cashGroup.currencyId,
+                    maturity
+                )
             );
 
             netAssetValueInMarket[i] = assetCashClaim.add(
                 nToken.cashGroup.assetRate.convertFromUnderlying(
                     AssetHandler.getPresentfCashValue(
-                        fCashClaim.add(fCashNotional),
+                        netfCash[i],
                         maturity,
                         blockTime,
                         // No need to call cash group for oracle rate, it is up to date here
@@ -561,17 +595,15 @@ library nTokenHandler {
     }
 
     function getifCashBits(
-        address account,
-        uint256 currencyId,
-        uint256 lastInitializedTime,
+        nTokenPortfolio memory nToken,
         uint256 blockTime
     ) internal view returns (bytes32) {
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
         // lastInitializedTime may have some delta from tRef, we will shift the mask to the right accordingly.
         // We know in this case that lastInitializedTime will be less than the current time and less than a quarter.
         uint256 tRef = DateTime.getReferenceTime(blockTime);
-        require(tRef < lastInitializedTime);
-        uint256 dayDiff = (lastInitializedTime - tRef) / Constants.DAY;
+        require(tRef < nToken.lastInitializedTime); // TODO: this is likely redundant
+        uint256 dayDiff = (nToken.lastInitializedTime - tRef) / Constants.DAY;
         require(dayDiff < Constants.DAYS_IN_QUARTER);
 
         // This will turn off any bits in the assetsBitmap that are in active markets

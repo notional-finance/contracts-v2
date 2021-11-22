@@ -125,46 +125,61 @@ contract nTokenRedeemAction is ActionGuards {
         nToken.loadNTokenPortfolioStateful(currencyId);
         // nTokens cannot be redeemed during the period of time where they require settlement.
         require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
+        PortfolioAsset[] memory newifCashAssets;
 
-        // Get the assetCash and fCash assets as a result of redeeming tokens
-        (PortfolioAsset[] memory newfCashAssets, int256 totalAssetCash) =
-            _reduceTokenAssets(nToken, tokensToRedeem, blockTime);
+        // Get the ifCash bits that are idiosyncratic
+        bytes32 ifCashBits = nTokenHandler.getifCashBits(nToken, blockTime);
 
-        // hasResidual is set to true if fCash assets need to be put back into the redeemer's portfolio
-        bool hasResidual = true;
-        if (sellTokenAssets) {
-            int256 assetCash;
-            // NOTE: newfCashAssets is modified in place during this method
-            (assetCash, hasResidual) = _sellfCashAssets(
-                nToken.cashGroup,
-                newfCashAssets,
-                blockTime
-            );
-
-            totalAssetCash = totalAssetCash.add(assetCash);
-        }
-
-        return (totalAssetCash, hasResidual, newfCashAssets);
-    }
-
-    /// @notice Removes nToken assets
-    /// @return newifCashAssets: an array of fCash assets the redeemer will take
-    /// @return assetCash: amount of cash the redeemer will take
-    function _reduceTokenAssets(
-        nTokenPortfolio memory nToken,
-        int256 tokensToRedeem,
-        uint256 blockTime
-    ) private returns (PortfolioAsset[] memory, int256) {
-        // Get share of ifCash assets to remove
-        PortfolioAsset[] memory newifCashAssets =
-            BitmapAssetsHandler.reduceifCashAssetsProportional(
+        if (ifCashBits != 0 && !sellTokenAssets) {
+            // Change this such that it only does ifCash assets.
+            newifCashAssets = BitmapAssetsHandler.reduceifCashAssetsProportional(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.lastInitializedTime,
                 tokensToRedeem,
                 nToken.totalSupply
             );
+        }
 
+        (int256[] memory tokensToWithdraw, int256[] memory netfCash) = nTokenHandler.getLiquidityTokenWithdraw(
+            nToken,
+            tokensToRedeem,
+            blockTime,
+            ifCashBits
+        );
+
+        // Get the assetCash and fCash assets as a result of redeeming tokens
+       int256 totalAssetCash = _reduceLiquidAssets(
+           nToken,
+           tokensToRedeem,
+           netfCash,
+           blockTime,
+           ifCashBits == 0 // If there is no residual then we need to populate netfCash amounts
+        );
+
+        if (sellTokenAssets) {
+            // NOTE: netfCash is modified in place and set to zero if the fCash is sold
+            int256 assetCash = _sellfCashAssets(nToken, netfCash, blockTime);
+            totalAssetCash = totalAssetCash.add(assetCash);
+        }
+
+        // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
+        // this if we just fail on unsuccessful selling of token assets.
+        bool hasResidual = _addResidualsToAssets(newifCashAssets, nToken, netfCash);
+        return (totalAssetCash, hasResidual, newifCashAssets);
+    }
+
+    /// @notice Removes nToken assets
+    /// @return newifCashAssets: an array of fCash assets the redeemer will take
+    /// @return assetCash: amount of cash the redeemer will take
+    function _reduceLiquidAssets(
+        nTokenPortfolio memory nToken,
+        int256 tokensToRedeem,
+        int256[] memory tokensToWithdraw,
+        int256[] memory netfCash,
+        bool mustCalculatefCash,
+        uint256 blockTime
+    ) private returns (int256) {
         // Get asset cash share for the nToken, if it exists. It is required in balance handler that the
         // nToken can never have a negative cash asset cash balance so what we get here is always positive.
         int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
@@ -180,52 +195,28 @@ contract nTokenRedeemAction is ActionGuards {
         // Get share of liquidity tokens to remove, newifCashAssets is modified in memory
         // during this method.
         assetCashShare = assetCashShare.add(
-            _removeLiquidityTokens(
-                nToken,
-                newifCashAssets,
-                tokensToRedeem,
-                nToken.totalSupply,
-                blockTime
-            )
+            _removeLiquidityTokens(nToken, tokensToWithdraw, netfCash, blockTime, mustCalculatefCash)
         );
 
-        {
-            // prettier-ignore
-            (
-                /* hasDebt */,
-                /* currencies */,
-                uint8 newStorageLength,
-                /* nextSettleTime */
-            ) = nToken.portfolioState.storeAssets(nToken.tokenAddress);
-
-            // This can happen if a liquidity token is redeemed down to zero. It's possible that due to dust amounts
-            // one token is reduced down to a zero balance while the others still have some amount remaining. In this case
-            // the mint nToken will fail in `addLiquidityToMarket`, an account must accept redeeming part of their
-            // nTokens and leaving some dust amount behind.
-            require(
-                nToken.portfolioState.storedAssets.length == uint256(newStorageLength),
-                "Cannot redeem to zero"
-            );
-        }
+        nToken.portfolioState.storeAssets(nToken.tokenAddress);
 
         // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
-        return (newifCashAssets, assetCashShare);
+        return assetCashShare;
     }
 
     /// @notice Removes nToken liquidity tokens and updates the netfCash figures.
     function _removeLiquidityTokens(
         nTokenPortfolio memory nToken,
-        PortfolioAsset[] memory newifCashAssets,
-        int256 tokensToRedeem,
-        int256 totalSupply,
-        uint256 blockTime
+        int256[] tokensToWithdraw,
+        int256[] memory netfCash,
+        uint256 blockTime,
+        bool mustCalculatefCash
     ) private returns (int256 totalAssetCash) {
         MarketParameters memory market;
 
         for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
             PortfolioAsset memory asset = nToken.portfolioState.storedAssets[i];
-            int256 tokensToRemove = asset.notional.mul(tokensToRedeem).div(totalSupply);
-            asset.notional = asset.notional.sub(tokensToRemove);
+            asset.notional = asset.notional.sub(tokensToWithdraw[i]);
             // Cannot redeem liquidity tokens down to zero or this will cause many issues with
             // market initialization.
             require(asset.notional > 0, "Cannot redeem to zero");
@@ -235,23 +226,29 @@ contract nTokenRedeemAction is ActionGuards {
             // This will load a market object in memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             // Remove liquidity from the market
-            (int256 assetCash, int256 fCash) = market.removeLiquidity(tokensToRemove);
+            (int256 assetCash, int256 fCashClaim) = market.removeLiquidity(tokensToRemove);
             totalAssetCash = totalAssetCash.add(assetCash);
 
-            // It is improbable but possible that an fcash asset does not exist if the fCash position for an active liquidity token
-            // is zero. This would occur when the nToken has done a lot of lending instead of providing liquidity to the point
-            // where the fCash position is exactly zero. This is highly unlikely so instead of adding more logic to handle it we will just
-            // fail here. Minting some amount of nTokens will cause the fCash position to be reinstated.
-            {
-                uint256 ifCashIndex;
-                while (newifCashAssets[ifCashIndex].maturity != asset.maturity) {
-                    ifCashIndex += 1;
-                    require(ifCashIndex < newifCashAssets.length, "Error removing tokens");
-                }
-                newifCashAssets[ifCashIndex].notional = newifCashAssets[ifCashIndex].notional.add(
-                    fCash
+            if (mustCalculatefCash) {
+                // Do this calculation if net ifCash is not set, will happen if there are no residuals
+                int256 nTokenfCash = BitmapAssetsHandler.getifCashNotional(
+                    nToken.tokenAddress,
+                    nToken.cashGroup.currencyId,
+                    maturity
                 );
+                netfCash[i] = fCash.add(nTokenfCash.mul(tokensToRedeem).div(totalSupply));
             }
+
+            // Account will receive netfCash amount. Deduct that from the fCash claim and add the
+            // remaining back to the nToken to net off the nToken's position
+            int256 fCashToNToken = fCash.sub(netfCash[i]);
+            BitmapAssetsHandler.addifCashAsset(
+                nToken.tokenAddress,
+                asset.currencyId,
+                asset.maturity,
+                nToken.lastInitializedTime,
+                fCashToNToken
+            );
         }
 
         return totalAssetCash;
@@ -261,41 +258,30 @@ contract nTokenRedeemAction is ActionGuards {
     /// as a result. The aim here is to ensure that accounts can redeem nTokens without having to take on
     /// fCash assets.
     function _sellfCashAssets(
-        CashGroupParameters memory cashGroup,
-        PortfolioAsset[] memory fCashAssets,
+        nTokenPortfolio memory nToken,
+        int256[] memory netfCash,
         uint256 blockTime
     ) private returns (int256 totalAssetCash, bool hasResidual) {
         MarketParameters memory market;
 
-        for (uint256 i = 0; i < fCashAssets.length; i++) {
-            PortfolioAsset memory asset = fCashAssets[i];
-            if (asset.notional == 0) continue;
+        for (uint256 i = 0; i < netfCash.length; i++) {
+            if (netfCash[i] == 0) continue;
 
-            (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(
-                cashGroup.maxMarketIndex,
-                asset.maturity,
-                blockTime
+            nToken.cashGroup.loadMarket(market, i + 1, false, blockTime);
+            int256 netAssetCash = market.executeTrade(
+                nToken.cashGroup,
+                // Use the negative of fCash notional here since we want to net it out
+                netfCash.neg(),
+                nToken.portfolioState.storedAssets[i].maturity.sub(blockTime),
+                i + 1
             );
 
-            if (isIdiosyncratic) {
+            if (netAssetCash == 0) {
+                // This means that the trade failed
                 hasResidual = true;
             } else {
-                cashGroup.loadMarket(market, marketIndex, false, blockTime);
-                int256 netAssetCash = market.executeTrade(
-                    cashGroup,
-                    // Use the negative of fCash notional here since we want to net it out
-                    asset.notional.neg(),
-                    asset.maturity.sub(blockTime),
-                    marketIndex
-                );
-
-                if (netAssetCash == 0) {
-                    // This means that the trade failed
-                    hasResidual = true;
-                } else {
-                    totalAssetCash = totalAssetCash.add(netAssetCash);
-                    asset.notional = 0;
-                }
+                totalAssetCash = totalAssetCash.add(netAssetCash);
+                netfCash[i] = 0;
             }
         }
     }
