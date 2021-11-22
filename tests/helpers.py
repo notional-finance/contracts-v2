@@ -22,6 +22,7 @@ from tests.constants import (
     TRADE_ACTION_TYPE,
 )
 
+chain = Chain()
 timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
 impliedRateStrategy = strategy(
     "uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION
@@ -429,3 +430,40 @@ def initialize_environment(accounts):
     _enable_cash_group(3, env, accounts)
 
     return env
+
+
+def setup_residual_environment(environment, accounts):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the one year market
+    cashGroup[0] = 3
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    # Do some trading to leave some perp token residual
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0}],
+        depositActionAmount=100e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)

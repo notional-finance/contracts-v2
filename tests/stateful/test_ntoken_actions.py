@@ -4,7 +4,12 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
-from tests.helpers import get_balance_action, get_balance_trade_action, initialize_environment
+from tests.helpers import (
+    get_balance_action,
+    get_balance_trade_action,
+    initialize_environment,
+    setup_residual_environment,
+)
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -324,41 +329,55 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
+def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
+    currencyId = 2
+    setup_residual_environment(environment, accounts)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
+    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 0
+
+    action = get_balance_action(2, "RedeemNToken", depositActionAmount=500e8)
+    environment.notional.batchBalanceAction(accounts[2].address, [action], {"from": accounts[2]})
+
+    # Account should have redeemed around the ifCash residual
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    # TODO: test for PV of account[2] assest relative to redeem
+    assert len(portfolio) == 0
+
+    check_system_invariants(environment, accounts)
+
+
+def test_redeem_ntoken_with_ifCash_residual_take_assets(environment, accounts):
+    currencyId = 2
+    setup_residual_environment(environment, accounts)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
+    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 0
+
+    environment.notional.nTokenRedeem(
+        accounts[2].address, currencyId, 500e8, False, {"from": accounts[2]}
+    )
+
+    # Idiosyncratic residual should be in portfolio now
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 1
+    assert portfolio[0][1] == ifCashAssets[2][1]
+
+    check_system_invariants(environment, accounts)
+
+
 def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
-    cashGroup = list(environment.notional.getCashGroup(currencyId))
-    # Enable the one year market
-    cashGroup[0] = 3
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
-    environment.notional.updateCashGroup(currencyId, cashGroup)
-
-    environment.notional.updateDepositParameters(
-        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
-    )
-
-    environment.notional.updateInitializationParameters(
-        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
-    )
-
-    blockTime = chain.time()
-    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
-
-    # Do some trading to leave some perp token residual
-    action = get_balance_trade_action(
-        2,
-        "DepositUnderlying",
-        [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0}],
-        depositActionAmount=100e18,
-        withdrawEntireCashBalance=True,
-    )
-    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
-
-    # Now settle the markets, should be some residual
-    blockTime = chain.time()
-    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    setup_residual_environment(environment, accounts)
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
