@@ -29,6 +29,11 @@ library Constants {
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
+    // TODO: make this manually
+    bytes32 internal constant ACTIVE_MARKETS_MASK = (
+        MSB >> DAYS_IN_QUARTER
+    );
+
     // Basis for percentages
     int256 internal constant PERCENTAGE_DECIMALS = 100;
     // Max number of traded markets, also used as the maximum number of assets in a portfolio array

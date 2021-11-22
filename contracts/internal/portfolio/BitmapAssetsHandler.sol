@@ -119,14 +119,14 @@ library BitmapAssetsHandler {
     }
 
     /// @notice Returns the present value of an asset
-    function _getPresentValue(
+    function getPresentValue(
         address account,
         uint256 currencyId,
         uint256 maturity,
         uint256 blockTime,
         CashGroupParameters memory cashGroup,
         bool riskAdjusted
-    ) private view returns (int256) {
+    ) internal view returns (int256) {
         int256 notional = getifCashNotional(account, currencyId, maturity);
 
         // In this case the asset has matured and the total value is just the notional amount
@@ -167,7 +167,7 @@ library BitmapAssetsHandler {
 
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-            int256 pv = _getPresentValue(
+            int256 pv = getPresentValue(
                 account,
                 currencyId,
                 maturity,
