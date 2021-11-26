@@ -10,12 +10,14 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../external/FreeCollateralExternal.sol";
 import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
+import "../../math/Bitmap.sol";
 import "./ActionGuards.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract nTokenRedeemAction is ActionGuards {
     using SafeInt256 for int256;
     using SafeMath for uint256;
+    using Bitmap for bytes32;
     using BalanceHandler for BalanceState;
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
@@ -43,7 +45,7 @@ contract nTokenRedeemAction is ActionGuards {
             int256 totalAssetCash,
             bool hasResidual,
             /* PortfolioAssets[] memory newfCashAssets */
-        ) = _redeem(currencyId, tokensToRedeem, true, blockTime);
+        ) = _redeem(currencyId, tokensToRedeem, true, false, blockTime);
 
         require(!hasResidual, "Cannot redeem via batch, residual");
         return totalAssetCash;
@@ -65,82 +67,90 @@ contract nTokenRedeemAction is ActionGuards {
         uint96 tokensToRedeem_,
         bool sellTokenAssets
     ) external nonReentrant returns (int256) {
-        // ERC1155 can call this method during a post transfer event
-        require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
+    //     // ERC1155 can call this method during a post transfer event
+    //     require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
 
-        uint256 blockTime = block.timestamp;
-        int256 tokensToRedeem = int256(tokensToRedeem_);
+    //     uint256 blockTime = block.timestamp;
+    //     int256 tokensToRedeem = int256(tokensToRedeem_);
 
-        AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
-        if (context.mustSettleAssets()) {
-            context = SettleAssetsExternal.settleAccount(redeemer, context);
-        }
+    //     AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
+    //     if (context.mustSettleAssets()) {
+    //         context = SettleAssetsExternal.settleAccount(redeemer, context);
+    //     }
 
-        BalanceState memory balance;
-        balance.loadBalanceState(redeemer, currencyId, context);
+    //     BalanceState memory balance;
+    //     balance.loadBalanceState(redeemer, currencyId, context);
 
-        require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
-        balance.netNTokenSupplyChange = tokensToRedeem.neg();
+    //     require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
+    //     balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
-            _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
+    //     (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
+    //         _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
 
-        // Set balances before transferring assets
-        balance.netCashChange = totalAssetCash;
-        balance.finalize(redeemer, context, false);
+    //     // Set balances before transferring assets
+    //     balance.netCashChange = totalAssetCash;
+    //     balance.finalize(redeemer, context, false);
 
-        if (hasResidual) {
-            // This method will store assets and update the account context in memory
-            context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
-        }
+    //     if (hasResidual) {
+    //         // This method will store assets and update the account context in memory
+    //         context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
+    //     }
 
-        context.setAccountContext(redeemer);
-        if (context.hasDebt != 0x00) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
-        }
+    //     context.setAccountContext(redeemer);
+    //     if (context.hasDebt != 0x00) {
+    //         FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
+    //     }
 
-        emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-        return totalAssetCash;
+    //     emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
+    //     return totalAssetCash;
     }
 
     /// @notice Redeems nTokens for asset cash and fCash
-    /// @return assetCash: positive amount of asset cash to the account
-    /// @return hasResidual: true if there are fCash residuals left
-    /// @return assets: an array of fCash asset residuals to place into the account
+    /// @param currencyId the currency associated the nToken
+    /// @param tokensToRedeem the amount of nTokens to convert to cash
+    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then place
+    /// back into the account's portfolio
+    /// @param acceptResidualAssets if true, then ifCash residuals will be placed into the account and there will
+    /// be no penalty assessed
+    /// @return assetCash positive amount of asset cash to the account
+    /// @return hasResidual true if there are fCash residuals left
+    /// @return assets an array of fCash asset residuals to place into the account
     function _redeem(
         uint16 currencyId,
         int256 tokensToRedeem,
         bool sellTokenAssets,
+        bool acceptResidualAssets,
         uint256 blockTime
-    )
-        private
-        returns (
-            int256,
-            bool,
-            PortfolioAsset[] memory
-        )
-    {
+    ) internal returns (int256, bool, PortfolioAsset[] memory) {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
         // nTokens cannot be redeemed during the period of time where they require settlement.
-        require(nToken.getNextSettleTime() > blockTime, "PT: requires settlement");
+        require(nToken.getNextSettleTime() > blockTime, "Requires settlement");
+        require(tokensToRedeem < nToken.totalSupply, "Cannot redeem");
         PortfolioAsset[] memory newifCashAssets;
 
         // Get the ifCash bits that are idiosyncratic
         bytes32 ifCashBits = nTokenHandler.getifCashBits(nToken, blockTime);
 
-        if (ifCashBits != 0 && !sellTokenAssets) {
-            // Change this such that it only does ifCash assets.
-            newifCashAssets = BitmapAssetsHandler.reduceifCashAssetsProportional(
+        if (ifCashBits != 0 && acceptResidualAssets) {
+            // This will remove all the ifCash assets proportionally from the account
+            newifCashAssets = _reduceifCashAssetsProportional(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.lastInitializedTime,
                 tokensToRedeem,
-                nToken.totalSupply
+                nToken.totalSupply,
+                ifCashBits
             );
+
+            // Once the ifCash bits have been withdrawn, set this to zero so that getLiquidityTokenWithdraw
+            // simply gets the proportional amount of liquidity tokens to remove
+            ifCashBits = 0;
         }
 
+        // Returns the liquidity tokens to withdraw per market and the netfCash amounts. Net fCash amounts are only
+        // set when ifCashBits != 0. Otherwise they must be calculated in _withdrawLiquidityTokens
         (int256[] memory tokensToWithdraw, int256[] memory netfCash) = nTokenHandler.getLiquidityTokenWithdraw(
             nToken,
             tokensToRedeem,
@@ -148,13 +158,15 @@ contract nTokenRedeemAction is ActionGuards {
             ifCashBits
         );
 
-        // Get the assetCash and fCash assets as a result of redeeming tokens
-       int256 totalAssetCash = _reduceLiquidAssets(
+        // Returns the totalAssetCash as a result of withdrawing liquidity tokens and cash. netfCash will be updated
+        // in memory if required and will contain the fCash to be sold or returned to the portfolio
+        int256 totalAssetCash = _reduceLiquidAssets(
            nToken,
            tokensToRedeem,
+           tokensToWithdraw,
            netfCash,
-           blockTime,
-           ifCashBits == 0 // If there is no residual then we need to populate netfCash amounts
+           ifCashBits == 0, // If there are no residuals then we need to populate netfCash amounts
+           blockTime
         );
 
         bool netfCashRemaining = true;
@@ -171,23 +183,29 @@ contract nTokenRedeemAction is ActionGuards {
             _addResidualsToAssets(nToken, newifCashAssets, netfCash);
         }
 
-        return (totalAssetCash, newifCashAssets);
+        return (totalAssetCash, netfCashRemaining, newifCashAssets);
     }
 
-    /// @notice Removes nToken assets
-    /// @return newifCashAssets: an array of fCash assets the redeemer will take
-    /// @return assetCash: amount of cash the redeemer will take
+    /// @notice Removes liquidity tokens and cash from the nToken
+    /// @param nToken portfolio object
+    /// @param nTokensToRedeem tokens to redeem
+    /// @param tokensToWithdraw array of liquidity tokens to withdraw
+    /// @param netfCash array of netfCash figures
+    /// @param mustCalculatefCash true if netfCash must be calculated in the removeLiquidityTokens step
+    /// @param blockTime current block time
+    /// @return assetCashShare amount of cash the redeemer will receive from withdrawing cash assets from the nToken
     function _reduceLiquidAssets(
         nTokenPortfolio memory nToken,
-        int256 tokensToRedeem,
+        int256 nTokensToRedeem,
         int256[] memory tokensToWithdraw,
         int256[] memory netfCash,
         bool mustCalculatefCash,
         uint256 blockTime
-    ) private returns (int256) {
+    ) private returns (int256 assetCashShare) {
         // Get asset cash share for the nToken, if it exists. It is required in balance handler that the
-        // nToken can never have a negative cash asset cash balance so what we get here is always positive.
-        int256 assetCashShare = nToken.cashBalance.mul(tokensToRedeem).div(nToken.totalSupply);
+        // nToken can never have a negative cash asset cash balance so what we get here is always positive
+        // or zero.
+        assetCashShare = nToken.cashBalance.mul(nTokensToRedeem).div(nToken.totalSupply);
         if (assetCashShare > 0) {
             nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
             BalanceHandler.setBalanceStorageForNToken(
@@ -197,10 +215,10 @@ contract nTokenRedeemAction is ActionGuards {
             );
         }
 
-        // Get share of liquidity tokens to remove, newifCashAssets is modified in memory
-        // during this method.
+        // Get share of liquidity tokens to remove, netfCash is modified in memory during this method if mustCalculatefcash
+        // is set to true
         assetCashShare = assetCashShare.add(
-            _removeLiquidityTokens(nToken, tokensToWithdraw, netfCash, blockTime, mustCalculatefCash)
+            _removeLiquidityTokens(nToken, nTokensToRedeem, tokensToWithdraw, netfCash, blockTime, mustCalculatefCash)
         );
 
         nToken.portfolioState.storeAssets(nToken.tokenAddress);
@@ -210,13 +228,21 @@ contract nTokenRedeemAction is ActionGuards {
     }
 
     /// @notice Removes nToken liquidity tokens and updates the netfCash figures.
+    /// @param nToken portfolio object
+    /// @param nTokensToRedeem tokens to redeem
+    /// @param tokensToWithdraw array of liquidity tokens to withdraw
+    /// @param netfCash array of netfCash figures
+    /// @param blockTime current block time
+    /// @param mustCalculatefCash true if netfCash must be calculated in the removeLiquidityTokens step
+    /// @return totalAssetCashClaims is the amount of asset cash raised from liquidity token cash claims
     function _removeLiquidityTokens(
         nTokenPortfolio memory nToken,
-        int256[] tokensToWithdraw,
+        int256 nTokensToRedeem,
+        int256[] memory tokensToWithdraw,
         int256[] memory netfCash,
         uint256 blockTime,
         bool mustCalculatefCash
-    ) private returns (int256 totalAssetCash) {
+    ) private returns (int256 totalAssetCashClaims) {
         MarketParameters memory market;
 
         for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
@@ -230,23 +256,37 @@ contract nTokenRedeemAction is ActionGuards {
 
             // This will load a market object in memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
-            // Remove liquidity from the market
-            (int256 assetCash, int256 fCashClaim) = market.removeLiquidity(tokensToRemove);
-            totalAssetCash = totalAssetCash.add(assetCash);
-
-            if (mustCalculatefCash) {
-                // Do this calculation if net ifCash is not set, will happen if there are no residuals
-                int256 nTokenfCash = BitmapAssetsHandler.getifCashNotional(
-                    nToken.tokenAddress,
-                    nToken.cashGroup.currencyId,
-                    maturity
-                );
-                netfCash[i] = fCash.add(nTokenfCash.mul(tokensToRedeem).div(totalSupply));
+            int256 fCashClaim;
+            {
+                int256 assetCash;
+                // Remove liquidity from the market
+                (assetCash, fCashClaim) = market.removeLiquidity(tokensToWithdraw[i]);
+                totalAssetCashClaims = totalAssetCashClaims.add(assetCash);
             }
 
-            // Account will receive netfCash amount. Deduct that from the fCash claim and add the
-            // remaining back to the nToken to net off the nToken's position
-            int256 fCashToNToken = fCash.sub(netfCash[i]);
+            int256 fCashToNToken;
+            if (mustCalculatefCash) {
+                // Do this calculation if net ifCash is not set, will happen if there are no residuals
+                int256 fCashShare = BitmapAssetsHandler.getifCashNotional(
+                    nToken.tokenAddress,
+                    nToken.cashGroup.currencyId,
+                    asset.maturity
+                );
+                fCashShare = fCashShare.mul(nTokensToRedeem).div(nToken.totalSupply);
+                // netfCash = fCashClaim + fCashShare
+                netfCash[i] = fCashClaim.add(fCashToNToken);
+                fCashToNToken = fCashShare.neg();
+            } else {
+                // Account will receive netfCash amount. Deduct that from the fCash claim and add the
+                // remaining back to the nToken to net off the nToken's position
+                // fCashToNToken = -fCashShare
+                // netfCash = fCashClaim + fCashShare
+                // fCashToNToken = -(netfCash - fCashClaim)
+                // fCashToNToken = fCashClaim - netfCash
+                fCashToNToken = fCashClaim.sub(netfCash[i]);
+            }
+
+            // Removes the account's fCash position from the nToken
             BitmapAssetsHandler.addifCashAsset(
                 nToken.tokenAddress,
                 asset.currencyId,
@@ -256,7 +296,7 @@ contract nTokenRedeemAction is ActionGuards {
             );
         }
 
-        return totalAssetCash;
+        return totalAssetCashClaims;
     }
 
     /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netAssetCash
@@ -276,7 +316,7 @@ contract nTokenRedeemAction is ActionGuards {
             int256 netAssetCash = market.executeTrade(
                 nToken.cashGroup,
                 // Use the negative of fCash notional here since we want to net it out
-                netfCash.neg(),
+                netfCash[i].neg(),
                 nToken.portfolioState.storedAssets[i].maturity.sub(blockTime),
                 i + 1
             );
@@ -291,31 +331,78 @@ contract nTokenRedeemAction is ActionGuards {
         }
     }
 
+    /// @notice Combines newifCashAssets array with netfCash assets into a single finalfCashAssets array
     function _addResidualsToAssets(
         nTokenPortfolio memory nToken,
-        PortfolioAsset[] newifCashAssets,
-        int256[] netfCash
-    ) internal pure (PortfolioAsset[] memory finalfCashAssets) {
+        PortfolioAsset[] memory newifCashAssets,
+        int256[] memory netfCash
+    ) internal pure returns (PortfolioAsset[] memory finalfCashAssets) {
         uint256 numAssetsToExtend;
-        for (uint256 i; i < netfCash.length; i++) {
-            if (netfCash != 0) numAssetsToExtend++;
+        for (uint256 i = 0; i < netfCash.length; i++) {
+            if (netfCash[i] != 0) numAssetsToExtend++;
         }
 
         uint256 newLength = newifCashAssets.length + numAssetsToExtend;
         finalfCashAssets = new PortfolioAsset[](newLength);
+        uint index = 0;
+        for (; index < newifCashAssets.length; index++) {
+            finalfCashAssets[index] = newifCashAssets[index];
+        }
 
-        // TODO: this loop needs to have 3 indexes...
-        // while (uint256 i; i < newLength; i++) {
-        //     if (i < numAssetsToExtend) {
-        //         finalfCashAssets[i] = PortfolioAsset(
-        //             nToken.cashGroup.currencyId,
-        //             nToken.portfolioState.storedAssets[i].maturity,
-        //             Constants.FCASH_ASSET_TYPE,
-        //             netfCash[i]
-        //         );
-        //     } else {
-        //         finalfCashAssets[i] = newifCashAssets[i];
-        //     }
-        // }
+        uint netfCashIndex = 0;
+        for (; index < finalfCashAssets.length; index++) {
+            PortfolioAsset memory asset = finalfCashAssets[index];
+            asset.currencyId = nToken.cashGroup.currencyId;
+            asset.maturity = nToken.portfolioState.storedAssets[netfCashIndex].maturity;
+            asset.assetType = Constants.FCASH_ASSET_TYPE;
+            asset.notional = netfCash[netfCashIndex];
+            netfCashIndex++;
+        }
+
+        return finalfCashAssets;
+    }
+
+    /// @notice Used to reduce an nToken ifCash assets portfolio proportionately when redeeming
+    /// nTokens to its underlying assets.
+    function _reduceifCashAssetsProportional(
+        address account,
+        uint256 currencyId,
+        uint256 lastInitializedTime,
+        int256 tokensToRedeem,
+        int256 totalSupply,
+        bytes32 assetsBitmap
+    ) internal returns (PortfolioAsset[] memory) {
+        uint256 index = assetsBitmap.totalBitsSet();
+        mapping(address => mapping(uint256 =>
+            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
+
+        PortfolioAsset[] memory assets = new PortfolioAsset[](index);
+        index = 0;
+
+        uint256 bitNum = assetsBitmap.getNextBitNum();
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(lastInitializedTime, bitNum);
+            ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
+            int256 notional = fCashSlot.notional;
+
+            int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+            int256 finalNotional = notional.sub(notionalToTransfer);
+
+            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
+            fCashSlot.notional = int128(finalNotional);
+
+            PortfolioAsset memory asset = assets[index];
+            asset.currencyId = currencyId;
+            asset.maturity = maturity;
+            asset.assetType = Constants.FCASH_ASSET_TYPE;
+            asset.notional = notionalToTransfer;
+            index += 1;
+
+            // Turn off the bit and look for the next one
+            assetsBitmap = assetsBitmap.setBit(bitNum, false);
+            bitNum = assetsBitmap.getNextBitNum();
+        }
+
+        return assets;
     }
 }

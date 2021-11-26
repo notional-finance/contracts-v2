@@ -448,40 +448,62 @@ library nTokenHandler {
     }
 
     /**
-     * Handles the case when liquidity tokens should be withdrawn in proportion to their amounts
-     * in the market.
+     * @notice Handles the case when liquidity tokens should be withdrawn in proportion to their amounts
+     * in the market. This will be the case when there is no idiosyncratic fCash residuals in the nToken
+     * portfolio.
+     * @param nToken portfolio object for nToken
+     * @param nTokensToRedeem amount of nTokens to redeem
+     * @param tokensToWithdraw array of liquidity tokens to withdraw from each market, proportional to
+     * the account's share of the total supply
+     * @param netfCash an empty array to hold net fCash values calculated later when the tokens are actually
+     * withdrawn from markets
      */
     function getProportionalLiquidityTokens(
         nTokenPortfolio memory nToken,
-        int256 tokensToRedeem,
+        int256 nTokensToRedeem
     ) internal pure returns (int256[] memory tokensToWithdraw, int256[] memory netfCash) {
         uint256 numMarkets = nToken.portfolioState.storedAssets.length;
         tokensToWithdraw = new int256[](numMarkets);
         netfCash = new int256[](numMarkets);
 
-        for (uint256 i; i < numMarkets; i++) {
+        for (uint256 i = 0; i < numMarkets; i++) {
             int256 totalTokens = nToken.portfolioState.storedAssets[i].notional;
-            tokensToWithdraw[i] = totalTokens.mul(tokensToRedeem).div(nToken.totalSupply);
+            tokensToWithdraw[i] = totalTokens.mul(nTokensToRedeem).div(nToken.totalSupply);
         }
     }
 
     /**
-     * Returns the number of liquidity tokens to withdraw from each market if the nToken
+     * @notice Returns the number of liquidity tokens to withdraw from each market if the nToken
      * has idiosyncratic residuals during nToken redeem. In this case the redeemer will take
      * their cash from the rest of the fCash markets, redeeming around the nToken.
-     *
+     * @param nToken portfolio object for nToken
+     * @param nTokensToRedeem amount of nTokens to redeem
+     * @param blockTime block time
+     * @param ifCashBits the bits in the bitmap that represent ifCash assets
      * @return tokensToWithdraw array of tokens to withdraw from each corresponding market
      * @return netfCash array of netfCash amounts to go back to the account
      */
     function getLiquidityTokenWithdraw(
         nTokenPortfolio memory nToken,
-        int256 tokensToRedeem,
+        int256 nTokensToRedeem,
         uint256 blockTime,
         bytes32 ifCashBits
     ) internal view returns (int256[] memory, int256[] memory) {
-        if (ifCashBits == 0) return getProportionalLiquidityTokens(nToken, tokensToRedeem)
+        // If there are no ifCash bits set then this will just return the proportion of all liquidity tokens
+        if (ifCashBits == 0) return getProportionalLiquidityTokens(nToken, nTokensToRedeem);
 
-        int256 assetResidualValue = getNTokenResidualValue(nToken, blockTime, ifCashBits);
+        // Returns the risk adjusted net present value for the idiosyncractic residuals
+        (int256 assetResidualValue, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
+            nToken.tokenAddress,
+            nToken.cashGroup.currencyId,
+            nToken.lastInitializedTime,
+            blockTime,
+            nToken.cashGroup,
+            true,
+            ifCashBits
+        );
+        assetResidualValue = nToken.cashGroup.assetRate.convertFromUnderlying(assetResidualValue);
+
         (
             int256 totalAssetValueInMarkets,
             int256[] memory netAssetValueInMarket,
@@ -490,13 +512,12 @@ library nTokenHandler {
         int256[] memory tokensToWithdraw = new int256[](netAssetValueInMarket.length);
 
         int256 totalAssetValue = totalAssetValueInMarkets.add(assetResidualValue);
-        // This is the amount of PV that the redeem can take.
-        int256 assetPVToRedeem = tokensToRedeem.mul(totalAssetValue).div(nToken.totalSupply);
+        // The total asset PV to redeem is:
+        //      assetPVToRedeem = (nTokensToRedeem * totalAssetValue) / totalSupply
+        int256 assetPVToRedeem = nTokensToRedeem.mul(totalAssetValue).div(nToken.totalSupply);
 
-        for (uint256 i; i < netAssetValueInMarket.length; i++) {
+        for (uint256 i = 0; i < netAssetValueInMarket.length; i++) {
             int256 totalTokens = nToken.portfolioState.storedAssets[i].notional;
-            // The total asset PV to redeem is:
-            //      assetPVToRedeem = (tokensToRedeem * totalAssetValue) / totalSupply
             // Proportion of value to withdraw is: 
             //      valueProportion = netAssetValueInMarket / totalAssetValueInMarkets
             // The redeemer's share is:
@@ -518,42 +539,13 @@ library nTokenHandler {
         return (tokensToWithdraw, netfCash);
     }
 
-    function getNTokenResidualValue(
-        nTokenPortfolio memory nToken,
-        uint256 blockTime,
-        bytes32 ifCashBits
-    ) internal view returns (int256) {
-        int256 residualValue = 0;
-        uint256 bitNum = ifCashBits.getNextBitNum();
-
-        while (bitNum != 0) {
-            uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
-            int256 pv = BitmapAssetsHandler.getPresentValue(
-                nToken.tokenAddress,
-                nToken.cashGroup.currencyId,
-                maturity,
-                blockTime,
-                nToken.cashGroup,
-                true // Use risk adjusted valuation to discount the residual. This will impose a fee on the redeemer
-            );
-            residualValue = residualValue.add(pv);
-
-            // Turn off the bit and look for the next one
-            ifCashBits = ifCashBits.setBit(bitNum, false);
-            bitNum = ifCashBits.getNextBitNum();
-        }
-
-        // Returns the residual value in asset cash terms
-        return nToken.cashGroup.assetRate.convertFromUnderlying(residualValue);
-    }
-
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
         returns (
             int256 totalAssetValue,
             int256[] memory netAssetValueInMarket,
-            int256[] memory netfCash,
+            int256[] memory netfCash
         )
     {
         uint256 numMarkets = nToken.portfolioState.storedAssets.length;
@@ -561,7 +553,7 @@ library nTokenHandler {
         netfCash = new int256[](numMarkets);
 
         MarketParameters memory market;
-        for (uint256 i; i < numMarkets; i++) {
+        for (uint256 i = 0; i < numMarkets; i++) {
             // Load the corresponding market into memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             uint256 maturity = nToken.portfolioState.storedAssets[i].maturity;
@@ -594,6 +586,7 @@ library nTokenHandler {
         }
     }
 
+    /// @notice Returns just the bits in a bitmap that are idiosyncratic
     function getifCashBits(
         nTokenPortfolio memory nToken,
         uint256 blockTime

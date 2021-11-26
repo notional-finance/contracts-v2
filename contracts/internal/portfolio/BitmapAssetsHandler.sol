@@ -153,16 +153,15 @@ library BitmapAssetsHandler {
         }
     }
 
-    /// @notice Get the net present value of all the ifCash assets
-    function getifCashNetPresentValue(
+    function getNetPresentValueFromBitmap(
         address account,
         uint256 currencyId,
         uint256 nextSettleTime,
         uint256 blockTime,
         CashGroupParameters memory cashGroup,
-        bool riskAdjusted
+        bool riskAdjusted,
+        bytes32 assetsBitmap
     ) internal view returns (int256 totalValueUnderlying, bool hasDebt) {
-        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
         uint256 bitNum = assetsBitmap.getNextBitNum();
 
         while (bitNum != 0) {
@@ -183,6 +182,27 @@ library BitmapAssetsHandler {
             assetsBitmap = assetsBitmap.setBit(bitNum, false);
             bitNum = assetsBitmap.getNextBitNum();
         }
+    }
+
+    /// @notice Get the net present value of all the ifCash assets
+    function getifCashNetPresentValue(
+        address account,
+        uint256 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime,
+        CashGroupParameters memory cashGroup,
+        bool riskAdjusted
+    ) internal view returns (int256 totalValueUnderlying, bool hasDebt) {
+        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
+        return getNetPresentValueFromBitmap(
+            account,
+            currencyId,
+            nextSettleTime,
+            blockTime,
+            cashGroup,
+            riskAdjusted,
+            assetsBitmap
+        );
     }
 
     /// @notice Returns the ifCash assets as an array
@@ -216,51 +236,4 @@ library BitmapAssetsHandler {
         return assets;
     }
 
-    /// @notice Used to reduce an nToken ifCash assets portfolio proportionately when redeeming
-    /// nTokens to its underlying assets.
-    function reduceifCashAssetsProportional(
-        address account,
-        uint256 currencyId,
-        uint256 nextSettleTime,
-        int256 tokensToRedeem,
-        int256 totalSupply
-    ) internal returns (PortfolioAsset[] memory) {
-        // It is not possible to redeem the entire token supply because some liquidity tokens must remain
-        // in the liquidity token portfolio in order to re-initialize markets.
-        require(tokensToRedeem < totalSupply, "Cannot redeem");
-
-        bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);
-        uint256 index = assetsBitmap.totalBitsSet();
-        mapping(address => mapping(uint256 =>
-            mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
-
-        PortfolioAsset[] memory assets = new PortfolioAsset[](index);
-        index = 0;
-
-        uint256 bitNum = assetsBitmap.getNextBitNum();
-        while (bitNum != 0) {
-            uint256 maturity = DateTime.getMaturityFromBitNum(nextSettleTime, bitNum);
-            ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
-            int256 notional = fCashSlot.notional;
-
-            int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
-            int256 finalNotional = notional.sub(notionalToTransfer);
-
-            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
-            fCashSlot.notional = int128(finalNotional);
-
-            PortfolioAsset memory asset = assets[index];
-            asset.currencyId = currencyId;
-            asset.maturity = maturity;
-            asset.assetType = Constants.FCASH_ASSET_TYPE;
-            asset.notional = notionalToTransfer;
-            index += 1;
-
-            // Turn off the bit and look for the next one
-            assetsBitmap = assetsBitmap.setBit(bitNum, false);
-            bitNum = assetsBitmap.getNextBitNum();
-        }
-
-        return assets;
-    }
 }
