@@ -511,7 +511,10 @@ library nTokenHandler {
         ) = getNTokenMarketValue(nToken, blockTime);
         int256[] memory tokensToWithdraw = new int256[](netAssetValueInMarket.length);
 
-        int256 totalAssetValue = totalAssetValueInMarkets.add(assetResidualValue);
+        int256 totalAssetValue = totalAssetValueInMarkets
+            .add(assetResidualValue)
+            .add(nToken.cashBalance);
+
         // The total asset PV to redeem is:
         //      assetPVToRedeem = (nTokensToRedeem * totalAssetValue) / totalSupply
         int256 assetPVToRedeem = nTokensToRedeem.mul(totalAssetValue).div(nToken.totalSupply);

@@ -20,7 +20,7 @@ contract MockNTokenRedeem is StorageLayoutV1, nTokenRedeemAction {
         CashGroup.setCashGroupStorage(id, cg);
     }
 
-    function setCashGroup(
+    function setMarketStorage(
         uint256 currencyId,
         uint256 settlementDate,
         MarketParameters memory market
@@ -28,15 +28,7 @@ contract MockNTokenRedeem is StorageLayoutV1, nTokenRedeemAction {
         market.setMarketStorageForInitialize(currencyId, settlementDate);
     }
 
-    function setMarketState(
-        uint256 currencyId,
-        uint256 settlementDate,
-        MarketParameters memory market
-    ) external {
-        market.setMarketStorageForInitialize(currencyId, settlementDate);
-    }
-
-    function setfCashAssets(
+    function setfCash(
         uint16 currencyId,
         address tokenAddress,
         uint256 maturity,
