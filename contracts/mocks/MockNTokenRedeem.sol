@@ -4,20 +4,93 @@ pragma abicoder v2;
 
 import "../internal/nTokenHandler.sol";
 import "../external/actions/nTokenRedeemAction.sol";
-import "../global/StorageLayoutV1.sol";
 
-contract MockNTokenRedeem is StorageLayoutV1, nTokenRedeemAction {
+contract MockNTokenRedeemPure is nTokenRedeemAction {
+    using Bitmap for bytes32;
+
+    function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
+        external pure returns (uint256, bool) {
+        return DateTime.getBitNumFromMaturity(blockTime, maturity);
+    }
+
+    function getMaturityFromBitNum(uint256 blockTime, uint256 bitNum)
+        external pure returns (uint256) {
+        return DateTime.getMaturityFromBitNum(blockTime, bitNum);
+    }
+
+    function setfCash(
+        uint16 currencyId,
+        address tokenAddress,
+        uint256 maturity,
+        uint256 lastInitializedTime,
+        int256 fCash
+    ) external {
+        BitmapAssetsHandler.addifCashAsset(
+            tokenAddress,
+            currencyId,
+            maturity,
+            lastInitializedTime,
+            fCash
+        );
+    }
+
+    function test_getifCashBits(
+        address tokenAddress,
+        uint256 currencyId,
+        uint256 lastInitializedTime,
+        uint256 blockTime,
+        uint256 maxMarketIndex
+    ) external view returns (bytes32 ifCashBits) {
+        ifCashBits = nTokenHandler.getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime);
+        uint256 bitNum = ifCashBits.getNextBitNum();
+
+        while (bitNum != 0) {
+            uint256 maturity = DateTime.getMaturityFromBitNum(blockTime, bitNum);
+            // Test that we only receive ifcash here
+            assert (DateTime.isValidMarketMaturity(maxMarketIndex, maturity, blockTime));
+
+            ifCashBits = ifCashBits.setBit(bitNum, false);
+            bitNum = ifCashBits.getNextBitNum();
+        }
+    }
+
+    function reduceifCashAssetsProportional(
+        address account,
+        uint256 currencyId,
+        uint256 lastInitializedTime,
+        int256 tokensToRedeem,
+        int256 totalSupply,
+        bytes32 assetsBitmap
+    ) public returns (PortfolioAsset[] memory) {
+        return _reduceifCashAssetsProportional(
+            account,
+            currencyId,
+            lastInitializedTime,
+            tokensToRedeem,
+            totalSupply,
+            assetsBitmap
+        );
+    }
+
+    function addResidualsToAssets(
+        nTokenPortfolio memory nToken,
+        PortfolioAsset[] memory newifCashAssets,
+        int256[] memory netfCash
+    ) public pure returns (PortfolioAsset[] memory finalfCashAssets) {
+        return _addResidualsToAssets(nToken, newifCashAssets, netfCash);
+    }
+}
+
+contract MockNTokenRedeem is nTokenRedeemAction {
     using nTokenHandler for nTokenPortfolio;
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
 
-    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
+    function setCashGroup(uint256 id, CashGroupSettings calldata cg, AssetRateStorage calldata rs) external {
+        CashGroup.setCashGroupStorage(id, cg);
+
         mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
         assetStore[id] = rs;
-    }
-
-    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
-        CashGroup.setCashGroupStorage(id, cg);
     }
 
     function setMarketStorage(
@@ -86,11 +159,8 @@ contract MockNTokenRedeem is StorageLayoutV1, nTokenRedeemAction {
         );
     }
 
-    function getifCashBits(
-        nTokenPortfolio memory nToken,
-        uint256 blockTime
-    ) internal view returns (bytes32) {
-        return nTokenHandler.getifCashBits(nToken, blockTime);
+    function getNToken(uint16 currencyId) external view returns (nTokenPortfolio memory nToken) {
+        nToken.loadNTokenPortfolioView(currencyId);
     }
 
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
@@ -103,32 +173,6 @@ contract MockNTokenRedeem is StorageLayoutV1, nTokenRedeemAction {
         )
     {
         return nTokenHandler.getNTokenMarketValue(nToken, blockTime);
-    }
-
-    function addResidualsToAssets(
-        nTokenPortfolio memory nToken,
-        PortfolioAsset[] memory newifCashAssets,
-        int256[] memory netfCash
-    ) public pure returns (PortfolioAsset[] memory finalfCashAssets) {
-        return _addResidualsToAssets(nToken, newifCashAssets, netfCash);
-    }
-
-    function reduceifCashAssetsProportional(
-        address account,
-        uint256 currencyId,
-        uint256 lastInitializedTime,
-        int256 tokensToRedeem,
-        int256 totalSupply,
-        bytes32 assetsBitmap
-    ) public returns (PortfolioAsset[] memory) {
-        return _reduceifCashAssetsProportional(
-            account,
-            currencyId,
-            lastInitializedTime,
-            tokensToRedeem,
-            totalSupply,
-            assetsBitmap
-        );
     }
 
     function redeem(

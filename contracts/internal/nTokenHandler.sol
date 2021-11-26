@@ -591,15 +591,17 @@ library nTokenHandler {
 
     /// @notice Returns just the bits in a bitmap that are idiosyncratic
     function getifCashBits(
-        nTokenPortfolio memory nToken,
+        address tokenAddress,
+        uint256 currencyId,
+        uint256 lastInitializedTime,
         uint256 blockTime
     ) internal view returns (bytes32) {
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
+        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(tokenAddress, currencyId);
         // lastInitializedTime may have some delta from tRef, we will shift the mask to the right accordingly.
         // We know in this case that lastInitializedTime will be less than the current time and less than a quarter.
         uint256 tRef = DateTime.getReferenceTime(blockTime);
-        require(tRef < nToken.lastInitializedTime); // TODO: this is likely redundant
-        uint256 dayDiff = (nToken.lastInitializedTime - tRef) / Constants.DAY;
+        require(tRef < lastInitializedTime); // TODO: this is likely redundant
+        uint256 dayDiff = (lastInitializedTime - tRef) / Constants.DAY;
         require(dayDiff < Constants.DAYS_IN_QUARTER);
 
         // This will turn off any bits in the assetsBitmap that are in active markets

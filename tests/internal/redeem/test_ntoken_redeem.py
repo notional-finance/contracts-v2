@@ -4,21 +4,22 @@ from tests.helpers import get_cash_group_with_max_markets, get_liquidity_token, 
 
 currencyId = 1
 tokenAddress = None
+lastInitializedTime = None
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
+    global tokenAddress
+    global lastInitializedTime
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
     tokenAddress = accounts[9]
 
     mock = MockNTokenRedeem.deploy({"from": accounts[0]})
-    # set asset rate mapping
-    mock.setAssetRateMapping(currencyId, (aggregator.address, 18))
-    # set cash group
+    # set cash group and asset rate mapping
     cashGroup = get_cash_group_with_max_markets(3)
-    mock.setCashGroup(currencyId, cashGroup)
+    mock.setCashGroup(currencyId, cashGroup, (aggregator.address, 18))
     # set markets
     lastInitializedTime = SETTLEMENT_DATE - SECONDS_IN_QUARTER  # TODO: vary this a bit?
     marketStates = get_market_curve(3, "flat")
@@ -45,17 +46,31 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
         lastInitializedTime,
     )
 
+    return mock
 
-def test_get_ifCash_bits(nTokenRedeem, accounts):
+
+@pytest.fixture(scope="module", autouse=True)
+def nTokenRedeemPure(MockNTokenRedeemPure, accounts):
+    return MockNTokenRedeemPure.deploy({"from": accounts[0]})
+
+
+@pytest.mark.only
+def test_get_ifCash_bits(nTokenRedeemPure, accounts):
+    # add random ifcash assets at various maturities
+    # test that the bits returned are always ifcash
+    nToken = nTokenRedeemPure.getNToken(currencyId)
+    print(nToken)
+
+
+def test_add_residuals_to_assets(nTokenRedeemPure, accounts):
     pass
 
 
-def test_add_residuals_to_assets(nTokenRedeem, accounts):
+def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
     pass
 
 
-def test_reduce_ifcash_assets_proportional(nTokenRedeem, accounts):
-    pass
+# END PURE METHODS
 
 
 def test_ntoken_market_value(nTokenRedeem, accounts):

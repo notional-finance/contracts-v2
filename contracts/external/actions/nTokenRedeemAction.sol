@@ -131,13 +131,18 @@ contract nTokenRedeemAction is ActionGuards {
         PortfolioAsset[] memory newifCashAssets;
 
         // Get the ifCash bits that are idiosyncratic
-        bytes32 ifCashBits = nTokenHandler.getifCashBits(nToken, blockTime);
+        bytes32 ifCashBits = nTokenHandler.getifCashBits(
+            nToken.tokenAddress,
+            currencyId,
+            nToken.lastInitializedTime,
+            blockTime
+        );
 
         if (ifCashBits != 0 && acceptResidualAssets) {
             // This will remove all the ifCash assets proportionally from the account
             newifCashAssets = _reduceifCashAssetsProportional(
                 nToken.tokenAddress,
-                nToken.cashGroup.currencyId,
+                currencyId,
                 nToken.lastInitializedTime,
                 tokensToRedeem,
                 nToken.totalSupply,
