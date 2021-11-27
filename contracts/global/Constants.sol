@@ -29,9 +29,17 @@ library Constants {
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
-    // TODO: make this manually
+    // Each bit set in this mask marks where an active market should be in the bitmap
+    // if the first bit refers to the reference time. Used to detect idiosyncratic
+    // fcash in the nToken accounts
     bytes32 internal constant ACTIVE_MARKETS_MASK = (
-        MSB >> DAYS_IN_QUARTER
+        MSB >> 90  | // 3 month
+        MSB >> 105 | // 6 month
+        MSB >> 135 | // 1 year
+        MSB >> 147 | // 2 year
+        MSB >> 183 | // 5 year
+        MSB >> 211 | // 10 year
+        MSB >> 251   // 20 year
     );
 
     // Basis for percentages

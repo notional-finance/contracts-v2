@@ -135,7 +135,8 @@ contract nTokenRedeemAction is ActionGuards {
             nToken.tokenAddress,
             currencyId,
             nToken.lastInitializedTime,
-            blockTime
+            blockTime,
+            nToken.cashGroup.maxMarketIndex
         );
 
         if (ifCashBits != 0 && acceptResidualAssets) {

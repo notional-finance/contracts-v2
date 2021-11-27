@@ -18,20 +18,12 @@ contract MockNTokenRedeemPure is nTokenRedeemAction {
         return DateTime.getMaturityFromBitNum(blockTime, bitNum);
     }
 
-    function setfCash(
-        uint16 currencyId,
+    function setAssetsBitmap(
         address tokenAddress,
-        uint256 maturity,
-        uint256 lastInitializedTime,
-        int256 fCash
+        uint256 currencyId,
+        bytes32 assetsBitmap
     ) external {
-        BitmapAssetsHandler.addifCashAsset(
-            tokenAddress,
-            currencyId,
-            maturity,
-            lastInitializedTime,
-            fCash
-        );
+        BitmapAssetsHandler.setAssetsBitmap(tokenAddress, currencyId, assetsBitmap);
     }
 
     function test_getifCashBits(
@@ -40,14 +32,14 @@ contract MockNTokenRedeemPure is nTokenRedeemAction {
         uint256 lastInitializedTime,
         uint256 blockTime,
         uint256 maxMarketIndex
-    ) external view returns (bytes32 ifCashBits) {
-        ifCashBits = nTokenHandler.getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime);
+    ) external view {
+        bytes32 ifCashBits = nTokenHandler.getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, maxMarketIndex);
         uint256 bitNum = ifCashBits.getNextBitNum();
 
         while (bitNum != 0) {
-            uint256 maturity = DateTime.getMaturityFromBitNum(blockTime, bitNum);
+            uint256 maturity = DateTime.getMaturityFromBitNum(lastInitializedTime, bitNum);
             // Test that we only receive ifcash here
-            assert (DateTime.isValidMarketMaturity(maxMarketIndex, maturity, blockTime));
+            require(!DateTime.isValidMarketMaturity(maxMarketIndex, maturity, lastInitializedTime));
 
             ifCashBits = ifCashBits.setBit(bitNum, false);
             bitNum = ifCashBits.getNextBitNum();
