@@ -117,7 +117,9 @@ contract MockNTokenRedeem is nTokenRedeemAction {
         int256 cashBalance,
         uint256 lastInitializedTime
     ) external {
-        nTokenHandler.setNTokenAddress(currencyId, tokenAddress);
+        if (nTokenHandler.nTokenAddress(currencyId) == address(0)) {
+            nTokenHandler.setNTokenAddress(currencyId, tokenAddress);
+        }
 
         // Total Supply
         mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
@@ -131,10 +133,9 @@ contract MockNTokenRedeem is nTokenRedeemAction {
         liquidityTokens.storeAssets(tokenAddress);
         nTokenHandler.setArrayLengthAndInitializedTime(
             tokenAddress,
-            uint8(liquidityTokens.storedAssets.length),
+            uint8(liquidityTokens.newAssets.length),
             lastInitializedTime
         );
-
     }
 
     function getLiquidityTokenWithdraw(

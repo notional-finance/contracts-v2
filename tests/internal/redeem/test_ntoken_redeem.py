@@ -1,8 +1,17 @@
+import math
 import random
 
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
-from tests.constants import SECONDS_IN_DAY, SECONDS_IN_QUARTER, SETTLEMENT_DATE, START_TIME_TREF
+from tests.constants import (
+    RATE_PRECISION,
+    SECONDS_IN_DAY,
+    SECONDS_IN_QUARTER,
+    SECONDS_IN_YEAR,
+    SETTLEMENT_DATE,
+    START_TIME_TREF,
+)
 from tests.helpers import (
     get_cash_group_with_max_markets,
     get_fcash_token,
@@ -13,11 +22,13 @@ from tests.helpers import (
 
 currencyId = 1
 tokenAddress = None
+marketStates = []
 
 
 @pytest.fixture(scope="module", autouse=True)
 def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
     global tokenAddress
+    global marketStates
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
@@ -37,7 +48,7 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
             tokenAddress,
             m[1],  # maturity
             START_TIME_TREF,
-            m[2],  # fCash, TODO may need to vary this
+            -m[2],  # fCash, TODO may need to vary this
         )
 
     # set nToken portfolio
@@ -46,7 +57,7 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
     mock.setNToken(
         1,
         tokenAddress,
-        ([], tokens, 3, 0),
+        ([], tokens, 0, 0),
         1e18,
         1000e8,  # TODO: vary this cash balance a bit
         START_TIME_TREF,
@@ -78,7 +89,6 @@ def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
     nTokenRedeemPure.test_getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, 7)
 
 
-@pytest.mark.only
 def test_add_residuals_to_assets(nTokenRedeemPure, accounts):
     ifCash = [get_fcash_token(0, maturity=(START_TIME_TREF + 3 * SECONDS_IN_QUARTER))]
 
@@ -97,10 +107,48 @@ def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
 # END PURE METHODS
 
 
-def test_ntoken_market_value(nTokenRedeem, accounts):
-    pass
+@given(
+    lt1=strategy("uint256", min_value=0.1e18, max_value=1e18),
+    lt2=strategy("uint256", min_value=0.1e18, max_value=1e18),
+    lt3=strategy("uint256", min_value=0.1e18, max_value=1e18),
+)
+def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
+    ltNotional = [lt1, lt2, lt3]
+    tokens = [
+        get_liquidity_token(1, notional=ltNotional[0]),
+        get_liquidity_token(2, notional=ltNotional[1]),
+        get_liquidity_token(3, notional=ltNotional[2]),
+    ]
+
+    nTokenRedeem.setNToken(
+        1,
+        tokenAddress,
+        ([], tokens, 0, 0),
+        1e18,
+        1000e8,  # NOTE: cash balance irrelevant here
+        START_TIME_TREF,
+    )
+
+    nToken = nTokenRedeem.getNToken(1)
+    (totalAssetValue, netAssetValueInMarket, netfCash) = nTokenRedeem.getNTokenMarketValue(
+        nToken, START_TIME_TREF
+    )
+    assert totalAssetValue == sum(netAssetValueInMarket)
+
+    for (i, m) in enumerate(marketStates):
+        # netfCash is claim - what is in portfolio (set to the market fCash here)
+        fCash = Wei(Wei(m[2] * ltNotional[i]) / 1e18 - Wei(m[2]))
+        assert pytest.approx(fCash, rel=1e-9) == netfCash[i]
+
+        timeToMaturity = m[1] - START_TIME_TREF
+        # Discount fCash to PV
+        fCashPV = fCash / math.exp(m[6] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION)
+        netAssetValue = Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
+
+        assert pytest.approx(netAssetValue, rel=5e-8) == netAssetValueInMarket[i]
 
 
+@pytest.mark.only
 def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts):
     pass
 
