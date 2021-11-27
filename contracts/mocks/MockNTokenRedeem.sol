@@ -143,7 +143,7 @@ contract MockNTokenRedeem is nTokenRedeemAction {
         int256 nTokensToRedeem,
         uint256 blockTime,
         bytes32 ifCashBits
-    ) internal view returns (int256[] memory, int256[] memory) {
+    ) public view returns (int256[] memory, int256[] memory) {
         return nTokenHandler.getLiquidityTokenWithdraw(
             nToken,
             nTokensToRedeem,
@@ -157,24 +157,18 @@ contract MockNTokenRedeem is nTokenRedeemAction {
     }
 
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
-        public
-        view
-        returns (
-            int256 totalAssetValue,
-            int256[] memory netAssetValueInMarket,
-            int256[] memory netfCash
-        )
+        public view returns (int256 totalAssetValue, int256[] memory netfCash)
     {
         return nTokenHandler.getNTokenMarketValue(nToken, blockTime);
     }
 
-    function redeem(
-        uint16 currencyId,
-        int256 tokensToRedeem,
-        bool sellTokenAssets,
-        bool acceptResidualAssets,
-        uint256 blockTime
-    ) public returns (int256, bool, PortfolioAsset[] memory) {
-        return _redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
-    }
+    // function redeem(
+    //     uint16 currencyId,
+    //     int256 tokensToRedeem,
+    //     bool sellTokenAssets,
+    //     bool acceptResidualAssets,
+    //     uint256 blockTime
+    // ) public returns (int256, bool, PortfolioAsset[] memory) {
+    //     return _redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
+    // }
 }

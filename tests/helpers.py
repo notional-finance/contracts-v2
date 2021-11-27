@@ -73,7 +73,7 @@ def get_cash_group_with_max_markets(maxMarketIndex):
     return cg
 
 
-def get_market_curve(maxMarketIndex, curveShape):
+def get_market_curve(maxMarketIndex, curveShape, previousTradeTime=START_TIME):
     markets = []
 
     if type(curveShape) == str and curveShape in CURVE_SHAPES.keys():
@@ -86,7 +86,7 @@ def get_market_curve(maxMarketIndex, curveShape):
                 proportion=curveShape["proportion"],
                 lastImpliedRate=curveShape["rates"][i],
                 oracleRate=curveShape["rates"][i],
-                previousTradeTime=START_TIME,
+                previousTradeTime=previousTradeTime,
             )
         )
 
@@ -200,13 +200,17 @@ def get_bitstring_from_bitmap(bitmap):
     return bitstring
 
 
+def get_bitmap_from_bitlist(bitmapList):
+    return "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+
+
 def random_asset_bitmap(numAssets, maxBit=254):
     # Choose K bits to set
     bitmapList = ["0"] * 256
     setBits = random.choices(range(0, maxBit), k=numAssets)
     for b in setBits:
         bitmapList[b] = "1"
-    bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+    bitmap = get_bitmap_from_bitlist(bitmapList)
 
     return (bitmap, bitmapList)
 

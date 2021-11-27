@@ -492,48 +492,49 @@ library nTokenHandler {
         // If there are no ifCash bits set then this will just return the proportion of all liquidity tokens
         if (ifCashBits == 0) return getProportionalLiquidityTokens(nToken, nTokensToRedeem);
 
-        // Returns the risk adjusted net present value for the idiosyncratic residuals
-        (int256 assetResidualValue, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
-            nToken.tokenAddress,
-            nToken.cashGroup.currencyId,
-            nToken.lastInitializedTime,
-            blockTime,
-            nToken.cashGroup,
-            true, // use risk adjusted
-            ifCashBits
-        );
-        assetResidualValue = nToken.cashGroup.assetRate.convertFromUnderlying(assetResidualValue);
-
         (
             int256 totalAssetValueInMarkets,
-            int256[] memory netAssetValueInMarket,
             int256[] memory netfCash
         ) = getNTokenMarketValue(nToken, blockTime);
-        int256[] memory tokensToWithdraw = new int256[](netAssetValueInMarket.length);
+        int256[] memory tokensToWithdraw = new int256[](netfCash.length);
 
-        int256 totalAssetValue = totalAssetValueInMarkets
-            .add(assetResidualValue)
-            .add(nToken.cashBalance);
+        int256 totalPortfolioAssetValue;
+        {
+            // Returns the risk adjusted net present value for the idiosyncratic residuals
+            (int256 underlyingPV, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
+                nToken.tokenAddress,
+                nToken.cashGroup.currencyId,
+                nToken.lastInitializedTime,
+                blockTime,
+                nToken.cashGroup,
+                true, // use risk adjusted here to assess a penalty for withdrawing around the residual
+                ifCashBits
+            );
 
-        // The total asset PV to redeem is:
-        //      assetPVToRedeem = (nTokensToRedeem * totalAssetValue) / totalSupply
-        int256 assetPVToRedeem = nTokensToRedeem.mul(totalAssetValue).div(nToken.totalSupply);
+            // NOTE: we do not include cash balance here because the account will always take their share
+            // of the cash balance regardless of the residuals
+            totalPortfolioAssetValue = totalAssetValueInMarkets.add(
+                nToken.cashGroup.assetRate.convertFromUnderlying(underlyingPV)
+            );
+        }
 
-        for (uint256 i = 0; i < netAssetValueInMarket.length; i++) {
+        for (uint256 i = 0; i < tokensToWithdraw.length; i++) {
             int256 totalTokens = nToken.portfolioState.storedAssets[i].notional;
-            // Proportion of value to withdraw is: 
-            //      valueProportion = netAssetValueInMarket / totalAssetValueInMarkets
-            // The redeemer's share is:
-            //      redeemerShare = (assetPVToRedeem * valueProportion) / totalAssetValue
-            // Converted to liquidity tokens is:
-            //      tokensToWithdraw = tokensInMarket * redeemerShare
+            // Redeemer's baseline share of the tokens based on total supply:
+            //      redeemerShare = totalTokens * nTokensToRedeem / totalSupply
+            // Scalar factor to account for residual value:
+            //      scaleFactor = totalPortfolioAssetValue / totalAssetValueInMarkets
             // Final math equals:
-            //      tokensToWithdraw = (tokensInMarket * assetPVToRedeem * netAssetValueInMarket) / (totalAssetValueInMarkets * totalAssetValue)
+            //      tokensToWithdraw = redeemShare * scalarFactor
+            //      tokensToWithdraw = (totalTokens * nTokensToRedeem * totalPortfolioAssetValue)
+            //         / (totalAssetValueInMarkets * totalSupply)
             tokensToWithdraw[i] = totalTokens
-                .mul(assetPVToRedeem)
-                .mul(netAssetValueInMarket[i])
+                .mul(nTokensToRedeem)
+                .mul(totalPortfolioAssetValue);
+
+            tokensToWithdraw[i] = tokensToWithdraw[i]
                 .div(totalAssetValueInMarkets)
-                .div(totalAssetValue);
+                .div(nToken.totalSupply);
 
             // This is the net fcash to the account
             netfCash[i] = netfCash[i].mul(tokensToWithdraw[i]).div(totalTokens);
@@ -545,14 +546,9 @@ library nTokenHandler {
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
-        returns (
-            int256 totalAssetValue,
-            int256[] memory netAssetValueInMarket,
-            int256[] memory netfCash
-        )
+        returns (int256 totalAssetValue, int256[] memory netfCash)
     {
         uint256 numMarkets = nToken.portfolioState.storedAssets.length;
-        netAssetValueInMarket = new int256[](numMarkets);
         netfCash = new int256[](numMarkets);
 
         MarketParameters memory market;
@@ -572,7 +568,7 @@ library nTokenHandler {
                 )
             );
 
-            netAssetValueInMarket[i] = assetCashClaim.add(
+            int256 netAssetValueInMarket = assetCashClaim.add(
                 nToken.cashGroup.assetRate.convertFromUnderlying(
                     AssetHandler.getPresentfCashValue(
                         netfCash[i],
@@ -585,7 +581,7 @@ library nTokenHandler {
             );
 
             // Sum the total asset value here to calculate proportions later
-            totalAssetValue = totalAssetValue.add(netAssetValueInMarket[i]);
+            totalAssetValue = totalAssetValue.add(netAssetValueInMarket);
         }
     }
 

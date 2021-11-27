@@ -13,6 +13,7 @@ from tests.constants import (
     START_TIME_TREF,
 )
 from tests.helpers import (
+    get_bitmap_from_bitlist,
     get_cash_group_with_max_markets,
     get_fcash_token,
     get_liquidity_token,
@@ -59,7 +60,7 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
         tokenAddress,
         ([], tokens, 0, 0),
         1e18,
-        1000e8,  # TODO: vary this cash balance a bit
+        0,  # TODO: vary this cash balance a bit
         START_TIME_TREF,
     )
 
@@ -130,11 +131,9 @@ def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
     )
 
     nToken = nTokenRedeem.getNToken(1)
-    (totalAssetValue, netAssetValueInMarket, netfCash) = nTokenRedeem.getNTokenMarketValue(
-        nToken, START_TIME_TREF
-    )
-    assert totalAssetValue == sum(netAssetValueInMarket)
+    (totalAssetValue, netfCash) = nTokenRedeem.getNTokenMarketValue(nToken, START_TIME_TREF)
 
+    netAssetValue = 0
     for (i, m) in enumerate(marketStates):
         # netfCash is claim - what is in portfolio (set to the market fCash here)
         fCash = Wei(Wei(m[2] * ltNotional[i]) / 1e18 - Wei(m[2]))
@@ -143,18 +142,73 @@ def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
         timeToMaturity = m[1] - START_TIME_TREF
         # Discount fCash to PV
         fCashPV = fCash / math.exp(m[6] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION)
-        netAssetValue = Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
+        netAssetValue += Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
 
-        assert pytest.approx(netAssetValue, rel=5e-8) == netAssetValueInMarket[i]
-
-
-@pytest.mark.only
-def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts):
-    pass
+    assert pytest.approx(totalAssetValue, rel=5e-8) == netAssetValue
 
 
-def test_get_liquidity_token_withdraw_with_residual(nTokenRedeem, accounts):
-    pass
+@given(tokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18))
+def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts, tokensToRedeem):
+    nToken = nTokenRedeem.getNToken(1)
+    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
+        nToken, tokensToRedeem, START_TIME_TREF, 0
+    )
+
+    assert len(tokensToWithdraw) == len(netfCash)
+    for i in range(0, len(tokensToWithdraw)):
+        assert tokensToWithdraw[i] == tokensToRedeem
+        # netfCash is always zero in this branch
+        assert netfCash[i] == 0
+
+
+@given(
+    ifCashNotional=strategy("uint256", min_value=0.01e18, max_value=0.50e18),
+    nTokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18),
+)
+def test_get_liquidity_token_withdraw_with_residual(
+    nTokenRedeem, ifCashNotional, nTokensToRedeem, accounts
+):
+    nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
+
+    # Set ifCash asset
+    nTokenRedeem.setfCash(
+        currencyId, tokenAddress, nineMonth, START_TIME_TREF, ifCashNotional  # maturity  # fCash
+    )
+    bitmapList = ["0"] * 256
+    bitmapList[119] = "1"  # Set the nine month to 1
+    bitmap = get_bitmap_from_bitlist(bitmapList)
+
+    nTokenRedeem.setfCash(
+        currencyId,
+        tokenAddress,
+        marketStates[0][1],  # 3 mo maturity
+        START_TIME_TREF,
+        0.25e18,  # fCash
+    )
+
+    nToken = nTokenRedeem.getNToken(1)
+    if ifCashNotional > 0:
+        oracleRate = (marketStates[1][6] + marketStates[2][6]) / 2 + (0.015e9)
+    else:
+        oracleRate = (marketStates[1][6] + marketStates[2][6]) / 2 - (0.015e9)
+
+    ifCashAssetValue = (ifCashNotional / math.exp(oracleRate * 0.75 / RATE_PRECISION)) * 50
+
+    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
+        nToken, nTokensToRedeem, START_TIME_TREF, bitmap
+    )
+
+    (totalAssetValueInMarkets, totalNetfCash) = nTokenRedeem.getNTokenMarketValue(
+        nToken, START_TIME_TREF
+    )
+
+    scalar = totalAssetValueInMarkets / (ifCashAssetValue + totalAssetValueInMarkets)
+
+    for (i, t) in enumerate(tokensToWithdraw):
+        # Test that fCash share is correct
+        if netfCash[i] != 0:
+            assert pytest.approx((netfCash[i] / totalNetfCash[i]) * 1e18, rel=1e-9) == t
+        assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
 
 def test_redeem_no_residual_sell_assets(nTokenRedeem, accounts):
