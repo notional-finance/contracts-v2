@@ -65,11 +65,11 @@ contract MockNTokenRedeemPure is nTokenRedeemAction {
     }
 
     function addResidualsToAssets(
-        nTokenPortfolio memory nToken,
+        PortfolioAsset[] memory liquidityTokens,
         PortfolioAsset[] memory newifCashAssets,
         int256[] memory netfCash
     ) public pure returns (PortfolioAsset[] memory finalfCashAssets) {
-        return _addResidualsToAssets(nToken, newifCashAssets, netfCash);
+        return _addResidualsToAssets(liquidityTokens, newifCashAssets, netfCash);
     }
 }
 

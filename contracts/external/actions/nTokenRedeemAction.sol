@@ -186,7 +186,7 @@ contract nTokenRedeemAction is ActionGuards {
         if (netfCashRemaining) {
             // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
             // this if we just fail on unsuccessful selling of token assets.
-            _addResidualsToAssets(nToken, newifCashAssets, netfCash);
+            _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
         }
 
         return (totalAssetCash, netfCashRemaining, newifCashAssets);
@@ -339,7 +339,7 @@ contract nTokenRedeemAction is ActionGuards {
 
     /// @notice Combines newifCashAssets array with netfCash assets into a single finalfCashAssets array
     function _addResidualsToAssets(
-        nTokenPortfolio memory nToken,
+        PortfolioAsset[] memory liquidityTokens,
         PortfolioAsset[] memory newifCashAssets,
         int256[] memory netfCash
     ) internal pure returns (PortfolioAsset[] memory finalfCashAssets) {
@@ -356,12 +356,16 @@ contract nTokenRedeemAction is ActionGuards {
         }
 
         uint netfCashIndex = 0;
-        for (; index < finalfCashAssets.length; index++) {
-            PortfolioAsset memory asset = finalfCashAssets[index];
-            asset.currencyId = nToken.cashGroup.currencyId;
-            asset.maturity = nToken.portfolioState.storedAssets[netfCashIndex].maturity;
-            asset.assetType = Constants.FCASH_ASSET_TYPE;
-            asset.notional = netfCash[netfCashIndex];
+        for (; index < finalfCashAssets.length; ) {
+            if (netfCash[netfCashIndex] != 0) {
+                PortfolioAsset memory asset = finalfCashAssets[index];
+                asset.currencyId = liquidityTokens[netfCashIndex].currencyId;
+                asset.maturity = liquidityTokens[netfCashIndex].maturity;
+                asset.assetType = Constants.FCASH_ASSET_TYPE;
+                asset.notional = netfCash[netfCashIndex];
+                index++;
+            }
+
             netfCashIndex++;
         }
 

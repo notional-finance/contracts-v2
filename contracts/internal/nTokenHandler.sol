@@ -492,14 +492,14 @@ library nTokenHandler {
         // If there are no ifCash bits set then this will just return the proportion of all liquidity tokens
         if (ifCashBits == 0) return getProportionalLiquidityTokens(nToken, nTokensToRedeem);
 
-        // Returns the risk adjusted net present value for the idiosyncractic residuals
+        // Returns the risk adjusted net present value for the idiosyncratic residuals
         (int256 assetResidualValue, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
             nToken.tokenAddress,
             nToken.cashGroup.currencyId,
             nToken.lastInitializedTime,
             blockTime,
             nToken.cashGroup,
-            true,
+            true, // use risk adjusted
             ifCashBits
         );
         assetResidualValue = nToken.cashGroup.assetRate.convertFromUnderlying(assetResidualValue);

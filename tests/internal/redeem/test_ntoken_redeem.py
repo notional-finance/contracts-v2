@@ -5,6 +5,7 @@ from brownie.test import given, strategy
 from tests.constants import SECONDS_IN_DAY, SECONDS_IN_QUARTER, SETTLEMENT_DATE, START_TIME_TREF
 from tests.helpers import (
     get_cash_group_with_max_markets,
+    get_fcash_token,
     get_liquidity_token,
     get_market_curve,
     random_asset_bitmap,
@@ -64,7 +65,6 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.mark.only
 @given(initalizedTimeOffset=strategy("uint32", min_value=0, max_value=89))
 def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
     (bitmap, _) = random_asset_bitmap(15)
@@ -78,8 +78,16 @@ def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
     nTokenRedeemPure.test_getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, 7)
 
 
+@pytest.mark.only
 def test_add_residuals_to_assets(nTokenRedeemPure, accounts):
-    pass
+    ifCash = [get_fcash_token(0, maturity=(START_TIME_TREF + 3 * SECONDS_IN_QUARTER))]
+
+    liquidityTokens = [get_liquidity_token(1), get_liquidity_token(2), get_liquidity_token(3)]
+
+    finalAssets = nTokenRedeemPure.addResidualsToAssets(liquidityTokens, ifCash, [0, 100e8, 0])
+    assert len(finalAssets) == 2
+    assert ifCash[0] in finalAssets
+    assert list(filter(lambda a: a[1] == liquidityTokens[1][1], finalAssets))[0][3] == 100e8
 
 
 def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
