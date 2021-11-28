@@ -184,8 +184,8 @@ contract nTokenRedeemAction is ActionGuards {
         }
 
         if (netfCashRemaining) {
-            // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
-            // this if we just fail on unsuccessful selling of token assets.
+            // If the account is unwilling to accept residuals then will fail here.
+            require(acceptResidualAssets, "Residuals");
             newifCashAssets = _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
         }
 

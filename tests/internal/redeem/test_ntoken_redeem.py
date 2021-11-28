@@ -223,7 +223,6 @@ def test_get_liquidity_token_withdraw_with_residual(
         assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
 
-@pytest.mark.only
 @given(tokensToRedeem=strategy("uint256", min_value=0.01e18, max_value=0.30e18))
 def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts):
     ifCash = []
@@ -239,12 +238,79 @@ def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts)
 
     nToken = nTokenRedeem2.getNToken(currencyId)
     txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
+    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+
+    assert not hasResidual
+    assert assets == ()
+
+
+def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
+    tokensToRedeem = 0.5e18
+    ifCash = []
+    for (i, m) in enumerate(marketStates):
+        residual = m[2] * 0.1
+        if i == 2:
+            # Put a large residual in the 1 year market to fail the selling
+            residual = m[2] * 3
+
+        # Add some fCash residual for selling back to markets
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
+        ifCash.append(-m[2] + residual)
+
+    nToken = nTokenRedeem2.getNToken(currencyId)
+
+    # TODO: ganache fails here
+    # with brownie.reverts():
+    #     nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
+
+    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, True, START_TIME_TREF)
+    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+
+    # Assert that if selling the fCash fails, the redeem method will return the fcash asset to
+    # either place into the portfolio or revert
+    assert hasResidual
+    assert len(assets) == 1
+    assert assets[0][1] == marketStates[2][1]
+
+
+def test_redeem_no_residual_keep_assets(nTokenRedeem2, accounts):
+    tokensToRedeem = 0.5e18
+    ifCash = []
+    for (i, m) in enumerate(marketStates):
+        residual = m[2] * 0.1
+        # Add some fCash residual for selling back to markets
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
+        ifCash.append(-m[2] + residual)
+
+    nToken = nTokenRedeem2.getNToken(currencyId)
+    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, False, True, START_TIME_TREF)
+    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+
+    # In this case we are keeping all the residuals
+    assert hasResidual
+    assert len(assets) == 3
+
+
+@pytest.mark.only
+def test_redeem_residual_sell_assets(nTokenRedeem2, accounts):
+    pass
+
+
+def test_redeem_residual_sell_assets_fail(nTokenRedeem2, accounts):
+    pass
+
+
+def test_redeem_residual_keep_assets(nTokenRedeem2, accounts):
+    pass
+
+
+def inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, cashBalanceBefore):
     assetCash = txn.events["Redeem"]["assetCash"]
     hasResidual = txn.events["Redeem"]["hasResidual"]
     assets = txn.events["Redeem"]["assets"]
 
     # Cash balance share
-    calculatedAssetCash = nToken[3] * tokensToRedeem / 1e18
+    calculatedAssetCash = cashBalanceBefore * tokensToRedeem / 1e18
     for (i, m) in enumerate(marketStates):
         newMarketState = nTokenRedeem2.getMarket(
             currencyId, m[1], START_TIME_TREF + SECONDS_IN_QUARTER, START_TIME_TREF
@@ -260,28 +326,12 @@ def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts)
 
         # Assert that all fCash taken from the nToken has been sold into the market. fCash must
         # net off between the market, account and nToken account
-        assert pytest.approx(netMarketfCash, abs=100) == (ifCash[i] - postRedeemfCash)
+        matchingfCash = list(filter(lambda a: a[1] == m[1], assets))
+        netfCash = ifCash[i] - postRedeemfCash
+        if matchingfCash:
+            netfCash -= matchingfCash[0][3]
+        assert pytest.approx(netMarketfCash, abs=100) == netfCash
 
     assert pytest.approx(calculatedAssetCash, rel=1e-15) == assetCash
-    assert not hasResidual
-    assert assets == ()
 
-
-def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_no_residual_keep_assets(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_residual_sell_assets(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_residual_sell_assets_fail(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_residual_keep_assets(nTokenRedeem2, accounts):
-    pass
+    return (hasResidual, assets)
