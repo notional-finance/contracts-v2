@@ -5,7 +5,7 @@ pragma abicoder v2;
 import "../internal/nTokenHandler.sol";
 import "../external/actions/nTokenRedeemAction.sol";
 
-contract MockNTokenRedeemPure is nTokenRedeemAction {
+contract MockNTokenRedeemPure {
     using Bitmap for bytes32;
 
     function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
@@ -54,7 +54,7 @@ contract MockNTokenRedeemPure is nTokenRedeemAction {
         int256 totalSupply,
         bytes32 assetsBitmap
     ) public returns (PortfolioAsset[] memory) {
-        return _reduceifCashAssetsProportional(
+        return nTokenRedeemAction._reduceifCashAssetsProportional(
             account,
             currencyId,
             lastInitializedTime,
@@ -69,11 +69,11 @@ contract MockNTokenRedeemPure is nTokenRedeemAction {
         PortfolioAsset[] memory newifCashAssets,
         int256[] memory netfCash
     ) public pure returns (PortfolioAsset[] memory finalfCashAssets) {
-        return _addResidualsToAssets(liquidityTokens, newifCashAssets, netfCash);
+        return nTokenRedeemAction._addResidualsToAssets(liquidityTokens, newifCashAssets, netfCash);
     }
 }
 
-contract MockNTokenRedeemBase is nTokenRedeemAction {
+contract MockNTokenRedeemBase {
     using nTokenHandler for nTokenPortfolio;
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
@@ -167,7 +167,7 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
     }
 }
 
-contract MockNTokenRedeem2 is MockNTokenRedeemBase {
+contract MockNTokenRedeem2 {
     event Redeem(int256 assetCash, bool hasResidual, PortfolioAsset[] assets);
 
     function redeem(
@@ -181,7 +181,7 @@ contract MockNTokenRedeem2 is MockNTokenRedeemBase {
             int256 assetCash,
             bool hasResidual,
             PortfolioAsset[] memory assets
-        )  = _redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
+        )  = nTokenRedeemAction._redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
 
         emit Redeem(assetCash, hasResidual, assets);
 

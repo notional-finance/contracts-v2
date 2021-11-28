@@ -7,14 +7,11 @@ import "../../internal/nTokenHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/balances/BalanceHandler.sol";
-import "../../external/FreeCollateralExternal.sol";
-import "../../external/SettleAssetsExternal.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
-import "./ActionGuards.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract nTokenRedeemAction is ActionGuards {
+library nTokenRedeemAction {
     using SafeInt256 for int256;
     using SafeMath for uint256;
     using Bitmap for bytes32;
@@ -22,10 +19,7 @@ contract nTokenRedeemAction is ActionGuards {
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
     using PortfolioHandler for PortfolioState;
-    using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
-
-    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
 
     /// @notice When redeeming nTokens via the batch they must all be sold to cash and this
     /// method will return the amount of asset cash sold. This method can only be invoked via delegatecall.
@@ -37,8 +31,6 @@ contract nTokenRedeemAction is ActionGuards {
         external
         returns (int256)
     {
-        // Only self call allowed
-        require(msg.sender == address(this), "Unauthorized caller");
         uint256 blockTime = block.timestamp;
         // prettier-ignore
         (
@@ -51,60 +43,6 @@ contract nTokenRedeemAction is ActionGuards {
         return totalAssetCash;
     }
 
-    /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets
-    /// into their portfolio. Due to the complexity here, it is not allowed to be called during a batch trading
-    /// operation and must be done separately.
-    /// @param redeemer the address that holds the nTokens to redeem
-    /// @param currencyId the currency associated the nToken
-    /// @param tokensToRedeem_ the amount of nTokens to convert to cash
-    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
-    /// residual fCash assets will be placed into the portfolio
-    /// @dev auth:msg.sender auth:ERC1155
-    /// @return total amount of asset cash redeemed
-    function nTokenRedeem(
-        address redeemer,
-        uint16 currencyId,
-        uint96 tokensToRedeem_,
-        bool sellTokenAssets
-    ) external nonReentrant returns (int256) {
-    //     // ERC1155 can call this method during a post transfer event
-    //     require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
-
-    //     uint256 blockTime = block.timestamp;
-    //     int256 tokensToRedeem = int256(tokensToRedeem_);
-
-    //     AccountContext memory context = AccountContextHandler.getAccountContext(redeemer);
-    //     if (context.mustSettleAssets()) {
-    //         context = SettleAssetsExternal.settleAccount(redeemer, context);
-    //     }
-
-    //     BalanceState memory balance;
-    //     balance.loadBalanceState(redeemer, currencyId, context);
-
-    //     require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
-    //     balance.netNTokenSupplyChange = tokensToRedeem.neg();
-
-    //     (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
-    //         _redeem(currencyId, tokensToRedeem, sellTokenAssets, blockTime);
-
-    //     // Set balances before transferring assets
-    //     balance.netCashChange = totalAssetCash;
-    //     balance.finalize(redeemer, context, false);
-
-    //     if (hasResidual) {
-    //         // This method will store assets and update the account context in memory
-    //         context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
-    //     }
-
-    //     context.setAccountContext(redeemer);
-    //     if (context.hasDebt != 0x00) {
-    //         FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
-    //     }
-
-    //     emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-    //     return totalAssetCash;
-    }
-
     /// @notice Redeems nTokens for asset cash and fCash
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem the amount of nTokens to convert to cash
@@ -115,6 +53,21 @@ contract nTokenRedeemAction is ActionGuards {
     /// @return assetCash positive amount of asset cash to the account
     /// @return hasResidual true if there are fCash residuals left
     /// @return assets an array of fCash asset residuals to place into the account
+    function redeem(
+        uint16 currencyId,
+        int256 tokensToRedeem,
+        bool sellTokenAssets,
+        bool acceptResidualAssets
+    ) external returns (int256, bool, PortfolioAsset[] memory) {
+        return _redeem(
+            currencyId,
+            tokensToRedeem,
+            sellTokenAssets,
+            acceptResidualAssets,
+            block.timestamp
+        );
+    }
+
     function _redeem(
         uint16 currencyId,
         int256 tokensToRedeem,

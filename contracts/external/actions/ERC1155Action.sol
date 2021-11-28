@@ -2,8 +2,6 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "./BatchAction.sol";
-import "./nTokenRedeemAction.sol";
 import "./ActionGuards.sol";
 import "../FreeCollateralExternal.sol";
 import "../../global/StorageLayoutV1.sol";
@@ -11,6 +9,7 @@ import "../../math/SafeInt256.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
+import "interfaces/notional/NotionalProxy.sol";
 import "interfaces/IERC1155TokenReceiver.sol";
 import "interfaces/notional/nERC1155Interface.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -375,9 +374,9 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         // accounts to take any sort of trading action as a result of their transfer. All of these actions will
         // handle checking free collateral so no additional check is necessary here.
         if (
-            sig == nTokenRedeemAction.nTokenRedeem.selector ||
-            sig == BatchAction.batchBalanceAction.selector ||
-            sig == BatchAction.batchBalanceAndTradeAction.selector
+            sig == NotionalProxy.nTokenRedeem.selector ||
+            sig == NotionalProxy.batchBalanceAction.selector ||
+            sig == NotionalProxy.batchBalanceAndTradeAction.selector
         ) {
             transactedAccount = abi.decode(data[4:36], (address));
             // Ensure that the "transactedAccount" parameter of the call is set to the from address or the
