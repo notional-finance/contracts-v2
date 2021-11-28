@@ -26,16 +26,8 @@ tokenAddress = None
 marketStates = []
 
 
-@pytest.fixture(scope="module", autouse=True)
-def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
-    global tokenAddress
+def setup_fixture(mock, aggregator):
     global marketStates
-    cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
-    cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
-    tokenAddress = accounts[9]
-
-    mock = MockNTokenRedeem.deploy({"from": accounts[0]})
     # set cash group and asset rate mapping
     cashGroup = get_cash_group_with_max_markets(3)
     mock.setCashGroup(currencyId, cashGroup, (aggregator.address, 18))
@@ -44,13 +36,7 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
     for m in marketStates:
         mock.setMarketStorage(1, SETTLEMENT_DATE, m)
         # set matching fCash assets
-        mock.setfCash(
-            currencyId,
-            tokenAddress,
-            m[1],  # maturity
-            START_TIME_TREF,
-            -m[2],  # fCash, TODO may need to vary this
-        )
+        mock.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, -m[2])  # maturity  # fCash
 
     # set nToken portfolio
     tokens = [get_liquidity_token(1), get_liquidity_token(2), get_liquidity_token(3)]
@@ -65,6 +51,30 @@ def nTokenRedeem(MockNTokenRedeem, MockCToken, cTokenAggregator, accounts):
     )
 
     return mock
+
+
+@pytest.fixture(scope="module", autouse=True)
+def nTokenRedeem1(MockNTokenRedeem1, MockCToken, cTokenAggregator, accounts):
+    global tokenAddress
+    cToken = MockCToken.deploy(8, {"from": accounts[0]})
+    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
+    tokenAddress = accounts[9]
+
+    mock = MockNTokenRedeem1.deploy({"from": accounts[0]})
+    return setup_fixture(mock, aggregator)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def nTokenRedeem2(MockNTokenRedeem2, MockCToken, cTokenAggregator, accounts):
+    global tokenAddress
+    cToken = MockCToken.deploy(8, {"from": accounts[0]})
+    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
+    tokenAddress = accounts[9]
+
+    mock = MockNTokenRedeem2.deploy({"from": accounts[0]})
+    return setup_fixture(mock, aggregator)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -113,7 +123,7 @@ def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
     lt2=strategy("uint256", min_value=0.1e18, max_value=1e18),
     lt3=strategy("uint256", min_value=0.1e18, max_value=1e18),
 )
-def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
+def test_ntoken_market_value(nTokenRedeem1, accounts, lt1, lt2, lt3):
     ltNotional = [lt1, lt2, lt3]
     tokens = [
         get_liquidity_token(1, notional=ltNotional[0]),
@@ -121,7 +131,7 @@ def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
         get_liquidity_token(3, notional=ltNotional[2]),
     ]
 
-    nTokenRedeem.setNToken(
+    nTokenRedeem1.setNToken(
         1,
         tokenAddress,
         ([], tokens, 0, 0),
@@ -130,8 +140,8 @@ def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
         START_TIME_TREF,
     )
 
-    nToken = nTokenRedeem.getNToken(1)
-    (totalAssetValue, netfCash) = nTokenRedeem.getNTokenMarketValue(nToken, START_TIME_TREF)
+    nToken = nTokenRedeem1.getNToken(1)
+    (totalAssetValue, netfCash) = nTokenRedeem1.getNTokenMarketValue(nToken, START_TIME_TREF)
 
     netAssetValue = 0
     for (i, m) in enumerate(marketStates):
@@ -148,9 +158,9 @@ def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
 
 
 @given(tokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18))
-def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts, tokensToRedeem):
-    nToken = nTokenRedeem.getNToken(1)
-    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
+def test_get_liquidity_token_withdraw_proportional(nTokenRedeem1, accounts, tokensToRedeem):
+    nToken = nTokenRedeem1.getNToken(1)
+    (tokensToWithdraw, netfCash) = nTokenRedeem1.getLiquidityTokenWithdraw(
         nToken, tokensToRedeem, START_TIME_TREF, 0
     )
 
@@ -166,19 +176,19 @@ def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts, token
     nTokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18),
 )
 def test_get_liquidity_token_withdraw_with_residual(
-    nTokenRedeem, ifCashNotional, nTokensToRedeem, accounts
+    nTokenRedeem1, ifCashNotional, nTokensToRedeem, accounts
 ):
     nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
 
     # Set ifCash asset
-    nTokenRedeem.setfCash(
+    nTokenRedeem1.setfCash(
         currencyId, tokenAddress, nineMonth, START_TIME_TREF, ifCashNotional  # maturity  # fCash
     )
     bitmapList = ["0"] * 256
     bitmapList[119] = "1"  # Set the nine month to 1
     bitmap = get_bitmap_from_bitlist(bitmapList)
 
-    nTokenRedeem.setfCash(
+    nTokenRedeem1.setfCash(
         currencyId,
         tokenAddress,
         marketStates[0][1],  # 3 mo maturity
@@ -186,7 +196,7 @@ def test_get_liquidity_token_withdraw_with_residual(
         0.25e18,  # fCash
     )
 
-    nToken = nTokenRedeem.getNToken(1)
+    nToken = nTokenRedeem1.getNToken(1)
     if ifCashNotional > 0:
         oracleRate = (marketStates[1][6] + marketStates[2][6]) / 2 + (0.015e9)
     else:
@@ -194,11 +204,11 @@ def test_get_liquidity_token_withdraw_with_residual(
 
     ifCashAssetValue = (ifCashNotional / math.exp(oracleRate * 0.75 / RATE_PRECISION)) * 50
 
-    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
+    (tokensToWithdraw, netfCash) = nTokenRedeem1.getLiquidityTokenWithdraw(
         nToken, nTokensToRedeem, START_TIME_TREF, bitmap
     )
 
-    (totalAssetValueInMarkets, totalNetfCash) = nTokenRedeem.getNTokenMarketValue(
+    (totalAssetValueInMarkets, totalNetfCash) = nTokenRedeem1.getNTokenMarketValue(
         nToken, START_TIME_TREF
     )
 
@@ -211,25 +221,30 @@ def test_get_liquidity_token_withdraw_with_residual(
         assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
 
-def test_redeem_no_residual_sell_assets(nTokenRedeem, accounts):
+@pytest.mark.only
+def test_redeem_no_residual_sell_assets(nTokenRedeem2, nTokenRedeem1, nTokenRedeemPure, accounts):
+    txn = nTokenRedeem2.redeem(currencyId, 0.01e18, True, False, START_TIME_TREF)
+
+    (assetCash, hasResidual, assets) = txn.return_value
+
+    assert False
+
+
+def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
     pass
 
 
-def test_redeem_no_residual_sell_assets_fail(nTokenRedeem, accounts):
+def test_redeem_no_residual_keep_assets(nTokenRedeem2, accounts):
     pass
 
 
-def test_redeem_no_residual_keep_assets(nTokenRedeem, accounts):
+def test_redeem_residual_sell_assets(nTokenRedeem2, accounts):
     pass
 
 
-def test_redeem_residual_sell_assets(nTokenRedeem, accounts):
+def test_redeem_residual_sell_assets_fail(nTokenRedeem2, accounts):
     pass
 
 
-def test_redeem_residual_sell_assets_fail(nTokenRedeem, accounts):
-    pass
-
-
-def test_redeem_residual_keep_assets(nTokenRedeem, accounts):
+def test_redeem_residual_keep_assets(nTokenRedeem2, accounts):
     pass

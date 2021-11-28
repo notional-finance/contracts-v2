@@ -186,7 +186,7 @@ contract nTokenRedeemAction is ActionGuards {
         if (netfCashRemaining) {
             // TODO: scan the netfCash amounts and add them to newifCashAssets. We don't need to do
             // this if we just fail on unsuccessful selling of token assets.
-            _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
+            newifCashAssets = _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
         }
 
         return (totalAssetCash, netfCashRemaining, newifCashAssets);
@@ -314,6 +314,7 @@ contract nTokenRedeemAction is ActionGuards {
         uint256 blockTime
     ) private returns (int256 totalAssetCash, bool hasResidual) {
         MarketParameters memory market;
+        hasResidual = false;
 
         for (uint256 i = 0; i < netfCash.length; i++) {
             if (netfCash[i] == 0) continue;
