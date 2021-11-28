@@ -120,6 +120,7 @@ def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
 # END PURE METHODS
 
 
+@pytest.mark.only
 @given(
     lt1=strategy("uint256", min_value=0.1e18, max_value=1e18),
     lt2=strategy("uint256", min_value=0.1e18, max_value=1e18),
@@ -156,7 +157,7 @@ def test_ntoken_market_value(nTokenRedeem1, accounts, lt1, lt2, lt3):
         fCashPV = fCash / math.exp(m[6] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION)
         netAssetValue += Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
 
-    assert pytest.approx(totalAssetValue, rel=5e-8) == netAssetValue
+    assert pytest.approx(totalAssetValue, rel=1e-7) == netAssetValue
 
 
 @given(tokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18))
@@ -223,8 +224,11 @@ def test_get_liquidity_token_withdraw_with_residual(
         assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
 
-@given(tokensToRedeem=strategy("uint256", min_value=0.01e18, max_value=0.30e18))
-def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts):
+@given(
+    tokensToRedeem=strategy("uint256", min_value=0.01e18, max_value=0.30e18),
+    setResidual=strategy("bool"),
+)
+def test_redeem_sell_assets(nTokenRedeem2, tokensToRedeem, accounts, setResidual):
     ifCash = []
     for (i, m) in enumerate(marketStates):
         residual = m[2] * 0.1
@@ -236,6 +240,11 @@ def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts)
         nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
         ifCash.append(-m[2] + residual)
 
+    if setResidual:
+        # Set a residual asset
+        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
+
     nToken = nTokenRedeem2.getNToken(currencyId)
     txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
     (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
@@ -244,7 +253,8 @@ def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts)
     assert assets == ()
 
 
-def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
+@given(setResidual=strategy("bool"))
+def test_redeem_sell_assets_fail(nTokenRedeem2, accounts, setResidual):
     tokensToRedeem = 0.5e18
     ifCash = []
     for (i, m) in enumerate(marketStates):
@@ -256,6 +266,11 @@ def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
         # Add some fCash residual for selling back to markets
         nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
         ifCash.append(-m[2] + residual)
+
+    if setResidual:
+        # Set a residual asset
+        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
 
     nToken = nTokenRedeem2.getNToken(currencyId)
 
@@ -269,11 +284,16 @@ def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
     # Assert that if selling the fCash fails, the redeem method will return the fcash asset to
     # either place into the portfolio or revert
     assert hasResidual
-    assert len(assets) == 1
-    assert assets[0][1] == marketStates[2][1]
+    if setResidual:
+        assert len(assets) == 2
+        assert assets[1][1] == marketStates[2][1]
+    else:
+        assert len(assets) == 1
+        assert assets[0][1] == marketStates[2][1]
 
 
-def test_redeem_no_residual_keep_assets(nTokenRedeem2, accounts):
+@given(setResidual=strategy("bool"))
+def test_redeem_keep_assets(nTokenRedeem2, accounts, setResidual):
     tokensToRedeem = 0.5e18
     ifCash = []
     for (i, m) in enumerate(marketStates):
@@ -282,26 +302,21 @@ def test_redeem_no_residual_keep_assets(nTokenRedeem2, accounts):
         nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
         ifCash.append(-m[2] + residual)
 
+    if setResidual:
+        # Set a residual asset
+        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
+
     nToken = nTokenRedeem2.getNToken(currencyId)
     txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, False, True, START_TIME_TREF)
     (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
 
     # In this case we are keeping all the residuals
     assert hasResidual
-    assert len(assets) == 3
-
-
-@pytest.mark.only
-def test_redeem_residual_sell_assets(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_residual_sell_assets_fail(nTokenRedeem2, accounts):
-    pass
-
-
-def test_redeem_residual_keep_assets(nTokenRedeem2, accounts):
-    pass
+    if setResidual:
+        assert len(assets) == 4
+    else:
+        assert len(assets) == 3
 
 
 def inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, cashBalanceBefore):
