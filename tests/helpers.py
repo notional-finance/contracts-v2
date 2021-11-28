@@ -73,7 +73,7 @@ def get_cash_group_with_max_markets(maxMarketIndex):
     return cg
 
 
-def get_market_curve(maxMarketIndex, curveShape, previousTradeTime=START_TIME):
+def get_market_curve(maxMarketIndex, curveShape, previousTradeTime=START_TIME, assetRate=1):
     markets = []
 
     if type(curveShape) == str and curveShape in CURVE_SHAPES.keys():
@@ -87,6 +87,7 @@ def get_market_curve(maxMarketIndex, curveShape, previousTradeTime=START_TIME):
                 lastImpliedRate=curveShape["rates"][i],
                 oracleRate=curveShape["rates"][i],
                 previousTradeTime=previousTradeTime,
+                assetRate=assetRate,
             )
         )
 
@@ -100,11 +101,14 @@ def get_tref(blockTime):
 def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
+        assetRate = 1 if "assetRate" not in kwargs else kwargs["assetRate"]
         # proportion = totalfCash / (totalfCash + totalAssetCash)
         # totalfCash * p + totalAssetCash * p = totalfCash
         # totalfCash * (1 - p) / p = totalAssetCash
         totalfCash = 1e18
-        totalAssetCash = Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"])
+        totalAssetCash = (
+            Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"]) * assetRate
+        )
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
         totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]

@@ -280,7 +280,7 @@ contract nTokenRedeemAction is ActionGuards {
                 );
                 fCashShare = fCashShare.mul(nTokensToRedeem).div(nToken.totalSupply);
                 // netfCash = fCashClaim + fCashShare
-                netfCash[i] = fCashClaim.add(fCashToNToken);
+                netfCash[i] = fCashClaim.add(fCashShare);
                 fCashToNToken = fCashShare.neg();
             } else {
                 // Account will receive netfCash amount. Deduct that from the fCash claim and add the

@@ -168,6 +168,8 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
 }
 
 contract MockNTokenRedeem2 is MockNTokenRedeemBase {
+    event Redeem(int256 assetCash, bool hasResidual, PortfolioAsset[] assets);
+
     function redeem(
         uint16 currencyId,
         int256 tokensToRedeem,
@@ -175,6 +177,57 @@ contract MockNTokenRedeem2 is MockNTokenRedeemBase {
         bool acceptResidualAssets,
         uint256 blockTime
     ) public returns (int256, bool, PortfolioAsset[] memory) {
-        return _redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
+        (
+            int256 assetCash,
+            bool hasResidual,
+            PortfolioAsset[] memory assets
+        )  = _redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
+
+        emit Redeem(assetCash, hasResidual, assets);
+
+        return (assetCash, hasResidual, assets);
     }
+
+    function getfCashNotional(
+        address account,
+        uint16 currencyId,
+        uint256 maturity
+    ) external view returns (int256) {
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+    }
+
+    /// @notice Returns the assets bitmap for an account
+    function getAssetsBitmap(address account, uint16 currencyId)
+        external
+        view
+        returns (bytes32)
+    {
+        return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    }
+
+    function getMarket(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 settlementDate,
+        uint256 blockTime
+    )
+        external
+        view
+        returns (MarketParameters memory)
+    {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        MarketParameters memory market;
+        Market.loadMarketWithSettlementDate(
+            market,
+            currencyId,
+            maturity,
+            blockTime,
+            true,
+            CashGroup.getRateOracleTimeWindow(cashGroup),
+            settlementDate
+        );
+
+        return market;
+    }
+
 }

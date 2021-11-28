@@ -30,9 +30,11 @@ def setup_fixture(mock, aggregator):
     global marketStates
     # set cash group and asset rate mapping
     cashGroup = get_cash_group_with_max_markets(3)
+    # Turn off fees
+    cashGroup[2] = 0
     mock.setCashGroup(currencyId, cashGroup, (aggregator.address, 18))
     # set markets
-    marketStates = get_market_curve(3, "flat")
+    marketStates = get_market_curve(3, "flat", assetRate=50)
     for m in marketStates:
         mock.setMarketStorage(1, SETTLEMENT_DATE, m)
         # set matching fCash assets
@@ -46,7 +48,7 @@ def setup_fixture(mock, aggregator):
         tokenAddress,
         ([], tokens, 0, 0),
         1e18,
-        0,  # TODO: vary this cash balance a bit
+        1000e8,  # TODO: vary this cash balance a bit
         START_TIME_TREF,
     )
 
@@ -222,12 +224,47 @@ def test_get_liquidity_token_withdraw_with_residual(
 
 
 @pytest.mark.only
-def test_redeem_no_residual_sell_assets(nTokenRedeem2, nTokenRedeem1, nTokenRedeemPure, accounts):
-    txn = nTokenRedeem2.redeem(currencyId, 0.01e18, True, False, START_TIME_TREF)
+@given(tokensToRedeem=strategy("uint256", min_value=0.01e18, max_value=0.30e18))
+def test_redeem_no_residual_sell_assets(nTokenRedeem2, tokensToRedeem, accounts):
+    ifCash = []
+    for (i, m) in enumerate(marketStates):
+        residual = m[2] * 0.1
+        if i == 2:
+            # Negative residual for the second market
+            residual = -residual
 
-    (assetCash, hasResidual, assets) = txn.return_value
+        # Add some fCash residual for selling back to markets
+        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
+        ifCash.append(-m[2] + residual)
 
-    assert False
+    nToken = nTokenRedeem2.getNToken(currencyId)
+    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
+    assetCash = txn.events["Redeem"]["assetCash"]
+    hasResidual = txn.events["Redeem"]["hasResidual"]
+    assets = txn.events["Redeem"]["assets"]
+
+    # Cash balance share
+    calculatedAssetCash = nToken[3] * tokensToRedeem / 1e18
+    for (i, m) in enumerate(marketStates):
+        newMarketState = nTokenRedeem2.getMarket(
+            currencyId, m[1], START_TIME_TREF + SECONDS_IN_QUARTER, START_TIME_TREF
+        )
+
+        postRedeemfCash = nTokenRedeem2.getfCashNotional(tokenAddress, currencyId, m[1])
+
+        netAssetCash = m[3] - newMarketState[3]
+        netMarketfCash = newMarketState[2] - m[2]
+        # netAssetCash will include any fCash sold to the market, must net off with what is coming
+        # back to the account
+        calculatedAssetCash += netAssetCash
+
+        # Assert that all fCash taken from the nToken has been sold into the market. fCash must
+        # net off between the market, account and nToken account
+        assert pytest.approx(netMarketfCash, abs=100) == (ifCash[i] - postRedeemfCash)
+
+    assert pytest.approx(calculatedAssetCash, rel=1e-15) == assetCash
+    assert not hasResidual
+    assert assets == ()
 
 
 def test_redeem_no_residual_sell_assets_fail(nTokenRedeem2, accounts):
