@@ -175,7 +175,7 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
 
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
     environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, 1e8, True, {"from": accounts[0]}
+        accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
     )
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
@@ -225,7 +225,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
 
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
     environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, 1e8, False, {"from": accounts[0]}
+        accounts[0].address, currencyId, 1e8, False, True, {"from": accounts[0]}
     )
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
@@ -282,7 +282,7 @@ def test_redeem_tokens_and_save_assets_settle(environment, accounts):
 
     # This account has a matured borrow fCash
     txn = environment.notional.nTokenRedeem(
-        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+        accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
     )
     assert txn.events["AccountSettled"]
     context = environment.notional.getAccountContext(accounts[1])
@@ -317,7 +317,7 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
 
     # This account has a matured borrow fCash
     environment.notional.nTokenRedeem(
-        accounts[1].address, currencyId, 1e8, False, {"from": accounts[1]}
+        accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
     )
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert len(portfolio) == 2
@@ -364,7 +364,7 @@ def test_redeem_ntoken_with_ifCash_residual_take_assets(environment, accounts):
     assert len(portfolio) == 0
 
     environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, 500e8, False, {"from": accounts[2]}
+        accounts[2].address, currencyId, 500e8, False, True, {"from": accounts[2]}
     )
 
     # Idiosyncratic residual should be in portfolio now
@@ -637,6 +637,7 @@ def test_cannot_transfer_ntokens_to_negative_fc(environment, accounts):
         environment.nToken[3].transfer(accounts[0], nTokenBalance, {"from": accounts[1]})
 
 
+@pytest.mark.only
 def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()
@@ -648,7 +649,7 @@ def test_mint_incentives(environment, accounts):
     txn = environment.notional.nTokenClaimIncentives()
     balanceAfter = environment.noteERC20.balanceOf(accounts[0])
 
-    assert balanceAfter - balanceBefore == incentivesClaimed
+    assert pytest.approx(incentivesClaimed, rel=1e-7) == (balanceAfter - balanceBefore)
     assert pytest.approx(incentivesClaimed, rel=1e-4) == 100000e8 * 3
     assert (
         environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
@@ -896,7 +897,7 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     # Need to ensure that no residual assets are left behind
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
     environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, 1e8, True, {"from": accounts[0]}
+        accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
     )
 
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0

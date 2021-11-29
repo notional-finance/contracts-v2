@@ -345,12 +345,17 @@ def test_redeem_to_zero_fails(environment, accounts):
 
     with brownie.reverts("Cannot redeem"):
         environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
+            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, False, {"from": accounts[0]}
         )
 
     # This can succeed
     environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, INITIAL_CASH_AMOUNT - 1e8, True, {"from": accounts[0]}
+        accounts[0].address,
+        currencyId,
+        INITIAL_CASH_AMOUNT - 1e8,
+        True,
+        False,
+        {"from": accounts[0]},
     )
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
@@ -394,9 +399,9 @@ def test_failing_initialize_time(environment, accounts):
             {"from": accounts[0]},
         )
 
-    with brownie.reverts("PT: requires settlement"):
+    with brownie.reverts("Requires settlement"):
         environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, 100e8, True, {"from": accounts[0]}
+            accounts[0].address, currencyId, 100e8, True, False, {"from": accounts[0]}
         )
 
 

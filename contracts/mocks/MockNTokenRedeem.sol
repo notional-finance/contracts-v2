@@ -167,7 +167,7 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
     }
 }
 
-contract MockNTokenRedeem2 {
+contract MockNTokenRedeem2 is MockNTokenRedeemBase {
     event Redeem(int256 assetCash, bool hasResidual, PortfolioAsset[] assets);
 
     function redeem(

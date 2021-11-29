@@ -555,7 +555,7 @@ def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
     markets = environment.notional.getActiveMarkets(2)
     erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
     data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
-        fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True]
+        fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True, False]
     )
 
     environment.notional.safeTransferFrom(
