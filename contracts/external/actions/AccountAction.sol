@@ -168,17 +168,19 @@ contract AccountAction is ActionGuards {
     /// @param redeemer the address that holds the nTokens to redeem
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem_ the amount of nTokens to convert to cash
-    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then
-    /// residual fCash assets will be placed into the portfolio
+    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash
+    /// @param acceptResidualAssets if true, will place any residual fCash that could not be sold (either due to slippage
+    /// or because it was idiosyncratic) into the account's portfolio
     /// @dev auth:msg.sender auth:ERC1155
     /// @return total amount of asset cash redeemed
+    /// @return true or false if there were residuals that were placed into the portfolio
     function nTokenRedeem(
         address redeemer,
         uint16 currencyId,
         uint96 tokensToRedeem_,
         bool sellTokenAssets,
         bool acceptResidualAssets
-    ) external nonReentrant returns (int256) {
+    ) external nonReentrant returns (int256, bool) {
         // ERC1155 can call this method during a post transfer event
         require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
         int256 tokensToRedeem = int256(tokensToRedeem_);
@@ -209,7 +211,7 @@ contract AccountAction is ActionGuards {
         }
 
         emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-        return totalAssetCash;
+        return (totalAssetCash, hasResidual);
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also
