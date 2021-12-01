@@ -329,7 +329,6 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
     currencyId = 2
     setup_residual_environment(environment, accounts)
@@ -337,17 +336,24 @@ def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], 50000e8, {"from": accounts[0]})
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
     assert len(portfolio) == 0
 
-    action = get_balance_action(2, "RedeemNToken", depositActionAmount=500e8)
+    nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
+    totalSupply = environment.nToken[currencyId].totalSupply()
+    action = get_balance_action(2, "RedeemNToken", depositActionAmount=50000e8)
     environment.notional.batchBalanceAction(accounts[2].address, [action], {"from": accounts[2]})
 
     # Account should have redeemed around the ifCash residual
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    # TODO: test for PV of account[2] assest relative to redeem
     assert len(portfolio) == 0
+
+    # Test for PV of account[2] assets relative to redeem
+    (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
+    cashRatio = cash / nTokenPV
+    supplyRatio = 50000e8 / totalSupply
+    assert cashRatio < supplyRatio
 
     check_system_invariants(environment, accounts)
 
@@ -637,7 +643,6 @@ def test_cannot_transfer_ntokens_to_negative_fc(environment, accounts):
         environment.nToken[3].transfer(accounts[0], nTokenBalance, {"from": accounts[1]})
 
 
-@pytest.mark.only
 def test_mint_incentives(environment, accounts):
     currencyId = 2
     blockTime = chain.time()

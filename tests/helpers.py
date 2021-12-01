@@ -440,7 +440,7 @@ def initialize_environment(accounts):
     return env
 
 
-def setup_residual_environment(environment, accounts):
+def setup_residual_environment(environment, accounts, residualType="Negative"):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
@@ -461,14 +461,23 @@ def setup_residual_environment(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    # Do some trading to leave some perp token residual
-    action = get_balance_trade_action(
-        2,
-        "DepositUnderlying",
-        [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0}],
-        depositActionAmount=100e18,
-        withdrawEntireCashBalance=True,
-    )
+    # Do some trading to leave some ntoken residual, this will be a negative residual
+    if residualType == "Negative":
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0}],
+            depositActionAmount=100e18,
+            withdrawEntireCashBalance=True,
+        )
+    else:
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+            depositActionAmount=200e18,
+        )
+
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 
     # Now settle the markets, should be some residual

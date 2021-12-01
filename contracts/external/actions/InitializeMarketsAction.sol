@@ -181,6 +181,7 @@ library InitializeMarketsAction {
         // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
             uint256(uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS;
+        uint256 oracleRateBlockTime = previousMarkets.length == 0 ? blockTime : blockTime.sub(Constants.QUARTER);
 
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
@@ -212,19 +213,7 @@ library InitializeMarketsAction {
 
             // Withholding only applies for negative cash balances
             if (notional < 0) {
-                uint256 oracleRate;
-                if (previousMarkets.length > 0) {
-                    // During initialize markets we will have access to the previous markets
-                    // and their oracle rates.
-                    oracleRate = _getPreviousWithholdingRate(
-                        nToken.cashGroup,
-                        previousMarkets,
-                        maturity,
-                        blockTime
-                    );
-                } else {
-                    oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
-                }
+                uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
 
                 if (oracleRateBuffer > oracleRate) {
                     oracleRate = 0;
@@ -243,28 +232,6 @@ library InitializeMarketsAction {
         }
 
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
-    }
-
-    function _getPreviousWithholdingRate(
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
-        uint256 maturity,
-        uint256 blockTime
-    ) private pure returns (uint256) {
-        // Get the market index referenced in the previous quarter
-        (uint256 marketIndex, bool idiosyncratic) =
-            DateTime.getMarketIndex(
-                cashGroup.maxMarketIndex,
-                maturity,
-                // This is guaranteed to be in the previous reference block...unless
-                // we go an entire quarter without initializing markets which would have other
-                // disastrous consequences.
-                blockTime.sub(Constants.QUARTER)
-            );
-        // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
-        require(!idiosyncratic); // dev: fail on market index
-
-        return markets[marketIndex - 1].oracleRate;
     }
 
     function _calculateNetAssetCashAvailable(
