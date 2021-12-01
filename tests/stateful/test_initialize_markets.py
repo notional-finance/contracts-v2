@@ -101,8 +101,9 @@ def get_maturities(index):
 def interpolate_market_rate(a, b, isSixMonth=False):
     shortMaturity = a[1]
     longMaturity = b[1]
-    shortRate = a[6]
-    longRate = b[6]
+    # Uses last implied rate, chain.mine() causes oracle rates to be skewed
+    shortRate = a[5]
+    longRate = b[5]
 
     if isSixMonth:
         return math.trunc(
@@ -177,7 +178,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
         isResidual = asset[1] not in maturity
         if isResidual and asset[3] < 0:
             hasNegativeResidual = True
-        else:
+        elif not isResidual:
             # This is generally true, an edge case can be that the nToken has a positive
             # fCash position but highly unlikely
             assert asset[3] < 0
@@ -506,7 +507,6 @@ def test_delayed_second_initialize_markets(environment, accounts):
     ntoken_asserts(environment, currencyId, False, accounts)
 
 
-@pytest.mark.only
 def test_delayed_second_initialize_markets_negative_residual(environment, accounts):
     currencyId = 2
     environment = initialize_environment(accounts)
@@ -531,7 +531,6 @@ def test_delayed_second_initialize_markets_negative_residual(environment, accoun
     ntoken_asserts(environment, currencyId, False, accounts)
 
 
-@pytest.mark.only
 def test_delayed_second_initialize_markets_positive_residual(accounts):
     currencyId = 2
     environment = initialize_environment(accounts)
