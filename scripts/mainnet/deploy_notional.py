@@ -399,30 +399,34 @@ def etherscan_verify(contracts, router, pauseRouter):
         print("Verifying {} at {}".format(name, contract.address))
         verify(contract.address, [])
 
-    print("Verifying Pause Router at {}".format(pauseRouter.address))
-    verify(
-        pauseRouter.address,
-        [
+    if pauseRouter:
+        print("Verifying Pause Router at {}".format(pauseRouter.address))
+        verify(
+            pauseRouter.address,
+            [
+                contracts["Views"].address,
+                contracts["LiquidateCurrencyAction"].address,
+                contracts["LiquidatefCashAction"].address,
+            ],
+        )
+
+    if router:
+        print("Verifying Router at {}".format(router.address))
+        routerArgs = [
+            contracts["Governance"].address,
             contracts["Views"].address,
+            contracts["InitializeMarketsAction"].address,
+            contracts["nTokenAction"].address,
+            contracts["BatchAction"].address,
+            contracts["AccountAction"].address,
+            contracts["ERC1155Action"].address,
             contracts["LiquidateCurrencyAction"].address,
             contracts["LiquidatefCashAction"].address,
-        ],
-    )
-    print("Verifying Router at {}".format(router.address))
-    routerArgs = [
-        contracts["Governance"].address,
-        contracts["Views"].address,
-        contracts["InitializeMarketsAction"].address,
-        contracts["nTokenAction"].address,
-        contracts["BatchAction"].address,
-        contracts["AccountAction"].address,
-        contracts["ERC1155Action"].address,
-        contracts["LiquidateCurrencyAction"].address,
-        contracts["LiquidatefCashAction"].address,
-        TokenConfig[network.show_active()]["cETH"],
-    ]
-    print("Using router args: ", routerArgs)
-    verify(router.address, routerArgs)
+            TokenConfig[network.show_active()]["cETH"],
+        ]
+
+        print("Using router args: ", routerArgs)
+        verify(router.address, routerArgs)
 
 
 def verify(address, args):
