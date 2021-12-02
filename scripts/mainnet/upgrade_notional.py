@@ -2,22 +2,22 @@ import json
 import re
 
 from brownie import Contract, Router, accounts, network
+from brownie.project import ContractsVProject
 from scripts.deployment import deployNotionalContracts
 from scripts.mainnet.deploy_notional import TokenConfig, etherscan_verify, verify
 
 ROUTER_ARG_POSITION = {
-    "Governance": 0,
+    "GovernanceAction": 0,
     "Views": 1,
-    "InitializeMarket": 2,
-    "nTokenActions": 3,
-    "nTokenRedeem": 4,
-    "BatchAction": 5,
-    "AccountAction": 6,
-    "ERC1155": 7,
-    "LiquidateCurrency": 8,
-    "LiquidatefCash": 9,
-    "cETH": 10,
-    "TreasuryManager": 11,
+    "InitializeMarketsAction": 2,
+    "nTokenAction": 3,
+    "BatchAction": 4,
+    "AccountAction": 5,
+    "ERC1155Action": 6,
+    "LiquidateCurrencyAction": 7,
+    "LiquidatefCashAction": 8,
+    "cETH": 9,
+    "TreasuryManager": 10,
 }
 
 
@@ -40,14 +40,13 @@ def full_upgrade(deployer, verify=True):
     return (router, pauseRouter, contracts)
 
 
-def update_contract(deployer, output):
+def update_contract(deployer, output, upgradeContracts):
     router = Contract.from_abi("router", output["notional"], Router.abi)
     routerArgs = [
         router.GOVERNANCE(),
         router.VIEWS(),
         router.INITIALIZE_MARKET(),
         router.NTOKEN_ACTIONS(),
-        router.NTOKEN_REDEEM(),
         router.BATCH_ACTION(),
         router.ACCOUNT_ACTION(),
         router.ERC1155(),
@@ -55,12 +54,22 @@ def update_contract(deployer, output):
         router.LIQUIDATE_FCASH(),
         router.cETH(),
     ]
-    # THIS IS FOR KOVAN
-    # routerArgs[ROUTER_ARG_POSITION["Governance"]] = "0xfEbC565a1C8C70dBbDC11F0E6Ad8cc33B6F3Dd1B"
-    # THIS IS FOR MAINNET
-    routerArgs[ROUTER_ARG_POSITION["Governance"]] = "0xD2b104A30518ABeE70E5b77023d8966A2234253d"
+
+    contracts = {}
+    for c in upgradeContracts:
+        print("Deploying {}".format(c))
+        contracts[c] = ContractsVProject[c].deploy({"from": deployer})
+
+        if not hasattr(contracts[c], "address"):
+            # Sometimes this is not decoded to a contract container and is just a txn receipt
+            contracts[c] = ContractsVProject[c].at(contracts[c].contract_address)
+
+        # Libraries are not added to the router arguments
+        if c in ROUTER_ARG_POSITION:
+            routerArgs[ROUTER_ARG_POSITION[c]] = contracts[c].address
 
     newRouter = Router.deploy(*routerArgs, {"from": deployer})
+    etherscan_verify(contracts, None, None)
     verify(newRouter.address, routerArgs)
     return newRouter
 
@@ -78,4 +87,16 @@ def upgrade_checks():
         m = re.search("address constant NOTE_TOKEN_ADDRESS = (.*);", constants)
         assert m.group(1) == output["note"]
 
-    return (deployer, output)
+    router = update_contract(
+        deployer,
+        output,
+        [
+            "nTokenRedeemAction",
+            "AccountAction",
+            "BatchAction",
+            "InitializeMarketsAction",
+            "ERC1155Action",
+        ],
+    )
+
+    print("New Router Implementation At: ", router.address)
