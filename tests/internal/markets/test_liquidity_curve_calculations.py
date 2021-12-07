@@ -1,8 +1,7 @@
+import logging
 import math
-import random
 
 import pytest
-from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from tests.constants import (
     CASH_GROUP_PARAMETERS,
@@ -13,6 +12,8 @@ from tests.constants import (
     START_TIME,
 )
 from tests.helpers import get_market_state, impliedRateStrategy, timeToMaturityStrategy
+
+LOGGER = logging.getLogger(__name__)
 
 
 @pytest.mark.market
@@ -185,10 +186,13 @@ class TestLiquidityCurve:
         proportion=strategy(
             "uint256", min_value=0.33 * RATE_PRECISION, max_value=0.66 * RATE_PRECISION
         ),
+        initialCashAmount=strategy("int256", min_value=-10000, max_value=10000),
         impliedRate=impliedRateStrategy,
     )
-    def test_fcash_convergence(self, marketWithCToken, marketIndex, proportion, impliedRate):
-        initialCashAmount = Wei(1e8 * random.randint(-100000, 100000))
+    def test_fcash_convergence(
+        self, marketWithCToken, marketIndex, proportion, impliedRate, initialCashAmount
+    ):
+        initialCashAmount = initialCashAmount * 1e8
         totalfCash = 1e18
         totalCashUnderlying = totalfCash * (RATE_PRECISION - proportion) / proportion
         cashGroup = marketWithCToken.buildCashGroupView(1)
@@ -208,4 +212,15 @@ class TestLiquidityCurve:
             marketState, cashGroup, fCashAmount, marketState[1] - START_TIME, marketIndex
         )
 
+        LOGGER.info(
+            "fCash: {}, marketProportion: {}, initialCash: {}, finalCash: {}, diff: {}".format(
+                fCashAmount / 1e8,
+                proportion / 1e9,
+                initialCashAmount / 1e8,
+                cashAmount / 1e8,
+                (cashAmount - initialCashAmount) / initialCashAmount
+                if initialCashAmount != 0
+                else 0,
+            )
+        )
         assert pytest.approx(cashAmount, rel=1e-9, abs=100) == initialCashAmount
