@@ -97,7 +97,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         address[] calldata initialAccounts,
         uint96[] calldata initialGrantAmount,
         address owner_
-    ) public initializer {
+    ) public virtual initializer {
         require(initialGrantAmount.length == initialAccounts.length);
 
         uint96 totalGrants = 0;
@@ -383,12 +383,12 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         emit DelegateVotesChanged(delegatee, oldVotes, newVotes);
     }
 
-    function _safe32(uint256 n, string memory errorMessage) private pure returns (uint32) {
+    function _safe32(uint256 n, string memory errorMessage) internal pure returns (uint32) {
         require(n <= type(uint32).max, errorMessage);
         return uint32(n);
     }
 
-    function _safe96(uint256 n, string memory errorMessage) private pure returns (uint96) {
+    function _safe96(uint256 n, string memory errorMessage) internal pure returns (uint96) {
         require(n <= type(uint96).max, errorMessage);
         return uint96(n);
     }
@@ -397,7 +397,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         uint96 a,
         uint96 b,
         string memory errorMessage
-    ) private pure returns (uint96) {
+    ) internal pure returns (uint96) {
         uint96 c = a + b;
         require(c >= a, errorMessage);
         return c;
@@ -407,7 +407,7 @@ contract NoteERC20 is Initializable, UUPSUpgradeable {
         uint96 a,
         uint96 b,
         string memory errorMessage
-    ) private pure returns (uint96) {
+    ) internal pure returns (uint96) {
         require(b <= a, errorMessage);
         return a - b;
     }
