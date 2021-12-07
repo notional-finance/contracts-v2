@@ -16,6 +16,11 @@ EnvironmentConfig = {
         "NotionalFoundation": "0x4ba1d028e053A53842Ce31b0357C5864B40Ef909",
         "GuardianMultisig": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
     },
+    "rinkeby": {
+        "AirdropClaimTime": 1629097200,  # August 16, 2021 UTC 0
+        "NotionalFoundation": "0x4ba1d028e053A53842Ce31b0357C5864B40Ef909",
+        "GuardianMultisig": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
+    },
     "mainnet": {
         "AirdropClaimTime": 1633305600,  # Oct 4, 2021 UTC 0
         "NotionalFoundation": "0x22341fB5D92D3d801144aA5A925F401A91418A05",
