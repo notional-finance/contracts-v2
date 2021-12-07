@@ -81,6 +81,17 @@
       "0x1c510763432C0e65d86f313612d4e1E2D26E4332"
     ]
   },
+  "4": {
+    "GovernorAlpha": [
+      "0x086b4ecD75c494dD36641195E89c25373E06d7cB"
+    ],
+    "NoteERC20": [
+      "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4"
+    ],
+    "nProxy": [
+      "0x72Ec9dE3eFD22552b6dc17142EAd505A48940D4E"
+    ]
+  },
   "42": {
     "AccountAction": [
       "0x98A251D9D43c35e7cd9ece91C40E7e3d5a0238ca"
