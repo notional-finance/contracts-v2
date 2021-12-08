@@ -7,13 +7,13 @@ import "interfaces/arbitrum/gateway/IL1CustomGateway.sol";
 import "interfaces/arbitrum/gateway/IL1GatewayRouter.sol";
 
 contract ArbitrumL1NoteERC20 is NoteERC20, ICustomToken {
-    address public immutable arbitrumBridge;
+    address public immutable arbitrumGateway;
     address public immutable arbitrumRouter;
     bool private shouldRegisterGateway;
 
-    constructor (address _bridge, address _router) NoteERC20() {
-        arbitrumBridge = _bridge;
-        arbitrumRouter = _router;
+    constructor (address _customGateway, address _gatewayRouter) NoteERC20() {
+        arbitrumGateway = _customGateway;
+        arbitrumRouter = _gatewayRouter;
     }
 
     /// @dev we only set shouldRegisterGateway to true when in `registerTokenOnL2`
@@ -30,29 +30,26 @@ contract ArbitrumL1NoteERC20 is NoteERC20, ICustomToken {
         uint256 maxGasForRouter,
         uint256 gasPriceBid,
         uint256 valueForGateway,
-        uint256 valueForRouter,
-        address creditBackAddress
-    ) public payable override {
+        uint256 valueForRouter
+    ) public payable override onlyOwner {
         // we temporarily set `shouldRegisterGateway` to true for the callback in registerTokenToL2 to succeed
         bool prev = shouldRegisterGateway;
         shouldRegisterGateway = true;
 
-        // L1CustomGateway(bridge).registerTokenToL2{value: valueForGateway}(
-        IL1CustomGateway(arbitrumBridge).registerTokenToL2(
+        IL1CustomGateway(arbitrumGateway).registerTokenToL2{value: valueForGateway}(
             l2CustomTokenAddress,
             maxGasForCustomBridge,
             gasPriceBid,
             maxSubmissionCostForCustomBridge,
-            creditBackAddress
+            msg.sender
         );
 
-        // L1GatewayRouter(router).setGateway{value: valueForRouter}(
-        IL1GatewayRouter(arbitrumRouter).setGateway(
-            arbitrumBridge,
+        IL1GatewayRouter(arbitrumRouter).setGateway{value: valueForRouter}(
+            arbitrumGateway,
             maxGasForRouter,
             gasPriceBid,
             maxSubmissionCostForRouter,
-            creditBackAddress
+            msg.sender
         );
 
         shouldRegisterGateway = prev;
