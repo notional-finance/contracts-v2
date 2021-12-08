@@ -38,7 +38,6 @@ interface ICustomToken is ArbitrumEnabledToken {
         uint256 maxGasForRouter,
         uint256 gasPriceBid,
         uint256 valueForGateway,
-        uint256 valueForRouter,
-        address creditBackAddress
+        uint256 valueForRouter
     ) external payable;
 }

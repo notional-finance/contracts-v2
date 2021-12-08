@@ -19,8 +19,8 @@ contract ArbitrumL2NoteERC20 is NoteERC20, IArbToken {
         _;
     }
 
-    constructor(address _l2Gateway, address _l1Address) NoteERC20() {
-        l2Gateway = _l2Gateway;
+    constructor(address _l2CustomGateway, address _l1Address) NoteERC20() {
+        l2Gateway = _l2CustomGateway;
         l1Address = _l1Address;
     }
 
