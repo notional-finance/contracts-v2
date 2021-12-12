@@ -6,5 +6,6 @@
     "guardian": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
     "networkName": "rinkeby",
     "note": "0x72Ec9dE3eFD22552b6dc17142EAd505A48940D4E",
-    "startBlock": 9773504
+    "startBlock": 9773504,
+    "arbitrumNote": "0xeA61de381a5c88496eE66b4A06b272086bDc69c4"
 }
