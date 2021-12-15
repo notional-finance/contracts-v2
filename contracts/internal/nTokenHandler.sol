@@ -595,27 +595,18 @@ library nTokenHandler {
     ) internal view returns (bytes32) {
         // If max market index is less than or equal to 2, there are no ifCash assets
         if (maxMarketIndex <= 2) return bytes32(0);
-
         bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(tokenAddress, currencyId);
-        // lastInitializedTime may have some delta from tRef, we will shift the mask to the right accordingly.
-        // We know in this case that lastInitializedTime will be less than the current time and less than a quarter.
         uint256 tRef = DateTime.getReferenceTime(blockTime);
-        // Last initialized time cannot be larger than tRef. If this is the case then market initialization must occur and
-        // we will not have reached this point of the contracts.
-        uint256 dayDiff = (lastInitializedTime - tRef) / Constants.DAY;
-        require(tRef <= lastInitializedTime && dayDiff < Constants.DAYS_IN_QUARTER);
 
-        // TODO: does this actually work for two weeks?
-        if (dayDiff < Constants.DAYS_IN_WEEK) {
-            // This will turn off any bits in the assetsBitmap that are in active markets. This only works when the
-            // initialized time is less than a week from the initial time reference due to bit shifts that occur in the
-            // week section of the bitmap. This will generally be the case.
+        if (tRef == lastInitializedTime) {
+            // This is a more efficient way to turn off ifCash assets in the common case when the market is
+            // initialized immediately
             return assetsBitmap & ~(Constants.ACTIVE_MARKETS_MASK);
         } else {
-            // In this branch, initialize markets has occurred past the time above. It would be very odd to reach this else
-            // statement. It would occur in the following two scenarios:
-            // 1. initializing a cash group with 3+ markets for the first time past a week
-            // 2. somehow initialize markets has been delayed for more than a week
+            // In this branch, initialize markets has occurred past the time above. It would occur in these
+            // two scenarios:
+            // 1. initializing a cash group with 3+ markets for the first time (not beginning on the tRef)
+            // 2. somehow initialize markets has been delayed for more than a day
             for (uint i = 1; i <= maxMarketIndex; i++) {
                 uint256 maturity = tRef + DateTime.getTradedMarket(i);
                 (uint256 bitNum, /* */) = DateTime.getBitNumFromMaturity(lastInitializedTime, maturity);

@@ -91,8 +91,15 @@ def isolation(fn_isolation):
 
 @given(initalizedTimeOffset=strategy("uint32", min_value=0, max_value=89))
 def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
-    (bitmap, _) = random_asset_bitmap(15)
+    (_, bitmapList) = random_asset_bitmap(15)
     lastInitializedTime = START_TIME_TREF + initalizedTimeOffset * SECONDS_IN_DAY
+    for m in marketStates:
+        (bitNum, exact) = nTokenRedeemPure.getBitNumFromMaturity(lastInitializedTime, m[1])
+        assert exact
+        bitmapList[bitNum - 1] = "1"
+
+    bitmap = get_bitmap_from_bitlist(bitmapList)
+
     # add random ifcash assets at various maturities
     # test that the bits returned are always ifcash
     nTokenRedeemPure.setAssetsBitmap(tokenAddress, currencyId, bitmap)
@@ -120,7 +127,6 @@ def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
 # END PURE METHODS
 
 
-@pytest.mark.only
 @given(
     lt1=strategy("uint256", min_value=0.1e18, max_value=1e18),
     lt2=strategy("uint256", min_value=0.1e18, max_value=1e18),
