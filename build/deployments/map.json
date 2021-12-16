@@ -83,17 +83,17 @@
   },
   "42": {
     "AccountAction": [
-      "0x71cd56cA7aF7116fa9a423dE022868A52ecB3b07"
+      "0x0ea0E6F7bf84E31B9A5f122b6edF18b77d8cF0cA"
     ],
     "BatchAction": [
-      "0x935570fca4e87811a6E4dc74733764320E82DBF0"
+      "0x25bBD37E79Fe182fcbdc0F98521cCA0649a24067"
     ],
     "ChainlinkAdapter": [
       "0x8470516910062633bBF959f940232F9d300eF0f6",
       "0x0ff45Fd2ad282B7E6E29dc10DbE6B3fc907284b0"
     ],
     "ERC1155Action": [
-      "0xCd81D7F80F7f76cc90572cef699ba2367a645c73"
+      "0x135B67fC90f60A29e58d03518a7546f6E4215c9C"
     ],
     "FreeCollateralExternal": [
       "0xF3A4A14d23a4220ff3425B3E9c8b7D58DE51DE14"
@@ -105,7 +105,7 @@
       "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3"
     ],
     "InitializeMarketsAction": [
-      "0x1f55BdcFa6Cc7530eA682a463a8C82f8AAa610eA"
+      "0xD9ED257dd2dA31e337852274AA1C40a64d21882C"
     ],
     "LiquidateCurrencyAction": [
       "0x2b5d343E861C06af1810d7Da571773972A2446c6"
@@ -124,7 +124,7 @@
       "0x2138Ddf29B384f89d1010364d1161dd849EbDB70"
     ],
     "Router": [
-      "0x75702c3DcBEff13380f73C9F4bB7794CDBc078de"
+      "0x137dcF95f99987158a324CeFdcd19A5992D268c9"
     ],
     "SettleAssetsExternal": [
       "0xf06ba1bB1D9de1F4D71dA4Cc15Db7725eD773824"
@@ -151,7 +151,7 @@
       "0xf2dD74d0B5eAfC68D7FE022E32b54bb8f9D6DE1D"
     ],
     "nTokenRedeemAction": [
-      "0x718a63B0498Bf6B18d8E48C951400094d4BD98C5"
+      "0xc3209CE9e2E8a51350775678b8a188F236B03574"
     ]
   }
 }
