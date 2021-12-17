@@ -502,6 +502,17 @@ contract Views is StorageLayoutV2, NotionalViews {
         return address(LibStorage.getLendingPool().lendingPool);
     }
 
+    /// @notice Returns the current treasury manager contract
+    function getTreasuryManager() external view override returns (address) {
+        return treasuryManagerContract;
+    }
+
+    /// @notice Returns the current reserve buffer for a currency
+    /// @param currencyId refers to the currency of the reserve
+    function getReserveBuffer(uint16 currencyId) external view override returns (uint256) {
+        return reserveBuffer[currencyId];
+    }
+
     fallback() external {
         revert("Method not found");
     }
