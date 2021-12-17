@@ -33,6 +33,7 @@ contract Router is StorageLayoutV1 {
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
+    address public immutable TREASURY;
     address private immutable DEPLOYER;
 
     constructor(
@@ -46,7 +47,8 @@ contract Router is StorageLayoutV1 {
         address erc1155_,
         address liquidateCurrency_,
         address liquidatefCash_,
-        address cETH_
+        address cETH_,
+        address treasury_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
@@ -60,6 +62,7 @@ contract Router is StorageLayoutV1 {
         LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
         DEPLOYER = msg.sender;
+        TREASURY = treasury_;
 
         // This will lock everyone from calling initialize on the implementation contract
         hasInitialized = true;
@@ -184,6 +187,14 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
+        } else if (
+            sig == NotionalTreasury.claimCOMPAndTransfer.selector ||
+            sig == NotionalTreasury.transferReserveToTreasury.selector ||
+            sig == NotionalTreasury.setTreasuryManager.selector ||
+            sig == NotionalTreasury.setReserveBuffer.selector ||
+            sig == NotionalTreasury.setReserveCashBalance.selector
+        ) {
+            return TREASURY;
         } else {
             // If not found then delegate to views. This will revert if there is no method on
             // the view contract

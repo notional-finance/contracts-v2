@@ -22,6 +22,10 @@ library BalanceHandler {
     event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
     /// @notice Emitted when reserve fees are accrued
     event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
+    /// @notice Emitted when reserve balance is updated
+    event ReserveBalanceUpdated(uint16 indexed currencyId, int256 newBalance);
+    /// @notice Emitted when reserve balance is harvested
+    event ExcessReserveBalanceHarvested(uint16 indexed currencyId, int256 harvestAmount);
 
     /// @notice Deposits asset tokens into an account
     /// @dev Handles two special cases when depositing tokens into an account.
@@ -362,6 +366,21 @@ library BalanceHandler {
         totalReserve = totalReserve.add(fee);
         _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
         emit ReserveFeeAccrued(uint16(currencyId), fee);
+    }
+
+    /// @notice harvests excess reserve balance
+    function harvestExcessReserveBalance(uint16 currencyId, int256 reserve, int256 assetInternalRedeemAmount) internal {
+        // parameters are validated by the caller
+        reserve = reserve.subNoNeg(assetInternalRedeemAmount);
+        _setBalanceStorage(Constants.RESERVE, currencyId, reserve, 0, 0, 0);
+        emit ExcessReserveBalanceHarvested(currencyId, assetInternalRedeemAmount);
+    }
+
+    /// @notice sets the reserve balance, see TreasuryAction.setReserveCashBalance
+    function setReserveCashBalance(uint16 currencyId, int256 newBalance) internal {
+        require(newBalance >= 0); // dev: invalid balance
+        _setBalanceStorage(Constants.RESERVE, currencyId, newBalance, 0, 0, 0);
+        emit ReserveBalanceUpdated(currencyId, newBalance);
     }
 
     /// @notice Sets internal balance storage.

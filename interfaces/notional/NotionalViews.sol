@@ -142,4 +142,7 @@ interface NotionalViews {
         view
         returns (uint256);
 
+    function getTreasuryManager() external view returns (address);
+    
+    function getReserveBuffer(uint16 currencyId) external view returns(uint256);
 }

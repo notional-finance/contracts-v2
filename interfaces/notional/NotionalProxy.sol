@@ -7,8 +7,9 @@ import "./nTokenERC20.sol";
 import "./nERC1155Interface.sol";
 import "./NotionalGovernance.sol";
 import "./NotionalViews.sol";
+import "./NotionalTreasury.sol";
 
-interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, NotionalViews {
+interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, NotionalTreasury, NotionalViews {
     /** User trading events */
     event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
     event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
