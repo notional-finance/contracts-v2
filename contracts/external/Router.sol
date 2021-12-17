@@ -100,7 +100,7 @@ contract Router is StorageLayoutV1 {
     /// @notice Returns the implementation contract for the method signature
     /// @param sig method signature to call
     /// @return implementation address
-    function getRouterImplementation(bytes4 sig) public view returns (address) {
+    function getRouterImplementation(bytes4 sig) public virtual view returns (address) {
         if (
             sig == NotionalProxy.batchBalanceAction.selector ||
             sig == NotionalProxy.batchBalanceAndTradeAction.selector ||
