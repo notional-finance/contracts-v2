@@ -14,40 +14,25 @@ contract MockIncentives {
         uint32 blockTime
     ) external returns (uint256) {
         nTokenHandler.setNTokenAddress(currencyId, tokenAddress);
-        nTokenHandler.setIncentiveEmissionRate(tokenAddress, emissionRate);
+        nTokenHandler.setIncentiveEmissionRate(tokenAddress, emissionRate, blockTime);
         return nTokenHandler.changeNTokenSupply(tokenAddress, totalSupply, blockTime);
-    }
-
-    function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
-        external
-        view 
-        returns (uint256, uint256, uint256) 
-    {
-        return nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
     }
 
     function calculateIncentivesToClaim(
         address tokenAddress,
-        uint256 nTokenBalance,
-        uint256 lastClaimTime,
-        uint256 lastClaimIntegralSupply,
+        BalanceState memory balanceState,
         uint256 blockTime
-    ) external view returns (uint256) {
-        // prettier-ignore
+    ) external view returns (uint256 incentivesToClaim) {
         (
-            /* */,
-            uint256 integralTotalSupply,
-            /* */
-        ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+            /* uint256 totalSupply */,
+            uint256 accumulatedNOTEPerNToken,
+            /* uint256 lastAccumulatedTime */
+        ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
-        return
-            Incentives.calculateIncentivesToClaim(
-                tokenAddress,
-                nTokenBalance,
-                lastClaimTime,
-                lastClaimIntegralSupply,
-                blockTime,
-                integralTotalSupply
-            );
+        incentivesToClaim = Incentives.calculateIncentivesToClaim(
+            balanceState,
+            tokenAddress,
+            accumulatedNOTEPerNToken
+        );
     }
 }

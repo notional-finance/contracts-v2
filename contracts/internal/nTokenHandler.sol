@@ -11,10 +11,12 @@ import "./portfolio/PortfolioHandler.sol";
 import "./balances/BalanceHandler.sol";
 import "../math/SafeInt256.sol";
 import "../math/Bitmap.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenHandler {
     using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
+    using SafeMath for uint256;
     using Bitmap for bytes32;
     using CashGroup for CashGroupParameters;
 
@@ -36,7 +38,6 @@ library nTokenHandler {
         mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
         nTokenContext storage context = store[tokenAddress];
 
-        // TODO: how many storage reads is this?
         currencyId = context.currencyId;
         incentiveAnnualEmissionRate = context.incentiveAnnualEmissionRate;
         lastInitializedTime = context.lastInitializedTime;
@@ -96,59 +97,96 @@ library nTokenHandler {
         context.nTokenParameters = parameters;
     }
 
-    /// @notice Retrieves the nToken supply factors without any updates or calculations
     function getStoredNTokenSupplyFactors(address tokenAddress)
         internal
         view
         returns (
             uint256 totalSupply,
-            uint256 integralTotalSupply,
-            uint256 lastSupplyChangeTime
+            uint256 accumulatedNOTEPerNToken,
+            uint256 lastAccumulatedTime
         )
     {
         mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
         nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
         totalSupply = nTokenStorage.totalSupply;
-        // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The integral total supply
-        // must be updated given the block time. Use `calculateIntegralTotalSupply` instead
-        integralTotalSupply = nTokenStorage.integralTotalSupply;
-        lastSupplyChangeTime = nTokenStorage.lastSupplyChangeTime;
+        // NOTE: DO NOT USE THIS RETURNED VALUE FOR CALCULATING INCENTIVES. The accumulatedNOTEPerNToken
+        // must be updated given the block time. Use `changeNTokenSupply` instead
+        accumulatedNOTEPerNToken = nTokenStorage.accumulatedNOTEPerNToken;
+        lastAccumulatedTime = nTokenStorage.lastAccumulatedTime;
     }
 
-    /// @notice Retrieves stored total supply factors and 
-    function calculateIntegralTotalSupply(address tokenAddress, uint256 blockTime) 
-        internal
-        view 
+    function getUpdatedAccumulatedNOTEPerNToken(address tokenAddress, uint256 blockTime)
+        internal view
         returns (
             uint256 totalSupply,
-            uint256 integralTotalSupply,
-            uint256 lastSupplyChangeTime
+            uint256 accumulatedNOTEPerNToken,
+            uint256 lastAccumulatedTime
         )
     {
         (
             totalSupply,
-            integralTotalSupply,
-            lastSupplyChangeTime
+            accumulatedNOTEPerNToken,
+            lastAccumulatedTime
         ) = getStoredNTokenSupplyFactors(tokenAddress);
 
-        // Initialize last supply change time if it has not been set.
-        if (lastSupplyChangeTime == 0) lastSupplyChangeTime = blockTime;
+        if (blockTime > lastAccumulatedTime) {
+            // Only do this calculation if the timeSinceLastAccumulation is greater than 0
 
-        require(blockTime >= lastSupplyChangeTime); // dev: invalid block time
+            // prettier-ignore
+            (
+                /* currencyId */,
+                uint256 emissionRatePerYear,
+                /* initializedTime */,
+                /* assetArrayLength */,
+                /* parameters */
+            ) = nTokenHandler.getNTokenContext(tokenAddress);
 
-        // Add to the integral total supply the total supply of tokens multiplied by the time that the total supply
-        // has been the value. This will part of the numerator for the average total supply calculation during
-        // minting incentives.
-        integralTotalSupply = uint256(int256(integralTotalSupply).add(
-            int256(totalSupply).mul(int256(blockTime - lastSupplyChangeTime))
-        ));
+            uint256 additionalNOTEAccumulatedPerNToken = calculateAdditionalNOTE(
+                // Emission rate is denominated in whole tokens, add 1e8 decimals here
+                emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)),
+                // Time since last accumulation (overflow checked above)
+                blockTime - lastAccumulatedTime,
+                totalSupply
+            );
 
-        require(integralTotalSupply >= 0 && integralTotalSupply < type(uint128).max); // dev: integral total supply overflow
-        require(blockTime < type(uint32).max); // dev: last supply change supply overflow
+            accumulatedNOTEPerNToken = accumulatedNOTEPerNToken.add(additionalNOTEAccumulatedPerNToken);
+            require(accumulatedNOTEPerNToken < type(uint128).max); // dev: accumulated NOTE overflow
+        }
     }
 
+    /// @notice additionalNOTEPerNToken accumulated since last accumulation time in 1e18 precision
+    function calculateAdditionalNOTE(
+        uint256 emissionRatePerYear,
+        uint256 timeSinceLastAccumulation,
+        uint256 totalSupply
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        // If we use 18 decimal places as the accumulation precision then we will overflow uint128 when
+        // a single nToken has accumulated 3.4 x 10^20 NOTE tokens. This isn't possible since the max
+        // NOTE that can accumulate is 10^17 (100 million NOTE in 1e8 precision) so we should be safe
+        // using 18 decimal places and uint128 storage slot
+
+        // timeSinceLastAccumulation (SECONDS)
+        // accumulatedNOTEPerSharePrecision (1e18)
+        // emissionRatePerYear (INTERNAL_TOKEN_PRECISION)
+        // DIVIDE BY
+        // YEAR (SECONDS)
+        // totalSupply (INTERNAL_TOKEN_PRECISION)
+        return timeSinceLastAccumulation
+            .mul(Constants.INCENTIVE_ACCUMULATION_PRECISION)
+            .mul(emissionRatePerYear)
+            .div(Constants.YEAR)
+            .div(totalSupply);
+    }
 
     /// @notice Updates the nToken token supply amount when minting or redeeming.
+    /// @param tokenAddress address of the nToken
+    /// @param netChange positive or negative change to the total nToken supply
+    /// @param blockTime current block time
+    /// @return accumulatedNOTEPerNToken updated to the given block time
     function changeNTokenSupply(
         address tokenAddress,
         int256 netChange,
@@ -156,30 +194,32 @@ library nTokenHandler {
     ) internal returns (uint256) {
         (
             uint256 totalSupply,
-            uint256 integralTotalSupply,
-            /* uint256 lastSupplyChangeTime */
-        ) = calculateIntegralTotalSupply(tokenAddress, blockTime);
+            uint256 accumulatedNOTEPerNToken,
+            /* uint256 lastAccumulatedTime */
+        ) = getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
-        if (netChange != 0) {
-            // If the totalSupply will change then we store the new total supply, the integral total supply and the
-            // current block time. We know that this int256 conversion will not overflow because totalSupply is stored
-            // as a uint96 and checked in the next line.
-            int256 newTotalSupply = int256(totalSupply).add(netChange);
-            require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
+        // Update storage variables
+        mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
+        nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
 
-            mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
-            nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
+        int256 newTotalSupply = int256(totalSupply).add(netChange);
+        require(newTotalSupply >= 0 && uint256(newTotalSupply) < type(uint96).max); // dev: nToken supply overflow
 
-            nTokenStorage.totalSupply = uint96(newTotalSupply);
-            // NOTE: overflows checked in calculateIntegralTotalSupply
-            nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
-            nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
-        }
+        nTokenStorage.totalSupply = uint96(newTotalSupply);
+        // NOTE: overflow checked above if the accumulatedNOTEPerNToken value has changed
+        nTokenStorage.accumulatedNOTEPerNToken = uint128(accumulatedNOTEPerNToken);
 
-        return integralTotalSupply;
+        require(blockTime < type(uint32).max); // dev: block time overflow
+        nTokenStorage.lastAccumulatedTime = uint32(blockTime);
+
+        return accumulatedNOTEPerNToken;
     }
 
-    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) internal {
+    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate, uint256 blockTime) internal {
+        // Ensure that the accumulatedNOTEPerNToken updates to the current block time before we update the
+        // emission rate
+        changeNTokenSupply(tokenAddress, 0, blockTime);
+
         mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
         nTokenContext storage context = store[tokenAddress];
         context.incentiveAnnualEmissionRate = newEmissionsRate;

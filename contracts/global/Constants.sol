@@ -10,6 +10,7 @@ library Constants {
     // Token precision used for all internal balances, TokenHandler library ensures that we
     // limit the dust amount caused by precision mismatches
     int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;
+    uint256 internal constant INCENTIVE_ACCUMULATION_PRECISION = 1e18;
 
     // ETH will be initialized as the first currency
     uint256 internal constant ETH_CURRENCY_ID = 1;

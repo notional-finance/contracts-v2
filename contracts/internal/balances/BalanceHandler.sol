@@ -156,16 +156,14 @@ library BalanceHandler {
         }
 
         if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
-            // It's crucial that incentives are claimed before we do any sort of nToken transfer to prevent gaming
-            // of the system. This method will update the lastClaimTime time and lastIntegralTotalSupply in balance
-            // state in place.
-            Incentives.claimIncentives(balanceState, account);
-
-            // nTokens are within the notional system so we can update balances directly.
-            balanceState.storedNTokenBalance = balanceState
-                .storedNTokenBalance
+            // Final nToken balance is used to calculate the account incentive debt
+            int256 finalNTokenBalance = balanceState.storedNTokenBalance
                 .add(balanceState.netNTokenTransfer)
                 .add(balanceState.netNTokenSupplyChange);
+
+            Incentives.claimIncentives(balanceState, account, finalNTokenBalance.toUint());
+
+            balanceState.storedNTokenBalance = finalNTokenBalance;
 
             if (balanceState.netNTokenSupplyChange != 0) {
                 emit nTokenSupplyChange(
@@ -379,16 +377,16 @@ library BalanceHandler {
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
-        require(lastClaimTime <= type(uint32).max); // dev: last claim time overflow
+        // Post incentive migration, lastClaimTime should always be set to zero
+        require(lastClaimTime == 0); // dev: last claim time set
+        // The maximum NOTE supply is 100_000_000e8 (1e16) which is less than 2^56 (7.2e16) so we should never
+        // encounter an overflow for accountIncentiveDebt
+        require(lastClaimIntegralSupply <= type(uint56).max); // dev: last claim integral supply overflow
 
         balanceStorage.nTokenBalance = uint80(nTokenBalance);
         balanceStorage.lastClaimTime = uint32(lastClaimTime);
         balanceStorage.cashBalance = int88(cashBalance);
-
-        // Last claim supply is stored in a "floating point" storage slot that does not maintain exact precision but
-        // is also not limited by storage overflows. `packTo56Bits` will ensure that the the returned value will fit
-        // in 56 bits (7 bytes)
-        balanceStorage.packedLastClaimIntegralSupply = FloatingPoint56.packTo56Bits(lastClaimIntegralSupply);
+        balanceStorage.packedLastClaimIntegralSupply = uint56(lastClaimIntegralSupply);
     }
 
     /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
@@ -407,7 +405,12 @@ library BalanceHandler {
 
         nTokenBalance = balanceStorage.nTokenBalance;
         lastClaimTime = balanceStorage.lastClaimTime;
-        lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(balanceStorage.packedLastClaimIntegralSupply);
+        if (lastClaimTime > 0) {
+            // NOTE: this is only necessary to support the deprecated integral supply values
+            lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(balanceStorage.packedLastClaimIntegralSupply);
+        } else {
+            lastClaimIntegralSupply = balanceStorage.packedLastClaimIntegralSupply;
+        }
         cashBalance = balanceStorage.cashBalance;
     }
 
@@ -447,9 +450,14 @@ library BalanceHandler {
     /// to storage to update the lastClaimTime and lastClaimIntegralSupply
     function claimIncentivesManual(BalanceState memory balanceState, address account)
         internal
-        returns (uint256)
+        returns (uint256 incentivesClaimed)
     {
-        uint256 incentivesClaimed = Incentives.claimIncentives(balanceState, account);
+        incentivesClaimed = Incentives.claimIncentives(
+            balanceState,
+            account,
+            balanceState.storedNTokenBalance.toUint()
+        );
+
         _setBalanceStorage(
             account,
             balanceState.currencyId,
@@ -458,7 +466,5 @@ library BalanceHandler {
             balanceState.lastClaimTime,
             balanceState.lastClaimIntegralSupply
         );
-
-        return incentivesClaimed;
     }
 }
