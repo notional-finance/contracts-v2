@@ -129,7 +129,9 @@ library nTokenHandler {
             lastAccumulatedTime
         ) = getStoredNTokenSupplyFactors(tokenAddress);
 
-        if (blockTime > lastAccumulatedTime) {
+        // nToken totalSupply is never allowed to drop to zero but we check this here to avoid
+        // divide by zero errors during initialization
+        if (blockTime > lastAccumulatedTime && totalSupply > 0) {
             // Only do this calculation if the timeSinceLastAccumulation is greater than 0
 
             // prettier-ignore
@@ -179,6 +181,7 @@ library nTokenHandler {
             .mul(Constants.INCENTIVE_ACCUMULATION_PRECISION)
             .mul(emissionRatePerYear)
             .div(Constants.YEAR)
+            // totalSupply > 0 is checked in the calling function
             .div(totalSupply);
     }
 
