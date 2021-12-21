@@ -18,7 +18,8 @@ library Incentives {
     function calculateIncentivesToClaim(
         BalanceState memory balanceState,
         address tokenAddress,
-        uint256 accumulatedNOTEPerNToken
+        uint256 accumulatedNOTEPerNToken,
+        uint256 finalNTokenBalance
     ) internal view returns (uint256 incentivesToClaim) {
         if (balanceState.lastClaimTime > 0) {
             // If lastClaimTime is set then the account had incentives under the
@@ -56,6 +57,21 @@ library Incentives {
                 // NOTE: This should be called accountIncentivesDebt
                 .sub(balanceState.lastClaimIntegralSupply)
         );
+
+        // Update accountIncentivesDebt denominated in INTERNAL_TOKEN_PRECISION which marks the portion
+        // of the accumulatedNOTE that the account no longer has a claim over. Use the finalNTokenBalance
+        // here instead of storedNTokenBalance to mark the overall incentives claim that the account
+        // does not have a claim over. We do not aggregate this value with the previous accountIncentiveDebt
+        // because accumulatedNOTEPerNToken is already an aggregated value.
+
+        // The calculation below has the following precision:
+        //   finalNTokenBalance (INTERNAL_TOKEN_PRECISION)
+        //   MUL accumulatedNOTEPerNToken (INCENTIVE_ACCUMULATION_PRECISION)
+        //   DIV INCENTIVE_ACCUMULATION_PRECISION
+        //   = INTERNAL_TOKEN_PRECISION
+        balanceState.lastClaimIntegralSupply = finalNTokenBalance
+            .mul(accumulatedNOTEPerNToken)
+            .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
     }
 
     /// @notice Incentives must be claimed every time nToken balance changes.
@@ -78,23 +94,9 @@ library Incentives {
         incentivesToClaim = calculateIncentivesToClaim(
             balanceState,
             tokenAddress,
-            accumulatedNOTEPerNToken
+            accumulatedNOTEPerNToken,
+            finalNTokenBalance
         );
-
-        // Update accountIncentivesDebt denominated in INTERNAL_TOKEN_PRECISION which marks the portion
-        // of the accumulatedNOTE that the account no longer has a claim over. Use the finalNTokenBalance
-        // here instead of storedNTokenBalance to mark the overall incentives claim that the account
-        // does not have a claim over. We do not aggregate this value with the previous accountIncentiveDebt
-        // because accumulatedNOTEPerNToken is already an aggregated value.
-
-        // The calculation below has the following precision:
-        //   finalNTokenBalance (INTERNAL_TOKEN_PRECISION)
-        //   MUL accumulatedNOTEPerNToken (INCENTIVE_ACCUMULATION_PRECISION)
-        //   DIV INCENTIVE_ACCUMULATION_PRECISION
-        //   = INTERNAL_TOKEN_PRECISION
-        balanceState.lastClaimIntegralSupply = finalNTokenBalance
-            .mul(accumulatedNOTEPerNToken)
-            .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
     }

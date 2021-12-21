@@ -567,7 +567,8 @@ contract Views is StorageLayoutV1, NotionalViews {
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     balanceState,
                     tokenAddress,
-                    accumulatedNOTEPerNToken
+                    accumulatedNOTEPerNToken,
+                    balanceState.storedNTokenBalance.toUint()
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
@@ -589,7 +590,8 @@ contract Views is StorageLayoutV1, NotionalViews {
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     balanceState,
                     tokenAddress,
-                    accumulatedNOTEPerNToken
+                    accumulatedNOTEPerNToken,
+                    balanceState.storedNTokenBalance.toUint()
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
