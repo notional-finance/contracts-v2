@@ -161,6 +161,7 @@ library BalanceHandler {
                 .add(balanceState.netNTokenTransfer)
                 .add(balanceState.netNTokenSupplyChange);
 
+            // The toUint() call here will ensure that nToken balances never become negative
             Incentives.claimIncentives(balanceState, account, finalNTokenBalance.toUint());
 
             balanceState.storedNTokenBalance = finalNTokenBalance;

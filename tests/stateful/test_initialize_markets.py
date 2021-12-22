@@ -342,11 +342,9 @@ def test_mint_after_markets_initialized(environment, accounts):
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
 
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
-    (
-        cashBalanceAfter,
-        perpTokenBalanceAfter,
-        lastMintTimeAfter,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
+        currencyId, accounts[0]
+    )
 
     # assert increase in market liquidity
     assert len(marketsBefore) == len(marketsAfter)
@@ -356,7 +354,6 @@ def test_mint_after_markets_initialized(environment, accounts):
     # assert account balances are in line
     assert cashBalanceBefore == cashBalanceAfter
     assert perpTokenBalanceAfter == perpTokenBalanceBefore + tokensToMint
-    assert lastMintTimeAfter > lastMintTimeBefore
 
 
 def test_redeem_to_zero_fails(environment, accounts):

@@ -180,11 +180,9 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (
-        cashBalanceAfter,
-        perpTokenBalanceAfter,
-        lastMintTimeAfter,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
+        currencyId, accounts[0]
+    )
 
     # Assert that no assets in portfolio
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
@@ -196,7 +194,6 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
 
     assert cashBalanceAfter > cashBalanceBefore
     assert perpTokenBalanceAfter == perpTokenBalanceBefore - 1e8
-    assert lastMintTimeAfter > lastMintTimeBefore
 
     check_system_invariants(environment, accounts)
 
@@ -229,11 +226,9 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     )
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
-    (
-        cashBalanceAfter,
-        perpTokenBalanceAfter,
-        lastMintTimeAfter,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
+        currencyId, accounts[0]
+    )
     totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
     portfolio = environment.notional.getAccountPortfolio(accounts[0])
@@ -249,7 +244,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     # Some cash claim withdrawn
     assert cashBalanceAfter > cashBalanceBefore
     assert perpTokenBalanceAfter == perpTokenBalanceBefore - 1e8
-    assert lastMintTimeAfter > lastMintTimeBefore
     assert totalSupplyBefore - totalSupplyAfter == 1e8
 
     check_system_invariants(environment, accounts)
@@ -600,10 +594,6 @@ def test_transfer_tokens(environment, accounts):
     assert environment.noteERC20.balanceOf(accounts[0]) > 0
     assert environment.noteERC20.balanceOf(accounts[1]) == 0
 
-    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
-    (_, _, mintTimeAfterOne) = environment.notional.getAccountBalance(currencyId, accounts[1])
-    assert mintTimeAfterOne == mintTimeAfterZero == txn.timestamp
-
     check_system_invariants(environment, accounts)
 
 
@@ -644,7 +634,6 @@ def test_cannot_transfer_ntokens_to_negative_fc(environment, accounts):
 
 
 def test_mint_incentives(environment, accounts):
-    currencyId = 2
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_YEAR)
     balanceBefore = environment.noteERC20.balanceOf(accounts[0])
@@ -660,15 +649,11 @@ def test_mint_incentives(environment, accounts):
         environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
     )
 
-    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
-    assert mintTimeAfterZero == txn.timestamp
-
     check_system_invariants(environment, accounts)
 
 
 def test_mint_bitmap_incentives(environment, accounts):
     # NOTE: this test is a little flaky when running with the entire test suite
-    currencyId = 2
     environment.notional.enableBitmapCurrency(2, {"from": accounts[0]})
 
     blockTime = chain.time()
@@ -685,9 +670,6 @@ def test_mint_bitmap_incentives(environment, accounts):
     assert (
         environment.notional.nTokenGetClaimableIncentives(accounts[0].address, txn.timestamp) == 0
     )
-
-    (_, _, mintTimeAfterZero) = environment.notional.getAccountBalance(currencyId, accounts[0])
-    assert mintTimeAfterZero == txn.timestamp
 
     check_system_invariants(environment, accounts)
 
