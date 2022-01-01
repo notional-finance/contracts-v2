@@ -170,6 +170,19 @@ contract Views is StorageLayoutV2, NotionalViews {
         return (owner, pendingOwner);
     }
 
+    function getGlobalTransferOperatorStatus(address operator) external view override returns (bool isAuthorized) {
+        return globalTransferOperator[operator];
+    }
+
+    function getAuthorizedCallbackContractStatus(address callback) external view override returns (bool isAuthorized) {
+        return authorizedCallbackContract[callback];
+    }
+
+    function getSecondaryIncentiveRewarder(uint16 currencyId) external view override returns (address rewarder) {
+        address tokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        return address(nTokenHandler.getSecondaryRewarder(tokenAddress));
+    }
+
     /** Global System State View Methods **/
 
     /// @notice Returns the asset settlement rate for a given maturity

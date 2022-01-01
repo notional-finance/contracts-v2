@@ -345,6 +345,10 @@ struct nTokenContext {
     uint8 assetArrayLength;
     // Each byte is a specific nToken parameter
     bytes5 nTokenParameters;
+    // Reserved bytes for future usage
+    bytes15 _unused;
+    // Set to true if a secondary rewarder is set
+    bool hasSecondaryRewarder;
 }
 
 /// @dev Holds account balance information, total storage 32 bytes

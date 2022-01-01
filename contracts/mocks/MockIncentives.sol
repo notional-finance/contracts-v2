@@ -121,4 +121,12 @@ contract MockIncentives {
     function migrateNToken(uint16 currencyId, uint256 blockTime) external {
         MigrateIncentivesLib._migrateIncentives(currencyId, blockTime);
     }
+
+    function setSecondaryRewarder(uint16 currencyId, IRewarder rewarder) external {
+        nTokenHandler.setSecondaryRewarder(currencyId, rewarder);
+    }
+
+    function getSecondaryRewarder(address tokenAddress) external view returns (IRewarder) {
+        return nTokenHandler.getSecondaryRewarder(tokenAddress);
+    }
 }

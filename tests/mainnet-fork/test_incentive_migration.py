@@ -46,9 +46,11 @@ def test_patchfix_migration(environment, accounts):
 
 @pytest.mark.only
 def test_migrate_existing_accounts(environment, accounts):
+    # TODO: test a few existing accounts
     assert False
 
 
 @pytest.mark.only
 def test_establish_new_accounts(environment, accounts):
+    # TODO: establish new accounts
     assert False

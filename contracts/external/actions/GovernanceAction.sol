@@ -12,6 +12,7 @@ import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
+import "interfaces/notional/IRewarder.sol";
 import "interfaces/notional/AssetRateAdapter.sol";
 import "interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "interfaces/notional/NotionalGovernance.sol";
@@ -383,6 +384,24 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         require(Address.isContract(operator), "Operator must be a contract");
         authorizedCallbackContract[operator] = approved;
         emit UpdateAuthorizedCallbackContract(operator, approved);
+    }
+
+    /// @notice Sets a secondary incentive rewarder for a currency. This contract will
+    /// be called whenever an nToken balance changes and allows a secondary contract to
+    /// mint incentives to the account. This will override any previous rewarder, if set.
+    /// Will have no effect if there is no nToken corresponding to the currency id.
+    /// @dev emit:UpdateSecondaryIncentiveRewarder
+    /// @param currencyId currency id of the nToken
+    /// @param rewarder rewarder contract
+    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder)
+        external
+        override
+        onlyOwner
+    {
+        _checkValidCurrency(currencyId);
+        require(Address.isContract(address(rewarder)), "Rewarder must be a contract");
+        nTokenHandler.setSecondaryRewarder(currencyId, rewarder);
+        emit UpdateSecondaryIncentiveRewarder(currencyId, address(rewarder));
     }
 
     function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {

@@ -7,6 +7,7 @@ import "../nToken/nTokenHandler.sol";
 import "../nToken/nTokenSupply.sol";
 import "../../math/SafeInt256.sol";
 import "../../external/MigrateIncentives.sol";
+import "interfaces/notional/IRewarder.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {
@@ -98,6 +99,17 @@ library Incentives {
             accumulatedNOTEPerNToken,
             finalNTokenBalance
         );
+
+        // If a secondary incentive rewarder is set, then call it
+        IRewarder rewarder = nTokenHandler.getSecondaryRewarder(tokenAddress);
+        if (address(rewarder) != address(0)) {
+            rewarder.claimRewards(
+                account,
+                balanceState.storedNTokenBalance.toUint(),
+                finalNTokenBalance,
+                incentivesToClaim
+            );
+        }
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
     }

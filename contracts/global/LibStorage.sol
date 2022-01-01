@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "./Types.sol";
 import "./Constants.sol";
+import "interfaces/notional/IRewarder.sol";
 
 library LibStorage {
 
@@ -40,7 +41,8 @@ library LibStorage {
         nTokenTotalSupply_deprecated,
         AssetRate,
         ExchangeRate,
-        nTokenTotalSupply
+        nTokenTotalSupply,
+        SecondaryIncentiveRewarder
     }
 
     /// @dev Mapping from an account address to account context
@@ -181,6 +183,14 @@ library LibStorage {
         returns (mapping(uint256 => ETHRateStorage) storage store)
     {
         uint256 slot = _getStorageSlot(StorageId.ExchangeRate);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns the address of a secondary incentive rewarder for an nToken if it exists
+    function getSecondaryIncentiveRewarder() internal pure
+        returns (mapping(address => IRewarder) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.SecondaryIncentiveRewarder);
         assembly { store.slot := slot }
     }
 

@@ -1,5 +1,6 @@
 import pytest
-from brownie.convert.datatypes import Wei
+from brownie.convert import to_bytes
+from brownie.convert.datatypes import HexString, Wei
 from brownie.test import given, strategy
 from tests.constants import SECONDS_IN_DAY, SECONDS_IN_YEAR, START_TIME
 from tests.helpers import get_balance_state
@@ -158,3 +159,38 @@ class TestIncentives:
             accounts[9], balanceStateMinnow, START_TIME + timeSinceMigration + 100, 100e8
         )
         assert incentivesToClaimMinnow3 > incentivesToClaimMinnow2
+
+    def test_set_secondary_rewarder(self, incentives, MockSecondaryRewarder, accounts):
+        zeroAddress = HexString(to_bytes(0, "bytes20"), "bytes20")
+        secondaryRewarder = incentives.getSecondaryRewarder(accounts[9])
+        assert secondaryRewarder == zeroAddress
+
+        rewarder = MockSecondaryRewarder.deploy({"from": accounts[0]})
+        incentives.setSecondaryRewarder(1, rewarder)
+
+        secondaryRewarder = incentives.getSecondaryRewarder(accounts[9])
+        assert secondaryRewarder == rewarder.address
+
+        incentives.setSecondaryRewarder(1, zeroAddress)
+        secondaryRewarder = incentives.getSecondaryRewarder(accounts[9])
+        assert secondaryRewarder == zeroAddress
+
+    def test_call_secondary_rewarder(self, incentives, MockSecondaryRewarder, accounts):
+        incentives.changeNTokenSupply(accounts[9], 100_000e8, START_TIME)
+        incentives.setEmissionRate(accounts[9], 0, START_TIME)
+
+        rewarder = MockSecondaryRewarder.deploy({"from": accounts[0]})
+        incentives.setSecondaryRewarder(1, rewarder)
+
+        balanceState = get_balance_state(1, storedNTokenBalance=100e8, netNTokenSupplyChange=20e8)
+
+        txn = incentives.claimIncentives(balanceState, accounts[2], 120e8)
+        assert txn.events["ClaimRewards"]["account"] == accounts[2]
+        assert txn.events["ClaimRewards"]["nTokenBalanceBefore"] == 100e8
+        assert txn.events["ClaimRewards"]["nTokenBalanceAfter"] == 120e8
+        assert txn.events["ClaimRewards"]["NOTETokensClaimed"] == 0
+
+        zeroAddress = HexString(to_bytes(0, "bytes20"), "bytes20")
+        incentives.setSecondaryRewarder(1, zeroAddress)
+        txn = incentives.claimIncentives(balanceState, accounts[2], 120e8)
+        assert "ClaimRewards" not in txn.events

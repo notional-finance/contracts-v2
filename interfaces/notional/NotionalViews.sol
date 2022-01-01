@@ -52,6 +52,12 @@ interface NotionalViews {
 
     function getOwnershipStatus() external view returns (address owner, address pendingOwner);
 
+    function getGlobalTransferOperatorStatus(address operator) external view returns (bool isAuthorized);
+
+    function getAuthorizedCallbackContractStatus(address callback) external view returns (bool isAuthorized);
+
+    function getSecondaryIncentiveRewarder(uint16 currencyId) external view returns (address incentiveRewarder);
+
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
         view

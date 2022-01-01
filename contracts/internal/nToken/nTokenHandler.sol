@@ -92,6 +92,36 @@ library nTokenHandler {
         context.nTokenParameters = parameters;
     }
 
+    /// @notice Sets a secondary rewarder contract on an nToken so that incentives can come from a different
+    /// contract, aside from the native NOTE token incentives.
+    function setSecondaryRewarder(
+        uint16 currencyId,
+        IRewarder rewarder
+    ) internal {
+        address tokenAddress = nTokenAddress(currencyId);
+        // nToken must exist for a secondary rewarder
+        require(tokenAddress != address(0));
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
+
+        // Setting the rewarder to address(0) will disable it. We use a context setting here so that
+        // we can save a storage read before getting the rewarder
+        context.hasSecondaryRewarder = (address(rewarder) != address(0));
+        LibStorage.getSecondaryIncentiveRewarder()[tokenAddress] = rewarder;
+    }
+
+    /// @notice Returns the secondary rewarder if it is set
+    function getSecondaryRewarder(address tokenAddress) internal view returns (IRewarder) {
+        mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
+        nTokenContext storage context = store[tokenAddress];
+        
+        if (context.hasSecondaryRewarder) {
+            return LibStorage.getSecondaryIncentiveRewarder()[tokenAddress];
+        } else {
+            return IRewarder(address(0));
+        }
+    }
+
     function setArrayLengthAndInitializedTime(
         address tokenAddress,
         uint8 arrayLength,
