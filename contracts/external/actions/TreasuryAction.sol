@@ -8,18 +8,17 @@ import "../../math/SafeInt256.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV2.sol";
-import "../../proxy/utils/UUPSUpgradeable.sol";
+import "../../global/Constants.sol";
 import "interfaces/notional/NotionalTreasury.sol";
 import "interfaces/compound/ComptrollerInterface.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/WETH9.sol";
 
-contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
+contract TreasuryAction is StorageLayoutV2, NotionalTreasury {
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using SafeERC20 for IERC20;
 
-    uint256 public constant RESERVE_BUFFER_PRECISION = 1e5;
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
     address public immutable WETH;
@@ -30,8 +29,8 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
         _;
     }
 
-    modifier onlyManager() {
-        require(treasuryManager == msg.sender, "Ownable: caller is not the treasury manager");
+    modifier onlyManagerContract() {
+        require(treasuryManagerContract == msg.sender, "Caller is not the treasury manager");
         _;
     }
 
@@ -39,20 +38,20 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
         COMP = _comp;
         COMPTROLLER = _comptroller;
         WETH = _weth;
-        treasuryManager = address(0);
+        treasuryManagerContract = address(0);
     }
 
-    function claimCOMP(address[] calldata ctokens) external override onlyManager returns (uint256) {
+    function claimCOMP(address[] calldata ctokens) external override onlyManagerContract returns (uint256) {
         COMPTROLLER.claimComp(address(this), ctokens);
         uint256 bal = COMP.balanceOf(address(this));
-        COMP.transfer(treasuryManager, bal);
+        COMP.transfer(treasuryManagerContract, bal);
         return bal;
     }
 
     function transferReserveToTreasury(address[] calldata assets)
         external
         override
-        onlyManager
+        onlyManagerContract
         returns (uint256[] memory)
     {
         uint256[] memory amountsTransferred = new uint256[](assets.length);
@@ -73,7 +72,7 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
             if (buffer == 0) 
                 continue;
             
-            uint256 requiredReserve = totalBalance.mul(buffer).div(RESERVE_BUFFER_PRECISION);
+            uint256 requiredReserve = totalBalance.mul(buffer).div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
             
             if (totalReserve > requiredReserve) {
                 uint256 redeemAmount = totalReserve.sub(requiredReserve);
@@ -82,7 +81,7 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
 
                 // _redeemCToken wraps ETH into WETH
                 address underlyingAddress = underlying.tokenAddress == address(0) ? WETH : underlying.tokenAddress;
-                IERC20(underlyingAddress).safeTransfer(treasuryManager, amountsTransferred[i]);
+                IERC20(underlyingAddress).safeTransfer(treasuryManagerContract, amountsTransferred[i]);
             }
         }
 
@@ -107,12 +106,11 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury, UUPSUpgradeable {
     }
 
     function setTreasuryManager(address manager) external override onlyOwner {
-        treasuryManager = manager;
+        treasuryManagerContract = manager;
     }
 
     function setReserveBuffer(address asset, uint256 amount) external override onlyOwner {
+        require(amount <= uint256(Constants.INTERNAL_TOKEN_PRECISION), "amount too large");
         reserveBuffer[asset] = amount;
     }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

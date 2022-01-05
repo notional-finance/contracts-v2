@@ -5,6 +5,6 @@ pragma abicoder v2;
 import "./StorageLayoutV1.sol";
 
 contract StorageLayoutV2 is StorageLayoutV1 {
-    address public treasuryManager;
+    address public treasuryManagerContract;
     mapping(address => uint256) internal reserveBuffer;
 }
