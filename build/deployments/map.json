@@ -1,6 +1,7 @@
 {
   "1": {
     "AccountAction": [
+      "0xf9FDb607d8b843cdF65898df4E08d1479b69002a",
       "0x5f11E94E0A69ac8490f45eB27a6478dCDDB0227E"
     ],
     "BatchAction": [
@@ -21,8 +22,8 @@
       "0xc2763a6465F5C86769A1Af826dB270A6367b03B7"
     ],
     "GovernorAlpha": [
-      "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3",
-      "0x086b4ecD75c494dD36641195E89c25373E06d7cB"
+      "0x086b4ecD75c494dD36641195E89c25373E06d7cB",
+      "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3"
     ],
     "InitializeMarketsAction": [
       "0x280deCD520da16e5571A6f2Fb803A57e0c16f423"
@@ -43,6 +44,7 @@
       "0xbe401d7e76bb71bf7fa5a4aed7F3b650C6E0bd25"
     ],
     "Router": [
+      "0x2Cc280279b8572fCDC100e2d01CA594a00031CB0",
       "0x19152dDa25a96d0Ca244f0d7f3F13a966F392b23",
       "0x123fCA954EA894305b684F56A0d043169a5aA7E4"
     ],
