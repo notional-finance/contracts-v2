@@ -21,12 +21,13 @@ contract AccountAction is ActionGuards {
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:msg.sender
     function enableBitmapCurrency(uint16 currencyId) external {
-        require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
-        require(currencyId <= maxCurrencyId); // dev: invalid currency id
-        address account = msg.sender;
-        (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
-        accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
-        accountContext.setAccountContext(account);
+        // require(msg.sender != address(this)); // dev: no internal call to enableBitmapCurrency
+        // require(currencyId <= maxCurrencyId); // dev: invalid currency id
+        // address account = msg.sender;
+        // (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
+        // accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
+        // accountContext.setAccountContext(account);
+        revert();
     }
 
     /// @notice Method for manually settling an account, generally should not be called because other

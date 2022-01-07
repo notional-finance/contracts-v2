@@ -44,6 +44,7 @@ library AccountContextHandler {
             // Account cannot change their bitmap if they have assets set
             bytes32 ifCashBitmap =
                 BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
+            // We cannot have cash assets here or we risk losing them....
             require(ifCashBitmap == 0, "AC: cannot have assets");
         } else {
             require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
