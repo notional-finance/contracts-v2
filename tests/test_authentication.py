@@ -122,18 +122,6 @@ def test_non_callable_methods(environment, accounts):
         )
 
 
-@pytest.mark.only
-def test_prevent_duplicate_bitmap_currency(environment, accounts):
-    environment.notional.enableBitmapCurrency(2, {"from": accounts[1]})
-    environment.notional.depositUnderlyingToken(accounts[1], 2, 100e18, {"from": accounts[1]})
-    environment.notional.depositUnderlyingToken(accounts[1], 3, 100e6, {"from": accounts[1]})
-    environment.notional.enableBitmapCurrency(3, {"from": accounts[1]})
-
-    context = environment.notional.getAccountContext(accounts[1])
-    assert context[3] == 2
-    assert False
-
-
 def test_prevent_duplicate_token_listing(environment, accounts):
     symbol = "DAI"
     assert environment.notional.getCurrencyId(environment.cToken[symbol].address) == 2
