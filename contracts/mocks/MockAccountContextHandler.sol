@@ -21,7 +21,7 @@ contract MockAccountContextHandler {
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.enableBitmapForAccount(account, currencyId, blockTime);
+        accountContext.enableBitmapForAccount(currencyId, blockTime);
         accountContext.setAccountContext(account);
     }
 

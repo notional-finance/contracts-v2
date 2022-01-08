@@ -30,32 +30,28 @@ library AccountContextHandler {
         return accountContext.bitmapCurrencyId != 0;
     }
 
-    /// @notice Sets the account context of a given account
+    /// @notice Enables a bitmap type portfolio for an account. A bitmap type portfolio allows
+    /// an account to hold more fCash than a normal portfolio, except only in a single currency.
+    /// Once enabled, it cannot be disabled or changed. An account can only enable a bitmap if
+    /// it has no assets or debt so that we ensure no assets are left stranded.
+    /// @param accountContext refers to the account where the bitmap will be enabled
+    /// @param currencyId the id of the currency to enable
+    /// @param blockTime the current block time to set the next settle time
     function enableBitmapForAccount(
         AccountContext memory accountContext,
-        address account,
         uint16 currencyId,
         uint256 blockTime
     ) internal view {
-        // Allow setting the currency id to zero to turn off bitmap
-        require(currencyId <= Constants.MAX_CURRENCIES, "AC: invalid currency id");
+        require(!isBitmapEnabled(accountContext), "Cannot change bitmap");
+        require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES, "Invalid currency id");
 
-        if (isBitmapEnabled(accountContext)) {
-            // Account cannot change their bitmap if they have assets set
-            bytes32 ifCashBitmap =
-                BitmapAssetsHandler.getAssetsBitmap(account, accountContext.bitmapCurrencyId);
-            // We cannot have cash assets here or we risk losing them....
-            require(ifCashBitmap == 0, "AC: cannot have assets");
-        } else {
-            require(accountContext.assetArrayLength == 0, "AC: cannot have assets");
-            // Account context also cannot have negative cash debts
-            require(accountContext.hasDebt == 0x00, "AC: cannot have debt");
+        // Account cannot have assets or debts
+        require(accountContext.assetArrayLength == 0, "Cannot have assets");
+        require(accountContext.hasDebt == 0x00, "Cannot have debt");
 
-            // Ensure that the active currency is set to false in the array so that there is no double
-            // counting during FreeCollateral
-            setActiveCurrency(accountContext, currencyId, false, Constants.ACTIVE_IN_BALANCES);
-        }
-
+        // Ensure that the active currency is set to false in the array so that there is no double
+        // counting during FreeCollateral
+        setActiveCurrency(accountContext, currencyId, false, Constants.ACTIVE_IN_BALANCES);
         accountContext.bitmapCurrencyId = currencyId;
 
         // Setting this is required to initialize the assets bitmap
