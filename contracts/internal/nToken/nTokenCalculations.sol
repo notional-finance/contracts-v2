@@ -3,7 +3,6 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./nTokenHandler.sol";
-import "../valuation/AssetHandler.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
@@ -39,51 +38,36 @@ library nTokenCalculations {
             }
         }
 
-        // Since we are not doing a risk adjusted valuation here we do not need to net off residual fCash
-        // balances in the future before discounting to present. If we did, then the ifCash assets would
-        // have to be in the portfolio array first. PV here is denominated in asset cash terms, not in
-        // underlying terms.
-        {
-            MarketParameters memory market;
-            for (uint256 i; i < nToken.portfolioState.storedAssets.length; i++) {
-                // NOTE: getLiquidityTokenValue can rewrite fCash values in memory, however, that does not
-                // happen in this call because there are no fCash values in the nToken portfolio.
-                (int256 assetCashClaim, int256 pv) =
-                    AssetHandler.getLiquidityTokenValue(
-                        i,
-                        nToken.cashGroup,
-                        market,
-                        nToken.portfolioState.storedAssets,
-                        blockTime,
-                        false
-                    );
+        // This is the total value in liquid assets
+        (int256 totalAssetValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(nToken, blockTime);
 
-                totalAssetPV = totalAssetPV.add(assetCashClaim);
-                totalUnderlyingPV = totalUnderlyingPV.add(pv);
-            }
-        }
-
-        // Then iterate over bitmapped assets and get present value
-        // prettier-ignore
-        (
-            int256 bitmapPv, 
-            /* hasDebt */
-        ) = BitmapAssetsHandler.getifCashNetPresentValue(
+        // Then get the total value in any idiosyncratic fCash residuals (if they exist)
+        bytes32 ifCashBits = getNTokenifCashBits(
             nToken.tokenAddress,
             nToken.cashGroup.currencyId,
             nToken.lastInitializedTime,
             blockTime,
-            nToken.cashGroup,
-            false
+            nToken.cashGroup.maxMarketIndex
         );
-        totalUnderlyingPV = totalUnderlyingPV.add(bitmapPv);
+
+        int256 ifCashResidualUnderlyingPV = 0;
+        if (ifCashBits != 0) {
+            // Non idiosyncratic residuals have already been accounted for
+            (ifCashResidualUnderlyingPV, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
+                nToken.tokenAddress,
+                nToken.cashGroup.currencyId,
+                nToken.lastInitializedTime,
+                blockTime,
+                nToken.cashGroup,
+                false, // nToken present value calculation does not use risk adjusted values
+                ifCashBits
+            );
+        }
 
         // Return the total present value denominated in asset terms
-        totalAssetPV = totalAssetPV
-            .add(nToken.cashGroup.assetRate.convertFromUnderlying(totalUnderlyingPV))
+        return totalAssetValueInMarkets
+            .add(nToken.cashGroup.assetRate.convertFromUnderlying(ifCashResidualUnderlyingPV))
             .add(nToken.cashBalance);
-
-        return totalAssetPV;
     }
 
     /**
@@ -137,6 +121,10 @@ library nTokenCalculations {
         ) = getNTokenMarketValue(nToken, blockTime);
         int256[] memory tokensToWithdraw = new int256[](netfCash.length);
 
+        // NOTE: this total portfolio asset value does not include any cash balance the nToken may hold.
+        // The redeemer will always get a proportional share of this cash balance and therefore we don't
+        // need to account for it here when we calculate the share of liquidity tokens to withdraw. We are
+        // only concerned with the nToken's portfolio assets in this method.
         int256 totalPortfolioAssetValue;
         {
             // Returns the risk adjusted net present value for the idiosyncratic residuals
