@@ -252,6 +252,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
 
             (int256 netLocalAssetValue, int256 nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
@@ -339,6 +341,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
             int256 nTokenBalance;
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
@@ -464,6 +468,8 @@ library FreeCollateral {
             bool setLiquidationFactors;
             {
                 uint256 tempId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
+                // Explicitly ensures that bitmap currency cannot be double counted
+                require(tempId != accountContext.bitmapCurrencyId);
                 setLiquidationFactors =
                     (tempId == localCurrencyId && collateralCurrencyId == 0) ||
                     tempId == collateralCurrencyId;
