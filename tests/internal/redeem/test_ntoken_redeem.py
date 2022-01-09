@@ -106,7 +106,9 @@ def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
     blockTime = START_TIME_TREF + random.randint(0, (SECONDS_IN_QUARTER - initalizedTimeOffset))
 
     # This should not revert
-    nTokenRedeemPure.test_getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, 7)
+    nTokenRedeemPure.test_getNTokenifCashBits(
+        tokenAddress, currencyId, lastInitializedTime, blockTime, 7
+    )
 
 
 def test_add_residuals_to_assets(nTokenRedeemPure, accounts):

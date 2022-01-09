@@ -3,7 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../internal/markets/Market.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/balances/BalanceHandler.sol";
@@ -84,7 +85,7 @@ library nTokenRedeemAction {
         PortfolioAsset[] memory newifCashAssets;
 
         // Get the ifCash bits that are idiosyncratic
-        bytes32 ifCashBits = nTokenHandler.getifCashBits(
+        bytes32 ifCashBits = nTokenCalculations.getNTokenifCashBits(
             nToken.tokenAddress,
             currencyId,
             nToken.lastInitializedTime,
@@ -110,7 +111,7 @@ library nTokenRedeemAction {
 
         // Returns the liquidity tokens to withdraw per market and the netfCash amounts. Net fCash amounts are only
         // set when ifCashBits != 0. Otherwise they must be calculated in _withdrawLiquidityTokens
-        (int256[] memory tokensToWithdraw, int256[] memory netfCash) = nTokenHandler.getLiquidityTokenWithdraw(
+        (int256[] memory tokensToWithdraw, int256[] memory netfCash) = nTokenCalculations.getLiquidityTokenWithdraw(
             nToken,
             tokensToRedeem,
             blockTime,

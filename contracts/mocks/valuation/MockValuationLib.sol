@@ -7,7 +7,9 @@ import "../../internal/markets/AssetRate.sol";
 import "../../internal/valuation/AssetHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/markets/Market.sol";
 import "../../global/LibStorage.sol";
 
@@ -60,7 +62,7 @@ library MockValuationLib {
             0,
             liquidationHaircutPercentage
         );
-        nTokenHandler.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
+        nTokenSupply.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
         BalanceHandler.setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
     }
 
@@ -224,7 +226,7 @@ library MockValuationLib {
     function getNTokenPV(uint16 currencyId) external view returns (int256) {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
-        return nToken.getNTokenAssetPV(block.timestamp);
+        return nTokenCalculations.getNTokenAssetPV(nToken, block.timestamp);
     }
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {

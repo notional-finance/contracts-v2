@@ -10,7 +10,7 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/settlement/SettlePortfolioAssets.sol";
 import "../../internal/settlement/SettleBitmapAssets.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";

@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../global/LibStorage.sol";
-import "../internal/nTokenHandler.sol";
+import "../internal/nToken/nTokenHandler.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**

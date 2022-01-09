@@ -3,7 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../global/Constants.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/markets/Market.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/markets/AssetRate.sol";
@@ -74,7 +75,7 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "Requires settlement");
         }
 
-        int256 assetCashPV = nToken.getNTokenAssetPV(blockTime);
+        int256 assetCashPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
         // Defensive check to ensure PV remains positive
         require(assetCashPV >= 0);
 

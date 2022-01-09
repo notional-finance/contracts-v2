@@ -3,7 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./TokenHandler.sol";
-import "../nTokenHandler.sol";
+import "../nToken/nTokenHandler.sol";
+import "../nToken/nTokenSupply.sol";
 import "../../math/SafeInt256.sol";
 import "../../external/MigrateIncentives.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -85,7 +86,7 @@ library Incentives {
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
         // This will updated the nToken storage and return what the accumulatedNOTEPerNToken
         // is up until this current block time in 1e18 precision
-        uint256 accumulatedNOTEPerNToken = nTokenHandler.changeNTokenSupply(
+        uint256 accumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(
             tokenAddress,
             balanceState.netNTokenSupplyChange,
             blockTime

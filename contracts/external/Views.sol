@@ -7,7 +7,8 @@ import "./actions/nTokenMintAction.sol";
 import "../internal/valuation/ExchangeRate.sol";
 import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
-import "../internal/nTokenHandler.sol";
+import "../internal/nToken/nTokenHandler.sol";
+import "../internal/nToken/nTokenSupply.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV2.sol";
@@ -315,7 +316,7 @@ contract Views is StorageLayoutV2, NotionalViews {
             totalSupply,
             accumulatedNOTEPerNToken,
             lastAccumulatedTime
-        ) = nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
+        ) = nTokenSupply.getStoredNTokenSupplyFactors(tokenAddress);
 
         // prettier-ignore
         (
@@ -569,7 +570,7 @@ contract Views is StorageLayoutV2, NotionalViews {
                     /* uint256 totalSupply */,
                     uint256 accumulatedNOTEPerNToken,
                     /* uint256 lastAccumulatedTime */
-                ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
+                ) = nTokenSupply.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     balanceState,
@@ -592,7 +593,7 @@ contract Views is StorageLayoutV2, NotionalViews {
                     /* uint256 totalSupply */,
                     uint256 accumulatedNOTEPerNToken,
                     /* uint256 lastAccumulatedTime */
-                ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
+                ) = nTokenSupply.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
                     balanceState,

@@ -8,6 +8,8 @@ import "../markets/CashGroup.sol";
 import "../AccountContextHandler.sol";
 import "../balances/BalanceHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
+import "../nToken/nTokenHandler.sol";
+import "../nToken/nTokenCalculations.sol";
 import "../../math/SafeInt256.sol";
 
 library FreeCollateral {
@@ -69,7 +71,7 @@ library FreeCollateral {
         nToken.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId);
         nToken.cashGroup = cashGroup;
 
-        int256 nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
+        int256 nTokenAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
 
         // (tokenBalance * nTokenValue * haircut) / totalSupply
         int256 nTokenHaircutAssetPV =

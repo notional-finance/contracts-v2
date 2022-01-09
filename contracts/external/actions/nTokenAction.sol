@@ -3,7 +3,9 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./ActionGuards.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/Incentives.sol";
@@ -36,7 +38,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             totalSupply,
             /* accumulatedNOTEPerNToken */,
             /* lastAccumulatedTime */
-        ) = nTokenHandler.getStoredNTokenSupplyFactors(nTokenAddress);
+        ) = nTokenSupply.getStoredNTokenSupplyFactors(nTokenAddress);
     }
 
     /// @notice Get the number of tokens held by the `account`
@@ -250,7 +252,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 totalAssetPV = nToken.getNTokenAssetPV(blockTime);
+        int256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }

@@ -4,7 +4,8 @@ pragma abicoder v2;
 
 import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
@@ -259,7 +260,7 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         // Sanity check that emissions rate is not specified in 1e8 terms.
         require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
 
-        nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate, block.timestamp);
+        nTokenSupply.setIncentiveEmissionRate(nTokenAddress, newEmissionRate, block.timestamp);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
     }
 

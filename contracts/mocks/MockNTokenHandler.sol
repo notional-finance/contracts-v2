@@ -2,14 +2,16 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "../internal/nTokenHandler.sol";
+import "../internal/nToken/nTokenHandler.sol";
+import "../internal/nToken/nTokenSupply.sol";
+import "../internal/nToken/nTokenCalculations.sol";
 import "../global/StorageLayoutV1.sol";
 
 contract MockNTokenHandler is StorageLayoutV1 {
     using nTokenHandler for nTokenPortfolio;
 
     function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate, uint256 blockTime) external {
-        nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate, blockTime);
+        nTokenSupply.setIncentiveEmissionRate(tokenAddress, newEmissionsRate, blockTime);
     }
 
     function getNTokenContext(address tokenAddress)
@@ -67,7 +69,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         int256 netChange,
         uint256 blockTime
     ) external returns (uint256) {
-        return nTokenHandler.changeNTokenSupply(tokenAddress, netChange, blockTime);
+        return nTokenSupply.changeNTokenSupply(tokenAddress, netChange, blockTime);
     }
 
     function getStoredNTokenSupplyFactors(address tokenAddress)
@@ -79,7 +81,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256
         )
     {
-        return nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
+        return nTokenSupply.getStoredNTokenSupplyFactors(tokenAddress);
     }
 
     function setNTokenAddress(uint16 currencyId, address tokenAddress) external {
@@ -130,7 +132,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        return nToken.getNTokenAssetPV(blockTime);
+        return nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
     }
 
     function updateNTokenCollateralParameters(

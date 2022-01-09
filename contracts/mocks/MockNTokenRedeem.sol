@@ -2,7 +2,8 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "../internal/nTokenHandler.sol";
+import "../internal/nToken/nTokenHandler.sol";
+import "../internal/nToken/nTokenCalculations.sol";
 import "../external/actions/nTokenRedeemAction.sol";
 
 contract MockNTokenRedeemPure {
@@ -26,14 +27,14 @@ contract MockNTokenRedeemPure {
         BitmapAssetsHandler.setAssetsBitmap(tokenAddress, currencyId, assetsBitmap);
     }
 
-    function test_getifCashBits(
+    function test_getNTokenifCashBits(
         address tokenAddress,
         uint256 currencyId,
         uint256 lastInitializedTime,
         uint256 blockTime,
         uint256 maxMarketIndex
     ) external view {
-        bytes32 ifCashBits = nTokenHandler.getifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, maxMarketIndex);
+        bytes32 ifCashBits = nTokenCalculations.getNTokenifCashBits(tokenAddress, currencyId, lastInitializedTime, blockTime, maxMarketIndex);
         uint256 bitNum = ifCashBits.getNextBitNum();
 
         while (bitNum != 0) {
@@ -152,7 +153,7 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
         uint256 blockTime,
         bytes32 ifCashBits
     ) public view returns (int256[] memory, int256[] memory) {
-        return nTokenHandler.getLiquidityTokenWithdraw(
+        return nTokenCalculations.getLiquidityTokenWithdraw(
             nToken,
             nTokensToRedeem,
             blockTime,
@@ -163,7 +164,7 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
         public view returns (int256 totalAssetValue, int256[] memory netfCash)
     {
-        return nTokenHandler.getNTokenMarketValue(nToken, blockTime);
+        return nTokenCalculations.getNTokenMarketValue(nToken, blockTime);
     }
 }
 

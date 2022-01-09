@@ -3,7 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../internal/balances/Incentives.sol";
-import "../internal/nTokenHandler.sol";
+import "../internal/nToken/nTokenHandler.sol";
+import "../internal/nToken/nTokenSupply.sol";
 import "../external/MigrateIncentives.sol";
 import "../global/LibStorage.sol";
 
@@ -30,7 +31,7 @@ contract MockIncentives {
         uint32 emissionRate,
         uint32 blockTime
     ) external {
-        nTokenHandler.setIncentiveEmissionRate(tokenAddress, emissionRate, blockTime);
+        nTokenSupply.setIncentiveEmissionRate(tokenAddress, emissionRate, blockTime);
     }
 
     function changeNTokenSupply(
@@ -38,7 +39,7 @@ contract MockIncentives {
         int256 totalSupply,
         uint32 blockTime
     ) external returns (uint256) {
-        return nTokenHandler.changeNTokenSupply(tokenAddress, totalSupply, blockTime);
+        return nTokenSupply.changeNTokenSupply(tokenAddress, totalSupply, blockTime);
     }
 
     function getStoredNTokenSupplyFactors(address tokenAddress)
@@ -50,7 +51,7 @@ contract MockIncentives {
             uint256 lastAccumulatedTime
         )
     {
-        return nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
+        return nTokenSupply.getStoredNTokenSupplyFactors(tokenAddress);
     }
 
     function getDeprecatedNTokenSupplyFactors(address tokenAddress)
@@ -96,7 +97,7 @@ contract MockIncentives {
             /* uint256 totalSupply */,
             uint256 accumulatedNOTEPerNToken,
             /* uint256 lastAccumulatedTime */
-        ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
+        ) = nTokenSupply.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
         incentivesToClaim = Incentives.calculateIncentivesToClaim(
             balanceState,
