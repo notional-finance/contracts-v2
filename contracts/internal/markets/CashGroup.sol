@@ -107,15 +107,14 @@ library CashGroup {
         return uint256(uint8(uint256(cashGroup.data >> DEBT_BUFFER))) * Constants.FIVE_BASIS_POINTS;
     }
 
-    /// @notice Time window factor for the rate oracle denominated in seconds with one minute increments.
-    /// We do not need more precision than one minute increments for the rate oracle time window.
+    /// @notice Time window factor for the rate oracle denominated in seconds with five minute increments.
     function getRateOracleTimeWindow(CashGroupParameters memory cashGroup)
         internal
         pure
         returns (uint256)
     {
-        // This is denominated in minutes in storage
-        return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * 60;
+        // This is denominated in 5 minute increments in storage
+        return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * Constants.FIVE_MINUTES;
     }
 
     /// @notice Penalty rate for settling cash debts denominated in basis points
@@ -291,7 +290,7 @@ library CashGroup {
         // Per cash group settings
         bytes32 data =
             (bytes32(uint256(cashGroup.maxMarketIndex)) |
-                (bytes32(uint256(cashGroup.rateOracleTimeWindowMin)) << RATE_ORACLE_TIME_WINDOW) |
+                (bytes32(uint256(cashGroup.rateOracleTimeWindow5Min)) << RATE_ORACLE_TIME_WINDOW) |
                 (bytes32(uint256(cashGroup.totalFeeBPS)) << TOTAL_FEE) |
                 (bytes32(uint256(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE) |
                 (bytes32(uint256(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER) |
@@ -343,7 +342,7 @@ library CashGroup {
         return
             CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
-                rateOracleTimeWindowMin: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
+                rateOracleTimeWindow5Min: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
                 totalFeeBPS: uint8(data[TOTAL_FEE_BIT]),
                 reserveFeeShare: uint8(data[RESERVE_FEE_SHARE_BIT]),
                 debtBuffer5BPS: uint8(data[DEBT_BUFFER_BIT]),

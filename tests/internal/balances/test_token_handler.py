@@ -207,8 +207,7 @@ class TestTokenHandler:
 
         # Fees are paid by the sender
         assert erc20.balanceOf(tokenHandler.address) == amount - feePaid
-        adjustment = 0 if decimals >= 8 else 1
-        assert txn.return_value == (amount - feePaid - adjustment)
+        assert txn.return_value == (amount - feePaid)
 
         # This is a withdraw
         withdrawAmt = amount / 2

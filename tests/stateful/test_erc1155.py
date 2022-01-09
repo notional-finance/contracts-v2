@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie.convert import to_bytes
+from brownie.convert import to_bytes, to_uint
 from brownie.convert.datatypes import Wei
 from brownie.network import web3
 from brownie.network.state import Chain
@@ -57,6 +57,13 @@ def test_transfer_authentication_failures(environment, accounts):
         )
         environment.notional.safeBatchTransferFrom(
             accounts[1], accounts[0], [erc1155id], [100e8], "", {"from": accounts[0]}
+        )
+
+    with brownie.reverts("dev: toInt overflow"):
+        # Ensure that a negative transfer value will revert
+        overflowVal = to_uint(2 ** 256 - 1, "uint256") - 99e8
+        environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, overflowVal, "", {"from": accounts[1]}
         )
 
     with brownie.reverts("Invalid maturity"):

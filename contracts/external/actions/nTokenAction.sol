@@ -70,17 +70,17 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address tokenHolder,
         address spender
     ) external view override returns (uint256) {
-        // This whitelist allowance supersedes any specific allowances
-        uint256 allowance = nTokenWhitelist[tokenHolder][spender];
+        // The specific allowance overrides the blanket whitelist
+        uint256 allowance = nTokenAllowance[tokenHolder][spender][currencyId];
         if (allowance > 0) {
             return allowance;
         } else {
-            return nTokenAllowance[tokenHolder][spender][currencyId];
+            return nTokenWhitelist[tokenHolder][spender];
         }
     }
 
     /// @notice Approve `spender` to transfer up to `amount` from `src`
-    /// @dev Can only be called via the nToken proxy
+    /// @dev auth:nTokenProxy
     /// @param currencyId Currency id of the nToken account
     /// @param tokenHolder The address of the account holding the funds
     /// @param spender The address of the account which may transfer tokens
@@ -102,7 +102,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     }
 
     /// @notice Transfer `amount` tokens from `msg.sender` to `dst`
-    /// @dev Can only be called via the nToken proxy
+    /// @dev auth:nTokenProxy
     /// @param from The address of the destination account
     /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
@@ -122,7 +122,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     }
 
     /// @notice Transfer `amount` tokens from `src` to `dst`
-    /// @dev Can only be called via the nToken proxy
+    /// @dev auth:nTokenProxy
     /// @param currencyId Currency id of the nToken
     /// @param spender The address of the original caller
     /// @param from The address of the source account
@@ -163,8 +163,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// all token transfers to an external exchange or protocol in a single txn. This must be called directly
     /// on the Notional contract, not available via the ERC20 proxy.
     /// @dev emit:Approval
+    /// @dev auth:msg.sender
     /// @param spender The address of the account which may transfer tokens
-    /// @param amount The number of tokens that are approved (2^256-1 means infinite)
+    /// @param amount The number of tokens that are approved
     /// @return Whether or not the approval succeeded
     function nTokenTransferApproveAll(address spender, uint256 amount)
         external
@@ -261,6 +262,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
+        // This prevents amountInt from being negative
         int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);

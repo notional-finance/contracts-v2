@@ -222,7 +222,11 @@ class TestNTokenSettings:
             nToken.setInitializationParameters(1, [1] * 2, [1] * 10)
 
         with brownie.reverts("PT: invalid proportion"):
-            nToken.setInitializationParameters(1, [1.1e9], [0])
+            nToken.setInitializationParameters(1, [0.02e9], [0])
+            nToken.setInitializationParameters(1, [0.02e9], [1.1e9])
+
+        with brownie.reverts("NT: anchor rate zero"):
+            nToken.setInitializationParameters(1, [0], [0.5e9])
 
         with brownie.reverts("PT: invalid proportion"):
             nToken.setInitializationParameters(1, [1.1e9], [1.1e9])

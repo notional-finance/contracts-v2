@@ -4,7 +4,6 @@ import subprocess
 
 import scripts.mainnet.deploy_governance as deploy_governance
 from brownie import MockAggregator, MockCToken, MockERC20, accounts, cTokenAggregator, network
-from scripts.config import CurrencyDefaults
 from scripts.deployment import TokenType, deployNotional
 from scripts.mainnet.deploy_governance import EnvironmentConfig
 
@@ -104,7 +103,7 @@ TokenConfig = {
                 18,
                 0,
             ),
-            "ethOracle": "0x773616E4d11A78F511299002da57A0a94577F1f4",
+            "ethOracle": "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B",
             "ethOracleMustInvert": False,
         },
         "USDC": {
@@ -122,12 +121,12 @@ TokenConfig = {
                 6,
                 0,
             ),
-            "ethOracle": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
+            "ethOracle": "0x68225F47813aF66F186b3714Ffe6a91850Bc76B4",
             "ethOracleMustInvert": False,
         },
         "WBTC": {
             "assetToken": (
-                "0xC11b1268C1A384e55C48c2391d8d480264A3A7F4",
+                "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
                 False,
                 TokenType["cToken"],
                 CTOKEN_DECIMALS,
@@ -140,7 +139,7 @@ TokenConfig = {
                 8,
                 0,
             ),
-            "ethOracle": "0xdeb288F737066589598e9214E782fa5A8eD689e8",
+            "ethOracle": "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
             "ethOracleMustInvert": False,
         },
     },
@@ -149,106 +148,120 @@ TokenConfig = {
 # Currency Config will inherit CurrencyDefaults except where otherwise specified
 CurrencyConfig = {
     "ETH": {
-        **CurrencyDefaults,
-        **{
-            "name": "Ether",
-            "buffer": 130,
-            "haircut": 70,
-            "liquidationDiscount": 108,
-            "tokenHaircut": (95, 90),
-            "rateScalar": (21, 21),
-        },
+        "name": "Ether",
+        "buffer": 133,
+        "haircut": 75,
+        "liquidationDiscount": 108,
+        "maxMarketIndex": 2,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90),
+        "rateScalar": (18, 18),
+        "incentiveEmissionRate": 1_000_000,
     },
     "DAI": {
-        **CurrencyDefaults,
-        **{
-            "name": "Dai Stablecoin",
-            "maxMarketIndex": 3,
-            "buffer": 105,
-            "haircut": 95,
-            "liquidationDiscount": 104,
-            "tokenHaircut": (95, 90, 87),
-            "rateScalar": (21, 21, 21),
-        },
+        "name": "Dai Stablecoin",
+        "buffer": 109,
+        "haircut": 92,
+        "liquidationDiscount": 104,
+        "maxMarketIndex": 3,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90, 88),
+        "rateScalar": (20, 20, 20),
+        "incentiveEmissionRate": 9_000_000,
     },
     "USDC": {
-        **CurrencyDefaults,
-        **{
-            "name": "USD Coin",
-            "maxMarketIndex": 3,
-            "buffer": 105,
-            "haircut": 95,
-            "liquidationDiscount": 104,
-            "tokenHaircut": (95, 90, 87),
-            "rateScalar": (21, 21, 21),
-        },
+        "name": "USD Coin",
+        "buffer": 109,
+        "haircut": 92,
+        "liquidationDiscount": 104,
+        "maxMarketIndex": 3,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90, 88),
+        "rateScalar": (20, 20, 20),
+        "incentiveEmissionRate": 9_000_000,
     },
     "WBTC": {
-        **CurrencyDefaults,
-        **{
-            "name": "Wrapped BTC",
-            "buffer": 130,
-            "haircut": 70,
-            "liquidationDiscount": 110,
-            "tokenHaircut": (95, 90),
-            "rateScalar": (21, 21),
-        },
-    },
-    "USDT": {
-        **CurrencyDefaults,
-        **{
-            "name": "Tether USD",
-            "maxMarketIndex": 3,
-            "buffer": 105,
-            "haircut": 0,
-            "liquidationDiscount": 104,
-            "tokenHaircut": (95, 90, 87),
-            "rateScalar": (21, 21, 21),
-        },
+        "name": "Wrapped BTC",
+        "buffer": 138,
+        "haircut": 72,
+        "liquidationDiscount": 110,
+        "maxMarketIndex": 2,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90),
+        "rateScalar": (18, 18),
+        "incentiveEmissionRate": 1_000_000,
     },
 }
 
 nTokenCryptoAssetConfig = {
     "Deposit": [
         # Deposit shares
-        [int(0.5e8), int(0.5e8)],
+        [int(0.4e8), int(0.6e8)],
         # Leverage thresholds
-        [int(0.75e9), int(0.75e9)],
+        [int(0.81e9), int(0.81e9)],
     ],
     "Initialization": [
         # Annualized anchor rate
-        [int(0.01e9), int(0.01e9)],
+        [int(1), int(1)],
         # Target proportion
-        [int(0.5e9), int(0.5e9)],
+        [int(0.54e9), int(0.54e9)],
     ],
     "Collateral": [
-        20,  # residual purchase incentive bps
+        20,  # residual purchase incentive 10 bps
         85,  # pv haircut
         24,  # time buffer hours
-        60,  # cash withholding
-        92,  # liquidation haircut percentage
+        80,  # cash withholding
+        94,  # liquidation haircut percentage
     ],
 }
 
 nTokenStablecoinConfig = {
     "Deposit": [
         # Deposit shares
-        [int(0.25e8), int(0.25e8), int(0.5e8)],
+        [int(0.25e8), int(0.35e8), int(0.4e8)],
         # Leverage thresholds
-        [int(0.78e9), int(0.79e9), int(0.79e9)],
+        [int(0.80e9), int(0.80e9), int(0.81e9)],
     ],
     "Initialization": [
         # Annualized anchor rate
-        [int(0.02e9), int(0.02e9), int(0.02e9)],
+        [int(0.03e9), int(0.03e9), int(0.03e9)],
         # Target proportion
-        [int(0.5e9), int(0.5e9), int(0.5e9)],
+        [int(0.55e9), int(0.55e9), int(0.55e9)],
     ],
     "Collateral": [
         20,  # residual purchase incentive bps
-        85,  # pv haircut
+        80,  # pv haircut
         24,  # time buffer hours
-        80,  # cash withholding
-        92,  # liquidation haircut percentage
+        100,  # cash withholding
+        94,  # liquidation haircut percentage
     ],
 }
 
@@ -257,7 +270,6 @@ nTokenConfig = {
     "DAI": nTokenStablecoinConfig,
     "USDC": nTokenStablecoinConfig,
     "WBTC": nTokenCryptoAssetConfig,
-    "USDT": nTokenStablecoinConfig,
 }
 
 

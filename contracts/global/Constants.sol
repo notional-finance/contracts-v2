@@ -36,6 +36,7 @@ library Constants {
     // Max number of fCash assets in a bitmap, this is based on the gas costs of calculating free collateral
     // for a bitmap portfolio
     uint256 internal constant MAX_BITMAP_ASSETS = 20;
+    uint256 internal constant FIVE_MINUTES = 300;
 
     // Internal date representations, note we use a 6/30/360 week/month/year convention here
     uint256 internal constant DAY = 86400;
@@ -78,6 +79,8 @@ library Constants {
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
     int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
+    // Limit the market proportion so that borrowing cannot hit extremely high interest rates
+    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 96 / 100;
 
     uint8 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
@@ -113,32 +116,11 @@ library Constants {
     // requires more collateral to be liquidated
     int256 internal constant DEFAULT_LIQUIDATION_PORTION = 40;
     // Percentage of local liquidity token cash claim delivered to the liquidator for liquidating liquidity tokens
-    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 10;
-    // Denominated in units of fCash, any value lower than this will terminate the fCash liquidation loop. Because
-    // the discount to present value is asymptotic (it uses exp), it's unlikely that we will get down to exactly zero.
-    int256 internal constant LIQUIDATION_DUST = 10;
+    int256 internal constant TOKEN_REPO_INCENTIVE_PERCENT = 30;
 
     // Pause Router liquidation enabled states
     bytes1 internal constant LOCAL_CURRENCY_ENABLED = 0x01;
     bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
-
-    /* Internal Storage Slot Offsets */
-    // Internally used storage slots are set at 1000000 offset from the solidity provisioned storage slots to minimize
-    // the possibility of clashing.
-    uint256 internal constant ACCOUNT_CONTEXT_STORAGE_OFFSET = 1000001;
-    uint256 internal constant NTOKEN_CONTEXT_STORAGE_OFFSET = 1000002;
-    uint256 internal constant NTOKEN_ADDRESS_STORAGE_OFFSET = 1000003;
-    uint256 internal constant NTOKEN_DEPOSIT_STORAGE_OFFSET = 1000004;
-    uint256 internal constant NTOKEN_INIT_STORAGE_OFFSET = 1000005;
-    uint256 internal constant BALANCE_STORAGE_OFFSET = 1000006;
-    uint256 internal constant TOKEN_STORAGE_OFFSET = 1000007;
-    uint256 internal constant SETTLEMENT_RATE_STORAGE_OFFSET = 1000008;
-    uint256 internal constant CASH_GROUP_STORAGE_OFFSET = 1000009;
-    uint256 internal constant MARKET_STORAGE_OFFSET = 1000010;
-    uint256 internal constant ASSETS_BITMAP_STORAGE_OFFSET = 1000011;
-    uint256 internal constant IFCASH_STORAGE_OFFSET = 1000012;
-    uint256 internal constant PORTFOLIO_ARRAY_STORAGE_OFFSET = 1000013;
-    uint256 internal constant NTOKEN_TOTAL_SUPPLY_OFFSET = 1000014;
 }

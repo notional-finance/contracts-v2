@@ -1,9 +1,10 @@
 import brownie
 import pytest
 from brownie.convert.datatypes import HexString
+from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults, nTokenDefaults
-from scripts.deployment import TokenType
+from scripts.deployment import TokenType, deployNotionalContracts
 from tests.helpers import initialize_environment
 
 chain = Chain()
@@ -17,6 +18,29 @@ def environment(accounts):
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
+
+
+def test_router_initialization(environment, accounts, Router, nProxy):
+    cETH = environment.cToken["ETH"]
+    (router, pauseRouter, contracts) = deployNotionalContracts(accounts[0], cETH.address)
+
+    with brownie.reverts():
+        # Cannot call initialize on implementation contract
+        router.initialize(accounts[2], pauseRouter, accounts[2], {"from": accounts[0]})
+
+    initializeData = router.initialize.encode_input(
+        accounts[0].address, pauseRouter.address, accounts[2]
+    )
+
+    with brownie.reverts():
+        # Only the deployer can initialize
+        proxy = nProxy.deploy(router.address, initializeData, {"from": accounts[2]})
+    proxy = nProxy.deploy(router.address, initializeData, {"from": accounts[0]})
+    routerProxy = Contract.from_abi("Router", proxy.address, abi=Router.abi, owner=accounts[0])
+
+    with brownie.reverts():
+        # Cannot re-initialize
+        routerProxy.initialize(accounts[2], pauseRouter, accounts[3])
 
 
 def test_non_callable_methods(environment, accounts):

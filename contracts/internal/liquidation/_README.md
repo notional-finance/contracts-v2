@@ -20,6 +20,34 @@ A liquidated account cannot assume debt as a result of liquidation. In practical
 - If local available is negative, it cannot become more negative.
 - Free collateral after the liquidation must be greater than free collateral before the liquidation.
 
+## Liquidation Scenarios
+
+Below are the possible assets may have:
+
+| Cash Balance | nToken Balance | Liquidity Token | fCash    |
+| ------------ | -------------- | --------------- | -------- |
+| <>= 0        | >= 0           | >= 0            | <>= 0    |
+
+
+If cash balance < 0, settle cash debt can occur regardless of the free collateral position.
+
+When free collateral < 0, it must be that there is a negative cash or fCash balance somewhere in the portfolio. Liquidation looks for a source of positive collateral and will trade that collateral to a liquidator in exchange for cash, thereby removing the haircut on any collateral asset and splitting this benefit with the liquidated account in the form of additional free collateral and the liquidator who will receive an incentive for their action.
+
+| Source of Debt     | Source of Collateral        | Liquidation Type       | Local Available | Collateral Available |
+| ------------------ | --------------------------- | ---------------------- | --------------- | -------------------- |
+| Local Cash / fCash | Collateral Cash             | Collateral Currency    | < 0             | > 0                  |
+| Local Cash / fCash | Collateral nToken           | Collateral Currency    | < 0             | > 0                  |
+| Local Cash / fCash | Collateral Liquidity Token  | Collateral Currency    | < 0             | > 0                  |
+| Local Cash / fCash | Collateral fCash            | Cross Currency fCash   | < 0             | > 0                  |
+| Local fCash        | Local Cash                  | Local (negative) fCash | < 0             | N/A                  |
+| Local Cash / fCash | Local nToken                | Local Currency         | < 0             | N/A                  |
+| Local Cash / fCash | Local Liquidity Token       | Local Currency         | < 0             | N/A                  |
+| Local Cash / fCash | Local fCash                 | Local fCash            | < 0             | N/A                  |
+| Other Cash / fCash | Local Cash                  | Local (negative) fCash | > 0             | N/A                  |
+| Other Cash / fCash | Local nToken                | Local Currency         | > 0             | N/A                  |
+| Other Cash / fCash | Local Liquidity Token       | Local Currency         | > 0             | N/A                  |
+| Other Cash / fCash | Local fCash                 | Local fCash            | > 0             | N/A                  |
+
 ## Local Currency
 
 Local currency liquidation occurs when **local available** is negative and the account holds liquidity tokens or local currency nTokens. Because both those assets have haircuts applied, the account's collateral position can increase by the haircut amount minus any incentive paid to the liquidator.

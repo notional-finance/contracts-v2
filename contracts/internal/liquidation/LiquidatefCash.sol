@@ -26,36 +26,37 @@ library LiquidatefCash {
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The
     /// The risk adjusted discount factor is used to value fCash, the liquidation discount factor is used to 
     /// calculate the price of the fCash asset at a discount to the risk adjusted factor.
+    /// @dev During local fCash liquidation, collateralCashGroup will be set to the local currency cash group
     function _calculatefCashDiscounts(
         LiquidationFactors memory factors,
         uint256 maturity,
         uint256 blockTime,
         bool isNotionalPositive
     ) private view returns (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) {
-        uint256 oracleRate = factors.cashGroup.calculateOracleRate(maturity, blockTime);
+        uint256 oracleRate = factors.collateralCashGroup.calculateOracleRate(maturity, blockTime);
         uint256 timeToMaturity = maturity.sub(blockTime);
 
         if (isNotionalPositive) {
             // This is the discount factor used to calculate the fCash present value during free collateral
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate.add(factors.cashGroup.getfCashHaircut())
+                oracleRate.add(factors.collateralCashGroup.getfCashHaircut())
             );
 
             // This is the discount factor that liquidators get to purchase fCash at, will be larger than
             // the risk adjusted discount factor.
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
-                oracleRate.add(factors.cashGroup.getLiquidationfCashHaircut())
+                oracleRate.add(factors.collateralCashGroup.getLiquidationfCashHaircut())
             );
         } else {
-            uint256 buffer = factors.cashGroup.getDebtBuffer();
+            uint256 buffer = factors.collateralCashGroup.getDebtBuffer();
             riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
                 oracleRate < buffer ? 0 : oracleRate.sub(buffer)
             );
 
-            buffer = factors.cashGroup.getLiquidationDebtBuffer();
+            buffer = factors.collateralCashGroup.getLiquidationDebtBuffer();
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
                 timeToMaturity,
                 oracleRate < buffer ? 0 : oracleRate.sub(buffer)
@@ -77,7 +78,9 @@ library LiquidatefCash {
         }
 
         PortfolioAsset[] memory portfolio = context.portfolio.storedAssets;
-        for (uint256 i = 0; i < portfolio.length; i++) {
+        // Loop backwards through the portfolio since we require fCash maturities to be sorted
+        // descending
+        for (uint256 i = portfolio.length; (i--) > 0;) {
             PortfolioAsset memory asset = portfolio[i];
             if (
                 asset.currencyId == currencyId &&
@@ -116,32 +119,27 @@ library LiquidatefCash {
         fCashContext memory c,
         uint256 blockTime
     ) internal view {
-        if (c.factors.localAssetAvailable > 0) {
-            require(c.factors.localETHRate.haircut > 0);
-            // If local available is positive then we can bring it down to zero, this can occur when the
-            // account is undercollateralized and there is value in trading it's fCash for cash. The value
-            // will be in the difference between the risk adjusted haircut value and the resulting cash it
-            // receives from the liquidator. This will likely be a very small amount.
+        // If local asset available == 0 then there is nothing that this liquidation can do.
+        require(c.factors.localAssetAvailable != 0);
 
-            // Formula here: convertToLocal(netETHFCShortfall) = localRequired * haircut
-            // localRequired = convertToLocal(netETHFCShortfall) / haircut
-            // haircut is used because localAssetAvailable > 0
-
-            // prettier-ignore
-            c.underlyingBenefitRequired = c.factors.localETHRate
-                .convertETHTo(c.factors.netETHValue.neg())
-                .mul(Constants.PERCENTAGE_DECIMALS)
-                .div(c.factors.localETHRate.haircut);
-        } else {
-            // If local available is negative then we can bring it up to zero. In this case positive
-            // local collateral (either cash or fCash) will be exchanged for either removing debt (transfer
-            // of negative fCash) or purchasing positive fCash for cash (removing the haircut on fCash).
-            c.underlyingBenefitRequired = c.factors.localAssetRate.convertToUnderlying(
-                c.factors.localAssetAvailable.neg()
-            );
-        }
+        // If local available is positive then we can trade fCash to cash to increase the total free
+        // collateral of the account. Local available will always increase due to the removal of the haircut
+        // on fCash assets as they are converted to cash. The increase will be the difference between the
+        // risk adjusted haircut value and the liquidation value. Note that negative fCash assets can also be
+        // liquidated via this method, the liquidator will receive negative fCash and cash as a result -- in effect
+        // they will be borrowing at a discount to the oracle rate.
+        c.underlyingBenefitRequired = LiquidationHelpers.calculateLocalLiquidationUnderlyingRequired(
+            c.factors.localAssetAvailable,
+            c.factors.netETHValue,
+            c.factors.localETHRate
+        );
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
+            // Require that fCash maturities are sorted descending. This ensures that a maturity can only
+            // be specified exactly once. It also ensures that the longest dated assets (most risky) are
+            // liquidated first.
+            if (i > 0) require(fCashMaturities[i - 1] > fCashMaturities[i]);
+
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, localCurrency, fCashMaturities[i]);
             // If a notional balance is negative, ensure that there is some local cash balance to
@@ -164,7 +162,9 @@ library LiquidatefCash {
             // abs is used here to ensure positive values
             c.fCashNotionalTransfers[i] = c.underlyingBenefitRequired
             // NOTE: Governance should be set such that these discount factors are unlikely to be zero. It's
-            // possible that the interest rates are so low that this situation can occur.
+            // possible that the interest rates are so low or that the fCash asset is very close to maturity
+            // that this situation can occur. In this case, there would be almost zero benefit to liquidating
+            // the particular fCash asset.
                 .divInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs());
 
             // fCashNotionalTransfers[i] is always positive at this point. The max liquidate amount is
@@ -210,11 +210,12 @@ library LiquidatefCash {
             // Deduct the total benefit gained from liquidating this fCash position
             c.underlyingBenefitRequired = c.underlyingBenefitRequired.sub(
                 c.fCashNotionalTransfers[i]
-                    .mulInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor).abs())
+                    .mulInRatePrecision(liquidationDiscountFactor.sub(riskAdjustedDiscountFactor))
                     .abs()
             );
 
-            if (c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST) break;
+            // Once the underlying benefit is reduced below zero then we have liquidated a sufficient amount
+            if (c.underlyingBenefitRequired <= 0) break;
         }
 
         // Convert local to purchase to asset terms for transfers
@@ -238,15 +239,21 @@ library LiquidatefCash {
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         {
             // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
-            // for the purposes of this method
+            // for the purposes of this method. The underlyingBenefitRequired is denominated in collateral currency
+            // and equivalent to convertToCollateral(netETHValue.neg()).
             (c.underlyingBenefitRequired, c.liquidationDiscount) = LiquidationHelpers
-                .calculateCrossCurrencyBenefitAndDiscount(c.factors);
-            c.underlyingBenefitRequired = c.factors.cashGroup.assetRate.convertToUnderlying(
+                .calculateCrossCurrencyFactors(c.factors);
+            c.underlyingBenefitRequired = c.factors.collateralCashGroup.assetRate.convertToUnderlying(
                 c.underlyingBenefitRequired
             );
         }
 
         for (uint256 i = 0; i < fCashMaturities.length; i++) {
+            // Require that fCash maturities are sorted descending. This ensures that a maturity can only
+            // be specified exactly once. It also ensures that the longest dated assets (most risky) are
+            // liquidated first.
+            if (i > 0) require(fCashMaturities[i - 1] > fCashMaturities[i]);
+
             int256 notional =
                 _getfCashNotional(liquidateAccount, c, collateralCurrency, fCashMaturities[i]);
             if (notional == 0) continue;
@@ -261,8 +268,10 @@ library LiquidatefCash {
             );
 
             if (
-                c.underlyingBenefitRequired <= Constants.LIQUIDATION_DUST ||
-                c.factors.collateralAssetAvailable == 0
+                c.underlyingBenefitRequired <= 0 ||
+                // These two factors will be capped and floored at zero inside `_limitPurchaseByAvailableAmounts`
+                c.factors.collateralAssetAvailable == 0 ||
+                c.factors.localAssetAvailable == 0
             ) break;
         }
     }
@@ -293,7 +302,6 @@ library LiquidatefCash {
         // ]
         int256 benefitDivisor;
         {
-            // -ok
             // prettier-ignore
             int256 termTwo = (
                     c.factors.localETHRate.buffer.mul(Constants.PERCENTAGE_DECIMALS).div(
@@ -353,7 +361,7 @@ library LiquidatefCash {
 
         // Ensures that collateralAssetAvailable does not go below zero
         int256 collateralUnderlyingAvailable =
-            c.factors.cashGroup.assetRate.convertToUnderlying(c.factors.collateralAssetAvailable);
+            c.factors.collateralCashGroup.assetRate.convertToUnderlying(c.factors.collateralAssetAvailable);
         if (fCashRiskAdjustedUnderlyingPV > collateralUnderlyingAvailable) {
             // If inside this if statement then all collateralAssetAvailable should be coming from fCashRiskAdjustedPV
             // collateralAssetAvailable = fCashRiskAdjustedPV
@@ -378,7 +386,7 @@ library LiquidatefCash {
         // As we liquidate here the local available and collateral available will change. Update values accordingly so
         // that the limits will be hit on subsequent iterations.
         c.factors.collateralAssetAvailable = c.factors.collateralAssetAvailable.subNoNeg(
-            c.factors.cashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
+            c.factors.collateralCashGroup.assetRate.convertFromUnderlying(fCashRiskAdjustedUnderlyingPV)
         );
         // Cannot have a negative value here, local asset available should always increase as a result of
         // cross currency liquidation.
@@ -399,7 +407,7 @@ library LiquidatefCash {
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) internal returns (int256[] memory, int256) {
-        // Liquidator deposits or receives cash to the liquidated account.
+        // Liquidator deposits or receives cash to/from the liquidated account.
         AccountContext memory liquidatorContext =
             LiquidationHelpers.finalizeLiquidatorLocal(
                 liquidator,
@@ -408,7 +416,8 @@ library LiquidatefCash {
                 0
             );
 
-        // Liquidated account gets the cash from the liquidator
+        // Liquidated account gets the cash from the liquidator, does not set the
+        // account context
         LiquidationHelpers.finalizeLiquidatedLocalBalance(
             liquidateAccount,
             localCurrency,
@@ -466,8 +475,7 @@ library LiquidatefCash {
             // Don't use the placeAssetsInAccount method here since we already have the
             // portfolio state.
             c.portfolio.addMultipleAssets(assets);
-            AccountContextHandler.storeAssetsAndUpdateContext(
-                c.accountContext,
+            c.accountContext.storeAssetsAndUpdateContext(
                 liquidateAccount,
                 c.portfolio,
                 false // Although this is liquidation, we should not allow past max assets here

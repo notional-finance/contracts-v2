@@ -17,12 +17,14 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
     event SettledCashDebt(
         address indexed settledAccount,
         uint16 indexed currencyId,
+        address indexed settler,
         int256 amountToSettleAsset,
         int256 fCashAmount
     );
     event nTokenResidualPurchase(
         uint16 indexed currencyId,
         uint40 indexed maturity,
+        address indexed purchaser,
         int256 fCashAmountToPurchase,
         int256 netAssetCashNToken
     );
@@ -71,6 +73,7 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     event LiquidatefCashEvent(
         address indexed liquidated,
+        address indexed liquidator,
         uint16 localCurrencyId,
         uint16 fCashCurrency,
         int256 netLocalFromLiquidator,

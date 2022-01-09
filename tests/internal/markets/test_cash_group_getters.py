@@ -132,7 +132,7 @@ class TestCashGroupGetters:
             assert cg[0] == i  # cash group id
             assert cg[1] == cashGroupParameters[0]  # Max market index
 
-            assert cashGroupParameters[1] * 60 == cashGroup.getRateOracleTimeWindow(cg)
+            assert cashGroupParameters[1] * 300 == cashGroup.getRateOracleTimeWindow(cg)
             assert cashGroupParameters[2] * BASIS_POINT == cashGroup.getTotalFee(cg)
             assert cashGroupParameters[3] == cashGroup.getReserveFeeShare(cg)
             assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
@@ -220,7 +220,7 @@ class TestCashGroupGetters:
                 cg[0],
                 settlementDate,
                 get_market_state(
-                    m, lastImpliedRate=lastImpliedRate, previousTradeTime=blockTime - 1000
+                    m, lastImpliedRate=lastImpliedRate, previousTradeTime=blockTime - 7000
                 ),
             )
 

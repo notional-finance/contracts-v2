@@ -286,11 +286,7 @@ def deploy_v1(v2env):
         contracts["ERC1155Trade"].address,
         contracts["WETH"].address,
         v2env.token["WBTC"],
-        2,
-        3,
-        4,
         {"from": deployer},
     )
-    contracts["Migrator"].enableWBTC()
 
     return contracts

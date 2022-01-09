@@ -134,7 +134,7 @@ struct LiquidationFactors {
     // Asset rate for the local currency, used in cross currency calculations to calculate local asset cash required
     AssetRateParameters localAssetRate;
     // Used during currency liquidations if the account has liquidity tokens
-    CashGroupParameters cashGroup;
+    CashGroupParameters collateralCashGroup;
     // Used during currency liquidations if it is only a calculation, defaults to false
     bool isCalculation;
 }
@@ -291,8 +291,8 @@ struct CashGroupSettings {
     // Index of the AMMs on chain that will be made available. Idiosyncratic fCash
     // that is dated less than the longest AMM will be tradable.
     uint8 maxMarketIndex;
-    // Time window in minutes that the rate oracle will be averaged over
-    uint8 rateOracleTimeWindowMin;
+    // Time window in 5 minute increments that the rate oracle will be averaged over
+    uint8 rateOracleTimeWindow5Min;
     // Total fees per trade, specified in BPS
     uint8 totalFeeBPS;
     // Share of the fees given to the protocol, denominated in percentage

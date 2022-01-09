@@ -289,6 +289,12 @@
                 "type": "address"
             },
             {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
                 "indexed": false,
                 "internalType": "uint16",
                 "name": "localCurrencyId",
@@ -444,6 +450,12 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "settler",
+                "type": "address"
             },
             {
                 "indexed": false,
@@ -768,6 +780,12 @@
                 "type": "uint40"
             },
             {
+                "indexed": true,
+                "internalType": "address",
+                "name": "purchaser",
+                "type": "address"
+            },
+            {
                 "indexed": false,
                 "internalType": "int256",
                 "name": "fCashAmountToPurchase",
@@ -824,9 +842,9 @@
         "name": "balanceOf",
         "outputs": [
             {
-                "internalType": "int256",
+                "internalType": "uint256",
                 "name": "",
-                "type": "int256"
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -848,9 +866,9 @@
         "name": "balanceOfBatch",
         "outputs": [
             {
-                "internalType": "int256[]",
+                "internalType": "uint256[]",
                 "name": "",
-                "type": "int256[]"
+                "type": "uint256[]"
             }
         ],
         "stateMutability": "view",
@@ -1359,7 +1377,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -1912,7 +1930,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -1988,7 +2006,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {
@@ -3458,11 +3476,6 @@
                 "internalType": "bool",
                 "name": "",
                 "type": "bool"
-            },
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
             }
         ],
         "stateMutability": "nonpayable",
@@ -3537,7 +3550,7 @@
         ],
         "name": "safeBatchTransferFrom",
         "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function"
     },
     {
@@ -3620,6 +3633,54 @@
         "name": "settleAccount",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "id",
+                "type": "uint256"
+            }
+        ],
+        "name": "signedBalanceOf",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address[]",
+                "name": "accounts",
+                "type": "address[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "ids",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "signedBalanceOfBatch",
+        "outputs": [
+            {
+                "internalType": "int256[]",
+                "name": "",
+                "type": "int256[]"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -3719,7 +3780,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "rateOracleTimeWindowMin",
+                        "name": "rateOracleTimeWindow5Min",
                         "type": "uint8"
                     },
                     {

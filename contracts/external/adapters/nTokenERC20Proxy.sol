@@ -72,7 +72,7 @@ contract nTokenERC20Proxy is IERC20 {
         return success;
     }
 
-    /// @notice Transfer `amount` tokens from `msg.sender` to `dst`
+    /// @notice Transfer `amount` tokens from `msg.sender` to `to`
     /// @dev emit:Transfer
     /// @param to The address of the destination account
     /// @param amount The number of tokens to transfer
@@ -84,7 +84,7 @@ contract nTokenERC20Proxy is IERC20 {
         return success;
     }
 
-    /// @notice Transfer `amount` tokens from `src` to `dst`
+    /// @notice Transfer `amount` tokens from `from` to `to`
     /// @dev emit:Transfer emit:Approval
     /// @param from The address of the source account
     /// @param to The address of the destination account

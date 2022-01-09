@@ -1,4 +1,3 @@
-import math
 import random
 
 import brownie
@@ -11,26 +10,6 @@ from scripts.deployment import TestEnvironment, TokenType
 from tests.helpers import currencies_list_to_active_currency_bytes, get_balance_state
 
 DAI_CURRENCY_ID = 7
-
-
-def convert_to_external(internalValue, externalPrecision):
-    if externalPrecision == 1e8:
-        return internalValue
-    elif externalPrecision > 1e8:
-        # floating point weirdness with python
-        return math.trunc(Wei(externalPrecision) / Wei(1e8)) * Wei(internalValue)
-    else:
-        return math.trunc(Wei(internalValue) * Wei(externalPrecision) / Wei(1e8))
-
-
-def convert_to_internal(externalValue, externalPrecision):
-    if externalPrecision == 1e8:
-        return externalValue
-    elif externalPrecision < 1e8:
-        # floating point weirdness with python
-        return math.trunc(Wei(1e8) / Wei(externalPrecision)) * Wei(externalValue)
-    else:
-        return math.trunc(Wei(externalValue) * Wei(1e8) / Wei(externalPrecision))
 
 
 @pytest.mark.balances
@@ -48,7 +27,7 @@ class TestBalanceHandler:
         for i in range(1, 7):
             hasFee = i in [1, 2, 3]
             decimals = [6, 8, 18, 6, 8, 18][i - 1]
-            fee = 0.01e18 if hasFee else 0
+            fee = Wei(0.01e18) if hasFee else 0
 
             token = MockERC20.deploy(str(i), str(i), decimals, fee, {"from": accounts[0]})
             balanceHandler.setCurrencyMapping(
@@ -202,7 +181,7 @@ class TestBalanceHandler:
         assetBalance=strategy("int88", min_value=1e8, max_value=10e18),
         currencyId=strategy("uint8", min_value=4, max_value=6),
     )
-    @settings(max_examples=10)
+    @settings(max_examples=25)
     def test_balance_transfer_no_fee_no_dust(
         self, balanceHandler, accounts, currencyId, assetBalance, tokens
     ):
@@ -230,34 +209,37 @@ class TestBalanceHandler:
             else:
                 # Dust can accrue in the lower part with 6 decimal precision due to truncation so we
                 # modify the cash balances credited to users by 1 here
-                # TODO: python wei has off by one issues in calculation of large division
-                # https://github.com/eth-brownie/brownie/issues/1224
-                assert bs_[1] == bsCopy[1] + convert_to_internal(
-                    convert_to_external(bsCopy[4], currency[2]) - 1, currency[2]
+                assert bs_[1] == bsCopy[1] + balanceHandler.convertToInternal(
+                    currencyId, balanceHandler.convertToExternal(currencyId, bsCopy[4])
                 )
-                assert balanceAfter - balanceBefore == transferAmountExternal + 1
-                assert transferAmountExternal + 1 == convert_to_external(bsCopy[4], currency[2])
+                assert balanceAfter - balanceBefore == transferAmountExternal
+                assert transferAmountExternal == balanceHandler.convertToExternal(
+                    currencyId, bsCopy[4]
+                )
         elif currency[2] < 1e8:
             if bsCopy[4] > -100:
                 assert bs_[1] == bsCopy[1]
                 assert transferAmountExternal == 0
                 assert balanceBefore == balanceAfter
             else:
-                assert bs_[1] == bsCopy[1] + convert_to_internal(
-                    convert_to_external(bsCopy[4], currency[2]), currency[2]
+                assert bs_[1] == bsCopy[1] + balanceHandler.convertToInternal(
+                    currencyId, balanceHandler.convertToExternal(currencyId, bsCopy[4])
                 )
                 assert balanceAfter - balanceBefore == transferAmountExternal
-                assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2])
+                assert transferAmountExternal == balanceHandler.convertToExternal(
+                    currencyId, bsCopy[4]
+                )
         else:
             assert bs_[1] == bsCopy[1] + bsCopy[4]
             assert balanceAfter - balanceBefore == transferAmountExternal
-            assert transferAmountExternal == convert_to_external(bsCopy[4], currency[2])
+            assert transferAmountExternal == balanceHandler.convertToExternal(currencyId, bsCopy[4])
 
+    @pytest.mark.only
     @given(
         assetBalance=strategy("int88", min_value=1e8, max_value=10e18),
         currencyId=strategy("uint8", min_value=1, max_value=3),
     )
-    @settings(max_examples=10)
+    @settings(max_examples=25)
     def test_balance_transfer_has_fee(
         self, balanceHandler, accounts, currencyId, assetBalance, tokens
     ):
@@ -276,12 +258,13 @@ class TestBalanceHandler:
         (context_, transferAmountExternal) = txn.return_value
         (bs_, _) = balanceHandler.loadBalanceState(accounts[0], currencyId, context_)
 
-        # Has issue on 6 decimals
         currency = balanceHandler.getCurrencyMapping(currencyId, False)
-        assert bs_[1] == bsCopy[1] + convert_to_internal(transferAmountExternal, currency[2])
+        assert bs_[1] == bsCopy[1] + balanceHandler.convertToInternal(
+            currencyId, transferAmountExternal
+        )
 
         if currency[2] < 1e8 and bsCopy[4] > 0:
-            assert balanceAfter - balanceBefore == transferAmountExternal + 1
+            assert balanceAfter - balanceBefore == transferAmountExternal
         else:
             assert balanceAfter - balanceBefore == transferAmountExternal
 
@@ -335,14 +318,13 @@ class TestBalanceHandler:
         )
 
         currency = balanceHandler.getCurrencyMapping(currencyId, False)
-        externalPrecision = currency[2]
-        assetDepositExternal = convert_to_external(assetDeposit, externalPrecision)
+        assetDepositExternal = balanceHandler.convertToExternal(currencyId, assetDeposit)
 
         if currency[1]:
             # Has transfer fee
             fee = assetDepositExternal // 100
             # Asset deposit in internal precision post fee
-            assetDeposit = convert_to_internal(assetDepositExternal - fee, externalPrecision)
+            assetDeposit = balanceHandler.convertToInternal(currencyId, assetDepositExternal - fee)
 
         # without cash balance, should simply be a deposit into the account, only transfer
         # amounts change
@@ -353,8 +335,8 @@ class TestBalanceHandler:
 
         # Need to truncate precision difference
         if currency[2] < 1e8 and currency[1]:
-            assetDepositAdjusted = convert_to_internal(
-                convert_to_external(assetDeposit, externalPrecision) - 1, externalPrecision
+            assetDepositAdjusted = balanceHandler.convertToInternal(
+                currencyId, balanceHandler.convertToExternal(currencyId, assetDeposit)
             )
         else:
             assetDepositAdjusted = assetDeposit

@@ -5,20 +5,36 @@ pragma abicoder v2;
 import "interfaces/compound/CTokenInterface.sol";
 import "interfaces/compound/CErc20Interface.sol";
 import "interfaces/notional/NotionalProxy.sol";
+import "interfaces/notional/NotionalCallback.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract CompoundToNotionalV2 {
+contract CompoundToNotionalV2 is NotionalCallback {
+    string public constant name = "Compound to Notional V2";
     NotionalProxy public immutable NotionalV2;
-    address public owner;
+    address public immutable owner;
+    address public immutable cETH;
 
-    constructor(NotionalProxy notionalV2_) {
+    constructor(NotionalProxy notionalV2_, address owner_, address cETH_) {
         NotionalV2 = notionalV2_;
-        owner = msg.sender;
+        owner = owner_;
+        cETH = cETH_;
     }
 
-    function enableToken(address token, address spender) external {
+    /// @notice Enables NotionalV2 to transfer cTokens tokens from this address
+    function enableTokens(CTokenInterface[] calldata cTokens) external {
         require(msg.sender == owner, "Unauthorized");
-        require(CTokenInterface(token).approve(spender, type(uint256).max));
+        for (uint256 i = 0; i < cTokens.length; i++) {
+            CTokenInterface cToken = cTokens[i];
+            // Approve Notional to transfer cTokens from this adapter as collateral
+            require(cToken.approve(address(NotionalV2), type(uint256).max));
+
+            if (address(cToken) != cETH) {
+                // NOTE: not all underlying tokens respond properly to approvals
+                // Approve the cToken to mint cTokens from this address for borrow repayment
+                IERC20 underlying = IERC20(cToken.underlying());
+                underlying.approve(address(cToken), type(uint256).max);
+            }
+        }
     }
 
     function migrateBorrowFromCompound(
@@ -28,11 +44,13 @@ contract CompoundToNotionalV2 {
         uint256[] memory notionalV2CollateralAmounts,
         BalanceActionWithTrades[] calldata borrowAction
     ) external {
+        require(notionalV2CollateralIds.length == notionalV2CollateralAmounts.length);
         // borrow on notional via special flash loan facility
         //  - borrow repayment amount
         //  - withdraw to wallet, redeem to underlying
         // receive callback (tokens transferred to borrowing account)
         //   -> inside callback
+        //   -> transfer borrowed amount from account (needs to have set approvals)
         //   -> repayBorrowBehalf(account, repayAmount)
         //   -> deposit cToken to notional (account needs to have set approvals)
         //   -> exit callback
@@ -59,7 +77,7 @@ contract CompoundToNotionalV2 {
         address sender,
         address account,
         bytes calldata callbackData
-    ) external returns (uint256) {
+    ) external override {
         require(msg.sender == address(NotionalV2) && sender == address(this), "Unauthorized callback");
 
         (

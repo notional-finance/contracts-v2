@@ -26,6 +26,11 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
         LIQUIDATE_FCASH = liquidatefCash_;
     }
 
+    /// @dev Internal method will be called during an UUPS upgrade, must return true to
+    /// authorize the upgrade. The UUPS check does a rollback check during the upgrade and
+    /// therefore we use the `rollbackRouterImplementation` to authorize the pauseGuardian
+    /// during this check. See GovernanceAction._authorizeUpgrade for where the rollbackRouterImplementation
+    /// storage slot is set.
     function _authorizeUpgrade(address newImplementation) internal override {
         // This is only true during a rollback check when the pause router is downgraded
         bool isRollbackCheck = rollbackRouterImplementation != address(0) &&
@@ -41,10 +46,13 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
         rollbackRouterImplementation = address(0);
     }
 
+    /// @notice Shows the current state of which liquidations are enabled
+    /// @return the current liquidation enable state as a bitmap
     function getLiquidationEnabledState() external view returns (bytes1) {
         return liquidationEnabledState;
     }
 
+    /// @notice Sets a new liquidation enable state, only the owner or the guardian may do so
     function setLiquidationEnabledState(bytes1 liquidationEnabledState_) external {
         // Only authorized addresses can set the liquidation state
         require(owner == msg.sender || msg.sender == pauseGuardian);

@@ -252,6 +252,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
 
             (int256 netLocalAssetValue, int256 nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
@@ -339,6 +341,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
             int256 nTokenBalance;
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
@@ -395,7 +399,7 @@ library FreeCollateral {
 
             // If collateralCurrencyId is set to zero then this is a local currency liquidation
             if (setLiquidationFactors) {
-                liquidationFactors.cashGroup = factors.cashGroup;
+                liquidationFactors.collateralCashGroup = factors.cashGroup;
                 liquidationFactors.nTokenParameters = nTokenParameters;
                 liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
             }
@@ -432,15 +436,19 @@ library FreeCollateral {
             ETHRate memory ethRate =
                 _updateNetETHValue(accountContext.bitmapCurrencyId, netLocalAssetValue, factors);
 
-            // If the bitmap currency id can only ever be the local currency where debt is held. During enable bitmap we check that
-            // the account has no assets in their portfolio and no cash debts.
+            // If the bitmap currency id can only ever be the local currency where debt is held.
+            // During enable bitmap we check that the account has no assets in their portfolio and
+            // no cash debts.
             if (accountContext.bitmapCurrencyId == localCurrencyId) {
-                liquidationFactors.cashGroup = factors.cashGroup;
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
+                liquidationFactors.localAssetRate = factors.assetRate;
 
                 // This will be the case during local currency or local fCash liquidation
                 if (collateralCurrencyId == 0) {
+                    // If this is local fCash liquidation, the cash group information is required
+                    // to calculate fCash haircuts and buffers.
+                    liquidationFactors.collateralCashGroup = factors.cashGroup;
                     liquidationFactors.nTokenHaircutAssetValue = nTokenHaircutAssetValue;
                     liquidationFactors.nTokenParameters = nTokenParameters;
                 }
@@ -460,6 +468,8 @@ library FreeCollateral {
             bool setLiquidationFactors;
             {
                 uint256 tempId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
+                // Explicitly ensures that bitmap currency cannot be double counted
+                require(tempId != accountContext.bitmapCurrencyId);
                 setLiquidationFactors =
                     (tempId == localCurrencyId && collateralCurrencyId == 0) ||
                     tempId == collateralCurrencyId;
@@ -477,14 +487,20 @@ library FreeCollateral {
             ETHRate memory ethRate = _updateNetETHValue(currencyId, netLocalAssetValue, factors);
 
             if (currencyId == collateralCurrencyId) {
-                // Ensure that this is set even if the cash group is not loaded
-                liquidationFactors.cashGroup.assetRate = factors.assetRate;
+                // Ensure that this is set even if the cash group is not loaded, it will not be
+                // loaded if the account only has a cash balance and no nTokens or assets
+                liquidationFactors.collateralCashGroup.assetRate = factors.assetRate;
                 liquidationFactors.collateralAssetAvailable = netLocalAssetValue;
                 liquidationFactors.collateralETHRate = ethRate;
             } else if (currencyId == localCurrencyId) {
+                // This branch will not be entered if bitmap is enabled
                 liquidationFactors.localAssetAvailable = netLocalAssetValue;
                 liquidationFactors.localETHRate = ethRate;
                 liquidationFactors.localAssetRate = factors.assetRate;
+                // If this is local fCash liquidation, the cash group information is required
+                // to calculate fCash haircuts and buffers and it will have been set in
+                // _calculateLiquidationAssetValue above because the account must have fCash assets,
+                // there is no need to set cash group in this branch.
             }
 
             currencies = currencies << 16;

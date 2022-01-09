@@ -69,7 +69,7 @@ def main():
     with open("kovan.json", "r") as f:
         addresses = json.load(f)
 
-    deployer = accounts.add(private_key=os.environ["TESTNET_PRIVATE_KEY"])
+    deployer = accounts.add(private_key=os.environ["KOVAN_COMP_DEPLOYER"])
     compPriceOracle = nPriceOracle.deploy({"from": deployer})
     comptroller = nComptroller.deploy({"from": deployer})
     comptroller._setMaxAssets(20)

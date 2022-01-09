@@ -20,6 +20,8 @@ library SettleAssetsExternal {
         address account,
         AccountContext memory accountContext
     ) external returns (AccountContext memory) {
+        // Defensive check to ensure that this is a valid settlement
+        require(accountContext.mustSettleAssets());
         SettleAmount[] memory settleAmounts;
         PortfolioState memory portfolioState;
 
