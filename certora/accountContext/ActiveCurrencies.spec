@@ -64,6 +64,7 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
  * This check ensures that any two indexes of the active currencies byte vector are not duplicated
  * and sorted properly.
  */
+ /*
 invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
     (0 <= i && j == i + 1 && j < 9) =>
         // If the current slot is zero then the next slot must also be zero
@@ -75,11 +76,12 @@ invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, 
                     // Or it may have a value which must be greater than the current value
                     (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
                 )
-        )
+        )*/
 
 /**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
+ /*
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
     0 <= i && i < 9 && getBitmapCurrency(account) != 0 &&
         (
@@ -87,3 +89,59 @@ invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint1
             (hasCurrencyMask(account, i) && getActiveUnmasked(account, i) == 0) ||
                 getActiveMasked(account, i) == 0
         ) => getActiveUnmasked(account, i) != getBitmapCurrency(account)
+*/
+invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
+  0 <= i && i < 9 && getActiveUnmasked(account, i) != 0 && hasCurrencyMask(account, i) => 
+        getActiveUnmasked(account, i) != getBitmapCurrency(account)
+         {
+            preserved with (env e) {
+                require getBitmapCurrency(account) <= MAX_CURRENCIES();
+                // no duplicates in active currencies
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 0);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 1);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 2);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 3);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 4);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 5);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 6);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 7);
+                requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 8);
+               
+                require getActiveUnmasked(account, 7) != getActiveUnmasked(account, 8);
+
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 0, 1);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 1, 2);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 2, 3);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 3, 4);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 4, 5);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 5, 6);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 6, 7);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 7, 8);        
+            }
+         }
+
+
+invariant activeCurrenciesAreNotDuplicatedAndSorted_simple(address account, uint144 i, uint144 j)
+    (0 <= i && j == i + 1 && j < 9) =>
+        // If the current slot is zero then the next slot must also be zero
+        (
+            getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
+                (
+                    // The next slot may terminate
+                    getActiveMasked(account, j) == 0 ||
+                    // Or it may have a value which must be greater than the current value
+                    (getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
+                )
+        ) {
+            preserved with (env e) {
+
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 0, 1);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 1, 2);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 2, 3);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 3, 4);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 4, 5);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 5, 6);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 6, 7);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 7, 8); 
+            }
+        }

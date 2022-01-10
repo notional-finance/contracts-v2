@@ -108,12 +108,12 @@ contract AccountPortfolioHarness {
     /** State Changing Methods **/
 
     function enableBitmapForAccount(
-        address account,
+        address account, // can be removed
         uint16 currencyId,
         uint256 blockTime
     ) external {
         AccountContext memory accountContext = symbolicAccountContext;
-        accountContext.enableBitmapForAccount(account, currencyId, blockTime);
+        accountContext.enableBitmapForAccount(currencyId, blockTime);
         symbolicAccountContext = accountContext;
     }
 
