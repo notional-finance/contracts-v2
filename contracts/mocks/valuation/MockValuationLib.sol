@@ -51,7 +51,8 @@ library MockValuationLib {
         uint96 totalSupply,
         int88 cashBalance,
         uint8 pvHaircutPercentage,
-        uint8 liquidationHaircutPercentage
+        uint8 liquidationHaircutPercentage,
+        uint256 lastInitializedTime
     ) public {
         nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
         nTokenHandler.setNTokenCollateralParameters(
@@ -62,6 +63,7 @@ library MockValuationLib {
             0,
             liquidationHaircutPercentage
         );
+        nTokenHandler.setArrayLengthAndInitializedTime(nTokenAddress, 0, lastInitializedTime);
         nTokenSupply.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
         BalanceHandler.setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
     }
@@ -314,7 +316,8 @@ contract MockValuationBase {
         uint96 totalSupply,
         int88 cashBalance,
         uint8 pvHaircutPercentage,
-        uint8 liquidationHaircutPercentage
+        uint8 liquidationHaircutPercentage,
+        uint256 lastInitializedTime
     ) public {
         MockValuationLib.setNTokenValue(
             currencyId,
@@ -322,7 +325,8 @@ contract MockValuationBase {
             totalSupply,
             cashBalance,
             pvHaircutPercentage,
-            liquidationHaircutPercentage
+            liquidationHaircutPercentage,
+            lastInitializedTime
         );
     }
 

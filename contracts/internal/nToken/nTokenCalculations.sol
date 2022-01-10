@@ -240,6 +240,9 @@ library nTokenCalculations {
         // If max market index is less than or equal to 2, there are never ifCash assets by construction
         if (maxMarketIndex <= 2) return bytes32(0);
         bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(tokenAddress, currencyId);
+        // Handles the case when there are no assets at the first initialization
+        if (assetsBitmap == 0) return assetsBitmap;
+
         uint256 tRef = DateTime.getReferenceTime(blockTime);
 
         if (tRef == lastInitializedTime) {
