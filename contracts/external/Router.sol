@@ -190,7 +190,9 @@ contract Router is StorageLayoutV1 {
         } else if (
             sig == NotionalTreasury.claimCOMP.selector ||
             sig == NotionalTreasury.transferReserveToTreasury.selector ||
+            sig == NotionalTreasury.getTreasuryManager.selector ||
             sig == NotionalTreasury.setTreasuryManager.selector ||
+            sig == NotionalTreasury.getReserveBuffer.selector ||
             sig == NotionalTreasury.setReserveBuffer.selector
         ) {
             return TREASURY;

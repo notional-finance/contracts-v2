@@ -6,5 +6,5 @@ import "./StorageLayoutV1.sol";
 
 contract StorageLayoutV2 is StorageLayoutV1 {
     address public treasuryManagerContract;
-    mapping(address => uint256) internal reserveBuffer;
+    mapping(uint256 => uint256) internal reserveBuffer;
 }

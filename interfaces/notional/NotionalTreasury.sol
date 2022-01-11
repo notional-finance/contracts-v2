@@ -9,7 +9,11 @@ interface NotionalTreasury {
         external
         returns (uint256[] memory);
 
+    function getTreasuryManager() external view returns (address);
+
     function setTreasuryManager(address manager) external;
 
-    function setReserveBuffer(address asset, uint256 amount) external;
+    function getReserveBuffer(uint16 currencyId) external view returns(uint256);
+
+    function setReserveBuffer(uint16 currencyId, uint256 amount) external;
 }
