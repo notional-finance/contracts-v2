@@ -73,14 +73,15 @@ library SettlePortfolioAssets {
                 settleAmounts[settleAmountIndex].currencyId = asset.currencyId;
             }
 
-            settlementRate = AssetRate.buildSettlementRateStateful(
-                asset.currencyId,
-                asset.maturity,
-                blockTime
-            );
-
             int256 assetCash;
             if (asset.assetType == Constants.FCASH_ASSET_TYPE) {
+                // Gets or sets the settlement rate, only do this before settling fCash
+                settlementRate = AssetRate.buildSettlementRateStateful(
+                    asset.currencyId,
+                    asset.maturity,
+                    blockTime
+                );
+
                 assetCash = settlementRate.convertFromUnderlying(asset.notional);
                 portfolioState.deleteAsset(i);
             } else if (AssetHandler.isLiquidityToken(asset.assetType)) {
@@ -93,6 +94,13 @@ library SettlePortfolioAssets {
                     // If fCash has not yet matured then add it to the portfolio
                     _settleLiquidityTokenTofCash(portfolioState, i, fCash);
                 } else {
+                    // Gets or sets the settlement rate, only do this before settling fCash
+                    settlementRate = AssetRate.buildSettlementRateStateful(
+                        asset.currencyId,
+                        asset.maturity,
+                        blockTime
+                    );
+
                     // If asset has matured then settle fCash to asset cash
                     assetCash = assetCash.add(settlementRate.convertFromUnderlying(fCash));
                     portfolioState.deleteAsset(i);

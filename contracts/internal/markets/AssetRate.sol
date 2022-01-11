@@ -236,7 +236,7 @@ library AssetRate {
                 // Only need to set settlement rates when the rate oracle is set (meaning the asset token has
                 // a conversion rate to an underlying). If not set then the asset cash always settles to underlying at a 1-1
                 // rate since they are the same.
-                require(blockTime != 0 && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
+                require(0 < blockTime && maturity <= blockTime && blockTime <= type(uint40).max); // dev: settlement rate timestamp overflow
                 require(0 < settlementRate && settlementRate <= type(uint128).max); // dev: settlement rate overflow
 
                 SettlementRateStorage storage rateStorage = store[currencyId][maturity];

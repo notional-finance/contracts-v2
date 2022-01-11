@@ -5,7 +5,6 @@ pragma abicoder v2;
 import "./PortfolioHandler.sol";
 import "./BitmapAssetsHandler.sol";
 import "../AccountContextHandler.sol";
-import "../../external/SettleAssetsExternal.sol";
 
 /// @notice Helper library for transferring assets from one portfolio to another
 library TransferAssets {
