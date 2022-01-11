@@ -266,6 +266,7 @@ library TokenHandler {
     }
 
     function checkReturnCode() private pure {
+        // SG Certora: Comment this out to get finalizeCashBalances to not timeout
         bool success;
         uint256[1] memory result;
         assembly {

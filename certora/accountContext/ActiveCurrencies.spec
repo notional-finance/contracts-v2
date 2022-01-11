@@ -5,6 +5,9 @@ methods {
     getBitmapCurrency(address account) returns (uint16) envfree
     getActiveCurrencies(address account) returns (uint144) envfree
     getAssetsBitmap(address account) returns (uint256) envfree
+    transfer(address,uint256) => NONDET
+    mul(int256,int256) => NONDET
+    div(int256,int256) => NONDET
 }
 
 /* Helper methods for active currencies */
@@ -107,8 +110,6 @@ invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint1
                 requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 7);
                 requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 8);
                
-                require getActiveUnmasked(account, 7) != getActiveUnmasked(account, 8);
-
                 requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 0, 1);
                 requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 1, 2);
                 requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 2, 3);
