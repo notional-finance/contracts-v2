@@ -182,6 +182,13 @@ contract Views is StorageLayoutV2, NotionalViews {
         return address(nTokenHandler.getSecondaryRewarder(tokenAddress));
     }
 
+    /// @notice Returns current ownership status of the contract
+    /// @return owner is the current owner of the Notional system
+    /// @return pendingOwner can claim ownership from the owner
+    function getOwnershipStatus() external view override returns (address owner, address pendingOwner) {
+        return (owner, pendingOwner);
+    }
+
     /** Global System State View Methods **/
 
     /// @notice Returns the asset settlement rate for a given maturity
