@@ -176,6 +176,7 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateAssetRate.selector ||
             sig == NotionalGovernance.updateETHRate.selector ||
             sig == NotionalGovernance.transferOwnership.selector ||
+            sig == NotionalGovernance.claimOwnership.selector ||
             sig == NotionalGovernance.updateIncentiveEmissionRate.selector ||
             sig == NotionalGovernance.updateMaxCollateralBalance.selector ||
             sig == NotionalGovernance.updateDepositParameters.selector ||

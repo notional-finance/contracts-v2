@@ -124,7 +124,7 @@ def test_calldata_encoding_failure(environment, accounts):
     with brownie.reverts("Insufficient free collateral"):
         # This should fall through the sig check and fail
         data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
-            fn_name="transferOwnership", args=[accounts[0].address]
+            fn_name="transferOwnership", args=[accounts[0].address, True]
         )
 
         environment.notional.safeTransferFrom(

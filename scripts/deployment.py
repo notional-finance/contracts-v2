@@ -196,7 +196,7 @@ class TestEnvironment:
         self._deployNotional()
 
         if withGovernance:
-            self.notional.transferOwnership(self.governor.address)
+            self.notional.transferOwnership(self.governor.address, True)
             self.proxyAdmin.transferOwnership(self.governor.address)
             self.noteERC20.initialize(
                 [self.governor.address, self.multisig.address, self.notional.address],

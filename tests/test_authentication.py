@@ -47,7 +47,7 @@ def test_non_callable_methods(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
 
     with brownie.reverts("Ownable: caller is not the owner"):
-        environment.notional.transferOwnership(accounts[1], {"from": accounts[1]})
+        environment.notional.transferOwnership(accounts[1], True, {"from": accounts[1]})
         environment.notional.listCurrency(
             (environment.token["DAI"].address, False, 0, 18, 0),
             (zeroAddress, False, 0, 0, 0),

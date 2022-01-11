@@ -22,7 +22,9 @@ interface NotionalGovernance {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
 
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner, bool direct) external;
+
+    function claimOwnership() external;
 
     function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 

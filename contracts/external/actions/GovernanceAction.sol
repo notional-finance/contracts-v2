@@ -6,7 +6,7 @@ import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
 import "../../internal/nTokenHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
-import "../../global/StorageLayoutV1.sol";
+import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
@@ -18,7 +18,7 @@ import "interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
+contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -29,12 +29,39 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
-    /// @dev Transfers ownership of the contract to a new account (`newOwner`).
-    /// Can only be called by the current owner.
-    function transferOwnership(address newOwner) external override onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+    /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
+    /// Can only be invoked by the current `owner`.
+    /// @param newOwner Address of the new owner.
+    /// @param direct True if `newOwner` should be set immediately. False if `newOwner` needs to use `claimOwnership`.
+    function transferOwnership(
+        address newOwner,
+        bool direct
+    ) external override onlyOwner {
+        if (direct) {
+            // Checks
+            require(newOwner != address(0), "Ownable: zero address");
+
+            // Effects
+            emit OwnershipTransferred(owner, newOwner);
+            owner = newOwner;
+            pendingOwner = address(0);
+        } else {
+            // Effects
+            pendingOwner = newOwner;
+        }
+    }
+
+    /// @notice Needs to be called by `pendingOwner` to claim ownership.
+    function claimOwnership() external override {
+        address _pendingOwner = pendingOwner;
+
+        // Checks
+        require(msg.sender == _pendingOwner, "Ownable: caller != pending owner");
+
+        // Effects
+        emit OwnershipTransferred(owner, _pendingOwner);
+        owner = _pendingOwner;
+        pendingOwner = address(0);
     }
 
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract

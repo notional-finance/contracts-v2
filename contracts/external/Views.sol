@@ -10,13 +10,13 @@ import "../internal/markets/AssetRate.sol";
 import "../internal/nTokenHandler.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
-import "../global/StorageLayoutV1.sol";
+import "../global/StorageLayoutV2.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/notional/NotionalViews.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract Views is StorageLayoutV1, NotionalViews {
+contract Views is StorageLayoutV2, NotionalViews {
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
     using Market for MarketParameters;
@@ -160,6 +160,13 @@ contract Views is StorageLayoutV1, NotionalViews {
     /// @notice Returns address of the NOTE token
     function getNoteToken() external pure override returns (address) {
         return Constants.NOTE_TOKEN_ADDRESS;
+    }
+
+    /// @notice Returns current ownership status of the contract
+    /// @return owner is the current owner of the Notional system
+    /// @return pendingOwner can claim ownership from the owner
+    function getOwnershipStatus() external view override returns (address owner, address pendingOwner) {
+        return (owner, pendingOwner);
     }
 
     /** Global System State View Methods **/

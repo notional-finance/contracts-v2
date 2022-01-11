@@ -50,6 +50,8 @@ interface NotionalViews {
 
     function getNoteToken() external view returns (address);
 
+    function getOwnershipStatus() external view returns (address owner, address pendingOwner);
+
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
         view
