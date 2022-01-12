@@ -5,7 +5,7 @@ pragma abicoder v2;
 interface NotionalTreasury {
     function claimCOMP(address[] calldata ctokens) external returns (uint256);
 
-    function transferReserveToTreasury(address[] calldata assets)
+    function transferReserveToTreasury(uint16[] calldata currencies)
         external
         returns (uint256[] memory);
 

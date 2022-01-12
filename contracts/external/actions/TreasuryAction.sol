@@ -23,6 +23,8 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury {
     Comptroller public immutable COMPTROLLER;
     address public immutable WETH;
 
+    event AssetsHarvested(uint16[] currencies, uint256[] amounts);
+
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -57,24 +59,24 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury {
         return bal;
     }
 
-    function transferReserveToTreasury(address[] calldata assets)
+    function transferReserveToTreasury(uint16[] calldata currencies)
         external
         override
         onlyManagerContract
         returns (uint256[] memory)
     {
-        uint256[] memory amountsTransferred = new uint256[](assets.length);
+        uint256[] memory amountsTransferred = new uint256[](currencies.length);
 
-        for (uint256 i; i < assets.length; i++) {
-            uint16 currencyId = tokenAddressToCurrencyId[assets[i]];
+        for (uint256 i; i < currencies.length; i++) {
+            uint16 currencyId = currencies[i];
             require(currencyId != 0, "Token not listed");
 
             // prettier-ignore
             (int256 reserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
-            Token memory token = TokenHandler.getAssetToken(currencyId);
+            Token memory asset = TokenHandler.getAssetToken(currencyId);
 
             uint256 totalReserve = reserve.toUint();
-            uint256 totalBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            uint256 totalBalance = IERC20(asset.tokenAddress).balanceOf(address(this));
             uint256 buffer = reserveBuffer[currencyId];
 
             // Reserve requirement not defined
@@ -86,12 +88,15 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury {
 
             if (totalReserve > requiredReserve) {
                 uint256 redeemAmount = totalReserve.sub(requiredReserve);
+
+                reserve = reserve.sub(SafeInt256.toInt(redeemAmount));
+                require(reserve >= 0, "T: invalid reserve amount");
+                BalanceHandler._setBalanceStorage(Constants.RESERVE, currencyId, reserve, 0, 0, 0);
+
                 Token memory underlying = TokenHandler.getUnderlyingToken(currencyId);
-                amountsTransferred[i] = _redeemCToken(
-                    token.tokenAddress,
-                    underlying.tokenAddress,
-                    redeemAmount
-                );
+                int256 redeemed = TokenHandler.redeem(asset, underlying, redeemAmount);
+
+                amountsTransferred[i] = redeemed.toUint();
 
                 // _redeemCToken wraps ETH into WETH
                 address underlyingAddress = underlying.tokenAddress == address(0)
@@ -104,6 +109,7 @@ contract TreasuryAction is StorageLayoutV2, NotionalTreasury {
             }
         }
 
+        emit AssetsHarvested(currencies, amountsTransferred);
         return amountsTransferred;
     }
 

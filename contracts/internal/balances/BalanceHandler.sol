@@ -372,7 +372,7 @@ library BalanceHandler {
         int256 nTokenBalance,
         uint256 lastClaimTime,
         uint256 lastClaimIntegralSupply
-    ) private {
+    ) internal {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
