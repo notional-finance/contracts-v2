@@ -61,38 +61,8 @@ invariant bitmapPortfoliosCannotHaveAssetArray(address account)
     getBitmapCurrency(account) != 0 => getAssetArrayLength(account) == 0
 
 /**
- * Active currency flags are always sorted and cannot be double counted, if this occurs then there
- * will be currencies that are double counted during the free collateral check.
- *
- * This check ensures that any two indexes of the active currencies byte vector are not duplicated
- * and sorted properly.
- */
- /*
-invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
-    (0 <= i && j == i + 1 && j < 9) =>
-        // If the current slot is zero then the next slot must also be zero
-        (
-            getActiveMasked(account, i) == 0 ? getActiveMasked(account, j) == 0 :
-                hasValidMask(account, i) && (
-                    // The next slot may terminate
-                    getActiveMasked(account, j) == 0 ||
-                    // Or it may have a value which must be greater than the current value
-                    (hasValidMask(account, j) && getActiveUnmasked(account, i) < getActiveUnmasked(account, j))
-                )
-        )*/
-
-/**
  * If a bitmap currency is set then it cannot also be in active currencies or it will be considered a duplicate
  */
- /*
-invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
-    0 <= i && i < 9 && getBitmapCurrency(account) != 0 &&
-        (
-            // When a bitmap is enable it can only have currency masks in the active currencies bytes
-            (hasCurrencyMask(account, i) && getActiveUnmasked(account, i) == 0) ||
-                getActiveMasked(account, i) == 0
-        ) => getActiveUnmasked(account, i) != getBitmapCurrency(account)
-*/
 invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint144 i)
   0 <= i && i < 9 && getActiveUnmasked(account, i) != 0 && hasCurrencyMask(account, i) => 
         getActiveUnmasked(account, i) != getBitmapCurrency(account)
@@ -110,19 +80,26 @@ invariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(address account, uint1
                 requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 7);
                 requireInvariant bitmapCurrencyIsNotDuplicatedInActiveCurrencies(account, 8);
                
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 0, 1);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 1, 2);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 2, 3);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 3, 4);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 4, 5);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 5, 6);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 6, 7);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 7, 8);        
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 0, 1);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 1, 2);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 2, 3);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 3, 4);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 4, 5);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 5, 6);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 6, 7);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 7, 8);        
             }
          }
 
 
-invariant activeCurrenciesAreNotDuplicatedAndSorted_simple(address account, uint144 i, uint144 j)
+/**
+ * Active currency flags are always sorted and cannot be double counted, if this occurs then there
+ * will be currencies that are double counted during the free collateral check.
+ *
+ * This check ensures that any two indexes of the active currencies byte vector are not duplicated
+ * and sorted properly.
+ */
+invariant activeCurrenciesAreNotDuplicatedAndSorted(address account, uint144 i, uint144 j)
     (0 <= i && j == i + 1 && j < 9) =>
         // If the current slot is zero then the next slot must also be zero
         (
@@ -136,13 +113,13 @@ invariant activeCurrenciesAreNotDuplicatedAndSorted_simple(address account, uint
         ) {
             preserved with (env e) {
 
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 0, 1);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 1, 2);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 2, 3);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 3, 4);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 4, 5);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 5, 6);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 6, 7);
-                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted_simple(account, 7, 8); 
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 0, 1);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 1, 2);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 2, 3);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 3, 4);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 4, 5);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 5, 6);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 6, 7);
+                requireInvariant activeCurrenciesAreNotDuplicatedAndSorted(account, 7, 8); 
             }
         }
