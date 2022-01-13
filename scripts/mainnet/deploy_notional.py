@@ -12,6 +12,8 @@ CTOKEN_DECIMALS = 8
 TokenConfig = {
     "kovan": {
         "cETH": "0x40575f9Eb401f63f66F4c434248ad83D3441bf61",
+        "WETH": "0xd0a1e359811322d97991e03f863a0c30c2cf029c",
+        "Comptroller": "0x2D5D30a561278a5F0ad8779A386dAA4C478865D0",
         "DAI": {
             "assetToken": (
                 "0x4dC87A3D30C4A1B33E4349f02F4c5B1B1eF9A75D",
@@ -87,6 +89,8 @@ TokenConfig = {
         },
     },
     "mainnet": {
+        "WETH": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "Comptroller": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B",
         "cETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
         "DAI": {
             "assetToken": (

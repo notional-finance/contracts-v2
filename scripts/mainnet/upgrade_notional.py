@@ -17,15 +17,27 @@ ROUTER_ARG_POSITION = {
     "LiquidateCurrency": 8,
     "LiquidatefCash": 9,
     "cETH": 10,
+    "TreasuryManager": 11,
 }
 
 
-def full_upgrade(deployer):
+def full_upgrade(deployer, verify=True):
+    networkName = network.show_active()
+    if networkName == "hardhat-fork":
+        networkName = "mainnet"
+
     (router, pauseRouter, contracts) = deployNotionalContracts(
-        deployer, TokenConfig[network.show_active()]["cETH"]
+        deployer,
+        cETH=TokenConfig[networkName]["cETH"],
+        WETH=TokenConfig[networkName]["WETH"],
+        Comptroller=TokenConfig[networkName]["Comptroller"],
+        COMP=TokenConfig[networkName]["COMP"],
     )
 
-    etherscan_verify(contracts, router, pauseRouter)
+    if verify:
+        etherscan_verify(contracts, router, pauseRouter)
+
+    return (router, pauseRouter, contracts)
 
 
 def update_contract(deployer, output):
@@ -53,7 +65,7 @@ def update_contract(deployer, output):
     return newRouter
 
 
-def main():
+def upgrade_checks():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     output_file = "v2.{}.json".format(network.show_active())
     output = None
@@ -66,6 +78,4 @@ def main():
         m = re.search("address constant NOTE_TOKEN_ADDRESS = (.*);", constants)
         assert m.group(1) == output["note"]
 
-    router = update_contract(deployer, output)
-
-    print("New Router Implementation At: ", router.address)
+    return (deployer, output)

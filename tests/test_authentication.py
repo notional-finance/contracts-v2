@@ -22,7 +22,13 @@ def isolation(fn_isolation):
 
 def test_router_initialization(environment, accounts, Router, nProxy):
     cETH = environment.cToken["ETH"]
-    (router, pauseRouter, contracts) = deployNotionalContracts(accounts[0], cETH.address)
+    (router, pauseRouter, contracts) = deployNotionalContracts(
+        accounts[0],
+        cETH=cETH.address,
+        COMP=cETH.address,
+        WETH=cETH.address,
+        Comptroller=cETH.address,
+    )
 
     with brownie.reverts():
         # Cannot call initialize on implementation contract

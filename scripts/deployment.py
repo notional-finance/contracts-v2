@@ -13,11 +13,13 @@ from brownie import (
     LiquidatefCashAction,
     MockAggregator,
     MockERC20,
+    MockWETH,
     NoteERC20,
     PauseRouter,
     Router,
     SettleAssetsExternal,
     TradingAction,
+    TreasuryAction,
     Views,
     accounts,
     cTokenAggregator,
@@ -33,7 +35,7 @@ from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
 
 chain = Chain()
@@ -74,8 +76,11 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
     )
 
 
-def deployNotionalContracts(deployer, cETHAddress):
+def deployNotionalContracts(deployer, **kwargs):
     contracts = {}
+    if network.show_active() in ["kovan", "mainnet"]:
+        raise Exception("update governance deployment!")
+
     # Deploy Libraries
     contracts["SettleAssetsExternal"] = SettleAssetsExternal.deploy({"from": deployer})
     contracts["FreeCollateralExternal"] = FreeCollateralExternal.deploy({"from": deployer})
@@ -99,6 +104,9 @@ def deployNotionalContracts(deployer, cETHAddress):
     contracts["ERC1155Action"] = ERC1155Action.deploy({"from": deployer})
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
+    contracts["TreasuryAction"] = TreasuryAction.deploy(
+        kwargs["COMP"], kwargs["Comptroller"], kwargs["WETH"], {"from": deployer}
+    )
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
@@ -120,15 +128,18 @@ def deployNotionalContracts(deployer, cETHAddress):
         contracts["ERC1155Action"].address,
         contracts["LiquidateCurrencyAction"].address,
         contracts["LiquidatefCashAction"].address,
-        cETHAddress,
+        kwargs["cETH"],
+        contracts["TreasuryAction"].address,
         {"from": deployer},
     )
 
     return (router, pauseRouter, contracts)
 
 
-def deployNotional(deployer, cETHAddress, guardianAddress):
-    (router, pauseRouter, contracts) = deployNotionalContracts(deployer, cETHAddress)
+def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WETH):
+    (router, pauseRouter, contracts) = deployNotionalContracts(
+        deployer, cETH=cETHAddress, COMP=COMP, WETH=WETH, Comptroller=comptroller
+    )
 
     initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
         fn_name="initialize", args=[deployer.address, pauseRouter.address, guardianAddress]
@@ -138,7 +149,7 @@ def deployNotional(deployer, cETHAddress, guardianAddress):
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
 
-    notionalInterfaceABI = ContractsVProject._build.get("NotionalProxy")["abi"]
+    notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(
         "Notional", proxy.address, abi=notionalInterfaceABI, owner=deployer
     )
@@ -187,6 +198,10 @@ class TestEnvironment:
             self._deployGovernance()
         else:
             self._deployNoteERC20()
+
+        # Deploy these for treasury manager
+        self.WETH = MockWETH.deploy({"from": self.deployer})
+        self.COMP = MockERC20.deploy("Compound", "COMP", 18, 0, {"from": self.deployer})
 
         # First deploy tokens to ensure they are available
         self._deployMockCurrency("ETH")
@@ -321,7 +336,12 @@ class TestEnvironment:
 
     def _deployNotional(self):
         (self.pauseRouter, self.router, self.proxy, self.notional, _) = deployNotional(
-            self.deployer, self.cToken["ETH"].address, accounts[8].address
+            self.deployer,
+            self.cToken["ETH"].address,
+            accounts[8].address,
+            self.comptroller,
+            self.COMP,
+            self.WETH,
         )
         self.enableCurrency("ETH", CurrencyDefaults)
 

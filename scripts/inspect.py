@@ -3,7 +3,7 @@ import json
 
 from brownie import GovernorAlpha, NoteERC20, Router, network
 from brownie.network.contract import Contract
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from tests.constants import DEPOSIT_ACTION_TYPE, TRADE_ACTION_TYPE
 
 
@@ -14,7 +14,7 @@ def main():
     with open(output_file, "r") as f:
         addresses = json.load(f)
 
-    notionalInterfaceABI = ContractsVProject._build.get("NotionalProxy")["abi"]
+    notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi("Notional", addresses["notional"], abi=notionalInterfaceABI)
     governance = GovernorAlpha.at(addresses["governor"])
     note = NoteERC20.at(addresses["note"])

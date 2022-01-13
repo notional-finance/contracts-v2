@@ -1,14 +1,14 @@
 from brownie import MockERC20, accounts
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 
-proxy = ContractsVProject.nTransparentUpgradeableProxy[0]
+proxy = ContractsV2Project.nTransparentUpgradeableProxy[0]
 
 
 def get_ctoken_contract(name):
     if name == "cETH":
-        return ContractsVProject.nCEther[0]
+        return ContractsV2Project.nCEther[0]
     else:
-        for cToken in ContractsVProject.nCErc20:
+        for cToken in ContractsV2Project.nCErc20:
             if cToken.symbol() == name:
                 return cToken
 
