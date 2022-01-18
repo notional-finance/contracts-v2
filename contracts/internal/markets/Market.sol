@@ -556,7 +556,7 @@ library Market {
             );
     }
 
-    /// @notice Reads a market object directly from storage. `buildMarket` should be called instead of this method
+    /// @notice Reads a market object directly from storage. `loadMarket` should be called instead of this method
     /// which ensures that the rate oracle is set properly.
     function _loadMarketStorage(
         MarketParameters memory market,
