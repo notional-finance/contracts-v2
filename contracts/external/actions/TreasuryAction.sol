@@ -125,21 +125,16 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         int256 assetExternalRedeemAmount = asset.convertToExternal(assetInternalRedeemAmount);
 
         // This is the actual redeemed amount in underlying external precision
-        uint256 redeemedExternalUnderlying = asset
-            .redeem(underlying, assetExternalRedeemAmount.toUint())
-            .toUint();
+        int256 redeemedExternalUnderlying = asset.redeem(
+            currencyId,
+            treasuryManagerContract,
+            assetExternalRedeemAmount.toUint()
+        );
+        // FIXME: cETH redeems to ETH, will send ETH...we should have some WETH handler
 
-        // NOTE: cETH redeems to ETH, converting it to WETH
-        if (underlying.tokenAddress == address(0)) {
-            WETH9(WETH).deposit{value: address(this).balance}();
-        }
-
-        address underlyingAddress = underlying.tokenAddress == address(0)
-            ? address(WETH)
-            : underlying.tokenAddress;
-        IERC20(underlyingAddress).safeTransfer(treasuryManagerContract, redeemedExternalUnderlying);
-
-        return redeemedExternalUnderlying;
+        // NOTE: this will be returned as a negative number to represent that assets have left the
+        // contract, convert to a positive uint here
+        return redeemedExternalUnderlying.neg().toUint();
     }
 
     /// @notice Transfers some amount of reserve assets to the treasury manager contract to be invested

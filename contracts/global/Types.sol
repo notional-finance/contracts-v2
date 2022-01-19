@@ -11,7 +11,8 @@ import "interfaces/notional/AssetRateAdapter.sol";
 ///  - cETH: Special handling for cETH tokens
 ///  - Ether: the one and only
 ///  - NonMintable: tokens that do not have an underlying (therefore not cTokens)
-enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable}
+///  - aToken: Aave interest bearing tokens
+enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable, aToken}
 
 /// @notice Specifies the different trade action types in the system. Each trade action type is
 /// encoded in a tightly packed bytes32 object. Trade action type is the first big endian byte of the

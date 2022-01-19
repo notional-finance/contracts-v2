@@ -33,26 +33,30 @@ library BalanceHandler {
     ///    will receive. Complete the deposit here rather than in finalize so that the contract has the correct
     ///    balance to work with.
     ///  - Force a transfer before finalize to allow a different account to deposit into an account
-    /// @return Returns two values:
-    ///  - assetAmountInternal which is the converted asset amount accounting for transfer fees
-    ///  - assetAmountTransferred which is the internal precision amount transferred into the account
+    /// @return assetAmountInternal which is the converted asset amount accounting for transfer fees
     function depositAssetToken(
         BalanceState memory balanceState,
         address account,
         int256 assetAmountExternal,
         bool forceTransfer
-    ) internal returns (int256) {
+    ) internal returns (int256 assetAmountInternal) {
         if (assetAmountExternal == 0) return 0;
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
         Token memory token = TokenHandler.getAssetToken(balanceState.currencyId);
-        int256 assetAmountInternal = token.convertToInternal(assetAmountExternal);
+        if (token.tokenType == TokenType.aToken) {
+            // Handles special accounting requirements for aTokens
+            assetAmountExternal = AaveHandler.convertToScaledBalanceExternal(
+                balanceState.currencyId,
+                assetAmountExternal
+            );
+        }
 
         // Force transfer is used to complete the transfer before going to finalize
         if (token.hasTransferFee || forceTransfer) {
             // If the token has a transfer fee the deposit amount may not equal the actual amount
             // that the contract will receive. We handle the deposit here and then update the netCashChange
             // accordingly which is denominated in internal precision.
-            int256 assetAmountExternalPrecisionFinal = token.transfer(account, assetAmountExternal);
+            int256 assetAmountExternalPrecisionFinal = token.transfer(account, balanceState.currencyId, assetAmountExternal);
             // Convert the external precision to internal, it's possible that we lose dust amounts here but
             // this is unavoidable because we do not know how transfer fees are calculated.
             assetAmountInternal = token.convertToInternal(assetAmountExternalPrecisionFinal);
@@ -61,6 +65,7 @@ library BalanceHandler {
 
             return assetAmountInternal;
         } else {
+            assetAmountInternal = token.convertToInternal(assetAmountExternal);
             // Otherwise add the asset amount here. It may be net off later and we want to only do
             // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
             // and external account remain in sync.
@@ -91,14 +96,12 @@ library BalanceHandler {
             // Underflow checked above
             require(uint256(underlyingAmountExternal) == msg.value, "ETH Balance");
         } else {
-            underlyingAmountExternal = underlyingToken.transfer(account, underlyingAmountExternal);
+            underlyingAmountExternal = underlyingToken.transfer(account, balanceState.currencyId, underlyingAmountExternal);
         }
 
         Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
-        // Tokens that are not mintable like cTokens will be deposited as assetTokens
-        require(assetToken.tokenType == TokenType.cToken || assetToken.tokenType == TokenType.cETH); // dev: deposit underlying token invalid token type
         int256 assetTokensReceivedExternalPrecision =
-            assetToken.mint(SafeInt256.toUint(underlyingAmountExternal));
+            assetToken.mint(balanceState.currencyId, SafeInt256.toUint(underlyingAmountExternal));
 
         // cTokens match INTERNAL_TOKEN_PRECISION so this will short circuit but we leave this here in case a different
         // type of asset token is listed in the future. It's possible if those tokens have a different precision dust may
@@ -229,23 +232,21 @@ library BalanceHandler {
             // no loss of precision between our internal accounting and the external account. In this case
             // there will be no dust accrual in underlying tokens since we will transfer the exact amount
             // of underlying that was received.
-            Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
-            // underlyingAmountExternal is converted from uint to int inside redeem, must be positive
-            int256 underlyingAmountExternal = assetToken.redeem(
-                underlyingToken,
+
+            actualTransferAmountExternal = assetToken.redeem(
+                balanceState.currencyId,
+                account,
+                // No overflow, checked above
                 uint256(assetTransferAmountExternal.neg())
             );
 
-            // Withdraws the underlying amount out to the destination account
-            actualTransferAmountExternal = underlyingToken.transfer(
-                account,
-                underlyingAmountExternal.neg()
-            );
             // In this case we're transferring underlying tokens, we want to convert the internal
             // asset transfer amount to store in cash balances
             assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
         } else {
-            actualTransferAmountExternal = assetToken.transfer(account, assetTransferAmountExternal);
+            // NOTE: in the case of aTokens this is the scaledBalanceOf in external precision, it
+            // will be converted to balanceOf denomination inside transfer
+            actualTransferAmountExternal = assetToken.transfer(account, balanceState.currencyId, assetTransferAmountExternal);
             // Convert the actual transferred amount
             assetTransferAmountInternal = assetToken.convertToInternal(actualTransferAmountExternal);
         }
@@ -300,6 +301,39 @@ library BalanceHandler {
         emit CashBalanceChange(account, cashGroup.currencyId, amountToSettleAsset);
 
         return amountToSettleAsset;
+    }
+
+    /**
+     * @notice A special balance storage method for fCash liquidation to reduce the bytecode size.
+     */
+    function setBalanceStorageForfCashLiquidation(
+        address account,
+        AccountContext memory accountContext,
+        uint16 currencyId,
+        int256 netCashChange
+    ) internal {
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
+            getBalanceStorage(account, currencyId);
+
+        int256 newCashBalance = cashBalance.add(netCashChange);
+        // If a cash balance is negative already we cannot put an account further into debt. In this case
+        // the netCashChange must be positive so that it is coming out of debt.
+        if (newCashBalance < 0) require(netCashChange > 0, "Neg Cash");
+
+        bool isActive = newCashBalance != 0 || nTokenBalance != 0;
+        accountContext.setActiveCurrency(currencyId, isActive, Constants.ACTIVE_IN_BALANCES);
+
+        // Emit the event here, we do not call finalize
+        emit CashBalanceChange(account, currencyId, netCashChange);
+
+        _setBalanceStorage(
+            account,
+            currencyId,
+            newCashBalance,
+            nTokenBalance,
+            lastClaimTime,
+            lastClaimIntegralSupply
+        );
     }
 
     /// @notice Helper method for settling the output of the SettleAssets method
