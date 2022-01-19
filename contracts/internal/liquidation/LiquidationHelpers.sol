@@ -52,6 +52,9 @@ library LiquidationHelpers {
                 localCurrency,
                 collateralCurrency
             );
+        // Set the account context here to ensure that the context is up to date during
+        // calculation methods
+        accountContext.setAccountContext(liquidateAccount);
 
         PortfolioState memory portfolioState =
             PortfolioState({
