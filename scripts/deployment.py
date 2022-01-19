@@ -86,6 +86,7 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["FreeCollateralExternal"] = FreeCollateralExternal.deploy({"from": deployer})
     contracts["TradingAction"] = TradingAction.deploy({"from": deployer})
     contracts["nTokenMintAction"] = nTokenMintAction.deploy({"from": deployer})
+    contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
@@ -97,7 +98,6 @@ def deployNotionalContracts(deployer, **kwargs):
     #   deployer, "Governance")
     contracts["Views"] = Views.deploy({"from": deployer})
     contracts["InitializeMarketsAction"] = InitializeMarketsAction.deploy({"from": deployer})
-    contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
     contracts["nTokenAction"] = nTokenAction.deploy({"from": deployer})
     contracts["BatchAction"] = BatchAction.deploy({"from": deployer})
     contracts["AccountAction"] = AccountAction.deploy({"from": deployer})
@@ -122,7 +122,6 @@ def deployNotionalContracts(deployer, **kwargs):
         contracts["Views"].address,
         contracts["InitializeMarketsAction"].address,
         contracts["nTokenAction"].address,
-        contracts["nTokenRedeemAction"].address,
         contracts["BatchAction"].address,
         contracts["AccountAction"].address,
         contracts["ERC1155Action"].address,

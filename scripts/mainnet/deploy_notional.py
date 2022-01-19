@@ -418,7 +418,6 @@ def etherscan_verify(contracts, router, pauseRouter):
         contracts["Views"].address,
         contracts["InitializeMarketsAction"].address,
         contracts["nTokenAction"].address,
-        contracts["nTokenRedeemAction"].address,
         contracts["BatchAction"].address,
         contracts["AccountAction"].address,
         contracts["ERC1155Action"].address,
