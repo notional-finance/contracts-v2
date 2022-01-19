@@ -84,8 +84,8 @@ interface NotionalViews {
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
             int256 cashBalance,
-            uint256 integralTotalSupply,
-            uint256 lastSupplyChangeTime
+            uint256 accumulatedNOTEPerNToken,
+            uint256 lastAccumulatedTime
         );
 
     function getAccount(address account)

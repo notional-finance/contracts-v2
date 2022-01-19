@@ -57,49 +57,6 @@ library MigrateIncentives {
         return incentivesToClaim;
     }
 
-    /// @notice Can only be called via Governance one time per nToken to migrate the incentive calculation to the
-    /// new regime. Stores off the old incentive factors at the specified block time and then initializes the new
-    /// incentive factors.
-    function migrateNTokenToNewIncentive(
-        address tokenAddress,
-        uint256 blockTime
-    ) external {
-        mapping(address => nTokenTotalSupplyStorage_deprecated) storage store = LibStorage.getDeprecatedNTokenTotalSupplyStorage();
-        nTokenTotalSupplyStorage_deprecated storage d_nTokenStorage = store[tokenAddress];
-
-        uint256 totalSupply = d_nTokenStorage.totalSupply;
-        uint256 integralTotalSupply = d_nTokenStorage.integralTotalSupply;
-        uint256 lastSupplyChangeTime = d_nTokenStorage.lastSupplyChangeTime;
-
-        // Set up the new storage slot
-        _initializeNewSupplyStorage(tokenAddress, totalSupply, blockTime);
-
-        integralTotalSupply = _calculateFinalIntegralTotalSupply(
-            totalSupply,
-            integralTotalSupply,
-            lastSupplyChangeTime,
-            blockTime
-        );
-
-        // prettier-ignore
-        (
-            /* currencyId */,
-            uint256 emissionRatePerYear,
-            /* initializedTime */,
-            /* assetArrayLength */,
-            /* parameters */
-        ) = nTokenHandler.getNTokenContext(tokenAddress);
-        require(emissionRatePerYear <= type(uint96).max);
-
-        // Now we store the final integral total supply and the migration emission rate after this these values
-        // will not change. Override the totalSupply to store the emissionRatePerYear at this point. We will not
-        // use the totalSupply after this.
-        d_nTokenStorage.totalSupply = uint96(emissionRatePerYear);
-        // Overflows checked in _calculateFinalIntegralSupply
-        d_nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
-        d_nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
-    }
-
     function _getMigratedIncentiveValues(
         address tokenAddress
     ) private view returns (
@@ -114,47 +71,6 @@ library MigrateIncentives {
         finalEmissionRatePerYear = d_nTokenStorage.totalSupply;
         finalTotalIntegralSupply = d_nTokenStorage.integralTotalSupply;
         finalMigrationTime = d_nTokenStorage.lastSupplyChangeTime;
-    }
-
-    function _initializeNewSupplyStorage(
-        address tokenAddress,
-        uint256 totalSupply,
-        uint256 blockTime
-    ) private {
-        mapping(address => nTokenTotalSupplyStorage) storage store = LibStorage.getNTokenTotalSupplyStorage();
-        nTokenTotalSupplyStorage storage nTokenStorage = store[tokenAddress];
-        uint96 _totalSupply = nTokenStorage.totalSupply;
-        uint256 _accumulatedNOTEPerNToken = nTokenStorage.accumulatedNOTEPerNToken;
-        uint256 _lastAccumulatedTime = nTokenStorage.lastAccumulatedTime;
-
-        // Storage must be zero'd out, we cannot re-initialize this slot once done
-        require(_totalSupply == 0 && _accumulatedNOTEPerNToken == 0 && _lastAccumulatedTime == 0);
-
-        require(totalSupply <= type(uint96).max);
-        require(blockTime <= type(uint32).max);
-        nTokenStorage.totalSupply = uint96(totalSupply);
-        nTokenStorage.lastAccumulatedTime = uint32(blockTime);
-    }
-
-    function _calculateFinalIntegralTotalSupply(
-        uint256 totalSupply,
-        uint256 integralTotalSupply,
-        uint256 lastSupplyChangeTime,
-        uint256 blockTime
-    ) private pure returns (uint256) {
-        // Initialize last supply change time if it has not been set.
-        if (lastSupplyChangeTime == 0) lastSupplyChangeTime = blockTime;
-        require(blockTime >= lastSupplyChangeTime); // dev: invalid block time
-
-        // Add to the integral total supply the total supply of tokens multiplied by the time that the total supply
-        // has been the value. This will part of the numerator for the average total supply calculation during
-        // minting incentives.
-        integralTotalSupply = integralTotalSupply.add(totalSupply.mul(blockTime - lastSupplyChangeTime));
-
-        require(integralTotalSupply >= 0 && integralTotalSupply < type(uint128).max); // dev: integral total supply overflow
-        require(blockTime < type(uint32).max); // dev: last supply change supply overflow
-
-        return integralTotalSupply;
     }
 
 }

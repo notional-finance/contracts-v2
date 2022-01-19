@@ -22,8 +22,7 @@ class TestIncentives:
     def test_migrate_calculation(self, incentives, accounts):
         incentives.setEmissionRateDirect(accounts[9], 10_000)
         incentives.setDeprecatedStorageValues(accounts[9], 100_000e8, 1_000_000e8, START_TIME)
-
-        incentives.migrateNToken(accounts[9], START_TIME + 20)
+        incentives.migrateNToken(1, START_TIME + 20)
 
         (
             totalSupply,
@@ -75,7 +74,7 @@ class TestIncentives:
         # Last Claim Time
         assert balanceState_[7] == 0
         # Accumulated Reward Debt as one day's worth of tokens
-        assert pytest.approx(balanceState_[8], abs=1) == Wei(
+        assert pytest.approx(balanceState_[8], abs=10) == Wei(
             nTokensMinted * (50_000e8 / 360) / 100_000e8
         )
 
@@ -89,7 +88,7 @@ class TestIncentives:
         incentives.setEmissionRateDirect(accounts[9], 10_000)
         incentives.setDeprecatedStorageValues(accounts[9], 100_000e8, 1_000_000e8, START_TIME)
 
-        incentives.migrateNToken(accounts[9], START_TIME)
+        incentives.migrateNToken(1, START_TIME)
 
         balanceState = get_balance_state(
             1,

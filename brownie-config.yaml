@@ -20,6 +20,10 @@ networks:
     cmd_settings:
       fork_block: 13986174
 
+  hardhat-fork:
+    cmd_settings:
+      fork_block: 13986611
+
 reports:
   exclude_paths:
     - interfaces/**/*.*

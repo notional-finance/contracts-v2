@@ -25,9 +25,8 @@ def test_router_initialization(environment, accounts, Router, nProxy):
     (router, pauseRouter, contracts) = deployNotionalContracts(
         accounts[0],
         cETH=cETH.address,
-        COMP=cETH.address,
         WETH=cETH.address,
-        Comptroller=cETH.address,
+        Comptroller=environment.comptroller.address,
     )
 
     with brownie.reverts():

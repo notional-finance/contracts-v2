@@ -92,6 +92,8 @@ def deployNotionalContracts(deployer, **kwargs):
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
+    if network.show_active() in ["kovan", "mainnet"]:
+        raise Exception("update governance deployment!")
     # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
     # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
     # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here will
@@ -107,7 +109,7 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
     contracts["TreasuryAction"] = TreasuryAction.deploy(
-        kwargs["COMP"], kwargs["Comptroller"], kwargs["WETH"], {"from": deployer}
+        kwargs["Comptroller"], kwargs["WETH"], {"from": deployer}
     )
 
     # Deploy Pause Router

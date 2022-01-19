@@ -2,7 +2,7 @@ import json
 import re
 
 from brownie import Contract, Router, accounts, network
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from scripts.deployment import deployNotionalContracts
 from scripts.mainnet.deploy_notional import TokenConfig, etherscan_verify, verify
 
@@ -17,7 +17,7 @@ ROUTER_ARG_POSITION = {
     "LiquidateCurrencyAction": 7,
     "LiquidatefCashAction": 8,
     "cETH": 9,
-    "TreasuryManager": 10,
+    "TreasuryAction": 10,
 }
 
 
@@ -31,7 +31,6 @@ def full_upgrade(deployer, verify=True):
         cETH=TokenConfig[networkName]["cETH"],
         WETH=TokenConfig[networkName]["WETH"],
         Comptroller=TokenConfig[networkName]["Comptroller"],
-        COMP=TokenConfig[networkName]["COMP"],
     )
 
     if verify:
@@ -58,11 +57,11 @@ def update_contract(deployer, output, upgradeContracts):
     contracts = {}
     for c in upgradeContracts:
         print("Deploying {}".format(c))
-        contracts[c] = ContractsVProject[c].deploy({"from": deployer})
+        contracts[c] = ContractsV2Project[c].deploy({"from": deployer})
 
         if not hasattr(contracts[c], "address"):
             # Sometimes this is not decoded to a contract container and is just a txn receipt
-            contracts[c] = ContractsVProject[c].at(contracts[c].contract_address)
+            contracts[c] = ContractsV2Project[c].at(contracts[c].contract_address)
 
         # Libraries are not added to the router arguments
         if c in ROUTER_ARG_POSITION:

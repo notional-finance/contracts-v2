@@ -6,6 +6,7 @@ import "../internal/balances/Incentives.sol";
 import "../internal/nToken/nTokenHandler.sol";
 import "../internal/nToken/nTokenSupply.sol";
 import "../external/MigrateIncentives.sol";
+import "../external/patchfix/MigrateIncentivesFix.sol";
 import "../global/LibStorage.sol";
 
 contract MockIncentives {
