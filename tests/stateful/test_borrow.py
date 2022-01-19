@@ -187,7 +187,7 @@ def test_mint_perp_tokens_and_borrow_specify_fcash(environment, accounts):
     assert activeCurrenciesList == [(2, True, False), (3, False, True)]
     assert context[1] == HAS_ASSET_DEBT
     assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
-    assert (0, 500000e8, txn.timestamp) == environment.notional.getAccountBalance(3, accounts[1])
+    assert (0, 500000e8, 0) == environment.notional.getAccountBalance(3, accounts[1])
 
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert portfolio[0][0] == 2

@@ -3,6 +3,7 @@ import random
 
 import brownie
 import pytest
+from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from tests.constants import START_TIME
 
@@ -35,7 +36,7 @@ class TestNTokenSettings:
         assert arrayLength == 0
         assert parameters == "0x00000000000000"
 
-        nToken.setIncentiveEmissionRate(tokenAddress, 100_000)
+        nToken.setIncentiveEmissionRate(tokenAddress, 100_000, START_TIME)
         nToken.updateNTokenCollateralParameters(currencyId, 40, 90, 96, 50, 95)
 
         (
@@ -93,93 +94,81 @@ class TestNTokenSettings:
         assert arrayLength == 5
 
     def test_initialize_ntoken_supply(self, nToken, accounts):
-        # When we initialize the nToken supply amount the integral token supply
-        # should be set to zero and the total supply should be updated.
+        # When we initialize the nToken supply amount the accumulatedNOTEPerNToken
+        # should be set to zero
         tokenAddress = accounts[9]
+        nToken.setIncentiveEmissionRate(tokenAddress, 100_000, START_TIME)
+
         txn = nToken.changeNTokenSupply(tokenAddress, 100e8, START_TIME)
         assert txn.return_value == 0
         (
             totalSupply,
-            integralTotalSupply,
-            lastTotalSupplyChange,
+            accumulatedNOTEPerNToken,
+            lastAccumulatedTime,
         ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
         assert totalSupply == 100e8
-        assert integralTotalSupply == 0
-        assert lastTotalSupplyChange == START_TIME
+        assert accumulatedNOTEPerNToken == 0
+        assert lastAccumulatedTime == START_TIME
 
-    def test_increment_ntoken_supply(self, nToken, accounts):
-        # Generate a random stream of increments and decrements
-        # ensure that the integral total supply is correct. Calculate
-        # the weighted average at the end.
+    def test_incentives_dont_update_at_blocktime(self, nToken, accounts):
+        # Supply changes at the same block time should not affect the accumulated NOTE per ntoken
+        # as long as we accumulate at the same block time
         tokenAddress = accounts[9]
-        nToken.changeNTokenSupply(tokenAddress, 100e8, START_TIME)
-        updates = [random.randint(-1000, 1000) * 10e4 for i in range(0, 10)]
+        nToken.setIncentiveEmissionRate(tokenAddress, 100_000, START_TIME)
 
-        blockTime = START_TIME
-        integralValues = []
-        timeDeltas = []
-        totalSupplyValues = []
-        for u in updates:
-            timeDelta = random.randint(0, 86400)
-            blockTime = blockTime + timeDelta
-            txn = nToken.changeNTokenSupply(tokenAddress, u, blockTime)
-            (
-                totalSupply,
-                integralTotalSupply,
-                lastTotalSupplyChange,
-            ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
-
-            # If u == 0 then there will be no update
-            if u != 0:
-                integralValues.append(txn.return_value)
-                timeDeltas.append(blockTime)
-                totalSupplyValues.append(totalSupply)
-                assert integralTotalSupply == txn.return_value
-                assert lastTotalSupplyChange == blockTime
-
-        # Pick a random time within the range of time deltas as the last claim time
-        index = random.randint(0, 9)
-        lastClaimTime = timeDeltas[index]
-        lastClaimSupply = integralValues[index]
-        txn = nToken.changeNTokenSupply(tokenAddress, 0, blockTime)
-
-        # Actually calculate the weighted average
-        weightedNumerator = 0
-        weights = 0
-        for i in range(index, 10):
-            if i == index:
-                continue
-
-            weights += timeDeltas[i] - timeDeltas[i - 1]
-            weightedNumerator += totalSupplyValues[i - 1] * (timeDeltas[i] - timeDeltas[i - 1])
-
-        weights += blockTime - timeDeltas[i]
-        weightedNumerator += totalSupplyValues[i] * (blockTime - timeDeltas[i])
-
-        # Don't need to assert on the divided amount, just assert the numerator and denominator
-        # match correctly
-        # calculatedAvgSupply = (txn.return_value - lastClaimSupply) / (blockTime - lastClaimTime)
-        assert weights == blockTime - lastClaimTime
-        assert weightedNumerator == txn.return_value - lastClaimSupply
-
-    def test_no_change_ntoken_supply(self, nToken, accounts):
-        # Ensure that when no change to the token supply occurs there
-        # will be no update to the supply amounts
-        tokenAddress = accounts[9]
-        nToken.changeNTokenSupply(tokenAddress, 100e8, START_TIME)
-
-        txn = nToken.changeNTokenSupply(tokenAddress, 0, START_TIME + 20)
-        # The returned integral token supply reflects the up to date value
-        assert txn.return_value == (100e8 * 20)
+        nToken.changeNTokenSupply(tokenAddress, 1000e8, START_TIME + 100)
         (
             totalSupply,
-            integralTotalSupply,
-            lastTotalSupplyChange,
+            accumulatedNOTEPerNToken1,
+            lastAccumulatedTime,
         ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
-        # The stored values have not changed
-        assert totalSupply == 100e8
-        assert integralTotalSupply == 0
-        assert lastTotalSupplyChange == START_TIME
+        assert totalSupply == 1000e8
+
+        nToken.changeNTokenSupply(tokenAddress, 1000e18, START_TIME + 100)
+        (
+            totalSupply,
+            accumulatedNOTEPerNToken2,
+            lastAccumulatedTime,
+        ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
+        assert totalSupply == 1000e8 + 1000e18
+
+        nToken.changeNTokenSupply(tokenAddress, -500e18, START_TIME + 100)
+        (
+            totalSupply,
+            accumulatedNOTEPerNToken3,
+            lastAccumulatedTime,
+        ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
+        assert totalSupply == Wei(1000e8) + Wei(1000e18) - Wei(500e18)
+
+        assert accumulatedNOTEPerNToken1 == accumulatedNOTEPerNToken2
+        assert accumulatedNOTEPerNToken2 == accumulatedNOTEPerNToken3
+
+    def test_accumulate_note_per_ntoken(self, nToken, accounts):
+        tokenAddress = accounts[9]
+        totalSupply = 11000e8
+        blockTime = START_TIME
+
+        nToken.setIncentiveEmissionRate(tokenAddress, 100_000, blockTime)
+        nToken.changeNTokenSupply(tokenAddress, totalSupply, blockTime)
+        prevAccumulatedNOTEPerNToken = 0
+
+        for _ in range(0, 10):
+            timeDelta = random.randint(1, 86400)
+            supplyChange = random.randint(-1000e8, 1000e8)
+            blockTime = blockTime + timeDelta
+            totalSupply = totalSupply + supplyChange
+
+            nToken.changeNTokenSupply(tokenAddress, supplyChange, blockTime)
+            (
+                totalSupply_,
+                accumulatedNOTEPerNToken_,
+                lastAccumulatedTime_,
+            ) = nToken.getStoredNTokenSupplyFactors(tokenAddress)
+
+            assert lastAccumulatedTime_ == blockTime
+            assert totalSupply_ == totalSupply
+            assert accumulatedNOTEPerNToken_ > prevAccumulatedNOTEPerNToken
+            prevAccumulatedNOTEPerNToken = accumulatedNOTEPerNToken_
 
     def test_deposit_parameters_failures(self, nToken):
         with brownie.reverts("PT: deposit share length"):

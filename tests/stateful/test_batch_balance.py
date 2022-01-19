@@ -155,12 +155,10 @@ def test_deposit_asset_and_mint_perpetual(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 100e8
-    assert balances[2] == txn.timestamp
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 100e8
-    assert balances[2] == txn.timestamp
 
     check_system_invariants(environment, accounts)
 
@@ -190,12 +188,10 @@ def test_deposit_underlying_and_mint_perpetual(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 5000e8
-    assert balances[2] == txn.timestamp
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 5000e8
-    assert balances[2] == txn.timestamp
 
     check_system_invariants(environment, accounts)
 
@@ -234,13 +230,10 @@ def test_redeem_ntoken(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 100e8
     assert balances[1] == 0
-    assert balances[2] == txn.timestamp
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 100e8
     assert balances[1] == 0
-    assert balances[2] == txn.timestamp
-    # TODO: test incentives
 
     check_system_invariants(environment, accounts)
 
@@ -289,13 +282,11 @@ def test_redeem_ntoken_and_withdraw_asset(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 0
-    assert balances[2] == txn.timestamp
     assert daiBalanceAfter - daiBalanceBefore == 100e8
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 0
-    assert balances[2] == txn.timestamp
     assert usdcBalanceAfter - usdcBalanceBefore == 100e8
     # TODO: test incentives
 
@@ -354,13 +345,11 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 4900e8
-    assert balances[2] == txn.timestamp
     assert daiBalanceAfter - daiBalanceBefore == 2e18
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 4900e8
-    assert balances[2] == txn.timestamp
     assert usdcBalanceAfter - usdcBalanceBefore == 2e6
 
     check_system_invariants(environment, accounts)
@@ -384,7 +373,7 @@ def test_convert_cash_to_ntoken(environment, accounts):
             {"from": accounts[1]},
         )
 
-    txn = environment.notional.batchBalanceAction(
+    environment.notional.batchBalanceAction(
         accounts[1],
         [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100000e8)],
         {"from": accounts[1]},
@@ -393,6 +382,5 @@ def test_convert_cash_to_ntoken(environment, accounts):
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
     assert balances[1] == 100000e8
-    assert balances[2] == txn.timestamp
 
     check_system_invariants(environment, accounts)

@@ -8,8 +8,8 @@ import "../global/StorageLayoutV1.sol";
 contract MockNTokenHandler is StorageLayoutV1 {
     using nTokenHandler for nTokenPortfolio;
 
-    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate) external {
-        nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate);
+    function setIncentiveEmissionRate(address tokenAddress, uint32 newEmissionsRate, uint256 blockTime) external {
+        nTokenHandler.setIncentiveEmissionRate(tokenAddress, newEmissionsRate, blockTime);
     }
 
     function getNTokenContext(address tokenAddress)
