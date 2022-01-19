@@ -34,8 +34,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         // prettier-ignore
         (
             totalSupply,
-            /* integralTotalSupply */,
-            /* lastSupplyChangeTime */
+            /* accumulatedNOTEPerNToken */,
+            /* lastAccumulatedTime */
         ) = nTokenHandler.getStoredNTokenSupplyFactors(nTokenAddress);
     }
 

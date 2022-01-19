@@ -403,14 +403,25 @@ struct PortfolioAssetStorage {
 }
 
 /// @dev nToken total supply factors for the nToken, includes factors related
-/// to claiming incentives, total storage 32 bytes
-struct nTokenTotalSupplyStorage {
+/// to claiming incentives, total storage 32 bytes. This is the deprecated version
+struct nTokenTotalSupplyStorage_deprecated {
     // Total supply of the nToken
     uint96 totalSupply;
     // Integral of the total supply used for calculating the average total supply
     uint128 integralTotalSupply;
     // Last timestamp the supply value changed, used for calculating the integralTotalSupply
     uint32 lastSupplyChangeTime;
+}
+
+/// @dev nToken total supply factors for the nToken, includes factors related
+/// to claiming incentives, total storage 32 bytes.
+struct nTokenTotalSupplyStorage {
+    // Total supply of the nToken
+    uint96 totalSupply;
+    // How many NOTE incentives should be issued per nToken in 1e18 precision
+    uint128 accumulatedNOTEPerNToken;
+    // Last timestamp when the accumulation happened
+    uint32 lastAccumulatedTime;
 }
 
 /// @dev Used in view methods to return account balances in a developer friendly manner

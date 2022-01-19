@@ -259,7 +259,7 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         // Sanity check that emissions rate is not specified in 1e8 terms.
         require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
 
-        nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
+        nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate, block.timestamp);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
     }
 

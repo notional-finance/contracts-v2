@@ -34,9 +34,13 @@ library LibStorage {
         AssetsBitmap,
         ifCashBitmap,
         PortfolioArray,
-        nTokenTotalSupply,
+        // WARNING: this nTokenTotalSupply storage object was used for a buggy version
+        // of the incentives calculation. It should only be used for accounts who have
+        // not claimed before the migration
+        nTokenTotalSupply_deprecated,
         AssetRate,
-        ExchangeRate
+        ExchangeRate,
+        nTokenTotalSupply
     }
 
     /// @dev Mapping from an account address to account context
@@ -144,6 +148,13 @@ library LibStorage {
         returns (mapping(address => PortfolioAssetStorage[MAX_PORTFOLIO_ASSETS]) storage store)
     {
         uint256 slot = _getStorageSlot(StorageId.PortfolioArray);
+        assembly { store.slot := slot }
+    }
+
+    function getDeprecatedNTokenTotalSupplyStorage() internal pure
+        returns (mapping(address => nTokenTotalSupplyStorage_deprecated) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.nTokenTotalSupply_deprecated);
         assembly { store.slot := slot }
     }
 

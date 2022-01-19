@@ -298,8 +298,8 @@ contract Views is StorageLayoutV2, NotionalViews {
             uint256 lastInitializedTime,
             bytes5 nTokenParameters,
             int256 cashBalance,
-            uint256 integralTotalSupply,
-            uint256 lastSupplyChangeTime
+            uint256 accumulatedNOTEPerNToken,
+            uint256 lastAccumulatedTime
         )
     {
         (
@@ -313,8 +313,8 @@ contract Views is StorageLayoutV2, NotionalViews {
         // prettier-ignore
         (
             totalSupply,
-            integralTotalSupply,
-            lastSupplyChangeTime
+            accumulatedNOTEPerNToken,
+            lastAccumulatedTime
         ) = nTokenHandler.getStoredNTokenSupplyFactors(tokenAddress);
 
         // prettier-ignore
@@ -565,21 +565,17 @@ contract Views is StorageLayoutV2, NotionalViews {
             balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
-
-                // prettier-ignore
                 (
-                    /* totalSupply */,
-                    uint256 integralTotalSupply,
-                    /* lastSupplyChangeTime */
-                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+                    /* uint256 totalSupply */,
+                    uint256 accumulatedNOTEPerNToken,
+                    /* uint256 lastAccumulatedTime */
+                ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
+                    balanceState,
                     tokenAddress,
-                    SafeInt256.toUint(balanceState.storedNTokenBalance),
-                    balanceState.lastClaimTime,
-                    balanceState.lastClaimIntegralSupply,
-                    blockTime,
-                    integralTotalSupply
+                    accumulatedNOTEPerNToken,
+                    balanceState.storedNTokenBalance.toUint()
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
@@ -592,20 +588,17 @@ contract Views is StorageLayoutV2, NotionalViews {
 
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
-
                 (
-                    /* totalSupply */,
-                    uint256 integralTotalSupply,
-                    /* lastSupplyChangeTime */
-                ) = nTokenHandler.calculateIntegralTotalSupply(tokenAddress, blockTime);
+                    /* uint256 totalSupply */,
+                    uint256 accumulatedNOTEPerNToken,
+                    /* uint256 lastAccumulatedTime */
+                ) = nTokenHandler.getUpdatedAccumulatedNOTEPerNToken(tokenAddress, blockTime);
 
                 uint256 incentivesToClaim = Incentives.calculateIncentivesToClaim(
-                    nTokenHandler.nTokenAddress(balanceState.currencyId),
-                    SafeInt256.toUint(balanceState.storedNTokenBalance),
-                    balanceState.lastClaimTime,
-                    balanceState.lastClaimIntegralSupply,
-                    blockTime,
-                    integralTotalSupply
+                    balanceState,
+                    tokenAddress,
+                    accumulatedNOTEPerNToken,
+                    balanceState.storedNTokenBalance.toUint()
                 );
                 totalIncentivesClaimable = totalIncentivesClaimable.add(incentivesToClaim);
             }
