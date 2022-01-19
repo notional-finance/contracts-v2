@@ -41,7 +41,14 @@ from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, T
 
 chain = Chain()
 
-TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
+TokenType = {
+    "UnderlyingToken": 0,
+    "cToken": 1,
+    "cETH": 2,
+    "Ether": 3,
+    "NonMintable": 4,
+    "aToken": 5,
+}
 
 
 def deployNoteERC20(deployer):

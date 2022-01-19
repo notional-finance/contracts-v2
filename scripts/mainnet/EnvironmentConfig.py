@@ -15,7 +15,7 @@ with open("scripts/compound_artifacts/nCEther.json") as a:
 
 NotionalABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
 LendingPoolABI = ContractsV2Project._build.get("ILendingPool")["abi"]
-aTokenABI = ContractsV2Project._build.get("IAToken")["abi"]
+aTokenABI = ContractsV2Project._build.get("IATokenFull")["abi"]
 
 ETH_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -90,6 +90,9 @@ class Environment:
 
         self.whales = {
             "DAI": accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True),
+            "aDAI": accounts.at("0xa2a3cae63476891ab2d640d9a5a800755ee79d6e", force=True),
+            "USDC": accounts.at("0x0a59649758aa4d66e25f08dd01271e891fe52199", force=True),
+            "aUSDC": accounts.at("0x3ddfa8ec3052539b6c9549f12cea2c295cff5296", force=True),
             "cDAI": accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True),
             "ETH": accounts.at("0x7D24796f7dDB17d73e8B1d0A3bbD103FBA2cb2FE", force=True),
             "cETH": accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True),
