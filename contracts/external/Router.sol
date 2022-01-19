@@ -4,7 +4,6 @@ pragma abicoder v2;
 
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
-import "./actions/nTokenRedeemAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
 import "interfaces/notional/NotionalProxy.sol";
@@ -26,7 +25,6 @@ contract Router is StorageLayoutV1 {
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
     address public immutable NTOKEN_ACTIONS;
-    address public immutable NTOKEN_REDEEM;
     address public immutable BATCH_ACTION;
     address public immutable ACCOUNT_ACTION;
     address public immutable ERC1155;
@@ -41,7 +39,6 @@ contract Router is StorageLayoutV1 {
         address views_,
         address initializeMarket_,
         address nTokenActions_,
-        address nTokenRedeem_,
         address batchAction_,
         address accountAction_,
         address erc1155_,
@@ -54,7 +51,6 @@ contract Router is StorageLayoutV1 {
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
         NTOKEN_ACTIONS = nTokenActions_;
-        NTOKEN_REDEEM = nTokenRedeem_;
         BATCH_ACTION = batchAction_;
         ACCOUNT_ACTION = accountAction_;
         ERC1155 = erc1155_;
@@ -128,14 +124,10 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.depositAssetToken.selector ||
             sig == NotionalProxy.withdraw.selector ||
             sig == NotionalProxy.settleAccount.selector ||
+            sig == NotionalProxy.nTokenRedeem.selector ||
             sig == NotionalProxy.enableBitmapCurrency.selector
         ) {
             return ACCOUNT_ACTION;
-        } else if (
-            sig == nTokenRedeemAction.nTokenRedeem.selector ||
-            sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
-        ) {
-            return NTOKEN_REDEEM;
         } else if (
             sig == nERC1155Interface.supportsInterface.selector ||
             sig == nERC1155Interface.balanceOf.selector ||

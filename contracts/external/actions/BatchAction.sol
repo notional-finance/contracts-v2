@@ -293,7 +293,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 depositActionAmount
             );
 
-            int256 assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
+            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );

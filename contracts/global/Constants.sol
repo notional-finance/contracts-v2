@@ -29,6 +29,19 @@ library Constants {
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
 
+    // Each bit set in this mask marks where an active market should be in the bitmap
+    // if the first bit refers to the reference time. Used to detect idiosyncratic
+    // fcash in the nToken accounts
+    bytes32 internal constant ACTIVE_MARKETS_MASK = (
+        MSB >> ( 90 - 1) | // 3 month
+        MSB >> (105 - 1) | // 6 month
+        MSB >> (135 - 1) | // 1 year
+        MSB >> (147 - 1) | // 2 year
+        MSB >> (183 - 1) | // 5 year
+        MSB >> (211 - 1) | // 10 year
+        MSB >> (251 - 1)   // 20 year
+    );
+
     // Basis for percentages
     int256 internal constant PERCENTAGE_DECIMALS = 100;
     // Max number of traded markets, also used as the maximum number of assets in a portfolio array

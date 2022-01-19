@@ -86,7 +86,7 @@ contract NotionalV2ifCashLiquidator is Initializable {
         NotionalV2.batchBalanceAction(address(this), actions);
     }
 
-    function nTokenRedeem(uint96 tokensToRedeem, bool sellTokenAssets)
+    function nTokenRedeem(uint96 tokensToRedeem, bool sellTokenAssets, bool acceptResidualAssets)
         external
         onlyOwner
         returns (int256)
@@ -96,7 +96,8 @@ contract NotionalV2ifCashLiquidator is Initializable {
                 address(this),
                 IFCASH_CURRENCY_ID,
                 tokensToRedeem,
-                sellTokenAssets
+                sellTokenAssets,
+                acceptResidualAssets
             );
     }
 
