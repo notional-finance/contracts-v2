@@ -52,19 +52,31 @@ interface NotionalViews {
 
     function getOwnershipStatus() external view returns (address owner, address pendingOwner);
 
-    function getGlobalTransferOperatorStatus(address operator) external view returns (bool isAuthorized);
+    function getGlobalTransferOperatorStatus(address operator)
+        external
+        view
+        returns (bool isAuthorized);
 
-    function getAuthorizedCallbackContractStatus(address callback) external view returns (bool isAuthorized);
+    function getAuthorizedCallbackContractStatus(address callback)
+        external
+        view
+        returns (bool isAuthorized);
 
-    function getSecondaryIncentiveRewarder(uint16 currencyId) external view returns (address incentiveRewarder);
+    function getSecondaryIncentiveRewarder(uint16 currencyId)
+        external
+        view
+        returns (address incentiveRewarder);
 
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
         view
         returns (AssetRateParameters memory);
 
-    function getMarket(uint16 currencyId, uint256 maturity, uint256 settlementDate)
-        external view returns (MarketParameters memory);
+    function getMarket(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 settlementDate
+    ) external view returns (MarketParameters memory);
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory);
 
@@ -116,13 +128,13 @@ interface NotionalViews {
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
 
-    function getfCashNotional(
-        address account,
-        uint16 currencyId,
-        uint256 maturity
-    ) external view returns (int256);
+    // function getfCashNotional(
+    //     address account,
+    //     uint16 currencyId,
+    //     uint256 maturity
+    // ) external view returns (int256);
 
-    function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
+    // function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory);
 
@@ -151,6 +163,6 @@ interface NotionalViews {
         returns (uint256);
 
     function getTreasuryManager() external view returns (address);
-    
-    function getReserveBuffer(uint16 currencyId) external view returns(uint256);
+
+    function getReserveBuffer(uint16 currencyId) external view returns (uint256);
 }
