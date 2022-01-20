@@ -128,13 +128,13 @@ interface NotionalViews {
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
 
-    function getfCashNotional(
-        address account,
-        uint16 currencyId,
-        uint256 maturity
-    ) external view returns (int256);
+    // function getfCashNotional(
+    //     address account,
+    //     uint16 currencyId,
+    //     uint256 maturity
+    // ) external view returns (int256);
 
-    function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
+    // function getAssetsBitmap(address account, uint16 currencyId) external view returns (bytes32);
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory);
 
