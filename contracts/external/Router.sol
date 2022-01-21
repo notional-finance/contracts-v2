@@ -72,6 +72,8 @@ contract Router is StorageLayoutV1 {
         // initializing ETH as a currency
         owner = msg.sender;
         // List ETH as currency id == 1, NOTE: return value is ignored here
+
+        // FIXME: on non-mainnet deployments we should be using WETH instead here...
         (bool status, ) =
             address(GOVERNANCE).delegatecall(
                 abi.encodeWithSelector(
