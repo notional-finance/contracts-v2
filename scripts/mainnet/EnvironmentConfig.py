@@ -97,6 +97,7 @@ class Environment:
             "ETH": accounts.at("0x7D24796f7dDB17d73e8B1d0A3bbD103FBA2cb2FE", force=True),
             "cETH": accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True),
             "NOTE": accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True),
+            "COMP": accounts.at("0x7587cAefc8096f5F40ACB83A09Df031a018C66ec", force=True),
         }
 
         self.deployer = accounts.at("0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3", force=True)
