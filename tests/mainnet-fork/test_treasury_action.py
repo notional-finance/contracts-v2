@@ -81,6 +81,56 @@ def test_harvest_reserve_DAI_manager_more_than_buffer(env):
     cDAIReserveBefore = env.notional.getReserveBalance(2)
 
     env.notional.transferReserveToTreasury([2], {"from": env.deployer})
+    assert env.tokens["DAI"].balanceOf(env.deployer) == 0
+
+
+def test_harvest_reserve_DAI_non_manager(env):
+    env.notional.setReserveBuffer(2, 10000e8, {"from": env.notional.owner()})
+    with brownie.reverts():
+        env.notional.transferReserveToTreasury([2], {"from": env.deployer})
+
+
+def test_harvest_reserve_invalid_currency_id(env):
+    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(2, 10000e8, {"from": env.notional.owner()})
+    with brownie.reverts():
+        env.notional.transferReserveToTreasury([10], {"from": env.deployer})
+
+
+def test_harvest_reserve_ETH_manager_more_than_buffer(env):
+    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(1, 0.01e8, {"from": env.notional.owner()})
+
+    ETHBalBefore = env.deployer.balance()
+    cETHReserveBefore = env.notional.getReserveBalance(1)
+
+    env.notional.transferReserveToTreasury([1], {"from": env.deployer})
+    ETHBalAfter = env.deployer.balance()
+    check_reserve_balances(env, 1, cETHReserveBefore, ETHBalAfter - ETHBalBefore, 0.01e8)
+
+
+def test_harvest_reserve_ETH_manager_less_than_buffer(env):
+    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(1, 100e8, {"from": env.notional.owner()})
+
+    ETHBalBefore = env.deployer.balance()
+    env.notional.transferReserveToTreasury([1], {"from": env.deployer})
+    assert env.deployer.balance() - ETHBalBefore == 0
+
+
+def test_harvest_reserve_multiple(env):
+    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(1, 0.01e8, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(2, 10000e8, {"from": env.notional.owner()})
+
+    DAIBalBefore = env.tokens["DAI"].balanceOf(env.deployer)
+    assert DAIBalBefore == 0
+    cDAIReserveBefore = env.notional.getReserveBalance(2)
+
+    ETHBalBefore = env.deployer.balance()
+    cETHReserveBefore = env.notional.getReserveBalance(1)
+    env.notional.transferReserveToTreasury([1, 2], {"from": env.deployer})
+
     DAIBalAfter = env.tokens["DAI"].balanceOf(env.deployer)
     check_reserve_balances(env, 2, cDAIReserveBefore, DAIBalAfter, 10000e8)
 
