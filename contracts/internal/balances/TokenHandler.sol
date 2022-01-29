@@ -6,6 +6,7 @@ import "../../math/SafeInt256.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
+import "../../global/Deployments.sol";
 import "./protocols/AaveHandler.sol";
 import "./protocols/CompoundHandler.sol";
 import "./protocols/GenericToken.sol";
@@ -100,7 +101,7 @@ library TokenHandler {
             // to initiate all transfers
             address approvalAddress = tokenStorage.tokenType == TokenType.cToken ?
                 tokenStorage.tokenAddress :
-                address(AaveHandler.LendingPool);
+                address(Deployments.LendingPool);
 
             // ERC20 tokens should return true on success for an approval, but Tether
             // does not return a value here so we use the NonStandard interface here to
@@ -288,6 +289,6 @@ library TokenHandler {
     }
 
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
-        GenericToken.safeTransferOut(Constants.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
+        GenericToken.safeTransferOut(Deployments.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
     }
 }

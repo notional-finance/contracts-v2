@@ -369,8 +369,8 @@ def main():
             },
         }
 
-    print("Confirming that NOTE token is hardcoded properly in Constants.sol")
-    with open("contracts/global/Constants.sol") as f:
+    print("Confirming that NOTE token is hardcoded properly in Deployments.sol")
+    with open("contracts/global/Deployments.sol") as f:
         constants = f.read()
         m = re.search("address constant NOTE_TOKEN_ADDRESS = (.*);", constants)
         assert m.group(1) == output["note"]

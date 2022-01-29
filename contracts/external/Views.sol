@@ -12,6 +12,7 @@ import "../internal/nToken/nTokenSupply.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV2.sol";
+import "../global/Deployments.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "interfaces/notional/NotionalViews.sol";
@@ -160,7 +161,7 @@ contract Views is StorageLayoutV2, NotionalViews {
 
     /// @notice Returns address of the NOTE token
     function getNoteToken() external pure override returns (address) {
-        return Constants.NOTE_TOKEN_ADDRESS;
+        return Deployments.NOTE_TOKEN_ADDRESS;
     }
 
     /// @notice Returns current ownership status of the contract

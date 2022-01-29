@@ -2,11 +2,11 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/aave/ILendingPool.sol";
-import "interfaces/aave/IAToken.sol";
 import "../../../global/Types.sol";
+import "../../../global/Deployments.sol";
 import "../../../math/SafeInt256.sol";
 import "../TokenHandler.sol";
+import "interfaces/aave/IAToken.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library AaveHandler {
@@ -15,9 +15,6 @@ library AaveHandler {
     int256 internal constant RAY = 1e27;
     int256 internal constant halfRAY = RAY / 2;
 
-    /// @dev This is hardcoded for ETH Mainnet (Main Market), different environments will need to have a
-    /// different LendingPool specified
-    ILendingPool internal constant LendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
     bytes4 internal constant scaledBalanceOfSelector = IAToken.scaledBalanceOf.selector;
 
     /**
@@ -26,7 +23,7 @@ library AaveHandler {
      * @param underlyingAmountExternal amount of underlying to deposit, in external precision
      */
     function mint(Token memory underlyingToken, uint256 underlyingAmountExternal) internal {
-        LendingPool.deposit(underlyingToken.tokenAddress, underlyingAmountExternal, address(this), 0);
+        Deployments.LendingPool.deposit(underlyingToken.tokenAddress, underlyingAmountExternal, address(this), 0);
     }
 
     /**
@@ -44,7 +41,7 @@ library AaveHandler {
             underlyingToken.tokenAddress,
             SafeInt256.toInt(assetAmountExternal)
         ).toUint();
-        LendingPool.withdraw(underlyingToken.tokenAddress, underlyingAmountExternal, account);
+        Deployments.LendingPool.withdraw(underlyingToken.tokenAddress, underlyingAmountExternal, account);
     }
 
     /**
@@ -110,6 +107,6 @@ library AaveHandler {
     /// @dev getReserveNormalizedIncome returns a uint256, so we know that the return value here is
     /// always positive even though we are converting to a signed int
     function _getReserveNormalizedIncome(address underlyingAsset) private view returns (int256) {
-        return SafeInt256.toInt(LendingPool.getReserveNormalizedIncome(underlyingAsset));
+        return SafeInt256.toInt(Deployments.LendingPool.getReserveNormalizedIncome(underlyingAsset));
     }
 }
