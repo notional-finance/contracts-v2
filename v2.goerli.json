@@ -1,0 +1,10 @@
+{
+    "airdrop": "0xFd700986765Eb9cC85c9bE9F7B6a7E7d4461ca6D",
+    "chainId": 5,
+    "deployer": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
+    "governor": "0xEe41dedD5D32910c037fCC11186969a8F95C70E3",
+    "guardian": "0xb937E69aE638DA259D04606aEaF185bCEb80d6D6",
+    "networkName": "goerli",
+    "note": "0x49f8fD33a09f454c299AC3c7250812Ba82c5b901",
+    "startBlock": 6315401
+}
