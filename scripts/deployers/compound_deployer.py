@@ -6,19 +6,20 @@ from scripts.deployment import deployArtifact
 from scripts.config import CompoundConfig, TokenConfig
 from scripts.common import loadContractFromArtifact
 
-# Mainnet token addresses
+# Mainnet cToken addresses
 TokenAddress = {
-    "ETH": "",
-    "DAI": "",
-    "USDC": "",
-    "WBTC": "",
+    "ETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
+    "DAI": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
+    "USDC": "0x39aa39c021dfbae8fac545936693ac917d5e7563",
+    "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
 }
 
-# Mainnet oracle addresses
+# Mainnet asset rate oracle addresses
 OracleAddress = {
-    "DAI": "",
-    "USDC": "",
-    "WBTC": "",
+    "ETH": "0x5fbf4539a89fbd1e5d784db3f7ba6c394ac450fc",
+    "DAI": "0xc7b9c53d345ec7a00d5c085085cb882dce79d2e9",
+    "USDC": "0x181900d998a8a922e68b3fc186ce0fa525c3c424",
+    "WBTC": "0x913f575653c933ac15c8eb5996ed71a5547977d8",
 }
 
 class CompoundDeployer:
@@ -227,7 +228,7 @@ class CompoundDeployer:
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    ctokens = CTokenDeployer(network.show_active(), deployer)
+    ctokens = CompoundDeployer(network.show_active(), deployer)
     ctokens.load()
     ctokens.deployComptroller()
     ctokens.deployCToken("ETH")
