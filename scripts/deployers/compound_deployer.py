@@ -21,7 +21,7 @@ OracleAddress = {
     "WBTC": "",
 }
 
-class CTokenDeployer:
+class CompoundDeployer:
     def __init__(self, network, deployer) -> None:
         self.compound = {}
         self.network = network

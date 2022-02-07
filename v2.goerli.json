@@ -1,4 +1,16 @@
 {
+    "actions": {
+        "AccountAction": "0xC10617e52F52840108FcCaaF1D53F6D6A8aA35e9",
+        "BatchAction": "0xb3E6bBf0aC44965Ed5842d2feC2acCa89DB9C586",
+        "ERC1155Action": "0xe7dDde91B00aF9F75500c78fCC4B84651AE2B021",
+        "Governance": "0xCF61EFd7cB5bDf5B6773E1445c047194fc0F21eE",
+        "InitializeMarketsAction": "0x5Bcc243B09F5ed4ee5D5F6Ab7d199e365764AD70",
+        "LiquidateCurrencyAction": "0x1153cc59fAd00861Dee6eA39695c7F195AA44d80",
+        "LiquidatefCashAction": "0x8C610bd54A8A724dD309b78E4F3e5F28F989c081",
+        "TreasuryAction": "0x4b903585Cd094535B5F68344d61D362Ea460dcE9",
+        "Views": "0x08a7FFAde0B9D57d0270533a5Aad04f43CE87875",
+        "nTokenAction": "0x45851c068dFfD40dBd2a74de86A041009C65aa67"
+    },
     "airdrop": "0xFd700986765Eb9cC85c9bE9F7B6a7E7d4461ca6D",
     "chainId": 5,
     "compound": {
@@ -34,8 +46,21 @@
     "deployer": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
     "governor": "0xEe41dedD5D32910c037fCC11186969a8F95C70E3",
     "guardian": "0xb937E69aE638DA259D04606aEaF185bCEb80d6D6",
+    "libs": {
+        "FreeCollateralExternal": "0x471C077cE69B65de6aCed6Ec505B3111c07A9A0A",
+        "MigrateIncentives": "0xdc1b803dcf9BB8dC967c517fB1E3EdEb1F9aF5E9",
+        "SettleAssetsExternal": "0x800855D88ae8BBc269a5bae6c14fE0102F0912FA",
+        "TradingAction": "0x744146352b98046F5931dac69C31a2C0ddAFbaE4",
+        "nTokenMintAction": "0x158705E39d7f43263d1b9dA8584785F0CE0d4e93",
+        "nTokenRedeemAction": "0x862e02A248DEcA9F9926C88324F3494198dA2AcB"
+    },
     "networkName": "goerli",
     "note": "0x49f8fD33a09f454c299AC3c7250812Ba82c5b901",
+    "notional": "0xd937e688765a38a01D37Fae67c2e9e2C38b1beC9",
+    "routers": {
+        "PauseRouter": "0x769502FF8b8f4Ee02FB8A566754BEd8542Ff13AF",
+        "Router": "0x8b4b98d6C4B8E550420C8ED096490aEAAe9D06F0"
+    },
     "startBlock": 6315401,
     "tokens": {
         "COMP": {
