@@ -1,10 +1,61 @@
 {
     "airdrop": "0xFd700986765Eb9cC85c9bE9F7B6a7E7d4461ca6D",
     "chainId": 5,
+    "compound": {
+        "comptroller": "0xfe28b6962b27c009826BE3C79CA51Cc234965601",
+        "ctokens": {
+            "DAI": {
+                "address": "0xF1aF8Ed6B2e60503133B4fB7350c772732FeA4Fe",
+                "aggregator": "0x7224488ad29c081B137C5546F846aA110C0acc1f",
+                "initialized": true,
+                "model": "0x3cfD905Dd4f37a61257da4c91bFC83692b38a5dD"
+            },
+            "ETH": {
+                "address": "0xC041B7Ee71cB5EF04c933d571DE81B4e6a6fBAa5",
+                "aggregator": "0xe6075E154C7A92549482851f7A235d3C787A5bc2",
+                "initialized": true,
+                "model": "0x8255a7E3FfB1e8fbA86fdd9e94c4eAa097259012"
+            },
+            "USDC": {
+                "address": "0x9dB7F0e4Ed899F5bC8D19786583FF4C7b4C03AF3",
+                "aggregator": "0xEf78D3D2CC575D8D403FabdA271E1f5a4e4E37D3",
+                "initialized": true,
+                "model": "0x4B2e41cE4251Dd2C4CE6EA71399f929f06cB37Ea"
+            },
+            "WBTC": {
+                "address": "0xcBb07045B5365D5Cb0b98dC5980950d9f1c84dc7",
+                "aggregator": "0x84209239f8Ef29Dc88D51615234b53264fAe3F8B",
+                "initialized": true,
+                "model": "0xBbBADEc93BB498851b24405EcEDCfe4595E930B7"
+            }
+        },
+        "oracle": "0x6C1e64dd1b11ACab6238D420188125de0Ce118D7"
+    },
     "deployer": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
     "governor": "0xEe41dedD5D32910c037fCC11186969a8F95C70E3",
     "guardian": "0xb937E69aE638DA259D04606aEaF185bCEb80d6D6",
     "networkName": "goerli",
     "note": "0x49f8fD33a09f454c299AC3c7250812Ba82c5b901",
-    "startBlock": 6315401
+    "startBlock": 6315401,
+    "tokens": {
+        "COMP": {
+            "address": "0x2E9a85D3343906BFa6b8f16738E230Dee053f629",
+            "oracle": "0xdE967e4C8423eC56129DB2EBc1F74658a590809e"
+        },
+        "DAI": {
+            "address": "0xe3A2689CFC49739BC9B3E83b247297BE649327eD",
+            "oracle": "0xE445Ee6c30dC0A5A6c604d69dCF92BBd69Fc01D7"
+        },
+        "USDC": {
+            "address": "0x1DCB77c0ca10d62aFE6B186317E47d036643585a",
+            "oracle": "0x567b1a29538EB60246ab6313F3eA8C9B42c26FaC"
+        },
+        "WBTC": {
+            "address": "0x3Dff3E660862C8e9D0C3b084ab1E8574F6a9252e",
+            "oracle": "0x03bE583A91391b052F4Df7c78aA4b4A9292cE501"
+        },
+        "WETH": {
+            "address": "0x66fD852bF030c3c101161aE75596d54c484F315B"
+        }
+    }
 }
