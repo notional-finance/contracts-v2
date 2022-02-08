@@ -54,6 +54,7 @@
         "nTokenMintAction": "0x158705E39d7f43263d1b9dA8584785F0CE0d4e93",
         "nTokenRedeemAction": "0x862e02A248DEcA9F9926C88324F3494198dA2AcB"
     },
+    "liquidation": {},
     "networkName": "goerli",
     "note": "0x49f8fD33a09f454c299AC3c7250812Ba82c5b901",
     "notional": "0xd937e688765a38a01D37Fae67c2e9e2C38b1beC9",

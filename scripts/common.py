@@ -6,6 +6,9 @@ def loadContractFromArtifact(path, name, address):
         artifact = json.load(a)
     return Contract.from_abi(name, address, abi=artifact["abi"])
 
+def isMainnet(network):
+    return network == "mainnet" or network == "hardhat-fork"
+
 class ContractDeployer:
     def __init__(self, context, deployer) -> None:
         self.context = context
@@ -17,7 +20,7 @@ class ContractDeployer:
         else:
             try:
                 print("Deploying {}".format(name))
-                lib = contract.deploy(*args, {"from": self.deployer})
-                self.context[name] = lib.address
+                c = contract.deploy(*args, {"from": self.deployer})
+                self.context[name] = c.address
             except Exception as e:
                 print("Failed to deploy {}: {}".format(name, e))
