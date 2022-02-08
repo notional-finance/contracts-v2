@@ -1,5 +1,4 @@
 import json
-import subprocess
 
 from brownie import accounts, network, cTokenAggregator
 from scripts.deployment import deployArtifact
@@ -235,4 +234,4 @@ def main():
     ctokens.deployCToken("DAI")
     ctokens.deployCToken("USDC")
     ctokens.deployCToken("WBTC")
-    ctokens.save()    
+    ctokens.save()

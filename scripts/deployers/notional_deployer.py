@@ -1,5 +1,4 @@
 import json
-import subprocess
 
 from brownie import (
     accounts, 
@@ -25,6 +24,7 @@ from brownie import (
     nProxy
 )
 from brownie.network import web3
+from scripts.common import ContractDeployer
 
 class NotionalDeployer:
     def __init__(self, network, deployer) -> None:
@@ -35,55 +35,48 @@ class NotionalDeployer:
         self.network = network
         self.deployer = deployer
 
-    def deployContract(self, ctx, name, contract, args):
-        print("Deploying {}".format(name))
-        if name in ctx:
-            print("{} deployed at {}".format(name, self.libs[name]))
-        else:
-            try:
-                lib = contract.deploy(*args, {"from": self.deployer})
-                ctx[name] = lib.address
-            except Exception as e:
-                print("Failed to deploy {}: {}".format(name, e))
-
     def deployLibs(self):
-        self.deployContract(self.libs, "SettleAssetsExternal", SettleAssetsExternal, [])
-        self.deployContract(self.libs, "FreeCollateralExternal", FreeCollateralExternal, [])
-        self.deployContract(self.libs, "TradingAction", TradingAction, [])
-        self.deployContract(self.libs, "nTokenMintAction", nTokenMintAction, [])
-        self.deployContract(self.libs, "nTokenRedeemAction", nTokenRedeemAction, [])
-        self.deployContract(self.libs, "MigrateIncentives", MigrateIncentives, [])
+        deployer = ContractDeployer(self.libs, self.deployer)
+        deployer.deploy("SettleAssetsExternal", SettleAssetsExternal, [])
+        deployer.deploy("FreeCollateralExternal", FreeCollateralExternal, [])
+        deployer.deploy("TradingAction", TradingAction, [])
+        deployer.deploy("nTokenMintAction", nTokenMintAction, [])
+        deployer.deploy("nTokenRedeemAction", nTokenRedeemAction, [])
+        deployer.deploy("MigrateIncentives", MigrateIncentives, [])
 
     def deployActions(self):
-        self.deployContract(self.actions, "Governance", GovernanceAction, [])
+        deployer = ContractDeployer(self.actions, self.deployer)
+        deployer.deploy("Governance", GovernanceAction, [])
         # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
         # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
         # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here will
         # not be correct for future upgrades.
         # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
         #   deployer, "Governance")
-        self.deployContract(self.actions, "Views", Views, [])
-        self.deployContract(self.actions, "InitializeMarketsAction", InitializeMarketsAction, [])
-        self.deployContract(self.actions, "nTokenAction", InitializeMarketsAction, [])
-        self.deployContract(self.actions, "BatchAction", BatchAction, [])
-        self.deployContract(self.actions, "AccountAction", AccountAction, [])
-        self.deployContract(self.actions, "ERC1155Action", ERC1155Action, [])
-        self.deployContract(self.actions, "LiquidateCurrencyAction", LiquidateCurrencyAction, [])
-        self.deployContract(self.actions, "LiquidatefCashAction", LiquidatefCashAction, [])
-        self.deployContract(self.actions, "TreasuryAction", TreasuryAction, [
+        deployer.deploy("Views", Views, [])
+        deployer.deploy("InitializeMarketsAction", InitializeMarketsAction, [])
+        deployer.deploy("nTokenAction", InitializeMarketsAction, [])
+        deployer.deploy("BatchAction", BatchAction, [])
+        deployer.deploy("AccountAction", AccountAction, [])
+        deployer.deploy("ERC1155Action", ERC1155Action, [])
+        deployer.deploy("LiquidateCurrencyAction", LiquidateCurrencyAction, [])
+        deployer.deploy("LiquidatefCashAction", LiquidatefCashAction, [])
+        deployer.deploy("TreasuryAction", TreasuryAction, [
             self.config["compound"]["comptroller"],
             self.config["tokens"]["WETH"]["address"]
         ])
 
     def deployPauseRouter(self):
-        self.deployContract(self.routers, "PauseRouter", PauseRouter, [
+        deployer = ContractDeployer(self.routers, self.deployer)
+        deployer.deploy("PauseRouter", PauseRouter, [
             self.actions["Views"],
             self.actions["LiquidateCurrencyAction"],
             self.actions["LiquidatefCashAction"]
         ])
 
     def deployRouter(self):
-        self.deployContract(self.routers, "Router", Router, [
+        deployer = ContractDeployer(self.routers, self.deployer)
+        deployer.deployer("Router", Router, [
             self.actions["Governance"],
             self.actions["Views"],
             self.actions["InitializeMarketsAction"],
@@ -108,9 +101,10 @@ class NotionalDeployer:
         )
 
         ctx = {}
-        self.deployContract(ctx, "Notional", nProxy, [self.routers["Router"], initializeData])
+        deployer = ContractDeployer(ctx, self.deployer)
+        deployer.deploy("Notional", nProxy, [self.routers["Router"], initializeData])
         if "Notional" in ctx:
-            self.notional = ctx["Notional "]
+            self.notional = ctx["Notional"]
 
     def load(self):
         with open("v2.{}.json".format(self.network), "r") as f:
