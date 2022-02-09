@@ -109,11 +109,10 @@ class NotionalDeployer:
             fn_name="initialize", args=[self.deployer.address, self.routers["PauseRouter"], self.routers["Router"]]
         )
 
-        ctx = {}
-        deployer = ContractDeployer(self.deployer, ctx)
+        deployer = ContractDeployer(self.deployer)
         deployer.deploy(nProxy, [self.routers["Router"], initializeData])
-        if "nProxy" in ctx:
-            self.notional = ctx["nProxy"]
+        if "nProxy" in deployer.context:
+            self.notional = deployer.context["nProxy"]
 
     def load(self):
         with open("v2.{}.json".format(self.network), "r") as f:

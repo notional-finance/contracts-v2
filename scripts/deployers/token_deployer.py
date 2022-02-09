@@ -2,7 +2,8 @@ import json
 
 from brownie import accounts, network, MockWETH, MockERC20, MockAggregator
 from scripts.config import TokenConfig
-from scripts.common import verifyContract, ContractDeployer, isMainnet
+from scripts.common import isMainnet
+from scripts.deployers.contract_deployer import ContractDeployer
 
 # Mainnet token addresses
 TokenAddress = {
@@ -30,27 +31,31 @@ class TokenDeployer:
         self.network = network
         self.deployer = deployer
 
-    def _deployERC20Contract(self, name, symbol, decimals, fee):
-        print("Deploying {}".format(symbol))
-        if symbol == "WETH":
-            token = MockWETH.deploy({"from": self.deployer}, publish_source=True)
-        else:
-            token = MockERC20.deploy(
-                name, 
-                symbol, 
-                decimals, 
-                fee, 
-                {"from": self.deployer}, 
-                publish_source=True
-            )
-        return token
+    def _deployERC20Contract(self, token, name, symbol, decimals, fee):
+        if "address" in token:
+            print("{} already deployed at {}".format(symbol, token["address"]))
+            return
         
-    def _deployETHOracle(self, symbol):
-        print("Deploying {}/ETH oracle".format(symbol))
-        config = TokenConfig[symbol]
-        oracle = MockAggregator.deploy(18, {"from": self.deployer}, publish_source=True)
-        oracle.setAnswer(config["rate"])
-        return oracle    
+        deployer = ContractDeployer(self.deployer)
+        if symbol == "WETH":
+            contract = deployer.deploy(MockWETH, [], "", True)
+        else:
+            contract = deployer.deploy(MockERC20, [name, symbol, decimals, fee], "", True)
+        if contract:
+            token["address"] = contract.address
+
+        
+    def _deployETHOracle(self, token, symbol):
+        if "oracle" in token:
+            print("{}/ETH oracle already deployed at {}".format(symbol, token["oracle"]))
+            return
+
+        deployer = ContractDeployer(self.deployer)
+        contract = deployer.deploy(MockAggregator, [18], "", True)
+        if contract:
+            config = TokenConfig[symbol]
+            contract.setAnswer(config["rate"], {"from": self.deployer})    
+            token["oracle"] = contract.address
 
     def deployERC20(self, name, symbol, decimals, fee):
         if isMainnet(self.network):
@@ -65,28 +70,13 @@ class TokenDeployer:
                 token = self.tokens[symbol]
 
             # Deploy and verify token contract            
-            if "address" in token:
-                print("{} already deployed at {}".format(symbol, token["address"]))
-            else:
-                deployer = ContractDeployer()
-                try:
-                    t = self._deployERC20Contract(name, symbol, decimals, fee)
-                    token["address"] = t.address
-                except Exception as e:
-                    print("Failed to deploy {}: {}".format(symbol, e))
+            self._deployERC20Contract(token, name, symbol, decimals, fee)
 
             # Deploy price oracle
             if symbol == "WETH":
                 print("Skipping price oracle deployment for WETH")
             else:
-                if "oracle" in token:
-                    print("{}/ETH oracle already deployed at {}".format(symbol, token["oracle"]))
-                else:                    
-                    try:
-                        o = self._deployETHOracle(symbol)
-                        token["oracle"] = o.address
-                    except Exception as e:
-                        print("Failed to deploy {}/ETH oracle: {}".format(symbol, e))
+                self._deployETHOracle(token, symbol)
 
             self.tokens[symbol] = token
 
