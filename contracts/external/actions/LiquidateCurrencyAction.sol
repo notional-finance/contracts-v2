@@ -428,4 +428,9 @@ contract LiquidateCurrencyAction is ActionGuards {
                 collateralBalanceState.netAssetTransferInternalPrecision
             );
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address, address) {
+        return (address(MigrateIncentives), address(FreeCollateralExternal));
+    }
 }

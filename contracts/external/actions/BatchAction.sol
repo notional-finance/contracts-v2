@@ -373,4 +373,16 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             return accountContext;
         }
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address, address, address, address, address, address) {
+        return (
+            address(nTokenRedeemAction), 
+            address(nTokenMintAction), 
+            address(FreeCollateralExternal), 
+            address(SettleAssetsExternal), 
+            address(MigrateIncentives), 
+            address(TradingAction)
+        );
+    }
 }

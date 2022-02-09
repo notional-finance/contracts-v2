@@ -448,4 +448,9 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
 
         return accountAuthorizedTransferOperator[account][operator];
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address, address) {
+        return (address(SettleAssetsExternal), address(FreeCollateralExternal));
+    }
 }

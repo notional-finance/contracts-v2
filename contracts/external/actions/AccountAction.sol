@@ -226,4 +226,14 @@ contract AccountAction is ActionGuards {
             return (accountContext, false);
         }
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address, address, address, address) {
+        return (
+            address(nTokenRedeemAction), 
+            address(SettleAssetsExternal), 
+            address(MigrateIncentives), 
+            address(FreeCollateralExternal)
+        );
+    }
 }

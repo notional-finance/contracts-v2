@@ -295,4 +295,13 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
 
         return true;
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address, address, address) {
+        return (
+            address(SettleAssetsExternal), 
+            address(MigrateIncentives),
+            address(FreeCollateralExternal)
+        );
+    }
 }

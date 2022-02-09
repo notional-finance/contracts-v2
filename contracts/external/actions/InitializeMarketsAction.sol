@@ -678,4 +678,9 @@ library InitializeMarketsAction {
             market.totalfCash.neg()
         );
     }
+
+    /// @notice Get a list of deployed library addresses
+    function getLibInfo() external view returns (address) {
+        return address(nTokenMintAction);
+    }
 }

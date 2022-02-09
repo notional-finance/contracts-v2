@@ -1,23 +1,27 @@
 import json
-import subprocess
 
 from brownie import accounts, network, MockWETH, MockERC20, MockAggregator
 from scripts.config import TokenConfig
+from scripts.common import verifyContract, ContractDeployer, isMainnet
 
 # Mainnet token addresses
 TokenAddress = {
-    "WETH": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    "DAI": "0x6b175474e89094c44da98b954eedeac495271d0f",
-    "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    "WBTC": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
-    "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888"
+    "mainnet": {
+        "WETH": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "DAI": "0x6b175474e89094c44da98b954eedeac495271d0f",
+        "USDC": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "WBTC": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "COMP": "0xc00e94cb662c3520282e6f5717214004a7f26888"
+    }
 }
 
 # Mainnet oracle addresses
 OracleAddress = {
-    "DAI": "0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b",
-    "USDC": "0x68225f47813af66f186b3714ffe6a91850bc76b4",
-    "WBTC": "0x10aae34011c256a9e63ab5ac50154c2539c0f51d",
+    "mainnet": {
+        "DAI": "0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b",
+        "USDC": "0x68225f47813af66f186b3714ffe6a91850bc76b4",
+        "WBTC": "0x10aae34011c256a9e63ab5ac50154c2539c0f51d",
+    }
 }
 
 class TokenDeployer:
@@ -26,35 +30,34 @@ class TokenDeployer:
         self.network = network
         self.deployer = deployer
 
-    def deployAndVerifyERC20Contract(self, name, symbol, decimals, fee):
+    def _deployERC20Contract(self, name, symbol, decimals, fee):
         print("Deploying {}".format(symbol))
         if symbol == "WETH":
-            token = MockWETH.deploy({"from": self.deployer})
-            args = []
+            token = MockWETH.deploy({"from": self.deployer}, publish_source=True)
         else:
-            token = MockERC20.deploy(name, symbol, decimals, fee, {"from": self.deployer})
-            args = [name, symbol, str(decimals), str(fee)]
-        if self.network != "development":
-            print("Verifying {} at {}".format(symbol, token.address))
-            try:
-                self.verify(token.address, args)
-            except:
-                print("Failed to verify {}".format(symbol))
+            token = MockERC20.deploy(
+                name, 
+                symbol, 
+                decimals, 
+                fee, 
+                {"from": self.deployer}, 
+                publish_source=True
+            )
         return token
         
-    def deployETHOracle(self, symbol):
+    def _deployETHOracle(self, symbol):
         print("Deploying {}/ETH oracle".format(symbol))
         config = TokenConfig[symbol]
-        oracle = MockAggregator.deploy(18, {"from": self.deployer})
+        oracle = MockAggregator.deploy(18, {"from": self.deployer}, publish_source=True)
         oracle.setAnswer(config["rate"])
         return oracle    
 
     def deployERC20(self, name, symbol, decimals, fee):
-        if self.network == "mainnet" or self.network == "hardhat-fork":
+        if isMainnet(self.network):
             # Save token address directly for mainnet and mainnet fork
             self.tokens[symbol] = {
-                "address": TokenAddress[symbol],
-                "oracle": OracleAddress[symbol]
+                "address": TokenAddress["mainnet"][symbol],
+                "oracle": OracleAddress["mainnet"][symbol]
             }
         else:
             token = {}
@@ -65,11 +68,12 @@ class TokenDeployer:
             if "address" in token:
                 print("{} already deployed at {}".format(symbol, token["address"]))
             else:
+                deployer = ContractDeployer()
                 try:
-                    t = self.deployAndVerifyERC20Contract(name, symbol, decimals, fee)
+                    t = self._deployERC20Contract(name, symbol, decimals, fee)
                     token["address"] = t.address
-                except:
-                    print("Failed to deploy {}".format(symbol))
+                except Exception as e:
+                    print("Failed to deploy {}: {}".format(symbol, e))
 
             # Deploy price oracle
             if symbol == "WETH":
@@ -79,23 +83,12 @@ class TokenDeployer:
                     print("{}/ETH oracle already deployed at {}".format(symbol, token["oracle"]))
                 else:                    
                     try:
-                        o = self.deployETHOracle(symbol)
+                        o = self._deployETHOracle(symbol)
                         token["oracle"] = o.address
-                    except:
-                        print("Failed to deploy {}/ETH oracle".format(symbol))
+                    except Exception as e:
+                        print("Failed to deploy {}/ETH oracle: {}".format(symbol, e))
 
             self.tokens[symbol] = token
-        
-    def verify(self, address, args):
-        ctorArgs = list(map(lambda a: "\"" + a + "\"", args))
-        proc = subprocess.run(
-            ["npx", "hardhat", "verify", "--network", network.show_active(), address] + ctorArgs,
-            shell=True,
-            capture_output=True,
-            encoding="utf8",
-        )
-        print(proc.stdout)
-        print(proc.stderr)
 
     def load(self):
         print("Loading token addresses")

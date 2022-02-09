@@ -28,7 +28,7 @@ class GovDeployer:
             print("noteERC20Impl deployed at {}".format(self.config["noteERC20Impl"]))
             return
 
-        deployer = ContractDeployer(self.config, self.deployer)
+        deployer = ContractDeployer(self.deployer, self.config)
         # Deploy NOTE implementation contract
         deployer.deploy("noteERC20Impl", NoteERC20, [])
         # This is a proxied ERC20
@@ -40,7 +40,7 @@ class GovDeployer:
 
         governorConfig = GovernanceConfig["governorConfig"]
         guardian = EnvironmentConfig[self.network]["GuardianMultisig"]
-        deployer = ContractDeployer(self.config, self.deployer)
+        deployer = ContractDeployer(self.deployer, self.config)
         deployer.deploy("governor", GovernorAlpha, [
             governorConfig["quorumVotes"],
             governorConfig["proposalThreshold"],

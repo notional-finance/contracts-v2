@@ -31,7 +31,7 @@ class LiqDeployer:
         if isMainnet(self.network):
             self.liquidation["lender"] = LiquidationConfig["mainnet"]["lender"]
             return
-        deployer = ContractDeployer(self.liquidation, self.deployer)
+        deployer = ContractDeployer(self.deployer, self.liquidation)
         deployer.deploy("lender", MockAaveFlashLender, [
             self.config["tokens"]["WETH"]["address"], 
             self.deployer.address
@@ -41,7 +41,7 @@ class LiqDeployer:
         if isMainnet(self.network):
             self.liquidation["exchange"] = LiquidationConfig["mainnet"]["exchange"]
         
-        deployer = ContractDeployer(self.liquidation, self.deployer)
+        deployer = ContractDeployer(self.deployer, self.liquidation)
         deployer.deploy("exchange", MockUniV3SwapRouter, [
             self.config["tokens"]["WETH"]["address"], 
             self.deployer.address
@@ -53,7 +53,7 @@ class LiqDeployer:
         if "exchange" not in self.liquidation:
             self.deployExchange()
 
-        deployer = ContractDeployer(self.liquidation, self.deployer)
+        deployer = ContractDeployer(self.deployer, self.liquidation)
         deployer.deploy("flash", NotionalV2FlashLiquidator, [
             self.config["notional"], 
             self.liquidation["lender"], 
@@ -67,7 +67,7 @@ class LiqDeployer:
         if "exchange" not in self.liquidation:
             self.deployExchange()
 
-        deployer = ContractDeployer(manual, self.deployer)
+        deployer = ContractDeployer(self.deployer, manual)
         deployer.deploy("impl", NotionalV2ManualLiquidator, [
             self.config["notional"],
             self.config["tokens"]["WETH"]["address"], 
@@ -80,7 +80,7 @@ class LiqDeployer:
         if "impl" not in manual:
             self._deployManualLiquidatorImpl(manual)
 
-        deployer = ContractDeployer(manual, self.deployer)
+        deployer = ContractDeployer(self.deployer, manual)
         deployer.deploy("beacon", UpgradeableBeacon, [manual["impl"]])
 
     def _deployManualLiquidator(self, manual, currencyId):
@@ -89,7 +89,7 @@ class LiqDeployer:
         if "impl" not in manual:
             self._deployManualLiquidatorImpl(manual)
 
-        deployer = ContractDeployer(manual, self.deployer)
+        deployer = ContractDeployer(self.deployer, manual)
         liquidator = Contract.from_abi("manualLiquidator", manual["impl"], abi=NotionalV2ManualLiquidator.abi)
         initData = liquidator.initialize.encode_input(currencyId)
         deployer.deploy(str(currencyId), BeaconProxy, [manual["beacon"], initData])
@@ -109,8 +109,8 @@ class LiqDeployer:
         else:
             self._deployManualBeacon(manual)
 
-        if currencyId in manual:
-            print("Manual liquidator for currency {} deployed at {}".format(currencyId, manual[currencyId]))
+        if str(currencyId) in manual:
+            print("Manual liquidator for currency {} deployed at {}".format(currencyId, manual[str(currencyId)]))
         else:
             self._deployManualLiquidator(manual, currencyId)
 
