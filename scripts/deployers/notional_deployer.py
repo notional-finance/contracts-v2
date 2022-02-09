@@ -135,16 +135,3 @@ class NotionalDeployer:
         with open("v2.{}.json".format(self.network), "w") as f:
             json.dump(self.config, f, sort_keys=True, indent=4)
 
-def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    notional = NotionalDeployer(network.show_active(), deployer)
-    #ctx = {}
-    #deployer = ContractDeployer(ctx, deployer, [])
-    #deployer.deploy("AccountAction", AccountAction, [], [SettleAssetsExternal, FreeCollateralExternal])
-    #notional.load()
-    #notional.deployLibs()
-    #notional.deployActions()
-    #notional.deployPauseRouter()
-    #notional.deployRouter()
-    #notional.deployProxy()
-    #notional.save()

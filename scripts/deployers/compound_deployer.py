@@ -3,22 +3,26 @@ import json
 from brownie import accounts, network, cTokenAggregator
 from scripts.deployment import deployArtifact
 from scripts.config import CompoundConfig, TokenConfig
-from scripts.common import loadContractFromArtifact
+from scripts.common import loadContractFromArtifact, isMainnet
 
 # Mainnet cToken addresses
 TokenAddress = {
-    "ETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
-    "DAI": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
-    "USDC": "0x39aa39c021dfbae8fac545936693ac917d5e7563",
-    "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
+    "mainnet": {
+        "ETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
+        "DAI": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
+        "USDC": "0x39aa39c021dfbae8fac545936693ac917d5e7563",
+        "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a"
+    }
 }
 
 # Mainnet asset rate oracle addresses
 OracleAddress = {
-    "ETH": "0x5fbf4539a89fbd1e5d784db3f7ba6c394ac450fc",
-    "DAI": "0xc7b9c53d345ec7a00d5c085085cb882dce79d2e9",
-    "USDC": "0x181900d998a8a922e68b3fc186ce0fa525c3c424",
-    "WBTC": "0x913f575653c933ac15c8eb5996ed71a5547977d8",
+    "mainnet": {
+        "ETH": "0x5fbf4539a89fbd1e5d784db3f7ba6c394ac450fc",
+        "DAI": "0xc7b9c53d345ec7a00d5c085085cb882dce79d2e9",
+        "USDC": "0x181900d998a8a922e68b3fc186ce0fa525c3c424",
+        "WBTC": "0x913f575653c933ac15c8eb5996ed71a5547977d8"
+    }
 }
 
 class CompoundDeployer:
@@ -93,9 +97,9 @@ class CompoundDeployer:
 
     def initCToken(self, ctoken, symbol):
         comptroller = loadContractFromArtifact(
-            "scripts/compound_artifacts/nComptroller.json",
             "nComptroller",
-            self.compound["comptroller"]
+            self.compound["comptroller"],
+            "scripts/compound_artifacts/nComptroller.json"
         )
         if comptroller is not None:
             print("Initializing comptroller for {}".format(symbol))
@@ -106,9 +110,9 @@ class CompoundDeployer:
             if symbol != "ETH":
                 print("Initializing price oracle for {}".format(symbol))
                 compPriceOracle = loadContractFromArtifact(
-                    "scripts/compound_artifacts/nPriceOracle.json",
                     "nPriceOracle",
-                    self.compound["oracle"]
+                    self.compound["oracle"],
+                    "scripts/compound_artifacts/nPriceOracle.json"
                 )
                 if compPriceOracle != None:
                     compPriceOracle.setUnderlyingPrice(
@@ -122,11 +126,11 @@ class CompoundDeployer:
         if "ctokens" in self.compound:
             ctokens = self.compound["ctokens"]
 
-        if self.network == "mainnet" or self.network == "hardhat-fork":
+        if isMainnet(self.network):
             # Save token address directly for mainnet and mainnet fork
             ctokens[symbol] = {
-                "address": TokenAddress[symbol],
-                "oracle": OracleAddress[symbol]
+                "address": TokenAddress["mainnet"][symbol],
+                "oracle": OracleAddress["mainnet"][symbol]
             }
         else:
             ctoken = {}
@@ -206,8 +210,8 @@ class CompoundDeployer:
                     self.deployer, 
                     "nComptroller"
                 )
-                comptroller._setMaxAssets(20)
-                comptroller._setPriceOracle(self.compound["oracle"])
+                comptroller._setMaxAssets(20, {"from": self.deployer})
+                comptroller._setPriceOracle(self.compound["oracle"], {"from": self.deployer})
                 self.compound["comptroller"] = comptroller.address
             except:
                 print("Failed to deploy comptroller")
@@ -224,14 +228,3 @@ class CompoundDeployer:
         self.config["compound"] = self.compound
         with open("v2.{}.json".format(self.network), "w") as f:
             json.dump(self.config, f, sort_keys=True, indent=4)
-
-def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    ctokens = CompoundDeployer(network.show_active(), deployer)
-    ctokens.load()
-    ctokens.deployComptroller()
-    ctokens.deployCToken("ETH")
-    ctokens.deployCToken("DAI")
-    ctokens.deployCToken("USDC")
-    ctokens.deployCToken("WBTC")
-    ctokens.save()

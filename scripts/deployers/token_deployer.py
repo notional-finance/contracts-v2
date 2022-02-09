@@ -93,13 +93,3 @@ class TokenDeployer:
         with open("v2.{}.json".format(self.network), "w") as f:
             json.dump(self.config, f, sort_keys=True, indent=4)
 
-def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    tokens = TokenDeployer(network.show_active(), deployer)
-    tokens.load()
-    tokens.deployERC20("Notional WETH", "WETH", 18, 0)
-    tokens.deployERC20("Notional DAI", "DAI", 18, 0)
-    tokens.deployERC20("Notional USDC", "USDC", 6, 0)
-    tokens.deployERC20("Notional WBTC", "WBTC", 8, 0)
-    tokens.deployERC20("Notional COMP", "COMP", 18, 0)
-    tokens.save()

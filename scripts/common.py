@@ -2,10 +2,24 @@ import json
 import re
 from brownie import Contract
 
-def loadContractFromArtifact(path, name, address):
+TokenType = {
+    "UnderlyingToken": 0,
+    "cToken": 1,
+    "cETH": 2,
+    "Ether": 3,
+    "NonMintable": 4,
+    "aToken": 5,
+}
+
+def loadContractFromABI(name, address, path):
+    with open(path, "r") as f:
+        abi = json.load(f)
+    return Contract.from_abi(name, address, abi)
+
+def loadContractFromArtifact(name, address, path):
     with open(path, "r") as a:
         artifact = json.load(a)
-    return Contract.from_abi(name, address, abi=artifact["abi"])
+    return Contract.from_abi(name, address, artifact["abi"])
 
 def getDependencies(bytecode):
     deps = set()
@@ -16,3 +30,6 @@ def getDependencies(bytecode):
 
 def isMainnet(network):
     return network == "mainnet" or network == "hardhat-fork"
+
+def hasTransferFee(symbol):
+    return symbol == "USDT"

@@ -106,12 +106,3 @@ class GovDeployer:
         self.config["startBlock"] = network.chain.height
         with open("v2.{}.json".format(self.network), "w") as f:
             json.dump(self.config, f, sort_keys=True, indent=4)
-
-def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    gov = GovDeployer(network.show_active(), deployer)
-    gov.load()
-    gov.deployNOTE()
-    gov.deployAirdrop()
-    gov.deployGovernor()
-    gov.save()

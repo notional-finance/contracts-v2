@@ -10,7 +10,7 @@ class ContractDeployer:
         self.deployer = deployer
         self.libs = libs
 
-    def deploy(self, contract, args=[], name="", verify=False, singleton=False, isLib=False):
+    def deploy(self, contract, args=[], name="", verify=False, isLib=False):
         c = None
         if name == "":
             name = contract._name
@@ -19,10 +19,10 @@ class ContractDeployer:
             c = Contract.from_abi(name, self.context[name], abi=contract.abi)
         else:
             # Deploy libraries
-            libs = getDependencies(contract.bytecode)
-            deployed = []
-            for lib in libs:
-                deployed.append(self.deploy(self.project.dict()[lib], [], "", False, True, True))
+            deps = getDependencies(contract.bytecode)
+            libs = []
+            for dep in deps:
+                libs.append(self.deploy(self.project.dict()[dep], [], "", False, True, True))
 
             # Deploy contract
             try:
@@ -33,7 +33,7 @@ class ContractDeployer:
                 print("Failed to deploy {}: {}".format(name, e))
 
             # Verify libs
-            if not isLib and len(deployed) > 0:
+            if not isLib and len(libs) > 0:
                 addr = []
                 if hasattr(c, "getLibInfo") and callable(getattr(c, "getLibInfo")):
                     info = c.getLibInfo()
@@ -44,14 +44,14 @@ class ContractDeployer:
                 else:
                     raise Exception("Cannot verify libs, getLibInfo() not found on {}".format(name))
 
-                if len(addr) != len(deployed):
+                if len(addr) != len(libs):
                     raise Exception("getLibInfo(): incorrect length")
-                for i, item in enumerate(deployed):
+                for i, item in enumerate(libs):
                     if (addr[i] != item.address):
                         raise Exception("Library mismatch! expected = {}, actual = {}".format(item.address, addr[i]))
 
         # Make sure there is only 1 copy in map.json (for libraries)
-        if singleton:
+        if isLib:
             map = None
             with open("build/deployments/map.json", "r") as f:
                 map = json.load(f)
