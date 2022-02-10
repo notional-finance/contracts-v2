@@ -26,11 +26,28 @@ OracleAddress = {
 }
 
 class TokenDeployer:
-    def __init__(self, network, deployer) -> None:
+    def __init__(self, network, deployer, config={}, persist=True) -> None:
+        self.config = config
+        self.persist = persist
         self.tokens = {}
         self.network = network
         self.deployer = deployer
         self._load()
+
+    def _load(self):
+        print("Loading token config")
+        if self.persist:
+            with open("v2.{}.json".format(self.network), "r") as f:
+                self.config = json.load(f)
+        if "tokens" in self.config:
+            self.tokens = self.config["tokens"]
+
+    def _save(self):
+        print("Saving token config")
+        self.config["tokens"] = self.tokens
+        if self.persist:
+            with open("v2.{}.json".format(self.network), "w") as f:
+                json.dump(self.config, f, sort_keys=True, indent=4)
 
     def _deployERC20Contract(self, token, name, symbol, decimals, fee):
         if "address" in token:
@@ -42,12 +59,11 @@ class TokenDeployer:
             contract = deployer.deploy(MockWETH, [], "", True)
         else:
             contract = deployer.deploy(MockERC20, [name, symbol, decimals, fee], "", True)
-        if contract:
-            token["address"] = contract.address
-            # Re-deploy dependent contracts
-            token["oracle"] = None
-            self.tokens[symbol] = token
-            self._save()
+        token["address"] = contract.address
+        # Re-deploy dependent contracts
+        token.pop("oracle", None)
+        self.tokens[symbol] = token
+        self._save()
         
     def _deployETHOracle(self, token, symbol):
         if "oracle" in token:
@@ -56,12 +72,11 @@ class TokenDeployer:
 
         deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(MockAggregator, [18], "", True)
-        if contract:
-            config = TokenConfig[symbol]
-            contract.setAnswer(config["rate"], {"from": self.deployer})    
-            token["oracle"] = contract.address
-            self.tokens[symbol] = token
-            self._save()
+        config = TokenConfig[symbol]
+        contract.setAnswer(config["rate"], {"from": self.deployer})    
+        token["oracle"] = contract.address
+        self.tokens[symbol] = token
+        self._save()
 
     def deployERC20(self, name, symbol, decimals, fee):
         if isProduction(self.network):
@@ -84,16 +99,3 @@ class TokenDeployer:
             print("Skipping price oracle deployment for WETH")
         else:
             self._deployETHOracle(token, symbol)
-
-    def _load(self):
-        print("Loading token addresses")
-        with open("v2.{}.json".format(self.network), "r") as f:
-            self.config = json.load(f)
-        if "tokens" in self.config:
-            self.tokens = self.config["tokens"]
-
-    def _save(self):
-        print("Saving token addresses")
-        self.config["tokens"] = self.tokens
-        with open("v2.{}.json".format(self.network), "w") as f:
-            json.dump(self.config, f, sort_keys=True, indent=4)

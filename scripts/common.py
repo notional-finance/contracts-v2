@@ -26,7 +26,9 @@ def getDependencies(bytecode):
     for marker in re.findall("_{1,}[^_]*_{1,}", bytecode):
         library = marker.strip("_")
         deps.add(library)
-    return list(deps)
+    result = list(deps)
+    result.sort()
+    return result
 
 def isProduction(network):
     return network == "mainnet" or network == "hardhat-fork"

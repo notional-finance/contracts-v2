@@ -3,13 +3,44 @@ from brownie import accounts, network, ZERO_ADDRESS
 from scripts.common import TokenType, loadContractFromABI, loadContractFromArtifact, hasTransferFee
 
 class NotionalInitializer:
-    def __init__(self, network, deployer) -> None:
+    def __init__(self, network, deployer, config={}, persist=True) -> None:
+        self.config = config
+        self.persist = persist
         self.tokens = {}
         self.ctokens = {}
         self.ethOracles = {}
         self.notional = None
         self.network = network
         self.deployer = deployer
+        self._load()
+
+    def _load(self):
+        if self.persist:
+            with open("v2.{}.json".format(self.network), "r") as f:
+                self.config = json.load(f)
+        if "notional" in self.config:
+            self.notional = loadContractFromABI("NotionalProxy", self.config["notional"], "abi/Notional.json")
+        if "tokens" in self.config:
+            tokens = self.config["tokens"]
+            for k, v in tokens.items():
+                if "address" in v:
+                    self.tokens[k] = loadContractFromABI(k, v["address"], "abi/ERC20.json")
+                if "oracle" in v:
+                    self.ethOracle[k] = v["oracle"]
+        else:
+            raise Exception("Tokens not deployed")
+        if "compound" in self.config and "ctokens" in self.config["compound"]:
+            ctokens = self.config["compound"]["ctokens"]
+            for k, v in ctokens.items():
+                if "address" in v:
+                    if k == "ETH":
+                        path = "scripts/compound_artifacts/nCEther.json"
+                    else:
+                        path = "scripts/compound_artifacts/nCErc20.json"
+                    self.ctokens[k] = loadContractFromArtifact(k, v["address"], path)
+                    
+        else:
+            raise Exception("Compound not deployed")
 
     def _listCurrency(self, symbol, asset, underlying, config):
         if symbol not in self.ethOracles:
@@ -78,36 +109,3 @@ class NotionalInitializer:
             symbol,
             {"from": self.deployer}
         )
-
-    def load(self):
-        with open("v2.{}.json".format(self.network), "r") as f:
-            self.config = json.load(f)
-        if "notional" in self.config:
-            self.notional = loadContractFromABI("NotionalProxy", self.config["notional"], "abi/Notional.json")
-        if "tokens" in self.config:
-            tokens = self.config["tokens"]
-            for k, v in tokens.items():
-                if "address" in v:
-                    self.tokens[k] = loadContractFromABI(k, v["address"], "abi/ERC20.json")
-                if "oracle" in v:
-                    self.ethOracle[k] = v["oracle"]
-        else:
-            raise Exception("Tokens not deployed")
-        if "compound" in self.config and "ctokens" in self.config["compound"]:
-            ctokens = self.config["compound"]["ctokens"]
-            for k, v in ctokens.items():
-                if "address" in v:
-                    if k == "ETH":
-                        path = "scripts/compound_artifacts/nCEther.json"
-                    else:
-                        path = "scripts/compound_artifacts/nCErc20.json"
-                    self.ctokens[k] = loadContractFromArtifact(k, v["address"], path)
-                    
-        else:
-            raise Exception("Compound not deployed")
-
-
-def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    initializer = NotionalInitializer(network.show_active(), deployer)
-    initializer.load()

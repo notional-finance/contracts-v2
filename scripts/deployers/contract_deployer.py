@@ -14,23 +14,26 @@ class ContractDeployer:
         c = None
         if name == "":
             name = contract._name
-        if name in self.context:
-            print("{} deployed at {}".format(name, self.context[name]))
-            c = Contract.from_abi(name, self.context[name], abi=contract.abi)
+
+        context = self.context
+        if isLib:
+            # If we are deploying a library, check if it's already deployed
+            context = self.libs
+
+        if name in context:
+            print("{} deployed at {}".format(name, context[name]))
+            c = Contract.from_abi(name, context[name], abi=contract.abi)
         else:
             # Deploy libraries
             deps = getDependencies(contract.bytecode)
             libs = []
             for dep in deps:
-                libs.append(self.deploy(self.project.dict()[dep], [], "", False, True, True))
+                libs.append(self.deploy(self.project.dict()[dep], [], "", False, True))
 
             # Deploy contract
-            try:
-                print("Deploying {}".format(name))
-                c = contract.deploy(*args, {"from": self.deployer}, publish_source=verify)
-                self.context[name] = c.address
-            except Exception as e:
-                print("Failed to deploy {}: {}".format(name, e))
+            print("Deploying {}".format(name))
+            c = contract.deploy(*args, {"from": self.deployer}, publish_source=verify)
+            self.context[name] = c.address
 
             # Verify libs
             if not isLib and len(libs) > 0:
@@ -43,12 +46,16 @@ class ContractDeployer:
                         addr.append(info)
                 else:
                     raise Exception("Cannot verify libs, getLibInfo() not found on {}".format(name))
-
+                
                 if len(addr) != len(libs):
                     raise Exception("getLibInfo(): incorrect length")
                 for i, item in enumerate(libs):
-                    if (addr[i] != item.address):
-                        raise Exception("Library mismatch! expected = {}, actual = {}".format(item.address, addr[i]))
+                    if item.address not in addr[i]:
+                        raise Exception("Library {} mismatch! expected = {}, actual = {}".format(
+                            deps[i], 
+                            item.address, 
+                            addr[i]
+                        ))
 
         # Make sure there is only 1 copy in map.json (for libraries)
         if isLib:
@@ -65,4 +72,5 @@ class ContractDeployer:
                 contracts[name] = [c.address]
             with open("build/deployments/map.json", "w") as f:
                 json.dump(map, f, sort_keys=True, indent=4)        
+
         return c

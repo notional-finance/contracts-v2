@@ -1,20 +1,44 @@
 import json
 
 from brownie import accounts, network, NoteERC20, nProxy, GovernorAlpha
-from scripts.deployment import deployArtifact
 # TODO: refactor config definitions
 from scripts.mainnet.deploy_governance import EnvironmentConfig, GovernanceConfig
 from scripts.deployers.contract_deployer import ContractDeployer
 
 class GovDeployer:
-    def __init__(self, network, deployer) -> None:
-        self.config = {}
+    def __init__(self, network, deployer, config={}, persist=True) -> None:
+        self.config = config
+        self.persist = persist
         self.governor = None
         self.note = None
         self.noteImpl = None
         self.network = network
         self.deployer = deployer
         self._load()
+
+    def _load(self):
+        print("Loading governance config")
+        if self.persist:
+            with open("v2.{}.json".format(self.network), "r") as f:
+                self.config = json.load(f)
+        if "governor" in self.config:
+            self.governor = self.config["governor"]
+        if "note" in self.config:
+            self.note = self.config["note"]
+        if "noteImpl" in self.config:
+            self.noteImpl = self.config["noteImpl"]
+
+    def _save(self):
+        print("Saving governance config")
+        if self.governor != None:
+            self.config["governor"] = self.governor
+        if self.noteImpl != None:
+            self.config["noteImpl"] = self.noteImpl
+        if self.note != None:
+            self.config["note"] = self.note
+        if self.persist:
+            with open("v2.{}.json".format(self.network), "w") as f:
+                json.dump(self.config, f, sort_keys=True, indent=4)
 
     def _deployNOTEImpl(self):
         if self.noteImpl:
@@ -24,21 +48,19 @@ class GovDeployer:
         deployer = ContractDeployer(self.deployer)
         # Deploy NOTE implementation contract
         contract = deployer.deploy(NoteERC20, [], "noteERC20Impl", True)
-        if contract:
-            self.noteImpl = contract.address
-            # Re-deploy dependent contracts
-            self.note = None
-            self._save()
+        self.noteImpl = contract.address
+        # Re-deploy dependent contracts
+        self.note = None
+        self._save()
 
     def _deployNOTEProxy(self):
         deployer = ContractDeployer(self.deployer)
         # This is a proxied ERC20
-        contract = deployer.deploy(nProxy, [self.config["noteERC20Impl"], bytes()], "noteERC20")
-        if contract:
-            self.note = contract.address
-            # Re-deploy dependent contracts
-            self.governor = None
-            self._save()
+        contract = deployer.deploy(nProxy, [self.config["noteImpl"], bytes()], "noteERC20")
+        self.note = contract.address
+        # Re-deploy dependent contracts
+        self.governor = None
+        self._save()
 
     def deployNOTE(self):
         if self.note:
@@ -73,33 +95,10 @@ class GovDeployer:
             governorConfig["proposalThreshold"],
             governorConfig["votingDelayBlocks"],
             governorConfig["votingPeriodBlocks"],
-            self.config["noteERC20"],
+            self.config["note"],
             guardian,
             governorConfig["minDelay"],
             0,
         ])
-        if contract:
-            self.governor = contract.address
-            self._save()
-
-    def _load(self):
-        print("Loading governance config")
-        with open("v2.{}.json".format(self.network), "r") as f:
-            self.config = json.load(f)
-        if "governor" in self.config:
-            self.governor = self.config["governor"]
-        if "note" in self.config:
-            self.note = self.config["note"]
-        if "noteImpl" in self.config:
-            self.noteImpl = self.config["noteImpl"]
-
-    def _save(self):
-        print("Saving governance config")
-        if self.governor != None:
-            self.config["governor"] = self.governor
-        if self.noteImpl != None:
-            self.config["noteImpl"] = self.noteImpl
-        if self.note != None:
-            self.config["note"] = self.note
-        with open("v2.{}.json".format(self.network), "w") as f:
-            json.dump(self.config, f, sort_keys=True, indent=4)
+        self.governor = contract.address
+        self._save()

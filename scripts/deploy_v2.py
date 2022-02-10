@@ -6,6 +6,7 @@ from scripts.deployers.gov_deployer import GovDeployer
 from scripts.deployers.notional_deployer import NotionalDeployer
 from scripts.deployers.liq_deployer import LiqDeployer
 from scripts.initializers.notional_initializer import NotionalInitializer
+from scripts.initializers.compound_initializer import CompoundInitializer
 from scripts.config import TokenConfig, CurrencyDefaults
 
 def deployTokens(deployer):
@@ -23,6 +24,11 @@ def deployCompound(deployer):
     ctokens.deployCToken("DAI")
     ctokens.deployCToken("USDC")
     ctokens.deployCToken("WBTC")
+    initializer = CompoundInitializer(network.show_active(), deployer)
+    initializer.initCToken("ETH")
+    initializer.initCToken("DAI")
+    initializer.initCToken("USDC")
+    initializer.initCToken("WBTC")
 
 def deployGovernance(deployer):
     gov = GovDeployer(network.show_active(), deployer)
@@ -36,14 +42,19 @@ def deployNotional(deployer):
     notional.deployPauseRouter()
     notional.deployRouter()
     notional.deployProxy()
-
-def deployLiquidator(deployer):
-    pass
-
-def initNotional(deployer):
     initializer = NotionalInitializer(network.show_active(), deployer)
     for symbol in TokenConfig.keys():
         initializer.enableCurrency(symbol, CurrencyDefaults)
+
+def deployLiquidator(deployer):
+    liq = LiqDeployer(network.show_active(), deployer)
+    liq.deployExchange()
+    liq.deployFlashLender()
+    liq.deployFlashLiquidator()
+    liq.deployManualLiquidator(1)
+    liq.deployManualLiquidator(2)
+    liq.deployManualLiquidator(3)
+    liq.deployManualLiquidator(4)
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
@@ -51,5 +62,4 @@ def main():
     deployCompound(deployer)
     deployGovernance(deployer)
     deployNotional(deployer)
-    initNotional(deployer)
     deployLiquidator(deployer)

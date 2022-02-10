@@ -679,7 +679,7 @@ library InitializeMarketsAction {
         );
     }
 
-    /// @notice Get a list of deployed library addresses
+    /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external view returns (address) {
         return address(nTokenMintAction);
     }
