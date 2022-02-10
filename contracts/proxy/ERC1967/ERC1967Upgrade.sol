@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
+// OpenZeppelin Contracts v4.3.2 (proxy/ERC1967/ERC1967Upgrade.sol)
 
 pragma solidity ^0.7.0;
 
+import "../beacon/IBeacon.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "../utils/StorageSlot.sol";
 
@@ -104,4 +106,88 @@ abstract contract ERC1967Upgrade {
         }
     }
 
+    /**
+     * @dev Storage slot with the admin of the contract.
+     * This is the keccak-256 hash of "eip1967.proxy.admin" subtracted by 1, and is
+     * validated in the constructor.
+     */
+    bytes32 internal constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
+    /**
+     * @dev Emitted when the admin account has changed.
+     */
+    event AdminChanged(address previousAdmin, address newAdmin);
+
+    /**
+     * @dev Returns the current admin.
+     */
+    function _getAdmin() internal view returns (address) {
+        return StorageSlot.getAddressSlot(_ADMIN_SLOT).value;
+    }
+
+    /**
+     * @dev Stores a new address in the EIP1967 admin slot.
+     */
+    function _setAdmin(address newAdmin) private {
+        require(newAdmin != address(0), "ERC1967: new admin is the zero address");
+        StorageSlot.getAddressSlot(_ADMIN_SLOT).value = newAdmin;
+    }
+
+    /**
+     * @dev Changes the admin of the proxy.
+     *
+     * Emits an {AdminChanged} event.
+     */
+    function _changeAdmin(address newAdmin) internal {
+        emit AdminChanged(_getAdmin(), newAdmin);
+        _setAdmin(newAdmin);
+    }
+
+    /**
+     * @dev The storage slot of the UpgradeableBeacon contract which defines the implementation for this proxy.
+     * This is bytes32(uint256(keccak256('eip1967.proxy.beacon')) - 1)) and is validated in the constructor.
+     */
+    bytes32 internal constant _BEACON_SLOT = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
+
+    /**
+     * @dev Emitted when the beacon is upgraded.
+     */
+    event BeaconUpgraded(address indexed beacon);
+
+    /**
+     * @dev Returns the current beacon.
+     */
+    function _getBeacon() internal view returns (address) {
+        return StorageSlot.getAddressSlot(_BEACON_SLOT).value;
+    }
+
+    /**
+     * @dev Stores a new beacon in the EIP1967 beacon slot.
+     */
+    function _setBeacon(address newBeacon) private {
+        require(Address.isContract(newBeacon), "ERC1967: new beacon is not a contract");
+        require(
+            Address.isContract(IBeacon(newBeacon).implementation()),
+            "ERC1967: beacon implementation is not a contract"
+        );
+        StorageSlot.getAddressSlot(_BEACON_SLOT).value = newBeacon;
+    }
+
+    /**
+     * @dev Perform beacon upgrade with additional setup call. Note: This upgrades the address of the beacon, it does
+     * not upgrade the implementation contained in the beacon (see {UpgradeableBeacon-_setImplementation} for that).
+     *
+     * Emits a {BeaconUpgraded} event.
+     */
+    function _upgradeBeaconToAndCall(
+        address newBeacon,
+        bytes memory data,
+        bool forceCall
+    ) internal {
+        _setBeacon(newBeacon);
+        emit BeaconUpgraded(newBeacon);
+        if (data.length > 0 || forceCall) {
+            Address.functionDelegateCall(IBeacon(newBeacon).implementation(), data);
+        }
+    }
 }

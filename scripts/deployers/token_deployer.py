@@ -1,11 +1,11 @@
 import json
 
-from brownie import accounts, network, MockWETH, MockERC20, MockAggregator
+from brownie import MockWETH, MockERC20, MockAggregator
 from scripts.config import TokenConfig
-from scripts.common import isMainnet
+from scripts.common import isProduction
 from scripts.deployers.contract_deployer import ContractDeployer
 
-# Mainnet token addresses
+# Production token addresses
 TokenAddress = {
     "mainnet": {
         "WETH": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
@@ -16,7 +16,7 @@ TokenAddress = {
     }
 }
 
-# Mainnet oracle addresses
+# Production oracle addresses
 OracleAddress = {
     "mainnet": {
         "DAI": "0x6085b0a8f4c7ffa2e8ca578037792d6535d1e29b",
@@ -30,12 +30,13 @@ class TokenDeployer:
         self.tokens = {}
         self.network = network
         self.deployer = deployer
+        self._load()
 
     def _deployERC20Contract(self, token, name, symbol, decimals, fee):
         if "address" in token:
             print("{} already deployed at {}".format(symbol, token["address"]))
             return
-        
+                
         deployer = ContractDeployer(self.deployer)
         if symbol == "WETH":
             contract = deployer.deploy(MockWETH, [], "", True)
@@ -43,7 +44,10 @@ class TokenDeployer:
             contract = deployer.deploy(MockERC20, [name, symbol, decimals, fee], "", True)
         if contract:
             token["address"] = contract.address
-
+            # Re-deploy dependent contracts
+            token["oracle"] = None
+            self.tokens[symbol] = token
+            self._save()
         
     def _deployETHOracle(self, token, symbol):
         if "oracle" in token:
@@ -56,40 +60,40 @@ class TokenDeployer:
             config = TokenConfig[symbol]
             contract.setAnswer(config["rate"], {"from": self.deployer})    
             token["oracle"] = contract.address
+            self.tokens[symbol] = token
+            self._save()
 
     def deployERC20(self, name, symbol, decimals, fee):
-        if isMainnet(self.network):
-            # Save token address directly for mainnet and mainnet fork
+        if isProduction(self.network):
             self.tokens[symbol] = {
-                "address": TokenAddress["mainnet"][symbol],
-                "oracle": OracleAddress["mainnet"][symbol]
+                "address": TokenAddress[self.network][symbol],
+                "oracle": OracleAddress[self.network][symbol]
             }
+            self._save()
+            return
+
+        token = {}
+        if symbol in self.tokens:
+            token = self.tokens[symbol]
+
+        # Deploy and verify token contract            
+        self._deployERC20Contract(token, name, symbol, decimals, fee)
+
+        # Deploy price oracle
+        if symbol == "WETH":
+            print("Skipping price oracle deployment for WETH")
         else:
-            token = {}
-            if symbol in self.tokens:
-                token = self.tokens[symbol]
+            self._deployETHOracle(token, symbol)
 
-            # Deploy and verify token contract            
-            self._deployERC20Contract(token, name, symbol, decimals, fee)
-
-            # Deploy price oracle
-            if symbol == "WETH":
-                print("Skipping price oracle deployment for WETH")
-            else:
-                self._deployETHOracle(token, symbol)
-
-            self.tokens[symbol] = token
-
-    def load(self):
+    def _load(self):
         print("Loading token addresses")
         with open("v2.{}.json".format(self.network), "r") as f:
             self.config = json.load(f)
         if "tokens" in self.config:
             self.tokens = self.config["tokens"]
 
-    def save(self):
+    def _save(self):
         print("Saving token addresses")
         self.config["tokens"] = self.tokens
         with open("v2.{}.json".format(self.network), "w") as f:
             json.dump(self.config, f, sort_keys=True, indent=4)
-

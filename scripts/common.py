@@ -28,7 +28,7 @@ def getDependencies(bytecode):
         deps.add(library)
     return list(deps)
 
-def isMainnet(network):
+def isProduction(network):
     return network == "mainnet" or network == "hardhat-fork"
 
 def hasTransferFee(symbol):

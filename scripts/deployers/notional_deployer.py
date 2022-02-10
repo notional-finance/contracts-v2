@@ -24,7 +24,7 @@ from brownie import (
     nProxy
 )
 from brownie.network import web3
-from scripts.common import ContractDeployer, getDependencies
+from scripts.deployers.contract_deployer import ContractDeployer
 
 LIBS = [
     "SettleAssetsExternal",

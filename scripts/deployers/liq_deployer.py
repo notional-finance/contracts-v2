@@ -11,8 +11,8 @@ from brownie import (
     UpgradeableBeacon,
     BeaconProxy
 )
-from scripts.config import TokenConfig
-from scripts.common import ContractDeployer, isMainnet
+from scripts.deployers.contract_deployer import ContractDeployer
+from scripts.common import isProduction
 
 LiquidationConfig = {
     "mainnet": {
@@ -28,9 +28,10 @@ class LiqDeployer:
         self.deployer = deployer
 
     def deployFlashLender(self):
-        if isMainnet(self.network):
-            self.liquidation["lender"] = LiquidationConfig["mainnet"]["lender"]
+        if isProduction(self.network):
+            self.liquidation["lender"] = LiquidationConfig[self.network]["lender"]
             return
+
         deployer = ContractDeployer(self.deployer, self.liquidation)
         deployer.deploy("lender", MockAaveFlashLender, [
             self.config["tokens"]["WETH"]["address"], 
@@ -38,8 +39,9 @@ class LiqDeployer:
         ])
 
     def deployExchange(self):
-        if isMainnet(self.network):
-            self.liquidation["exchange"] = LiquidationConfig["mainnet"]["exchange"]
+        if isProduction(self.network):
+            self.liquidation["exchange"] = LiquidationConfig[self.network]["exchange"]
+            return
         
         deployer = ContractDeployer(self.deployer, self.liquidation)
         deployer.deploy("exchange", MockUniV3SwapRouter, [

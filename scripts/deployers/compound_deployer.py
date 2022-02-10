@@ -3,7 +3,8 @@ import json
 from brownie import accounts, network, cTokenAggregator
 from scripts.deployment import deployArtifact
 from scripts.config import CompoundConfig, TokenConfig
-from scripts.common import loadContractFromArtifact, isMainnet
+from scripts.common import loadContractFromArtifact, isProduction
+from scripts.deployers.contract_deployer import ContractDeployer
 
 # Mainnet cToken addresses
 TokenAddress = {
@@ -25,17 +26,42 @@ OracleAddress = {
     }
 }
 
+ComptrollerAddress = {
+    "mainnet": "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b"
+}
+
 class CompoundDeployer:
     def __init__(self, network, deployer) -> None:
         self.compound = {}
+        self.ctokens = {}
         self.network = network
         self.deployer = deployer
+        self._load()
 
-    def deployInterestRateModel(self, symbol):
+    def _load(self):
+        print("Loading compound config")
+        with open("v2.{}.json".format(self.network), "r") as f:
+            self.config = json.load(f)
+        if "compound" in self.config:
+            self.compound = self.config["compound"]
+            if "ctokens" in self.compound:
+                self.ctokens = self.compound["ctokens"]
+
+    def _save(self):
+        print("Saving compound config")
+        self.compound["ctokens"] = self.ctokens
+        self.config["compound"] = self.compound
+        with open("v2.{}.json".format(self.network), "w") as f:
+            json.dump(self.config, f, sort_keys=True, indent=4)
+
+    def _deployInterestRateModel(self, ctoken, symbol):
+        if "model" in ctoken:
+            print("c{} interest model deployed at {}".format(symbol, ctoken["model"]))
+            return
+
         print("Deploying c{} interest rate model".format(symbol))
         config = CompoundConfig[symbol]
         # Deploy interest rate model
-        interestRateModel = None
         if config["interestRateModel"]["name"] == "whitepaper":
             interestRateModel = deployArtifact(
                 "scripts/compound_artifacts/nWhitePaperInterestRateModel.json",
@@ -58,11 +84,21 @@ class CompoundDeployer:
                 self.deployer,
                 "JumpRateModel",
             )
-        return interestRateModel
+        if interestRateModel:
+            ctoken["model"] = interestRateModel.address
+            # Re-deploy dependent contracts
+            ctoken["oracle"] = None
+            ctoken["address"] = None
+            self.ctokens[symbol] = ctoken
+            self._save()
     
-    def deployCETH(self):
+    def _deployCETH(self, ctoken):
+        if "address" in ctoken:
+            print("c{} deployed at {}".format("ETH", ctoken["address"]))
+            return
+
         config = CompoundConfig["ETH"]
-        return deployArtifact(
+        contract = deployArtifact(
             "scripts/compound_artifacts/nCEther.json",
             [
                 self.compound["comptroller"],
@@ -76,10 +112,20 @@ class CompoundDeployer:
             self.deployer,
             "cETH",
         )
+        if contract:
+            ctoken["address"] = contract.address
+            # Re-deploy dependent contracts
+            ctoken["oracle"] = None
+            self.ctokens["ETH"] = ctoken
+            self._save()
 
-    def deployCERC20(self, symbol):
+    def _deployCERC20(self, ctoken, symbol):
+        if "address" in ctoken:
+            print("c{} deployed at {}".format(symbol, ctoken["address"]))
+            return
+
         config = CompoundConfig[symbol]
-        return deployArtifact(
+        contract = deployArtifact(
             "scripts/compound_artifacts/nCErc20.json",
             [
                 self.config["tokens"][symbol]["address"],
@@ -94,137 +140,93 @@ class CompoundDeployer:
             self.deployer,
             "cErc20",
         )
+        if contract:
+            ctoken["address"] = contract.address
+            # Re-deploy dependent contracts
+            ctoken["oracle"] = None
+            self.ctokens[symbol] = ctoken
+            self._save()
 
-    def initCToken(self, ctoken, symbol):
-        comptroller = loadContractFromArtifact(
-            "nComptroller",
-            self.compound["comptroller"],
-            "scripts/compound_artifacts/nComptroller.json"
-        )
-        if comptroller is not None:
-            print("Initializing comptroller for {}".format(symbol))
-            comptroller._supportMarket(ctoken["address"], {"from": self.deployer})
-            comptroller._setCollateralFactor(
-                ctoken["address"], 750000000000000000, {"from": self.deployer}
-            )
-            if symbol != "ETH":
-                print("Initializing price oracle for {}".format(symbol))
-                compPriceOracle = loadContractFromArtifact(
-                    "nPriceOracle",
-                    self.compound["oracle"],
-                    "scripts/compound_artifacts/nPriceOracle.json"
-                )
-                if compPriceOracle != None:
-                    compPriceOracle.setUnderlyingPrice(
-                        ctoken["address"], 
-                        TokenConfig[symbol]["rate"],
-                        {"from": self.deployer}
-                    )
+
+    def _deployCTokenOracle(self, ctoken, symbol):
+        if "oracle" in ctoken:
+            print("c{} oracle deployed at {}".format(symbol, ctoken["oracle"]))
+            return
+
+        deployer = ContractDeployer(self.deployer)
+        contract = deployer.deploy(cTokenAggregator, [ctoken["address"]], "", True)
+        if contract:
+            ctoken["oracle"] = contract.address
+            self.ctokens[symbol] = ctoken
+            self._save()
 
     def deployCToken(self, symbol):
-        ctokens = {}
-        if "ctokens" in self.compound:
-            ctokens = self.compound["ctokens"]
-
-        if isMainnet(self.network):
-            # Save token address directly for mainnet and mainnet fork
-            ctokens[symbol] = {
-                "address": TokenAddress["mainnet"][symbol],
-                "oracle": OracleAddress["mainnet"][symbol]
+        if isProduction(self.network):
+            self.ctokens[symbol] = {
+                "address": TokenAddress[self.network][symbol],
+                "oracle": OracleAddress[self.network][symbol]
             }
+            self._save()
+            return
+
+        ctoken = {}
+        if symbol in self.ctokens:
+            ctoken = self.ctokens[symbol]
+
+        # Deploy interest rate model
+        self._deployInterestRateModel(ctoken, symbol)
+
+        # Deploy cToken contract
+        if symbol == "ETH":
+            self._deployCETH(ctoken)
         else:
-            ctoken = {}
-            if symbol in ctokens:
-                ctoken = ctokens[symbol]
+            self._deployCERC20(ctoken, symbol)
 
-            # Deploy interest rate model
-            if "model" in ctoken:
-                print("c{} interest model deployed at {}".format(symbol, ctoken["model"]))
-            else:
-                try:
-                    model = self.deployInterestRateModel(symbol)
-                    ctoken["model"] = model.address
-                except Exception as e:
-                    print("Failed to deploy c{} interest rate model: {}".format(symbol, e))
-                    return
+        # Deploy cToken oracle
+        self._deployCTokenOracle(ctoken, symbol)
 
-            # Deploy cToken contract
-            if "address" in ctoken:
-                print("c{} deployed at {}".format(symbol, ctoken["address"]))
-            else:
-                try:
-                    if symbol == "ETH":
-                        t = self.deployCETH()
-                    else:
-                        t = self.deployCERC20(symbol)
-                    ctoken["address"] = t.address
-                    ctoken["initialized"] = False
-                except Exception as e:
-                    print("Failed to deploy c{}: {}".format(symbol, e))
-                    return
+    def _deployPriceOracle(self):
+        if "oracle" in self.compound:
+            print("Compound price oracle deployed at {}".format(self.compound["oracle"]))
+            return
 
-            # Initialize cToken
-            if "initialized" not in ctoken or ctoken["initialized"] == False:
-                try:
-                    self.initCToken(ctoken, symbol)
-                    ctoken["initialized"] = True
-                except Exception as e:
-                    print("Failed to initialize c{}: {}".format(symbol, e))       
-                    return         
+        oracle = deployArtifact(
+            "scripts/compound_artifacts/nPriceOracle.json", 
+            [], 
+            self.deployer, 
+            "nPriceOracle"
+        )
+        if oracle:
+            self.compound["oracle"] = oracle.address
+            # Re-deploy dependent contracts
+            self.compound["comptroller"] = None
+            self._save()
 
-            # Deploy aggregator
-            if "aggregator" in ctoken:
-                print("c{} aggregator deployed at {}".format(symbol, ctoken["aggregator"]))
-            else:
-                try:
-                    aggregator = cTokenAggregator.deploy(ctoken["address"], {"from": self.deployer})
-                    ctoken["aggregator"] = aggregator.address
-                except Exception as e:
-                    print("Failed to deploy c{} aggregator: {}".format(symbol, e))
+    def _deployComptroller(self):
+        if "comptroller" in self.compound:
+            print("Comptroller deployed at {}".format(self.compound["comptroller"]))
+            return
 
-            ctokens[symbol] = ctoken
-        self.compound["ctokens"] = ctokens
+        comptroller = deployArtifact(
+            "scripts/compound_artifacts/nComptroller.json", 
+            [], 
+            self.deployer, 
+            "nComptroller"
+        )
+        if comptroller:
+            comptroller._setMaxAssets(20, {"from": self.deployer})
+            comptroller._setPriceOracle(self.compound["oracle"], {"from": self.deployer})
+            self.compound["comptroller"] = comptroller.address
+            # Re-deploy dependent contracts
+            self.compound["ctokens"] = None
+            self._save()
+
 
     def deployComptroller(self):
-        if "oracle" in self.compound:
-            print("Compound price oracle is already deployed")
-        else:
-            try:
-                oracle = deployArtifact(
-                    "scripts/compound_artifacts/nPriceOracle.json", 
-                    [], 
-                    self.deployer, 
-                    "nPriceOracle"
-                )
-                self.compound["oracle"] = oracle.address
-            except:
-                print("Failed to deploy compound price oracle")
+        if isProduction(self.network):
+            self.compound["comptroller"] = ComptrollerAddress[self.network]
+            self._save()
+            return
 
-        if "comptroller" in self.compound:
-            print("Comptroller is already deployed")
-        else:
-            try:
-                comptroller = deployArtifact(
-                    "scripts/compound_artifacts/nComptroller.json", 
-                    [], 
-                    self.deployer, 
-                    "nComptroller"
-                )
-                comptroller._setMaxAssets(20, {"from": self.deployer})
-                comptroller._setPriceOracle(self.compound["oracle"], {"from": self.deployer})
-                self.compound["comptroller"] = comptroller.address
-            except:
-                print("Failed to deploy comptroller")
-
-    def load(self):
-        print("Loading compound addresses")
-        with open("v2.{}.json".format(self.network), "r") as f:
-            self.config = json.load(f)
-        if "compound" in self.config:
-            self.compound = self.config["compound"]
-
-    def save(self):
-        print("Saving compound addresses")
-        self.config["compound"] = self.compound
-        with open("v2.{}.json".format(self.network), "w") as f:
-            json.dump(self.config, f, sort_keys=True, indent=4)
+        self._deployPriceOracle()
+        self._deployComptroller()
