@@ -533,9 +533,9 @@ contract Views is StorageLayoutV2, NotionalViews {
         return reserveBuffer[currencyId];
     }
 
-    /// @notice Get a list of deployed library addresses
+    /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external view returns (address, address) {
-        return (address(MigrateIncentives), address(FreeCollateralExternal));
+        return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 
     fallback() external {

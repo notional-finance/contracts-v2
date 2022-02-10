@@ -68,6 +68,16 @@ def deployLiquidator(deployer):
     liq.deployManualLiquidator(3)
     liq.deployManualLiquidator(4)
 
+def deployLiquidator(deployer):
+    liq = LiqDeployer(network.show_active(), deployer)
+    liq.deployExchange()
+    liq.deployFlashLender()
+    liq.deployFlashLiquidator()
+    liq.deployManualLiquidator(1)
+    liq.deployManualLiquidator(2)
+    liq.deployManualLiquidator(3)
+    liq.deployManualLiquidator(4)
+
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     if network.show_active() != "kovan":
