@@ -3,6 +3,7 @@ from locale import currency
 from brownie import ZERO_ADDRESS
 from scripts.common import TokenType, CurrencySymbol, hasTransferFee, encodeNTokenParams
 from scripts.environment_v2 import EnvironmentV2
+from tests.helpers import get_balance_action
 
 class NotionalInitializer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
@@ -10,7 +11,6 @@ class NotionalInitializer:
         if self.config == None:
             self.config = {}
         self.persist = persist
-        self.notionalInit = {}
         self.network = network
         self.deployer = deployer
         self._load()
@@ -185,4 +185,34 @@ class NotionalInitializer:
         self._updateTokenCollateralParameters(currencyId, nTokenConfig[symbol]["Collateral"])
         # TODO: enable this once NOTE is deployed to the currect address
         #self._updateIncentiveEmissionRate(currencyId, currencyConfig[symbol]["incentiveEmissionRate"])
-    
+
+    def _depositLiquidity(self, currencyId, amount):
+        print("Depositing liquidity for currency {}".format(currencyId))
+        value = amount if currencyId == 1 else 0
+        self.env.notional.batchBalanceAction(
+            self.deployer,
+            [
+                get_balance_action(
+                    currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=amount
+                )
+            ],
+            {"from": self.deployer, "value": value},
+        )
+
+    def initializeMarkets(self, currencyId, initialLiquidity):
+        # Check if market is already initialized
+        balance = self.env.notional.getAccountBalance(currencyId, self.deployer)
+        if balance[1] == 0:
+            if currencyId != 1:
+                symbol = CurrencySymbol[currencyId]
+                # Approve Notional contract if necessary
+                allowance = self.env.tokens[symbol].allowance(self.deployer, self.env.notional.address)
+                if allowance == 0:
+                    self.env.tokens[symbol].approve(self.env.notional.address, 2**255, {"from": self.deployer})
+            self._depositLiquidity(currencyId, initialLiquidity)
+
+        try:
+            self.env.notional.initializeMarkets(currencyId, True, {"from": self.deployer})
+            print("Successfully initialized markets for currency {}".format(currencyId))
+        except:
+            print("Markets are already initialized for currency {}".format(currencyId))

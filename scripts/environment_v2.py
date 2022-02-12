@@ -1,6 +1,7 @@
 import json
 from brownie import Contract, network, cTokenAggregator
 from scripts.common import loadContractFromABI, loadContractFromArtifact
+from tests.helpers import get_balance_trade_action
 
 class EnvironmentV2:
     def __init__(self, config) -> None:
@@ -9,6 +10,7 @@ class EnvironmentV2:
         self.ethOracles = {}
         self.cTokenOracles = {}        
         self.config = config
+
         # Load notional
         if "notional" in self.config:
             self.notional = loadContractFromABI("NotionalProxy", self.config["notional"], "abi/Notional.json")
@@ -30,9 +32,24 @@ class EnvironmentV2:
             self.ctokens[k] = loadContractFromArtifact("c{}".format(k), v["address"], path)
             self.cTokenOracles[k] = Contract.from_abi("c{}Oracle".format(k), v["oracle"], cTokenAggregator.abi)
 
-        # Load init data
-        if "notionalInit" in self.config:
-            self.notionalInit = self.config["notionalInit"]
+    def depositAndLend(self, account, currencyId, underlying, depositAmount, market, lendAmount, slippage=0):
+        lendAction = [
+            {"tradeActionType": "Lend", "marketIndex": market, "notional": lendAmount, "minSlippage": slippage}
+        ]
+        value = depositAmount if currencyId == 1 else 0
+        self.notional.batchBalanceAndTradeAction(
+            account,
+            [
+                get_balance_trade_action(
+                    currencyId,
+                    "DepositUnderlying" if underlying else "DepositAsset",
+                    lendAction,
+                    depositActionAmount=depositAmount,
+                    withdrawEntireCashBalance=True,
+                )
+            ],
+            {"from": account, "value": value},
+        )
 
 def main():
     with open("v2.{}.json".format(network.show_active()), "r") as f:

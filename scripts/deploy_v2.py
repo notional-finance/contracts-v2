@@ -51,6 +51,10 @@ def deployNotional(deployer):
     initializer.updateGovParameters(2, nTokenConfig, CurrencyConfig)
     initializer.updateGovParameters(3, nTokenConfig, CurrencyConfig)
     initializer.updateGovParameters(4, nTokenConfig, CurrencyConfig)
+    initializer.initializeMarkets(1, 1e18)
+    initializer.initializeMarkets(2, 1000000e18)
+    initializer.initializeMarkets(3, 1000000e6)
+    initializer.initializeMarkets(4, 10000e8)
 
 def deployLiquidator(deployer):
     liq = LiqDeployer(network.show_active(), deployer)

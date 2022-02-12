@@ -1,87 +1,80 @@
 {
     "actions": {
-        "AccountAction": "0xC10617e52F52840108FcCaaF1D53F6D6A8aA35e9",
-        "BatchAction": "0xb3E6bBf0aC44965Ed5842d2feC2acCa89DB9C586",
-        "ERC1155Action": "0xe7dDde91B00aF9F75500c78fCC4B84651AE2B021",
-        "Governance": "0xCF61EFd7cB5bDf5B6773E1445c047194fc0F21eE",
-        "InitializeMarketsAction": "0x5Bcc243B09F5ed4ee5D5F6Ab7d199e365764AD70",
-        "LiquidateCurrencyAction": "0x1153cc59fAd00861Dee6eA39695c7F195AA44d80",
-        "LiquidatefCashAction": "0x8C610bd54A8A724dD309b78E4F3e5F28F989c081",
-        "TreasuryAction": "0x4b903585Cd094535B5F68344d61D362Ea460dcE9",
-        "Views": "0x08a7FFAde0B9D57d0270533a5Aad04f43CE87875",
-        "nTokenAction": "0x45851c068dFfD40dBd2a74de86A041009C65aa67"
+        "AccountAction": "0x07b34187784d3D102bEE07F2bbf2C2300B65c89C",
+        "BatchAction": "0x8e8af7DE2ca2d97Dd1812699fa1b97314a211954",
+        "ERC1155Action": "0x886C3F7f156897C338700f14FC8E121a033F2Cc0",
+        "GovernanceAction": "0xDe7168E79fc45C4669B72Eb775D19225e402EB6C",
+        "InitializeMarketsAction": "0xF5572e53Ac9eA96CfB5c328F71819119aea859E5",
+        "LiquidateCurrencyAction": "0x38E38d6310D2b07E878d178180b2cDd11c543701",
+        "LiquidatefCashAction": "0xB25aF0C0eFc9bA4E8b73d16cD6478dC2A922C9a5",
+        "TreasuryAction": "0x7d9F225d109BF75009414dbdaC3fd476AF582225",
+        "Views": "0x26FE5de047bC819C2B7F5DaA04b2D17158dB1EA2",
+        "nTokenAction": "0x0CDE687d5b57b24637597BC01911D7a21Aa2c7Ab"
     },
-    "airdrop": "0xFd700986765Eb9cC85c9bE9F7B6a7E7d4461ca6D",
-    "chainId": 5,
     "compound": {
-        "comptroller": "0xfe28b6962b27c009826BE3C79CA51Cc234965601",
+        "comptroller": "0x2325DE1BfA8d90791D728fbeab5e96A9E8fCD8Ec",
         "ctokens": {
             "DAI": {
-                "address": "0xF1aF8Ed6B2e60503133B4fB7350c772732FeA4Fe",
-                "aggregator": "0x7224488ad29c081B137C5546F846aA110C0acc1f",
-                "initialized": true,
-                "model": "0x3cfD905Dd4f37a61257da4c91bFC83692b38a5dD"
+                "address": "0x39A60b09911Ce96a65Ca8c470755fb8288294e80",
+                "model": "0xEbe4580F993bBfc6d2ed3D95d34aD1fECDCC7F5C",
+                "oracle": "0x08303A5A4a85c021bcB81baC09F06b5eBc0a1523"
             },
             "ETH": {
-                "address": "0xC041B7Ee71cB5EF04c933d571DE81B4e6a6fBAa5",
-                "aggregator": "0xe6075E154C7A92549482851f7A235d3C787A5bc2",
-                "initialized": true,
-                "model": "0x8255a7E3FfB1e8fbA86fdd9e94c4eAa097259012"
+                "address": "0xc4d0e86dc348965d24d431F0430110948B564a85",
+                "model": "0x5Aa7F261316f768eA34064De8d05C4A82b8F843c",
+                "oracle": "0xAFDf22cf5F2AaDB3A6715dcC2bCc5dFCD65F935b"
             },
             "USDC": {
-                "address": "0x9dB7F0e4Ed899F5bC8D19786583FF4C7b4C03AF3",
-                "aggregator": "0xEf78D3D2CC575D8D403FabdA271E1f5a4e4E37D3",
-                "initialized": true,
-                "model": "0x4B2e41cE4251Dd2C4CE6EA71399f929f06cB37Ea"
+                "address": "0xB8e5c990755A30b9BA5c07CAdf79A79245Dd86b5",
+                "model": "0x194C6DEC84de767BfF8e1dD55F20b30f8d0b96ac",
+                "oracle": "0xfA9FC96Ab6C1bF6dbE5B3C630f2D3B834eC77231"
             },
             "WBTC": {
-                "address": "0xcBb07045B5365D5Cb0b98dC5980950d9f1c84dc7",
-                "aggregator": "0x84209239f8Ef29Dc88D51615234b53264fAe3F8B",
-                "initialized": true,
-                "model": "0xBbBADEc93BB498851b24405EcEDCfe4595E930B7"
+                "address": "0x2AE15C5dffF7c115D47c63e4e55BE49d0680D335",
+                "model": "0x175C513E365683f267Ef283fD6cf1B8D2e02051d",
+                "oracle": "0x3ACE5d783c5834DE8FDaA92A0484b21C50941BE6"
             }
         },
-        "oracle": "0x6C1e64dd1b11ACab6238D420188125de0Ce118D7"
+        "oracle": "0x0f5e98D90247C1eB029859A4ef05c2305C42F101"
     },
-    "deployer": "0x2a956Fe94ff89D8992107c8eD4805c30ff1106ef",
-    "governor": "0xEe41dedD5D32910c037fCC11186969a8F95C70E3",
-    "guardian": "0xb937E69aE638DA259D04606aEaF185bCEb80d6D6",
+    "compoundInit": {
+        "DAI": true,
+        "ETH": true,
+        "USDC": true,
+        "WBTC": true
+    },
     "libs": {
-        "FreeCollateralExternal": "0x471C077cE69B65de6aCed6Ec505B3111c07A9A0A",
-        "MigrateIncentives": "0xdc1b803dcf9BB8dC967c517fB1E3EdEb1F9aF5E9",
-        "SettleAssetsExternal": "0x800855D88ae8BBc269a5bae6c14fE0102F0912FA",
-        "TradingAction": "0x744146352b98046F5931dac69C31a2C0ddAFbaE4",
-        "nTokenMintAction": "0x158705E39d7f43263d1b9dA8584785F0CE0d4e93",
-        "nTokenRedeemAction": "0x862e02A248DEcA9F9926C88324F3494198dA2AcB"
+        "FreeCollateralExternal": "0x5Ae0D38059E01ee5C6a8Fa0a4A34e9F0C1ec2a99",
+        "MigrateIncentives": "0x944f374097d29FfBF57A9c625C98EF7474E41cB9",
+        "SettleAssetsExternal": "0x9af9725e5C4609C5BEF62F5372C5F8b88e4f4ceA",
+        "TradingAction": "0xe8Ffb6Adb8c890769525F01238C9e04B0fDB79c9",
+        "nTokenMintAction": "0x3d5e219A728424FaaF10858027aE13028ACA5E9c",
+        "nTokenRedeemAction": "0x3600f4d256E005E27bD21D6c9e5E3c846F650d66"
     },
-    "liquidation": {},
-    "networkName": "goerli",
-    "note": "0x49f8fD33a09f454c299AC3c7250812Ba82c5b901",
-    "notional": "0xd937e688765a38a01D37Fae67c2e9e2C38b1beC9",
+    "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
     "routers": {
-        "PauseRouter": "0x769502FF8b8f4Ee02FB8A566754BEd8542Ff13AF",
-        "Router": "0x8b4b98d6C4B8E550420C8ED096490aEAAe9D06F0"
+        "PauseRouter": "0x5411BDcb40ABbD554e5B44FB9795679728b7a12C",
+        "Router": "0x2Ec8A6E8E1A6AE62e179f26B41901b5Fc1091064"
     },
-    "startBlock": 6315401,
     "tokens": {
         "COMP": {
-            "address": "0x2E9a85D3343906BFa6b8f16738E230Dee053f629",
-            "oracle": "0xdE967e4C8423eC56129DB2EBc1F74658a590809e"
+            "address": "0x53d2726d0AeCe67cB796c7001D7084d77EC54A2C",
+            "oracle": "0x51D73fdd11555a5aCF0af8218264f0d96ec5fc3d"
         },
         "DAI": {
-            "address": "0xe3A2689CFC49739BC9B3E83b247297BE649327eD",
-            "oracle": "0xE445Ee6c30dC0A5A6c604d69dCF92BBd69Fc01D7"
+            "address": "0x84e90bdDFf9a0e124F1AB7F4D1D33a7C748c1A16",
+            "oracle": "0x637dabAdc689CDF907ca51be06b82c4a8dC859CA"
         },
         "USDC": {
-            "address": "0x1DCB77c0ca10d62aFE6B186317E47d036643585a",
-            "oracle": "0x567b1a29538EB60246ab6313F3eA8C9B42c26FaC"
+            "address": "0x31dd61Ac1B7A0bc88f7a58389c0660833a66C35c",
+            "oracle": "0x1e33f037d277c67EEea224d7C80790a05323B06c"
         },
         "WBTC": {
-            "address": "0x3Dff3E660862C8e9D0C3b084ab1E8574F6a9252e",
-            "oracle": "0x03bE583A91391b052F4Df7c78aA4b4A9292cE501"
+            "address": "0xFA8589db27c6369A6a4FDd857f783eddf857f2BC",
+            "oracle": "0xd9959AD7b7d92bdaea0E8698Ff31084e36fFE548"
         },
         "WETH": {
-            "address": "0x66fD852bF030c3c101161aE75596d54c484F315B"
+            "address": "0x04B9c40dF01bdc99dd2c31Ae4B232f20F4BBaC5B"
         }
     }
 }
