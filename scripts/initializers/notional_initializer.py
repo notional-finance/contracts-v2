@@ -8,6 +8,8 @@ from tests.helpers import get_balance_action
 class NotionalInitializer:
     def __init__(self, network, deployer, dryRun=True, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.network = network
         if self.network == "hardhat-fork":
