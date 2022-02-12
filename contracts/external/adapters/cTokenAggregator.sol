@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
 
-import "interfaces/notional/AssetRateAdapter.sol";
-import "interfaces/compound/CTokenInterface.sol";
+import "../../../interfaces/notional/AssetRateAdapter.sol";
+import "../../../interfaces/compound/CTokenInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 

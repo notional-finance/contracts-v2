@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
 
-import "interfaces/aave/ILendingPool.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 /// @title Hardcoded deployed contracts are listed here. These are hardcoded to reduce
 /// gas costs for immutable addresses. They must be updated per environment that Notional

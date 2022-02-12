@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "./NotionalV2BaseLiquidator.sol";
 import "./NotionalV2UniV3SwapRouter.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/compound/CEtherInterface.sol";
-import "interfaces/uniswap/v3/ISwapRouter.sol";
+import "../../../interfaces/compound/CErc20Interface.sol";
+import "../../../interfaces/compound/CEtherInterface.sol";
+import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
 
 contract NotionalV2ManualLiquidator is
     NotionalV2BaseLiquidator,

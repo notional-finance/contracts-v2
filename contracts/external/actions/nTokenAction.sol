@@ -12,7 +12,7 @@ import "../../internal/balances/Incentives.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../external/FreeCollateralExternal.sol";
-import "interfaces/notional/nTokenERC20.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 

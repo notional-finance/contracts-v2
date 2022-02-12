@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 
 import "../../math/SafeInt256.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 contract ChainlinkAdapter is AggregatorV2V3Interface {
     using SafeInt256 for int256;

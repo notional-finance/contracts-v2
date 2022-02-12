@@ -1,6 +1,7 @@
 import json
 import re
 from brownie import Contract
+from brownie.convert.datatypes import HexString
 
 TokenType = {
     "UnderlyingToken": 0,
@@ -9,6 +10,20 @@ TokenType = {
     "Ether": 3,
     "NonMintable": 4,
     "aToken": 5,
+}
+
+CurrencyId = {
+    "ETH": 1,
+    "DAI": 2,
+    "USDC": 3,
+    "WBTC": 4
+}
+
+CurrencySymbol = {
+    1: "ETH",
+    2: "DAI",
+    3: "USDC",
+    4: "WBTC"
 }
 
 def loadContractFromABI(name, address, path):
@@ -29,6 +44,15 @@ def getDependencies(bytecode):
     result = list(deps)
     result.sort()
     return result
+
+def encodeNTokenParams(config):
+    return HexString("0x{}{}{}{}{}".format(
+        hex(config[4])[2:],
+        hex(config[3])[2:],
+        hex(config[2])[2:],
+        hex(config[1])[2:],
+        hex(config[0])[2:]
+    ), "bytes5")
 
 def isProduction(network):
     return network == "mainnet" or network == "hardhat-fork"

@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../proxy/utils/UUPSUpgradeable.sol";
-import "interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
 
 /**
  * Allows upgrades to the router while running some patch fix code that should never

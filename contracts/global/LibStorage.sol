@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import "./Types.sol";
 import "./Constants.sol";
-import "interfaces/notional/IRewarder.sol";
+import "../../interfaces/notional/IRewarder.sol";
 
 library LibStorage {
 

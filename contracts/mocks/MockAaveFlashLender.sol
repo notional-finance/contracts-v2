@@ -3,8 +3,8 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "interfaces/aave/IFlashLoanReceiver.sol";
-import "interfaces/WETH9.sol";
+import "../../interfaces/aave/IFlashLoanReceiver.sol";
+import "../../interfaces/WETH9.sol";
 
 contract MockAaveFlashLender {
     address public WETH;

@@ -25,8 +25,10 @@ from brownie.network import web3
 from scripts.deployers.contract_deployer import ContractDeployer
 
 class NotionalDeployer:
-    def __init__(self, network, deployer, config={}, persist=True) -> None:
+    def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.libs = {}
         self.actions = {}
@@ -66,7 +68,7 @@ class NotionalDeployer:
 
         # Make sure isLib is set to true
         # This ensures that map.json only contains 1 copy of the lib
-        deployed = deployer.deploy(contract, [], "", False, True)
+        deployed = deployer.deploy(contract, [], "", True, True)
         self.libs[contract._name] = deployed.address
         # Re-deploy dependent contracts
         self.actions = {}
@@ -75,7 +77,7 @@ class NotionalDeployer:
         self._save()
 
     def deployLibs(self):
-        deployer = ContractDeployer(self.deployer, self.libs)
+        deployer = ContractDeployer(self.deployer, {}, self.libs)
         self._deployLib(deployer, SettleAssetsExternal)
         self._deployLib(deployer, FreeCollateralExternal)
         self._deployLib(deployer, TradingAction)
@@ -88,7 +90,7 @@ class NotionalDeployer:
             print("{} deployed at {}".format(contract._name, self.actions[contract._name]))
             return
 
-        deployed = deployer.deploy(contract, args)
+        deployed = deployer.deploy(contract, args, "", True)
         self.actions[contract._name] = deployed.address
         # Re-deploy dependent contracts
         self.routers = {}
@@ -122,7 +124,7 @@ class NotionalDeployer:
             print("{} deployed at {}".format(contract._name, self.routers[contract._name]))
             return
 
-        deployed = deployer.deploy(contract, args)
+        deployed = deployer.deploy(contract, args, "", True)
         self.routers[contract._name] = deployed.address
         # Re-deploy dependent contracts
         self.notional = None
@@ -163,6 +165,6 @@ class NotionalDeployer:
         )
 
         deployer = ContractDeployer(self.deployer)
-        contract = deployer.deploy(nProxy, [self.routers["Router"], initializeData])
+        contract = deployer.deploy(nProxy, [self.routers["Router"], initializeData], "", True)
         self.notional = contract.address
         self._save()

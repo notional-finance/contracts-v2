@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/aave/ILendingPool.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 contract MockLendingPool is ILendingPool {
     mapping(address => uint256) public reserveNormalizedIncome;

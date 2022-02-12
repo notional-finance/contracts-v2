@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";

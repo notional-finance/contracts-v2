@@ -12,11 +12,11 @@ import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
-import "interfaces/notional/IRewarder.sol";
-import "interfaces/notional/AssetRateAdapter.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
-import "interfaces/notional/nTokenERC20.sol";
+import "../../../interfaces/notional/IRewarder.sol";
+import "../../../interfaces/notional/AssetRateAdapter.sol";
+import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../../interfaces/notional/NotionalGovernance.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract

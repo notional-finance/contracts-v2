@@ -4,11 +4,15 @@ from brownie import Contract, network, project, convert
 from scripts.common import getDependencies
 
 class ContractDeployer:
-    def __init__(self, deployer, context={}, libs={}) -> None:
-        self.project = project.ContractsVPrivateProject
-        self.context = context
+    def __init__(self, deployer, context=None, libs=None) -> None:
+        self.project = project.ContractsV2PrivateProject
         self.deployer = deployer
+        self.context = context
+        if self.context == None:
+            self.context = {}
         self.libs = libs
+        if self.libs == None:
+            self.libs = {}
 
     def deploy(self, contract, args=[], name="", verify=False, isLib=False):
         c = None
@@ -19,6 +23,8 @@ class ContractDeployer:
         if isLib:
             # If we are deploying a library, check if it's already deployed
             context = self.libs
+
+        print(context)
 
         if name in context:
             print("{} deployed at {}".format(name, context[name]))
@@ -32,7 +38,7 @@ class ContractDeployer:
 
             # Deploy contract
             print("Deploying {}".format(name))
-            c = contract.deploy(*args, {"from": self.deployer}, publish_source=verify)
+            c = contract.deploy(*args, {"from": self.deployer}, publish_source=False)
             self.context[name] = c.address
 
             # Verify libs

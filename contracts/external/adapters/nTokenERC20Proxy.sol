@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/notional/nTokenERC20.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice ERC20 proxy for nToken contracts that forwards calls to the Router, all nToken

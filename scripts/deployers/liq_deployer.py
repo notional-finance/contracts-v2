@@ -22,8 +22,10 @@ LiquidationConfig = {
 }
 
 class LiqDeployer:
-    def __init__(self, network, deployer, config={}, persist=True) -> None:
+    def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.liquidation = {}
         self.network = network
@@ -88,7 +90,7 @@ class LiqDeployer:
             self.liquidation["lender"], 
             self.config["tokens"]["WETH"]["address"], 
             self.config["compound"]["ctokens"]["ETH"]["address"], 
-            deployer.address,
+            self.deployer.address,
             self.liquidation["exchange"],
         ])
         self.liquidation["flash"] = contract.address

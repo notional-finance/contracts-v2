@@ -12,7 +12,6 @@ GovernanceConfig = {
 TokenConfig = {
     "DAI": {"name": "Dai Stablecoin", "decimals": 18, "fee": 0, "rate": 0.01e18},
     "USDC": {"name": "USD Coin", "decimals": 6, "fee": 0, "rate": 0.01e18},
-    "USDT": {"name": "Tether USD", "decimals": 6, "fee": 0.001e18, "rate": 0.01e18},
     "WBTC": {"name": "Wrapped Bitcoin", "decimals": 8, "fee": 0, "rate": 100e18},
     "COMP": {"name": "Compound COMP", "decimals": 18, "fee": 0, "rate": 0.01e18},
     "NOMINT": {"name": "nonMintable", "decimals": 18, "fee": 0, "rate": 1e18},
@@ -37,6 +36,82 @@ CurrencyDefaults = {
     "incentiveEmissionRate": 100_000,
 }
 
+# Currency Config will inherit CurrencyDefaults except where otherwise specified
+CurrencyConfig = {
+    "ETH": {
+        "name": "Ether",
+        "buffer": 133,
+        "haircut": 75,
+        "liquidationDiscount": 108,
+        "maxMarketIndex": 2,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90),
+        "rateScalar": (18, 18),
+        "incentiveEmissionRate": 1_000_000,
+    },
+    "DAI": {
+        "name": "Dai Stablecoin",
+        "buffer": 109,
+        "haircut": 92,
+        "liquidationDiscount": 104,
+        "maxMarketIndex": 3,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90, 88),
+        "rateScalar": (20, 20, 20),
+        "incentiveEmissionRate": 9_000_000,
+    },
+    "USDC": {
+        "name": "USD Coin",
+        "buffer": 109,
+        "haircut": 92,
+        "liquidationDiscount": 104,
+        "maxMarketIndex": 3,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90, 88),
+        "rateScalar": (20, 20, 20),
+        "incentiveEmissionRate": 9_000_000,
+    },
+    "WBTC": {
+        "name": "Wrapped BTC",
+        "buffer": 138,
+        "haircut": 72,
+        "liquidationDiscount": 110,
+        "maxMarketIndex": 2,
+        "rateOracleTimeWindow": 72,
+        "totalFee": 50,
+        "reserveFeeShare": 50,
+        "debtBuffer": 200,
+        "fCashHaircut": 200,
+        "settlementPenalty": 50,
+        "liquidationfCashDiscount": 50,
+        "liquidationDebtBuffer": 50,
+        "tokenHaircut": (95, 90),
+        "rateScalar": (18, 18),
+        "incentiveEmissionRate": 1_000_000,
+    },
+}
+
 nTokenDefaults = {
     "Deposit": [
         # Deposit shares
@@ -57,6 +132,57 @@ nTokenDefaults = {
         80,  # cash withholding
         92,  # liquidation haircut percentage
     ],
+}
+
+nTokenCryptoAssetConfig = {
+    "Deposit": [
+        # Deposit shares
+        [int(0.4e8), int(0.6e8)],
+        # Leverage thresholds
+        [int(0.81e9), int(0.81e9)],
+    ],
+    "Initialization": [
+        # Annualized anchor rate
+        [int(1), int(1)],
+        # Target proportion
+        [int(0.54e9), int(0.54e9)],
+    ],
+    "Collateral": [
+        20,  # residual purchase incentive 10 bps
+        85,  # pv haircut
+        24,  # time buffer hours
+        80,  # cash withholding
+        94,  # liquidation haircut percentage
+    ],
+}
+
+nTokenStablecoinConfig = {
+    "Deposit": [
+        # Deposit shares
+        [int(0.25e8), int(0.35e8), int(0.4e8)],
+        # Leverage thresholds
+        [int(0.80e9), int(0.80e9), int(0.81e9)],
+    ],
+    "Initialization": [
+        # Annualized anchor rate
+        [int(0.03e9), int(0.03e9), int(0.03e9)],
+        # Target proportion
+        [int(0.55e9), int(0.55e9), int(0.55e9)],
+    ],
+    "Collateral": [
+        20,  # residual purchase incentive bps
+        80,  # pv haircut
+        24,  # time buffer hours
+        100,  # cash withholding
+        94,  # liquidation haircut percentage
+    ],
+}
+
+nTokenConfig = {
+    "ETH": nTokenCryptoAssetConfig,
+    "DAI": nTokenStablecoinConfig,
+    "USDC": nTokenStablecoinConfig,
+    "WBTC": nTokenCryptoAssetConfig,
 }
 
 CompoundConfig = {

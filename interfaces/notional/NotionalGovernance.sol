@@ -3,9 +3,9 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
-import "interfaces/notional/IRewarder.sol";
+import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/notional/IRewarder.sol";
 
 interface NotionalGovernance {
     event ListCurrency(uint16 newCurrencyId);

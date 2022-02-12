@@ -31,8 +31,10 @@ ComptrollerAddress = {
 }
 
 class CompoundDeployer:
-    def __init__(self, network, deployer, config={}, persist=True) -> None:
+    def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.compound = {}
         self.ctokens = {}
@@ -92,7 +94,6 @@ class CompoundDeployer:
         # Re-deploy dependent contracts
         ctoken.pop("oracle", None)
         ctoken.pop("address", None)
-        self.ctokens[symbol] = ctoken
         self._save()
     
     def _deployCETH(self, ctoken):
@@ -105,7 +106,7 @@ class CompoundDeployer:
             "scripts/compound_artifacts/nCEther.json",
             [
                 self.compound["comptroller"],
-                self.compound["ctokens"]["ETH"]["model"],
+                self.ctokens["ETH"]["model"],
                 config["initialExchangeRate"],
                 "Compound Ether",
                 "cETH",
@@ -118,7 +119,6 @@ class CompoundDeployer:
         ctoken["address"] = contract.address
         # Re-deploy dependent contracts
         ctoken.pop("oracle", None)
-        self.ctokens["ETH"] = ctoken
         self._save()
 
     def _deployCERC20(self, ctoken, symbol):
@@ -132,7 +132,7 @@ class CompoundDeployer:
             [
                 self.config["tokens"][symbol]["address"],
                 self.compound["comptroller"],
-                self.compound["ctokens"][symbol]["model"],
+                self.ctokens[symbol]["model"],
                 config["initialExchangeRate"],
                 "Compound " + symbol,  # This is not exactly correct but whatever
                 "c" + symbol,
@@ -145,7 +145,6 @@ class CompoundDeployer:
         ctoken["address"] = contract.address
         # Re-deploy dependent contracts
         ctoken.pop("oracle", None)
-        self.ctokens[symbol] = ctoken
         self._save()
 
     def _deployCTokenOracle(self, ctoken, symbol):
@@ -154,9 +153,8 @@ class CompoundDeployer:
             return
 
         deployer = ContractDeployer(self.deployer)
-        contract = deployer.deploy(cTokenAggregator, [ctoken["address"]], "", True)
+        contract = deployer.deploy(cTokenAggregator, [ctoken["address"]], symbol, True)
         ctoken["oracle"] = contract.address
-        self.ctokens[symbol] = ctoken
         self._save()
 
     def deployCToken(self, symbol):
@@ -171,6 +169,8 @@ class CompoundDeployer:
         ctoken = {}
         if symbol in self.ctokens:
             ctoken = self.ctokens[symbol]
+        else:
+            self.ctokens[symbol] = ctoken
 
         # Deploy interest rate model
         self._deployInterestRateModel(ctoken, symbol)

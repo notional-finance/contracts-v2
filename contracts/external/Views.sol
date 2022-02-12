@@ -15,7 +15,7 @@ import "../global/StorageLayoutV2.sol";
 import "../global/Deployments.sol";
 import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
-import "interfaces/notional/NotionalViews.sol";
+import "../../interfaces/notional/NotionalViews.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract Views is StorageLayoutV2, NotionalViews {

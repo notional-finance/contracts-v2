@@ -2,9 +2,9 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/notional/AssetRateAdapter.sol";
-import "interfaces/aave/ILendingPool.sol";
-import "interfaces/aave/IAToken.sol";
+import "../../../interfaces/notional/AssetRateAdapter.sol";
+import "../../../interfaces/aave/ILendingPool.sol";
+import "../../../interfaces/aave/IAToken.sol";
 import "../../global/Constants.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";

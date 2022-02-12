@@ -10,10 +10,10 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/TokenHandler.sol";
 import "../../global/StorageLayoutV2.sol";
 import "../../global/Constants.sol";
-import "interfaces/notional/NotionalTreasury.sol";
-import "interfaces/compound/ComptrollerInterface.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/WETH9.sol";
+import "../../../interfaces/notional/NotionalTreasury.sol";
+import "../../../interfaces/compound/ComptrollerInterface.sol";
+import "../../../interfaces/compound/CErc20Interface.sol";
+import "../../../interfaces/WETH9.sol";
 
 contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     using SafeMath for uint256;

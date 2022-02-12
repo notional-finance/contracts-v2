@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
 
-import "interfaces/aave/IAToken.sol";
+import "../../interfaces/aave/IAToken.sol";
 
 contract MockAToken is IAToken {
     address public override immutable UNDERLYING_ASSET_ADDRESS;

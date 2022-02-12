@@ -6,9 +6,9 @@ import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/notional/nERC1155Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/notional/NotionalProxy.sol";
+import "../../interfaces/notional/nERC1155Interface.sol";
+import "../../interfaces/notional/NotionalGovernance.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage

@@ -7,7 +7,7 @@ from scripts.deployers.notional_deployer import NotionalDeployer
 from scripts.deployers.liq_deployer import LiqDeployer
 from scripts.initializers.notional_initializer import NotionalInitializer
 from scripts.initializers.compound_initializer import CompoundInitializer
-from scripts.config import TokenConfig, CurrencyDefaults
+from scripts.config import nTokenConfig, CurrencyConfig
 
 def deployTokens(deployer):
     tokens = TokenDeployer(network.show_active(), deployer)
@@ -43,8 +43,14 @@ def deployNotional(deployer):
     notional.deployRouter()
     notional.deployProxy()
     initializer = NotionalInitializer(network.show_active(), deployer)
-    for symbol in TokenConfig.keys():
-        initializer.enableCurrency(symbol, CurrencyDefaults)
+    initializer.enableCurrency(1, CurrencyConfig)
+    initializer.enableCurrency(2, CurrencyConfig)
+    initializer.enableCurrency(3, CurrencyConfig)
+    initializer.enableCurrency(4, CurrencyConfig)
+    initializer.updateGovParameters(1, nTokenConfig, CurrencyConfig)
+    initializer.updateGovParameters(2, nTokenConfig, CurrencyConfig)
+    initializer.updateGovParameters(3, nTokenConfig, CurrencyConfig)
+    initializer.updateGovParameters(4, nTokenConfig, CurrencyConfig)
 
 def deployLiquidator(deployer):
     liq = LiqDeployer(network.show_active(), deployer)
@@ -60,6 +66,6 @@ def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     deployTokens(deployer)
     deployCompound(deployer)
-    deployGovernance(deployer)
+    #deployGovernance(deployer)
     deployNotional(deployer)
-    deployLiquidator(deployer)
+    #deployLiquidator(deployer)

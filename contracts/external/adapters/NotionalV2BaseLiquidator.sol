@@ -3,10 +3,10 @@ pragma solidity >0.7.0;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/compound/CEtherInterface.sol";
-import "interfaces/WETH9.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/compound/CErc20Interface.sol";
+import "../../../interfaces/compound/CEtherInterface.sol";
+import "../../../interfaces/WETH9.sol";
 import "./NotionalV2LiquidatorStorageLayoutV1.sol";
 import "../../internal/markets/DateTime.sol";
 import "../../math/SafeInt256.sol";

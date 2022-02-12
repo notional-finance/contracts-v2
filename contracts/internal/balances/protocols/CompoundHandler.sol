@@ -3,8 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./GenericToken.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/compound/CEtherInterface.sol";
+import "../../../../interfaces/compound/CErc20Interface.sol";
+import "../../../../interfaces/compound/CEtherInterface.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../../../global/Types.sol";
 

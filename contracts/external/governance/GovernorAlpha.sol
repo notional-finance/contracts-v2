@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/notional/INoteERC20.sol";
+import "../../../interfaces/notional/INoteERC20.sol";
 import "@openzeppelin/contracts/access/TimelockController.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Address.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
 
-import "interfaces/IEIP20NonStandard.sol";
+import "../../../../interfaces/IEIP20NonStandard.sol";
 
 library GenericToken {
     bytes4 internal constant defaultBalanceOfSelector = IEIP20NonStandard.balanceOf.selector;

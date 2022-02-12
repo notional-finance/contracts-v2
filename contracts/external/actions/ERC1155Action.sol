@@ -9,9 +9,9 @@ import "../../math/SafeInt256.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../internal/portfolio/TransferAssets.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/IERC1155TokenReceiver.sol";
-import "interfaces/notional/nERC1155Interface.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/IERC1155TokenReceiver.sol";
+import "../../../interfaces/notional/nERC1155Interface.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 

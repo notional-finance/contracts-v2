@@ -26,8 +26,10 @@ OracleAddress = {
 }
 
 class TokenDeployer:
-    def __init__(self, network, deployer, config={}, persist=True) -> None:
+    def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.tokens = {}
         self.network = network

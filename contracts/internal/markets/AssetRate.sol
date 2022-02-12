@@ -6,7 +6,7 @@ import "../../global/Types.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
-import "interfaces/notional/AssetRateAdapter.sol";
+import "../../../interfaces/notional/AssetRateAdapter.sol";
 
 library AssetRate {
     using SafeInt256 for int256;

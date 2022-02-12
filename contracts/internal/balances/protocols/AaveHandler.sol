@@ -6,7 +6,7 @@ import "../../../global/Types.sol";
 import "../../../global/Deployments.sol";
 import "../../../math/SafeInt256.sol";
 import "../TokenHandler.sol";
-import "interfaces/aave/IAToken.sol";
+import "../../../../interfaces/aave/IAToken.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library AaveHandler {

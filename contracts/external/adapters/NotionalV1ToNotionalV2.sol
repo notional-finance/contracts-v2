@@ -3,8 +3,8 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../global/Types.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/notional/NotionalCallback.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/notional/NotionalCallback.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface WETH9 {

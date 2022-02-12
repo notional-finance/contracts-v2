@@ -3,8 +3,10 @@ from scripts.common import loadContractFromArtifact, isProduction
 from scripts.config import TokenConfig
 
 class CompoundInitializer:
-    def __init__(self, network, deployer, config={}, persist=True) -> None:
+    def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
+        if self.config == None:
+            self.config = {}
         self.persist = persist
         self.compoundInit = {}
         self.comptroller = None

@@ -7,7 +7,7 @@ import "../nToken/nTokenHandler.sol";
 import "../nToken/nTokenSupply.sol";
 import "../../math/SafeInt256.sol";
 import "../../external/MigrateIncentives.sol";
-import "interfaces/notional/IRewarder.sol";
+import "../../../interfaces/notional/IRewarder.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {

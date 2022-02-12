@@ -2,10 +2,10 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/compound/CTokenInterface.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/notional/NotionalCallback.sol";
+import "../../../interfaces/compound/CTokenInterface.sol";
+import "../../../interfaces/compound/CErc20Interface.sol";
+import "../../../interfaces/notional/NotionalProxy.sol";
+import "../../../interfaces/notional/NotionalCallback.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CompoundToNotionalV2 is NotionalCallback {
