@@ -52,6 +52,10 @@ class LiqDeployer:
             self.liquidation["lender"] = LiquidationConfig[self.network]["lender"]
             return
 
+        if "lender" in self.liquidation:
+            print("Lender deployed at {}".format(self.liquidation["exchange"]))
+            return
+
         deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(MockAaveFlashLender, [
             self.config["tokens"]["WETH"]["address"], 
@@ -66,6 +70,10 @@ class LiqDeployer:
         if isProduction(self.network):
             self.liquidation["exchange"] = LiquidationConfig[self.network]["exchange"]
             return
+
+        if "exchange" in self.liquidation:
+            print("Exchanged deployed at {}".format(self.liquidation["exchange"]))
+            return
         
         deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(MockUniV3SwapRouter, [
@@ -79,6 +87,10 @@ class LiqDeployer:
         self._save()
 
     def deployFlashLiquidator(self):
+        if "flash" in self.liquidation:
+            print("Flash liquidator deployed at {}".format(self.liquidation["flash"]))
+            return
+
         if "lender" not in self.liquidation:
             self.deployFlashLender()
         if "exchange" not in self.liquidation:
@@ -100,6 +112,7 @@ class LiqDeployer:
         if "impl" in manual:
             print("Manual liquidator implementation deployed at {}".format(manual["impl"]))
             return
+
         deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(NotionalV2ManualLiquidator, [
             self.config["notional"],
@@ -115,26 +128,36 @@ class LiqDeployer:
         if "beacon" in manual:
             print("Manual beacon deployed at {}".format(manual["beacon"]))
             return
+
         deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(UpgradeableBeacon, [manual["impl"]])
         manual["beacon"] = contract.address
         self._save()
 
     def _deployManualLiquidator(self, manual, currencyId):
-        if str(currencyId) in manual:
-            print("Manual liquidator for currency {} deployed at {}".format(currencyId, manual[str(currencyId)]))
+        proxies = {}
+        if "proxies" in manual:
+            proxies = manual["proxies"]
+        else:
+            manual["proxies"] = proxies
+
+        if str(currencyId) in proxies:
+            print("Manual liquidator for currency {} deployed at {}".format(currencyId, proxies[str(currencyId)]))
             return
+
         deployer = ContractDeployer(self.deployer)
         liquidator = Contract.from_abi("manualLiquidator", manual["impl"], abi=NotionalV2ManualLiquidator.abi)
         initData = liquidator.initialize.encode_input(currencyId)
         contract = deployer.deploy(BeaconProxy, [manual["beacon"], initData])
-        manual[str(currencyId)] = contract.address
+        proxies[str(currencyId)] = contract.address
         self._save()
 
     def deployManualLiquidator(self, currencyId):
         manual = {}
         if "manual" in self.liquidation:
             manual = self.liquidation["manual"]
+        else:
+            self.liquidation["manual"] = manual
 
         self._deployManualLiquidatorImpl(manual)
         self._deployManualBeacon(manual)
