@@ -38,7 +38,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
     /// @dev Harvest methods are only callable by the authorized treasury manager contract
     modifier onlyManagerContract() {
-        require(treasuryManagerContract == msg.sender, "Caller is not the treasury manager");
+        require(treasuryManagerContract == msg.sender, "Treasury manager required");
         _;
     }
 
@@ -173,7 +173,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             Token memory asset = TokenHandler.getAssetToken(currencyId);
 
             // Actual reserve amount allowed to be redeemed and transferred
-            /// @dev overflow not possible with the check above
+            // NOTE: overflow not possible with the check above
             int256 assetInternalRedeemAmount = reserveInternal - bufferInternal;
 
             // Redeems cTokens and transfer underlying to treasury manager contract
