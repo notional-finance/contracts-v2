@@ -81,7 +81,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         _checkValidCurrency(currencyId);
         // prettier-ignore
         (int256 reserveBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
-        require(newBalance < reserveBalance, "cannot increase reserve balance");
         // newBalance cannot be negative and is checked inside BalanceHandler.setReserveCashBalance
         BalanceHandler.setReserveCashBalance(currencyId, newBalance);
     }
