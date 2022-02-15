@@ -100,19 +100,15 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         nonReentrant
         returns (uint256)
     {
-        // Take a snasphot of the COMP balance before we claim COMP so that we don't inadvertently transfer
-        // something we shouldn't.
-        uint256 balanceBefore = COMP.balanceOf(address(this));
         COMPTROLLER.claimComp(address(this), cTokens);
         // NOTE: If Notional ever lists COMP as a collateral asset it will be cCOMP instead and it
         // will never hold COMP balances directly. In this case we can always transfer all the COMP
         // off of the contract.
-        uint256 balanceAfter = COMP.balanceOf(address(this));
-        uint256 amountClaimed = balanceAfter.sub(balanceBefore);
+        uint256 bal = COMP.balanceOf(address(this));
         // NOTE: the onlyManagerContract modifier prevents a transfer to address(0) here
-        COMP.safeTransfer(treasuryManagerContract, amountClaimed);
+        COMP.safeTransfer(treasuryManagerContract, bal);
         // NOTE: TreasuryManager contract will emit a COMPHarvested event
-        return amountClaimed;
+        return bal;
     }
 
     /// @notice redeems and transfers tokens to the treasury manager contract
