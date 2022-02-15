@@ -173,7 +173,8 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             Token memory asset = TokenHandler.getAssetToken(currencyId);
 
             // Actual reserve amount allowed to be redeemed and transferred
-            int256 assetInternalRedeemAmount = reserveInternal.subNoNeg(bufferInternal);
+            /// @dev overflow not possible with the check above
+            int256 assetInternalRedeemAmount = reserveInternal - bufferInternal;
 
             // Redeems cTokens and transfer underlying to treasury manager contract
             amountsTransferred[i] = _redeemAndTransfer(
