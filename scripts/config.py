@@ -15,6 +15,7 @@ TokenConfig = {
     "WBTC": {"name": "Wrapped Bitcoin", "decimals": 8, "fee": 0, "rate": 100e18},
     "COMP": {"name": "Compound COMP", "decimals": 18, "fee": 0, "rate": 0.01e18},
     "NOMINT": {"name": "nonMintable", "decimals": 18, "fee": 0, "rate": 1e18},
+    "USDT": {"name": "Tether", "decimals": 8, "fee": 0.01e18, "rate": 0.01e18},
 }
 
 CurrencyDefaults = {

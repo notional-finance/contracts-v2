@@ -36,7 +36,7 @@ from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.project import ContractsVPrivateProject
+from brownie.project import ContractsV2Project
 from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
 
 chain = Chain()
@@ -159,12 +159,13 @@ def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WE
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
 
-    notionalInterfaceABI = ContractsVPrivateProject._build.get("NotionalProxy")["abi"]
+    notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(
         "Notional", proxy.address, abi=notionalInterfaceABI, owner=deployer
     )
 
     return (pauseRouter, router, proxy, notional, contracts)
+
 
 def deployArtifact(path, constructorArgs, deployer, name):
     with open(path, "r") as a:
@@ -215,6 +216,8 @@ class TestEnvironment:
         # First deploy tokens to ensure they are available
         self._deployMockCurrency("ETH")
         for symbol in TokenConfig.keys():
+            if symbol == "COMP":
+                continue
             self._deployMockCurrency(symbol)
 
         self._deployNotional()
@@ -440,6 +443,8 @@ def main():
         config = copy(CurrencyDefaults)
         if symbol == "USDT":
             config["haircut"] = 0
+        elif symbol == "COMP":
+            continue
 
         env.enableCurrency(symbol, config)
 
