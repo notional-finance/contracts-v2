@@ -59,16 +59,12 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         treasuryManagerContract = manager;
     }
 
-    /// @notice Sets the reserve buffer. This is the amount of reserve balance to keep denominated in 1e8 
-    /// The reserve cannot be harvested if it's below this amount. This portion of the reserve will remain on 
+    /// @notice Sets the reserve buffer. This is the amount of reserve balance to keep denominated in 1e8
+    /// The reserve cannot be harvested if it's below this amount. This portion of the reserve will remain on
     /// the contract to act as a buffer against potential insolvency.
     /// @param currencyId refers to the currency of the reserve
     /// @param bufferAmount reserve buffer amount to keep in internal token precision (1e8)
-    function setReserveBuffer(uint16 currencyId, uint256 bufferAmount)
-        external
-        override
-        onlyOwner
-    {
+    function setReserveBuffer(uint16 currencyId, uint256 bufferAmount) external override onlyOwner {
         _checkValidCurrency(currencyId);
         reserveBuffer[currencyId] = bufferAmount;
         emit ReserveBufferUpdated(currencyId, bufferAmount);
@@ -121,16 +117,25 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         int256 assetExternalRedeemAmount = asset.convertToExternal(assetInternalRedeemAmount);
 
         // This is the actual redeemed amount in underlying external precision
-        int256 redeemedExternalUnderlying = asset.redeem(
-            currencyId,
-            treasuryManagerContract,
-            assetExternalRedeemAmount.toUint()
-        );
-        // FIXME: cETH redeems to ETH, will send ETH...we should have some WETH handler
-
-        // NOTE: this will be returned as a negative number to represent that assets have left the
+        // NOTE: asset.redeem will return a negative number to represent that assets have left the
         // contract, convert to a positive uint here
-        return redeemedExternalUnderlying.neg().toUint();
+        uint256 redeemedExternalUnderlying = asset
+            .redeem(currencyId, treasuryManagerContract, assetExternalRedeemAmount.toUint())
+            .neg()
+            .toUint();
+
+        // NOTE: cETH redeems to ETH, converting it to WETH
+        if (underlying.tokenAddress == address(0)) {
+            WETH9(WETH).deposit{value: address(this).balance}();
+            IERC20(address(WETH)).safeTransfer(treasuryManagerContract, redeemedExternalUnderlying);
+        } else {
+            IERC20(underlying.tokenAddress).safeTransfer(
+                treasuryManagerContract,
+                redeemedExternalUnderlying
+            );
+        }
+
+        return redeemedExternalUnderlying;
     }
 
     /// @notice Transfers some amount of reserve assets to the treasury manager contract to be invested
