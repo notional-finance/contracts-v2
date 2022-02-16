@@ -307,6 +307,11 @@ def get_balance_trade_action(currencyId, depositActionType, tradeActionData, **k
     return tuple(balanceAction)
 
 
+def get_lend_action(currencyId, tradeActionData, depositUnderlying):
+    tradeActions = [get_trade_action(**t) for t in tradeActionData]
+    return (currencyId, depositUnderlying, tradeActions)
+
+
 def get_trade_action(**kwargs):
     tradeActionType = kwargs["tradeActionType"]
 

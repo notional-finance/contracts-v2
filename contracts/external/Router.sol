@@ -109,7 +109,8 @@ contract Router is StorageLayoutV1 {
         if (
             sig == NotionalProxy.batchBalanceAction.selector ||
             sig == NotionalProxy.batchBalanceAndTradeAction.selector ||
-            sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector
+            sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector ||
+            sig == NotionalProxy.batchLend.selector
         ) {
             return BATCH_ACTION;
         } else if (

@@ -120,7 +120,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
             // Require that each action have at least 1 trade and all trades are lending trades
             uint256 numTrades = action.trades.length;
-            require(numTrades > 0);
+            require(numTrades > 0); // dev: no actions
             for (uint256 j = 0; j < numTrades; j++) {
                 require(uint8(bytes1(action.trades[j])) == uint8(TradeActionType.Lend)); // dev: only lend trades
             }
@@ -128,7 +128,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // Loads the currencyId into balance state
             balanceState.loadBalanceState(account, action.currencyId, accountContext);
             // This must be negative as a result of requiring only lending
-            balanceState.netCashChange = _executeTrades(
+            (balanceState.netCashChange, portfolioState) = _executeTrades(
                 account,
                 action.currencyId,
                 action.trades,
@@ -142,6 +142,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // of lending a cash balance, will check FC at the end of the method.
             int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
             if (requiredCash > 0) {
+                // XXX: this won't work with ETH...
                 if (action.depositUnderlying) {
                     // If depositing underlying, get the current asset rate and convert the required cash
                     // back to underlying.
@@ -251,7 +252,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
 
             if (action.trades.length > 0) {
-                int256 netCash = _executeTrades(
+                int256 netCash;
+                (netCash, portfolioState) = _executeTrades(
                     account,
                     action.currencyId,
                     action.trades,
@@ -426,7 +428,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         bytes32[] calldata trades,
         AccountContext memory accountContext,
         PortfolioState memory portfolioState
-    ) private returns (int256 netCash) {
+    ) private returns (int256 netCash, PortfolioState memory postTradeState) {
         if (accountContext.isBitmapEnabled()) {
             require(
                 accountContext.bitmapCurrencyId == currencyId,
@@ -445,7 +447,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         } else {
             // NOTE: we return portfolio state here instead of setting it inside executeTradesArrayBatch
             // because we want to only write to storage once after all trades are completed
-            (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
+            (postTradeState, netCash) = TradingAction.executeTradesArrayBatch(
                 account,
                 currencyId,
                 portfolioState,
