@@ -101,7 +101,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         // off of the contract.
         uint256 bal = COMP.balanceOf(address(this));
         // NOTE: the onlyManagerContract modifier prevents a transfer to address(0) here
-        COMP.safeTransfer(msg.sender, bal);
+        if (bal > 0) COMP.safeTransfer(msg.sender, bal);
         // NOTE: TreasuryManager contract will emit a COMPHarvested event
         return bal;
     }
@@ -124,7 +124,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             .toUint();
 
         // NOTE: cETH redeems to ETH, converting it to WETH
-        if (underlying.tokenAddress == address(0)) {
+        if (redeemedExternalUnderlying > 0 && underlying.tokenAddress == address(0)) {
             WETH9(WETH).deposit{value: address(this).balance}();
             IERC20(address(WETH)).safeTransfer(msg.sender, redeemedExternalUnderlying);
         } else {
