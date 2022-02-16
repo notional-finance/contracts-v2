@@ -169,7 +169,7 @@ interface NotionalProxy is
         bytes calldata callbackData
     ) external payable;
 
-    function batchLend(address account, BatchLend[] calldata actions) external payable;
+    function batchLend(address account, BatchLend[] calldata actions) external;
 
     /** Liquidation Action */
     function calculateLocalCurrencyLiquidation(

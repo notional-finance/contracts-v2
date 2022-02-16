@@ -87,14 +87,18 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         _finalizeAccountContext(account, accountContext);
     }
 
-    /// @notice Executes a batch of lending actions
+    /// @notice Executes a batch of lending actions. This is different from batchBalanceAndTrade because
+    /// it always pulls the required amount of tokens to get an account to a cash balance of zero. It reduces
+    /// the gas costs for lending because there is no second token transfer where residual balances are sent
+    /// back to the account.
+    /// @dev Note that this method does not work with native ETH because it requires the ability to pull payment
+    /// from an ERC20 token. Therefore, this method is marked as nonpayable. It will still worth with cETH or aETH.
     /// @param account the account for the action
     /// @param actions array of batch lending actions
     /// @dev emit:CashBalanceChange, emit:LendBorrowTrade emit:SettledCashDebt
     /// @dev auth:msg.sender auth:ERC1155
     function batchLend(address account, BatchLend[] calldata actions)
         external
-        payable
         nonReentrant
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
@@ -142,17 +146,21 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // of lending a cash balance, will check FC at the end of the method.
             int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
             if (requiredCash > 0) {
-                // XXX: this won't work with ETH...
                 if (action.depositUnderlying) {
                     // If depositing underlying, get the current asset rate and convert the required cash
                     // back to underlying.
-                    // XXX: do we get off by one errors here?
                     AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(action.currencyId);
                     Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
-                    balanceState.depositUnderlyingToken(
-                        account,
-                        underlyingToken.convertToExternal(ar.convertToUnderlying(requiredCash))
-                    );
+                    int256 underlyingExternalAmount = underlyingToken.convertToExternal(ar.convertToUnderlying(requiredCash));
+
+                    if (underlyingToken.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
+                        // If external < 8, we could truncate down and cause an off by one error, for example we need
+                        // 1.00000011 cash and we deposit only 1.000000, missing 11 units. Therefore, we add a unit here
+                        // to account for potential rounding issues when tokens are less than 8 decimals (primarily USDC).
+                        underlyingExternalAmount = underlyingExternalAmount.add(1);
+                    }
+
+                    balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
                 } else {
                     // If depositing asset tokens, then we just convert to the external precision. Need to
                     // use the depositAssetToken here to handle aToken balances
