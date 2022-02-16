@@ -149,7 +149,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     {
         uint256[] memory amountsTransferred = new uint256[](currencies.length);
 
-        for (uint256 i; i < currencies.length; i++) {
+        for (uint256 i; i < currencies.length; ++i) {
             // Prevents duplicate currency IDs
             if (i > 0) require(currencies[i] > currencies[i - 1], "IDs must be sorted");
 
