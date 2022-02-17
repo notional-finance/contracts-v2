@@ -43,6 +43,7 @@
         "USDC": true,
         "WBTC": true
     },
+    "governor": "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524",
     "libs": {
         "FreeCollateralExternal": "0x5Ae0D38059E01ee5C6a8Fa0a4A34e9F0C1ec2a99",
         "MigrateIncentives": "0x944f374097d29FfBF57A9c625C98EF7474E41cB9",
@@ -66,7 +67,8 @@
             }
         }
     },
-    "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
+    "note": "0xC5e91B01F9B23952821410Be7Aa3c45B6429C670",
+    "noteImpl": "0x76940F542aeD6a7378CeB74c363562B3196653a8",
     "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
     "routers": {
         "PauseRouter": "0x5411BDcb40ABbD554e5B44FB9795679728b7a12C",

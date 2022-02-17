@@ -76,11 +76,6 @@ class GovDeployer:
             accounts[0].transfer(deployer, 100e18)
         elif network.show_active() == "development" or network.show_active() == "hardhat":
             deployer = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
-        else:
-            # Use hardcoded NOTE address
-            self.note = "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5"
-            self._save()
-            return
 
         self._deployNOTEImpl()
         self._deployNOTEProxy()

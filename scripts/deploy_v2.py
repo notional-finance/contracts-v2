@@ -5,6 +5,7 @@ from scripts.deployers.compound_deployer import CompoundDeployer
 from scripts.deployers.gov_deployer import GovDeployer
 from scripts.deployers.notional_deployer import NotionalDeployer
 from scripts.deployers.liq_deployer import LiqDeployer
+from scripts.initializers.gov_initializer import GovInitializer
 from scripts.initializers.notional_initializer import NotionalInitializer
 from scripts.initializers.compound_initializer import CompoundInitializer
 from scripts.config import nTokenConfig, CurrencyConfig
@@ -34,6 +35,8 @@ def deployGovernance(deployer):
     gov = GovDeployer(network.show_active(), deployer)
     gov.deployNOTE()
     gov.deployGovernor()
+    initializer = GovInitializer(network.show_active(), deployer)
+    initializer.initNOTE([deployer.address], [initializer.note.totalSupply()])
 
 def deployNotional(deployer):
     notional = NotionalDeployer(network.show_active(), deployer)
@@ -70,6 +73,6 @@ def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
     deployTokens(deployer)
     deployCompound(deployer)
-    #deployGovernance(deployer)
+    deployGovernance(deployer)
     deployNotional(deployer)
-    #deployLiquidator(deployer)
+    deployLiquidator(deployer)
