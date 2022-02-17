@@ -160,7 +160,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                         underlyingExternalAmount = underlyingExternalAmount.add(1);
                     }
 
-                    balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
+                    int256 assetAmountInternal = balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
+                    require(assetAmountInternal >= requiredCash, "Insufficient deposit");
                 } else {
                     // If depositing asset tokens, then we just convert to the external precision. Need to
                     // use the depositAssetToken here to handle aToken balances

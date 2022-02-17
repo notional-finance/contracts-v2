@@ -370,11 +370,12 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
             sig = bytes4(tmp);
         }
 
-        // These are the only three methods allowed to occur in a post transfer event. These actions allow `from`
+        // These are the only four methods allowed to occur in a post transfer event. These actions allow `from`
         // accounts to take any sort of trading action as a result of their transfer. All of these actions will
         // handle checking free collateral so no additional check is necessary here.
         if (
             sig == NotionalProxy.nTokenRedeem.selector ||
+            sig == NotionalProxy.batchLend.selector ||
             sig == NotionalProxy.batchBalanceAction.selector ||
             sig == NotionalProxy.batchBalanceAndTradeAction.selector
         ) {

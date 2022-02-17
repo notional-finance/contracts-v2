@@ -231,3 +231,16 @@ def test_settle_and_lend_using_cash(environment, accounts):
     assert portfolio[0][2] == 1
     assert portfolio[0][3] == 100e8
     check_system_invariants(environment, accounts)
+
+
+def test_lend_usdc_off_by_one(environment, accounts):
+    action = get_lend_action(
+        3,
+        [{"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0}],
+        True,
+    )
+
+    environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+    (cashBalance, _, _) = environment.notional.getAccountBalance(3, accounts[1])
+    # we will end up with some residual cToken here, make sure that it's not too much
+    assert cashBalance > 0 and cashBalance < 50e6
