@@ -86,4 +86,4 @@ def main():
         deployCompound(deployer)
         deployGovernance(deployer)
     deployNotional(deployer)
-    #deployLiquidator(deployer)
+    deployLiquidator(deployer)
