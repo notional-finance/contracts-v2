@@ -1,15 +1,15 @@
 {
     "actions": {
-        "AccountAction": "0x07b34187784d3D102bEE07F2bbf2C2300B65c89C",
-        "BatchAction": "0x8e8af7DE2ca2d97Dd1812699fa1b97314a211954",
-        "ERC1155Action": "0x886C3F7f156897C338700f14FC8E121a033F2Cc0",
-        "GovernanceAction": "0xDe7168E79fc45C4669B72Eb775D19225e402EB6C",
-        "InitializeMarketsAction": "0xF5572e53Ac9eA96CfB5c328F71819119aea859E5",
-        "LiquidateCurrencyAction": "0x38E38d6310D2b07E878d178180b2cDd11c543701",
-        "LiquidatefCashAction": "0xB25aF0C0eFc9bA4E8b73d16cD6478dC2A922C9a5",
-        "TreasuryAction": "0x7d9F225d109BF75009414dbdaC3fd476AF582225",
-        "Views": "0x26FE5de047bC819C2B7F5DaA04b2D17158dB1EA2",
-        "nTokenAction": "0x0CDE687d5b57b24637597BC01911D7a21Aa2c7Ab"
+        "AccountAction": "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10",
+        "BatchAction": "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977",
+        "ERC1155Action": "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421",
+        "GovernanceAction": "0x48b25E88C87865609eDA3607544154DC5Be06541",
+        "InitializeMarketsAction": "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD",
+        "LiquidateCurrencyAction": "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab",
+        "LiquidatefCashAction": "0x79e514531450f066f6adB36afa2Ff21790D4f30E",
+        "TreasuryAction": "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321",
+        "Views": "0xFDC8f5f6e626934Fe6209C7477e992a79e0cf64E",
+        "nTokenAction": "0x98978d9e7cb298ff4b5EC5135e7a3D429E275735"
     },
     "compound": {
         "comptroller": "0x2325DE1BfA8d90791D728fbeab5e96A9E8fCD8Ec",
@@ -45,12 +45,12 @@
     },
     "governor": "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524",
     "libs": {
-        "FreeCollateralExternal": "0x5Ae0D38059E01ee5C6a8Fa0a4A34e9F0C1ec2a99",
-        "MigrateIncentives": "0x944f374097d29FfBF57A9c625C98EF7474E41cB9",
-        "SettleAssetsExternal": "0x9af9725e5C4609C5BEF62F5372C5F8b88e4f4ceA",
-        "TradingAction": "0xe8Ffb6Adb8c890769525F01238C9e04B0fDB79c9",
-        "nTokenMintAction": "0x3d5e219A728424FaaF10858027aE13028ACA5E9c",
-        "nTokenRedeemAction": "0x3600f4d256E005E27bD21D6c9e5E3c846F650d66"
+        "FreeCollateralExternal": "0x1add152E195527EdD03bb6a548ab3047FA219e41",
+        "MigrateIncentives": "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C",
+        "SettleAssetsExternal": "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6",
+        "TradingAction": "0x917F709CAb62163Ea9298cDfa3db485a7f0F091a",
+        "nTokenMintAction": "0x8e97F4e7685835d126EA9E9BD3f97562d87CF54E",
+        "nTokenRedeemAction": "0x9ddb5e61cD3a994cb13E34A8d9173E27CDa45153"
     },
     "liquidation": {
         "exchange": "0x65075BaC31CBee3a25564D7be0a27aF78223Ddd6",
@@ -71,8 +71,8 @@
     "noteImpl": "0x76940F542aeD6a7378CeB74c363562B3196653a8",
     "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
     "routers": {
-        "PauseRouter": "0x5411BDcb40ABbD554e5B44FB9795679728b7a12C",
-        "Router": "0x2Ec8A6E8E1A6AE62e179f26B41901b5Fc1091064"
+        "PauseRouter": "0x8151F75A74a43A790EF71ac9F4d20e92F203028d",
+        "Router": "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
     },
     "tokens": {
         "COMP": {

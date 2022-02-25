@@ -23,6 +23,7 @@ from brownie import (
 )
 from brownie.network import web3
 from scripts.deployers.contract_deployer import ContractDeployer
+from scripts.common import loadContractFromABI
 
 class NotionalDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
@@ -50,6 +51,7 @@ class NotionalDeployer:
             self.routers = self.config["routers"]
         if "notional" in self.config:
             self.notional = self.config["notional"]
+            self.proxy = loadContractFromABI("NotionalProxy", self.config["notional"], "abi/Notional.json")
     
     def _save(self):
         self.config["libs"] = self.libs
@@ -73,7 +75,6 @@ class NotionalDeployer:
         # Re-deploy dependent contracts
         self.actions = {}
         self.routers = {}
-        self.notional = None
         self._save()
 
     def deployLibs(self):
@@ -94,7 +95,6 @@ class NotionalDeployer:
         self.actions[contract._name] = deployed.address
         # Re-deploy dependent contracts
         self.routers = {}
-        self.notional = None
         self._save()
 
     def deployActions(self):
@@ -126,8 +126,6 @@ class NotionalDeployer:
 
         deployed = deployer.deploy(contract, args, "", True)
         self.routers[contract._name] = deployed.address
-        # Re-deploy dependent contracts
-        self.notional = None
         self._save()
 
     def deployPauseRouter(self):
@@ -154,17 +152,26 @@ class NotionalDeployer:
             self.actions["TreasuryAction"],
         ])
 
+    def upgradeProxy(self, oldRouter):
+        print("Upgrading router from {} to {}".format(oldRouter, self.routers["Router"]))
+        self.proxy.upgradeTo(self.routers["Router"], {"from": self.deployer})
+
     def deployProxy(self):
         # Already deployed
         if self.notional != None:
             print("Notional deployed at {}".format(self.notional))
+            # Check if proxy needs to be upgraded
+            impl = self.proxy.getImplementation()
+            if impl != self.routers["Router"]:
+                self.upgradeProxy(impl)
+            else:
+                print("Router is up to date")
             return
 
+        deployer = ContractDeployer(self.deployer)
         initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
             fn_name="initialize", args=[self.deployer.address, self.routers["PauseRouter"], self.routers["Router"]]
         )
-
-        deployer = ContractDeployer(self.deployer)
         contract = deployer.deploy(nProxy, [self.routers["Router"], initializeData], "", True)
         self.notional = contract.address
         self._save()
