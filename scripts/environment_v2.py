@@ -32,6 +32,9 @@ class EnvironmentV2:
             self.ctokens[k] = loadContractFromArtifact("c{}".format(k), v["address"], path)
             self.cTokenOracles[k] = Contract.from_abi("c{}Oracle".format(k), v["oracle"], cTokenAggregator.abi)
 
+        if "note" in self.config:
+            self.note = loadContractFromABI("NoteProxy", self.config["note"], "abi/NoteERC20.json")
+
     def depositAndLend(self, account, currencyId, underlying, depositAmount, market, lendAmount, slippage=0):
         lendAction = [
             {"tradeActionType": "Lend", "marketIndex": market, "notional": lendAmount, "minSlippage": slippage}

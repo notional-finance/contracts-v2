@@ -153,5 +153,71 @@
     "nTokenRedeemAction": [
       "0xc3209CE9e2E8a51350775678b8a188F236B03574"
     ]
+  },
+  "5": {
+    "AccountAction": [
+      "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10"
+    ],
+    "BatchAction": [
+      "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977"
+    ],
+    "ERC1155Action": [
+      "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421"
+    ],
+    "FreeCollateralExternal": [
+      "0x1add152E195527EdD03bb6a548ab3047FA219e41"
+    ],
+    "GovernanceAction": [
+      "0x48b25E88C87865609eDA3607544154DC5Be06541"
+    ],
+    "GovernorAlpha": [
+      "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524"
+    ],
+    "InitializeMarketsAction": [
+      "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD"
+    ],
+    "LiquidateCurrencyAction": [
+      "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab"
+    ],
+    "LiquidatefCashAction": [
+      "0x79e514531450f066f6adB36afa2Ff21790D4f30E"
+    ],
+    "MigrateIncentives": [
+      "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C"
+    ],
+    "NoteERC20": [
+      "0x76940F542aeD6a7378CeB74c363562B3196653a8"
+    ],
+    "PauseRouter": [
+      "0x8151F75A74a43A790EF71ac9F4d20e92F203028d"
+    ],
+    "Router": [
+      "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
+    ],
+    "SettleAssetsExternal": [
+      "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
+    ],
+    "TradingAction": [
+      "0x917F709CAb62163Ea9298cDfa3db485a7f0F091a"
+    ],
+    "TreasuryAction": [
+      "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321"
+    ],
+    "Views": [
+      "0xFDC8f5f6e626934Fe6209C7477e992a79e0cf64E"
+    ],
+    "nProxy": [
+      "0xc92F08dD497CDe3885c4745E0A49b86cf32E53eD",
+      "0xC5e91B01F9B23952821410Be7Aa3c45B6429C670"
+    ],
+    "nTokenAction": [
+      "0x98978d9e7cb298ff4b5EC5135e7a3D429E275735"
+    ],
+    "nTokenMintAction": [
+      "0x8e97F4e7685835d126EA9E9BD3f97562d87CF54E"
+    ],
+    "nTokenRedeemAction": [
+      "0x9ddb5e61cD3a994cb13E34A8d9173E27CDa45153"
+    ]
   }
 }

@@ -1,4 +1,3 @@
-from copy import copy
 from brownie import accounts, network
 from scripts.deployers.token_deployer import TokenDeployer
 from scripts.deployers.compound_deployer import CompoundDeployer
