@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../../global/Types.sol";
-import "../../../global/Deployments.sol";
+import "../../../global/LibStorage.sol";
 import "../../../math/SafeInt256.sol";
 import "../TokenHandler.sol";
 import "../../../../interfaces/aave/IAToken.sol";
@@ -23,7 +23,12 @@ library AaveHandler {
      * @param underlyingAmountExternal amount of underlying to deposit, in external precision
      */
     function mint(Token memory underlyingToken, uint256 underlyingAmountExternal) internal {
-        Deployments.LendingPool.deposit(underlyingToken.tokenAddress, underlyingAmountExternal, address(this), 0);
+        LibStorage.getLendingPool().lendingPool.deposit(
+            underlyingToken.tokenAddress,
+            underlyingAmountExternal,
+            address(this),
+            0
+        );
     }
 
     /**
@@ -41,7 +46,11 @@ library AaveHandler {
             underlyingToken.tokenAddress,
             SafeInt256.toInt(assetAmountExternal)
         ).toUint();
-        Deployments.LendingPool.withdraw(underlyingToken.tokenAddress, underlyingAmountExternal, account);
+        LibStorage.getLendingPool().lendingPool.withdraw(
+            underlyingToken.tokenAddress,
+            underlyingAmountExternal,
+            account
+        );
     }
 
     /**
@@ -107,6 +116,9 @@ library AaveHandler {
     /// @dev getReserveNormalizedIncome returns a uint256, so we know that the return value here is
     /// always positive even though we are converting to a signed int
     function _getReserveNormalizedIncome(address underlyingAsset) private view returns (int256) {
-        return SafeInt256.toInt(Deployments.LendingPool.getReserveNormalizedIncome(underlyingAsset));
+        return
+            SafeInt256.toInt(
+                LibStorage.getLendingPool().lendingPool.getReserveNormalizedIncome(underlyingAsset)
+            );
     }
 }

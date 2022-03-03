@@ -8,7 +8,4 @@ import "../../interfaces/aave/ILendingPool.sol";
 /// is deployed to.
 library Deployments {
     address internal constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
-    /// @dev This is hardcoded for ETH Mainnet (Main Market), different environments will need
-    /// to have a different LendingPool specified
-    ILendingPool internal constant LendingPool = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
 }

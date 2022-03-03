@@ -101,7 +101,7 @@ library TokenHandler {
             // to initiate all transfers
             address approvalAddress = tokenStorage.tokenType == TokenType.cToken ?
                 tokenStorage.tokenAddress :
-                address(Deployments.LendingPool);
+                address(LibStorage.getLendingPool().lendingPool);
 
             // ERC20 tokens should return true on success for an approval, but Tether
             // does not return a value here so we use the NonStandard interface here to

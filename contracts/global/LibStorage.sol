@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "./Types.sol";
 import "./Constants.sol";
 import "../../interfaces/notional/IRewarder.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 library LibStorage {
 
@@ -42,7 +43,8 @@ library LibStorage {
         AssetRate,
         ExchangeRate,
         nTokenTotalSupply,
-        SecondaryIncentiveRewarder
+        SecondaryIncentiveRewarder,
+        LendingPool
     }
 
     /// @dev Mapping from an account address to account context
@@ -191,6 +193,11 @@ library LibStorage {
         returns (mapping(address => IRewarder) storage store)
     {
         uint256 slot = _getStorageSlot(StorageId.SecondaryIncentiveRewarder);
+        assembly { store.slot := slot }
+    }
+
+    function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
+        uint256 slot = _getStorageSlot(StorageId.LendingPool);
         assembly { store.slot := slot }
     }
 
