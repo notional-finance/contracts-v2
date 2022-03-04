@@ -737,6 +737,19 @@
         "inputs": [
             {
                 "indexed": false,
+                "internalType": "address",
+                "name": "pool",
+                "type": "address"
+            }
+        ],
+        "name": "UpdateLendingPool",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -2459,6 +2472,19 @@
         "type": "function"
     },
     {
+        "inputs": [],
+        "name": "getLendingPool",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [
             {
                 "internalType": "uint16",
@@ -3704,6 +3730,19 @@
             }
         ],
         "name": "setApprovalForAll",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "contract ILendingPool",
+                "name": "pool",
+                "type": "address"
+            }
+        ],
+        "name": "setLendingPool",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
