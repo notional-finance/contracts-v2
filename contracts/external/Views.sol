@@ -538,6 +538,10 @@ contract Views is StorageLayoutV2, NotionalViews {
         return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 
+    function getLendingPool() external view override returns (address) {
+        return address(LibStorage.getLendingPool().lendingPool);
+    }
+
     fallback() external {
         revert("Method not found");
     }
