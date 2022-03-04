@@ -497,6 +497,7 @@ contract Views is StorageLayoutV2, NotionalViews {
         return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 
+    /// @notice Returns the lending pool address
     function getLendingPool() external view override returns (address) {
         return address(LibStorage.getLendingPool().lendingPool);
     }

@@ -196,6 +196,7 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
+    /// @dev Returns the address of the lending pool
     function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
         uint256 slot = _getStorageSlot(StorageId.LendingPool);
         assembly { store.slot := slot }

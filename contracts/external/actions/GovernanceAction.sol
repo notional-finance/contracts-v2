@@ -404,6 +404,9 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit UpdateSecondaryIncentiveRewarder(currencyId, address(rewarder));
     }
 
+    /// @notice Updates the lending pool address used by AaveHandler
+    /// @dev emit:UpdateLendingPool
+    /// @param pool lending pool address
     function setLendingPool(ILendingPool pool) external override onlyOwner {
         require(address(pool) != address(0), "invalid lending pool");
         LendingPoolStorage storage store = LibStorage.getLendingPool();
