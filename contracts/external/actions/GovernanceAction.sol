@@ -404,6 +404,13 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit UpdateSecondaryIncentiveRewarder(currencyId, address(rewarder));
     }
 
+    function setLendingPool(ILendingPool pool) external override onlyOwner {
+        require(address(pool) != address(0), "invalid lending pool");
+        LendingPoolStorage storage store = LibStorage.getLendingPool();
+        store.lendingPool = pool;
+        emit UpdateLendingPool(address(pool));
+    }
+
     function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {
         CashGroup.setCashGroupStorage(currencyId, cashGroup);
         emit UpdateCashGroup(currencyId);

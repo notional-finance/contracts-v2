@@ -138,31 +138,9 @@ interface NotionalViews {
 
     function getFreeCollateral(address account) external view returns (int256, int256[] memory);
 
-    function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
-        external
-        view
-        returns (uint256);
-
-    function getfCashAmountGivenCashAmount(
-        uint16 currencyId,
-        int88 netCashToAccount,
-        uint256 marketIndex,
-        uint256 blockTime
-    ) external view returns (int256);
-
-    function getCashAmountGivenfCashAmount(
-        uint16 currencyId,
-        int88 fCashAmount,
-        uint256 marketIndex,
-        uint256 blockTime
-    ) external view returns (int256, int256);
-
-    function nTokenGetClaimableIncentives(address account, uint256 blockTime)
-        external
-        view
-        returns (uint256);
-
     function getTreasuryManager() external view returns (address);
 
     function getReserveBuffer(uint16 currencyId) external view returns (uint256);
+
+    function getLendingPool() external view returns (address);
 }

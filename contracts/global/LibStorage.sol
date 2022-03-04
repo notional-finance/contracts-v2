@@ -213,6 +213,4 @@ library LibStorage {
         // because Solidity will do a range check on `storageId` during the cast.
         return uint256(storageId) + STORAGE_SLOT_BASE;
     }
-
-
 } 

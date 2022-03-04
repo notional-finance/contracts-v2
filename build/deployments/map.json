@@ -161,6 +161,10 @@
     "BatchAction": [
       "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977"
     ],
+    "Calc": [
+      "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
+      "0x9CcBeC0Ee9b0ceC6EBb2FBe41aE822a53362728F"
+    ],
     "ERC1155Action": [
       "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421"
     ],
@@ -189,9 +193,11 @@
       "0x76940F542aeD6a7378CeB74c363562B3196653a8"
     ],
     "PauseRouter": [
+      "0x613f379A4D65A62B7843379a5E7071e52528631f",
       "0x8151F75A74a43A790EF71ac9F4d20e92F203028d"
     ],
     "Router": [
+      "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9",
       "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
     ],
     "SettleAssetsExternal": [
@@ -204,6 +210,7 @@
       "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321"
     ],
     "Views": [
+      "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",
       "0xFDC8f5f6e626934Fe6209C7477e992a79e0cf64E"
     ],
     "nProxy": [

@@ -2,13 +2,14 @@
     "actions": {
         "AccountAction": "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10",
         "BatchAction": "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977",
+        "Calc": "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
         "ERC1155Action": "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421",
         "GovernanceAction": "0x48b25E88C87865609eDA3607544154DC5Be06541",
         "InitializeMarketsAction": "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD",
         "LiquidateCurrencyAction": "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab",
         "LiquidatefCashAction": "0x79e514531450f066f6adB36afa2Ff21790D4f30E",
         "TreasuryAction": "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321",
-        "Views": "0xFDC8f5f6e626934Fe6209C7477e992a79e0cf64E",
+        "Views": "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",
         "nTokenAction": "0x98978d9e7cb298ff4b5EC5135e7a3D429E275735"
     },
     "compound": {
@@ -71,8 +72,8 @@
     "noteImpl": "0x76940F542aeD6a7378CeB74c363562B3196653a8",
     "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
     "routers": {
-        "PauseRouter": "0x8151F75A74a43A790EF71ac9F4d20e92F203028d",
-        "Router": "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
+        "PauseRouter": "0x613f379A4D65A62B7843379a5E7071e52528631f",
+        "Router": "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9"
     },
     "tokens": {
         "COMP": {

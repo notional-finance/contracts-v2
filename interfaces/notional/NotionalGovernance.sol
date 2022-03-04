@@ -6,6 +6,7 @@ import "../../contracts/global/Types.sol";
 import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "../../interfaces/notional/NotionalGovernance.sol";
 import "../../interfaces/notional/IRewarder.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 interface NotionalGovernance {
     event ListCurrency(uint16 newCurrencyId);
@@ -23,6 +24,7 @@ interface NotionalGovernance {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
     event UpdateSecondaryIncentiveRewarder(uint16 indexed currencyId, address rewarder);
+    event UpdateLendingPool(address pool);
 
     function transferOwnership(address newOwner, bool direct) external;
 
@@ -93,6 +95,7 @@ interface NotionalGovernance {
 
     function updateAuthorizedCallbackContract(address operator, bool approved) external;
 
-    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder) external;
+    function setLendingPool(ILendingPool pool) external;
 
+    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder) external;
 }
