@@ -9,7 +9,7 @@ from brownie import (
     MigrateIncentives,
     GovernanceAction,
     Views,
-    Calc,
+    CalculationViews,
     InitializeMarketsAction,
     nTokenAction,
     BatchAction,
@@ -108,7 +108,7 @@ class NotionalDeployer:
         # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
         #   deployer, "Governance")
         self._deployAction(deployer, Views)
-        self._deployAction(deployer, Calc)
+        self._deployAction(deployer, CalculationViews)
         self._deployAction(deployer, InitializeMarketsAction)
         self._deployAction(deployer, nTokenAction)
         self._deployAction(deployer, BatchAction)
@@ -136,7 +136,7 @@ class NotionalDeployer:
             self.actions["Views"],
             self.actions["LiquidateCurrencyAction"],
             self.actions["LiquidatefCashAction"],
-            self.actions["Calc"],
+            self.actions["CalculationViews"],
         ])
 
     def deployRouter(self):
@@ -153,7 +153,7 @@ class NotionalDeployer:
             self.actions["LiquidatefCashAction"],
             self.config["compound"]["ctokens"]["ETH"]["address"],
             self.actions["TreasuryAction"],
-            self.actions["Calc"]
+            self.actions["CalculationViews"]
         ])
 
     def upgradeProxy(self, oldRouter):

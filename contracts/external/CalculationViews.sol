@@ -14,7 +14,7 @@ import "../math/SafeInt256.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract Calc is StorageLayoutV1, NotionalCalc {
+contract CalculationViews is StorageLayoutV1, NotionalCalc {
     using TokenHandler for Token;
     using Market for MarketParameters;
     using AssetRate for AssetRateParameters;

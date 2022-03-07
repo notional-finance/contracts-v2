@@ -2,7 +2,7 @@
     "actions": {
         "AccountAction": "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10",
         "BatchAction": "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977",
-        "Calc": "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
+        "CalculationViews": "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
         "ERC1155Action": "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421",
         "GovernanceAction": "0x48b25E88C87865609eDA3607544154DC5Be06541",
         "InitializeMarketsAction": "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD",
