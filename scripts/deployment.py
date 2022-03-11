@@ -4,6 +4,7 @@ from copy import copy
 from brownie import (
     AccountAction,
     BatchAction,
+    CalculationViews,
     ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
@@ -114,6 +115,7 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["AccountAction"] = AccountAction.deploy({"from": deployer})
     contracts["ERC1155Action"] = ERC1155Action.deploy({"from": deployer})
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
+    contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
     contracts["TreasuryAction"] = TreasuryAction.deploy(
         kwargs["Comptroller"], kwargs["WETH"], {"from": deployer}
@@ -124,6 +126,7 @@ def deployNotionalContracts(deployer, **kwargs):
         contracts["Views"].address,
         contracts["LiquidateCurrencyAction"].address,
         contracts["LiquidatefCashAction"].address,
+        contracts["CalculationViews"].address,
         {"from": deployer},
     )
 
@@ -140,6 +143,7 @@ def deployNotionalContracts(deployer, **kwargs):
         contracts["LiquidatefCashAction"].address,
         kwargs["cETH"],
         contracts["TreasuryAction"].address,
+        contracts["CalculationViews"].address,
         {"from": deployer},
     )
 
