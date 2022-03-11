@@ -9,7 +9,7 @@ import "../global/Types.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
 import "../../interfaces/notional/nERC1155Interface.sol";
 import "../../interfaces/notional/NotionalGovernance.sol";
-import "../../interfaces/notional/NotionalCalc.sol";
+import "../../interfaces/notional/NotionalCalculations.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -33,7 +33,7 @@ contract Router is StorageLayoutV1 {
     address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
     address public immutable TREASURY;
-    address public immutable CALC;
+    address public immutable CALCULATION_VIEWS;
     address private immutable DEPLOYER;
 
     constructor(
@@ -48,7 +48,7 @@ contract Router is StorageLayoutV1 {
         address liquidatefCash_,
         address cETH_,
         address treasury_,
-        address calc_
+        address calculationViews_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
@@ -62,7 +62,7 @@ contract Router is StorageLayoutV1 {
         cETH = cETH_;
         DEPLOYER = msg.sender;
         TREASURY = treasury_;
-        CALC = calc_;
+        CALCULATION_VIEWS = calculationViews_;
 
         // This will lock everyone from calling initialize on the implementation contract
         hasInitialized = true;
@@ -196,12 +196,12 @@ contract Router is StorageLayoutV1 {
         ) {
             return TREASURY;
         } else if (
-            sig == NotionalCalc.calculateNTokensToMint.selector ||
-            sig == NotionalCalc.getfCashAmountGivenCashAmount.selector ||
-            sig == NotionalCalc.getCashAmountGivenfCashAmount.selector ||
-            sig == NotionalCalc.nTokenGetClaimableIncentives.selector
+            sig == NotionalCalculations.calculateNTokensToMint.selector ||
+            sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
+            sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
+            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector
         ) {
-            return CALC;
+            return CALCULATION_VIEWS;
         } else {
             // If not found then delegate to views. This will revert if there is no method on
             // the view contract

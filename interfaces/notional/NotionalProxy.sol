@@ -6,7 +6,7 @@ import "../../contracts/global/Types.sol";
 import "./nTokenERC20.sol";
 import "./nERC1155Interface.sol";
 import "./NotionalGovernance.sol";
-import "./NotionalCalc.sol";
+import "./NotionalCalculations.sol";
 import "./NotionalViews.sol";
 import "./NotionalTreasury.sol";
 
@@ -15,7 +15,7 @@ interface NotionalProxy is
     nERC1155Interface,
     NotionalGovernance,
     NotionalTreasury,
-    NotionalCalc,
+    NotionalCalculations,
     NotionalViews
 {
     /** User trading events */

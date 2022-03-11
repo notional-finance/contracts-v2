@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
 
-interface NotionalCalc {
+interface NotionalCalculations {
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
         external
         view

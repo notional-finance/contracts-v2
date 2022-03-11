@@ -3,7 +3,6 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./actions/nTokenMintAction.sol";
-import "../../interfaces/notional/NotionalCalc.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/StorageLayoutV1.sol";
 import "../internal/markets/CashGroup.sol";
@@ -11,10 +10,11 @@ import "../internal/markets/AssetRate.sol";
 import "../internal/nToken/nTokenSupply.sol";
 import "../internal/nToken/nTokenHandler.sol";
 import "../math/SafeInt256.sol";
+import "../../interfaces/notional/NotionalCalculations.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract CalculationViews is StorageLayoutV1, NotionalCalc {
+contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     using TokenHandler for Token;
     using Market for MarketParameters;
     using AssetRate for AssetRateParameters;

@@ -6,7 +6,7 @@ import "../global/StorageLayoutV1.sol";
 import "../global/Constants.sol";
 import "../proxy/utils/UUPSUpgradeable.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
-import "../../interfaces/notional/NotionalCalc.sol";
+import "../../interfaces/notional/NotionalCalculations.sol";
 
 /**
  * Read only version of the Router that can only be upgraded by governance. Used in emergency when the system must
@@ -16,18 +16,18 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
     address public immutable VIEWS;
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
-    address public immutable CALC;
+    address public immutable CALCULATION_VIEWS;
 
     constructor(
         address views_,
         address liquidateCurrency_,
         address liquidatefCash_,
-        address calc_
+        address calculationViews_
     ) {
         VIEWS = views_;
         LIQUIDATE_CURRENCY = liquidateCurrency_;
         LIQUIDATE_FCASH = liquidatefCash_;
-        CALC = calc_;
+        CALCULATION_VIEWS = calculationViews_;
     }
 
     /// @dev Internal method will be called during an UUPS upgrade, must return true to
@@ -103,12 +103,12 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
         }
 
         if (
-            sig == NotionalCalc.calculateNTokensToMint.selector ||
-            sig == NotionalCalc.getfCashAmountGivenCashAmount.selector ||
-            sig == NotionalCalc.getCashAmountGivenfCashAmount.selector ||
-            sig == NotionalCalc.nTokenGetClaimableIncentives.selector
+            sig == NotionalCalculations.calculateNTokensToMint.selector ||
+            sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
+            sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
+            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector
         ) {
-            return CALC;
+            return CALCULATION_VIEWS;
         }
 
         // If not found then delegate to views. This will revert if there is no method on
