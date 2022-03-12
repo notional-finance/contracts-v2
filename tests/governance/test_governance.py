@@ -326,6 +326,7 @@ def test_upgrade_router_contract(environment, accounts, Router):
         zeroAddress,
         zeroAddress,
         zeroAddress,
+        zeroAddress,
         {"from": environment.deployer},
     )
 
