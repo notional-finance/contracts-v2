@@ -408,8 +408,8 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
     /// @dev emit:UpdateLendingPool
     /// @param pool lending pool address
     function setLendingPool(ILendingPool pool) external override onlyOwner {
-        require(address(pool) != address(0), "invalid lending pool");
         LendingPoolStorage storage store = LibStorage.getLendingPool();
+        require(address(pool) != address(0) && address(store.lendingPool) == address(0), "Invalid lending pool");
         store.lendingPool = pool;
         emit UpdateLendingPool(address(pool));
     }

@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie import MockAggregator, aTokenAggregator
 from brownie.convert.datatypes import Wei
@@ -29,6 +30,8 @@ def env():
 
     (router, pauseRouter, contracts) = full_upgrade(e.deployer, False)
     e.notional.upgradeTo(router.address, {"from": e.owner})
+    if e.notional.getLendingPool() != "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9":
+        e.notional.setLendingPool("0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9", {"from": e.owner})
 
     return e
 
@@ -93,6 +96,13 @@ def enable_atoken_fcash(env, currencyId, aTokenSymbol, underlyingSymbol, initial
         {"from": env.whales[aTokenSymbol]},
     )
     env.notional.initializeMarkets(currencyId, True, {"from": env.owner})
+
+
+def test_cannot_reset_lending_pool(env):
+    with brownie.reverts():
+        env.notional.setLendingPool(
+            "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9", {"from": env.owner}
+        )
 
 
 def test_deposit_and_withdraw_underlying_adai(env):

@@ -60,16 +60,6 @@ def test_claim_comp_non_manager(env):
         env.notional.claimCOMPAndTransfer([env.tokens["cDAI"].address], {"from": env.deployer})
 
 
-def test_claim_comp_preexisting_balance(env):
-    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
-    env.tokens["COMP"].transfer(env.notional.address, 100e18, {"from": env.whales["COMP"]})
-    assert env.tokens["COMP"].balanceOf(env.notional.address) == 100e18
-    assert env.tokens["COMP"].balanceOf(env.deployer) == 0
-    env.notional.claimCOMPAndTransfer([env.tokens["cDAI"].address], {"from": env.deployer})
-    assert env.tokens["COMP"].balanceOf(env.notional.address) == 100e18
-    assert env.tokens["COMP"].balanceOf(env.deployer) >= 3600009197861284083563
-
-
 def convert_to_underlying(assetRate, assetBalance):
     return assetRate[1] * assetBalance / assetRate[2]
 
@@ -185,9 +175,3 @@ def test_set_reserve_cash_balance_invalid_currency(env):
     balanceBefore = env.notional.getReserveBalance(2)
     with brownie.reverts():
         env.notional.setReserveCashBalance(10, balanceBefore / 2, {"from": env.notional.owner()})
-
-
-def test_set_reserve_cash_balance_invalid_amount(env):
-    balanceBefore = env.notional.getReserveBalance(2)
-    with brownie.reverts():
-        env.notional.setReserveCashBalance(2, balanceBefore * 2, {"from": env.notional.owner()})

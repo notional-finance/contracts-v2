@@ -90,7 +90,7 @@ library Constants {
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
     int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
     // Limit the market proportion so that borrowing cannot hit extremely high interest rates
-    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 96 / 100;
+    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 99 / 100;
 
     uint8 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)

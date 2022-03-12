@@ -69,7 +69,7 @@ class TestLiquidityCurve:
         )
 
         # We do not allow proportion to exceed this max
-        if proportion > 960000000:
+        if proportion > 990000000:
             assert not success
             return
 

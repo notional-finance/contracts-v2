@@ -234,7 +234,7 @@ class TestMarket:
 
     def test_max_market_proportion(self, market):
         # Sets the proportion at 0.96
-        marketState = get_market_state(MARKETS[0], totalfCash=0.96e15, totalAssetCash=0.04e15)
+        marketState = get_market_state(MARKETS[0], totalfCash=0.99e15, totalAssetCash=0.01e15)
         market.setMarketStorage(1, SETTLEMENT_DATE, marketState)
         marketState = market.buildMarket(1, MARKETS[0], START_TIME, True, 1)
         cashGroup = market.buildCashGroupView(1)

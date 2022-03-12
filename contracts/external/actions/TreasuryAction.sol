@@ -117,22 +117,12 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
         // This is the actual redeemed amount in underlying external precision
         // NOTE: asset.redeem will return a negative number to represent that assets have left the
-        // contract, convert to a positive uint here
+        // contract, convert to a positive uint here. asset.redeem() will also transfer the underlying
+        // to the treasuryManagerContract
         uint256 redeemedExternalUnderlying = asset
             .redeem(currencyId, treasuryManagerContract, assetExternalRedeemAmount.toUint())
             .neg()
             .toUint();
-
-        // NOTE: cETH redeems to ETH, converting it to WETH
-        if (redeemedExternalUnderlying > 0 && underlying.tokenAddress == address(0)) {
-            WETH9(WETH).deposit{value: address(this).balance}();
-            IERC20(address(WETH)).safeTransfer(msg.sender, redeemedExternalUnderlying);
-        } else {
-            IERC20(underlying.tokenAddress).safeTransfer(
-                msg.sender,
-                redeemedExternalUnderlying
-            );
-        }
 
         return redeemedExternalUnderlying;
     }
