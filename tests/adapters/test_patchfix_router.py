@@ -8,9 +8,9 @@ def environment(accounts):
     return initialize_environment(accounts)
 
 
-def test_patch_fix_router(environment, SettlementRateFix, accounts):
+def test_patch_fix_router(environment, MockPatchFix, accounts):
     originalImpl = environment.proxy.getImplementation()
-    patchFix = SettlementRateFix.deploy(
+    patchFix = MockPatchFix.deploy(
         originalImpl, environment.notional.address, {"from": accounts[0]}
     )
 

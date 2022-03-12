@@ -1,5 +1,5 @@
 import pytest
-from brownie import MigrateIncentivesFix
+from brownie import NotionalV21PatchFix
 from scripts.mainnet.EnvironmentConfig import getEnvironment
 from scripts.mainnet.upgrade_notional import full_upgrade
 
@@ -14,7 +14,7 @@ def upgrade_to_v21(notional, deployer, owner):
     # Upgrade so transfer ownership works
     notional.upgradeTo(router.address, {"from": owner})
 
-    patchFix = MigrateIncentivesFix.deploy(router.address, notional.address, {"from": deployer})
+    patchFix = NotionalV21PatchFix.deploy(router.address, notional.address, {"from": deployer})
     notional.transferOwnership(patchFix.address, False, {"from": owner})
     txn = patchFix.atomicPatchAndUpgrade({"from": owner})
     return txn
@@ -28,15 +28,15 @@ def isolation(fn_isolation):
 def test_patchfix_migration(environment, accounts):
     nTokenAccounts = []
     for i in range(0, 4):
-        nTokenAddress = environment["notional"].nTokenAddress(i + 1)
-        nTokenAccounts.append(environment["notional"].getNTokenAccount(nTokenAddress))
+        nTokenAddress = environment.notional.nTokenAddress(i + 1)
+        nTokenAccounts.append(environment.notional.getNTokenAccount(nTokenAddress))
 
-    txn = upgrade_to_v21(environment["notional"], environment["deployer"], environment["owner"])
-    assert environment["notional"].owner() == environment["owner"].address
+    txn = upgrade_to_v21(environment.notional, environment.deployer, environment.owner)
+    assert environment.notional.owner() == environment.owner.address
 
     for i in range(0, 4):
-        nTokenAddress = environment["notional"].nTokenAddress(i + 1)
-        context = environment["notional"].getNTokenAccount(nTokenAddress)
+        nTokenAddress = environment.notional.nTokenAddress(i + 1)
+        context = environment.notional.getNTokenAccount(nTokenAddress)
         # Ensure that all non incentive factors (including total supply) have not changed
         # before and after the upgrade
         assert nTokenAccounts[i][0:5] == context[0:5]

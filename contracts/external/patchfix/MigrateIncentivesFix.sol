@@ -2,21 +2,18 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "./BasePatchFixRouter.sol";
 import "../../internal/nToken/nTokenHandler.sol";
 import "../../global/LibStorage.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract MigrateIncentivesFix is BasePatchFixRouter {
+contract MigrateIncentivesFix  {
 
-    uint16 internal constant ETH = 1;
-    uint16 internal constant DAI = 2;
-    uint16 internal constant USDC = 3;
-    uint16 internal constant WBTC = 4;
+    uint16 private constant ETH = 1;
+    uint16 private constant DAI = 2;
+    uint16 private constant USDC = 3;
+    uint16 private constant WBTC = 4;
 
-    constructor(address finalRouter, NotionalProxy proxy) BasePatchFixRouter(finalRouter, proxy) {}
-
-    function _patchFix() internal override {
+    function _patchFixIncentives() internal {
         // Delete these settlement rates that have been set previously
         uint256 blockTime = block.timestamp;
         MigrateIncentivesLib._migrateIncentives(ETH, blockTime);
