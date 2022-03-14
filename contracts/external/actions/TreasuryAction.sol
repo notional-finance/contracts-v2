@@ -13,7 +13,6 @@ import "../../global/Constants.sol";
 import "../../../interfaces/notional/NotionalTreasury.sol";
 import "../../../interfaces/compound/ComptrollerInterface.sol";
 import "../../../interfaces/compound/CErc20Interface.sol";
-import "../../../interfaces/WETH9.sol";
 
 contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     using SafeMath for uint256;
@@ -23,7 +22,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
-    WETH9 public immutable WETH;
 
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
@@ -42,10 +40,9 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
-    constructor(Comptroller _comptroller, WETH9 _weth) {
+    constructor(Comptroller _comptroller) {
         COMPTROLLER = _comptroller;
         COMP = IERC20(_comptroller.getCompAddress());
-        WETH = _weth;
     }
 
     /// @notice Sets the new treasury manager contract

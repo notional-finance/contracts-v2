@@ -117,9 +117,7 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
     contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
-    contracts["TreasuryAction"] = TreasuryAction.deploy(
-        kwargs["Comptroller"], kwargs["WETH"], {"from": deployer}
-    )
+    contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
