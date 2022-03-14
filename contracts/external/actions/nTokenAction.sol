@@ -55,7 +55,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             /* int cashBalance */,
             int256 nTokenBalance,
             /* uint lastClaimTime */,
-            /* uint lastClaimIntegralSupply */
+            /* uint accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance

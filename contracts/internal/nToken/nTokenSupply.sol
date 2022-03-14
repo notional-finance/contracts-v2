@@ -84,7 +84,7 @@ library nTokenSupply {
     {
         // If we use 18 decimal places as the accumulation precision then we will overflow uint128 when
         // a single nToken has accumulated 3.4 x 10^20 NOTE tokens. This isn't possible since the max
-        // NOTE that can accumulate is 10^17 (100 million NOTE in 1e8 precision) so we should be safe
+        // NOTE that can accumulate is 10^16 (100 million NOTE in 1e8 precision) so we should be safe
         // using 18 decimal places and uint128 storage slot
 
         // timeSinceLastAccumulation (SECONDS)

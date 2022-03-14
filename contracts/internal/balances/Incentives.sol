@@ -31,12 +31,16 @@ library Incentives {
                 tokenAddress,
                 balanceState.storedNTokenBalance.toUint(),
                 balanceState.lastClaimTime,
-                balanceState.lastClaimIntegralSupply
+                // In this case the accountIncentiveDebt is stored as lastClaimIntegralSupply under
+                // the old calculation
+                balanceState.accountIncentiveDebt
             );
 
             // This marks the account as migrated and lastClaimTime will no longer be used
             balanceState.lastClaimTime = 0;
-            balanceState.lastClaimIntegralSupply = 0;
+            // This value will be set immediately after this, set this to zero so that the calculation
+            // establishes a new baseline.
+            balanceState.accountIncentiveDebt = 0;
         }
 
         // If an account was migrated then they have no accountIncentivesDebt and should accumulate
@@ -56,8 +60,7 @@ library Incentives {
             balanceState.storedNTokenBalance.toUint()
                 .mul(accumulatedNOTEPerNToken)
                 .div(Constants.INCENTIVE_ACCUMULATION_PRECISION)
-                // NOTE: This should be called accountIncentivesDebt
-                .sub(balanceState.lastClaimIntegralSupply)
+                .sub(balanceState.accountIncentiveDebt)
         );
 
         // Update accountIncentivesDebt denominated in INTERNAL_TOKEN_PRECISION which marks the portion
@@ -71,7 +74,7 @@ library Incentives {
         //   MUL accumulatedNOTEPerNToken (INCENTIVE_ACCUMULATION_PRECISION)
         //   DIV INCENTIVE_ACCUMULATION_PRECISION
         //   = INTERNAL_TOKEN_PRECISION
-        balanceState.lastClaimIntegralSupply = finalNTokenBalance
+        balanceState.accountIncentiveDebt = finalNTokenBalance
             .mul(accumulatedNOTEPerNToken)
             .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
     }

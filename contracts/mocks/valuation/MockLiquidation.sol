@@ -377,7 +377,7 @@ contract MockLocalfCashLiquidation is MockValuationBase {
             int256 cashBalance,
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
-            /* uint256 lastClaimIntegralSupply*/
+            /* uint256 accountIncentiveDebt*/
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
         // Cash balance is used if liquidating negative fCash
         c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);

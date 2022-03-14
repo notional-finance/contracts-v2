@@ -191,7 +191,7 @@ library BalanceHandler {
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
                 balanceState.lastClaimTime,
-                balanceState.lastClaimIntegralSupply
+                balanceState.accountIncentiveDebt
             );
         }
 
@@ -263,7 +263,7 @@ library BalanceHandler {
         AccountContext memory accountContext
     ) internal returns (int256) {
         require(amountToSettleAsset >= 0); // dev: amount to settle negative
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 accountIncentiveDebt) =
             getBalanceStorage(account, cashGroup.currencyId);
 
         // Prevents settlement of positive balances
@@ -294,7 +294,7 @@ library BalanceHandler {
             cashBalance,
             nTokenBalance,
             lastClaimTime,
-            lastClaimIntegralSupply
+            accountIncentiveDebt
         );
 
         // Emit the event here, we do not call finalize
@@ -312,7 +312,7 @@ library BalanceHandler {
         uint16 currencyId,
         int256 netCashChange
     ) internal {
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 lastClaimIntegralSupply) =
+        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 accountIncentiveDebt) =
             getBalanceStorage(account, currencyId);
 
         int256 newCashBalance = cashBalance.add(netCashChange);
@@ -332,7 +332,7 @@ library BalanceHandler {
             newCashBalance,
             nTokenBalance,
             lastClaimTime,
-            lastClaimIntegralSupply
+            accountIncentiveDebt
         );
     }
 
@@ -350,7 +350,7 @@ library BalanceHandler {
                 int256 cashBalance,
                 int256 nTokenBalance,
                 uint256 lastClaimTime,
-                uint256 lastClaimIntegralSupply
+                uint256 accountIncentiveDebt
             ) = getBalanceStorage(account, amt.currencyId);
 
             cashBalance = cashBalance.add(amt.netCashChange);
@@ -376,7 +376,7 @@ library BalanceHandler {
                 cashBalance,
                 nTokenBalance,
                 lastClaimTime,
-                lastClaimIntegralSupply
+                accountIncentiveDebt
             );
         }
     }
@@ -423,7 +423,7 @@ library BalanceHandler {
         int256 cashBalance,
         int256 nTokenBalance,
         uint256 lastClaimTime,
-        uint256 lastClaimIntegralSupply
+        uint256 accountIncentiveDebt
     ) private {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
@@ -435,12 +435,12 @@ library BalanceHandler {
         require(lastClaimTime == 0); // dev: last claim time set
         // The maximum NOTE supply is 100_000_000e8 (1e16) which is less than 2^56 (7.2e16) so we should never
         // encounter an overflow for accountIncentiveDebt
-        require(lastClaimIntegralSupply <= type(uint56).max); // dev: last claim integral supply overflow
+        require(accountIncentiveDebt <= type(uint56).max); // dev: last claim integral supply overflow
 
         balanceStorage.nTokenBalance = uint80(nTokenBalance);
         balanceStorage.lastClaimTime = uint32(lastClaimTime);
         balanceStorage.cashBalance = int88(cashBalance);
-        balanceStorage.packedLastClaimIntegralSupply = uint56(lastClaimIntegralSupply);
+        balanceStorage.accountIncentiveDebt = uint56(accountIncentiveDebt);
     }
 
     /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
@@ -451,7 +451,7 @@ library BalanceHandler {
             int256 cashBalance,
             int256 nTokenBalance,
             uint256 lastClaimTime,
-            uint256 lastClaimIntegralSupply
+            uint256 accountIncentiveDebt
         )
     {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
@@ -460,10 +460,11 @@ library BalanceHandler {
         nTokenBalance = balanceStorage.nTokenBalance;
         lastClaimTime = balanceStorage.lastClaimTime;
         if (lastClaimTime > 0) {
-            // NOTE: this is only necessary to support the deprecated integral supply values
-            lastClaimIntegralSupply = FloatingPoint56.unpackFrom56Bits(balanceStorage.packedLastClaimIntegralSupply);
+            // NOTE: this is only necessary to support the deprecated integral supply values, which are stored
+            // in the accountIncentiveDebt slot
+            accountIncentiveDebt = FloatingPoint56.unpackFrom56Bits(balanceStorage.accountIncentiveDebt);
         } else {
-            lastClaimIntegralSupply = balanceStorage.packedLastClaimIntegralSupply;
+            accountIncentiveDebt = balanceStorage.accountIncentiveDebt;
         }
         cashBalance = balanceStorage.cashBalance;
     }
@@ -485,13 +486,13 @@ library BalanceHandler {
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
                 balanceState.lastClaimTime,
-                balanceState.lastClaimIntegralSupply
+                balanceState.accountIncentiveDebt
             ) = getBalanceStorage(account, currencyId);
         } else {
             balanceState.storedCashBalance = 0;
             balanceState.storedNTokenBalance = 0;
             balanceState.lastClaimTime = 0;
-            balanceState.lastClaimIntegralSupply = 0;
+            balanceState.accountIncentiveDebt = 0;
         }
 
         balanceState.netCashChange = 0;
@@ -501,7 +502,8 @@ library BalanceHandler {
     }
 
     /// @notice Used when manually claiming incentives in nTokenAction. Also sets the balance state
-    /// to storage to update the lastClaimTime and lastClaimIntegralSupply
+    /// to storage to update the accountIncentiveDebt. lastClaimTime will be set to zero as accounts
+    /// are migrated to the new incentive calculation
     function claimIncentivesManual(BalanceState memory balanceState, address account)
         internal
         returns (uint256 incentivesClaimed)
@@ -518,7 +520,7 @@ library BalanceHandler {
             balanceState.storedCashBalance,
             balanceState.storedNTokenBalance,
             balanceState.lastClaimTime,
-            balanceState.lastClaimIntegralSupply
+            balanceState.accountIncentiveDebt
         );
     }
 }

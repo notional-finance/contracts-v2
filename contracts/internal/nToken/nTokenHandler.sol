@@ -285,7 +285,7 @@ library nTokenHandler {
             nToken.cashBalance,
             /* nTokenBalance */,
             /* lastClaimTime */,
-            /* lastClaimIntegralSupply */
+            /* accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
     }
 

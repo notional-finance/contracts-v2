@@ -190,7 +190,7 @@ library MockValuationLib {
                 b.cashBalance,
                 b.nTokenBalance,
                 b.lastClaimTime,
-                b.lastClaimIntegralSupply
+                b.accountIncentiveDebt
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
@@ -205,7 +205,7 @@ library MockValuationLib {
                 b.cashBalance,
                 b.nTokenBalance,
                 b.lastClaimTime,
-                b.lastClaimIntegralSupply
+                b.accountIncentiveDebt
             ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
             i += 1;
             currencies = currencies << 16;

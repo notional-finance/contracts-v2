@@ -183,8 +183,8 @@ struct BalanceState {
     int256 netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
     uint256 lastClaimTime;
-    // The last integral supply amount when tokens were claimed
-    uint256 lastClaimIntegralSupply;
+    // Accumulator for incentives that the account no longer has a claim over
+    uint256 accountIncentiveDebt;
 }
 
 /// @dev Asset rate used to convert between underlying cash and asset cash
@@ -358,9 +358,8 @@ struct BalanceStorage {
     uint80 nTokenBalance;
     // Last time the account claimed their nTokens
     uint32 lastClaimTime;
-    // The total integral supply of the nToken at the last claim time packed into
-    // 56 bits. There is some loss of precision here but it is acceptable
-    uint56 packedLastClaimIntegralSupply;
+    // Incentives that the account no longer has a claim over
+    uint56 accountIncentiveDebt;
     // Cash balance of the account
     int88 cashBalance;
 }
@@ -435,5 +434,5 @@ struct AccountBalance {
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
-    uint256 lastClaimIntegralSupply;
+    uint256 accountIncentiveDebt;
 }
