@@ -25,6 +25,13 @@ contract MigrateIncentivesFix  {
 library MigrateIncentivesLib {
     using SafeMath for uint256;
 
+    event IncentivesMigrated(
+        uint16 currencyId,
+        uint256 migrationEmissionRate,
+        uint256 finalIntegralTotalSupply,
+        uint256 migrationTime
+    );
+
     /// @notice Stores off the old incentive factors at the specified block time and then initializes the new
     /// incentive factors.
     function _migrateIncentives(uint16 currencyId, uint256 blockTime) internal {
@@ -63,6 +70,13 @@ library MigrateIncentivesLib {
         // Overflows checked in _calculateFinalIntegralSupply
         d_nTokenStorage.integralTotalSupply = uint128(integralTotalSupply);
         d_nTokenStorage.lastSupplyChangeTime = uint32(blockTime);
+    
+        emit IncentivesMigrated(
+            currencyId,
+            emissionRatePerYear,
+            integralTotalSupply,
+            blockTime
+        );
     }
 
     function _initializeNewSupplyStorage(
