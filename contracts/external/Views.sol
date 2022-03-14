@@ -449,26 +449,26 @@ contract Views is StorageLayoutV2, NotionalViews {
         }
     }
 
-    // /// @notice Returns the fCash amount at the specified maturity for a bitmapped portfolio
-    // function getfCashNotional(
-    //     address account,
-    //     uint16 currencyId,
-    //     uint256 maturity
-    // ) external view override returns (int256) {
-    //     _checkValidCurrency(currencyId);
-    //     return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
-    // }
+    /// @notice Returns the fCash amount at the specified maturity for a bitmapped portfolio
+    function getfCashNotional(
+        address account,
+        uint16 currencyId,
+        uint256 maturity
+    ) external view override returns (int256) {
+        _checkValidCurrency(currencyId);
+        return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
+    }
 
-    // /// @notice Returns the assets bitmap for an account
-    // function getAssetsBitmap(address account, uint16 currencyId)
-    //     external
-    //     view
-    //     override
-    //     returns (bytes32)
-    // {
-    //     _checkValidCurrency(currencyId);
-    //     return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-    // }
+    /// @notice Returns the assets bitmap for an account
+    function getAssetsBitmap(address account, uint16 currencyId)
+        external
+        view
+        override
+        returns (bytes32)
+    {
+        _checkValidCurrency(currencyId);
+        return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
+    }
 
     /// @notice Returns free collateral of an account along with an array of the individual net available
     /// asset cash amounts
