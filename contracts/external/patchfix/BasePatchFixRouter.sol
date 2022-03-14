@@ -35,6 +35,8 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
         NOTIONAL.upgradeTo(FINAL_ROUTER);
         // Do a direct transfer back to the owner
         NOTIONAL.transferOwnership(OWNER, true);
+        // Safety check that we do not lose ownership
+        require(NOTIONAL.owner() == OWNER);
         selfdestruct(payable(OWNER));
     }
 
