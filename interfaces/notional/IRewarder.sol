@@ -6,6 +6,7 @@ interface IRewarder {
         address account,
         uint256 nTokenBalanceBefore,
         uint256 nTokenBalanceAfter,
+        int256  netNTokenSupplyChange,
         uint256 NOTETokensClaimed
     ) external;
 }

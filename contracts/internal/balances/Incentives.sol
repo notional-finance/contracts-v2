@@ -108,8 +108,14 @@ library Incentives {
         if (address(rewarder) != address(0)) {
             rewarder.claimRewards(
                 account,
+                // When this method is called from finalize, the storedNTokenBalance has not
+                // been updated to finalNTokenBalance yet so this is the balance before the change.
                 balanceState.storedNTokenBalance.toUint(),
                 finalNTokenBalance,
+                // When the rewarder is called, totalSupply has been updated already so may need to
+                // adjust its calculation using the net supply change figure here. Supply change
+                // may be zero when nTokens are transferred.
+                balanceState.netNTokenSupplyChange,
                 incentivesToClaim
             );
         }
