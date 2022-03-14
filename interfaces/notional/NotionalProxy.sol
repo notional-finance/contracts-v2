@@ -61,6 +61,14 @@ interface NotionalProxy is
         int256 netLiquidityTokens
     );
 
+    /// @notice Emitted once when incentives are migrated
+    event IncentivesMigrated(
+        uint16 currencyId,
+        uint256 migrationEmissionRate,
+        uint256 finalIntegralTotalSupply,
+        uint256 migrationTime
+    );
+
     /// @notice Emitted when reserve fees are accrued
     event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
     /// @notice Emitted whenever an account context has updated

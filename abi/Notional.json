@@ -166,6 +166,37 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "migrationEmissionRate",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "finalIntegralTotalSupply",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "migrationTime",
+                "type": "uint256"
+            }
+        ],
+        "name": "IncentivesMigrated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "account",
@@ -1599,7 +1630,7 @@
                     },
                     {
                         "internalType": "uint256",
-                        "name": "lastClaimIntegralSupply",
+                        "name": "accountIncentiveDebt",
                         "type": "uint256"
                     }
                 ],
@@ -1901,6 +1932,30 @@
                 "internalType": "struct MarketParameters[]",
                 "name": "",
                 "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
+        "name": "getAssetsBitmap",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
             }
         ],
         "stateMutability": "view",
@@ -2944,6 +2999,35 @@
             }
         ],
         "name": "getfCashAmountGivenCashAmount",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            }
+        ],
+        "name": "getfCashNotional",
         "outputs": [
             {
                 "internalType": "int256",
