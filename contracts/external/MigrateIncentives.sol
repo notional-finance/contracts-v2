@@ -31,7 +31,7 @@ library MigrateIncentives {
         ) = _getMigratedIncentiveValues(tokenAddress);
 
         // This if statement should never be true but we return 0 just in case
-        if (lastClaimTime == 0 || lastClaimTime > finalMigrationTime) return 0;
+        if (lastClaimTime == 0 || lastClaimTime >= finalMigrationTime) return 0;
 
         // No overflow here, checked above. All incentives are claimed up until finalMigrationTime
         // using the finalTotalIntegralSupply. Both these values are set on migration and will not
