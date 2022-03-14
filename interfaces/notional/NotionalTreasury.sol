@@ -3,6 +3,12 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 interface NotionalTreasury {
+
+    /// @notice Emitted when reserve balance is updated
+    event ReserveBalanceUpdated(uint16 indexed currencyId, int256 newBalance);
+    /// @notice Emitted when reserve balance is harvested
+    event ExcessReserveBalanceHarvested(uint16 indexed currencyId, int256 harvestAmount);
+
     function claimCOMPAndTransfer(address[] calldata ctokens) external returns (uint256);
 
     function transferReserveToTreasury(uint16[] calldata currencies)
