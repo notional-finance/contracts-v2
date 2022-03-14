@@ -181,6 +181,10 @@ library InitializeMarketsAction {
         // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
             uint256(uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS;
+        // If previousMarkets are supplied, then we are in initialize markets and we want to get the oracleRate
+        // from the perspective of the previous tRef (represented by blockTime - QUARTER). The reason is that the
+        // oracleRates for the current markets have not been set yet (we are in the process of calculating them
+        // in this contract). In the other case, we are in sweepCashIntoMarkets and we can use the current block time.
         uint256 oracleRateBlockTime = previousMarkets.length == 0 ? blockTime : blockTime.sub(Constants.QUARTER);
 
         uint256 bitNum = assetsBitmap.getNextBitNum();
@@ -213,6 +217,12 @@ library InitializeMarketsAction {
 
             // Withholding only applies for negative cash balances
             if (notional < 0) {
+                // Oracle rates are calculated from the perspective of the previousMarkets during initialize
+                // markets here. It is possible that these oracle rates do not equal the oracle rates when we
+                // exit this method, this can happen if the nToken is above its leverage threshold. In that case
+                // this oracleRate will be higher than what we have when we exit, causing the nToken to withhold
+                // less cash than required. The NTOKEN_CASH_WITHHOLDING_BUFFER must be sufficient to cover this
+                // potential shortfall.
                 uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
 
                 if (oracleRateBuffer > oracleRate) {
