@@ -23,10 +23,9 @@ library nTokenRedeemAction {
     using nTokenHandler for nTokenPortfolio;
 
     /// @notice When redeeming nTokens via the batch they must all be sold to cash and this
-    /// method will return the amount of asset cash sold. This method can only be invoked via delegatecall.
+    /// method will return the amount of asset cash sold.
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem the amount of nTokens to convert to cash
-    /// @dev auth:only internal
     /// @return amount of asset cash to return to the account, denominated in internal token decimals
     function nTokenRedeemViaBatch(uint16 currencyId, int256 tokensToRedeem)
         external

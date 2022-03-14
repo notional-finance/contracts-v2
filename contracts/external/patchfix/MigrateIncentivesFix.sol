@@ -14,7 +14,6 @@ contract MigrateIncentivesFix  {
     uint16 private constant WBTC = 4;
 
     function _patchFixIncentives() internal {
-        // Delete these settlement rates that have been set previously
         uint256 blockTime = block.timestamp;
         MigrateIncentivesLib._migrateIncentives(ETH, blockTime);
         MigrateIncentivesLib._migrateIncentives(DAI, blockTime);

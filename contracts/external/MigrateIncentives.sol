@@ -9,8 +9,8 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 /**
  * @notice Deployed library for migration of incentives from the old (inaccurate) calculation
  * to a newer, more accurate calculation based on SushiSwap MasterChef math. The more accurate
- * calculation is inside `Incentives.sol` and this library holds the legacy calculation as well
- * as the system migration code to be called once.
+ * calculation is inside `Incentives.sol` and this library holds the legacy calculation. System
+ * migration code can be found in `MigrateIncentivesFix.sol`
  */
 library MigrateIncentives {
     using SafeMath for uint256;

@@ -23,6 +23,9 @@ library AaveHandler {
      * @param underlyingAmountExternal amount of underlying to deposit, in external precision
      */
     function mint(Token memory underlyingToken, uint256 underlyingAmountExternal) internal {
+        // In AaveV3 this method is renamed to supply() but deposit() is still available for
+        // backwards compatibility: https://github.com/aave/aave-v3-core/blob/master/contracts/protocol/pool/Pool.sol#L755
+        // We use deposit here so that mainnet-fork tests against Aave v2 will pass.
         LibStorage.getLendingPool().lendingPool.deposit(
             underlyingToken.tokenAddress,
             underlyingAmountExternal,

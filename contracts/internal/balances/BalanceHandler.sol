@@ -244,7 +244,7 @@ library BalanceHandler {
             // asset transfer amount to store in cash balances
             assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
         } else {
-            // NOTE: in the case of aTokens this is the scaledBalanceOf in external precision, it
+            // NOTE: in the case of aTokens assetTransferAmountExternal is the scaledBalanceOf in external precision, it
             // will be converted to balanceOf denomination inside transfer
             actualTransferAmountExternal = assetToken.transfer(account, balanceState.currencyId, assetTransferAmountExternal);
             // Convert the actual transferred amount
