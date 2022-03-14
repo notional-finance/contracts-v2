@@ -25,11 +25,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     Comptroller public immutable COMPTROLLER;
     WETH9 public immutable WETH;
 
-    /// @dev Emitted when treasury manager is updated
-    event TreasuryManagerChanged(address indexed previousManager, address indexed newManager);
-    /// @dev Emitted when reserve buffer value is updated
-    event ReserveBufferUpdated(uint16 currencyId, uint256 bufferAmount);
-
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");

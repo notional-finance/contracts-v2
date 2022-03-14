@@ -8,6 +8,10 @@ interface NotionalTreasury {
     event ReserveBalanceUpdated(uint16 indexed currencyId, int256 newBalance);
     /// @notice Emitted when reserve balance is harvested
     event ExcessReserveBalanceHarvested(uint16 indexed currencyId, int256 harvestAmount);
+    /// @dev Emitted when treasury manager is updated
+    event TreasuryManagerChanged(address indexed previousManager, address indexed newManager);
+    /// @dev Emitted when reserve buffer value is updated
+    event ReserveBufferUpdated(uint16 currencyId, uint256 bufferAmount);
 
     function claimCOMPAndTransfer(address[] calldata ctokens) external returns (uint256);
 

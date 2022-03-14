@@ -465,6 +465,25 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "bufferAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "ReserveBufferUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "uint16",
                 "name": "currencyId",
@@ -658,6 +677,25 @@
             }
         ],
         "name": "TransferSingle",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previousManager",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "newManager",
+                "type": "address"
+            }
+        ],
+        "name": "TreasuryManagerChanged",
         "type": "event"
     },
     {
