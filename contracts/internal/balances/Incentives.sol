@@ -108,6 +108,7 @@ library Incentives {
         if (address(rewarder) != address(0)) {
             rewarder.claimRewards(
                 account,
+                balanceState.currencyId,
                 // When this method is called from finalize, the storedNTokenBalance has not
                 // been updated to finalNTokenBalance yet so this is the balance before the change.
                 balanceState.storedNTokenBalance.toUint(),

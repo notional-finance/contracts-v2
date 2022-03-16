@@ -9,6 +9,7 @@ contract MockSecondaryRewarder is IRewarder {
 
     function claimRewards(
         address account,
+        uint16 currencyId,
         uint256 nTokenBalanceBefore,
         uint256 nTokenBalanceAfter,
         int256 netNTokenSupplyChange,
