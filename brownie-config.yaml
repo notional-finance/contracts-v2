@@ -18,11 +18,11 @@ networks:
       default_balance: 100000
   hardhat-fork:
     cmd_settings:
-      fork_block: 13986174
+      fork_block: 14399609
 
   hardhat-fork:
     cmd_settings:
-      fork_block: 13986611
+      fork_block: 14399609
 
 reports:
   exclude_paths:
