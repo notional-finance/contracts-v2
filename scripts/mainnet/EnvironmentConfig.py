@@ -1,6 +1,6 @@
 import json
 
-from brownie import MockERC20, accounts
+from brownie import MockERC20, accounts, nTokenERC20Proxy
 from brownie.network.contract import Contract
 from brownie.project import ContractsV2Project
 
@@ -50,6 +50,18 @@ class Environment:
             "AAVE": Contract.from_abi(
                 "ERC20", "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9", MockERC20.abi
             ),
+            "nETH": Contract.from_abi(
+                "ERC20", "0xabc07bf91469c5450d6941dd0770e6e6761b90d6", nTokenERC20Proxy.abi
+            ),
+            "nDAI": Contract.from_abi(
+                "ERC20", "0x6ebce2453398af200c688c7c4ebd479171231818", nTokenERC20Proxy.abi
+            ),
+            "nUSDC": Contract.from_abi(
+                "ERC20", "0x18b0fc5a233acf1586da7c199ca9e3f486305a29", nTokenERC20Proxy.abi
+            ),
+            "nWBTC": Contract.from_abi(
+                "ERC20", "0x0ace2dc3995acd739ae5e0599e71a5524b93b886", nTokenERC20Proxy.abi
+            ),
             "cDAI": Contract.from_abi(
                 "cToken", "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643", cToken["abi"]
             ),
@@ -89,7 +101,7 @@ class Environment:
         }
 
         self.whales = {
-            "DAI": accounts.at("0x6dfaf865a93d3b0b5cfd1b4db192d1505676645b", force=True),
+            "DAI": accounts.at("0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", force=True),
             "aDAI": accounts.at("0xa2a3cae63476891ab2d640d9a5a800755ee79d6e", force=True),
             "USDC": accounts.at("0x0a59649758aa4d66e25f08dd01271e891fe52199", force=True),
             "aUSDC": accounts.at("0x3ddfa8ec3052539b6c9549f12cea2c295cff5296", force=True),
