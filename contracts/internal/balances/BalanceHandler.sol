@@ -318,7 +318,14 @@ library BalanceHandler {
         int256 newCashBalance = cashBalance.add(netCashChange);
         // If a cash balance is negative already we cannot put an account further into debt. In this case
         // the netCashChange must be positive so that it is coming out of debt.
-        if (newCashBalance < 0) require(netCashChange > 0, "Neg Cash");
+        if (newCashBalance < 0) {
+            require(netCashChange > 0, "Neg Cash");
+            // NOTE: HAS_CASH_DEBT cannot be extinguished except by a free collateral check
+            // where all balances are examined. In this case the has cash debt flag should
+            // already be set (cash balances cannot get more negative) but we do it again
+            // here just to be safe.
+            accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
+        }
 
         bool isActive = newCashBalance != 0 || nTokenBalance != 0;
         accountContext.setActiveCurrency(currencyId, isActive, Constants.ACTIVE_IN_BALANCES);
