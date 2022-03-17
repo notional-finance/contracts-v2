@@ -170,22 +170,26 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
             )
 
     assert len(ifCashAssets) >= len(portfolio)
-    hasNegativeResidual = False
+    negativeResiduals = []
     for (i, asset) in enumerate(ifCashAssets):
         assert asset[0] == currencyId
         assert asset[2] == 1
 
         isResidual = asset[1] not in maturity
         if isResidual and asset[3] < 0:
-            hasNegativeResidual = True
+            negativeResiduals.append(asset)
         elif not isResidual:
             # This is generally true, an edge case can be that the nToken has a positive
             # fCash position but highly unlikely
             assert asset[3] < 0
 
-    if hasNegativeResidual:
-        # TODO: need to ensure this discounting is done correctly
-        assert cashBalance > 0
+    if len(negativeResiduals) > 0:
+        # FV is the notional value discounted at a 0% interest rate
+        # this is the maximum withholding we should ever have
+        fv = 0
+        for r in negativeResiduals:
+            fv += r[3]
+        assert 0 < cashBalance and cashBalance <= (-fv * 50)
     else:
         assert cashBalance == 0
 
@@ -508,13 +512,17 @@ def test_delayed_second_initialize_markets_negative_residual(environment, accoun
     currencyId = 2
     environment = initialize_environment(accounts)
     setup_residual_environment(environment, accounts, residualType="Negative")
+    environment.token["DAI"].transfer(accounts[1], 1_000_000e18, {"from": accounts[0]})
 
-    # Trade some more to leave yet another residual in the 1 year market
+    # Trade some more to leave yet another residual in the 6 month and 1 year market
     action = get_balance_trade_action(
         2,
         "DepositUnderlying",
-        [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 10000e8, "minSlippage": 0}],
-        depositActionAmount=10000e18,
+        [
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100_000e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 3, "notional": 100_000e8, "minSlippage": 0},
+        ],
+        depositActionAmount=200_000e18,
         withdrawEntireCashBalance=True,
     )
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
