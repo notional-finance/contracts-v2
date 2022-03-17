@@ -121,8 +121,11 @@ def check_cash_balance(env, accounts):
         accountBalances += env.notional.getReserveBalance(currencyId)
         accountBalances += compute_settled_fcash(currencyId, symbol, env, accounts)
 
-        # TODO: this can happen from liquidation when withdrawing liquidity tokens...
-        assert pytest.approx(contractBalance, abs=2) == accountBalances
+        # NOTE: this can happen from liquidation when withdrawing liquidity tokens or
+        # in rounding errors during initialize markets
+        assert pytest.approx(contractBalance, abs=5) == accountBalances
+        # Ensure that the contract always retains more balance than the sum of accounts
+        assert contractBalance >= accountBalances
         # Check that total supply equals total balances
         assert nTokenTotalBalances == env.nToken[currencyId].totalSupply()
 

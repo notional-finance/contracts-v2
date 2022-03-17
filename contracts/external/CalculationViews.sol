@@ -170,6 +170,32 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         return totalIncentivesClaimable;
     }
 
+    function getPresentfCashValue(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 notional,
+        uint256 blockTime,
+        bool riskAdjusted
+    ) external view override returns (int256 presentValue) {
+        CashGroupParameters memory cg = CashGroup.buildCashGroupView(currencyId);
+        if (riskAdjusted) {
+            presentValue = AssetHandler.getRiskAdjustedPresentfCashValue(
+                cg,
+                notional,
+                maturity,
+                blockTime,
+                cg.calculateOracleRate(maturity, blockTime)
+            );
+        } else {
+            presentValue = AssetHandler.getPresentfCashValue(
+                notional,
+                maturity,
+                blockTime,
+                cg.calculateOracleRate(maturity, blockTime)
+            );
+        }
+    }
+
     /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external view returns (address) {
         return (address(MigrateIncentives));

@@ -191,49 +191,41 @@ library InitializeMarketsAction {
         while (bitNum != 0) {
             // lastInitializedTime is now the reference point for all ifCash bitmap
             uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
+            bool isValidMarket = DateTime.isValidMarketMaturity(
+                nToken.cashGroup.maxMarketIndex,
+                maturity,
+                blockTime
+            );
 
-            // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
-            // want to apply withholding for idiosyncratic fCash.
-            if (
-                previousMarkets.length == 0 &&
-                DateTime.isValidMarketMaturity(
-                    nToken.cashGroup.maxMarketIndex,
-                    maturity,
-                    blockTime
-                )
-            ) {
-                // Turn off the bit and look for the next one
-                assetsBitmap = assetsBitmap.setBit(bitNum, false);
-                bitNum = assetsBitmap.getNextBitNum();
-                continue;
-            }
+            // Only apply withholding for idiosyncratic fCash
+            if (!isValidMarket) {
+                int256 notional =
+                    BitmapAssetsHandler.getifCashNotional(
+                        nToken.tokenAddress,
+                        nToken.cashGroup.currencyId,
+                        maturity
+                    );
 
-            int256 notional =
-                BitmapAssetsHandler.getifCashNotional(
-                    nToken.tokenAddress,
-                    nToken.cashGroup.currencyId,
-                    maturity
-                );
+                // Withholding only applies for negative cash balances
+                if (notional < 0) {
+                    // Oracle rates are calculated from the perspective of the previousMarkets during initialize
+                    // markets here. It is possible that these oracle rates do not equal the oracle rates when we
+                    // exit this method, this can happen if the nToken is above its leverage threshold. In that case
+                    // this oracleRate will be higher than what we have when we exit, causing the nToken to withhold
+                    // less cash than required. The NTOKEN_CASH_WITHHOLDING_BUFFER must be sufficient to cover this
+                    // potential shortfall.
+                    uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
 
-            // Withholding only applies for negative cash balances
-            if (notional < 0) {
-                // Oracle rates are calculated from the perspective of the previousMarkets during initialize
-                // markets here. It is possible that these oracle rates do not equal the oracle rates when we
-                // exit this method, this can happen if the nToken is above its leverage threshold. In that case
-                // this oracleRate will be higher than what we have when we exit, causing the nToken to withhold
-                // less cash than required. The NTOKEN_CASH_WITHHOLDING_BUFFER must be sufficient to cover this
-                // potential shortfall.
-                uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
+                    if (oracleRateBuffer > oracleRate) {
+                        oracleRate = 0;
+                    } else {
+                        oracleRate = oracleRate.sub(oracleRateBuffer);
+                    }
 
-                if (oracleRateBuffer > oracleRate) {
-                    oracleRate = 0;
-                } else {
-                    oracleRate = oracleRate.sub(oracleRateBuffer);
+                    totalCashWithholding = totalCashWithholding.sub(
+                        AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
+                    );
                 }
-
-                totalCashWithholding = totalCashWithholding.sub(
-                    AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
-                );
             }
 
             // Turn off the bit and look for the next one

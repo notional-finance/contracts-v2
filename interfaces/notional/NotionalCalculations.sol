@@ -28,4 +28,12 @@ interface NotionalCalculations {
         external
         view
         returns (uint256);
+
+    function getPresentfCashValue(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 notional,
+        uint256 blockTime,
+        bool riskAdjusted
+    ) external view returns (int256 presentValue);
 }
