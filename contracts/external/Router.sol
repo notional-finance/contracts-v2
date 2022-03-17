@@ -199,7 +199,8 @@ contract Router is StorageLayoutV1 {
             sig == NotionalCalculations.calculateNTokensToMint.selector ||
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
-            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector
+            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
+            sig == NotionalCalculations.getPresentfCashValue.selector
         ) {
             return CALCULATION_VIEWS;
         } else {
