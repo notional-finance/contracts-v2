@@ -12,6 +12,7 @@ import "../../../interfaces/notional/NotionalProxy.sol";
 abstract contract BasePatchFixRouter is UUPSUpgradeable {
     address public immutable OWNER;
     address public immutable FINAL_ROUTER;
+    address public immutable CURRENT_ROUTER;
     NotionalProxy public immutable NOTIONAL;
     /// @dev This is used to identify the contract's deployed address when called
     /// inside a delegate call
@@ -20,6 +21,7 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
     constructor(address finalRouter, NotionalProxy proxy) {
         FINAL_ROUTER = finalRouter;
         NOTIONAL = proxy;
+        CURRENT_ROUTER = proxy.getImplementation();
         OWNER = proxy.owner();
     }
 
@@ -31,7 +33,10 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
         require(msg.sender == OWNER);
         // First claim ownership via the transfer
         NOTIONAL.claimOwnership();
-        NOTIONAL.upgradeToAndCall(SELF, abi.encodeWithSelector(BasePatchFixRouter.patchFix.selector));
+        NOTIONAL.upgradeToAndCall(
+            SELF,
+            abi.encodeWithSelector(BasePatchFixRouter.patchFix.selector)
+        );
         NOTIONAL.upgradeTo(FINAL_ROUTER);
         // Do a direct transfer back to the owner
         NOTIONAL.transferOwnership(OWNER, true);
@@ -42,7 +47,10 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
 
     /// @dev Only authorizes an upgrades to the specific destination contract
     function _authorizeUpgrade(address newImplementation) internal override {
-        require(msg.sender == SELF && newImplementation == FINAL_ROUTER);
+        require(
+            msg.sender == SELF &&
+                (newImplementation == FINAL_ROUTER || newImplementation == CURRENT_ROUTER)
+        );
     }
 
     /// @dev Can only be called by this contract during the `upgradeToAndCall` method
