@@ -106,7 +106,7 @@ class Environment:
             "USDC": accounts.at("0x0a59649758aa4d66e25f08dd01271e891fe52199", force=True),
             "aUSDC": accounts.at("0x3ddfa8ec3052539b6c9549f12cea2c295cff5296", force=True),
             "cDAI": accounts.at("0x33b890d6574172e93e58528cd99123a88c0756e9", force=True),
-            "ETH": accounts.at("0x7D24796f7dDB17d73e8B1d0A3bbD103FBA2cb2FE", force=True),
+            "ETH": accounts.at("0xAE527cE8c5B66D8900B6d1E978396615C168e251", force=True),
             "cETH": accounts.at("0x1a1cd9c606727a7400bb2da6e4d5c70db5b4cade", force=True),
             "NOTE": accounts.at("0x22341fB5D92D3d801144aA5A925F401A91418A05", force=True),
             "COMP": accounts.at("0x7587cAefc8096f5F40ACB83A09Df031a018C66ec", force=True),

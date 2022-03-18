@@ -38,7 +38,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -115,7 +115,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateCrossCurrency(
