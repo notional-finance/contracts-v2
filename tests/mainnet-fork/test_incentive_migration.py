@@ -3,7 +3,7 @@ from brownie import NotionalV21PatchFix
 from brownie.network import Chain
 from scripts.mainnet.EnvironmentConfig import getEnvironment
 from scripts.mainnet.upgrade_notional import full_upgrade
-from tests.helpers import get_balance_action
+from tests.helpers import get_balance_action, get_balance_trade_action
 
 chain = Chain()
 initialImpl = None
@@ -62,7 +62,8 @@ def test_migrate_existing_accounts_no_change_to_incentives(environment, accounts
 
     whaleBalanceAfterNoUpgrade = environment.tokens["NOTE"].balanceOf(whale)
     minnowBalanceAfterNoUpgrade = environment.tokens["NOTE"].balanceOf(minnow)
-    chain.undo(2)
+    chain.revert()
+    chain.snapshot()
 
     upgrade_to_v21(environment.notional, environment.deployer, environment.owner)
 
@@ -78,7 +79,7 @@ def test_migrate_existing_accounts_no_change_to_incentives(environment, accounts
 def test_establish_new_accounts(environment, accounts):
     currencyId = 2
     # Brownie is not properly reverting the contract upgrade so ensure that it is upgraded here
-    # txn = upgrade_to_v21(environment.notional, environment.deployer, environment.owner)
+    upgrade_to_v21(environment.notional, environment.deployer, environment.owner)
     assert environment.notional.getImplementation() != initialImpl
 
     assert (0, 0, 0) == environment.notional.getAccountBalance(
@@ -105,3 +106,34 @@ def test_establish_new_accounts(environment, accounts):
     balanceAfter = environment.tokens["NOTE"].balanceOf(environment.whales["DAI"])
     expected = (balanceOf * 9_000_000e8) / totalSupply / 360
     assert (expected - balanceAfter) / 1e8 < 10
+
+
+def test_lending_with_unclaimed_incentives(environment, accounts):
+    currencyId = 2
+
+    # Pre-migration, mint some ntokesn
+    # assert environment.notional.getImplementation() == initialImpl
+    environment.tokens["DAI"].approve(
+        environment.notional.address, 2 ** 255 - 1, {"from": environment.whales["DAI"]}
+    )
+    environment.notional.batchBalanceAction(
+        environment.whales["DAI"],
+        [
+            get_balance_action(
+                currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=5_000_000e18
+            )
+        ],
+        {"from": environment.whales["DAI"]},
+    )
+
+    upgrade_to_v21(environment.notional, environment.deployer, environment.owner)
+
+    action = get_balance_trade_action(
+        currencyId,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 5000e8, "minSlippage": 0}],
+        depositActionAmount=5000e18,
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        environment.whales["DAI"], [action], {"from": environment.whales["DAI"]}
+    )

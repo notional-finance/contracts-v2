@@ -8,10 +8,10 @@ def environment(accounts):
     return initialize_environment(accounts)
 
 
-def test_patch_fix_router(environment, MockPatchFix, accounts):
-    originalImpl = environment.proxy.getImplementation()
+def test_patch_fix_router(environment, MockPatchFix, MockRouter, accounts):
+    newRouter = MockRouter.deploy({"from": accounts[0]})
     patchFix = MockPatchFix.deploy(
-        originalImpl, environment.notional.address, {"from": accounts[0]}
+        newRouter.address, environment.notional.address, {"from": accounts[0]}
     )
 
     with brownie.reverts():
@@ -20,5 +20,5 @@ def test_patch_fix_router(environment, MockPatchFix, accounts):
     environment.notional.transferOwnership(patchFix.address, False, {"from": accounts[0]})
     patchFix.atomicPatchAndUpgrade({"from": accounts[0]})
 
-    assert environment.proxy.getImplementation() == originalImpl
+    assert environment.proxy.getImplementation() == newRouter.address
     assert environment.notional.owner() == accounts[0]

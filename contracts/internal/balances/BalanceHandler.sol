@@ -438,16 +438,22 @@ library BalanceHandler {
         require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
         // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
         require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
-        // Post incentive migration, lastClaimTime should always be set to zero
-        require(lastClaimTime == 0); // dev: last claim time set
-        // The maximum NOTE supply is 100_000_000e8 (1e16) which is less than 2^56 (7.2e16) so we should never
-        // encounter an overflow for accountIncentiveDebt
-        require(accountIncentiveDebt <= type(uint56).max); // dev: last claim integral supply overflow
 
-        balanceStorage.nTokenBalance = uint80(nTokenBalance);
+        if (lastClaimTime == 0) {
+            // In this case the account has migrated and we set the accountIncentiveDebt
+            // The maximum NOTE supply is 100_000_000e8 (1e16) which is less than 2^56 (7.2e16) so we should never
+            // encounter an overflow for accountIncentiveDebt
+            require(accountIncentiveDebt <= type(uint56).max); // dev: account incentive debt overflow
+            balanceStorage.accountIncentiveDebt = uint56(accountIncentiveDebt);
+        } else {
+            // In this case the last claim time has not changed and we do not update the last integral supply
+            // (stored in the accountIncentiveDebt position)
+            require(lastClaimTime == balanceStorage.lastClaimTime);
+        }
+
         balanceStorage.lastClaimTime = uint32(lastClaimTime);
+        balanceStorage.nTokenBalance = uint80(nTokenBalance);
         balanceStorage.cashBalance = int88(cashBalance);
-        balanceStorage.accountIncentiveDebt = uint56(accountIncentiveDebt);
     }
 
     /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
