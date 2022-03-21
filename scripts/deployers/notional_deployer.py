@@ -117,8 +117,7 @@ class NotionalDeployer:
         self._deployAction(deployer, LiquidateCurrencyAction)
         self._deployAction(deployer, LiquidatefCashAction)
         self._deployAction(deployer, TreasuryAction, [
-            self.config["compound"]["comptroller"],
-            self.config["tokens"]["WETH"]["address"]
+            self.config["compound"]["comptroller"]
         ])
 
     def _deployRouter(self, deployer, contract, args=[]):

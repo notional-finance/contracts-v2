@@ -44,7 +44,7 @@ def deployNotional(deployer):
     notional.deployPauseRouter()
     notional.deployRouter()
     notional.deployProxy()
-    initializer = NotionalInitializer(network.show_active(), deployer)
+    initializer = NotionalInitializer(network.show_active(), deployer, False)
     initializer.enableCurrency(1, CurrencyConfig)
     initializer.enableCurrency(2, CurrencyConfig)
     initializer.enableCurrency(3, CurrencyConfig)
@@ -70,8 +70,10 @@ def deployLiquidator(deployer):
 
 def main():
     deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    deployTokens(deployer)
-    deployCompound(deployer)
-    deployGovernance(deployer)
+    if network.show_active() != "kovan":
+        # Already deployed on kovan
+        deployTokens(deployer)
+        deployCompound(deployer)
+        deployGovernance(deployer)
     deployNotional(deployer)
     deployLiquidator(deployer)
