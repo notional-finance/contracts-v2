@@ -1,11 +1,89 @@
 {
+    "actions": {
+        "AccountAction": "0xBbb9750beB6a4A4a1bB219c9dc750a5A11c853B8",
+        "BatchAction": "0xcEa3Ab9B02D9541760eC8b56fE76bEceE1FaeD91",
+        "CalculationViews": "0xE6270EEe5D3473d41BE4D6C13748b9a2784c607C",
+        "ERC1155Action": "0x75B00937dD004272C2A8c4991b5Ccd4E2d48071E",
+        "GovernanceAction": "0x04BdEB742e2524cabCE4251F790D131ae1CaF341",
+        "InitializeMarketsAction": "0x1d71A77cd0B3b08a2B3D9082eD68C1C95F4Ba424",
+        "LiquidateCurrencyAction": "0xb1D5Bd3aeD680499730878b6B7A0885F2Bea6b7B",
+        "LiquidatefCashAction": "0x3d857Ed1145C33B6eD2eA7D537F0F53334aF802d",
+        "TreasuryAction": "0x4938933F4C21f097D384e9D33dA87E8B50648214",
+        "Views": "0x54349162d12c5a244221dA0EeD88B023024a5742",
+        "nTokenAction": "0xD83c01F0207f5adCDDD84CCaaC8fea4Bf75832c3"
+    },
     "airdrop": "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4",
     "chainId": 42,
+    "compound": {
+        "comptroller": "0x2D5D30a561278a5F0ad8779A386dAA4C478865D0",
+        "ctokens": {
+            "DAI": {
+                "address": "0x4dC87A3D30C4A1B33E4349f02F4c5B1B1eF9A75D",
+                "oracle": "0x4085add59EAC6072A2a15770059Cc4096fcEC73f"
+            },
+            "ETH": {
+                "address": "0x40575f9eb401f63f66f4c434248ad83d3441bf61",
+                "oracle": "0x8910333436c7FD1fEa39e8Aef3264471755772F8"
+            },
+            "USDC": {
+                "address": "0xf17C5c7240CBc83D3186A9d6935F003e451C5cDd",
+                "oracle": "0x32D82Ee53500F0520701B27C531327C6600304D2"
+            },
+            "WBTC": {
+                "address": "0xA8E51e20985E926dE882EE700eC7F7d51D89D130",
+                "oracle": "0xE329E81800219Aefeef79D74DB35f8877fE1abdE"
+            }
+        }
+    },
     "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
     "governor": "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3",
     "guardian": "0x6F7F94E4fdC3eDa4693d8FC5da94014B11572B3F",
+    "libs": {
+        "FreeCollateralExternal": "0x282aC84Ad5371e3fD294a02e429670C7941259Da",
+        "MigrateIncentives": "0xE1635a5204682e5aa23268e3A59E6e5fce8BD27a",
+        "SettleAssetsExternal": "0x72Bd0CEE12F633D02D33a390D7a7F7BefD4a774D",
+        "TradingAction": "0x6203BA6eE5DaaEF7E210964718Eb1Ffcf94Bc416",
+        "nTokenMintAction": "0x374912A37E631635459F1fBFc82f505081ba8C5E",
+        "nTokenRedeemAction": "0x780C79f574E6d30aF963f5Cd41f944c7AC114F70"
+    },
+    "liquidation": {
+        "exchange": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+        "flash": "0xFED0c9E559931947Ab907163438847c58DC5e703",
+        "lender": "0xe0fba4fc209b4948668006b2be61711b7f465bae",
+        "manual": {
+            "beacon": "0x7d9F225d109BF75009414dbdaC3fd476AF582225",
+            "impl": "0xB25aF0C0eFc9bA4E8b73d16cD6478dC2A922C9a5",
+            "proxies": {
+                "1": "0xDb0BB6aF3F2002AE4Ee024E92FDf622B1fd4fe86",
+                "2": "0xED78463F1dC137Ff25123EE2C47C4e35449988B4",
+                "3": "0x0F894E2b96BaCe3cc7c69b4D92633B2a7b8f17F7",
+                "4": "0xDf193974507Bffa458900f074352e0eB11B77b96"
+            }
+        }
+    },
     "networkName": "kovan",
     "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "notional": "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e",
-    "startBlock": 27189640
+    "routers": {
+        "PauseRouter": "0xfaAdfD8f023e5Fcf75AE04415C4D747FC0c59528",
+        "Router": "0x5C3b5efC3D79461292c94F9C94E8F1755EfaA04c"
+    },
+    "startBlock": 27189640,
+    "tokens": {
+        "DAI": {
+            "address": "0x181D62Ff8C0aEeD5Bc2Bf77A88C07235c4cc6905",
+            "oracle": "0x990DE64Bb3E1B6D99b1B50567fC9Ccc0b9891A4D"
+        },
+        "USDC": {
+            "address": "0xF503D5cd87d10Ce8172F9e77f76ADE8109037b4c",
+            "oracle": "0x0988059AF97c65D6a6EB8AcA422784728d907406"
+        },
+        "WBTC": {
+            "address": "0x45A8451ceAAE5976b4ae5f14a7Ad789fae8e9971",
+            "oracle": "0x0CB9a95789929dC75D1B77A916762Bc719305543"
+        },
+        "WETH": {
+            "address": "0xd0a1e359811322d97991e03f863a0c30c2cf029c"
+        }
+    }
 }
