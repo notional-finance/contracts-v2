@@ -391,8 +391,10 @@ library InitializeMarketsAction {
                 // No underflow here, checked above
                     .div(longMaturity - shortMaturity);
 
-            // This interpolation may go below zero so we bottom out interpolated rates at zero
-            return shortRate > diff ? shortRate - diff : 0;
+            // This interpolation may go below zero so we bottom out interpolated rates at (practically)
+            // zero. Storing a zero for oracleRates means that the markets are not initialized so using
+            // a minimum value here to handle that case
+            return shortRate > diff ? shortRate - diff : 1;
         }
     }
 
