@@ -6,8 +6,11 @@ import "../external/patchfix/BasePatchFixRouter.sol";
 import "../external/patchfix/SettlementRateFix.sol";
 
 contract MockPatchFix is BasePatchFixRouter, SettlementRateFix {
-
-    constructor(address finalRouter, NotionalProxy proxy) BasePatchFixRouter(finalRouter, proxy) {}
+    constructor(
+        address currentRouter,
+        address finalRouter,
+        NotionalProxy proxy
+    ) BasePatchFixRouter(currentRouter, finalRouter, proxy) {}
 
     function _patchFix() internal override {
         _patchFixSettlementRates();

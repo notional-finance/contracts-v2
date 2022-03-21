@@ -7,8 +7,11 @@ import "./SettlementRateFix.sol";
 import "./MigrateIncentivesFix.sol";
 
 contract NotionalV21PatchFix is BasePatchFixRouter, SettlementRateFix, MigrateIncentivesFix {
-
-    constructor(address finalRouter, NotionalProxy proxy) BasePatchFixRouter(finalRouter, proxy) {}
+    constructor(
+        address currentRouter,
+        address finalRouter,
+        NotionalProxy proxy
+    ) BasePatchFixRouter(currentRouter, finalRouter, proxy) {}
 
     function _patchFix() internal override {
         _patchFixIncentives();

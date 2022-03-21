@@ -18,10 +18,10 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
     /// inside a delegate call
     address public immutable SELF = address(this);
 
-    constructor(address finalRouter, NotionalProxy proxy) {
+    constructor(address currentRouter, address finalRouter, NotionalProxy proxy) {
         FINAL_ROUTER = finalRouter;
         NOTIONAL = proxy;
-        CURRENT_ROUTER = proxy.getImplementation();
+        CURRENT_ROUTER = currentRouter;
         OWNER = proxy.owner();
     }
 
