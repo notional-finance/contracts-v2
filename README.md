@@ -2,6 +2,14 @@
 
 Notional is a fixed rate lending and borrowing platform, built on Ethereum. **Fixed rates** differ from variable rates or stable rates because the interest rate **will not** change by for the term of the loan. Fixed rate loans are 25x variable rate loans in traditional financial markets because of the superior guarantees they offer. [Notional V1](https://github.com/notional-finance/contracts) first introduced our concepts of how to achieve fixed rates on Ethereum and Notional V2 extends upon those concepts to add support for fixed term loans out to 20 years. Notional V2 also introduces many improvements upon Notional V1, including superior capital efficiency, better upgradeability, and on chain governance.
 
+## Deployments
+
+Most Notional transactions (lending, borrowing, providing liquidity) go through the main Notional proxy. Currently, Notional is only deployed on Ethereum Mainnet, Kovan testnet and Goerli testnet. Contract addresses can be found [here](https://docs.notional.finance/developer-documentation/#deployed-contract-addresses)
+
+Notional is undergoing a process of gradual decentralization. Due to the complexity of the system, the creators of the protocol feel that it is necessary to be able to respond quickly in case of issues during the initial launch of the system. Because many economic conditions in Notional only arise at specific periods (i.e. during initialize markets every three months), the period of administrative control may last longer than other DeFi protocols.
+
+Currently Notional is owned by a three of five Gnosis multisig contract where two signers are the founders of the protocol (Jeff and Teddy) and the three other signers are community members. A longer discussion of administrative controls can be found [here](https://docs.notional.finance/developer-documentation/on-chain/notional-governance-reference)
+
 ## Codebase
 
 A full protocol description can be found in [the whitepaper](WHITEPAPER.md). Detailed code walkthroughs can be found at:
