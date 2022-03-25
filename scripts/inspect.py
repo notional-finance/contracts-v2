@@ -9,6 +9,8 @@ from tests.constants import DEPOSIT_ACTION_TYPE, TRADE_ACTION_TYPE
 
 def main():
     networkName = network.show_active()
+    if networkName == "hardhat-fork":
+        networkName = "mainnet"
     output_file = "v2.{}.json".format(networkName)
     addresses = None
     with open(output_file, "r") as f:
