@@ -5,7 +5,7 @@ from scripts.common import getDependencies
 
 class ContractDeployer:
     def __init__(self, deployer, context=None, libs=None) -> None:
-        self.project = project.ContractsV2PrivateProject
+        self.project = project.ContractsV2Project
         self.deployer = deployer
         self.context = context
         if self.context == None:
@@ -14,10 +14,15 @@ class ContractDeployer:
         if self.libs == None:
             self.libs = {}
 
-    def deploy(self, contract, args=[], name="", verify=False, isLib=False):
+    def deploy(self, contract, args=None, name="", verify=False, isLib=False):
         c = None
         if name == "":
             name = contract._name
+
+        if args == None:
+            args = []
+        else:
+            print(args)
 
         context = self.context
         if isLib:
@@ -39,7 +44,10 @@ class ContractDeployer:
             # Deploy contract
             print("Deploying {}".format(name))
             c = contract.deploy(*args, {"from": self.deployer}, publish_source=False)
-            self.context[name] = c.address
+            if isLib:
+                self.libs[name] = c.address
+            else:
+                self.context[name] = c.address
 
             # Verify libs
             if not isLib and len(libs) > 0:

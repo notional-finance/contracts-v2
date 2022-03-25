@@ -29,19 +29,20 @@ from scripts.common import loadContractFromABI
 class NotionalDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
-            self.config = {}
+        self.network = network
         self.persist = persist
+        if self.network == "hardhat-fork":
+            self.network = "mainnet"
+            self.persist = False
         self.libs = {}
         self.actions = {}
         self.routers = {}
         self.notional = None
-        self.network = network
         self.deployer = deployer
         self._load()
 
     def _load(self):
-        if self.persist:
+        if self.config == None:
             with open("v2.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         if "libs" in self.config:
@@ -73,9 +74,6 @@ class NotionalDeployer:
         # This ensures that map.json only contains 1 copy of the lib
         deployed = deployer.deploy(contract, [], "", True, True)
         self.libs[contract._name] = deployed.address
-        # Re-deploy dependent contracts
-        self.actions = {}
-        self.routers = {}
         self._save()
 
     def deployLibs(self):
@@ -87,16 +85,18 @@ class NotionalDeployer:
         self._deployLib(deployer, nTokenRedeemAction)
         self._deployLib(deployer, MigrateIncentives)
 
-    def _deployAction(self, deployer, contract, args=[]):
+    def _deployAction(self, deployer, contract, args=None):
         if contract._name in self.actions:
             print("{} deployed at {}".format(contract._name, self.actions[contract._name]))
             return
 
         deployed = deployer.deploy(contract, args, "", True)
         self.actions[contract._name] = deployed.address
-        # Re-deploy dependent contracts
-        self.routers = {}
         self._save()
+
+    def deployAction(self, action, args=None):
+        deployer = ContractDeployer(self.deployer, self.actions, self.libs)
+        self._deployAction(deployer, action, args)        
 
     def deployActions(self):
         deployer = ContractDeployer(self.deployer, self.actions, self.libs)

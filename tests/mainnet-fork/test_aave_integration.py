@@ -111,7 +111,7 @@ def test_deposit_and_withdraw_underlying_adai(env):
     env.notional.depositUnderlyingToken(env.whales["DAI"], 5, 100e18, {"from": env.whales["DAI"]})
 
     # Notional has an aDAI balance of 100e18
-    assert env.tokens["aDAI"].balanceOf(env.notional.address) == 100e18
+    assert pytest.approx(env.tokens["aDAI"].balanceOf(env.notional.address), abs=10) == 100e18
     # Cash balance is equal to scaled balance of aToken
     (cashBalance, _, _) = env.notional.getAccountBalance(5, env.whales["DAI"].address)
     assert Wei(env.tokens["aDAI"].scaledBalanceOf(env.notional.address) / 1e10) == cashBalance

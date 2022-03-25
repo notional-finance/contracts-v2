@@ -28,7 +28,7 @@ def upgrade_to_v21(notional, deployer, owner):
     # Upgrade so transfer ownership works
     notional.upgradeTo(router.address, {"from": owner})
 
-    patchFix = NotionalV21PatchFix.deploy(router.address, notional.address, {"from": deployer})
+    patchFix = NotionalV21PatchFix.deploy(initialImpl, router.address, notional.address, {"from": deployer})
     notional.transferOwnership(patchFix.address, False, {"from": owner})
     txn = patchFix.atomicPatchAndUpgrade({"from": owner})
     return txn
