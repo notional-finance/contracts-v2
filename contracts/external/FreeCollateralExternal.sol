@@ -2,6 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "../external/SettleAssetsExternal.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/valuation/FreeCollateral.sol";
 

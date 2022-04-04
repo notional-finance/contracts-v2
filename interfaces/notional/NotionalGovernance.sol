@@ -3,8 +3,10 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/notional/IRewarder.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 interface NotionalGovernance {
     event ListCurrency(uint16 newCurrencyId);
@@ -21,8 +23,12 @@ interface NotionalGovernance {
     event UpdateMaxCollateralBalance(uint16 currencyId, uint72 maxCollateralBalance);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
+    event UpdateSecondaryIncentiveRewarder(uint16 indexed currencyId, address rewarder);
+    event UpdateLendingPool(address pool);
 
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner, bool direct) external;
+
+    function claimOwnership() external;
 
     function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
@@ -88,4 +94,8 @@ interface NotionalGovernance {
     function updateGlobalTransferOperator(address operator, bool approved) external;
 
     function updateAuthorizedCallbackContract(address operator, bool approved) external;
+
+    function setLendingPool(ILendingPool pool) external;
+
+    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder) external;
 }

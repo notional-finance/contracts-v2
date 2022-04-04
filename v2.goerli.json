@@ -1,0 +1,99 @@
+{
+    "actions": {
+        "AccountAction": "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10",
+        "BatchAction": "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977",
+        "CalculationViews": "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
+        "ERC1155Action": "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421",
+        "GovernanceAction": "0x48b25E88C87865609eDA3607544154DC5Be06541",
+        "InitializeMarketsAction": "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD",
+        "LiquidateCurrencyAction": "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab",
+        "LiquidatefCashAction": "0x79e514531450f066f6adB36afa2Ff21790D4f30E",
+        "TreasuryAction": "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321",
+        "Views": "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",
+        "nTokenAction": "0x98978d9e7cb298ff4b5EC5135e7a3D429E275735"
+    },
+    "compound": {
+        "comptroller": "0x2325DE1BfA8d90791D728fbeab5e96A9E8fCD8Ec",
+        "ctokens": {
+            "DAI": {
+                "address": "0x39A60b09911Ce96a65Ca8c470755fb8288294e80",
+                "model": "0xEbe4580F993bBfc6d2ed3D95d34aD1fECDCC7F5C",
+                "oracle": "0x08303A5A4a85c021bcB81baC09F06b5eBc0a1523"
+            },
+            "ETH": {
+                "address": "0xc4d0e86dc348965d24d431F0430110948B564a85",
+                "model": "0x5Aa7F261316f768eA34064De8d05C4A82b8F843c",
+                "oracle": "0xAFDf22cf5F2AaDB3A6715dcC2bCc5dFCD65F935b"
+            },
+            "USDC": {
+                "address": "0xB8e5c990755A30b9BA5c07CAdf79A79245Dd86b5",
+                "model": "0x194C6DEC84de767BfF8e1dD55F20b30f8d0b96ac",
+                "oracle": "0xfA9FC96Ab6C1bF6dbE5B3C630f2D3B834eC77231"
+            },
+            "WBTC": {
+                "address": "0x2AE15C5dffF7c115D47c63e4e55BE49d0680D335",
+                "model": "0x175C513E365683f267Ef283fD6cf1B8D2e02051d",
+                "oracle": "0x3ACE5d783c5834DE8FDaA92A0484b21C50941BE6"
+            }
+        },
+        "oracle": "0x0f5e98D90247C1eB029859A4ef05c2305C42F101"
+    },
+    "compoundInit": {
+        "DAI": true,
+        "ETH": true,
+        "USDC": true,
+        "WBTC": true
+    },
+    "governor": "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524",
+    "libs": {
+        "FreeCollateralExternal": "0x1add152E195527EdD03bb6a548ab3047FA219e41",
+        "MigrateIncentives": "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C",
+        "SettleAssetsExternal": "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6",
+        "TradingAction": "0x917F709CAb62163Ea9298cDfa3db485a7f0F091a",
+        "nTokenMintAction": "0x8e97F4e7685835d126EA9E9BD3f97562d87CF54E",
+        "nTokenRedeemAction": "0x9ddb5e61cD3a994cb13E34A8d9173E27CDa45153"
+    },
+    "liquidation": {
+        "exchange": "0x65075BaC31CBee3a25564D7be0a27aF78223Ddd6",
+        "flash": "0xcA3d3719E35F5B37bB022fdBcb911Ba62c628c79",
+        "lender": "0x8Db9A565C3c9f2d015666DC6d3e7C6673247Eb6a",
+        "manual": {
+            "beacon": "0x0017BFff6e8c4094d408d86aAb357d011ecC194D",
+            "impl": "0x70c23e5d4E5a5246823bD91631423E3D8530Cd34",
+            "proxies": {
+                "1": "0x8a37e57BbA18Ef3eDDDf13B1d4fCF51f1717DD09",
+                "2": "0xBC9f36fc0E44981ceB03A21e57b1FC345ACf9d75",
+                "3": "0x42404B64944999D71B6Ee44AC840E996c004Ab2E",
+                "4": "0xEe6F6dA49f7a7A6eEBCde1bE76A1D1b9529619C0"
+            }
+        }
+    },
+    "note": "0xC5e91B01F9B23952821410Be7Aa3c45B6429C670",
+    "noteImpl": "0x76940F542aeD6a7378CeB74c363562B3196653a8",
+    "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
+    "routers": {
+        "PauseRouter": "0x613f379A4D65A62B7843379a5E7071e52528631f",
+        "Router": "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9"
+    },
+    "tokens": {
+        "COMP": {
+            "address": "0x53d2726d0AeCe67cB796c7001D7084d77EC54A2C",
+            "oracle": "0x51D73fdd11555a5aCF0af8218264f0d96ec5fc3d"
+        },
+        "DAI": {
+            "address": "0x84e90bdDFf9a0e124F1AB7F4D1D33a7C748c1A16",
+            "oracle": "0x637dabAdc689CDF907ca51be06b82c4a8dC859CA"
+        },
+        "USDC": {
+            "address": "0x31dd61Ac1B7A0bc88f7a58389c0660833a66C35c",
+            "oracle": "0x1e33f037d277c67EEea224d7C80790a05323B06c"
+        },
+        "WBTC": {
+            "address": "0xFA8589db27c6369A6a4FDd857f783eddf857f2BC",
+            "oracle": "0xd9959AD7b7d92bdaea0E8698Ff31084e36fFE548"
+        },
+        "WETH": {
+            "address": "0x04B9c40dF01bdc99dd2c31Ae4B232f20F4BBaC5B"
+        }
+    }
+}

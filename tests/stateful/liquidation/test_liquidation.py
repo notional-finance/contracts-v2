@@ -434,7 +434,6 @@ def test_liquidate_negative_local_fcash(fCashLiquidation, accounts):
 
 # given different max liquidation amounts
 @pytest.mark.liquidation
-@pytest.mark.only
 def test_liquidate_cross_currency_fcash(fCashLiquidation, accounts):
     # Decrease ETH rate
     liquidated = accounts[7]
@@ -568,3 +567,71 @@ def test_calculations_dont_change_markets(currencyLiquidation, accounts):
     currencyLiquidation.notional.calculateCollateralCurrencyLiquidation(accounts[4], 2, 1, 0, 0)
     marketsAfter1 = currencyLiquidation.notional.getActiveMarkets(1)
     assert marketsBefore1 == marketsAfter1
+
+
+@pytest.mark.liquidation
+def test_settlement_on_calculation_currency(currencyLiquidation, accounts):
+    liquidated = accounts[10]
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 150e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+        redeemToUnderlying=True,
+    )
+    collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=2.75e18)
+    currencyLiquidation.notional.batchBalanceAndTradeAction(
+        liquidated, [collateral, borrowAction], {"from": liquidated, "value": 2.75e18}
+    )
+
+    # Decrease ETH rate
+    currencyLiquidation.ethOracle["DAI"].setAnswer(0.014e18)
+    fcBefore = currencyLiquidation.notional.getFreeCollateral(liquidated)
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    currencyLiquidation.notional.initializeMarkets(1, False)
+    currencyLiquidation.notional.initializeMarkets(2, False)
+
+    currencyLiquidation.notional.calculateLocalCurrencyLiquidation(liquidated, 2, 0)
+    fcAfter = currencyLiquidation.notional.getFreeCollateral(liquidated)
+
+    assert fcBefore == fcAfter
+    check_system_invariants(currencyLiquidation, accounts)
+
+
+@pytest.mark.liquidation
+def test_settlement_on_calculation_fcash(fCashLiquidation, accounts):
+    liquidated = accounts[11]
+    lendAction = get_balance_trade_action(
+        1,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 2, "notional": 1e8, "minSlippage": 0}],
+        depositActionAmount=2e18,
+        withdrawEntireCashBalance=True,
+    )
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 50e8, "maxSlippage": 0}],
+        withdrawEntireCashBalance=True,
+    )
+
+    fCashLiquidation.notional.batchBalanceAndTradeAction(
+        liquidated, [lendAction], {"from": liquidated, "value": 2e18}
+    )
+    fCashLiquidation.notional.batchBalanceAndTradeAction(
+        liquidated, [borrowAction], {"from": liquidated}
+    )
+    fCashLiquidation.ethOracle["DAI"].setAnswer(0.014e18)
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    fCashLiquidation.notional.initializeMarkets(1, False)
+    fCashLiquidation.notional.initializeMarkets(2, False)
+
+    liquidatedPortfolioBefore = fCashLiquidation.notional.getAccountPortfolio(liquidated)
+    maturities = [liquidatedPortfolioBefore[0][1]]  # Just the ETH lending asset
+    fCashLiquidation.notional.calculatefCashLocalLiquidation(liquidated, 2, maturities, [0])
+
+    check_system_invariants(fCashLiquidation, accounts)

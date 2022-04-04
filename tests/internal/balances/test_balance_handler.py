@@ -15,7 +15,8 @@ DAI_CURRENCY_ID = 7
 @pytest.mark.balances
 class TestBalanceHandler:
     @pytest.fixture(scope="module", autouse=True)
-    def balanceHandler(self, MockBalanceHandler, MockERC20, accounts):
+    def balanceHandler(self, MockBalanceHandler, MigrateIncentives, MockERC20, accounts):
+        MigrateIncentives.deploy({"from": accounts[0]})
         handler = MockBalanceHandler.deploy({"from": accounts[0]})
         # Ensure that we have at least 2 bytes of currencies
         handler.setMaxCurrencyId(6)
@@ -101,7 +102,7 @@ class TestBalanceHandler:
             with brownie.reverts("Neg nToken"):
                 balanceHandler.finalize(bsCopy, accounts[0], context, False)
         else:
-            with brownie.reverts("dev: nToken supply overflow"):
+            with brownie.reverts():
                 balanceHandler.finalize(bsCopy, accounts[0], context, False)
 
     @given(
@@ -234,7 +235,6 @@ class TestBalanceHandler:
             assert balanceAfter - balanceBefore == transferAmountExternal
             assert transferAmountExternal == balanceHandler.convertToExternal(currencyId, bsCopy[4])
 
-    @pytest.mark.only
     @given(
         assetBalance=strategy("int88", min_value=1e8, max_value=10e18),
         currencyId=strategy("uint8", min_value=1, max_value=3),

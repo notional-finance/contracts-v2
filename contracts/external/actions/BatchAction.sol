@@ -13,7 +13,7 @@ import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
-import "interfaces/notional/NotionalCallback.sol";
+import "../../../interfaces/notional/NotionalCallback.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
@@ -293,7 +293,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 depositActionAmount
             );
 
-            int256 assetCash = nTokenRedeemAction(address(this)).nTokenRedeemViaBatch(
+            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );
@@ -372,5 +372,17 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         } else {
             return accountContext;
         }
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address, address, address, address, address, address) {
+        return (
+            address(FreeCollateralExternal), 
+            address(MigrateIncentives), 
+            address(SettleAssetsExternal), 
+            address(TradingAction),
+            address(nTokenMintAction), 
+            address(nTokenRedeemAction)
+        );
     }
 }

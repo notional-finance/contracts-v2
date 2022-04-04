@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.7.0;
 
-import "interfaces/notional/NotionalProxy.sol";
+import "../../interfaces/notional/NotionalProxy.sol";
 
 // Contract to test safe transfer behavior.
 contract MockTransferOperator {

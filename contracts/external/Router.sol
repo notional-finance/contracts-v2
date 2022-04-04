@@ -4,12 +4,12 @@ pragma abicoder v2;
 
 import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
-import "./actions/nTokenRedeemAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
-import "interfaces/notional/NotionalProxy.sol";
-import "interfaces/notional/nERC1155Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/notional/NotionalProxy.sol";
+import "../../interfaces/notional/nERC1155Interface.sol";
+import "../../interfaces/notional/NotionalGovernance.sol";
+import "../../interfaces/notional/NotionalCalculations.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -26,13 +26,14 @@ contract Router is StorageLayoutV1 {
     address public immutable VIEWS;
     address public immutable INITIALIZE_MARKET;
     address public immutable NTOKEN_ACTIONS;
-    address public immutable NTOKEN_REDEEM;
     address public immutable BATCH_ACTION;
     address public immutable ACCOUNT_ACTION;
     address public immutable ERC1155;
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
     address public immutable cETH;
+    address public immutable TREASURY;
+    address public immutable CALCULATION_VIEWS;
     address private immutable DEPLOYER;
 
     constructor(
@@ -40,19 +41,19 @@ contract Router is StorageLayoutV1 {
         address views_,
         address initializeMarket_,
         address nTokenActions_,
-        address nTokenRedeem_,
         address batchAction_,
         address accountAction_,
         address erc1155_,
         address liquidateCurrency_,
         address liquidatefCash_,
-        address cETH_
+        address cETH_,
+        address treasury_,
+        address calculationViews_
     ) {
         GOVERNANCE = governance_;
         VIEWS = views_;
         INITIALIZE_MARKET = initializeMarket_;
         NTOKEN_ACTIONS = nTokenActions_;
-        NTOKEN_REDEEM = nTokenRedeem_;
         BATCH_ACTION = batchAction_;
         ACCOUNT_ACTION = accountAction_;
         ERC1155 = erc1155_;
@@ -60,6 +61,8 @@ contract Router is StorageLayoutV1 {
         LIQUIDATE_FCASH = liquidatefCash_;
         cETH = cETH_;
         DEPLOYER = msg.sender;
+        TREASURY = treasury_;
+        CALCULATION_VIEWS = calculationViews_;
 
         // This will lock everyone from calling initialize on the implementation contract
         hasInitialized = true;
@@ -73,6 +76,8 @@ contract Router is StorageLayoutV1 {
         // initializing ETH as a currency
         owner = msg.sender;
         // List ETH as currency id == 1, NOTE: return value is ignored here
+
+        // FIXME: on non-mainnet deployments we should be using WETH instead here...
         (bool status, ) =
             address(GOVERNANCE).delegatecall(
                 abi.encodeWithSelector(
@@ -125,14 +130,10 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.depositAssetToken.selector ||
             sig == NotionalProxy.withdraw.selector ||
             sig == NotionalProxy.settleAccount.selector ||
+            sig == NotionalProxy.nTokenRedeem.selector ||
             sig == NotionalProxy.enableBitmapCurrency.selector
         ) {
             return ACCOUNT_ACTION;
-        } else if (
-            sig == nTokenRedeemAction.nTokenRedeem.selector ||
-            sig == nTokenRedeemAction.nTokenRedeemViaBatch.selector
-        ) {
-            return NTOKEN_REDEEM;
         } else if (
             sig == nERC1155Interface.supportsInterface.selector ||
             sig == nERC1155Interface.balanceOf.selector ||
@@ -173,6 +174,7 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateAssetRate.selector ||
             sig == NotionalGovernance.updateETHRate.selector ||
             sig == NotionalGovernance.transferOwnership.selector ||
+            sig == NotionalGovernance.claimOwnership.selector ||
             sig == NotionalGovernance.updateIncentiveEmissionRate.selector ||
             sig == NotionalGovernance.updateMaxCollateralBalance.selector ||
             sig == NotionalGovernance.updateDepositParameters.selector ||
@@ -180,10 +182,27 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateTokenCollateralParameters.selector ||
             sig == NotionalGovernance.updateGlobalTransferOperator.selector ||
             sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
+            sig == NotionalGovernance.setLendingPool.selector ||
             sig == NotionalProxy.upgradeTo.selector ||
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
+        } else if (
+            sig == NotionalTreasury.claimCOMPAndTransfer.selector ||
+            sig == NotionalTreasury.transferReserveToTreasury.selector ||
+            sig == NotionalTreasury.setTreasuryManager.selector ||
+            sig == NotionalTreasury.setReserveBuffer.selector ||
+            sig == NotionalTreasury.setReserveCashBalance.selector
+        ) {
+            return TREASURY;
+        } else if (
+            sig == NotionalCalculations.calculateNTokensToMint.selector ||
+            sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
+            sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
+            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
+            sig == NotionalCalculations.getPresentfCashValue.selector
+        ) {
+            return CALCULATION_VIEWS;
         } else {
             // If not found then delegate to views. This will revert if there is no method on
             // the view contract

@@ -10,7 +10,7 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/settlement/SettlePortfolioAssets.sol";
 import "../../internal/settlement/SettleBitmapAssets.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
 import "../../math/SafeInt256.sol";
 import "../../math/Bitmap.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -181,60 +181,51 @@ library InitializeMarketsAction {
         // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
         uint256 oracleRateBuffer =
             uint256(uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS;
+        // If previousMarkets are supplied, then we are in initialize markets and we want to get the oracleRate
+        // from the perspective of the previous tRef (represented by blockTime - QUARTER). The reason is that the
+        // oracleRates for the current markets have not been set yet (we are in the process of calculating them
+        // in this contract). In the other case, we are in sweepCashIntoMarkets and we can use the current block time.
+        uint256 oracleRateBlockTime = previousMarkets.length == 0 ? blockTime : blockTime.sub(Constants.QUARTER);
 
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
             // lastInitializedTime is now the reference point for all ifCash bitmap
             uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
+            bool isValidMarket = DateTime.isValidMarketMaturity(
+                nToken.cashGroup.maxMarketIndex,
+                maturity,
+                blockTime
+            );
 
-            // When looping for sweepCashIntoMarkets, previousMarkets is not defined and we only
-            // want to apply withholding for idiosyncratic fCash.
-            if (
-                previousMarkets.length == 0 &&
-                DateTime.isValidMarketMaturity(
-                    nToken.cashGroup.maxMarketIndex,
-                    maturity,
-                    blockTime
-                )
-            ) {
-                // Turn off the bit and look for the next one
-                assetsBitmap = assetsBitmap.setBit(bitNum, false);
-                bitNum = assetsBitmap.getNextBitNum();
-                continue;
-            }
-
-            int256 notional =
-                BitmapAssetsHandler.getifCashNotional(
-                    nToken.tokenAddress,
-                    nToken.cashGroup.currencyId,
-                    maturity
-                );
-
-            // Withholding only applies for negative cash balances
-            if (notional < 0) {
-                uint256 oracleRate;
-                if (previousMarkets.length > 0) {
-                    // During initialize markets we will have access to the previous markets
-                    // and their oracle rates.
-                    oracleRate = _getPreviousWithholdingRate(
-                        nToken.cashGroup,
-                        previousMarkets,
-                        maturity,
-                        blockTime
+            // Only apply withholding for idiosyncratic fCash
+            if (!isValidMarket) {
+                int256 notional =
+                    BitmapAssetsHandler.getifCashNotional(
+                        nToken.tokenAddress,
+                        nToken.cashGroup.currencyId,
+                        maturity
                     );
-                } else {
-                    oracleRate = nToken.cashGroup.calculateOracleRate(maturity, blockTime);
-                }
 
-                if (oracleRateBuffer > oracleRate) {
-                    oracleRate = 0;
-                } else {
-                    oracleRate = oracleRate.sub(oracleRateBuffer);
-                }
+                // Withholding only applies for negative cash balances
+                if (notional < 0) {
+                    // Oracle rates are calculated from the perspective of the previousMarkets during initialize
+                    // markets here. It is possible that these oracle rates do not equal the oracle rates when we
+                    // exit this method, this can happen if the nToken is above its leverage threshold. In that case
+                    // this oracleRate will be higher than what we have when we exit, causing the nToken to withhold
+                    // less cash than required. The NTOKEN_CASH_WITHHOLDING_BUFFER must be sufficient to cover this
+                    // potential shortfall.
+                    uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
 
-                totalCashWithholding = totalCashWithholding.sub(
-                    AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
-                );
+                    if (oracleRateBuffer > oracleRate) {
+                        oracleRate = 0;
+                    } else {
+                        oracleRate = oracleRate.sub(oracleRateBuffer);
+                    }
+
+                    totalCashWithholding = totalCashWithholding.sub(
+                        AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
+                    );
+                }
             }
 
             // Turn off the bit and look for the next one
@@ -243,28 +234,6 @@ library InitializeMarketsAction {
         }
 
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
-    }
-
-    function _getPreviousWithholdingRate(
-        CashGroupParameters memory cashGroup,
-        MarketParameters[] memory markets,
-        uint256 maturity,
-        uint256 blockTime
-    ) private pure returns (uint256) {
-        // Get the market index referenced in the previous quarter
-        (uint256 marketIndex, bool idiosyncratic) =
-            DateTime.getMarketIndex(
-                cashGroup.maxMarketIndex,
-                maturity,
-                // This is guaranteed to be in the previous reference block...unless
-                // we go an entire quarter without initializing markets which would have other
-                // disastrous consequences.
-                blockTime.sub(Constants.QUARTER)
-            );
-        // NOTE: If idiosyncratic cash survives a quarter without being purchased this will fail
-        require(!idiosyncratic); // dev: fail on market index
-
-        return markets[marketIndex - 1].oracleRate;
     }
 
     function _calculateNetAssetCashAvailable(
@@ -422,8 +391,10 @@ library InitializeMarketsAction {
                 // No underflow here, checked above
                     .div(longMaturity - shortMaturity);
 
-            // This interpolation may go below zero so we bottom out interpolated rates at zero
-            return shortRate > diff ? shortRate - diff : 0;
+            // This interpolation may go below zero so we bottom out interpolated rates at (practically)
+            // zero. Storing a zero for oracleRates means that the markets are not initialized so using
+            // a minimum value here to handle that case
+            return shortRate > diff ? shortRate - diff : 1;
         }
     }
 
@@ -710,5 +681,10 @@ library InitializeMarketsAction {
             nToken.lastInitializedTime,
             market.totalfCash.neg()
         );
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address) {
+        return address(nTokenMintAction);
     }
 }

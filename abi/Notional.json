@@ -167,6 +167,56 @@
         "inputs": [
             {
                 "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "harvestAmount",
+                "type": "int256"
+            }
+        ],
+        "name": "ExcessReserveBalanceHarvested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "migrationEmissionRate",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "finalIntegralTotalSupply",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "migrationTime",
+                "type": "uint256"
+            }
+        ],
+        "name": "IncentivesMigrated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
                 "internalType": "address",
                 "name": "account",
                 "type": "address"
@@ -404,6 +454,44 @@
             {
                 "indexed": false,
                 "internalType": "int256",
+                "name": "newBalance",
+                "type": "int256"
+            }
+        ],
+        "name": "ReserveBalanceUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "bufferAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "ReserveBufferUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
                 "name": "fee",
                 "type": "int256"
             }
@@ -595,6 +683,25 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previousManager",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "newManager",
+                "type": "address"
+            }
+        ],
+        "name": "TreasuryManagerChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": false,
                 "internalType": "string",
                 "name": "value",
@@ -737,6 +844,19 @@
         "inputs": [
             {
                 "indexed": false,
+                "internalType": "address",
+                "name": "pool",
+                "type": "address"
+            }
+        ],
+        "name": "UpdateLendingPool",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -749,6 +869,25 @@
             }
         ],
         "name": "UpdateMaxCollateralBalance",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "rewarder",
+                "type": "address"
+            }
+        ],
+        "name": "UpdateSecondaryIncentiveRewarder",
         "type": "event"
     },
     {
@@ -1232,6 +1371,32 @@
     {
         "inputs": [
             {
+                "internalType": "address[]",
+                "name": "ctokens",
+                "type": "address[]"
+            }
+        ],
+        "name": "claimCOMPAndTransfer",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "claimOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "uint256[]",
                 "name": "ids",
                 "type": "uint256[]"
@@ -1541,7 +1706,7 @@
                     },
                     {
                         "internalType": "uint256",
-                        "name": "lastClaimIntegralSupply",
+                        "name": "accountIncentiveDebt",
                         "type": "uint256"
                     }
                 ],
@@ -1867,6 +2032,25 @@
                 "internalType": "bytes32",
                 "name": "",
                 "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "callback",
+                "type": "address"
+            }
+        ],
+        "name": "getAuthorizedCallbackContractStatus",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "isAuthorized",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -2363,6 +2547,25 @@
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "operator",
+                "type": "address"
+            }
+        ],
+        "name": "getGlobalTransferOperatorStatus",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "isAuthorized",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "getImplementation",
         "outputs": [
@@ -2394,6 +2597,19 @@
                 "internalType": "int256[]",
                 "name": "proportions",
                 "type": "int256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getLendingPool",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
             }
         ],
         "stateMutability": "view",
@@ -2525,12 +2741,12 @@
             },
             {
                 "internalType": "uint256",
-                "name": "integralTotalSupply",
+                "name": "accumulatedNOTEPerNToken",
                 "type": "uint256"
             },
             {
                 "internalType": "uint256",
-                "name": "lastSupplyChangeTime",
+                "name": "lastAccumulatedTime",
                 "type": "uint256"
             }
         ],
@@ -2639,6 +2855,24 @@
         "type": "function"
     },
     {
+        "inputs": [],
+        "name": "getOwnershipStatus",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "pendingOwner",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [
             {
                 "internalType": "uint16",
@@ -2731,6 +2965,44 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            }
+        ],
+        "name": "getReserveBuffer",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
+        "name": "getSecondaryIncentiveRewarder",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "incentiveRewarder",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
             },
             {
                 "internalType": "uint40",
@@ -2761,6 +3033,19 @@
                 "internalType": "struct AssetRateParameters",
                 "name": "",
                 "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getTreasuryManager",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
             }
         ],
         "stateMutability": "view",
@@ -3289,6 +3574,11 @@
                 "internalType": "bool",
                 "name": "sellTokenAssets",
                 "type": "bool"
+            },
+            {
+                "internalType": "bool",
+                "name": "acceptResidualAssets",
+                "type": "bool"
             }
         ],
         "name": "nTokenRedeem",
@@ -3607,6 +3897,19 @@
     {
         "inputs": [
             {
+                "internalType": "contract ILendingPool",
+                "name": "pool",
+                "type": "address"
+            }
+        ],
+        "name": "setLendingPool",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "address",
                 "name": "pauseRouter_",
                 "type": "address"
@@ -3618,6 +3921,73 @@
             }
         ],
         "name": "setPauseRouterAndGuardian",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            }
+        ],
+        "name": "setReserveBuffer",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "int256",
+                "name": "reserveBalance",
+                "type": "int256"
+            }
+        ],
+        "name": "setReserveCashBalance",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "internalType": "contract IRewarder",
+                "name": "rewarder",
+                "type": "address"
+            }
+        ],
+        "name": "setSecondaryIncentiveRewarder",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "manager",
+                "type": "address"
+            }
+        ],
+        "name": "setTreasuryManager",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -3721,10 +4091,34 @@
                 "internalType": "address",
                 "name": "newOwner",
                 "type": "address"
+            },
+            {
+                "internalType": "bool",
+                "name": "direct",
+                "type": "bool"
             }
         ],
         "name": "transferOwnership",
         "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16[]",
+                "name": "currencies",
+                "type": "uint16[]"
+            }
+        ],
+        "name": "transferReserveToTreasury",
+        "outputs": [
+            {
+                "internalType": "uint256[]",
+                "name": "",
+                "type": "uint256[]"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "function"
     },

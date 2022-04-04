@@ -6,9 +6,10 @@ import "../../math/SafeInt256.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../global/Constants.sol";
-import "interfaces/compound/CErc20Interface.sol";
-import "interfaces/compound/CEtherInterface.sol";
-import "interfaces/IEIP20NonStandard.sol";
+import "../../global/Deployments.sol";
+import "./protocols/AaveHandler.sol";
+import "./protocols/CompoundHandler.sol";
+import "./protocols/GenericToken.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -92,69 +93,94 @@ library TokenHandler {
             require(tokenStorage.tokenType != TokenType.UnderlyingToken); // dev: underlying token inconsistent
         }
 
-        if (tokenStorage.tokenType == TokenType.cToken) {
-            // Set the approval for the underlying so that we can mint cTokens
+        if (tokenStorage.tokenType == TokenType.cToken || tokenStorage.tokenType == TokenType.aToken) {
+            // Set the approval for the underlying so that we can mint cTokens or aTokens
             Token memory underlyingToken = getUnderlyingToken(currencyId);
+
+            // cTokens call transfer from the tokenAddress, but aTokens use the LendingPool
+            // to initiate all transfers
+            address approvalAddress = tokenStorage.tokenType == TokenType.cToken ?
+                tokenStorage.tokenAddress :
+                address(LibStorage.getLendingPool().lendingPool);
+
             // ERC20 tokens should return true on success for an approval, but Tether
             // does not return a value here so we use the NonStandard interface here to
             // check that the approval was successful.
             IEIP20NonStandard(underlyingToken.tokenAddress).approve(
-                tokenStorage.tokenAddress,
+                approvalAddress,
                 type(uint256).max
             );
-            checkReturnCode();
+            GenericToken.checkReturnCode();
         }
 
         store[currencyId][underlying] = tokenStorage;
     }
 
-    /// @notice This method only works with cTokens, it's unclear how we can make this more generic
-    function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
-        uint256 startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+    /**
+     * @notice If a token is mintable then will mint it. At this point we expect to have the underlying
+     * balance in the contract already.
+     * @param assetToken the asset token to mint
+     * @param underlyingAmountExternal the amount of underlying to transfer to the mintable token
+     * @return the amount of asset tokens minted, will always be a positive integer
+     */
+    function mint(Token memory assetToken, uint16 currencyId, uint256 underlyingAmountExternal) internal returns (int256) {
+        // aTokens return the principal plus interest value when calling the balanceOf selector. We cannot use this
+        // value in internal accounting since it will not allow individual users to accrue aToken interest. Use the
+        // scaledBalanceOf function call instead for internal accounting.
+        bytes4 balanceOfSelector = assetToken.tokenType == TokenType.aToken ?
+            AaveHandler.scaledBalanceOfSelector :
+            GenericToken.defaultBalanceOfSelector;
+        
+        uint256 startingBalance = GenericToken.checkBalanceViaSelector(assetToken.tokenAddress, address(this), balanceOfSelector);
 
-        uint256 success;
-        if (token.tokenType == TokenType.cToken) {
-            success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternal);
-        } else if (token.tokenType == TokenType.cETH) {
-            // Reverts on error
-            CEtherInterface(token.tokenAddress).mint{value: msg.value}();
+        if (assetToken.tokenType == TokenType.aToken) {
+            Token memory underlyingToken = getUnderlyingToken(currencyId);
+            AaveHandler.mint(underlyingToken, underlyingAmountExternal);
+        } else if (assetToken.tokenType == TokenType.cToken) {
+            CompoundHandler.mint(assetToken, underlyingAmountExternal);
+        } else if (assetToken.tokenType == TokenType.cETH) {
+            CompoundHandler.mintCETH(assetToken);
         } else {
             revert(); // dev: non mintable token
         }
 
-        require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Mint");
-        uint256 endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
-
+        uint256 endingBalance = GenericToken.checkBalanceViaSelector(assetToken.tokenAddress, address(this), balanceOfSelector);
         // This is the starting and ending balance in external precision
         return SafeInt256.toInt(endingBalance.sub(startingBalance));
     }
 
+    /**
+     * @notice If a token is redeemable to underlying will redeem it and transfer the underlying balance
+     * to the account
+     * @param assetToken asset token to redeem
+     * @param currencyId the currency id of the token
+     * @param account account to transfer the underlying to
+     * @param assetAmountExternal the amount to transfer in asset token denomination and external precision
+     * @return the actual amount of underlying tokens transferred. this is used as a return value back to the
+     * user, is not used for internal accounting purposes
+     */
     function redeem(
         Token memory assetToken,
-        Token memory underlyingToken,
+        uint256 currencyId,
+        address account,
         uint256 assetAmountExternal
     ) internal returns (int256) {
-        uint256 startingBalance;
+        uint256 transferAmount;
         if (assetToken.tokenType == TokenType.cETH) {
-            startingBalance = address(this).balance;
-        } else if (assetToken.tokenType == TokenType.cToken) {
-            startingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            transferAmount = CompoundHandler.redeemCETH(assetToken, account, assetAmountExternal);
         } else {
-            revert(); // dev: non redeemable failure
+            Token memory underlyingToken = getUnderlyingToken(currencyId);
+            if (assetToken.tokenType == TokenType.aToken) {
+                transferAmount = AaveHandler.redeem(underlyingToken, account, assetAmountExternal);
+            } else if (assetToken.tokenType == TokenType.cToken) {
+                transferAmount = CompoundHandler.redeem(assetToken, underlyingToken, account, assetAmountExternal);
+            } else {
+                revert(); // dev: non redeemable token
+            }
         }
-
-        uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(assetAmountExternal);
-        require(success == Constants.COMPOUND_RETURN_CODE_NO_ERROR, "Redeem");
-
-        uint256 endingBalance;
-        if (assetToken.tokenType == TokenType.cETH) {
-            endingBalance = address(this).balance;
-        } else {
-            endingBalance = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
-        }
-
-        // Underlying token external precision
-        return SafeInt256.toInt(endingBalance.sub(startingBalance));
+        
+        // Use the negative value here to signify that assets have left the protocol
+        return SafeInt256.toInt(transferAmount).neg();
     }
 
     /// @notice Handles transfers into and out of the system denominated in the external token decimal
@@ -162,27 +188,40 @@ library TokenHandler {
     function transfer(
         Token memory token,
         address account,
+        uint256 currencyId,
         int256 netTransferExternal
-    ) internal returns (int256) {
+    ) internal returns (int256 actualTransferExternal) {
+        // This will be true in all cases except for deposits where the token has transfer fees. For
+        // aTokens this value is set before convert from scaled balances to principal plus interest
+        actualTransferExternal = netTransferExternal;
+
+        if (token.tokenType == TokenType.aToken) {
+            Token memory underlyingToken = getUnderlyingToken(currencyId);
+            // aTokens need to be converted when we handle the transfer since the external balance format
+            // is not the same as the internal balance format that we use
+            netTransferExternal = AaveHandler.convertFromScaledBalanceExternal(
+                underlyingToken.tokenAddress,
+                netTransferExternal
+            );
+        }
+
         if (netTransferExternal > 0) {
             // Deposits must account for transfer fees.
-            netTransferExternal = _deposit(token, account, uint256(netTransferExternal));
+            int256 netDeposit = _deposit(token, account, uint256(netTransferExternal));
+            // If an aToken has a transfer fee this will still return a balance figure
+            // in scaledBalanceOf terms due to the selector
+            if (token.hasTransferFee) actualTransferExternal = netDeposit;
         } else if (token.tokenType == TokenType.Ether) {
-            require(netTransferExternal <= 0); // dev: cannot deposit ether
-            address payable accountPayable = payable(account);
-            // This does not work with contracts, but is reentrancy safe. If contracts want to withdraw underlying
-            // ETH they will have to withdraw the cETH token and then redeem it manually.
-            accountPayable.transfer(uint256(netTransferExternal.neg()));
+            // netTransferExternal can only be negative or zero at this point
+            GenericToken.transferNativeTokenOut(account, uint256(netTransferExternal.neg()));
         } else {
-            safeTransferOut(
+            GenericToken.safeTransferOut(
                 token.tokenAddress,
                 account,
                 // netTransferExternal is zero or negative here
                 uint256(netTransferExternal.neg())
             );
         }
-
-        return netTransferExternal;
     }
 
     /// @notice Handles token deposits into Notional. If there is a transfer fee then we must
@@ -195,15 +234,21 @@ library TokenHandler {
     ) private returns (int256) {
         uint256 startingBalance;
         uint256 endingBalance;
+        bytes4 balanceOfSelector = token.tokenType == TokenType.aToken ?
+            AaveHandler.scaledBalanceOfSelector :
+            GenericToken.defaultBalanceOfSelector;
 
         if (token.hasTransferFee) {
-            startingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            startingBalance = GenericToken.checkBalanceViaSelector(token.tokenAddress, address(this), balanceOfSelector);
         }
 
-        safeTransferIn(token.tokenAddress, account, amount);
+        GenericToken.safeTransferIn(token.tokenAddress, account, amount);
 
         if (token.hasTransferFee || token.maxCollateralBalance > 0) {
-            endingBalance = IERC20(token.tokenAddress).balanceOf(address(this));
+            // If aTokens have a max collateral balance then it will be applied against the scaledBalanceOf. This is probably
+            // the correct behavior because if collateral accrues interest over time we should not somehow go over the
+            // maxCollateralBalance due to the passage of time.
+            endingBalance = GenericToken.checkBalanceViaSelector(token.tokenAddress, address(this), balanceOfSelector);
         }
 
         if (token.maxCollateralBalance > 0) {
@@ -244,47 +289,6 @@ library TokenHandler {
     }
 
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
-        safeTransferOut(Constants.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
-    }
-
-    function safeTransferOut(
-        address token,
-        address account,
-        uint256 amount
-    ) private {
-        IEIP20NonStandard(token).transfer(account, amount);
-        checkReturnCode();
-    }
-
-    function safeTransferIn(
-        address token,
-        address account,
-        uint256 amount
-    ) private {
-        IEIP20NonStandard(token).transferFrom(account, address(this), amount);
-        checkReturnCode();
-    }
-
-    function checkReturnCode() private pure {
-        bool success;
-        uint256[1] memory result;
-        assembly {
-            switch returndatasize()
-                case 0 {
-                    // This is a non-standard ERC-20
-                    success := 1 // set success to true
-                }
-                case 32 {
-                    // This is a compliant ERC-20
-                    returndatacopy(result, 0, 32)
-                    success := mload(result) // Set `success = returndata` of external call
-                }
-                default {
-                    // This is an excessively non-compliant ERC-20, revert.
-                    revert(0, 0)
-                }
-        }
-
-        require(success, "ERC20");
+        GenericToken.safeTransferOut(Deployments.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
     }
 }

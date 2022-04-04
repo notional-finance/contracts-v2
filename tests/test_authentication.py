@@ -22,7 +22,12 @@ def isolation(fn_isolation):
 
 def test_router_initialization(environment, accounts, Router, nProxy):
     cETH = environment.cToken["ETH"]
-    (router, pauseRouter, contracts) = deployNotionalContracts(accounts[0], cETH.address)
+    (router, pauseRouter, contracts) = deployNotionalContracts(
+        accounts[0],
+        cETH=cETH.address,
+        WETH=cETH.address,
+        Comptroller=environment.comptroller.address,
+    )
 
     with brownie.reverts():
         # Cannot call initialize on implementation contract
@@ -47,7 +52,7 @@ def test_non_callable_methods(environment, accounts):
     zeroAddress = HexString(0, "bytes20")
 
     with brownie.reverts("Ownable: caller is not the owner"):
-        environment.notional.transferOwnership(accounts[1], {"from": accounts[1]})
+        environment.notional.transferOwnership(accounts[1], True, {"from": accounts[1]})
         environment.notional.listCurrency(
             (environment.token["DAI"].address, False, 0, 18, 0),
             (zeroAddress, False, 0, 0, 0),
@@ -106,7 +111,9 @@ def test_non_callable_methods(environment, accounts):
         )
 
     with brownie.reverts("Unauthorized caller"):
-        environment.notional.nTokenRedeem(accounts[2], 1, 100e8, False, {"from": accounts[1]})
+        environment.notional.nTokenRedeem(
+            accounts[2], 1, 100e8, False, False, {"from": accounts[1]}
+        )
         environment.notional.batchBalanceAction(accounts[2], [], {"from": accounts[1]})
         environment.notional.batchBalanceAndTradeAction(accounts[2], [], {"from": accounts[1]})
 

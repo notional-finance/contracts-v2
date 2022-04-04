@@ -256,7 +256,7 @@ class TestTokenHandler:
 
         txn = tokenHandler.redeem(2, mintedcTokens)
         redeemedDai = txn.return_value
-        assert redeemedDai >= depositedDai
+        assert -redeemedDai >= depositedDai
         assert env.cToken["DAI"].balanceOf(tokenHandler.address) == 0
 
     def test_ceth_mint_redeem(self, tokenHandler, accounts):
@@ -275,5 +275,5 @@ class TestTokenHandler:
 
         txn = tokenHandler.redeem(1, mintedcTokens)
         redeemedETH = txn.return_value
-        assert redeemedETH >= sentETH
+        assert -redeemedETH >= sentETH
         assert env.cToken["ETH"].balanceOf(tokenHandler.address) == 0

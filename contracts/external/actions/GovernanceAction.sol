@@ -4,21 +4,23 @@ pragma abicoder v2;
 
 import "../../internal/valuation/ExchangeRate.sol";
 import "../../internal/markets/CashGroup.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
 import "../../internal/balances/TokenHandler.sol";
-import "../../global/StorageLayoutV1.sol";
+import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
 import "../adapters/nTokenERC20Proxy.sol";
-import "interfaces/notional/AssetRateAdapter.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "interfaces/notional/NotionalGovernance.sol";
-import "interfaces/notional/nTokenERC20.sol";
+import "../../../interfaces/notional/IRewarder.sol";
+import "../../../interfaces/notional/AssetRateAdapter.sol";
+import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../../interfaces/notional/NotionalGovernance.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeable {
+contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable {
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -29,12 +31,39 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
-    /// @dev Transfers ownership of the contract to a new account (`newOwner`).
-    /// Can only be called by the current owner.
-    function transferOwnership(address newOwner) external override onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+    /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
+    /// Can only be invoked by the current `owner`.
+    /// @param newOwner Address of the new owner.
+    /// @param direct True if `newOwner` should be set immediately. False if `newOwner` needs to use `claimOwnership`.
+    function transferOwnership(
+        address newOwner,
+        bool direct
+    ) external override onlyOwner {
+        if (direct) {
+            // Checks
+            require(newOwner != address(0), "Ownable: zero address");
+
+            // Effects
+            emit OwnershipTransferred(owner, newOwner);
+            owner = newOwner;
+            pendingOwner = address(0);
+        } else {
+            // Effects
+            pendingOwner = newOwner;
+        }
+    }
+
+    /// @notice Needs to be called by `pendingOwner` to claim ownership.
+    function claimOwnership() external override {
+        address _pendingOwner = pendingOwner;
+
+        // Checks
+        require(msg.sender == _pendingOwner, "Ownable: caller != pending owner");
+
+        // Effects
+        emit OwnershipTransferred(owner, _pendingOwner);
+        owner = _pendingOwner;
+        pendingOwner = address(0);
     }
 
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
@@ -232,7 +261,7 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         // Sanity check that emissions rate is not specified in 1e8 terms.
         require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
 
-        nTokenHandler.setIncentiveEmissionRate(nTokenAddress, newEmissionRate);
+        nTokenSupply.setIncentiveEmissionRate(nTokenAddress, newEmissionRate, block.timestamp);
         emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
     }
 
@@ -355,6 +384,34 @@ contract GovernanceAction is StorageLayoutV1, NotionalGovernance, UUPSUpgradeabl
         require(Address.isContract(operator), "Operator must be a contract");
         authorizedCallbackContract[operator] = approved;
         emit UpdateAuthorizedCallbackContract(operator, approved);
+    }
+
+    /// @notice Sets a secondary incentive rewarder for a currency. This contract will
+    /// be called whenever an nToken balance changes and allows a secondary contract to
+    /// mint incentives to the account. This will override any previous rewarder, if set.
+    /// Will have no effect if there is no nToken corresponding to the currency id.
+    /// @dev emit:UpdateSecondaryIncentiveRewarder
+    /// @param currencyId currency id of the nToken
+    /// @param rewarder rewarder contract
+    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder)
+        external
+        override
+        onlyOwner
+    {
+        _checkValidCurrency(currencyId);
+        require(Address.isContract(address(rewarder)), "Rewarder must be a contract");
+        nTokenHandler.setSecondaryRewarder(currencyId, rewarder);
+        emit UpdateSecondaryIncentiveRewarder(currencyId, address(rewarder));
+    }
+
+    /// @notice Updates the lending pool address used by AaveHandler
+    /// @dev emit:UpdateLendingPool
+    /// @param pool lending pool address
+    function setLendingPool(ILendingPool pool) external override onlyOwner {
+        LendingPoolStorage storage store = LibStorage.getLendingPool();
+        require(address(pool) != address(0) && address(store.lendingPool) == address(0), "Invalid lending pool");
+        store.lendingPool = pool;
+        emit UpdateLendingPool(address(pool));
     }
 
     function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {

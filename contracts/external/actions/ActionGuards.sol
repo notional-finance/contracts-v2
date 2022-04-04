@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "../../global/StorageLayoutV1.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
 
 abstract contract ActionGuards is StorageLayoutV1 {
     uint256 private constant _NOT_ENTERED = 1;

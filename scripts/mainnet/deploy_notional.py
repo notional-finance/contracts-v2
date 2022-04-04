@@ -12,6 +12,8 @@ CTOKEN_DECIMALS = 8
 TokenConfig = {
     "kovan": {
         "cETH": "0x40575f9Eb401f63f66F4c434248ad83D3441bf61",
+        "WETH": "0xd0a1e359811322d97991e03f863a0c30c2cf029c",
+        "Comptroller": "0x2D5D30a561278a5F0ad8779A386dAA4C478865D0",
         "DAI": {
             "assetToken": (
                 "0x4dC87A3D30C4A1B33E4349f02F4c5B1B1eF9A75D",
@@ -87,6 +89,8 @@ TokenConfig = {
         },
     },
     "mainnet": {
+        "WETH": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "Comptroller": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B",
         "cETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
         "DAI": {
             "assetToken": (
@@ -365,8 +369,8 @@ def main():
             },
         }
 
-    print("Confirming that NOTE token is hardcoded properly in Constants.sol")
-    with open("contracts/global/Constants.sol") as f:
+    print("Confirming that NOTE token is hardcoded properly in Deployments.sol")
+    with open("contracts/global/Deployments.sol") as f:
         constants = f.read()
         m = re.search("address constant NOTE_TOKEN_ADDRESS = (.*);", constants)
         assert m.group(1) == output["note"]
@@ -399,31 +403,34 @@ def etherscan_verify(contracts, router, pauseRouter):
         print("Verifying {} at {}".format(name, contract.address))
         verify(contract.address, [])
 
-    print("Verifying Pause Router at {}".format(pauseRouter.address))
-    verify(
-        pauseRouter.address,
-        [
+    if pauseRouter:
+        print("Verifying Pause Router at {}".format(pauseRouter.address))
+        verify(
+            pauseRouter.address,
+            [
+                contracts["Views"].address,
+                contracts["LiquidateCurrencyAction"].address,
+                contracts["LiquidatefCashAction"].address,
+            ],
+        )
+
+    if router:
+        print("Verifying Router at {}".format(router.address))
+        routerArgs = [
+            contracts["Governance"].address,
             contracts["Views"].address,
+            contracts["InitializeMarketsAction"].address,
+            contracts["nTokenAction"].address,
+            contracts["BatchAction"].address,
+            contracts["AccountAction"].address,
+            contracts["ERC1155Action"].address,
             contracts["LiquidateCurrencyAction"].address,
             contracts["LiquidatefCashAction"].address,
-        ],
-    )
-    print("Verifying Router at {}".format(router.address))
-    routerArgs = [
-        contracts["Governance"].address,
-        contracts["Views"].address,
-        contracts["InitializeMarketsAction"].address,
-        contracts["nTokenAction"].address,
-        contracts["nTokenRedeemAction"].address,
-        contracts["BatchAction"].address,
-        contracts["AccountAction"].address,
-        contracts["ERC1155Action"].address,
-        contracts["LiquidateCurrencyAction"].address,
-        contracts["LiquidatefCashAction"].address,
-        TokenConfig[network.show_active()]["cETH"],
-    ]
-    print("Using router args: ", routerArgs)
-    verify(router.address, routerArgs)
+            TokenConfig[network.show_active()]["cETH"],
+        ]
+
+        print("Using router args: ", routerArgs)
+        verify(router.address, routerArgs)
 
 
 def verify(address, args):

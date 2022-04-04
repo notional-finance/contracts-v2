@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "./TransferAssets.sol";
 import "../valuation/AssetHandler.sol";
 import "../../math/SafeInt256.sol";
+import "../../global/LibStorage.sol";
 
 /// @notice Handles the management of an array of assets including reading from storage, inserting
 /// updating, deleting and writing back to storage.

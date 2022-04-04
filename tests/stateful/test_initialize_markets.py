@@ -7,7 +7,13 @@ from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
 from scripts.deployment import TestEnvironment
 from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
-from tests.helpers import get_balance_action, get_tref
+from tests.helpers import (
+    get_balance_action,
+    get_balance_trade_action,
+    get_tref,
+    initialize_environment,
+    setup_residual_environment,
+)
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -95,8 +101,9 @@ def get_maturities(index):
 def interpolate_market_rate(a, b, isSixMonth=False):
     shortMaturity = a[1]
     longMaturity = b[1]
-    shortRate = a[6]
-    longRate = b[6]
+    # Uses last implied rate, chain.mine() causes oracle rates to be skewed
+    shortRate = a[5]
+    longRate = b[5]
 
     if isSixMonth:
         return math.trunc(
@@ -133,8 +140,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
         currencyId, blockTime - SECONDS_IN_QUARTER
     )
 
-    # assert perp token has no cash left
-    assert cashBalance == 0
+    # These are always true
     assert perpTokenBalance == 0
     assert lastMintTime == 0
 
@@ -150,24 +156,42 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
         assert asset[1] == maturity[i]
         # assert liquidity tokens are ordered
         assert asset[2] == 2 + i
-        # assert that liquidity is proportional to deposit shares
+        # assert that there is a matching fCash asset
+        assert len(list(filter(lambda a: a[1] == maturity[i], ifCashAssets))) == 1
 
+        # assert that liquidity is proportional to deposit shares
         if isFirstInit:
             # Initialize amount is a percentage of the initial cash amount
             assert asset[3] == INITIAL_CASH_AMOUNT * depositShares[i] / int(1e8)
         elif wasInit:
             # Initialize amount is a percentage of the net cash amount
-            assert asset[3] == totalAssetCashInMarkets * depositShares[i] / 1e8
+            assert (
+                pytest.approx(asset[3], abs=1) == totalAssetCashInMarkets * depositShares[i] / 1e8
+            )
 
     assert len(ifCashAssets) >= len(portfolio)
+    negativeResiduals = []
     for (i, asset) in enumerate(ifCashAssets):
         assert asset[0] == currencyId
-        assert asset[1] == maturity[i]
         assert asset[2] == 1
-        # assert that perp token has an fCash asset
-        # TODO: this should be a combination of previous fCash value, and the net added
-        # TODO: it's possible for this to be zero
-        assert asset[3] < 0
+
+        isResidual = asset[1] not in maturity
+        if isResidual and asset[3] < 0:
+            negativeResiduals.append(asset)
+        elif not isResidual:
+            # This is generally true, an edge case can be that the nToken has a positive
+            # fCash position but highly unlikely
+            assert asset[3] < 0
+
+    if len(negativeResiduals) > 0:
+        # FV is the notional value discounted at a 0% interest rate
+        # this is the maximum withholding we should ever have
+        fv = 0
+        for r in negativeResiduals:
+            fv += r[3]
+        assert 0 < cashBalance and cashBalance <= (-fv * 50)
+    else:
+        assert cashBalance == 0
 
     for (i, market) in enumerate(markets):
         assert market[1] == maturity[i]
@@ -322,11 +346,9 @@ def test_mint_after_markets_initialized(environment, accounts):
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
 
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
-    (
-        cashBalanceAfter,
-        perpTokenBalanceAfter,
-        lastMintTimeAfter,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
+    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
+        currencyId, accounts[0]
+    )
 
     # assert increase in market liquidity
     assert len(marketsBefore) == len(marketsAfter)
@@ -336,7 +358,6 @@ def test_mint_after_markets_initialized(environment, accounts):
     # assert account balances are in line
     assert cashBalanceBefore == cashBalanceAfter
     assert perpTokenBalanceAfter == perpTokenBalanceBefore + tokensToMint
-    assert lastMintTimeAfter > lastMintTimeBefore
 
 
 def test_redeem_to_zero_fails(environment, accounts):
@@ -345,12 +366,17 @@ def test_redeem_to_zero_fails(environment, accounts):
 
     with brownie.reverts("Cannot redeem"):
         environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, {"from": accounts[0]}
+            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, False, {"from": accounts[0]}
         )
 
     # This can succeed
     environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, INITIAL_CASH_AMOUNT - 1e8, True, {"from": accounts[0]}
+        accounts[0].address,
+        currencyId,
+        INITIAL_CASH_AMOUNT - 1e8,
+        True,
+        False,
+        {"from": accounts[0]},
     )
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
@@ -394,9 +420,9 @@ def test_failing_initialize_time(environment, accounts):
             {"from": accounts[0]},
         )
 
-    with brownie.reverts("PT: requires settlement"):
+    with brownie.reverts("Requires settlement"):
         environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, 100e8, True, {"from": accounts[0]}
+            accounts[0].address, currencyId, 100e8, True, False, {"from": accounts[0]}
         )
 
 
@@ -479,4 +505,55 @@ def test_delayed_second_initialize_markets(environment, accounts):
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER + SECONDS_IN_DAY * 65))
     environment.notional.initializeMarkets(currencyId, False)
+    ntoken_asserts(environment, currencyId, False, accounts)
+
+
+def test_delayed_second_initialize_markets_negative_residual(environment, accounts):
+    currencyId = 2
+    environment = initialize_environment(accounts)
+    setup_residual_environment(environment, accounts, residualType="Negative")
+    environment.token["DAI"].transfer(accounts[1], 1_000_000e18, {"from": accounts[0]})
+
+    # Trade some more to leave yet another residual in the 6 month and 1 year market
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100_000e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 3, "notional": 100_000e8, "minSlippage": 0},
+        ],
+        depositActionAmount=200_000e18,
+        withdrawEntireCashBalance=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+
+    # There is an idiosyncratic residual in the environment above. We will now try to fast forward
+    # and re-initialize the markets with the residual left.
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    ntoken_asserts(environment, currencyId, False, accounts)
+
+
+def test_delayed_second_initialize_markets_positive_residual(accounts):
+    currencyId = 2
+    environment = initialize_environment(accounts)
+    setup_residual_environment(environment, accounts, residualType="Positive")
+
+    # Trade some more to leave yet another residual in the 1 year market
+    action = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 10000e8, "maxSlippage": 0}],
+        depositActionAmount=11000e18,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+
+    # There is an idiosyncratic residual in the environment above. We will now try to fast forward
+    # and re-initialize the markets with the residual left.
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
     ntoken_asserts(environment, currencyId, False, accounts)

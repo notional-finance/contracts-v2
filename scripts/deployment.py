@@ -4,6 +4,7 @@ from copy import copy
 from brownie import (
     AccountAction,
     BatchAction,
+    CalculationViews,
     ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
@@ -11,13 +12,16 @@ from brownie import (
     InitializeMarketsAction,
     LiquidateCurrencyAction,
     LiquidatefCashAction,
+    MigrateIncentives,
     MockAggregator,
     MockERC20,
+    MockWETH,
     NoteERC20,
     PauseRouter,
     Router,
     SettleAssetsExternal,
     TradingAction,
+    TreasuryAction,
     Views,
     accounts,
     cTokenAggregator,
@@ -33,12 +37,19 @@ from brownie.convert.datatypes import HexString
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
 
 chain = Chain()
 
-TokenType = {"UnderlyingToken": 0, "cToken": 1, "cETH": 2, "Ether": 3, "NonMintable": 4}
+TokenType = {
+    "UnderlyingToken": 0,
+    "cToken": 1,
+    "cETH": 2,
+    "Ether": 3,
+    "NonMintable": 4,
+    "aToken": 5,
+}
 
 
 def deployNoteERC20(deployer):
@@ -74,16 +85,23 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
     )
 
 
-def deployNotionalContracts(deployer, cETHAddress):
+def deployNotionalContracts(deployer, **kwargs):
     contracts = {}
+    if network.show_active() in ["kovan", "mainnet"]:
+        raise Exception("update governance deployment!")
+
     # Deploy Libraries
     contracts["SettleAssetsExternal"] = SettleAssetsExternal.deploy({"from": deployer})
     contracts["FreeCollateralExternal"] = FreeCollateralExternal.deploy({"from": deployer})
     contracts["TradingAction"] = TradingAction.deploy({"from": deployer})
     contracts["nTokenMintAction"] = nTokenMintAction.deploy({"from": deployer})
+    contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
+    contracts["MigrateIncentives"] = MigrateIncentives.deploy({"from": deployer})
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
+    if network.show_active() in ["kovan", "mainnet"]:
+        raise Exception("update governance deployment!")
     # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
     # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
     # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here will
@@ -92,19 +110,21 @@ def deployNotionalContracts(deployer, cETHAddress):
     #   deployer, "Governance")
     contracts["Views"] = Views.deploy({"from": deployer})
     contracts["InitializeMarketsAction"] = InitializeMarketsAction.deploy({"from": deployer})
-    contracts["nTokenRedeemAction"] = nTokenRedeemAction.deploy({"from": deployer})
     contracts["nTokenAction"] = nTokenAction.deploy({"from": deployer})
     contracts["BatchAction"] = BatchAction.deploy({"from": deployer})
     contracts["AccountAction"] = AccountAction.deploy({"from": deployer})
     contracts["ERC1155Action"] = ERC1155Action.deploy({"from": deployer})
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
+    contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
+    contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
         contracts["Views"].address,
         contracts["LiquidateCurrencyAction"].address,
         contracts["LiquidatefCashAction"].address,
+        contracts["CalculationViews"].address,
         {"from": deployer},
     )
 
@@ -114,21 +134,24 @@ def deployNotionalContracts(deployer, cETHAddress):
         contracts["Views"].address,
         contracts["InitializeMarketsAction"].address,
         contracts["nTokenAction"].address,
-        contracts["nTokenRedeemAction"].address,
         contracts["BatchAction"].address,
         contracts["AccountAction"].address,
         contracts["ERC1155Action"].address,
         contracts["LiquidateCurrencyAction"].address,
         contracts["LiquidatefCashAction"].address,
-        cETHAddress,
+        kwargs["cETH"],
+        contracts["TreasuryAction"].address,
+        contracts["CalculationViews"].address,
         {"from": deployer},
     )
 
     return (router, pauseRouter, contracts)
 
 
-def deployNotional(deployer, cETHAddress, guardianAddress):
-    (router, pauseRouter, contracts) = deployNotionalContracts(deployer, cETHAddress)
+def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WETH):
+    (router, pauseRouter, contracts) = deployNotionalContracts(
+        deployer, cETH=cETHAddress, COMP=COMP, WETH=WETH, Comptroller=comptroller
+    )
 
     initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
         fn_name="initialize", args=[deployer.address, pauseRouter.address, guardianAddress]
@@ -138,7 +161,7 @@ def deployNotional(deployer, cETHAddress, guardianAddress):
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
 
-    notionalInterfaceABI = ContractsVProject._build.get("NotionalProxy")["abi"]
+    notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(
         "Notional", proxy.address, abi=notionalInterfaceABI, owner=deployer
     )
@@ -188,15 +211,21 @@ class TestEnvironment:
         else:
             self._deployNoteERC20()
 
+        # Deploy these for treasury manager
+        self.WETH = MockWETH.deploy({"from": self.deployer})
+        self.COMP = MockERC20.deploy("Compound", "COMP", 18, 0, {"from": self.deployer})
+
         # First deploy tokens to ensure they are available
         self._deployMockCurrency("ETH")
         for symbol in TokenConfig.keys():
+            if symbol == "COMP":
+                continue
             self._deployMockCurrency(symbol)
 
         self._deployNotional()
 
         if withGovernance:
-            self.notional.transferOwnership(self.governor.address)
+            self.notional.transferOwnership(self.governor.address, True)
             self.proxyAdmin.transferOwnership(self.governor.address)
             self.noteERC20.initialize(
                 [self.governor.address, self.multisig.address, self.notional.address],
@@ -321,7 +350,12 @@ class TestEnvironment:
 
     def _deployNotional(self):
         (self.pauseRouter, self.router, self.proxy, self.notional, _) = deployNotional(
-            self.deployer, self.cToken["ETH"].address, accounts[8].address
+            self.deployer,
+            self.cToken["ETH"].address,
+            accounts[8].address,
+            self.comptroller,
+            self.COMP,
+            self.WETH,
         )
         self.enableCurrency("ETH", CurrencyDefaults)
 
@@ -411,6 +445,8 @@ def main():
         config = copy(CurrencyDefaults)
         if symbol == "USDT":
             config["haircut"] = 0
+        elif symbol == "COMP":
+            continue
 
         env.enableCurrency(symbol, config)
 

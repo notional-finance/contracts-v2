@@ -6,12 +6,29 @@ import "../../contracts/global/Types.sol";
 import "./nTokenERC20.sol";
 import "./nERC1155Interface.sol";
 import "./NotionalGovernance.sol";
+import "./NotionalCalculations.sol";
 import "./NotionalViews.sol";
+import "./NotionalTreasury.sol";
 
-interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, NotionalViews {
+interface NotionalProxy is
+    nTokenERC20,
+    nERC1155Interface,
+    NotionalGovernance,
+    NotionalTreasury,
+    NotionalCalculations,
+    NotionalViews
+{
     /** User trading events */
-    event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
-    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
+    event CashBalanceChange(
+        address indexed account,
+        uint16 indexed currencyId,
+        int256 netCashChange
+    );
+    event nTokenSupplyChange(
+        address indexed account,
+        uint16 indexed currencyId,
+        int256 tokenSupplyChange
+    );
     event MarketsInitialized(uint16 currencyId);
     event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
     event SettledCashDebt(
@@ -42,6 +59,14 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         int256 netAssetCash,
         int256 netfCash,
         int256 netLiquidityTokens
+    );
+
+    /// @notice Emitted once when incentives are migrated
+    event IncentivesMigrated(
+        uint16 currencyId,
+        uint256 migrationEmissionRate,
+        uint256 finalIntegralTotalSupply,
+        uint256 migrationTime
     );
 
     /// @notice Emitted when reserve fees are accrued
@@ -83,10 +108,15 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
 
     /** UUPS Upgradeable contract calls */
     function upgradeTo(address newImplementation) external;
+
     function upgradeToAndCall(address newImplementation, bytes memory data) external payable;
+
     function getImplementation() external view returns (address);
+
     function owner() external view returns (address);
+
     function pauseRouter() external view returns (address);
+
     function pauseGuardian() external view returns (address);
 
     /** Initialize Markets Action */
@@ -99,7 +129,8 @@ interface NotionalProxy is nTokenERC20, nERC1155Interface, NotionalGovernance, N
         address redeemer,
         uint16 currencyId,
         uint96 tokensToRedeem_,
-        bool sellTokenAssets
+        bool sellTokenAssets,
+        bool acceptResidualAssets
     ) external returns (int256);
 
     /** Account Action */

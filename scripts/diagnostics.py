@@ -3,7 +3,7 @@ from datetime import datetime
 import humanfriendly
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
@@ -141,5 +141,5 @@ def get_diagnostics(proxyAddress, currencyId=None):
 
 
 def main(currencyId):
-    proxyAddress = ContractsVProject.nTransparentUpgradeableProxy[0].address
+    proxyAddress = ContractsV2Project.nTransparentUpgradeableProxy[0].address
     get_diagnostics(proxyAddress, currencyId=currencyId)

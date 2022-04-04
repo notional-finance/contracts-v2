@@ -3,14 +3,16 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./ActionGuards.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/markets/AssetRate.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/balances/Incentives.sol";
 import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../external/FreeCollateralExternal.sol";
-import "interfaces/notional/nTokenERC20.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "@openzeppelin/contracts/utils/SafeCast.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -34,9 +36,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         // prettier-ignore
         (
             totalSupply,
-            /* integralTotalSupply */,
-            /* lastSupplyChangeTime */
-        ) = nTokenHandler.getStoredNTokenSupplyFactors(nTokenAddress);
+            /* accumulatedNOTEPerNToken */,
+            /* lastAccumulatedTime */
+        ) = nTokenSupply.getStoredNTokenSupplyFactors(nTokenAddress);
     }
 
     /// @notice Get the number of tokens held by the `account`
@@ -53,7 +55,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             /* int cashBalance */,
             int256 nTokenBalance,
             /* uint lastClaimTime */,
-            /* uint lastClaimIntegralSupply */
+            /* uint accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance
@@ -250,7 +252,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 totalAssetPV = nToken.getNTokenAssetPV(blockTime);
+        int256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
 
         return (totalAssetPV, nToken);
     }
@@ -292,5 +294,14 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         }
 
         return true;
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address, address, address) {
+        return (
+            address(FreeCollateralExternal),
+            address(MigrateIncentives),
+            address(SettleAssetsExternal)
+        );
     }
 }

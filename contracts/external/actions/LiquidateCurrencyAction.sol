@@ -42,7 +42,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256, int256) {
+    ) external nonReentrant returns (int256, int256) {
         // prettier-ignore
         (
             int256 localAssetCashFromLiquidator,
@@ -145,7 +145,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
     )
-        external
+        external nonReentrant
         returns (
             int256,
             int256,
@@ -427,5 +427,10 @@ contract LiquidateCurrencyAction is ActionGuards {
             collateralBalanceState.netCashChange.neg().add(
                 collateralBalanceState.netAssetTransferInternalPrecision
             );
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address, address) {
+        return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 }

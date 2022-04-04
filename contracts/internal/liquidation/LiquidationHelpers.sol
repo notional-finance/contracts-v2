@@ -52,6 +52,9 @@ library LiquidationHelpers {
                 localCurrency,
                 collateralCurrency
             );
+        // Set the account context here to ensure that the context is up to date during
+        // calculation methods
+        accountContext.setAccountContext(liquidateAccount);
 
         PortfolioState memory portfolioState =
             PortfolioState({
@@ -219,7 +222,9 @@ library LiquidationHelpers {
             ); // dev: token has transfer fee, no liquidator balance
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            token.transfer(liquidator, token.convertToExternal(netLocalFromLiquidator));
+            // NOTE: in the case of aToken transfers this is going to convert the scaledBalanceOf aToken
+            // to the balanceOf value required for transfers
+            token.transfer(liquidator, localCurrencyId, token.convertToExternal(netLocalFromLiquidator));
         }
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);

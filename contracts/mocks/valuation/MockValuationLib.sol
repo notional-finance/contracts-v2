@@ -7,7 +7,9 @@ import "../../internal/markets/AssetRate.sol";
 import "../../internal/valuation/AssetHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
-import "../../internal/nTokenHandler.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
 import "../../internal/markets/Market.sol";
 import "../../global/LibStorage.sol";
 
@@ -49,7 +51,8 @@ library MockValuationLib {
         uint96 totalSupply,
         int88 cashBalance,
         uint8 pvHaircutPercentage,
-        uint8 liquidationHaircutPercentage
+        uint8 liquidationHaircutPercentage,
+        uint256 lastInitializedTime
     ) public {
         nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
         nTokenHandler.setNTokenCollateralParameters(
@@ -60,7 +63,8 @@ library MockValuationLib {
             0,
             liquidationHaircutPercentage
         );
-        nTokenHandler.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
+        nTokenHandler.setArrayLengthAndInitializedTime(nTokenAddress, 0, lastInitializedTime);
+        nTokenSupply.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);
         BalanceHandler.setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
     }
 
@@ -186,7 +190,7 @@ library MockValuationLib {
                 b.cashBalance,
                 b.nTokenBalance,
                 b.lastClaimTime,
-                b.lastClaimIntegralSupply
+                b.accountIncentiveDebt
             ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
             i += 1;
         }
@@ -201,7 +205,7 @@ library MockValuationLib {
                 b.cashBalance,
                 b.nTokenBalance,
                 b.lastClaimTime,
-                b.lastClaimIntegralSupply
+                b.accountIncentiveDebt
             ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
             i += 1;
             currencies = currencies << 16;
@@ -224,7 +228,7 @@ library MockValuationLib {
     function getNTokenPV(uint16 currencyId) external view returns (int256) {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
-        return nToken.getNTokenAssetPV(block.timestamp);
+        return nTokenCalculations.getNTokenAssetPV(nToken, block.timestamp);
     }
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {
@@ -312,7 +316,8 @@ contract MockValuationBase {
         uint96 totalSupply,
         int88 cashBalance,
         uint8 pvHaircutPercentage,
-        uint8 liquidationHaircutPercentage
+        uint8 liquidationHaircutPercentage,
+        uint256 lastInitializedTime
     ) public {
         MockValuationLib.setNTokenValue(
             currencyId,
@@ -320,7 +325,8 @@ contract MockValuationBase {
             totalSupply,
             cashBalance,
             pvHaircutPercentage,
-            liquidationHaircutPercentage
+            liquidationHaircutPercentage,
+            lastInitializedTime
         );
     }
 

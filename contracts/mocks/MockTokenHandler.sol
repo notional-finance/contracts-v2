@@ -36,18 +36,17 @@ contract MockTokenHandler is StorageLayoutV1 {
         } else {
             token = TokenHandler.getAssetToken(currencyId);
         }
-        return token.transfer(account, netTransfer);
+        return token.transfer(account, currencyId, netTransfer);
     }
 
     function mint(uint16 currencyId, uint256 underlyingAmount) external payable returns (int256) {
         Token memory token = TokenHandler.getAssetToken(currencyId);
-        return token.mint(underlyingAmount);
+        return token.mint(currencyId, underlyingAmount);
     }
 
-    function redeem(uint16 currencyId, uint256 tokensInternalPrecision) external returns (int256) {
+    function redeem(uint16 currencyId, uint256 assetAmountExternal) external returns (int256) {
         Token memory token = TokenHandler.getAssetToken(currencyId);
-        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-        return token.redeem(underlyingToken, tokensInternalPrecision);
+        return token.redeem(currencyId, msg.sender, assetAmountExternal);
     }
 
     function getToken(uint16 currencyId, bool underlying) external view returns (Token memory) {

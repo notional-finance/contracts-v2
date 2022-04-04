@@ -326,6 +326,7 @@ def test_upgrade_router_contract(environment, accounts, Router):
         zeroAddress,
         zeroAddress,
         zeroAddress,
+        zeroAddress,
         {"from": environment.deployer},
     )
 
@@ -357,17 +358,32 @@ def test_upgrade_governance_contract(environment, accounts, GovernorAlpha):
         {"from": environment.deployer},
     )
 
-    transferOwner = web3.eth.contract(abi=environment.proxyAdmin.abi).encodeABI(
-        fn_name="transferOwnership", args=[newGovernor.address]
-    )
+    transferOwner = environment.notional.transferOwnership.encode_input(newGovernor.address, False)
 
-    targets = [environment.proxyAdmin.address]
+    targets = [environment.notional.address]
     values = [0]
     calldatas = [transferOwner]
 
-    assert environment.proxyAdmin.owner() == environment.governor.address
+    assert environment.notional.owner() == environment.governor.address
     execute_proposal(environment, targets, values, calldatas)
-    assert environment.proxyAdmin.owner() == newGovernor.address
+    # Governor has not changed yet, requires second governor to claim
+    assert environment.notional.owner() == environment.governor.address
+
+    # Execute a proposal to claim ownership on the new governor
+    calldatas = [environment.notional.claimOwnership.encode_input()]
+    txn = newGovernor.propose(targets, values, calldatas, {"from": environment.multisig})
+    proposalId = txn.events["ProposalCreated"]["id"]
+    chain.mine(1)
+    newGovernor.castVote(proposalId, True, {"from": environment.multisig})
+    chain.mine(GovernanceConfig["governorConfig"]["votingPeriodBlocks"])
+
+    delay = newGovernor.getMinDelay()
+    newGovernor.queueProposal(proposalId, targets, values, calldatas)
+    chain.mine(1, timestamp=chain.time() + delay)
+    txn = newGovernor.executeProposal(proposalId, targets, values, calldatas)
+
+    # Now ownership has changed due to the claim
+    assert environment.notional.owner() == newGovernor.address
 
 
 def test_delegation(environment, accounts):

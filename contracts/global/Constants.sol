@@ -3,13 +3,12 @@ pragma solidity ^0.7.0;
 
 /// @title All shared constants for the Notional system should be declared here.
 library Constants {
-    // Return code for cTokens that represents no error
-    uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
     uint8 internal constant CETH_DECIMAL_PLACES = 8;
 
     // Token precision used for all internal balances, TokenHandler library ensures that we
     // limit the dust amount caused by precision mismatches
     int256 internal constant INTERNAL_TOKEN_PRECISION = 1e8;
+    uint256 internal constant INCENTIVE_ACCUMULATION_PRECISION = 1e18;
 
     // ETH will be initialized as the first currency
     uint256 internal constant ETH_CURRENCY_ID = 1;
@@ -22,12 +21,23 @@ library Constants {
 
     // Address of the reserve account
     address internal constant RESERVE = address(0);
-    // NOTE: this address is hardcoded in the library, must update this on deployment
-    address constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
 
     // Most significant bit
     bytes32 internal constant MSB =
         0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    // Each bit set in this mask marks where an active market should be in the bitmap
+    // if the first bit refers to the reference time. Used to detect idiosyncratic
+    // fcash in the nToken accounts
+    bytes32 internal constant ACTIVE_MARKETS_MASK = (
+        MSB >> ( 90 - 1) | // 3 month
+        MSB >> (105 - 1) | // 6 month
+        MSB >> (135 - 1) | // 1 year
+        MSB >> (147 - 1) | // 2 year
+        MSB >> (183 - 1) | // 5 year
+        MSB >> (211 - 1) | // 10 year
+        MSB >> (251 - 1)   // 20 year
+    );
 
     // Basis for percentages
     int256 internal constant PERCENTAGE_DECIMALS = 100;
@@ -80,7 +90,7 @@ library Constants {
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
     int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
     // Limit the market proportion so that borrowing cannot hit extremely high interest rates
-    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 96 / 100;
+    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 99 / 100;
 
     uint8 internal constant FCASH_ASSET_TYPE = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)

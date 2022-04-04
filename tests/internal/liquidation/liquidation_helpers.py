@@ -97,6 +97,7 @@ class ValuationMock:
                 self.nTokenCashBalance[i],
                 self.nTokenParameters[i][0],
                 self.nTokenParameters[i][1],
+                START_TIME,
             )
 
             # TODO: change the market curve...

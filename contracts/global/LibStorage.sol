@@ -4,6 +4,8 @@ pragma abicoder v2;
 
 import "./Types.sol";
 import "./Constants.sol";
+import "../../interfaces/notional/IRewarder.sol";
+import "../../interfaces/aave/ILendingPool.sol";
 
 library LibStorage {
 
@@ -34,9 +36,15 @@ library LibStorage {
         AssetsBitmap,
         ifCashBitmap,
         PortfolioArray,
-        nTokenTotalSupply,
+        // WARNING: this nTokenTotalSupply storage object was used for a buggy version
+        // of the incentives calculation. It should only be used for accounts who have
+        // not claimed before the migration
+        nTokenTotalSupply_deprecated,
         AssetRate,
-        ExchangeRate
+        ExchangeRate,
+        nTokenTotalSupply,
+        SecondaryIncentiveRewarder,
+        LendingPool
     }
 
     /// @dev Mapping from an account address to account context
@@ -147,6 +155,13 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
+    function getDeprecatedNTokenTotalSupplyStorage() internal pure
+        returns (mapping(address => nTokenTotalSupplyStorage_deprecated) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.nTokenTotalSupply_deprecated);
+        assembly { store.slot := slot }
+    }
+
     /// @dev Mapping from nToken address to its total supply values
     function getNTokenTotalSupplyStorage() internal pure
         returns (mapping(address => nTokenTotalSupplyStorage) storage store)
@@ -173,6 +188,20 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
+    /// @dev Returns the address of a secondary incentive rewarder for an nToken if it exists
+    function getSecondaryIncentiveRewarder() internal pure
+        returns (mapping(address => IRewarder) storage store)
+    {
+        uint256 slot = _getStorageSlot(StorageId.SecondaryIncentiveRewarder);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns the address of the lending pool
+    function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
+        uint256 slot = _getStorageSlot(StorageId.LendingPool);
+        assembly { store.slot := slot }
+    }
+
     /// @dev Get the storage slot given a storage ID.
     /// @param storageId An entry in `StorageId`
     /// @return slot The storage slot.
@@ -185,6 +214,4 @@ library LibStorage {
         // because Solidity will do a range check on `storageId` during the cast.
         return uint256(storageId) + STORAGE_SLOT_BASE;
     }
-
-
 } 

@@ -1,5 +1,6 @@
 compiler:
   solc:
+    version: 0.7.6
     optimizer:
       enabled: true
       runs: 200
@@ -15,7 +16,9 @@ networks:
       mnemonic: owner dignity sense
       log: ganache-out.txt
       default_balance: 100000
-
+  hardhat-fork:
+    cmd_settings:
+      fork_block: 14445740
 reports:
   exclude_paths:
     - interfaces/**/*.*

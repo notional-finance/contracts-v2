@@ -5,7 +5,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network import web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.project import ContractsVProject
+from brownie.project import ContractsV2Project
 from tests.helpers import get_balance_trade_action, initialize_environment
 
 chain = Chain()
@@ -17,7 +17,7 @@ def environment(accounts):
     v1env = scripts.deploy_v1.deploy_v1(v2env)
 
     blockTime = chain.time()
-    cashMarketABI = ContractsVProject._build.get("CashMarketInterface")["abi"]
+    cashMarketABI = ContractsV2Project._build.get("CashMarketInterface")["abi"]
     cashMarket = Contract.from_abi(
         "CashMarket",
         v1env["Portfolios"].functions.cashGroups(1).call()[3],

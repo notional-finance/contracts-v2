@@ -22,6 +22,7 @@ from tests.constants import (
     TRADE_ACTION_TYPE,
 )
 
+chain = Chain()
 timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
 impliedRateStrategy = strategy(
     "uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION
@@ -72,7 +73,7 @@ def get_cash_group_with_max_markets(maxMarketIndex):
     return cg
 
 
-def get_market_curve(maxMarketIndex, curveShape):
+def get_market_curve(maxMarketIndex, curveShape, previousTradeTime=START_TIME, assetRate=1):
     markets = []
 
     if type(curveShape) == str and curveShape in CURVE_SHAPES.keys():
@@ -85,7 +86,8 @@ def get_market_curve(maxMarketIndex, curveShape):
                 proportion=curveShape["proportion"],
                 lastImpliedRate=curveShape["rates"][i],
                 oracleRate=curveShape["rates"][i],
-                previousTradeTime=START_TIME,
+                previousTradeTime=previousTradeTime,
+                assetRate=assetRate,
             )
         )
 
@@ -99,11 +101,14 @@ def get_tref(blockTime):
 def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
+        assetRate = 1 if "assetRate" not in kwargs else kwargs["assetRate"]
         # proportion = totalfCash / (totalfCash + totalAssetCash)
         # totalfCash * p + totalAssetCash * p = totalfCash
         # totalfCash * (1 - p) / p = totalAssetCash
         totalfCash = 1e18
-        totalAssetCash = Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"])
+        totalAssetCash = (
+            Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"]) * assetRate
+        )
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
         totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
@@ -199,13 +204,17 @@ def get_bitstring_from_bitmap(bitmap):
     return bitstring
 
 
+def get_bitmap_from_bitlist(bitmapList):
+    return "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+
+
 def random_asset_bitmap(numAssets, maxBit=254):
     # Choose K bits to set
     bitmapList = ["0"] * 256
     setBits = random.choices(range(0, maxBit), k=numAssets)
     for b in setBits:
         bitmapList[b] = "1"
-    bitmap = "0x{:0{}x}".format(int("".join(bitmapList), 2), 64)
+    bitmap = get_bitmap_from_bitlist(bitmapList)
 
     return (bitmap, bitmapList)
 
@@ -429,3 +438,49 @@ def initialize_environment(accounts):
     _enable_cash_group(3, env, accounts)
 
     return env
+
+
+def setup_residual_environment(environment, accounts, residualType="Negative"):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the one year market
+    cashGroup[0] = 3
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
+    )
+
+    environment.notional.updateInitializationParameters(
+        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
+    )
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)
+
+    # Do some trading to leave some ntoken residual, this will be a negative residual
+    if residualType == "Negative":
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [{"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0}],
+            depositActionAmount=100e18,
+            withdrawEntireCashBalance=True,
+        )
+    else:
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
+            depositActionAmount=200e18,
+        )
+
+    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+
+    # Now settle the markets, should be some residual
+    blockTime = chain.time()
+    chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
+    environment.notional.initializeMarkets(currencyId, False)

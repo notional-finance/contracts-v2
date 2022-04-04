@@ -38,7 +38,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateLocal(
@@ -115,7 +115,7 @@ contract LiquidatefCashAction is ActionGuards {
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256) {
+    ) external nonReentrant returns (int256[] memory, int256) {
         uint256 blockTime = block.timestamp;
         LiquidatefCash.fCashContext memory c =
             _liquidateCrossCurrency(
@@ -201,7 +201,7 @@ contract LiquidatefCashAction is ActionGuards {
             int256 cashBalance,
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
-            /* uint256 lastClaimIntegralSupply*/
+            /* uint256 accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
         // Cash balance is used if liquidating negative fCash
         c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
@@ -246,5 +246,10 @@ contract LiquidatefCashAction is ActionGuards {
         );
 
         return c;
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address) {
+        return address(FreeCollateralExternal);
     }
 }

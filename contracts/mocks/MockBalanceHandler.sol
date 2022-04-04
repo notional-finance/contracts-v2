@@ -50,7 +50,7 @@ contract MockBalanceHandler is StorageLayoutV1 {
         balanceStorage.nTokenBalance = uint80(nTokenBalance);
         balanceStorage.cashBalance = int88(cashBalance);
         balanceStorage.lastClaimTime = 0;
-        balanceStorage.packedLastClaimIntegralSupply = 0;
+        balanceStorage.accountIncentiveDebt = 0;
     }
 
     function finalize(

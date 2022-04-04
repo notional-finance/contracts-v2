@@ -3,101 +3,124 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./TokenHandler.sol";
-import "../nTokenHandler.sol";
+import "../nToken/nTokenHandler.sol";
+import "../nToken/nTokenSupply.sol";
 import "../../math/SafeInt256.sol";
+import "../../external/MigrateIncentives.sol";
+import "../../../interfaces/notional/IRewarder.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library Incentives {
     using SafeMath for uint256;
     using SafeInt256 for int256;
 
-    /// @dev Notional incentivizes nTokens using the formula:
-    ///     incentivesToClaim = (tokenBalance / totalSupply) * emissionRatePerYear * proRataYears
-    ///     where proRataYears is:
-    ///         (timeSinceLastClaim / YEAR) * INTERNAL_TOKEN_PRECISION
-    /// @return (emissionRatePerYear * proRataYears), decimal basis is (1e8 * 1e8 = 1e16)
-    function _getIncentiveRate(uint256 timeSinceLastClaim, uint256 emissionRatePerYear)
-        private
-        pure
-        returns (uint256)
-    {
-        // (timeSinceLastClaim * INTERNAL_TOKEN_PRECISION) / YEAR
-        uint256 proRataYears =
-            timeSinceLastClaim.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)).div(Constants.YEAR);
-
-        return proRataYears.mul(emissionRatePerYear);
-    }
-
-    /// @notice Calculates the claimable incentives for a particular nToken and account
+    /// @notice Calculates the total incentives to claim including those claimed under the previous
+    /// less accurate calculation. Once an account is migrated it will only claim incentives under
+    /// the more accurate regime
     function calculateIncentivesToClaim(
+        BalanceState memory balanceState,
         address tokenAddress,
-        uint256 nTokenBalance,
-        uint256 lastClaimTime,
-        uint256 lastClaimIntegralSupply,
-        uint256 blockTime,
-        uint256 integralTotalSupply
-    ) internal view returns (uint256) {
-        if (lastClaimTime == 0 || lastClaimTime >= blockTime) return 0;
-
-        // prettier-ignore
-        (
-            /* currencyId */,
-            uint256 emissionRatePerYear,
-            /* initializedTime */,
-            /* assetArrayLength */,
-            /* parameters */
-        ) = nTokenHandler.getNTokenContext(tokenAddress);
-
-        // No overflow here, checked above
-        uint256 timeSinceLastClaim = blockTime - lastClaimTime;
-        uint256 incentiveRate =
-            _getIncentiveRate(
-                timeSinceLastClaim,
-                // Convert this to the appropriate denomination, emissionRatePerYear is denominated
-                // in whole tokens
-                emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION))
+        uint256 accumulatedNOTEPerNToken,
+        uint256 finalNTokenBalance
+    ) internal view returns (uint256 incentivesToClaim) {
+        if (balanceState.lastClaimTime > 0) {
+            // If lastClaimTime is set then the account had incentives under the
+            // previous regime. Will calculate the final amount of incentives to claim here
+            // under the previous regime.
+            incentivesToClaim = MigrateIncentives.migrateAccountFromPreviousCalculation(
+                tokenAddress,
+                balanceState.storedNTokenBalance.toUint(),
+                balanceState.lastClaimTime,
+                // In this case the accountIncentiveDebt is stored as lastClaimIntegralSupply under
+                // the old calculation
+                balanceState.accountIncentiveDebt
             );
 
-        // Returns the average supply between now and the previous mint time using the integral of the total
-        // supply.
-        uint256 avgTotalSupply = integralTotalSupply.sub(lastClaimIntegralSupply).div(timeSinceLastClaim);
-        if (avgTotalSupply == 0) return 0;
+            // This marks the account as migrated and lastClaimTime will no longer be used
+            balanceState.lastClaimTime = 0;
+            // This value will be set immediately after this, set this to zero so that the calculation
+            // establishes a new baseline.
+            balanceState.accountIncentiveDebt = 0;
+        }
 
-        uint256 incentivesToClaim = nTokenBalance.mul(incentiveRate).div(avgTotalSupply);
-        // incentiveRate has a decimal basis of 1e16 so divide by token precision to reduce to 1e8
-        incentivesToClaim = incentivesToClaim.div(uint256(Constants.INTERNAL_TOKEN_PRECISION));
+        // If an account was migrated then they have no accountIncentivesDebt and should accumulate
+        // incentives based on their share since the new regime calculation started.
+        // If an account is just initiating their nToken balance then storedNTokenBalance will be zero
+        // and they will have no incentives to claim.
+        // This calculation uses storedNTokenBalance which is the balance of the account up until this point,
+        // this is important to ensure that the account does not claim for nTokens that they will mint or
+        // redeem on a going forward basis.
 
-        return incentivesToClaim;
+        // The calculation below has the following precision:
+        //   storedNTokenBalance (INTERNAL_TOKEN_PRECISION)
+        //   MUL accumulatedNOTEPerNToken (INCENTIVE_ACCUMULATION_PRECISION)
+        //   DIV INCENTIVE_ACCUMULATION_PRECISION
+        //  = INTERNAL_TOKEN_PRECISION - (accountIncentivesDebt) INTERNAL_TOKEN_PRECISION
+        incentivesToClaim = incentivesToClaim.add(
+            balanceState.storedNTokenBalance.toUint()
+                .mul(accumulatedNOTEPerNToken)
+                .div(Constants.INCENTIVE_ACCUMULATION_PRECISION)
+                .sub(balanceState.accountIncentiveDebt)
+        );
+
+        // Update accountIncentivesDebt denominated in INTERNAL_TOKEN_PRECISION which marks the portion
+        // of the accumulatedNOTE that the account no longer has a claim over. Use the finalNTokenBalance
+        // here instead of storedNTokenBalance to mark the overall incentives claim that the account
+        // does not have a claim over. We do not aggregate this value with the previous accountIncentiveDebt
+        // because accumulatedNOTEPerNToken is already an aggregated value.
+
+        // The calculation below has the following precision:
+        //   finalNTokenBalance (INTERNAL_TOKEN_PRECISION)
+        //   MUL accumulatedNOTEPerNToken (INCENTIVE_ACCUMULATION_PRECISION)
+        //   DIV INCENTIVE_ACCUMULATION_PRECISION
+        //   = INTERNAL_TOKEN_PRECISION
+        balanceState.accountIncentiveDebt = finalNTokenBalance
+            .mul(accumulatedNOTEPerNToken)
+            .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
     }
 
-    /// @notice Incentives must be claimed every time nToken balance changes
-    function claimIncentives(BalanceState memory balanceState, address account)
-        internal
-        returns (uint256)
-    {
+    /// @notice Incentives must be claimed every time nToken balance changes.
+    /// @dev BalanceState.accountIncentiveDebt is updated in place here
+    function claimIncentives(
+        BalanceState memory balanceState,
+        address account,
+        uint256 finalNTokenBalance
+    ) internal returns (uint256 incentivesToClaim) {
         uint256 blockTime = block.timestamp;
         address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
-        // This will set the new supply and return the previous integral total supply
-        uint256 integralTotalSupply = nTokenHandler.changeNTokenSupply(
+        // This will updated the nToken storage and return what the accumulatedNOTEPerNToken
+        // is up until this current block time in 1e18 precision
+        uint256 accumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(
             tokenAddress,
             balanceState.netNTokenSupplyChange,
             blockTime
         );
 
-        uint256 incentivesToClaim = calculateIncentivesToClaim(
+        incentivesToClaim = calculateIncentivesToClaim(
+            balanceState,
             tokenAddress,
-            balanceState.storedNTokenBalance.toUint(),
-            balanceState.lastClaimTime,
-            balanceState.lastClaimIntegralSupply,
-            blockTime,
-            integralTotalSupply
+            accumulatedNOTEPerNToken,
+            finalNTokenBalance
         );
 
-        balanceState.lastClaimTime = blockTime;
-        balanceState.lastClaimIntegralSupply = integralTotalSupply;
+        // If a secondary incentive rewarder is set, then call it
+        IRewarder rewarder = nTokenHandler.getSecondaryRewarder(tokenAddress);
+        if (address(rewarder) != address(0)) {
+            rewarder.claimRewards(
+                account,
+                balanceState.currencyId,
+                // When this method is called from finalize, the storedNTokenBalance has not
+                // been updated to finalNTokenBalance yet so this is the balance before the change.
+                balanceState.storedNTokenBalance.toUint(),
+                finalNTokenBalance,
+                // When the rewarder is called, totalSupply has been updated already so may need to
+                // adjust its calculation using the net supply change figure here. Supply change
+                // may be zero when nTokens are transferred.
+                balanceState.netNTokenSupplyChange,
+                incentivesToClaim
+            );
+        }
 
         if (incentivesToClaim > 0) TokenHandler.transferIncentive(account, incentivesToClaim);
-
-        return incentivesToClaim;
     }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./ActionGuards.sol";
+import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
@@ -14,10 +15,11 @@ contract AccountAction is ActionGuards {
     using AccountContextHandler for AccountContext;
     using SafeInt256 for int256;
 
+    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
+
     /// @notice Enables a bitmap currency for msg.sender, account cannot have any assets when this call
-    /// occurs.
-    /// @param currencyId the currency to enable the bitmap for. If set to zero then will attempt to disable
-    /// the bitmap portfolio for the account
+    /// occurs. Will revert if the account already has a bitmap currency set.
+    /// @param currencyId the currency to enable the bitmap for.
     /// @dev emit:AccountSettled emit:AccountContextUpdate
     /// @dev auth:msg.sender
     function enableBitmapCurrency(uint16 currencyId) external {
@@ -25,7 +27,7 @@ contract AccountAction is ActionGuards {
         require(currencyId <= maxCurrencyId); // dev: invalid currency id
         address account = msg.sender;
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(account);
-        accountContext.enableBitmapForAccount(account, currencyId, block.timestamp);
+        accountContext.enableBitmapForAccount(currencyId, block.timestamp);
         accountContext.setAccountContext(account);
     }
 
@@ -159,6 +161,58 @@ contract AccountAction is ActionGuards {
         return amountWithdrawnExternal.neg().toUint();
     }
 
+    /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets
+    /// into their portfolio. Due to the complexity here, it is not allowed to be called during a batch trading
+    /// operation and must be done separately.
+    /// @param redeemer the address that holds the nTokens to redeem
+    /// @param currencyId the currency associated the nToken
+    /// @param tokensToRedeem_ the amount of nTokens to convert to cash
+    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash
+    /// @param acceptResidualAssets if true, will place any residual fCash that could not be sold (either due to slippage
+    /// or because it was idiosyncratic) into the account's portfolio
+    /// @dev auth:msg.sender auth:ERC1155
+    /// @return total amount of asset cash redeemed
+    /// @return true or false if there were residuals that were placed into the portfolio
+    function nTokenRedeem(
+        address redeemer,
+        uint16 currencyId,
+        uint96 tokensToRedeem_,
+        bool sellTokenAssets,
+        bool acceptResidualAssets
+    ) external nonReentrant returns (int256, bool) {
+        // ERC1155 can call this method during a post transfer event
+        require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
+        int256 tokensToRedeem = int256(tokensToRedeem_);
+
+        (AccountContext memory context, /* didSettle */) = _settleAccountIfRequired(redeemer);
+
+        BalanceState memory balance;
+        balance.loadBalanceState(redeemer, currencyId, context);
+
+        require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
+        balance.netNTokenSupplyChange = tokensToRedeem.neg();
+
+        (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
+            nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
+
+        // Set balances before transferring assets
+        balance.netCashChange = totalAssetCash;
+        balance.finalize(redeemer, context, false);
+
+        if (hasResidual) {
+            // This method will store assets and update the account context in memory
+            context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
+        }
+
+        context.setAccountContext(redeemer);
+        if (context.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
+        }
+
+        emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
+        return (totalAssetCash, hasResidual);
+    }
+
     /// @notice Settle the account if required, returning a reference to the account context. Also
     /// returns a boolean to indicate if it did settle.
     function _settleAccountIfRequired(address account)
@@ -171,5 +225,15 @@ contract AccountAction is ActionGuards {
         } else {
             return (accountContext, false);
         }
+    }
+
+    /// @notice Get a list of deployed library addresses (sorted by library name)
+    function getLibInfo() external view returns (address, address, address, address) {
+        return (
+            address(FreeCollateralExternal),
+            address(MigrateIncentives), 
+            address(SettleAssetsExternal), 
+            address(nTokenRedeemAction)
+        );
     }
 }

@@ -8,6 +8,8 @@ import "../markets/CashGroup.sol";
 import "../AccountContextHandler.sol";
 import "../balances/BalanceHandler.sol";
 import "../portfolio/PortfolioHandler.sol";
+import "../nToken/nTokenHandler.sol";
+import "../nToken/nTokenCalculations.sol";
 import "../../math/SafeInt256.sol";
 
 library FreeCollateral {
@@ -49,7 +51,7 @@ library FreeCollateral {
                 int256 cashBalance,
                 int256 nTokenBalance,
                 /* lastClaimTime */,
-                /* lastClaimIntegralSupply */
+                /* accountIncentiveDebt */
             ) = BalanceHandler.getBalanceStorage(account, currencyId);
 
             return (cashBalance, nTokenBalance);
@@ -69,7 +71,7 @@ library FreeCollateral {
         nToken.loadNTokenPortfolioNoCashGroup(cashGroup.currencyId);
         nToken.cashGroup = cashGroup;
 
-        int256 nTokenAssetPV = nToken.getNTokenAssetPV(blockTime);
+        int256 nTokenAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
 
         // (tokenBalance * nTokenValue * haircut) / totalSupply
         int256 nTokenHaircutAssetPV =
@@ -150,7 +152,7 @@ library FreeCollateral {
             cashBalance,
             nTokenBalance, 
             /* lastClaimTime */,
-            /* lastClaimIntegralSupply */
+            /* accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
 
         if (nTokenBalance > 0) {
@@ -252,6 +254,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
 
             (int256 netLocalAssetValue, int256 nTokenBalance) =
                 _getCurrencyBalances(account, currencyBytes);
@@ -339,6 +343,8 @@ library FreeCollateral {
         while (currencies != 0) {
             bytes2 currencyBytes = bytes2(currencies);
             uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            // Explicitly ensures that bitmap currency cannot be double counted
+            require(currencyId != accountContext.bitmapCurrencyId);
             int256 nTokenBalance;
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
@@ -464,6 +470,8 @@ library FreeCollateral {
             bool setLiquidationFactors;
             {
                 uint256 tempId = uint256(uint16(currencyBytes & Constants.UNMASK_FLAGS));
+                // Explicitly ensures that bitmap currency cannot be double counted
+                require(tempId != accountContext.bitmapCurrencyId);
                 setLiquidationFactors =
                     (tempId == localCurrencyId && collateralCurrencyId == 0) ||
                     tempId == collateralCurrencyId;

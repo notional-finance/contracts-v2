@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 import "../balances/TokenHandler.sol";
 import "../../math/SafeInt256.sol";
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 library ExchangeRate {
     using SafeInt256 for int256;

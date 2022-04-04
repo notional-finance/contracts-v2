@@ -2,8 +2,8 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import "interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "interfaces/notional/AssetRateAdapter.sol";
+import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../interfaces/notional/AssetRateAdapter.sol";
 
 /// @notice Different types of internal tokens
 ///  - UnderlyingToken: underlying asset for a cToken (except for Ether)
@@ -11,7 +11,8 @@ import "interfaces/notional/AssetRateAdapter.sol";
 ///  - cETH: Special handling for cETH tokens
 ///  - Ether: the one and only
 ///  - NonMintable: tokens that do not have an underlying (therefore not cTokens)
-enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable}
+///  - aToken: Aave interest bearing tokens
+enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable, aToken}
 
 /// @notice Specifies the different trade action types in the system. Each trade action type is
 /// encoded in a tightly packed bytes32 object. Trade action type is the first big endian byte of the
@@ -182,8 +183,8 @@ struct BalanceState {
     int256 netNTokenSupplyChange;
     // The last time incentives were claimed for this currency
     uint256 lastClaimTime;
-    // The last integral supply amount when tokens were claimed
-    uint256 lastClaimIntegralSupply;
+    // Accumulator for incentives that the account no longer has a claim over
+    uint256 accountIncentiveDebt;
 }
 
 /// @dev Asset rate used to convert between underlying cash and asset cash
@@ -345,6 +346,10 @@ struct nTokenContext {
     uint8 assetArrayLength;
     // Each byte is a specific nToken parameter
     bytes5 nTokenParameters;
+    // Reserved bytes for future usage
+    bytes15 _unused;
+    // Set to true if a secondary rewarder is set
+    bool hasSecondaryRewarder;
 }
 
 /// @dev Holds account balance information, total storage 32 bytes
@@ -353,9 +358,8 @@ struct BalanceStorage {
     uint80 nTokenBalance;
     // Last time the account claimed their nTokens
     uint32 lastClaimTime;
-    // The total integral supply of the nToken at the last claim time packed into
-    // 56 bits. There is some loss of precision here but it is acceptable
-    uint56 packedLastClaimIntegralSupply;
+    // Incentives that the account no longer has a claim over
+    uint56 accountIncentiveDebt;
     // Cash balance of the account
     int88 cashBalance;
 }
@@ -403,8 +407,8 @@ struct PortfolioAssetStorage {
 }
 
 /// @dev nToken total supply factors for the nToken, includes factors related
-/// to claiming incentives, total storage 32 bytes
-struct nTokenTotalSupplyStorage {
+/// to claiming incentives, total storage 32 bytes. This is the deprecated version
+struct nTokenTotalSupplyStorage_deprecated {
     // Total supply of the nToken
     uint96 totalSupply;
     // Integral of the total supply used for calculating the average total supply
@@ -413,11 +417,22 @@ struct nTokenTotalSupplyStorage {
     uint32 lastSupplyChangeTime;
 }
 
+/// @dev nToken total supply factors for the nToken, includes factors related
+/// to claiming incentives, total storage 32 bytes.
+struct nTokenTotalSupplyStorage {
+    // Total supply of the nToken
+    uint96 totalSupply;
+    // How many NOTE incentives should be issued per nToken in 1e18 precision
+    uint128 accumulatedNOTEPerNToken;
+    // Last timestamp when the accumulation happened
+    uint32 lastAccumulatedTime;
+}
+
 /// @dev Used in view methods to return account balances in a developer friendly manner
 struct AccountBalance {
     uint16 currencyId;
     int256 cashBalance;
     int256 nTokenBalance;
     uint256 lastClaimTime;
-    uint256 lastClaimIntegralSupply;
+    uint256 accountIncentiveDebt;
 }

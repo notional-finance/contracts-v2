@@ -9,8 +9,9 @@ build/tests.json
 venv/
 chaindb/
 ganache-out.txt
-.certora_config/*
-.last_confs/*
+.certora_config
+.last_confs
+.pytest_cache
 .certora*.json
 node_modules/*
 hardhat.config.js

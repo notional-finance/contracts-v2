@@ -7,6 +7,8 @@ import "../AccountContextHandler.sol";
 import "../valuation/AssetHandler.sol";
 import "../markets/CashGroup.sol";
 import "../markets/AssetRate.sol";
+import "../balances/TokenHandler.sol";
+import "../balances/BalanceHandler.sol";
 import "../valuation/ExchangeRate.sol";
 import "../portfolio/PortfolioHandler.sol";
 import "../portfolio/BitmapAssetsHandler.sol";
@@ -22,6 +24,7 @@ library LiquidatefCash {
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
     using PortfolioHandler for PortfolioState;
+    using TokenHandler for Token;
 
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The
     /// The risk adjusted discount factor is used to value fCash, the liquidation discount factor is used to 
@@ -398,7 +401,13 @@ library LiquidatefCash {
         return (fCashToLiquidate, localAssetCashFromLiquidator);
     }
 
-    /// @dev Finalizes fCash liquidation for both local and cross currency liquidation
+    /**
+     * @notice Finalizes fCash liquidation for both local and cross currency liquidation.
+     * @dev Since fCash liquidation only ever results in transfers of cash and fCash we
+     * don't use BalanceHandler.finalize here to save some bytecode space (desperately
+     * needed for this particular contract.) We use a special function just for fCash
+     * liquidation to update the cash balance on the liquidated account.
+     */
     function finalizefCashLiquidation(
         address liquidateAccount,
         address liquidator,
@@ -407,22 +416,37 @@ library LiquidatefCash {
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) internal returns (int256[] memory, int256) {
-        // Liquidator deposits or receives cash to/from the liquidated account.
-        AccountContext memory liquidatorContext =
-            LiquidationHelpers.finalizeLiquidatorLocal(
-                liquidator,
-                localCurrency,
-                c.localAssetCashFromLiquidator,
-                0
-            );
+        Token memory token = TokenHandler.getAssetToken(localCurrency);
+        AccountContext memory liquidatorContext = AccountContextHandler.getAccountContext(liquidator);
+        int256 netLocalFromLiquidator = c.localAssetCashFromLiquidator;
 
-        // Liquidated account gets the cash from the liquidator, does not set the
-        // account context
-        LiquidationHelpers.finalizeLiquidatedLocalBalance(
+        if (token.hasTransferFee && netLocalFromLiquidator > 0) {
+            // If a token has a transfer fee then it must have been deposited prior to the liquidation
+            // or else we won't be able to net off the correct amount. We also require that the account
+            // does not have debt so that we do not have to run a free collateral check here
+            require(liquidatorContext.hasDebt == 0x00, "Has debt"); // dev: token has transfer fee, no liquidator balance
+
+            // Net off the cash balance for the liquidator. If the cash balance goes negative here then it will revert.
+            BalanceHandler.setBalanceStorageForfCashLiquidation(
+                liquidator,
+                liquidatorContext,
+                localCurrency,
+                netLocalFromLiquidator.neg()
+            );
+        } else {
+            // In any other case, do a token transfer for the liquidator (either into or out of Notional)
+            // and do not credit any cash balance. That will be done just for the liquidated account.
+
+            // NOTE: in the case of aToken transfers this is going to convert the scaledBalanceOf aToken
+            // to the balanceOf value required for transfers
+            token.transfer(liquidator, localCurrency, token.convertToExternal(netLocalFromLiquidator));
+        }
+
+        BalanceHandler.setBalanceStorageForfCashLiquidation(
             liquidateAccount,
-            localCurrency,
             c.accountContext,
-            c.localAssetCashFromLiquidator
+            localCurrency,
+            netLocalFromLiquidator
         );
 
         bool liquidatorIncursDebt;
