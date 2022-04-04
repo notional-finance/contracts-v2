@@ -1,9 +1,9 @@
 {
     "actions": {
         "AccountAction": "0xBbb9750beB6a4A4a1bB219c9dc750a5A11c853B8",
-        "BatchAction": "0xcEa3Ab9B02D9541760eC8b56fE76bEceE1FaeD91",
+        "BatchAction": "0x7cB8922521055A1054ACECDDB8A34eECD8Bce3f7",
         "CalculationViews": "0xE6270EEe5D3473d41BE4D6C13748b9a2784c607C",
-        "ERC1155Action": "0x75B00937dD004272C2A8c4991b5Ccd4E2d48071E",
+        "ERC1155Action": "0x00f3DF3d9e896192F8ee2b0CEaD892De00b313CC",
         "GovernanceAction": "0x04BdEB742e2524cabCE4251F790D131ae1CaF341",
         "InitializeMarketsAction": "0x1d71A77cd0B3b08a2B3D9082eD68C1C95F4Ba424",
         "LiquidateCurrencyAction": "0xb1D5Bd3aeD680499730878b6B7A0885F2Bea6b7B",
@@ -66,7 +66,7 @@
     "notional": "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e",
     "routers": {
         "PauseRouter": "0xfaAdfD8f023e5Fcf75AE04415C4D747FC0c59528",
-        "Router": "0x5C3b5efC3D79461292c94F9C94E8F1755EfaA04c"
+        "Router": "0x1f98f61E18728A16d587DDC385D6e6014d02269d"
     },
     "startBlock": 27189640,
     "tokens": {
