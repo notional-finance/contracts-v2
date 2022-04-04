@@ -165,7 +165,7 @@ def test_ntoken_market_value(nTokenRedeem1, accounts, lt1, lt2, lt3):
         fCashPV = fCash / math.exp(m[6] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION)
         netAssetValue += Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
 
-    assert pytest.approx(totalAssetValue, rel=1e-7) == netAssetValue
+    assert pytest.approx(totalAssetValue, rel=1e-6) == netAssetValue
 
 
 @given(tokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18))

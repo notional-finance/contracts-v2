@@ -729,7 +729,7 @@ def test_transfer_and_batch_lend(environment, accounts):
     assert toAssets[0][3] == 100e8
 
     assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
-    assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
+    assert environment.notional.getFreeCollateral(accounts[1])[0] == 0
 
     check_system_invariants(environment, accounts)
 

@@ -36,7 +36,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         requireValidAccount(account);
 
-        // Return any settle amounts here to reduce the number of storage writes to balances
         AccountContext memory accountContext = _settleAccountIfRequired(account);
         BalanceState memory balanceState;
 
@@ -103,7 +102,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         requireValidAccount(account);
-        // Return any settle amounts here to reduce the number of storage writes to balances
+
         AccountContext memory accountContext = _settleAccountIfRequired(account);
         // NOTE: loading the portfolio state must happen after settle account to get the
         // correct portfolio, it will have changed if the account is settled.
@@ -131,7 +130,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
             // Loads the currencyId into balance state
             balanceState.loadBalanceState(account, action.currencyId, accountContext);
-            // This must be negative as a result of requiring only lending
             (balanceState.netCashChange, portfolioState) = _executeTrades(
                 account,
                 action.currencyId,
@@ -139,11 +137,14 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 accountContext,
                 portfolioState
             );
+            // This must be negative as a result of requiring only lending
+            require(balanceState.netCashChange <= 0);
 
             // Deposit sufficient cash to get the balance up to zero. If required cash is negative (i.e. there
             // is sufficient cash) then we don't need to do anything. The account's cash balance will be net off
-            // and there will be no token transfer. NOTE: it is possible that free collateral decreases as a result
-            // of lending a cash balance, will check FC at the end of the method.
+            // and there will be no token transfer.
+            // NOTE: it is possible that free collateral decreases as a result of lending a cash balance, will
+            // check FC at the end of the method.
             int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
             if (requiredCash > 0) {
                 if (action.depositUnderlying) {
@@ -160,6 +161,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                         underlyingExternalAmount = underlyingExternalAmount.add(1);
                     }
 
+                    // This returns the cToken / aToken amount as a result of transfer and mint. It must be sufficient to
+                    // cover the required cash.
                     int256 assetAmountInternal = balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
                     require(assetAmountInternal >= requiredCash, "Insufficient deposit");
                 } else {
