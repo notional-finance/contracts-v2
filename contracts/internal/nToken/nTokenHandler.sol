@@ -13,8 +13,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenHandler {
     using SafeInt256 for int256;
-    using Bitmap for bytes32;
-    using CashGroup for CashGroupParameters;
 
     /// @dev Mirror of the value in LibStorage, solidity compiler does not allow assigning
     /// two constants to each other.

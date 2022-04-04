@@ -182,26 +182,6 @@ contract Views is StorageLayoutV2, NotionalViews {
         return address(nTokenHandler.getSecondaryRewarder(tokenAddress));
     }
 
-    /// @notice Returns current ownership status of the contract
-    /// @return owner is the current owner of the Notional system
-    /// @return pendingOwner can claim ownership from the owner
-    function getOwnershipStatus() external view override returns (address owner, address pendingOwner) {
-        return (owner, pendingOwner);
-    }
-
-    function getGlobalTransferOperatorStatus(address operator) external view override returns (bool isAuthorized) {
-        return globalTransferOperator[operator];
-    }
-
-    function getAuthorizedCallbackContractStatus(address callback) external view override returns (bool isAuthorized) {
-        return authorizedCallbackContract[callback];
-    }
-
-    function getSecondaryIncentiveRewarder(uint16 currencyId) external view override returns (address rewarder) {
-        address tokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        return address(nTokenHandler.getSecondaryRewarder(tokenAddress));
-    }
-
     /** Global System State View Methods **/
 
     /// @notice Returns the asset settlement rate for a given maturity
@@ -518,26 +498,6 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Returns the lending pool address
-    function getLendingPool() external view override returns (address) {
-        return address(LibStorage.getLendingPool().lendingPool);
-    }
-
-    /// @notice Returns the current treasury manager contract
-    function getTreasuryManager() external view override returns (address) {
-        return treasuryManagerContract;
-    }
-
-    /// @notice Returns the current reserve buffer for a currency
-    /// @param currencyId refers to the currency of the reserve
-    function getReserveBuffer(uint16 currencyId) external view override returns (uint256) {
-        return reserveBuffer[currencyId];
-    }
-
-    /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address, address) {
-        return (address(FreeCollateralExternal), address(MigrateIncentives));
-    }
-
     function getLendingPool() external view override returns (address) {
         return address(LibStorage.getLendingPool().lendingPool);
     }
