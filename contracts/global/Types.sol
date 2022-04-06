@@ -71,7 +71,7 @@ enum AssetStorageState {
 
 /****** Calldata objects ******/
 
-/// @notice Defines a balance action for batchAction
+/// @notice Defines a batch lending action
 struct BatchLend {
     uint16 currencyId;
     // True if the contract should try to transfer underlying tokens instead of asset tokens

@@ -115,6 +115,15 @@ def test_lend_sufficient_cash_no_transfer(environment, useUnderlying, accounts):
 
 @given(useUnderlying=strategy("bool"))
 def test_lend_sufficient_cash_transfer(environment, useUnderlying, accounts):
+    # Setup a borrow to move the exchange rate, this causes off by one errors
+    environment.comptroller.enterMarkets(
+        [environment.cToken["DAI"].address, environment.cToken["ETH"].address],
+        {"from": accounts[1]},
+    )
+
+    environment.cToken["ETH"].mint({"from": accounts[1], "value": 10e18})
+    environment.cToken["DAI"].borrow(100e18, {"from": accounts[1]})
+
     marketsBefore = environment.notional.getActiveMarkets(2)
     action = get_lend_action(
         2,
@@ -139,11 +148,18 @@ def test_lend_sufficient_cash_transfer(environment, useUnderlying, accounts):
     assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1])
-    activeCurrenciesList = active_currencies_to_list(context[4])
-    assert activeCurrenciesList == [(2, True, False)]
+    (cashBalance, nToken, incentiveDebt) = environment.notional.getAccountBalance(2, accounts[1])
     assert context[1] == "0x00"
-    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
 
+    if useUnderlying:
+        # Using underlying results in dust
+        assert cashBalance < 100
+    else:
+        # Using asset tokens is exact
+        assert cashBalance == 0
+
+    assert nToken == 0
+    assert incentiveDebt == 0
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert portfolio[0][0] == 2
     assert portfolio[0][1] == marketsBefore[0][1]

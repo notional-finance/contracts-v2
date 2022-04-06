@@ -91,7 +91,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// the gas costs for lending because there is no second token transfer where residual balances are sent
     /// back to the account.
     /// @dev Note that this method does not work with native ETH because it requires the ability to pull payment
-    /// from an ERC20 token. Therefore, this method is marked as nonpayable. It will still worth with cETH or aETH.
+    /// from an ERC20 token. Therefore, this method is marked as nonpayable. It will still work with cETH or aETH.
     /// @param account the account for the action
     /// @param actions array of batch lending actions
     /// @dev emit:CashBalanceChange, emit:LendBorrowTrade emit:SettledCashDebt
@@ -152,13 +152,19 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                     // back to underlying.
                     AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(action.currencyId);
                     Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
-                    int256 underlyingExternalAmount = underlyingToken.convertToExternal(ar.convertToUnderlying(requiredCash));
+                    int256 underlyingInternalAmount = ar.convertToUnderlying(requiredCash);
+                    int256 underlyingExternalAmount;
 
                     if (underlyingToken.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
                         // If external < 8, we could truncate down and cause an off by one error, for example we need
-                        // 1.00000011 cash and we deposit only 1.000000, missing 11 units. Therefore, we add a unit here
-                        // to account for potential rounding issues when tokens are less than 8 decimals (primarily USDC).
-                        underlyingExternalAmount = underlyingExternalAmount.add(1);
+                        // 1.00000011 cash and we deposit only 1.000000, missing 11 units. Therefore, we add a unit at the
+                        // lower precision (external) to get around off by one errors
+                        underlyingExternalAmount = underlyingToken.convertToExternal(underlyingInternalAmount).add(1);
+                    } else {
+                        // If external > 8, we may not mint enough asset tokens because in the case of 1e18 precision 
+                        // an off by 1 error at 1e8 precision is 1e10 units of the underlying token. In this case we
+                        // add 1 at the internal precision which has the effect of rounding up by 1e10
+                        underlyingExternalAmount = underlyingToken.convertToExternal(underlyingInternalAmount.add(1));
                     }
 
                     // This returns the cToken / aToken amount as a result of transfer and mint. It must be sufficient to
