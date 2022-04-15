@@ -457,3 +457,63 @@ struct AccountBalance {
     uint256 lastClaimTime;
     uint256 accountIncentiveDebt;
 }
+
+// A per account, per currency context object for Staked nTokens
+struct nTokenStakerStorage {
+    // Maturity when these staked nTokens will be able to unstake
+    uint32 unstakeMaturity;
+    // Staked NToken balance for this account
+    uint96 stakedNTokenBalance;
+    // Share of the NOTE incentives the account does not have a claim over, overflows
+    // at 720 million NOTE tokens (in 1e8 precision, only 100 million NOTE token supply)
+    uint56 accountIncentiveDebt;
+    // Accumulated NOTE incentives, overflows at 720 million NOTE tokens
+    // (in 1e8 precision, only 100 million NOTE token supply)
+    uint56 accumulatedNOTE;
+    // 16 bytes remaining
+}
+
+// In memory object for the staker context
+struct nTokenStaker {
+    uint256 unstakeMaturity;
+    uint256 stakedNTokenBalance;
+    uint256 accountIncentiveDebt;
+    uint256 accumulatedNOTE;
+}
+
+// Stores relevant supply factors for a Staked NToken, maps to a single nToken
+struct StakedNTokenSupplyStorage {
+    // Total supply of this particular nToken
+    uint96 totalSupply;
+    // nTokens held by this Staked nToken
+    uint96 nTokenBalance;
+
+    // TODO: (is this too limiting?)
+    // Allows 4x16 term multipliers, up to 4 quarters of staking.
+    // The two bytes will establish the basis for the rest of the values
+    bytes8 termMultipliers;
+    
+    // Second storage slot starts here, holds the incentive accumulators for the staked nToken.
+    // Previous value of NOTE per nToken seen by the staked nToken
+    uint128 lastBaseAccumulatedNOTEPerNToken;
+    // Current accumulated NOTE per staked nToken
+    uint128 baseAccumulatedNOTEPerStaked;
+}
+
+// Staked nToken supply in memory
+struct StakedNTokenSupply {
+    uint256 totalSupply;
+    uint256 nTokenBalance;
+    uint256 lastBaseAccumulatedNOTEPerNToken;
+    uint256 baseAccumulatedNOTEPerStaked;
+    bytes8 termMultipliers;
+}
+
+// Incentive factors for a particular staked nToken maturity in storage
+struct StakedMaturityIncentivesStorage {
+    // Technically this can overflow at 100 million NOTE in 1e8 precision but it's not going
+    // to be the case that a single maturity accumulates all NOTE in existence.
+    uint112 termAccumulatedNOTEPerStaked;
+    uint112 lastBaseAccumulatedNOTEPerStaked;
+    uint32 lastAccumulatedTime;
+}
