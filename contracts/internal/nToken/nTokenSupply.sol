@@ -143,6 +143,10 @@ library nTokenSupply {
         // emission rate
         changeNTokenSupply(tokenAddress, 0, blockTime);
 
+        // Update baseAccumulatedNOTE and termAccumulatedNOTE for Staked NTokens. For term accumualted note, make sure
+        // to update N quarters back as well. While it's possible that quarters even further back are not properly
+        // accumulated that would be pretty unlikely and we would rely on governance to check that.
+
         mapping(address => nTokenContext) storage store = LibStorage.getNTokenContextStorage();
         nTokenContext storage context = store[tokenAddress];
         context.incentiveAnnualEmissionRate = newEmissionsRate;
