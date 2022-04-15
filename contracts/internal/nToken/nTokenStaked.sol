@@ -4,8 +4,15 @@ pragma abicoder v2;
 
 import "../../global/Types.sol";
 import "../../global/LibStorage.sol";
+import "../../global/Constants.sol";
+import "../markets/DateTime.sol";
+import "./nTokenHandler.sol";
+import "./nTokenSupply.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenStaked {
+    using SafeMath for uint256;
+
     /** Getter and Setter Methods **/
 
     function getNTokenStaker(
@@ -42,15 +49,15 @@ library nTokenStaked {
 
     function getStakedNTokenSupply(
         uint16 currencyId
-    ) internal view returns (StakedNTokenSupply memory nTokenSupply) {
+    ) internal view returns (StakedNTokenSupply memory stakedSupply) {
         mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
         StakedNTokenSupplyStorage storage s = store[currencyId];
 
-        nTokenSupply.totalSupply = s.totalSupply;
-        nTokenSupply.nTokenBalance = s.nTokenBalance;
-        nTokenSupply.termMultipliers = s.termMultipliers;
-        nTokenSupply.lastBaseAccumulatedNOTEPerNToken = s.lastBaseAccumulatedNOTEPerNToken;
-        nTokenSupply.baseAccumulatedNOTEPerStaked = s.baseAccumulatedNOTEPerStaked;
+        stakedSupply.totalSupply = s.totalSupply;
+        stakedSupply.nTokenBalance = s.nTokenBalance;
+        stakedSupply.termMultipliers = s.termMultipliers;
+        stakedSupply.lastBaseAccumulatedNOTEPerNToken = s.lastBaseAccumulatedNOTEPerNToken;
+        stakedSupply.baseAccumulatedNOTEPerStaked = s.baseAccumulatedNOTEPerStaked;
     }
 
     function _setStakedNTokenSupply(
@@ -276,172 +283,200 @@ library nTokenStaked {
 
     // // todo: transfer stakednTokens
 
-    // function _calculateSNTokenToMint(
-    //     uint256 nTokensToStake,
-    //     uint256 totalSupplyBeforeMint,
-    //     uint256 nTokenBalanceBeforeStake
-    // ) internal pure returns (uint256 sNTokenToMint) {
-    //     // Immediately after minting, we need to satisfy the equality:
-    //     // (sNTokenToMint * (nTokenBalance + nTokensToStake)) / (totalSupply + sNTokenToMint) == nTokensToStake
+    function _calculateSNTokenToMint(
+        uint256 nTokensToStake,
+        uint256 totalSupplyBeforeMint,
+        uint256 nTokenBalanceBeforeStake
+    ) internal pure returns (uint256 sNTokenToMint) {
+        // Immediately after minting, we need to satisfy the equality:
+        // (sNTokenToMint * (nTokenBalance + nTokensToStake)) / (totalSupply + sNTokenToMint) == nTokensToStake
 
-    //     // Rearranging to get sNTokenToMint on one side:
-    //     // (sNTokenToMint * (nTokenBalance + nTokensToStake)) = (totalSupply + sNTokenToMint) * nTokensToStake
-    //     // (sNTokenToMint * (nTokenBalance + nTokensToStake)) = totalSupply * nTokensToStake + sNTokenToMint * nTokensToStake
-    //     // (sNTokenToMint * (nTokenBalance + nTokensToStake)) - (sNTokenToMint * nTokensToStake) = totalSupply * nTokensToStake
-    //     // sNTokenToMint * nTokenBalance = totalSupply * nTokensToStake
-    //     // sNTokenToMint = (totalSupply * nTokensToStake) / nTokenBalance
-    //     if (totalSupplyBeforeMint == 0) {
-    //         sNTokenToMint = nTokensToStake;
-    //     } else {
-    //         sNTokenToMint = totalSupplyBeforeMint.mul(nTokensToStake).div(nTokenBalanceBeforeStake);
-    //     }
-    // }
+        // Rearranging to get sNTokenToMint on one side:
+        // (sNTokenToMint * (nTokenBalance + nTokensToStake)) = (totalSupply + sNTokenToMint) * nTokensToStake
+        // (sNTokenToMint * (nTokenBalance + nTokensToStake)) = totalSupply * nTokensToStake + sNTokenToMint * nTokensToStake
+        // (sNTokenToMint * (nTokenBalance + nTokensToStake)) - (sNTokenToMint * nTokensToStake) = totalSupply * nTokensToStake
+        // sNTokenToMint * nTokenBalance = totalSupply * nTokensToStake
+        // sNTokenToMint = (totalSupply * nTokensToStake) / nTokenBalance
+        if (totalSupplyBeforeMint == 0) {
+            sNTokenToMint = nTokensToStake;
+        } else {
+            sNTokenToMint = totalSupplyBeforeMint.mul(nTokensToStake).div(nTokenBalanceBeforeStake);
+        }
+    }
 
-    // function _isValidUnstakeMaturity(
-    //     uint256 unstakeMaturity,
-    //     uint256 blockTime,
-    //     uint256 maxStakingTerms
-    // ) internal pure returns (bool) {
-    //     uint256 tRef = DateTime.getReferenceTime(blockTime);
-    //     return (
-    //         // Must divide evenly into quarters so it aligns with a quarterly roll
-    //         unstakeMaturity % Constants.SECONDS_IN_QUARTER == 0 &&
-    //         // Must be in the future (so the soonest unstake maturity will be the next one)
-    //         unstakeMaturity > blockTime &&
-    //         // Cannot be further in the future than the max number of staking terms whitelisted
-    //         // for this particular staked nToken
-    //         (unstakeMaturity.sub(tRef) / Constants.SECONDS_IN_QUARTER) <= maxStakingTerms
-    //     );
-    // }
+    function _isValidUnstakeMaturity(
+        uint256 unstakeMaturity,
+        uint256 blockTime,
+        uint256 maxStakingTerms
+    ) internal pure returns (bool) {
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+        return (
+            // Must divide evenly into quarters so it aligns with a quarterly roll
+            unstakeMaturity % Constants.QUARTER == 0 &&
+            // Must be in the future (so the soonest unstake maturity will be the next one)
+            unstakeMaturity > blockTime &&
+            // Cannot be further in the future than the max number of staking terms whitelisted
+            // for this particular staked nToken
+            (unstakeMaturity.sub(tRef) / Constants.QUARTER) <= maxStakingTerms
+        );
+    }
 
-    // function _updateAccumulatedNOTEIncentives(
-    //     uint256 currencyId,
-    //     StakedNTokenContext memory sNTokenContext,
-    //     StakerContext memory stakerContext,
-    //     uint256 blockTime
-    // ) internal {
-    //     uint256 baseAccumulatedNOTEPerStaked = _updateBaseAccumulatedNOTE(currencyId, blockTime, sNTokenContext);
-    //     uint256 termAccumulatedNOTEPerStaked = _updateTermAccumulatedNOTE(
-    //         currencyId,
-    //         unstakeMaturity,
-    //         baseAccumulatedNOTEPerStaked,
-    //         blockTime
-    //     );
+    function _updateAccumulatedNOTEIncentives(
+        uint16 currencyId,
+        uint256 blockTime,
+        uint256 stakedNTokenBalanceBefore,
+        uint256 stakedNTokenBalanceAfter,
+        StakedNTokenSupply memory stakedSupply,
+        nTokenStaker memory staker
+    ) internal {
+        uint256 baseAccumulatedNOTEPerStaked = _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply);
+        uint256 termAccumulatedNOTEPerStaked = _updateTermAccumulatedNOTE(
+            currencyId,
+            staker.unstakeMaturity,
+            baseAccumulatedNOTEPerStaked,
+            blockTime,
+            stakedSupply.termMultipliers
+        );
 
-    //     // The accumulated NOTE per SNToken is a combination of the base level of NOTE incentives accumulated
-    //     // to the token and the additional NOTE accumulated to tokens locked into a specific staking term.
-    //     uint256 totalAccumulatedNOTEPerStaked = baseAccumulatedNOTEPerStaked.add(termAccumulatedNOTEPerStaked);
+        // The accumulated NOTE per SNToken is a combination of the base level of NOTE incentives accumulated
+        // to the token and the additional NOTE accumulated to tokens locked into a specific staking term.
+        uint256 totalAccumulatedNOTEPerStaked = baseAccumulatedNOTEPerStaked.add(termAccumulatedNOTEPerStaked);
 
-    //     // This is the additional incentives accumulated before any net change to the balance
-    //     stakerContext.accumulatedNOTE = stakerContext.accumulatedNOTE.add(
-    //         stakedNTokenBalanceBefore
-    //             .mul(totalAccumulatedNOTEPerStaked)
-    //             .div(Constants.INCENTIVE_ACCUMULATION_PRECISION)
-    //             .sub(accountIncentiveDebt)
-    //     );
+        // This is the additional incentives accumulated before any net change to the balance
+        staker.accumulatedNOTE = staker.accumulatedNOTE.add(
+            stakedNTokenBalanceBefore
+                .mul(totalAccumulatedNOTEPerStaked)
+                .div(Constants.INCENTIVE_ACCUMULATION_PRECISION)
+                .sub(staker.accountIncentiveDebt)
+        );
 
-    //     stakerContext.accountIncentiveDebt = stakedNTokenBalanceAfter
-    //         .mul(totalAccumulatedNOTEPerStaked)
-    //         .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
-    // }
+        staker.accountIncentiveDebt = stakedNTokenBalanceAfter
+            .mul(totalAccumulatedNOTEPerStaked)
+            .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
+    }
 
-    // /**
-    //  * @notice baseAccumulatedNOTEPerSNToken needs to be updated every time either the nTokenBalance
-    //  * or totalSupply of staked NOTE changes.
-    //  * @dev Updates the sNTokenContext memory object internally but does not set storage.
-    //  * @param currencyId currency id of the nToken
-    //  * @param blockTime current block time
-    //  * @param sNTokenContext variables that apply to the sNToken supply
-    //  */
-    // function _updateBaseAccumulatedNOTE(
-    //     uint256 currencyId,
-    //     uint256 blockTime,
-    //     StakedNTokenContext memory sNTokenContext
-    // ) internal view returns (uint256 baseAccumulatedNOTEPerStaked) {
-    //     // This will get the most current accumulated NOTE Per nToken.
-    //     uint256 baseAccumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(nTokenAddress, 0, blockTime);
+    /**
+     * @notice baseAccumulatedNOTEPerSNToken needs to be updated every time either the nTokenBalance
+     * or totalSupply of staked NOTE changes.
+     * @dev Updates the sNTokenContext memory object internally but does not set storage.
+     * @param currencyId currency id of the nToken
+     * @param blockTime current block time
+     * @param stakedSupply variables that apply to the sNToken supply
+     */
+    function _updateBaseAccumulatedNOTE(
+        uint16 currencyId,
+        uint256 blockTime,
+        StakedNTokenSupply memory stakedSupply
+    ) internal returns (uint256 baseAccumulatedNOTEPerStaked) {
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        // This will get the most current accumulated NOTE Per nToken.
+        uint256 baseAccumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(nTokenAddress, 0, blockTime);
 
-    //     // The accumulator is always increasing, therefore this value should always be greater than or equal
-    //     // to zero.
-    //     uint256 increaseInAccumulatedNOTE = baseAccumulatedNOTEPerNToken
-    //         .sub(sNTokenContext.lastBaseAccumulatedNOTEPerNToken);
+        // The accumulator is always increasing, therefore this value should always be greater than or equal
+        // to zero.
+        uint256 increaseInAccumulatedNOTE = baseAccumulatedNOTEPerNToken
+            .sub(stakedSupply.lastBaseAccumulatedNOTEPerNToken);
         
-    //     // Set the new last seen value for the next update
-    //     sNTokenContext.lastBaseAccumulatedNOTEPerNToken = baseAccumulatedNOTEPerNToken;
+        // Set the new last seen value for the next update
+        stakedSupply.lastBaseAccumulatedNOTEPerNToken = baseAccumulatedNOTEPerNToken;
         
-    //     // Convert the increase from a perNToken basis to a per sNToken basis:
-    //     // (NOTE / nToken) * (nToken / sNToken) = NOTE / sNToken
-    //     sNTokenContext.baseAccumulatedNOTEPerStaked = sNTokenContext.baseAccumulatedNOTEPerStaked.add(
-    //         increaseInAccumulatedNOTE
-    //             .mul(sNTokenContext.nTokenBalance)
-    //             .div(SNTokenContext.totalSupply)
-    //     );
+        // Convert the increase from a perNToken basis to a per sNToken basis:
+        // (NOTE / nToken) * (nToken / sNToken) = NOTE / sNToken
+        stakedSupply.baseAccumulatedNOTEPerStaked = stakedSupply.baseAccumulatedNOTEPerStaked.add(
+            increaseInAccumulatedNOTE
+                .mul(stakedSupply.nTokenBalance)
+                .div(stakedSupply.totalSupply)
+        );
 
-    //     // NOTE: snTokenContext is not set here
-    //     return sNTokenContext.baseAccumulatedNOTEPerStaked;
-    // }
+        // NOTE: snTokenContext is not set here
+        return stakedSupply.baseAccumulatedNOTEPerStaked;
+    }
 
-    // /**
-    //  * @notice Term accumulated NOTE per sNToken only updates when the total supply in a particular
-    //  * staking term increases or decrease (either on staking or unstaking). A term accumulated NOTE
-    //  */
-    // function _updateTermAccumulatedNOTE(
-    //     uint256 currencyId,
-    //     uint256 unstakeMaturity,
-    //     uint256 baseAccumulatedNOTEPerStaked,
-    //     uint256 blockTime
-    // ) internal returns (uint256 termAccumulatedNOTEPerStaked) {
-    //     StakedTermContext memory stakedTermContext = _getStakedTermContext(currencyId, unstakeMaturity);
-    //     // In either of these cases, we do not accumulate additional incentives
-    //     if (stakedTermContext.lastAccumulatedTime >= blockTime || stakedTermContext.lastAccumulatedTime == unstakeMaturity) return;
+    /**
+     * @notice Term accumulated NOTE per sNToken only updates when the total supply in a particular
+     * staking term increases or decrease (either on staking or unstaking). A term accumulated NOTE
+     * @param currencyId currency id of the nToken
+     * @param unstakeMaturity current block time
+     * @param baseAccumulatedNOTEPerStaked the current base accumulated note
+     * @param blockTime current block time
+     * @param termMultipliers used to get the incentive multiplier for the term
+     */
+    function _updateTermAccumulatedNOTE(
+        uint16 currencyId,
+        uint256 unstakeMaturity,
+        uint256 baseAccumulatedNOTEPerStaked,
+        uint256 blockTime,
+        bytes8 termMultipliers
+    ) internal returns (uint256) {
+        (
+            uint256 termAccumulatedNOTEPerStaked,
+            uint256 lastBaseAccumulatedNOTEPerStaked,
+            uint256 lastAccumulatedTime
+        ) = getStakedMaturityIncentives(currencyId, unstakeMaturity);
 
-    //     // Get the increase in the base accumulated NOTE since the last time we accumulated
-    //     uint256 increaseInAccumulatedNOTE = baseAccumulatedNOTEPerStaked.sub(stakedTermContext.lastBaseAccumulatedNOTEPerStaked);
-    //     stakedTermContext.lastBaseAccumulatedNOTEPerStaked = baseAccumulatedNOTEPerStaked;
+        // In either of these cases, we do not accumulate additional incentives
+        if (lastAccumulatedTime >= blockTime || lastAccumulatedTime == unstakeMaturity) return 0;
+
+        // Get the increase in the base accumulated NOTE since the last time we accumulated
+        uint256 increaseInAccumulatedNOTE = baseAccumulatedNOTEPerStaked.sub(lastBaseAccumulatedNOTEPerStaked);
         
-    //     if (unstakeMaturity <= blockTime && stakedTermContext.lastAccumulatedTime < unstakeMaturity) {
-    //         // The unstake maturity is in the past so we accumulate the base accumulated NOTE up to
-    //         // the current time to ensure that term stakers get the fully accumulated NOTE to their
-    //         // unstaking time. We can back date the baseAccumulatedNOTEPerNToken because we know that
-    //         // emissionRatePerYear has not changed since the last time we calculated this figure (when
-    //         // emission rates are updated all term accumulated NOTE figures are updated).
+        if (unstakeMaturity <= blockTime && lastAccumulatedTime < unstakeMaturity) {
+            // The unstake maturity is in the past so we accumulate the base accumulated NOTE up to
+            // the current time to ensure that term stakers get the fully accumulated NOTE to their
+            // unstaking time. We can back date the baseAccumulatedNOTEPerNToken because we know that
+            // emissionRatePerYear has not changed since the last time we calculated this figure (when
+            // emission rates are updated all term accumulated NOTE figures are updated).
 
-    //         // Prorate the increaseInAccumulatedNOTE to the amount of time that was not accumulated
-    //         // over the unstakeMaturity. (XXX: is this 100% accurate?)
+            // Prorate the increaseInAccumulatedNOTE to the amount of time that was not accumulated
+            // over the unstakeMaturity. (XXX: is this 100% accurate?)
 
-    //         // actual time elapsed: blockTime - lastAccumulatedTime
-    //         // pro-rata time: unstakeMaturity - lastAccumulatedTime
-    //         // therefore: increaseInAccumulatedNOTE * (unstakeMaturity - lastAccumulatedTime) / (blockTime - lastAccumulatedTime)
-    //         increaseInAccumulatedNOTE = increaseInAccumulatedNOTE
-    //             .mul(untakeMaturity - stakedTermContext.lastAccumulatedTime) // overflow checked above
-    //             // This won't divide by zero because of the next line where we set the lastAccumulatedTime. The
-    //             // inequality above would prevent a zero value from entering this ifi branch.
-    //             .div(blockTime - stakedTermContext.lastAccumulatedTime);
+            // actual time elapsed: blockTime - lastAccumulatedTime
+            // pro-rata time: unstakeMaturity - lastAccumulatedTime
+            // therefore: increaseInAccumulatedNOTE * (unstakeMaturity - lastAccumulatedTime) / (blockTime - lastAccumulatedTime)
+            increaseInAccumulatedNOTE = increaseInAccumulatedNOTE
+                .mul(unstakeMaturity - lastAccumulatedTime) // overflow checked above
+                // This won't divide by zero because of the next line where we set the lastAccumulatedTime. The
+                // inequality above would prevent a zero value from entering this ifi branch.
+                .div(blockTime - lastAccumulatedTime);
             
-    //         stakedTermContext.lastAccumulatedTime = unstakeMaturity;
-    //     }
+            lastAccumulatedTime = unstakeMaturity;
+        } else {
+            lastAccumulatedTime = blockTime;
+        }
         
-    //     // We apply a multiplier if the unstake maturity is past the first unstake term.
-    //     uint256 tRef = DateTime.getReferenceTime(blockTime) + Constants.SECONDS_IN_QUARTER;
-    //     if (unstakeMaturity > firstUnstakeTerm) {
-    //         // It's possible that a particular term of the staked nToken goes an entire quarter without having its
-    //         // termAccumulatedNOTEPerStaked updated. In this case that term would lose out on its incentive multiplier,
-    //         // users should be aware and call the corresponding method to update their term incentive accumulator at least
-    //         // once as close to the quarter end (but slightly before) as possible.
+        // We apply a multiplier if the unstake maturity is past the first unstake term.
+        uint256 firstUnstakeTerm = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
+        if (unstakeMaturity > firstUnstakeTerm) {
+            // It's possible that a particular term of the staked nToken goes an entire quarter without having its
+            // termAccumulatedNOTEPerStaked updated. In this case that term would lose out on its incentive multiplier,
+            // users should be aware and call the corresponding method to update their term incentive accumulator at least
+            // once as close to the quarter end (but slightly before) as possible.
 
-    //         // NOTE: there is no multiplier applied to the first unstake term, so matured staked nTokens will not miss
-    //         // out on a multiplier when it accumulates up to the unstakeMaturity (in the if conditional above)
-    //         uint256 index = (unstakeMaturity - firstUnstakeTerm) / Constants.SECONDS_IN_QUARTER;
-    //         uint256 termIncentiveMultiplier = _getTermIncentiveMultiplier(currencyId, index);
-    //         increaseInAccumulatedNOTE = increaseInAccumulatedNOTE
-    //             .mul(termIncentiveMultiplier)
-    //             .div(Constants.PERCENTAGE_DECIMALS);
-    //     }
+            // NOTE: there is no multiplier applied to the first unstake term, so matured staked nTokens will not miss
+            // out on a multiplier when it accumulates up to the unstakeMaturity (in the if conditional above)
+            uint256 index = (unstakeMaturity - firstUnstakeTerm) / Constants.QUARTER;
+            uint256 termIncentiveMultiplier = _getTermIncentiveMultiplier(termMultipliers, index);
+            increaseInAccumulatedNOTE = increaseInAccumulatedNOTE
+                .mul(termIncentiveMultiplier)
+                .div(uint256(Constants.PERCENTAGE_DECIMALS));
+        }
 
-    //     stakedTermContext.termAccumulatedNOTEPerStaked = stakedTermContext.termAccumulatedNOTEPerStaked.add(increaseInAccumulatedNOTE);
-    //     stakedTermContext.lastAccumulatedTime = blockTime;
-    //     stakedTermContext.setStorage();
+        _setStakedMaturityIncentives(
+            currencyId,
+            unstakeMaturity,
+            termAccumulatedNOTEPerStaked.add(increaseInAccumulatedNOTE),
+            baseAccumulatedNOTEPerStaked,
+            lastAccumulatedTime
+        );
 
-    //     return stakedTermContext.termAccumulatedNOTEPerStaked;
-    // }
+        return termAccumulatedNOTEPerStaked;
+    }
+
+    function _getTermIncentiveMultiplier(
+        bytes8 termMultipliers,
+        uint256 _index
+    ) private pure returns (uint256 incentiveMultiplier) {
+        require(_index <= 4);
+        incentiveMultiplier = uint16(bytes2(termMultipliers << (uint8(_index) * 16)));
+    }
 }
