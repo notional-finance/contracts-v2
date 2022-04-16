@@ -272,18 +272,20 @@ library nTokenStaked {
      * @param nTokensToRedeem the amount of nTokens to attempt to redeem
      * @param assetCashRequired the amount of asset cash required to offset the shortfall
      * @param blockTime the current block time
+     * @return netNTokenChange the amount of nTokens redeemed (negative)
+     * @return assetCashRaised the amount of asset cash raised (positive)
      */
     function redeemNTokenToCoverShortfall(
         uint16 currencyId,
         int256 nTokensToRedeem,
         int256 assetCashRequired,
         uint256 blockTime
-    ) internal {
+    ) internal returns (int256 netNTokenChange, int256 assetCashRaised) {
         require(assetCashRequired > 0);
         StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-        int256 netNTokenChange = nTokensToRedeem.neg();
+        netNTokenChange = nTokensToRedeem.neg();
         // nTokenRedeemViaBatch will revert if nTokensToRedeem <= 0
-        int256 assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
+        assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
         // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
         // clean out the nTokenBalance altogether
         require(
@@ -296,6 +298,9 @@ library nTokenStaked {
             int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
             int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
             netNTokenChange = netNTokenChange.add(nTokensMinted);
+
+            // Set this for the return value
+            assetCashRaised = assetCashRequired;
         }
 
         // This updates the base accumulated NOTE and the nToken supply
@@ -308,7 +313,70 @@ library nTokenStaked {
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
-    // // todo: transfer stakednTokens
+    /**
+     * @notice Transfers staked nTokens between accounts. Unstake maturities must match or they are not fungible.
+     * @dev If unstake maturities are in the past, we bump them up to the next unstake maturity.
+     *
+     * @param from account to transfer from
+     * @param to account to transfer to
+     * @param currencyId currency id of the nToken
+     * @param amount amount of staked nTokens to transfer
+     * @param blockTime current block time
+     */
+    function transferStakedNToken(
+        address from,
+        address to,
+        uint16 currencyId,
+        uint256 amount,
+        uint256 blockTime
+    ) internal {
+        nTokenStaker memory fromStaker = getNTokenStaker(from, currencyId);
+        nTokenStaker memory toStaker = getNTokenStaker(to, currencyId);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+
+        uint256 fromStakerBalanceAfter = fromStaker.stakedNTokenBalance.sub(amount);
+        uint256 toStakerBalanceAfter = toStaker.stakedNTokenBalance.add(amount);
+
+        // First update incentives for both stakers, before attempting to change any balances
+        // or unstake maturities.
+        _updateAccumulatedNOTEIncentives(
+            currencyId,
+            blockTime,
+            fromStaker.stakedNTokenBalance,
+            fromStakerBalanceAfter,
+            stakedSupply,
+            fromStaker
+        );
+
+        _updateAccumulatedNOTEIncentives(
+            currencyId,
+            blockTime,
+            toStaker.stakedNTokenBalance,
+            toStakerBalanceAfter,
+            stakedSupply,
+            toStaker
+        );
+
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+        if (blockTime > tRef + Constants.UNSTAKE_WINDOW_SECONDS) {
+            // Ensure that we are outside the current unstake window, don't attempt to mess with the unstake
+            // maturities or it may cause some accounts to be able to unstake. Otherwise, we can bump
+            // maturities up to the firstUnstakeWindow before we compare to ensure that they are the same.
+
+            uint256 firstUnstakeMaturity = tRef + Constants.QUARTER;
+            if (fromStaker.unstakeMaturity < firstUnstakeMaturity) fromStaker.unstakeMaturity = firstUnstakeMaturity;
+            if (toStaker.unstakeMaturity < firstUnstakeMaturity) toStaker.unstakeMaturity = firstUnstakeMaturity;
+        }
+
+        require(fromStaker.unstakeMaturity == toStaker.unstakeMaturity, "Maturity mismatch");
+        fromStaker.stakedNTokenBalance = fromStakerBalanceAfter;
+        toStaker.stakedNTokenBalance = toStakerBalanceAfter;
+
+        _setNTokenStaker(from, currencyId, fromStaker);
+        _setNTokenStaker(to, currencyId, toStaker);
+        // Set the staked supply since accumulators have updated
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
 
     function _calculateSNTokenToMint(
         uint256 nTokensToStake,
