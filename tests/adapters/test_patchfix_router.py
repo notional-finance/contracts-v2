@@ -11,7 +11,10 @@ def environment(accounts):
 def test_patch_fix_router(environment, MockPatchFix, MockRouter, accounts):
     newRouter = MockRouter.deploy({"from": accounts[0]})
     patchFix = MockPatchFix.deploy(
-        newRouter.address, environment.notional.address, {"from": accounts[0]}
+        environment.proxy.getImplementation(),
+        newRouter.address, 
+        environment.notional.address, 
+        {"from": accounts[0]}
     )
 
     with brownie.reverts():

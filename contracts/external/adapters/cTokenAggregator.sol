@@ -37,6 +37,38 @@ contract cTokenAggregator is AssetRateAdapter {
         require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
     }
 
+    /// @dev adapted from https://github.com/transmissions11/libcompound/blob/main/src/LibCompound.sol
+    function _viewExchangeRate() internal view returns (uint256) {
+        uint256 accrualBlockNumberPrior = cToken.accrualBlockNumber();
+
+        if (accrualBlockNumberPrior == block.number) return cToken.exchangeRateStored();
+
+        uint256 totalCash = cToken.getCash();
+        uint256 borrowsPrior = cToken.totalBorrows();
+        uint256 reservesPrior = cToken.totalReserves();
+
+        uint256 borrowRateMantissa = cToken.interestRateModel().getBorrowRate(
+            totalCash,
+            borrowsPrior,
+            reservesPrior
+        );
+
+        require(borrowRateMantissa <= 0.0005e16, "RATE_TOO_HIGH"); // Same as borrowRateMaxMantissa in CTokenInterfaces.sol
+
+        uint256 interestAccumulated = (borrowRateMantissa *
+            (block.number - accrualBlockNumberPrior)).mul(borrowsPrior).div(1e18);
+
+        uint256 totalReserves = cToken.reserveFactorMantissa().mul(interestAccumulated).div(1e18) +
+            reservesPrior;
+        uint256 totalBorrows = interestAccumulated + borrowsPrior;
+        uint256 totalSupply = cToken.totalSupply();
+
+        return
+            totalSupply == 0
+                ? cToken.initialExchangeRateMantissa()
+                : (totalCash + totalBorrows - totalReserves).mul(1e18).div(totalSupply);
+    }
+
     /** @notice Returns the current exchange rate for the cToken to the underlying */
     function getExchangeRateStateful() external override returns (int256) {
         uint256 exchangeRate = cToken.exchangeRateCurrent();
@@ -46,7 +78,7 @@ contract cTokenAggregator is AssetRateAdapter {
     }
 
     function getExchangeRateView() external view override returns (int256) {
-        uint256 exchangeRate = cToken.exchangeRateStored();
+        uint256 exchangeRate = _viewExchangeRate();
         _checkExchangeRate(exchangeRate);
 
         return int256(exchangeRate);

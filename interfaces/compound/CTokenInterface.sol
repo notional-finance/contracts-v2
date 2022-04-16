@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.7.0;
 
+import "./InterestRateModel.sol";
+
 interface CTokenInterface {
 
     /*** User Interface ***/
 
     function underlying() external view returns (address);
+    function totalSupply() external view returns (uint256);
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);
     function approve(address spender, uint amount) external returns (bool);
@@ -23,4 +26,10 @@ interface CTokenInterface {
     function getCash() external view returns (uint);
     function accrueInterest() external returns (uint);
     function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint);
+    function accrualBlockNumber() external view returns (uint256);
+    function totalBorrows() external view returns (uint256);
+    function totalReserves() external view returns (uint256);
+    function interestRateModel() external view returns (InterestRateModel);
+    function reserveFactorMantissa() external view returns (uint256);
+    function initialExchangeRateMantissa() external view returns (uint256);
 }
