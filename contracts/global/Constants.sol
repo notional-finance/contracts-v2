@@ -136,4 +136,5 @@ library Constants {
 
     // nToken Staking Parameters
     uint256 internal constant MAX_STAKING_TERMS = 4;
+    uint256 internal constant UNSTAKE_WINDOW_SECONDS = DAY * 7;
 }

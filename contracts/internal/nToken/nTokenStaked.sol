@@ -134,6 +134,7 @@ library nTokenStaked {
      * @param unstakeMaturity the timestamp of the maturity when the account can unstake, this must align with
      * an existing quarterly maturity date and be within the max staking terms defined.
      * @param blockTime the current block time
+     * @return sNTokensToMint the number of staked nTokens minted
      */
     function stakeNToken(
         address account,
@@ -141,10 +142,8 @@ library nTokenStaked {
         uint256 nTokensToStake,
         uint256 unstakeMaturity,
         uint256 blockTime
-    ) internal {
+    ) internal returns (uint256 sNTokensToMint) {
         // If nTokensToStake == 0 then the user could just be resetting their unstakeMaturity
-        require(nTokensToStake >= 0);
-
         nTokenStaker memory staker = getNTokenStaker(account, currencyId);
         StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
 
@@ -156,7 +155,7 @@ library nTokenStaked {
 
         // Calculate the share of sNTokens the staker will receive. Immediately after this calculation, the
         // staker's share of the pool will exactly equal the nTokens they staked.
-        uint256 sNTokensToMint = _calculateSNTokenToMint(
+        sNTokensToMint = _calculateSNTokenToMint(
             nTokensToStake,
             stakedSupply.totalSupply,
             stakedSupply.nTokenBalance
@@ -173,7 +172,8 @@ library nTokenStaked {
             staker
         );
 
-        // Update unstake maturity only after we accumulate incentives
+        // Update unstake maturity only after we accumulate incentives, we don't want users to accumulate
+        // incentives on a term they are not currently staked in.
         staker.unstakeMaturity = unstakeMaturity;
         staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
         stakedSupply.totalSupply = stakedSupply.totalSupply.add(sNTokensToMint);
@@ -189,15 +189,16 @@ library nTokenStaked {
      *
      * @param currencyId the currency of the nToken
      * @param assetAmountInternal amount of asset tokens the fee is paid in
+     * @return nTokensMinted the number of nTokens that were minted for the fee
      */
     function payFeeToStakedNToken(
         uint16 currencyId,
         int256 assetAmountInternal,
         uint256 blockTime
-    ) internal {
+    ) internal returns (int256 nTokensMinted) {
         StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
         // nTokenMint will revert if assetAmountInternal is < 0
-        int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetAmountInternal);
+        nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetAmountInternal);
 
         // This updates the base accumulated NOTE and the nToken supply
         _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, nTokensMinted);
@@ -206,57 +207,57 @@ library nTokenStaked {
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
-    // /**
-    //  * Unstaking nTokens can only be done during designated windows. At this point, the staker
-    //  * will remove their share of nTokens.
-    //  *
-    //  * @param currencyId the currency of the nToken
-    //  * @param nTokenFee amount of nTokens the vault is paying
-    //  */
-    // function unstakeNToken(
-    //     address staker,
-    //     BalanceState memory stakerBalance,
-    //     uint256 stakedNTokensToUnstake,
-    //     uint256 blockTime
-    // ) internal {
-    //     if (stakedNTokensToUnstake == 0) return;
-    //     require(stakedNTokensToUnstake > 0);
+    /**
+     * Unstaking nTokens can only be done during designated windows. At this point, the staker
+     * will remove their share of nTokens.
+     *
+     * @param account the address of the staker
+     * @param currencyId the currency id of the nToken to stake
+     * @param tokensToUnstake the amount of staked nTokens to unstake
+     * @param blockTime the current block time
+     * @return nTokenClaim that the staker will have credited to their balance
+     */
+    function unstakeNToken(
+        address account,
+        uint16 currencyId,
+        uint256 tokensToUnstake,
+        uint256 blockTime
+    ) internal returns (uint256 nTokenClaim) {
+        nTokenStaker memory staker = getNTokenStaker(account, currencyId);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
 
-    //     AccountStakedNToken memory stakerContext = getStakerContext(staker);
-    //     StakedNTokenContext memory sNTokenContext = getSNTokenContext(currencyId);
-
-    //     // Check that unstaking can only happen during designated unstaking windows
-    //     uint256 tRef = DateTime.getReferenceTime(blockTime);
-    //     require(
-    //         // Staker's unstake maturity must have expired
-    //         stakerContext.unstakeMaturity <= blockTime 
-    //         // Unstaking windows are only open during some period at the beginning of
-    //         // every quarter. By definition, tRef is always less than blockTime so this
-    //         // inequality is always tRef < blockTime < tRef + UNSTAKE_WINDOW_SECONDS
-    //         && blockTime < tRef + Constants.UNSTAKE_WINDOW_SECONDS,
-    //         "Invalid unstake time"
-    //     );
+        // Check that unstaking can only happen during designated unstaking windows
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
+        require(
+            // Staker's unstake maturity must have expired
+            staker.unstakeMaturity <= blockTime 
+            // Unstaking windows are only open during some period at the beginning of
+            // every quarter. By definition, tRef is always less than blockTime so this
+            // inequality is always tRef < blockTime < tRef + UNSTAKE_WINDOW_SECONDS
+            && blockTime < tRef + Constants.UNSTAKE_WINDOW_SECONDS,
+            "Invalid unstake time"
+        );
     
-    //     // This is the share of the overall nToken balance that the staked nToken has a claim on
-    //     uint256 nTokenClaim = sNTokenContext.nTokenBalance
-    //         .mul(stakedNTokensToUnstake)
-    //         .div(sNTokenContext.totalSupply);
+        // This is the share of the overall nToken balance that the staked nToken has a claim on
+        nTokenClaim = stakedSupply.nTokenBalance.mul(tokensToUnstake).div(stakedSupply.totalSupply);
+        uint256 stakedNTokenBalanceAfter = staker.stakedNTokenBalance.sub(tokensToUnstake);
     
-    //     _updateAccumulatedNOTEIncentives(
-    //         stakerContext,
-    //         sNTokenContext,
-    //         stakedNTokensToUnstake,
-    //         blockTime
-    //     );
+        _updateAccumulatedNOTEIncentives(
+            currencyId,
+            blockTime,
+            staker.stakedNTokenBalance,
+            stakedNTokenBalanceAfter,
+            stakedSupply,
+            staker
+        );
 
-    //     // Update balances and set state
-    //     sNTokenContext.totalSupply = sNTokenContext.totalSupply.sub(stakedNTokensToUnstake);
-    //     stakerContext.stakedNTokenBalance = stakerContext.stakedNTokenBalance.sub(stakedNTokensToUnstake);
-    //     sNTokenContext.nTokenBalance = sNTokenContext.nTokenBalance.sub(nTokenClaim);
-    //     stakerBalance.netNTokenTransfer = stakerBalance.netNTokenTransfer.add(nTokenClaim);
-    //     stakerContext.setStorage();
-    //     sNTokenContext.setStorage();
-    // }
+        // Update balances and set state
+        staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
+        stakedSupply.totalSupply = stakedSupply.totalSupply.sub(tokensToUnstake);
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(nTokenClaim);
+        _setNTokenStaker(account, currencyId, staker);
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
 
     // /**
     //  * In the event of a cash shortfall in a levered vault, this method will be called to redeem nTokens
@@ -381,6 +382,7 @@ library nTokenStaked {
      * @param stakedSupply variables that apply to the sNToken supply
      * @param netNTokenSupplyChange passed into the changeNTokenSupply method in the case that the totalSupply
      * of nTokens has changed, this has no effect on the current accumulated NOTE
+     * @return baseAccumulatedNOTEPerStaked the accumulated NOTE per staked ntoken up to this point
      */
     function _updateBaseAccumulatedNOTE(
         uint16 currencyId,
@@ -423,6 +425,7 @@ library nTokenStaked {
      * @param baseAccumulatedNOTEPerStaked the current base accumulated note
      * @param blockTime current block time
      * @param termMultipliers used to get the incentive multiplier for the term
+     * @return the accumulated NOTE per staked ntoken for the specified unstake maturity up to this point
      */
     function _updateTermAccumulatedNOTE(
         uint16 currencyId,
