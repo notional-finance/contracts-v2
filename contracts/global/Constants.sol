@@ -133,4 +133,7 @@ library Constants {
     bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
+
+    // nToken Staking Parameters
+    uint256 internal constant MAX_STAKING_TERMS = 4;
 }

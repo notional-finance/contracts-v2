@@ -115,72 +115,70 @@ library nTokenStaked {
     }
 
 
-    // /**
-    //  * Stakes an nToken (which is already minted) for the given amount and term. Each
-    //  * term specified is a single quarter. This method will mark the staked nToken balance,
-    //  * and update incentive accumulators for the staker. Once an nToken is staked it cannot
-    //  * be used as collateral anymore, so it will disappear from the AccountContext.
-    //  *
-    //  * A staked nToken position is a claim on an ever increasing amount of underlying nTokens. Fees
-    //  * paid in levered vaults will be denominated in nTokens and donated to the staked nToken's underlying
-    //  * balance.
-    //  *
-    //  * @param staker the address of the staker, must be a valid address according to requireValidAccount,
-    //  * in the ActionGuards.sol file
-    //  * @param currencyId the currency id of the nToken to stake
-    //  * @param nTokensToStake the amount of nTokens to stake
-    //  * @param termToStake the number of quarter (90 day) long terms to stake before unstaking
-    //  * is allowed. This value cannot decrease but it can increase.
-    //  */
-    // function stakeNToken(
-    //     address staker,
-    //     BalanceState memory stakerBalance,
-    //     uint256 nTokensToStake,
-    //     uint256 unstakeMaturity,
-    //     uint256 blockTime
-    // ) internal {
-    //     // If nTokensToStake == 0 then the user could just be resetting their unstakeMaturity
-    //     require(nTokensToStake >= 0);
+    /**
+     * Stakes an nToken (which is already minted) for the given amount and term. Each
+     * term specified is a single quarter. This method will mark the staked nToken balance,
+     * and update incentive accumulators for the staker. Once an nToken is staked it cannot
+     * be used as collateral anymore, so it will disappear from the AccountContext.
+     *
+     * A staked nToken position is a claim on an ever increasing amount of underlying nTokens. Fees
+     * paid in levered vaults will be denominated in nTokens and donated to the staked nToken's underlying
+     * balance.
+     *
+     * @param account the address of the staker, must be a valid address according to requireValidAccount,
+     * in the ActionGuards.sol file
+     * @param currencyId the currency id of the nToken to stake
+     * @param nTokensToStake the amount of nTokens to stake
+     * @param unstakeMaturity the timestamp of the maturity when the account can unstake, this must align with
+     * an existing quarterly maturity date and be within the max staking terms defined.
+     * @param blockTime the current block time
+     */
+    function stakeNToken(
+        address account,
+        uint16 currencyId,
+        uint256 nTokensToStake,
+        uint256 unstakeMaturity,
+        uint256 blockTime
+    ) internal {
+        // If nTokensToStake == 0 then the user could just be resetting their unstakeMaturity
+        require(nTokensToStake >= 0);
 
-    //     // TODO: require staker is valid address...
-    //     AccountStakedNToken memory stakerContext = getStakerContext(staker);
-    //     StakedNTokenContext memory sNTokenContext = getSNTokenContext(stakerBalance.currencyId);
+        nTokenStaker memory staker = getNTokenStaker(account, currencyId);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
 
-    //     // Validate that the termToStake is valid for this staker's context. If a staker is restaking with
-    //     // a matured "unstakeMaturity", this forces the unstake maturity to get pushed forward to the next
-    //     // quarterly roll (which is where it would be in any case.)
-    //     require(_isValidUnstakeMaturity(unstakeMaturity, blockTime, sNTokenContext.maxStakingTerms));
-    //     require(unstakeMaturity >= stakerContext.unstakeMaturity);
+        // Validate that the termToStake is valid for this staker's context. If a staker is restaking with
+        // a matured "unstakeMaturity", this forces the unstake maturity to get pushed forward to the next
+        // quarterly roll (which is where it would be in any case.)
+        require(unstakeMaturity >= staker.unstakeMaturity);
+        require(_isValidUnstakeMaturity(unstakeMaturity, blockTime, Constants.MAX_STAKING_TERMS));
 
-    //     // Calculate the share of sNTokens the staker will receive. Immediately after this calculation, the
-    //     // staker's share of the pool will exactly equal the nTokens they staked.
-    //     uint256 sNTokensToMint = _calculateSNTokenToMint(
-    //         nTokensToStake,
-    //         sNTokenContext.totalSupply,
-    //         sNTokenContext.nTokenBalance
-    //     );
+        // Calculate the share of sNTokens the staker will receive. Immediately after this calculation, the
+        // staker's share of the pool will exactly equal the nTokens they staked.
+        uint256 sNTokensToMint = _calculateSNTokenToMint(
+            nTokensToStake,
+            stakedSupply.totalSupply,
+            stakedSupply.nTokenBalance
+        );
 
-    //     // Accumulate NOTE incentives to the staker based on their staking term and balance.
-    //     _updateAccumulatedNOTEIncentives(
-    //         stakerContext,
-    //         sNTokenContext,
-    //         sNTokensToMint,
-    //         blockTime
-    //     );
+        uint256 stakedNTokenBalanceAfter = staker.stakedNTokenBalance.add(sNTokensToMint);
+        // Accumulate NOTE incentives to the staker based on their staking term and balance.
+        _updateAccumulatedNOTEIncentives(
+            currencyId,
+            blockTime,
+            staker.stakedNTokenBalance,
+            stakedNTokenBalanceAfter,
+            stakedSupply,
+            staker
+        );
 
-    //     // Update unstake maturity only after we accumulate incentives
-    //     stakerContext.unstakeMaturity = unstakeMaturity;
-    //     stakerContext.stakedNTokenBalance = stakerContext.stakedNTokenBalance(sNTokensToMint);
-    //     sNTokenContext.totalSupply = sNTokenContext.totalSupply.add(sNTokensToMint);
-    //     sNTokenContext.nTokenBalance = sNTokenContext.nTokenBalance.add(nTokensToStake);
-    //     stakerContext.setStorage();
-    //     sNTokenContext.setStorage();
-
-    //     // Balance state will be updated to effect a net nToken transfer. When this is finalized, any
-    //     // incentives that the staker had accrued up to the point of staking will be transferred to their
-    //     // wallet.
-    //     stakerBalance.netNTokenTransfer = stakerBalance.netNTokenTransfer.sub(SafeInt256.toInt(nTokensToStake));
-    // }
+        // Update unstake maturity only after we accumulate incentives
+        staker.unstakeMaturity = unstakeMaturity;
+        staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
+        stakedSupply.totalSupply = stakedSupply.totalSupply.add(sNTokensToMint);
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(nTokensToStake);
+        _setNTokenStaker(account, currencyId, staker);
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
 
     // /**
     //  * Levered vaults will pay fees to the staked nToken in the form of more nTokens. In this
@@ -476,6 +474,7 @@ library nTokenStaked {
         bytes8 termMultipliers,
         uint256 _index
     ) private pure returns (uint256 incentiveMultiplier) {
+        // TODO: analyze these settings here
         require(_index <= 4);
         incentiveMultiplier = uint16(bytes2(termMultipliers << (uint8(_index) * 16)));
     }
