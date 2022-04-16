@@ -597,7 +597,20 @@ library nTokenStaked {
         bytes8 termMultipliers,
         uint256 _index
     ) private pure returns (uint256 incentiveMultiplier) {
-        // TODO: analyze these settings here
+        // This gives us a maximum multiplier of 655.36 if we are using 100 as a basis, it's not
+        // clear if that is sufficient. This would mean if the 1 year term were earning 1 NOTE per sNToken
+        // then the base would earn 0.0015 NOTE per sNToken.
+
+        // Since we have 4 indexes here, we can either have 5 unstaking terms or use the first index
+        // as a basis to shift the other term multipliers up or down
+
+        // Or alternatively, we can use the 8 bytes to define a linear function for the multiplier and have
+        // unlimited number of staking terms.
+        // byte1 = maxTerms (0 - 255)
+        // byte2 = baseMultiplier (0 - 655.36) using 100 as a base, applies to the first unstake term
+        // byte2 = slope (0 - 655.36)  using 100 as a base
+        // byte1 = optional kink term
+        // byte2 = optional kink slope (0 - 655.36), applies after kink
         require(_index <= 4);
         incentiveMultiplier = uint16(bytes2(termMultipliers << (uint8(_index) * 16)));
     }
