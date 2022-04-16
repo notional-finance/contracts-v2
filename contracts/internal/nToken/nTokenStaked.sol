@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "../../global/Types.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
+import "../../math/SafeInt256.sol";
 import "../markets/DateTime.sol";
 import "./nTokenHandler.sol";
 import "./nTokenSupply.sol";
@@ -14,6 +15,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenStaked {
     using SafeMath for uint256;
+    using SafeInt256 for int256;
 
     /** Getter and Setter Methods **/
 
@@ -118,15 +120,14 @@ library nTokenStaked {
 
 
     /**
-     * Stakes an nToken (which is already minted) for the given amount and term. Each
-     * term specified is a single quarter. This method will mark the staked nToken balance,
-     * and update incentive accumulators for the staker. Once an nToken is staked it cannot
-     * be used as collateral anymore, so it will disappear from the AccountContext.
-     *
-     * A staked nToken position is a claim on an ever increasing amount of underlying nTokens. Fees
-     * paid in levered vaults will be denominated in nTokens and donated to the staked nToken's underlying
-     * balance.
-     *
+     * @notice Stakes an nToken (which is already minted) for the given amount and term. Each
+     * term specified is a single quarter. A staked nToken position is a claim on an ever increasing
+     * amount of underlying nTokens. Fees paid in levered vaults will be denominated in nTokens and
+     * donated to the staked nToken's underlying balance.
+     * @dev This method will mark the staked nToken balance and update incentive accumulators
+     * for the staker. Once an nToken is staked it cannot be used as collateral anymore, so it
+     * will disappear from the AccountContext.
+     * 
      * @param account the address of the staker, must be a valid address according to requireValidAccount,
      * in the ActionGuards.sol file
      * @param currencyId the currency id of the nToken to stake
@@ -183,32 +184,7 @@ library nTokenStaked {
     }
 
     /**
-     * Levered vaults will pay fees to the staked nToken in the form of more nTokens. In this
-     * method, the balance of nTokens increases while the totalSupply of sNTokens does not
-     * increase.
-     *
-     * @param currencyId the currency of the nToken
-     * @param assetAmountInternal amount of asset tokens the fee is paid in
-     * @return nTokensMinted the number of nTokens that were minted for the fee
-     */
-    function payFeeToStakedNToken(
-        uint16 currencyId,
-        int256 assetAmountInternal,
-        uint256 blockTime
-    ) internal returns (int256 nTokensMinted) {
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-        // nTokenMint will revert if assetAmountInternal is < 0
-        nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetAmountInternal);
-
-        // This updates the base accumulated NOTE and the nToken supply
-        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, nTokensMinted);
-
-        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(SafeInt256.toUint(nTokensMinted));
-        _setStakedNTokenSupply(currencyId, stakedSupply);
-    }
-
-    /**
-     * Unstaking nTokens can only be done during designated windows. At this point, the staker
+     * @notice Unstaking nTokens can only be done during designated windows. At this point, the staker
      * will remove their share of nTokens.
      *
      * @param account the address of the staker
@@ -259,27 +235,78 @@ library nTokenStaked {
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
-    // /**
-    //  * In the event of a cash shortfall in a levered vault, this method will be called to redeem nTokens
-    //  * to cover the shortfall. snToken holders will share in the shortfall due to the fact that their
-    //  * underlying nToken balance has decreased.
-    //  */
-    // function redeemNTokenToCoverShortfall(
-    //     uint16 currencyId,
-    //     uint256 nTokensToRedeem,
-    //     uint256 blockTime
-    // ) internal {
-    //     StakedNTokenContext memory sNTokenContext = getSNTokenContext(currencyId);
-    //     uint256 assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
-    //     // This updates the total supply and accumulatedNOTEPerNToken
-    //     nTokenSupply.changeNTokenSupply(tokenAddress, nTokensToRedeem.neg(), blockTime);
-    //     sNTokenContext.nTokenBalance = sNTokenContext.nTokenBalance.sub(nTokensToRedeem);
+    /**
+     * @notice Levered vaults will pay fees to the staked nToken in the form of more nTokens. In this
+     * method, the balance of nTokens increases while the totalSupply of sNTokens does not
+     * increase.
+     *
+     * @param currencyId the currency of the nToken
+     * @param assetAmountInternal amount of asset tokens the fee is paid in
+     * @return nTokensMinted the number of nTokens that were minted for the fee
+     */
+    function payFeeToStakedNToken(
+        uint16 currencyId,
+        int256 assetAmountInternal,
+        uint256 blockTime
+    ) internal returns (int256 nTokensMinted) {
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        // nTokenMint will revert if assetAmountInternal is < 0
+        nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetAmountInternal);
 
-    //     // This updates the base accumulated NOTE based on the change in nToken balance...
-    //     _updateBaseAccumulatedNOTE(currencyId, 0, blockTime);
-    //     sNTokenContext.setStorage();
+        // This updates the base accumulated NOTE and the nToken supply
+        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, nTokensMinted);
 
-    // }
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(SafeInt256.toUint(nTokensMinted));
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
+
+    /**
+     * @notice In the event of a cash shortfall in a levered vault, this method will be called to redeem nTokens
+     * to cover the shortfall. snToken holders will share in the shortfall due to the fact that their
+     * underlying nToken balance has decreased.
+     * 
+     * @dev It is difficult to calculate nTokensToRedeem from assetCashRequired on chain so we require the off
+     * chain caller to make this calculation.
+     *
+     * @param currencyId the currency id of the nToken to stake
+     * @param nTokensToRedeem the amount of nTokens to attempt to redeem
+     * @param assetCashRequired the amount of asset cash required to offset the shortfall
+     * @param blockTime the current block time
+     */
+    function redeemNTokenToCoverShortfall(
+        uint16 currencyId,
+        int256 nTokensToRedeem,
+        int256 assetCashRequired,
+        uint256 blockTime
+    ) internal {
+        require(assetCashRequired > 0);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        int256 netNTokenChange = nTokensToRedeem.neg();
+        // nTokenRedeemViaBatch will revert if nTokensToRedeem <= 0
+        int256 assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
+        // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
+        // clean out the nTokenBalance altogether
+        require(
+            assetCashRaised >= assetCashRequired || SafeInt256.toUint(nTokensToRedeem) == stakedSupply.nTokenBalance,
+            "Insufficient cash raised"
+        );
+
+        if (assetCashRaised > assetCashRequired) {
+            // Put any surplus asset cash back into the nToken
+            int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
+            int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
+            netNTokenChange = netNTokenChange.add(nTokensMinted);
+        }
+
+        // This updates the base accumulated NOTE and the nToken supply
+        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, netNTokenChange);
+        if (netNTokenChange > 0) {
+            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(SafeInt256.toUint(netNTokenChange));
+        } else {
+            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(SafeInt256.toUint(netNTokenChange.neg()));
+        }
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
 
     // // todo: transfer stakednTokens
 
