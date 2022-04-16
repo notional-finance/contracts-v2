@@ -8,6 +8,8 @@ import "../../global/Constants.sol";
 import "../markets/DateTime.sol";
 import "./nTokenHandler.sol";
 import "./nTokenSupply.sol";
+import "../../external/actions/nTokenMintAction.sol";
+import "../../external/actions/nTokenRedeemAction.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 library nTokenStaked {
@@ -180,30 +182,29 @@ library nTokenStaked {
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
-    // /**
-    //  * Levered vaults will pay fees to the staked nToken in the form of more nTokens. In this
-    //  * method, the balance of nTokens increases while the totalSupply of sNTokens does not
-    //  * increase.
-    //  *
-    //  * @param currencyId the currency of the nToken
-    //  * @param amountToDepositInternal amount of asset tokens the fee is paid in
-    //  */
-    // function payFeeToStakedNToken(
-    //     uint16 currencyId,
-    //     uint256 amountToDepositInternal,
-    //     uint256 blockTime
-    // ) internal {
-    //     StakedNTokenContext memory sNTokenContext = getSNTokenContext(currencyId);
-    //     uint256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, amountToDepositInternal);
-    //     // This updates the total supply and accumulatedNOTEPerNToken
-    //     nTokenSupply.changeNTokenSupply(tokenAddress, nTokensMinted, blockTime);
+    /**
+     * Levered vaults will pay fees to the staked nToken in the form of more nTokens. In this
+     * method, the balance of nTokens increases while the totalSupply of sNTokens does not
+     * increase.
+     *
+     * @param currencyId the currency of the nToken
+     * @param assetAmountInternal amount of asset tokens the fee is paid in
+     */
+    function payFeeToStakedNToken(
+        uint16 currencyId,
+        int256 assetAmountInternal,
+        uint256 blockTime
+    ) internal {
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        // nTokenMint will revert if assetAmountInternal is < 0
+        int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetAmountInternal);
 
-    //     // This updates the base accumulated NOTE based on the change in nToken balance...
-    //     _updateBaseAccumulatedNOTE(currencyId, 0, blockTime);
+        // This updates the base accumulated NOTE and the nToken supply
+        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, nTokensMinted);
 
-    //     sNTokenContext.nTokenBalance = sNTokenContext.nTokenBalance.add(nTokensMinted);
-    //     sNTokenContext.setStorage();
-    // }
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(SafeInt256.toUint(nTokensMinted));
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+    }
 
     // /**
     //  * Unstaking nTokens can only be done during designated windows. At this point, the staker
@@ -319,6 +320,20 @@ library nTokenStaked {
         );
     }
 
+    /**
+     * Updates the accumulated NOTE incentives for a staker, called when staking and unstaking nTokens.
+     * Accumulated NOTE incentives are based on the underlying baseAccumulatedNOTE from the nTokens with
+     * a bonus multiplier for longer term stakers.
+     *
+     * @param currencyId id of the currency
+     * @param blockTime current block time
+     * @param stakedNTokenBalanceBefore staked ntoken balance before the stake/unstake action, accumulate
+     * incentives up to this point
+     * @param stakedNTokenBalanceAfter staked ntoken balance after the stake/unstake action, used to set
+     * the incentive debt counter
+     * @param stakedSupply has its accumulators updated in memory
+     * @param staker has its incentive counters updated in memory
+     */
     function _updateAccumulatedNOTEIncentives(
         uint16 currencyId,
         uint256 blockTime,
@@ -327,7 +342,11 @@ library nTokenStaked {
         StakedNTokenSupply memory stakedSupply,
         nTokenStaker memory staker
     ) internal {
-        uint256 baseAccumulatedNOTEPerStaked = _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply);
+        // netNTokenSupply change is set to zero here, we expect that any minting or redeeming action on
+        // behalf of the user happens before or after this method. In either case, when we update accumulatedNOTE,
+        // it does not take into account any netChange in nTokens because it accumulates up to the point right
+        // before the tokens are minted.
+        uint256 baseAccumulatedNOTEPerStaked = _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, 0);
         uint256 termAccumulatedNOTEPerStaked = _updateTermAccumulatedNOTE(
             currencyId,
             staker.unstakeMaturity,
@@ -355,20 +374,24 @@ library nTokenStaked {
 
     /**
      * @notice baseAccumulatedNOTEPerSNToken needs to be updated every time either the nTokenBalance
-     * or totalSupply of staked NOTE changes.
-     * @dev Updates the sNTokenContext memory object internally but does not set storage.
+     * or totalSupply of staked NOTE changes. Also accumulates incentives on the nToken.
+     * @dev Updates the stakedSupply memory object but does not set storage.
      * @param currencyId currency id of the nToken
      * @param blockTime current block time
      * @param stakedSupply variables that apply to the sNToken supply
+     * @param netNTokenSupplyChange passed into the changeNTokenSupply method in the case that the totalSupply
+     * of nTokens has changed, this has no effect on the current accumulated NOTE
      */
     function _updateBaseAccumulatedNOTE(
         uint16 currencyId,
         uint256 blockTime,
-        StakedNTokenSupply memory stakedSupply
+        StakedNTokenSupply memory stakedSupply,
+        int256 netNTokenSupplyChange
     ) internal returns (uint256 baseAccumulatedNOTEPerStaked) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
         // This will get the most current accumulated NOTE Per nToken.
-        uint256 baseAccumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(nTokenAddress, 0, blockTime);
+        uint256 baseAccumulatedNOTEPerNToken = nTokenSupply.changeNTokenSupply(
+            nTokenAddress, netNTokenSupplyChange, blockTime);
 
         // The accumulator is always increasing, therefore this value should always be greater than or equal
         // to zero.
@@ -386,13 +409,15 @@ library nTokenStaked {
                 .div(stakedSupply.totalSupply)
         );
 
-        // NOTE: snTokenContext is not set here
+        // NOTE: stakedSupply is not set in storage here
         return stakedSupply.baseAccumulatedNOTEPerStaked;
     }
 
     /**
      * @notice Term accumulated NOTE per sNToken only updates when the total supply in a particular
      * staking term increases or decrease (either on staking or unstaking). A term accumulated NOTE
+     * is based on a multiplier on top of the baseAccumulatedNOTE for a particular nToken.
+     *
      * @param currencyId currency id of the nToken
      * @param unstakeMaturity current block time
      * @param baseAccumulatedNOTEPerStaked the current base accumulated note
