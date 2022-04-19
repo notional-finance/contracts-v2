@@ -116,19 +116,40 @@ library nTokenStaked {
         uint16 currencyId,
         uint256 unstakeMaturity,
         uint256 termAccumulatedNOTEPerStaked,
-        uint256 termStakedSupply,
         uint256 lastAccumulatedTime
     ) private  {
         mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
         StakedMaturityIncentivesStorage storage s = store[currencyId][unstakeMaturity];
 
         require(termAccumulatedNOTEPerStaked <= type(uint112).max); // dev: term accumulated note overflow
-        require(termStakedSupply <= type(uint96).max); // dev: term staked supply overflow
         require(lastAccumulatedTime <= type(uint32).max); // dev: last accumulated time overflow
 
         s.termAccumulatedNOTEPerStaked = uint112(termAccumulatedNOTEPerStaked);
-        s.termStakedSupply = uint96(termStakedSupply);
         s.lastAccumulatedTime = uint32(lastAccumulatedTime);
+    }
+
+    /// @dev Updates the term staked supply:
+    function _updateTermStakedSupply(
+        uint16 currencyId,
+        uint256 unstakeMaturity,
+        uint256 blockTime,
+        int256 netTermSupplyChange
+    ) private {
+        mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
+        StakedMaturityIncentivesStorage storage s = store[currencyId][unstakeMaturity];
+        // Require any updates to the term staked supply to happen only after accumulation. Term staked supply should never update
+        // for matured terms.
+        require(s.lastAccumulatedTime == blockTime); // dev: invalid stake update
+        uint256 termStakedSupply = s.termStakedSupply;
+
+        if (netTermSupplyChange >= 0) {
+            termStakedSupply = termStakedSupply.add(SafeInt256.toUint(netTermSupplyChange));
+        } else {
+            termStakedSupply = termStakedSupply.sub(SafeInt256.toUint(netTermSupplyChange.neg()));
+        }
+
+        require(termStakedSupply <= type(uint96).max); // dev: term staked supply overflow
+        s.termStakedSupply = uint96(termStakedSupply);
     }
 
     function _getTermAccumulatedNOTEPerStaked(
@@ -192,6 +213,7 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
+            blockTime,
             staker
         );
 
@@ -245,6 +267,7 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
+            blockTime,
             staker
         );
 
@@ -368,6 +391,7 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             fromStaker.stakedNTokenBalance,
             fromStakerBalanceAfter,
+            blockTime,
             fromStaker
         );
 
@@ -376,6 +400,7 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             toStaker.stakedNTokenBalance,
             toStakerBalanceAfter,
+            blockTime,
             toStaker
         );
 
@@ -524,6 +549,7 @@ library nTokenStaked {
         uint256 baseAccumulatedNOTEPerStaked,
         uint256 stakedNTokenBalanceBefore,
         uint256 stakedNTokenBalanceAfter,
+        uint256 blockTime,
         nTokenStaker memory staker
     ) internal {
         uint256 termAccumulatedNOTEPerStaked = _getTermAccumulatedNOTEPerStaked(currencyId, staker.unstakeMaturity);
@@ -543,7 +569,12 @@ library nTokenStaked {
             .mul(totalAccumulatedNOTEPerStaked)
             .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
         
-        // TODO: update the total supply stuff here
+        _updateTermStakedSupply(
+            currencyId,
+            staker.unstakeMaturity,
+            blockTime,
+            SafeInt256.toInt(stakedNTokenBalanceAfter).sub(SafeInt256.toInt(stakedNTokenBalanceBefore))
+        );
     }
 
     /**
@@ -631,7 +662,6 @@ library nTokenStaked {
             currencyId,
             activeTerms[0].unstakeMaturity,
             activeTerms[0].termAccumulatedNOTEPerStaked,
-            activeTerms[0].termStakedSupply,
             accumulateToTime // new last accumulated time
         );
 
@@ -654,7 +684,6 @@ library nTokenStaked {
                 currencyId,
                 activeTerms[i].unstakeMaturity,
                 activeTerms[i].termAccumulatedNOTEPerStaked,
-                activeTerms[i].termStakedSupply,
                 accumulateToTime // new last accumulated time
             );
         }
