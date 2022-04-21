@@ -609,14 +609,18 @@ library nTokenStaked {
         
         // Set the new last seen value for the next update
         stakedSupply.lastBaseAccumulatedNOTEPerNToken = baseAccumulatedNOTEPerNToken;
-        
-        // Convert the increase from a perNToken basis to a per sNToken basis:
-        // (NOTE / nToken) * (nToken / sNToken) = NOTE / sNToken
-        stakedSupply.baseAccumulatedNOTEPerStaked = stakedSupply.baseAccumulatedNOTEPerStaked.add(
-            increaseInAccumulatedNOTE
-                .mul(stakedSupply.nTokenBalance)
-                .div(stakedSupply.totalSupply)
-        ).add(termAccumulatedBaseNOTEPerStaked);
+        if (stakedSupply.totalSupply > 0) {
+            // Convert the increase from a perNToken basis to a per sNToken basis:
+            // (NOTE / nToken) * (nToken / sNToken) = NOTE / sNToken
+            stakedSupply.baseAccumulatedNOTEPerStaked = stakedSupply.baseAccumulatedNOTEPerStaked.add(
+                increaseInAccumulatedNOTE
+                    .mul(stakedSupply.nTokenBalance)
+                    .div(stakedSupply.totalSupply)
+            );
+        }
+
+        stakedSupply.baseAccumulatedNOTEPerStaked = stakedSupply.baseAccumulatedNOTEPerStaked
+            .add(termAccumulatedBaseNOTEPerStaked); 
 
         // NOTE: stakedSupply is not set in storage here
         return stakedSupply.baseAccumulatedNOTEPerStaked;
@@ -738,6 +742,8 @@ library nTokenStaked {
         // termAccumulatedNOTEPerStaked = (timeSinceLastAccumulation * totalAnnualTermEmission * termMultiplier) / 
         //      (termStakedSupply * aggregateTermFactor * YEAR)
         if (lastAccumulatedTime >= accumulateToTime) return 0;
+        // This handles the initialization case
+        if (termStakedSupply == 0) return 0;
 
         // This calculation is in:
         //    multiplier (1e8)
