@@ -1,6 +1,9 @@
+import brownie
 import pytest
+from brownie.network import Chain
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
 
+chain = Chain()
 # from brownie.convert.datatypes import Wei
 # from brownie.test import given, strategy
 
@@ -16,7 +19,13 @@ def StakedNToken(MockNTokenStaked, nTokenMintAction, nTokenRedeemAction, account
     nTokenMintAction.deploy({"from": accounts[0]})
     nTokenRedeemAction.deploy({"from": accounts[0]})
     mock = MockNTokenStaked.deploy({"from": accounts[0]})
+    chain.mine(1, START_TIME_TREF)
     return mock
+
+
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
 
 
 def check_invariants(StakedNToken, accounts):
@@ -55,9 +64,56 @@ def check_invariants(StakedNToken, accounts):
     # TODO: is there anything to assert over accumulated note?
 
 
-# def test_staking_maturity_too_short()
-# def test_staking_maturity_must_be_longer()
-# def test_staking_maturity_not_quarter_alignment()
+def test_fail_staking_maturity_before_blocktime(StakedNToken, accounts):
+    with brownie.reverts("Invalid Maturity"):
+        # Previous quarter
+        StakedNToken.stakeNToken(
+            accounts[0], 1, 100e8, START_TIME_TREF - SECONDS_IN_QUARTER, START_TIME_TREF + 100
+        )
+
+        # Current Tref
+        StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF, START_TIME_TREF + 100)
+
+        # Current Tref Equal
+        StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF, START_TIME_TREF)
+
+
+def test_staking_maturity_must_be_longer(StakedNToken, accounts):
+    # Staked to a future maturity
+    StakedNToken.stakeNToken(
+        accounts[0], 1, 100e8, START_TIME_TREF + 3 * SECONDS_IN_QUARTER, START_TIME_TREF + 100
+    )
+
+    # Cannot shorten unstake maturity
+    with brownie.reverts("Invalid Maturity"):
+        StakedNToken.stakeNToken(
+            accounts[0], 1, 100e8, START_TIME_TREF + 1 * SECONDS_IN_QUARTER, START_TIME_TREF + 110
+        )
+
+        StakedNToken.stakeNToken(
+            accounts[0], 1, 100e8, START_TIME_TREF + 2 * SECONDS_IN_QUARTER, START_TIME_TREF + 110
+        )
+
+
+def test_cannot_stake_past_max_terms(StakedNToken, accounts):
+    with brownie.reverts("Invalid Maturity"):
+        StakedNToken.stakeNToken(
+            accounts[0], 1, 100e8, START_TIME_TREF + 5 * SECONDS_IN_QUARTER, START_TIME_TREF + 100
+        )
+
+
+def test_staking_maturity_not_quarter_alignment(StakedNToken, accounts):
+    with brownie.reverts("Invalid Maturity"):
+        # Future maturity but not on quarter alignment
+        StakedNToken.stakeNToken(
+            accounts[0],
+            1,
+            100e8,
+            START_TIME_TREF + SECONDS_IN_QUARTER * 86400,
+            START_TIME_TREF + 110,
+        )
+
+
 def test_stake_ntoken(StakedNToken, accounts):
     StakedNToken.stakeNToken(
         accounts[0], 1, 100e8, START_TIME_TREF + SECONDS_IN_QUARTER, START_TIME_TREF + 100

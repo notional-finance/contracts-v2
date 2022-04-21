@@ -197,8 +197,11 @@ library nTokenStaked {
         // Validate that the termToStake is valid for this staker's context. If a staker is restaking with
         // a matured "unstakeMaturity", this forces the unstake maturity to get pushed forward to the next
         // quarterly roll (which is where it would be in any case.)
-        require(unstakeMaturity >= staker.unstakeMaturity);
-        require(_isValidUnstakeMaturity(unstakeMaturity, blockTime, Constants.MAX_STAKING_TERMS));
+        require(
+            unstakeMaturity >= staker.unstakeMaturity &&
+            _isValidUnstakeMaturity(unstakeMaturity, blockTime, Constants.MAX_STAKING_TERMS),
+            "Invalid Maturity"
+        );
 
         // Calculate the share of sNTokens the staker will receive. Immediately after this calculation, the
         // staker's share of the pool will exactly equal the nTokens they staked.
