@@ -309,13 +309,9 @@ library nTokenStaked {
             staker
         );
 
-        // Reduce the term staked supply. The staker's unstake maturity is not changing.
-        _updateTermStakedSupply(
-            currencyId,
-            staker.unstakeMaturity,
-            blockTime,
-            SafeInt256.toInt(tokensToUnstake).neg()
-        );
+        // NOTE: term staked supply is not updated here, when we unstake the unstake maturity is in
+        // the past and we no longer need to update term staked supplies in the past. We only ever reference
+        // term staked supply past the first staking term in the future.
 
         // Update balances and set state
         staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
