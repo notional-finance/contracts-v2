@@ -156,6 +156,9 @@ library nTokenStaked {
         uint16 currencyId,
         uint256 unstakeMaturity
     ) private view returns (uint256 termAccumulatedNOTEPerStaked) {
+        // Save a storage read for first time stakers
+        if (unstakeMaturity == 0) return 0;
+
         mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
         StakedMaturityIncentivesStorage storage s = store[currencyId][unstakeMaturity];
         return s.termAccumulatedNOTEPerStaked;
@@ -213,9 +216,38 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
-            blockTime,
             staker
         );
+
+        if (staker.unstakeMaturity != 0 && staker.unstakeMaturity != unstakeMaturity) {
+            // In this case the staker is moving from a lower maturity to a higher maturity, we
+            // have to transfer the staked supply between the maturities.
+            // NOTE: higher maturity requirement is checked above.
+            
+            // Decrease the token balance using the old value in the old maturity
+            _updateTermStakedSupply(
+                currencyId,
+                staker.unstakeMaturity,
+                blockTime,
+                SafeInt256.toInt(staker.stakedNTokenBalance).neg()
+            );
+
+            // Increase the token balance using the new value in the new maturity
+            _updateTermStakedSupply(
+                currencyId,
+                unstakeMaturity,
+                blockTime,
+                SafeInt256.toInt(stakedNTokenBalanceAfter)
+            );
+        } else {
+            // In this case the staker still staking to the same maturity, we just update the net amount
+            _updateTermStakedSupply(
+                currencyId,
+                unstakeMaturity,
+                blockTime,
+                SafeInt256.toInt(sNTokensToMint)
+            );
+        }
 
         // Update unstake maturity only after we accumulate incentives, we don't want users to accumulate
         // incentives on a term they are not currently staked in.
@@ -261,14 +293,25 @@ library nTokenStaked {
         // This is the share of the overall nToken balance that the staked nToken has a claim on
         nTokenClaim = stakedSupply.nTokenBalance.mul(tokensToUnstake).div(stakedSupply.totalSupply);
         uint256 stakedNTokenBalanceAfter = staker.stakedNTokenBalance.sub(tokensToUnstake);
+        
+        // Updates the accumulators and sets the storage values
         uint256 baseAccumulatedNOTEPerStaked = _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply);
+        
+        // Update the staker's incentive counters in memory
         _updateStakerIncentives(
             currencyId,
             baseAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
-            blockTime,
             staker
+        );
+
+        // Reduce the term staked supply. The staker's unstake maturity is not changing.
+        _updateTermStakedSupply(
+            currencyId,
+            staker.unstakeMaturity,
+            blockTime,
+            SafeInt256.toInt(tokensToUnstake).neg()
         );
 
         // Update balances and set state
@@ -391,7 +434,6 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             fromStaker.stakedNTokenBalance,
             fromStakerBalanceAfter,
-            blockTime,
             fromStaker
         );
 
@@ -400,7 +442,6 @@ library nTokenStaked {
             baseAccumulatedNOTEPerStaked,
             toStaker.stakedNTokenBalance,
             toStakerBalanceAfter,
-            blockTime,
             toStaker
         );
 
@@ -413,6 +454,9 @@ library nTokenStaked {
             uint256 firstUnstakeMaturity = tRef + Constants.QUARTER;
             if (fromStaker.unstakeMaturity < firstUnstakeMaturity) fromStaker.unstakeMaturity = firstUnstakeMaturity;
             if (toStaker.unstakeMaturity < firstUnstakeMaturity) toStaker.unstakeMaturity = firstUnstakeMaturity;
+
+            // NOTE: we do not need to update term staked supply here since the first term counter is not used
+            // for incentives
         }
 
         require(fromStaker.unstakeMaturity == toStaker.unstakeMaturity, "Maturity mismatch");
@@ -537,19 +581,19 @@ library nTokenStaked {
     /**
      * @notice Updates a staker's incentive factors in memory
      *
+     * @param currencyId id of the currency 
      * @param baseAccumulatedNOTEPerStaked this is the base accumulated NOTE for every staked nToken
      * @param stakedNTokenBalanceBefore staked ntoken balance before the stake/unstake action, accumulate
      * incentives up to this point
      * @param stakedNTokenBalanceAfter staked ntoken balance after the stake/unstake action, used to set
      * the incentive debt counter
-     * @param staker has its incentive counters updated in memory
+     * @param staker has its incentive counters updated in memory, the unstakeMaturity has not updated yet
      */
     function _updateStakerIncentives(
         uint16 currencyId,
         uint256 baseAccumulatedNOTEPerStaked,
         uint256 stakedNTokenBalanceBefore,
         uint256 stakedNTokenBalanceAfter,
-        uint256 blockTime,
         nTokenStaker memory staker
     ) internal {
         uint256 termAccumulatedNOTEPerStaked = _getTermAccumulatedNOTEPerStaked(currencyId, staker.unstakeMaturity);
@@ -568,13 +612,6 @@ library nTokenStaked {
         staker.accountIncentiveDebt = stakedNTokenBalanceAfter
             .mul(totalAccumulatedNOTEPerStaked)
             .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
-        
-        _updateTermStakedSupply(
-            currencyId,
-            staker.unstakeMaturity,
-            blockTime,
-            SafeInt256.toInt(stakedNTokenBalanceAfter).sub(SafeInt256.toInt(stakedNTokenBalanceBefore))
-        );
     }
 
     /**

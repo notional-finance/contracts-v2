@@ -44,6 +44,19 @@ contract MockNTokenStaked {
         return nTokenStaked.getStakedNTokenSupply(currencyId);
     }
 
+    function getStakedMaturityIncentive(uint16 currencyId, uint256 unstakeMaturity) 
+        external view returns (StakedMaturityIncentive memory) {
+        mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
+        StakedMaturityIncentivesStorage storage s = store[currencyId][unstakeMaturity];
+        StakedMaturityIncentive memory m;
+
+        m.termAccumulatedNOTEPerStaked = s.termAccumulatedNOTEPerStaked;
+        m.termStakedSupply = s.termStakedSupply;
+        m.unstakeMaturity = unstakeMaturity;
+        m.lastAccumulatedTime = s.lastAccumulatedTime;
+        return m;
+    }
+
     function getStakedMaturityIncentivesFromRef(uint16 currencyId, uint256 tRef) 
         external view returns (StakedMaturityIncentive[] memory) {
         return nTokenStaked.getStakedMaturityIncentivesFromRef(currencyId, tRef);
