@@ -289,9 +289,42 @@ def test_paying_fees_increases_stake(StakedNToken, accounts, acct0Stake, acct1St
     check_invariants(StakedNToken, accounts, blockTime)
 
 
+def test_negative_cash_when_paying_fee(StakedNToken):
+    with brownie.reverts():
+        StakedNToken.payFeeToStakedNToken(1, -100, START_TIME_TREF + 100)
+
+
+def test_invalid_values_to_redeem_ntoken(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.changeNTokenSupply(200e8, blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+
+    with brownie.reverts():
+        StakedNToken.simulateRedeemNToken(1, -100e8, 100e8, 100e8, blockTime)
+        StakedNToken.simulateRedeemNToken(1, 100e8, -100e8, 100e8, blockTime)
+
+    with brownie.reverts("Insufficient nTokens"):
+        StakedNToken.simulateRedeemNToken(1, 101e8, 100e8, 100e8, blockTime)
+
+    with brownie.reverts("Insufficient cash raised"):
+        StakedNToken.simulateRedeemNToken(1, 50e8, 100e8, 99e8, blockTime)
+
+    # This does not revert, since we are redeeming all the tokens
+    StakedNToken.simulateRedeemNToken(1, 100e8, 100e8, 99e8, blockTime)
+
+
+# @pytest.mark.only
 # def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
+#     blockTime = START_TIME_TREF + 100
+#     unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
 #     StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
-#     pass
+#     StakedNToken.redeemNTokenToCoverShortfall(
+#         1,
+#         5e8,
+#         5e8,
+#         blockTime
+#     )
 
 # def test_redeem_ntokens_for_shortfall_to_zero()
 

@@ -359,7 +359,7 @@ library nTokenStaked {
      * @param nTokensToRedeem the amount of nTokens to attempt to redeem
      * @param assetCashRequired the amount of asset cash required to offset the shortfall
      * @param blockTime the current block time
-     * @return netNTokenChange the amount of nTokens redeemed (negative)
+     * @return actualNTokensRedeemed the amount of nTokens redeemed (negative)
      * @return assetCashRaised the amount of asset cash raised (positive)
      */
     function redeemNTokenToCoverShortfall(
@@ -367,16 +367,19 @@ library nTokenStaked {
         int256 nTokensToRedeem,
         int256 assetCashRequired,
         uint256 blockTime
-    ) internal returns (int256 netNTokenChange, int256 assetCashRaised) {
-        require(assetCashRequired > 0);
+    ) internal returns (int256 actualNTokensRedeemed, int256 assetCashRaised) {
+        require(assetCashRequired > 0 && nTokensToRedeem > 0);
+
         StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-        netNTokenChange = nTokensToRedeem.neg();
-        // nTokenRedeemViaBatch will revert if nTokensToRedeem <= 0
+        // overflow is checked above on nTokensToRedeem
+        require(uint256(nTokensToRedeem) <= stakedSupply.nTokenBalance, "Insufficient nTokens");
+
+        actualNTokensRedeemed = nTokensToRedeem;
         assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
         // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
         // clean out the nTokenBalance altogether
         require(
-            assetCashRaised >= assetCashRequired || SafeInt256.toUint(nTokensToRedeem) == stakedSupply.nTokenBalance,
+            assetCashRaised >= assetCashRequired || uint256(nTokensToRedeem) == stakedSupply.nTokenBalance,
             "Insufficient cash raised"
         );
 
@@ -384,20 +387,18 @@ library nTokenStaked {
             // Put any surplus asset cash back into the nToken
             int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
             int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
-            netNTokenChange = netNTokenChange.add(nTokensMinted);
+            actualNTokensRedeemed = actualNTokensRedeemed.sub(nTokensMinted);
 
             // Set this for the return value
             assetCashRaised = assetCashRequired;
         }
+        require(actualNTokensRedeemed > 0); // dev: nTokens redeemed negative
 
         // This updates the base accumulated NOTE and the nToken supply. Term staking has not changed
-        // so we do not update those accumulated incentives
-        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, netNTokenChange, 0);
-        if (netNTokenChange > 0) {
-            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(SafeInt256.toUint(netNTokenChange));
-        } else {
-            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(SafeInt256.toUint(netNTokenChange.neg()));
-        }
+        // so we do not update those accumulated incentives. The netNTokenSupply change is negative since we
+        // have redeemed nTokens
+        _updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg(), 0);
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(uint256(actualNTokensRedeemed)); // overflow checked above
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 

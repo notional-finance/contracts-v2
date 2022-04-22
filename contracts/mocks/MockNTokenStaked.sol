@@ -5,6 +5,9 @@ pragma abicoder v2;
 import "../internal/nToken/nTokenStaked.sol";
 
 contract MockNTokenStaked {
+    using SafeInt256 for int256;
+    using SafeMath for uint256;
+
     function getNTokenClaim(uint16 currencyId, address account) public view returns (uint256) {
         StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
         nTokenStaker memory staker = nTokenStaked.getNTokenStaker(account, currencyId);
@@ -98,13 +101,55 @@ contract MockNTokenStaked {
         return nTokenStaked.payFeeToStakedNToken(currencyId, assetAmountInternal, blockTime);
     }
 
-    function redeemNTokenToCoverShortfall(
+    function changeNTokenSupply(
+        int256 netChange,
+        uint256 blockTime
+    ) external {
+        nTokenSupply.changeNTokenSupply(address(0), netChange, blockTime);
+    }
+
+    function simulateRedeemNToken(
         uint16 currencyId,
         int256 nTokensToRedeem,
         int256 assetCashRequired,
+        int256 _assetCashRaised,
         uint256 blockTime
-    ) external returns (int256 netNTokenChange, int256 assetCashRaised) {
-        return nTokenStaked.redeemNTokenToCoverShortfall(currencyId, nTokensToRedeem, assetCashRequired, blockTime);
+    ) external returns (int256 actualNTokensRedeemed, int256 assetCashRaised) {
+        // Simulates a redemption since nTokenRedeemAction will revert unless it is set up properly
+        require(assetCashRequired > 0 && nTokensToRedeem > 0);
+
+        StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
+        // overflow is checked above on nTokensToRedeem
+        require(uint256(nTokensToRedeem) <= stakedSupply.nTokenBalance, "Insufficient nTokens");
+
+        actualNTokensRedeemed = nTokensToRedeem;
+        // XXX: this line is commented out to simulate the redemption
+        // assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
+        assetCashRaised = _assetCashRaised;
+        // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
+        // clean out the nTokenBalance altogether
+        require(
+            assetCashRaised >= assetCashRequired || uint256(nTokensToRedeem) == stakedSupply.nTokenBalance,
+            "Insufficient cash raised"
+        );
+
+        if (assetCashRaised > assetCashRequired) {
+            // Put any surplus asset cash back into the nToken
+            int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
+            int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
+            actualNTokensRedeemed = actualNTokensRedeemed.sub(nTokensMinted);
+
+            // Set this for the return value
+            assetCashRaised = assetCashRequired;
+        }
+        require(actualNTokensRedeemed > 0); // dev: nTokens redeemed negative
+
+        // This updates the base accumulated NOTE and the nToken supply. Term staking has not changed
+        // so we do not update those accumulated incentives. The netNTokenSupply change is negative since we
+        // have redeemed nTokens
+        nTokenStaked._updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg(), 0);
+        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(uint256(actualNTokensRedeemed)); // overflow checked above
+        nTokenStaked._setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
     function transferStakedNToken(
