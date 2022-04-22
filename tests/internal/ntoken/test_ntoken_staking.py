@@ -310,23 +310,52 @@ def test_invalid_values_to_redeem_ntoken(StakedNToken, accounts):
     with brownie.reverts("Insufficient cash raised"):
         StakedNToken.simulateRedeemNToken(1, 50e8, 100e8, 99e8, blockTime)
 
-    # This does not revert, since we are redeeming all the tokens
-    StakedNToken.simulateRedeemNToken(1, 100e8, 100e8, 99e8, blockTime)
+
+def test_redeem_ntokens_for_shortfall_to_zero(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.changeNTokenSupply(200e8, blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+
+    # Redeem the stakedNToken down to zero
+    StakedNToken.simulateRedeemNToken(1, 100e8, 100e8, 100e8, blockTime)
+
+    stakedSupply = StakedNToken.getStakedNTokenSupply(1).dict()
+    assert stakedSupply["totalSupply"] == 100e8
+    assert stakedSupply["nTokenBalance"] == 0
+    assert 0 == StakedNToken.getNTokenClaim(1, accounts[0].address)
+
+    check_invariants(StakedNToken, accounts, blockTime)
 
 
-# @pytest.mark.only
-# def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
-#     blockTime = START_TIME_TREF + 100
-#     unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
-#     StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
-#     StakedNToken.redeemNTokenToCoverShortfall(
-#         1,
-#         5e8,
-#         5e8,
-#         blockTime
-#     )
+def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    initialNTokenStake = 100e8
+    buffer = 50e8
+    nTokensToRedeem = initialNTokenStake - buffer
+    # Ensure there is sufficient supply
+    StakedNToken.changeNTokenSupply(initialNTokenStake * 2, blockTime)
 
-# def test_redeem_ntokens_for_shortfall_to_zero()
+    StakedNToken.stakeNToken(accounts[0], 1, initialNTokenStake, unstakeMaturity, blockTime)
+
+    StakedNToken.simulateRedeemNToken(1, nTokensToRedeem, 100e8, 100e8, blockTime)
+    stakedSupply = StakedNToken.getStakedNTokenSupply(1).dict()
+    assert stakedSupply["totalSupply"] == initialNTokenStake
+    assert stakedSupply["nTokenBalance"] == initialNTokenStake - nTokensToRedeem
+    assert (initialNTokenStake - nTokensToRedeem) == StakedNToken.getNTokenClaim(
+        1, accounts[0].address
+    )
+
+    # Staking more retains no "memory" of the redemption
+    StakedNToken.stakeNToken(accounts[0], 1, initialNTokenStake, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[1], 1, initialNTokenStake, unstakeMaturity, blockTime)
+    assert (2 * initialNTokenStake - nTokensToRedeem) == StakedNToken.getNTokenClaim(
+        1, accounts[0].address
+    )
+    assert initialNTokenStake == StakedNToken.getNTokenClaim(1, accounts[1].address)
+
+    check_invariants(StakedNToken, accounts, blockTime)
 
 
 # def test_note_incentives_are_deterministic()
