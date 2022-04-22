@@ -489,10 +489,9 @@ struct StakedNTokenSupplyStorage {
     uint96 nTokenBalance;
     // Additional staked note emission rate
     uint32 totalAnnualTermEmission;
-
-    // TODO: (is this too limiting?)
-    // Allows 4xuint8 term multipliers, up to 4 quarters of staking.
-    bytes4 termMultipliers;
+    // Relative weights for all terms when calculation share of total emissions, must add up
+    // to 200 total (each weight is a half percentage point)
+    bytes4 termIncentiveWeights;
     
     // Second storage slot starts here, holds the incentive accumulators for the staked nToken.
     // Previous value of NOTE per nToken seen by the staked nToken
@@ -508,7 +507,7 @@ struct StakedNTokenSupply {
     uint256 totalAnnualTermEmission;
     uint256 lastBaseAccumulatedNOTEPerNToken;
     uint256 baseAccumulatedNOTEPerStaked;
-    bytes4 termMultipliers;
+    bytes4 termIncentiveWeights;
 }
 
 // Incentive factors for a particular staked nToken maturity in storage

@@ -18,6 +18,37 @@ library nTokenStaked {
     using SafeInt256 for int256;
 
     /** Getter and Setter Methods **/
+    function setStakedNTokenEmissions(
+        uint16 currencyId,
+        uint32 termEmissionRate,
+        uint8[] calldata termIncentiveWeights,
+        uint32 blockTime
+    ) internal {
+        // First accumulate incentives up to the block time
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply);
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+
+        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
+        StakedNTokenSupplyStorage storage s = store[currencyId];
+
+        // Sanity check that emissions rate is not specified in 1e8 terms.
+        require(termEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
+        require(termIncentiveWeights.length == Constants.MAX_STAKING_TERMS);
+        uint256 totalTermIncentiveWeight = 0;
+        for (uint i; i < Constants.MAX_STAKING_TERMS; i++) {
+            totalTermIncentiveWeight = totalTermIncentiveWeight.add(termIncentiveWeights[i]);
+        }
+        require(totalTermIncentiveWeight == Constants.TOTAL_TERM_INCENTIVE_WEIGHT, "Invalid term weight");
+
+        s.totalAnnualTermEmission = termEmissionRate;
+        s.termIncentiveWeights = bytes4(
+            uint32(termIncentiveWeights[0]) << 24
+            | uint32(termIncentiveWeights[1]) << 16
+            | uint32(termIncentiveWeights[2]) << 8
+            | uint32(termIncentiveWeights[3])
+        );
+    }
 
     function getNTokenStaker(
         address account,
@@ -59,7 +90,7 @@ library nTokenStaked {
 
         stakedSupply.totalSupply = s.totalSupply;
         stakedSupply.nTokenBalance = s.nTokenBalance;
-        stakedSupply.termMultipliers = s.termMultipliers;
+        stakedSupply.termIncentiveWeights = s.termIncentiveWeights;
         // This is stored in whole tokens, so we scale it up to decimals here
         stakedSupply.totalAnnualTermEmission = uint256(s.totalAnnualTermEmission).mul(uint256(Constants.INTERNAL_TOKEN_PRECISION));
         stakedSupply.lastBaseAccumulatedNOTEPerNToken = s.lastBaseAccumulatedNOTEPerNToken;
@@ -78,7 +109,7 @@ library nTokenStaked {
         require(stakedSupply.lastBaseAccumulatedNOTEPerNToken <= type(uint128).max); // dev: staked last accumulated note overflow
         require(stakedSupply.baseAccumulatedNOTEPerStaked <= type(uint128).max); // dev: staked base accumulated note overflow
 
-        // Term multipliers and incentive rates are not updated in here, they are updated separately in governance
+        // Term weights and incentive rates are not updated in here, they are updated separately in governance
         s.totalSupply = uint96(stakedSupply.totalSupply);
         s.nTokenBalance = uint96(stakedSupply.nTokenBalance);
         s.lastBaseAccumulatedNOTEPerNToken = uint128(stakedSupply.lastBaseAccumulatedNOTEPerNToken);
@@ -517,7 +548,7 @@ library nTokenStaked {
      *    of the unstakeMaturity that they have. This is calculated based on the totalAnnualTermEmission and the supply
      *    of staked nTokens in the other terms.
      *  - termAccumulatedNOTEPerStaked: these are NOTE incentives accumulated to a specific maturity over the course of
-     *    its maturity, calculated based on the termMultiplier and the totalAnnualTermEmission
+     *    its maturity, calculated based on the termWeight and the totalAnnualTermEmission
      *
      * @param currencyId id of the currency
      * @param blockTime current block time
@@ -682,7 +713,7 @@ library nTokenStaked {
         (
             uint256 aggregateTermFactor,
             uint256 firstTermStakedSupply
-        ) = _getAggregateTermFactors(activeTerms, stakedSupply.totalSupply, stakedSupply.termMultipliers);
+        ) = _getAggregateTermFactors(activeTerms, stakedSupply.totalSupply, stakedSupply.termIncentiveWeights);
 
         // baseNOTEPerStaked is accumulated to all stakers who have an unstakeMaturity in the past and those
         // who have an unstakeMaturity in the first term. Stakers can only unstake during specified windows so
@@ -693,7 +724,7 @@ library nTokenStaked {
             stakedSupply.totalAnnualTermEmission,
             activeTerms[0].lastAccumulatedTime,
             firstTermStakedSupply,
-            uint256(Constants.INTERNAL_TOKEN_PRECISION) // multiplier is hardcoded to 1 for first term
+            _getTermIncentiveWeight(stakedSupply.termIncentiveWeights, 0)
         );
 
         // For the first term, we no longer update the termAccumulatedNOTEPerStaked, this value is
@@ -714,7 +745,7 @@ library nTokenStaked {
                 stakedSupply.totalAnnualTermEmission,
                 activeTerms[i].lastAccumulatedTime,
                 activeTerms[i].termStakedSupply,
-                _getTermIncentiveMultiplier(stakedSupply.termMultipliers, i)
+                _getTermIncentiveWeight(stakedSupply.termIncentiveWeights, i)
             );
 
             // Accumulate term specific incentives
@@ -735,7 +766,7 @@ library nTokenStaked {
     function _getAggregateTermFactors(
         StakedMaturityIncentive[] memory activeTerms,
         uint256 totalSupply,
-        bytes4 termMultipliers
+        bytes4 termIncentiveWeights
     ) internal pure returns (uint256 aggregateTermFactor, uint256 firstTermStakedSupply) {
         // This will be decremented as we loop through all the terms past the first term
         firstTermStakedSupply = totalSupply;
@@ -745,14 +776,18 @@ library nTokenStaked {
         // total supply is actually totalSupply - sum(stakedSupply in all other terms). This loop will start from the
         // second term.
         for (uint256 i = 1; i < activeTerms.length; i++) {
-            uint256 multiplier = _getTermIncentiveMultiplier(termMultipliers, i);
+            // Weight is a value between 0 and Constants.TOTAL_TERM_INCENTIVE_WEIGHT (200)
+            uint256 weight = _getTermIncentiveWeight(termIncentiveWeights, i);
             uint256 termStakedSupply = activeTerms[i].termStakedSupply;
-            // This calculation is 1e8 * 1e8 (no division yet)
-            aggregateTermFactor = aggregateTermFactor.add(termStakedSupply.mul(multiplier));
+            // This calculation is 200 * 1e8 (no division yet)
+            aggregateTermFactor = aggregateTermFactor.add(termStakedSupply.mul(weight));
             firstTermStakedSupply = firstTermStakedSupply.sub(termStakedSupply);
         }
-        // Term incentive multiplier for the first term is hardcoded to 1
-        aggregateTermFactor = aggregateTermFactor.add(firstTermStakedSupply.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)));
+
+        aggregateTermFactor = aggregateTermFactor.add(
+            // This calculation is 200 * 1e8 (no division yet)
+            firstTermStakedSupply.mul(_getTermIncentiveWeight(termIncentiveWeights, 0))
+        );
     }
 
     /// @dev Calculates the increase in accumulated NOTE for a specific term
@@ -762,39 +797,39 @@ library nTokenStaked {
         uint256 totalAnnualTermEmission,
         uint256 lastAccumulatedTime,
         uint256 termStakedSupply,
-        uint256 termMultiplier
+        uint256 termWeight
     ) internal pure returns (uint256) {
         // The total term emission rate must adhere to the inequality:
-        // totalAnnualTermEmission = YEAR * termRatePerStaked * sum(termStakedSupply * termMultiplier for allTerms)
+        // totalAnnualTermEmission = YEAR * termRatePerStaked * sum(termStakedSupply * termWeight for allTerms)
         // 
         // Flipping the equation around to solve for termRatePerStaked:
         // termRatePerStaked = totalAnnualTermEmission / (aggregateTermFactor * YEAR)
-        //      where aggregateTermFactor = sum(termStakedSupply * termMultiplier for allTerms)
+        //      where aggregateTermFactor = sum(termStakedSupply * termWeight for allTerms)
         //
         // Therefore, each term will accumulate:
-        // termAccumulatedNOTEPerStaked = (timeSinceLastAccumulation * termRatePerStaked * termMultiplier) / 
+        // termAccumulatedNOTEPerStaked = (timeSinceLastAccumulation * termRatePerStaked * termWeight) / 
         //      (termStakedSupply)
         //
         // To limit loss of precision, we defer division to the end:
-        // termAccumulatedNOTEPerStaked = (timeSinceLastAccumulation * totalAnnualTermEmission * termMultiplier) / 
+        // termAccumulatedNOTEPerStaked = (timeSinceLastAccumulation * totalAnnualTermEmission * termWeight) / 
         //      (termStakedSupply * aggregateTermFactor * YEAR)
         if (lastAccumulatedTime >= accumulateToTime) return 0;
         // This handles the initialization case
         if (termStakedSupply == 0) return 0;
 
         // This calculation is in:
-        //    multiplier (1e8)
-        //    MUL totalAnnualTermEmission (1e8)
+        //    weight (0-200)
+        //    MUL totalAnnualTermEmission (1e8 NOTE)
         //    MUL seconds 
-        //    MUL 1e8 (to balance out aggregateTermFactor)
+        //    MUL weight total (200)
         //    MUL 1e18 (to get to INCENTIVE_ACCUMULATION_PRECISION)
-        //    DIV termStakedSupply (1e8)
-        //    DIV aggregateTermFactor (1e8 * 1e8)
+        //    DIV termStakedSupply (1e8 snToken)
+        //    DIV aggregateTermFactor (weight * 1e8 snToken)
         //    DIV seconds
-        uint256 increaseInAccumulatedNOTE = termMultiplier
+        uint256 increaseInAccumulatedNOTE = termWeight
             .mul(totalAnnualTermEmission) // overflow checked above
             .mul(accumulateToTime - lastAccumulatedTime) // overflow checked above
-            .mul(uint256(Constants.INTERNAL_TOKEN_PRECISION) * Constants.INCENTIVE_ACCUMULATION_PRECISION); // 1e26
+            .mul(uint256(Constants.TOTAL_TERM_INCENTIVE_WEIGHT) * Constants.INCENTIVE_ACCUMULATION_PRECISION); // 200 * 1e18
         
         increaseInAccumulatedNOTE = increaseInAccumulatedNOTE
             .div(termStakedSupply)
@@ -804,25 +839,16 @@ library nTokenStaked {
         return increaseInAccumulatedNOTE;
     }
 
-    function _getTermIncentiveMultiplier(
-        bytes4 termMultipliers,
+
+    /**
+     * @dev Term incentive weights are stored as uint8 as a share of Constants.TOTAL_TERM_INCENTIVE_WEIGHT (200).
+     * Each unit of weight is effectively half a percentage point.
+     */
+    function _getTermIncentiveWeight(
+        bytes4 termIncentiveWeights,
         uint256 _index
-    ) private pure returns (uint256 incentiveMultiplier) {
-        // This gives us a maximum multiplier of 655.36 if we are using 100 as a basis, it's not
-        // clear if that is sufficient. This would mean if the 1 year term were earning 1 NOTE per sNToken
-        // then the base would earn 0.0015 NOTE per sNToken.
-
-        // Since we have 4 indexes here, we can either have 5 unstaking terms or use the first index
-        // as a basis to shift the other term multipliers up or down
-
-        // Or alternatively, we can use the 8 bytes to define a linear function for the multiplier and have
-        // unlimited number of staking terms.
-        // byte1 = maxTerms (0 - 255)
-        // byte2 = baseMultiplier (0 - 655.36) using 100 as a base, applies to the first unstake term
-        // byte2 = slope (0 - 655.36)  using 100 as a base
-        // byte1 = optional kink term
-        // byte2 = optional kink slope (0 - 655.36), applies after kink
-        require(_index <= 4);
-        incentiveMultiplier = uint8(bytes1(termMultipliers << (uint8(_index) * 8))) * uint256(Constants.INTERNAL_TOKEN_PRECISION);
+    ) internal pure returns (uint256 incentiveWeight) {
+        require(_index < 4);
+        incentiveWeight = uint8(termIncentiveWeights[uint(_index)]);
     }
 }

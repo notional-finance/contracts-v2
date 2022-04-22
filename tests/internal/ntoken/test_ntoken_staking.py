@@ -358,6 +358,33 @@ def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
     check_invariants(StakedNToken, accounts, blockTime)
 
 
+def test_term_weights(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    with brownie.reverts("Invalid rate"):
+        StakedNToken.setupIncentives(1, 100_000, 2 ** 32 - 1, [1, 2, 3, 4], blockTime)
+
+    with brownie.reverts("Invalid term weight"):
+        StakedNToken.setupIncentives(1, 100_000, 400_000, [1, 2, 3, 4], blockTime)
+
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+
+    assert StakedNToken.getTermWeights(1, 0) == 10
+    assert StakedNToken.getTermWeights(1, 1) == 50
+    assert StakedNToken.getTermWeights(1, 2) == 50
+    assert StakedNToken.getTermWeights(1, 3) == 90
+    check_invariants(StakedNToken, accounts, blockTime)
+
+
+# @pytest.mark.only
+# def test_incentives_simulation_outside_window(StakedNToken, accounts):
+#     blockTime = START_TIME_TREF + 100
+#     setup_incentives(StakedNToken, blockTime)
+#     assert False
+
+# def test_incentives_simulation_inside_window(StakedNToken, accounts):
+#     pass
+
+
 # def test_note_incentives_are_deterministic()
 # def test_no_dilution_of_previous_incentives()
 # def test_longer_terms_always_have_higher_incentives()

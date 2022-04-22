@@ -8,6 +8,22 @@ contract MockNTokenStaked {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
+    function setupIncentives(
+        uint16 currencyId,
+        uint32 baseEmissionRate,
+        uint32 termEmissionRate,
+        uint8[] calldata termIncentiveWeights,
+        uint32 blockTime
+    ) external {
+        nTokenSupply.setIncentiveEmissionRate(address(0), baseEmissionRate, blockTime);
+        nTokenStaked.setStakedNTokenEmissions(currencyId, termEmissionRate, termIncentiveWeights, blockTime);
+    }
+
+    function getTermWeights(uint16 currencyId, uint256 index) external view returns (uint256) {
+        StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
+        return nTokenStaked._getTermIncentiveWeight(stakedSupply.termIncentiveWeights, index);
+    }
+
     function getNTokenClaim(uint16 currencyId, address account) public view returns (uint256) {
         StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
         nTokenStaker memory staker = nTokenStaked.getNTokenStaker(account, currencyId);
