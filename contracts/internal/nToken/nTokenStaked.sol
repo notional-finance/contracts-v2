@@ -69,7 +69,7 @@ library nTokenStaked {
     function _setStakedNTokenSupply(
         uint16 currencyId,
         StakedNTokenSupply memory stakedSupply
-    ) private {
+    ) internal {
         mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
         StakedNTokenSupplyStorage storage s = store[currencyId];
 
@@ -687,12 +687,12 @@ library nTokenStaked {
         // who have an unstakeMaturity in the first term. Stakers can only unstake during specified windows so
         // even if they have an unstakeMaturity in the past they can only unstake during the next window.
         baseNOTEPerStaked = _getIncreaseInTermAccumulatedNOTE(
-            activeTerms[0].lastAccumulatedTime,
             accumulateToTime,
-            uint256(Constants.INTERNAL_TOKEN_PRECISION), // multiplier is hardcoded to 1 for first term
-            stakedSupply.totalAnnualTermEmission,
             aggregateTermFactor,
-            firstTermStakedSupply
+            stakedSupply.totalAnnualTermEmission,
+            activeTerms[0].lastAccumulatedTime,
+            firstTermStakedSupply,
+            uint256(Constants.INTERNAL_TOKEN_PRECISION) // multiplier is hardcoded to 1 for first term
         );
 
         // For the first term, we no longer update the termAccumulatedNOTEPerStaked, this value is

@@ -5,6 +5,15 @@ pragma abicoder v2;
 import "../internal/nToken/nTokenStaked.sol";
 
 contract MockNTokenStaked {
+    function getNTokenClaim(uint16 currencyId, address account) public view returns (uint256) {
+        StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
+        nTokenStaker memory staker = nTokenStaked.getNTokenStaker(account, currencyId);
+
+        if (stakedSupply.totalSupply == 0) return 0;
+
+        return (stakedSupply.nTokenBalance * staker.stakedNTokenBalance) / (stakedSupply.totalSupply);
+    }
+
     function setStakedNTokenSupply(
         uint16 currencyId,
         StakedNTokenSupplyStorage memory s
@@ -118,5 +127,6 @@ contract MockNTokenStaked {
             blockTime,
             stakedSupply
         );
+        nTokenStaked._setStakedNTokenSupply(currencyId, stakedSupply);
     }
 }
