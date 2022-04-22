@@ -253,8 +253,46 @@ def test_stake_ntoken(StakedNToken, accounts, initialStake, secondStake):
     check_invariants(StakedNToken, accounts, blockTime)
 
 
-# def test_paying_fees_increases_stake()
-# def test_redeem_ntokens_for_shortfall()
+@given(
+    acct0Stake=strategy("uint80", min_value=100_000e8, max_value=100_000_000e8),
+    acct1Stake=strategy("uint80", min_value=0, max_value=100_000_000e8),
+    feeAmount=strategy("uint80", min_value=0, max_value=100_000e8),
+)
+def test_paying_fees_increases_stake(StakedNToken, accounts, acct0Stake, acct1Stake, feeAmount):
+    blockTime = START_TIME_TREF + 100
+    totalStake = acct0Stake + acct1Stake
+    acct0FeeShare = (feeAmount * acct0Stake) / totalStake
+    acct1FeeShare = (feeAmount * acct1Stake) / totalStake
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+
+    StakedNToken.stakeNToken(accounts[0], 1, acct0Stake, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[1], 1, acct1Stake, unstakeMaturity, blockTime)
+    assert acct0Stake == StakedNToken.getNTokenClaim(1, accounts[0].address)
+    assert acct1Stake == StakedNToken.getNTokenClaim(1, accounts[1].address)
+
+    StakedNToken.payFeeToStakedNToken(1, feeAmount, blockTime)
+    assert pytest.approx(acct0Stake + acct0FeeShare, abs=10) == StakedNToken.getNTokenClaim(
+        1, accounts[0].address
+    )
+    assert pytest.approx(acct1Stake + acct1FeeShare, abs=10) == StakedNToken.getNTokenClaim(
+        1, accounts[1].address
+    )
+
+    # Stake a bit more to ensure additional staking does not have a dilutive effect
+    StakedNToken.stakeNToken(accounts[0], 1, 5e8, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[2], 1, 100e8, unstakeMaturity, blockTime)
+    assert pytest.approx(acct0Stake + acct0FeeShare + 5e8, abs=10) == StakedNToken.getNTokenClaim(
+        1, accounts[0].address
+    )
+    assert pytest.approx(100e8, abs=10) == StakedNToken.getNTokenClaim(1, accounts[2].address)
+
+    check_invariants(StakedNToken, accounts, blockTime)
+
+
+# def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
+#     StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+#     pass
+
 # def test_redeem_ntokens_for_shortfall_to_zero()
 
 
