@@ -115,10 +115,6 @@ def check_invariants(StakedNToken, accounts, blockTime, prevIncentiveAccumulator
     for (i, term) in enumerate(activeTerms):
         # Assert that each active term has the correct total supply
         assert termSupplyCalc[term[0]] == term[2]
-        if i > 0:
-            # longer termAccumulatedNOTEPerStaked is always greater than the previous
-            # activeTerm
-            assert activeTerms[i - 1][1] < term[1] or term[1] == 0
 
 
 def test_fail_staking_maturity_before_blocktime(StakedNToken, accounts):
@@ -358,6 +354,105 @@ def test_redeem_ntokens_for_shortfall(StakedNToken, accounts):
     check_invariants(StakedNToken, accounts, blockTime)
 
 
+def test_transfer_staked_token_matched_maturities(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[1], 1, 100e8, unstakeMaturity, blockTime)
+
+    StakedNToken.transferStakedNToken(
+        accounts[0], accounts[1], 1, 50e8, blockTime + 30 * SECONDS_IN_DAY
+    )
+    check_invariants(StakedNToken, accounts, blockTime + 30 * SECONDS_IN_DAY)
+    acct0 = StakedNToken.getNTokenStaker(accounts[0], 1).dict()
+    acct1 = StakedNToken.getNTokenStaker(accounts[1], 1).dict()
+
+    assert acct0["stakedNTokenBalance"] == 50e8
+    assert acct1["stakedNTokenBalance"] == 150e8
+    assert acct0["unstakeMaturity"] == unstakeMaturity
+    assert acct1["unstakeMaturity"] == unstakeMaturity
+    # Both accounts have accumulated the same amount of NOTE
+    assert acct0["accumulatedNOTE"] == acct1["accumulatedNOTE"]
+
+
+def test_transfer_staked_token_no_maturity(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+    StakedNToken.transferStakedNToken(
+        accounts[0], accounts[1], 1, 50e8, blockTime + 30 * SECONDS_IN_DAY
+    )
+
+    check_invariants(StakedNToken, accounts, blockTime + 30 * SECONDS_IN_DAY)
+    acct0 = StakedNToken.getNTokenStaker(accounts[0], 1).dict()
+    acct1 = StakedNToken.getNTokenStaker(accounts[1], 1).dict()
+
+    assert acct0["stakedNTokenBalance"] == 50e8
+    assert acct1["stakedNTokenBalance"] == 50e8
+    assert acct0["unstakeMaturity"] == unstakeMaturity
+    assert acct1["unstakeMaturity"] == unstakeMaturity
+    assert acct1["accumulatedNOTE"] == 0
+
+
+def test_transfer_staked_token_mismatch_maturities(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[1], 1, 100e8, unstakeMaturity + SECONDS_IN_QUARTER, blockTime)
+
+    with brownie.reverts("Maturity mismatch"):
+        StakedNToken.transferStakedNToken(
+            accounts[0], accounts[1], 1, 50e8, blockTime + 30 * SECONDS_IN_DAY
+        )
+
+
+def test_transfer_staked_token_insufficient_balance(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+
+    with brownie.reverts():
+        StakedNToken.transferStakedNToken(
+            accounts[0], accounts[1], 1, 200e8, blockTime + 30 * SECONDS_IN_DAY
+        )
+
+
+@pytest.mark.only
+def test_transfer_staked_token_misatch_but_increase(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + 100
+    unstakeMaturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, unstakeMaturity, blockTime)
+    StakedNToken.stakeNToken(accounts[1], 1, 100e8, unstakeMaturity + SECONDS_IN_QUARTER, blockTime)
+
+    with brownie.reverts("Maturity mismatch"):
+        # Logs a mismatch inside unstake window
+        StakedNToken.transferStakedNToken(
+            accounts[0], accounts[1], 1, 50e8, blockTime + SECONDS_IN_QUARTER
+        )
+
+    # Can transfer outside of unstake window
+    blockTime = blockTime + SECONDS_IN_QUARTER + 7 * SECONDS_IN_DAY
+    StakedNToken.transferStakedNToken(accounts[0], accounts[1], 1, 50e8, blockTime)
+    check_invariants(StakedNToken, accounts, blockTime)
+
+    acct0 = StakedNToken.getNTokenStaker(accounts[0], 1).dict()
+    acct1 = StakedNToken.getNTokenStaker(accounts[1], 1).dict()
+
+    assert acct0["stakedNTokenBalance"] == 50e8
+    assert acct1["stakedNTokenBalance"] == 150e8
+    # Maturities are now aligned at the next unstaking term
+    assert acct0["unstakeMaturity"] == unstakeMaturity + SECONDS_IN_QUARTER
+    assert acct1["unstakeMaturity"] == unstakeMaturity + SECONDS_IN_QUARTER
+    # Acct1 has accumulated more NOTE for staking at a longer term
+    assert acct0["accumulatedNOTE"] < acct1["accumulatedNOTE"]
+
+
 def test_term_weights(StakedNToken, accounts):
     blockTime = START_TIME_TREF + 100
     with brownie.reverts("Invalid rate"):
@@ -375,22 +470,41 @@ def test_term_weights(StakedNToken, accounts):
     check_invariants(StakedNToken, accounts, blockTime)
 
 
-# @pytest.mark.only
-# def test_incentives_simulation_outside_window(StakedNToken, accounts):
-#     blockTime = START_TIME_TREF + 100
-#     setup_incentives(StakedNToken, blockTime)
-#     assert False
+# def test_update_incentive_emission_rate(StakedNToken, accounts):
+# def test_update_term_weights(StakedNToken, accounts):
+
+
+def test_incentives_simulation_outside_window(StakedNToken, accounts):
+    blockTime = START_TIME_TREF + SECONDS_IN_DAY
+    StakedNToken.setupIncentives(1, 100_000, 400_000, [10, 50, 50, 90], blockTime)
+    StakedNToken.changeNTokenSupply(1000e8, START_TIME_TREF)
+    stakeAmount = 100e8
+
+    def unstakeMaturity(x):
+        START_TIME_TREF + x * SECONDS_IN_QUARTER
+
+    incentiveAccumulator = None
+    activeTerms = []
+    stakedSupply = []
+    for i in range(0, 4):
+        # This increments the base ntoken counter
+        StakedNToken.stakeNToken(accounts[i], 1, stakeAmount, unstakeMaturity(i + 1), blockTime)
+
+        incentiveAccumulator = check_invariants(
+            StakedNToken, accounts, blockTime, incentiveAccumulator
+        )
+        blockTime += SECONDS_IN_DAY
+        activeTerms.append(StakedNToken.getStakedMaturityIncentivesFromRef(1, START_TIME_TREF))
+        stakedSupply.append(StakedNToken.getStakedNTokenSupply(1).dict())
+
+    # assert that longer terms have higher incentives
+    # assert that one year will yield the face rate of tokens
+    assert False
+
 
 # def test_incentives_simulation_inside_window(StakedNToken, accounts):
-#     pass
-
-
-# def test_note_incentives_are_deterministic()
-# def test_no_dilution_of_previous_incentives()
-# def test_longer_terms_always_have_higher_incentives()
 # def test_paying_fees_accumulates_note()
-
-# def test_transfers()
+# def test_redeeming_accumulates_note()
 
 """
 simulation:

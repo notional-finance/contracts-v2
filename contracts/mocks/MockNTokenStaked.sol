@@ -97,6 +97,7 @@ contract MockNTokenStaked {
         uint256 unstakeMaturity,
         uint256 blockTime
     ) external returns (uint256 sNTokensToMint) {
+        changeNTokenSupply(int256(nTokensToStake), blockTime);
         return nTokenStaked.stakeNToken(account, currencyId, nTokensToStake, unstakeMaturity, blockTime);
     }
 
@@ -120,7 +121,7 @@ contract MockNTokenStaked {
     function changeNTokenSupply(
         int256 netChange,
         uint256 blockTime
-    ) external {
+    ) public {
         nTokenSupply.changeNTokenSupply(address(0), netChange, blockTime);
     }
 
