@@ -23,21 +23,10 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
 
-    /// @dev Throws if called by any account other than the owner.
-    modifier onlyOwner() {
-        require(owner == msg.sender, "Ownable: caller is not the owner");
-        _;
-    }
-
     /// @dev Harvest methods are only callable by the authorized treasury manager contract
     modifier onlyManagerContract() {
         require(treasuryManagerContract == msg.sender, "Treasury manager required");
         _;
-    }
-
-    /// @dev Checks if the currency ID is valid
-    function _checkValidCurrency(uint16 currencyId) internal view {
-        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
     constructor(Comptroller _comptroller) {

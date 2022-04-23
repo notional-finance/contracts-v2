@@ -17,19 +17,11 @@ import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "../../../interfaces/notional/NotionalGovernance.sol";
 import "../../../interfaces/notional/nTokenERC20.sol";
+import "./ActionGuards.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
-contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable {
-    /// @dev Throws if called by any account other than the owner.
-    modifier onlyOwner() {
-        require(owner == msg.sender, "Ownable: caller is not the owner");
-        _;
-    }
-
-    function _checkValidCurrency(uint16 currencyId) internal view {
-        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
-    }
+contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {
 
     /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
     /// Can only be invoked by the current `owner`.

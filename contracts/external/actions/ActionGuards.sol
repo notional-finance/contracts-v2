@@ -46,4 +46,14 @@ abstract contract ActionGuards is StorageLayoutV1 {
         ) = nTokenHandler.getNTokenContext(account);
         require(isNToken == 0);
     }
+
+    /// @dev Throws if called by any account other than the owner.
+    modifier onlyOwner() {
+        require(owner == msg.sender, "Ownable: caller is not the owner");
+        _;
+    }
+
+    function _checkValidCurrency(uint16 currencyId) internal view {
+        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
+    }
 }
