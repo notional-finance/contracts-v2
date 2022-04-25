@@ -110,9 +110,9 @@ library VaultConfiguration {
      *  - Check that the amount of fCash can be borrowed based on vault parameters
      *  - Borrow fCash from the vault's active market term
      *  - Calculate the netUnderlying = convertToUnderlying(netAssetCash)
-     *  - Calculate the amount of collateral required (fCash - netUnderlying) + collateralBuffer * netUnderlying
      *  - Pay the required fee to the nToken
-     *  - Calculate the assetCashExternal to the vault (netAssetCash - fee)
+     *  - Calculate the amount of collateral required (fCash - netUnderlying) + collateralBuffer * netUnderlying + fee
+     *  - Calculate the assetCashExternal to the vault (netAssetCash)
      *  - Store the account's fCash and collateral position
      *  - Store the vault's total fCash position
      */
