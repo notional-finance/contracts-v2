@@ -406,7 +406,29 @@ library VaultConfiguration {
         // No need to update the vault config, it will have proceeded to the next term already
     }
 
-    function _excecuteTrade(
+    function exitVaultGlobal(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        uint256 vaultSharesSettled,
+        uint256 vaultTotalSupply,
+        uint256 blockTime
+    ) internal returns (int256 assetCashCostToExit) {
+        // TODO: what do we do if this has not settled properly?
+        require(vaultState.currentMaturity < blockTime);
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+
+        // This is the net asset cash required to pay off the entire debt. If this value is positive
+        // then the vault has made profits on the interest from cash deposits alone.
+        int256 netAssetCashRemaining = assetRate.convertFromUnderlying(vaultState.currentfCashBalance)
+            .add(vaultState.cashBalance);
+
+        assetCashCostToExit = netAssetCashRemaining.mul(vaultSharesSettled).div(vaultTotalSupply);
+
+        // Since we do not modify the fCash balance via lending, we don't update it here.
+        vaultState.cashBalance = vaultState.cashBalance.sub(assetCashCostToExit);
+    }
+
+    function _executeTrade(
         uint16 currencyId,
         uint256 maturity
         int256 fCash,
