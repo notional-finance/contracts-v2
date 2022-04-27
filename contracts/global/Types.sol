@@ -457,3 +457,79 @@ struct AccountBalance {
     uint256 lastClaimTime;
     uint256 accountIncentiveDebt;
 }
+struct VaultConfigStorage {
+    // Vault Flags (positions 0 to 15 starting from right):
+    // 0: enabled - true if vault is enabled
+    // 1: allowReenter - true if vault allows reentering before term expiration
+    // 2: isInsured - true if vault is covered by nToken insurance
+    // TODO: not sure if these two are are necessary...
+    // 3: canInitialize - true if vault can be initialized
+    // 4: acceptsCollateral - true if vault can accept collateral
+    uint16 flags;
+    // Each vault only borrows in a single currency
+    uint16 borrowCurrencyId;
+    // Absolute maximum vault size (fCash overflows at int88)
+    // NOTE: we can reduce this to uint48 to allow for a 281 trillion token vault (in whole 8 decimals)
+    uint88 maxVaultBorrowSize;
+    // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
+    uint32 minAccountBorrowSize;
+    // A value in XXX scale that represents the relative risk of this vault. Governs how large the
+    // vault can get relative to staked nToken insurance (TODO: how much leverage should we allow?)
+    uint32 riskFactor;
+    // The number of days of each vault term (this is sufficient for 20 year vaults)
+    uint16 termLengthInDays;
+    // Allows up to a 12.75% fee
+    uint8 nTokenFee5BPS;
+    // Can be anywhere from 0% to 255% additional collateral required on the principal borrowed
+    uint8 collateralBufferPercent;
+
+    // 48 bytes left
+}
+
+struct VaultConfig {
+    uint16 flags;
+    uint16 borrowCurrencyId;
+    uint256 maxVaultBorrowSize;
+    uint256 minAccountBorrowSize;
+    uint256 riskFactor;
+    uint256 termLengthSeconds;
+    uint256 nTokenFeeBPS;
+    uint256 collateralBuffer;
+}
+
+/// @notice Represents a Vault's current borrow and collateral state
+struct VaultStateStorage {
+    // This represents cash held against fCash balances. If it is negative then
+    // the vault is in shortfall.
+    int88 cashBalance;
+    // This represents the total amount of borrowing in the vault for the current
+    // vault term.
+    int88 currentfCashBalance;
+}
+
+struct VaultState {
+    int256 cashBalance;
+    int256 currentfCashBalance;
+    uint32 currentMaturity;
+    int256 nextTermfCashBalance;
+}
+
+/// @notice Represents an account's position within an individual vault
+struct VaultAccountStorage {
+    // Share of the total fCash borrowed in the vault. If total fCash
+    // is paid down on the vault, then the account will owe less as a result.
+    int88 fCashShare;
+    // This is the amount of asset cash deposited and held against the fCash
+    // as collateral for the borrowing.
+    int88 cashBalance;
+    // Represents the maturity at which the fCash is owed
+    uint256 maturity;
+
+    // NOTE: 48 bytes left
+}
+
+struct VaultAccount {
+    int256 fCashShare;
+    int256 cashBalance;
+    uint256 maturity;
+}

@@ -12,90 +12,87 @@ library VaultFlags {
 
 library VaultConfiguration {
 
-
-    struct VaultConfigStorage {
-        // Vault Flags (positions 0 to 15 starting from right):
-        // 0: enabled - true if vault is enabled
-        // 1: allowReenter - true if vault allows reentering before term expiration
-        // 2: isInsured - true if vault is covered by nToken insurance
-        // TODO: not sure if these two are are necessary...
-        // 3: canInitialize - true if vault can be initialized
-        // 4: acceptsCollateral - true if vault can accept collateral
-        uint16 flags;
-
-        // Each vault only borrows in a single currency
-        uint16 borrowCurrencyId;
-        // Absolute maximum vault size (fCash overflows at int88)
-        // NOTE: we can reduce this to uint48 to allow for a 281 trillion token vault (in whole 8 decimals)
-        uint88 maxVaultBorrowSize;
-        // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
-        uint32 minAccountBorrowSize;
-        // A value in XXX scale that represents the relative risk of this vault. Governs how large the
-        // vault can get relative to staked nToken insurance (TODO: how much leverage should we allow?)
-        uint32 riskFactor;
-        // The number of days of each vault term (this is sufficient for 20 year vaults)
-        uint16 termLengthInDays;
-        // Allows up to a 12.75% fee
-        uint8 nTokenFee5BPS;
-        // Can be anywhere from 0% to 255% additional collateral required on the principal borrowed
-        uint8 collateralBufferPercent;
-
-        // 48 bytes left
-    }
-
-    struct VaultConfig {
-        uint16 flags;
-        uint16 borrowCurrencyId;
-        int256 maxBorrowSize;
-        uint256 riskFactor;
-        uint256 termLength;
-    }
-
-    /// @notice Represents a Vault's current borrow and collateral state
-    struct VaultStorage {
-        // This represents cash held against fCash balances. If it is negative then
-        // the vault is in shortfall.
-        int88 cashBalance;
-        // This represents the total amount of borrowing in the vault for the current
-        // vault term.
-        int88 currentfCashBalance;
-        // TODO: if we removed this and made something int80 then we could fit all
-        // three variables in a storage slot
-        uint32 currentMaturity;
-
-        // NOTE: This is split into a new storage slot
-        // This holds the amount of fCash that is being borrowed in the next term
-        // for accounts that are rolling their position forward.
-        int88 nextTermfCashBalance;
-    }
-
-    /// @notice Represents an account's position within an individual vault
-    struct VaultAccountStorage {
-        // Share of the total fCash borrowed in the vault. If total fCash
-        // is paid down on the vault, then the account will owe less as a result.
-        int88 fCashShare;
-        // This is the amount of asset cash deposited and held against the fCash
-        // as collateral for the borrowing.
-        int88 assetCashDeposit;
-        // Represents the maturity at which the fCash is owed
-        uint32 fCashMaturity; 
-
-        // NOTE: 48 bytes left
-    }
-
-    function getVault(
+    function getVaultConfig(
         address vaultAddress
     ) internal view returns (VaultConfig memory vaultConfig) {
-        // get vault config
+        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        VaultConfigStorage storage s = store[vaultAddress];
 
+        vaultConfig.flags = s.flags;
+        vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
+        vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
+        vaultConfig.minAccountBorrowSize = s.minAccountBorrowSize.mul(Constants.INTERNAL_TOKEN_PRECISION);
+        vaultConfig.riskFactor = s.riskFactor;
+        vaultConfig.termLengthSeconds = s.termLengthInDays.mul(Constants.DAYS);
+        vaultConfig.nTokenFeeBPS = s.nTokenFee5BPS.mul(Constants.BASIS_POINT * 5);
+        vaultConfig.collateralBufferPercent = s.collateralBufferPercent;
     }
 
-    function setVaultConfiguration(
-        VaultConfig memory vaultConfig,
-        address vaultAddress
+    function setVaultConfig(
+        address vaultAddress,
+        VaultConfigStorage memory vaultConfig
     ) internal {
-        // set vault config
+        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        store[vaultAddress] = vaultConfig;
+    }
 
+    function getVaultState(
+        address vaultAddress
+    ) internal view returns (VaultState memory vaultState) {
+        mapping(address => VaultStateStorage) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultAddress];
+
+        vaultState.cashBalance = s.cashBalance;
+        vaultState.currentfCashBalance = s.currentfCashBalance,
+        vaultState.currentMaturity = s.currentMaturity,
+        vaultState.nextTermfCashBalance = s.nextTermfCashBalance,
+    }
+
+    function setVaultState(
+        address vaultAddress,
+        VaultState memory vaultState
+    ) internal {
+        mapping(address => VaultStateStorage) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultAddress];
+
+        require(type(int88).min <= vaultState.cashBalance && vaultState.cashBalance <= type(int88).max); // dev: cash balance overflow
+        require(type(int88).min <= vaultState.currentfCashBalance && vaultState.currentfCashBalance <= type(int88).max); // dev: cash balance overflow
+        require(type(int88).min <= vaultState.nextTermfCashBalance && vaultState.nextTermfCashBalance <= type(int88).max); // dev: next term fcash balance
+        require(vaultState.currentMaturity <= type(uint32).max); // dev: current maturity
+
+        s.cashBalance = int88(vaultState.cashBalance);
+        s.currentfCashBalance = int88(vaultState.currentfCashBalance);
+        s.currentMaturity = uint32(vaultState.currentMaturity);
+        s.nextTermfCashBalance = int88(vaultState.nextTermfCashBalance);
+    }
+
+    function getVaultAccount(
+        address account,
+        address vaultAddress
+    ) internal view returns (VaultAccount memory vaultAccount) {
+        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
+        VaultAccountStorage storage s = store[account][vaultAddress];
+
+        vaultAccount.fCashShare = s.fCashShare;
+        vaultAccount.cashBalance = s.cashBalance;
+        vaultAccount.maturity = s.maturity;
+    }
+
+    function setVaultAccount(
+        address account,
+        address vaultAddress,
+        VaultAccount memory vaultAccount
+    ) internal {
+        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
+        VaultAccountStorage storage s = store[account][vaultAddress];
+
+        require(type(int88).min <= vaultAccount.cashBalance && vaultAccount.cashBalance <= type(int88).max); // dev: cash balance overflow
+        require(type(int88).min <= vaultAccount.fCashShare && vaultAccount.fCashShare <= type(int88).max); // dev: fCash overflow
+        require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
+
+        s.fCashShare = int88(vaultAccount.fCashShare);
+        s.cashBalance = int88(vaultAccount.cashBalance);
+        s.maturity = uint32(vaultAccount.maturity);
     }
 
     /**
@@ -236,8 +233,8 @@ library VaultConfiguration {
         // at a different maturity they must exit first. The vaultState maturity will always be the
         // current maturity because we check if it must be settled first.
         require(
-            vaultAccount.fCashMaturity == 0 ||
-            vaultAccount.fCashMaturity == vaultState.currentMaturity
+            vaultAccount.maturity == 0 ||
+            vaultAccount.maturity == vaultState.currentMaturity
         );
 
         // Ensure that the borrow amount fits into the required parameters
@@ -269,17 +266,21 @@ library VaultConfiguration {
         // any additional collateral buffer required by configuration (this is a percentage of the underlying amount
         // borrowed.
         int256 underlyingAmount = assetRate.convertToUnderlying(assetCashAmount);
-        int256 collateralBuffer = underlyingAmount.mul(vaultConfig.collateralBufferPercent).div(Constants.PERCENT_DECIMALS);
+        
+        // Calculate the user's leverage ratio here and ensure that it is less than what is allowed.
+        int256 underlyingTotalCollateral = fCash.sub(underlyingAmount).add(collateralBuffer);
+        require(
+            fCash.divInRatePrecision(underlyingTotalCollateral).add(Constants.RATE_PRECISION) < vaultConfig.maximumLeverageRatio
+        );
 
         // Convert the collateral required to asset cash
-        assetCashCollateralRequired = assetRate.convertFromUnderlying(fCash.sub(underlyingAmount).add(collateralBuffer));
+        assetCashCollateralRequired = assetRate.convertFromUnderlying(underlyingTotalCollateral).add(nTokenFee);
+        // All of the collateral will be added to the vault
+        assetCashToVault = assetCashToVault.add(assetCashCollateralRequired);
 
-        vaultAccount.assetCashDeposit = vaultAccount.assetCashDeposit.add(assetCashCollateralRequired);
-        vaultAccount.fCashMaturity = vaultState.currentMaturity;
-        // TODO: do we need to do any special math here?
+        vaultAccount.maturity = vaultState.currentMaturity;
         vaultAccount.fCashShare = SafeInt256.toInt(fCash).neg();
         vaultState.currentfCashBalance = vaultState.currentfCashBalance.sub(fCash);
-        vaultState.cashBalance = vaultState.cashBalance.add(assetCashCollateralRequired);
     }
 
     function enterNextVault(
@@ -339,6 +340,10 @@ library VaultConfiguration {
             blockTime
         );
 
+        // TODO: the account has a claim on the total vault cash balance in addition to any
+        // cash balance in their account. This cash balance is here from on settlements
+        int256 vaultCashBalanceClaim = vaultState.cashBalance.mul(vaultAccount.fCashShare).div(vaultState.currentfCashBalance);
+
         if (assetCashCostToLend == 0) {
             // If the cost to lend is zero it signifies that there was insufficient liquidity,
             // therefore we will just deposit the asset cash instead of lending. This will be
@@ -346,25 +351,25 @@ library VaultConfiguration {
             // some amount assetCash interest over the amount they owe.
             assetCashCostToLend = assetRate.convertFromUnderlying(fCash).neg();
             // Net off from the cost to lend the amount the account has already deposited
-            assetCashCostToExit = assetCashCostToLend.add(vaultAccount.assetCashDeposit);
+            assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
             // In this case we just mark that the account has deposited some amount of asset cash
             // against their fCash. Once maturity occurs we will mark a settlement rate and the
             // account can fully exit their position by netting off the fCash.
-            vaultAccount.assetCashDeposit = assetCashCostToLend;
+            vaultAccount.cashBalance = assetCashCostToLend;
         } else {
             int256 remainingfCash = vaultAccount.fCashShare.add(fCash);
 
             if (remainingfCash == 0) {
                 // If fully exiting the fCash position then we can use all of the deposit and
                 // clear the maturity
-                assetCashCostToExit = assetCashCostToLend.add(vaultAccount.assetCashDeposit);
+                assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
                 vaultAccount.fCashShare = 0;
                 vaultAccount.fCashMaturity = 0;
-                vaultAccount.assetCashDeposit = 0;
+                vaultAccount.cashBalance = 0;
             } else {
                 // If partially exiting the fCash position then we can apply a prorata portion
                 // of the deposit against the cost to exit.
-                assetCashDepositShare = vaultAccount.assetCashDeposit.mul(remainingfCash).div(vaultAccount.fCashShare);
+                assetCashDepositShare = vaultAccount.cashBalance.mul(remainingfCash).div(vaultAccount.fCashShare);
                 assetCashCostToExit = assetCashCostToLend.add(assetCashDepositShare);
 
                 vaultAccount.assetCashDeposit = vaultAccount.assetCashDeposit.sub(assetCashDepositShare);

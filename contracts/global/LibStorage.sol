@@ -44,7 +44,10 @@ library LibStorage {
         ExchangeRate,
         nTokenTotalSupply,
         SecondaryIncentiveRewarder,
-        LendingPool
+        LendingPool,
+        VaultConfig,
+        VaultState,
+        VaultAccount
     }
 
     /// @dev Mapping from an account address to account context
@@ -199,6 +202,30 @@ library LibStorage {
     /// @dev Returns the address of the lending pool
     function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
         uint256 slot = _getStorageSlot(StorageId.LendingPool);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultConfig, mapping is from vault address to VaultConfig object
+    function getVaultConfig() internal pure returns (
+        mapping(address => VaultConfigStorage) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultConfig);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultState, mapping is from vault address to VaultState object
+    function getVaultState() internal pure returns (
+        mapping(address => VaultStateStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultState);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to VaultAccount object
+    function getVaultAccount() internal pure returns (
+        mapping(address => mapping(address => VaultAccountStorage))) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultAccount);
         assembly { store.slot := slot }
     }
 
