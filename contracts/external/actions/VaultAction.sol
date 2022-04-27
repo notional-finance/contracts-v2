@@ -109,6 +109,8 @@ contract VaultAction is ActionGuards {
         // enter it's yield position. It will return the vault shares the account currently
         // has.
         return ILeveredVault(vault).enterVault(account, assetCashToVaultExternal, vaultData);
+
+        require(vaultConfig.isVaultHealthy(), "Vault Unhealthy");
     }
 
     /**

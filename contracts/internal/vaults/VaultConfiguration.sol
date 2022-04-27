@@ -2,15 +2,12 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-library VaultFlags {
+library VaultConfiguration {
     uint16 internal constant ENABLED            = 1 << 0;
     uint16 internal constant ALLOW_REENTER      = 1 << 1;
     uint16 internal constant IS_INSURED         = 1 << 2;
     uint16 internal constant CAN_INITIALIZE     = 1 << 3;
     uint16 internal constant ACCEPTS_COLLATERAL = 1 << 4;
-}
-
-library VaultConfiguration {
 
     function getVaultConfig(
         address vaultAddress
@@ -37,62 +34,31 @@ library VaultConfiguration {
     }
 
     function getVaultState(
-        address vaultAddress
+        address vaultAddress,
+        uint256 maturity
     ) internal view returns (VaultState memory vaultState) {
-        mapping(address => VaultStateStorage) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultAddress];
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultAddress][maturity];
 
-        vaultState.cashBalance = s.cashBalance;
-        vaultState.currentfCashBalance = s.currentfCashBalance,
-        vaultState.currentMaturity = s.currentMaturity,
-        vaultState.nextTermfCashBalance = s.nextTermfCashBalance,
+        vaultState.maturity = maturity;
+        vaultState.totalAssetCash = s.totalAssetCash;
+        vaultState.totalfCash = s.totalfCash;
+        vaultState.isFullySettled = s.isFullySettled;
     }
 
     function setVaultState(
         address vaultAddress,
         VaultState memory vaultState
     ) internal {
-        mapping(address => VaultStateStorage) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultAddress];
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultAddress][vaultState.maturity];
 
-        require(type(int88).min <= vaultState.cashBalance && vaultState.cashBalance <= type(int88).max); // dev: cash balance overflow
-        require(type(int88).min <= vaultState.currentfCashBalance && vaultState.currentfCashBalance <= type(int88).max); // dev: cash balance overflow
-        require(type(int88).min <= vaultState.nextTermfCashBalance && vaultState.nextTermfCashBalance <= type(int88).max); // dev: next term fcash balance
-        require(vaultState.currentMaturity <= type(uint32).max); // dev: current maturity
+        require(type(int88).min <= vaultState.totalAssetCash && vaultState.totalAssetCash <= type(int88).max); // dev: asset cash overflow
+        require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= type(int88).max); // dev: total fcash overflow
 
-        s.cashBalance = int88(vaultState.cashBalance);
-        s.currentfCashBalance = int88(vaultState.currentfCashBalance);
-        s.currentMaturity = uint32(vaultState.currentMaturity);
-        s.nextTermfCashBalance = int88(vaultState.nextTermfCashBalance);
-    }
-
-    function getVaultAccount(
-        address account,
-        address vaultAddress
-    ) internal view returns (VaultAccount memory vaultAccount) {
-        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
-        VaultAccountStorage storage s = store[account][vaultAddress];
-
-        vaultAccount.fCashShare = s.fCashShare;
-        vaultAccount.cashBalance = s.cashBalance;
-        vaultAccount.maturity = s.maturity;
-    }
-
-    function setVaultAccount(
-        address account,
-        address vaultAddress,
-        VaultAccount memory vaultAccount
-    ) internal {
-        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
-        VaultAccountStorage storage s = store[account][vaultAddress];
-
-        require(type(int88).min <= vaultAccount.cashBalance && vaultAccount.cashBalance <= type(int88).max); // dev: cash balance overflow
-        require(type(int88).min <= vaultAccount.fCashShare && vaultAccount.fCashShare <= type(int88).max); // dev: fCash overflow
-        require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
-
-        s.fCashShare = int88(vaultAccount.fCashShare);
-        s.cashBalance = int88(vaultAccount.cashBalance);
-        s.maturity = uint32(vaultAccount.maturity);
+        s.totalAssetCash= int88(vaultState.totalAssetCash);
+        s.totalfCash = int88(vaultState.totalfCash);
+        s.isFullySettled = vaultState.isFullySettled;
     }
 
     /**
@@ -117,50 +83,10 @@ library VaultConfiguration {
         uint256 blockTime
     ) internal pure returns (uint256) {
         uint256 blockTimeUTC0 = DateTime.getTimeUTC0(blockTime);
-        uint256 termLengthInSeconds = (vaultConfig.termLengthInDays * Constants.DAY);
-        // NOTE: termLengthInDays cannot be 0
-        uint256 offset = blockTimeUTC0 % termLengthInSeconds;
+        // NOTE: termLengthInSeconds cannot be 0
+        uint256 offset = blockTimeUTC0 % vaultConfig.termLengthInSeconds;
 
-        return blockTimeUTC0.sub(offset).add(termLengthInSeconds);
-    }
-
-    /**
-     * @notice Settles the current vault fCash balance by netting off the held cash balance
-     * and fCash balance at current settlement rates. The net remaining fCash balance will
-     * be returned.
-     * @param vaultConfig vault configuration
-     * @param vaultState current state of the vault, if settled this will be modified in memory
-     * @param blockTime current block time
-     * @return didSettle will be true if the vault was settled
-     */
-    function checkAndSettleVault(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) internal (bool didSettle) {
-        // Do not settle before maturity
-        if (blockTime < vaultState.currentMaturity) return (false, 0);
-        didSettle = true;
-
-        // Returns the current settlement rate to convert between cash and fCash. Will write this
-        // to storage if it does not exist yet.
-        AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
-            vaultConfig.borrowCurrencyId,
-            vaultState.currentMaturity,
-            blockTime
-        );
-
-        // After converting the fCash cash balance (in underlying terms) to the settled asset cash
-        // terms we can net it off. If netCash > 0 then we can return some cash to vault holders (this
-        // is likely to be the case from cToken interest accrued). If netCash < 0 then we have a shortfall
-        // and staked nToken holders need to redeem.
-
-        // Setting of all these values modifies memory only
-        vaultState.cashBalance = vaultState.cashBalance
-            .add(settlementRate.convertFromUnderlying(vaultState.currentfCashBalance));
-        vaultState.currentfCashBalance = vaultState.nextTermfCashBalance;
-        vaultState.nextTermfCashBalance = 0;
-        vaultState.currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
+        return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
     }
 
     /**
@@ -202,99 +128,8 @@ library VaultConfiguration {
         // TODO
     }
 
-    /**
-     * @notice Allows an account to enter a vault term. Will do the following:
-     *  - Settle the vault so that it is in the current maturity
-     *  - Check that the account is not in the vault in a different term
-     *  - Check that the amount of fCash can be borrowed based on vault parameters
-     *  - Borrow fCash from the vault's active market term
-     *  - Calculate the netUnderlying = convertToUnderlying(netAssetCash)
-     *  - Pay the required fee to the nToken
-     *  - Calculate the amount of collateral required (fCash - netUnderlying) + collateralBuffer * netUnderlying + fee
-     *  - Calculate the assetCashExternal to the vault (netAssetCash)
-     *  - Store the account's fCash and collateral position
-     *  - Store the vault's total fCash position
-     */
-    function enterCurrentVault(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        VaultAccount memory vaultAccount,
-        uint256 fCash,
-        uint256 maxBorrowRate,
-        uint256 blockTime
-    ) private returns (
-        int256 assetCashCollateralRequired,
-        int256 assetCashToVault
-    ) {
-        checkAndSettleVault(vaultConfig, vaultState, blockTime);
-        // Cannot enter a vault if it is in a shortfall
-        require(vaultState.cashBalance >= 0); // dev: in shortfall
-        // The vault account can only be increasing their position or not have one set. If they are
-        // at a different maturity they must exit first. The vaultState maturity will always be the
-        // current maturity because we check if it must be settled first.
-        require(
-            vaultAccount.maturity == 0 ||
-            vaultAccount.maturity == vaultState.currentMaturity
-        );
+    function getNTokenFee() internal {}
 
-        // Ensure that the borrow amount fits into the required parameters
-        require(
-            vaultConfig.minAccountBorrowSize <= fCash && fCash <= getMaxBorrowSize(vaultConfig, vaultState, blockTime)
-        );
-        
-        AssetRateParameters memory assetRate;
-        // All of the cash borrowed will go to the vault. Additional collateral and fees required
-        // will be calculated below and taken from the account's external balances.
-        (
-            assetCashToVault,
-            assetRate
-        ) = _executeTrade(
-            vaultConfig.borrowCurrencyId,
-            vaultState.currentMaturity,
-            SafeInt256.toInt256(fCash).neg(), // negative fCash signifies borrowing
-            maxBorrowRate,
-            blockTime
-        );
-        require(assetCashToVault > 0);
-        
-        // The nToken fee is assessed on the principal borrowed. BPS are in "rate precision"
-        int256 nTokenFee = assetCashAmount.mulInRatePrecision(vaultConfig.nTokenFeeBPS);
-        // This will mint nTokens assuming that the fee will be paid. If the fee is not paid the txn will revert.
-        nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
-
-        // Collateral required is equal to the interest portion of the borrow (fCash - underlyingAmount) and then
-        // any additional collateral buffer required by configuration (this is a percentage of the underlying amount
-        // borrowed.
-        int256 underlyingAmount = assetRate.convertToUnderlying(assetCashAmount);
-        
-        // Calculate the user's leverage ratio here and ensure that it is less than what is allowed.
-        int256 underlyingTotalCollateral = fCash.sub(underlyingAmount).add(collateralBuffer);
-        require(
-            fCash.divInRatePrecision(underlyingTotalCollateral).add(Constants.RATE_PRECISION) < vaultConfig.maximumLeverageRatio
-        );
-
-        // Convert the collateral required to asset cash
-        assetCashCollateralRequired = assetRate.convertFromUnderlying(underlyingTotalCollateral).add(nTokenFee);
-        // All of the collateral will be added to the vault
-        assetCashToVault = assetCashToVault.add(assetCashCollateralRequired);
-
-        vaultAccount.maturity = vaultState.currentMaturity;
-        vaultAccount.fCashShare = SafeInt256.toInt(fCash).neg();
-        vaultState.currentfCashBalance = vaultState.currentfCashBalance.sub(fCash);
-    }
-
-    function enterNextVault(
-        VaultConfig memory vaultConfig,
-        address vault,
-        address account,
-        uint256 fCash,
-        uint256 maxBorrowRate,
-        uint256 blockTime
-    ) internal returns (
-        int256 assetCashCollateralRequired,
-        int256 assetCashToVault
-    ) {
-    }
 
     /**
      * @notice Allows an account to exit a vault term prematurely by lending fCash
@@ -433,33 +268,4 @@ library VaultConfiguration {
         vaultState.cashBalance = vaultState.cashBalance.sub(assetCashCostToExit);
     }
 
-    function _executeTrade(
-        uint16 currencyId,
-        uint256 maturity
-        int256 fCash,
-        uint256 rateLimit,
-        uint256 blockTime
-    ) internal returns (int256, AssetRateParameters memory) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
-        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
-        require(!isIdiosyncratic);
-
-        MarketParameters memory market;
-        // NOTE: this loads the market in memory
-        cashGroup.loadMarket(market, marketIndex, false, blockTime);
-        int256 assetCash = market.executeTrade(
-            cashGroup,
-            fCash,
-            market.maturity.sub(blockTime),
-            marketIndex
-        );
-
-        if (fCash < 0) {
-            require(market.lastImpliedRate <= rateLimit);
-        } else {
-            require(market.lastImpliedRate >= rateLimit);
-        }
-
-        return (assetCash, cashGroup.assetRate);
-    }
 }

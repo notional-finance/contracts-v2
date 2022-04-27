@@ -213,9 +213,9 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
-    /// @dev Returns object for an VaultState, mapping is from vault address to VaultState object
+    /// @dev Returns object for an VaultState, mapping is from vault address to maturity to VaultState object
     function getVaultState() internal pure returns (
-        mapping(address => VaultStateStorage)) storage store
+        mapping(address => mapping(uint256 => VaultStateStorage))) storage store
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultState);
         assembly { store.slot := slot }

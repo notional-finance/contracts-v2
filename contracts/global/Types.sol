@@ -462,9 +462,6 @@ struct VaultConfigStorage {
     // 0: enabled - true if vault is enabled
     // 1: allowReenter - true if vault allows reentering before term expiration
     // 2: isInsured - true if vault is covered by nToken insurance
-    // TODO: not sure if these two are are necessary...
-    // 3: canInitialize - true if vault can be initialized
-    // 4: acceptsCollateral - true if vault can accept collateral
     uint16 flags;
     // Each vault only borrows in a single currency
     uint16 borrowCurrencyId;
@@ -487,6 +484,7 @@ struct VaultConfigStorage {
 }
 
 struct VaultConfig {
+    ILeveredVault vault;
     uint16 flags;
     uint16 borrowCurrencyId;
     uint256 maxVaultBorrowSize;
@@ -499,37 +497,46 @@ struct VaultConfig {
 
 /// @notice Represents a Vault's current borrow and collateral state
 struct VaultStateStorage {
-    // This represents cash held against fCash balances. If it is negative then
-    // the vault is in shortfall.
-    int88 cashBalance;
+    // This represents cash held against fCash balances. All accounts have a proportional
+    // claim on a positive value to their fCash balance. If it is negative then the vault
+    // is in shortfall.
+    int88 totalAssetCash;
     // This represents the total amount of borrowing in the vault for the current
-    // vault term.
-    int88 currentfCashBalance;
+    // vault term. This value must equal the total fCash borrowed by all accounts
+    // in the vault.
+    int88 totalfCash;
+    // Set to true if a vault has been fully settled and the cash can be pulled. Matured
+    // accounts must wait for this flag to be set before they can proceed to exit after
+    // maturity
+    bool isFullySettled;
+
+    // NOTE: 72 bytes left
 }
 
 struct VaultState {
-    int256 cashBalance;
-    int256 currentfCashBalance;
-    uint32 currentMaturity;
-    int256 nextTermfCashBalance;
+    int256 totalAssetCash;
+    int256 totalfCash;
+    uint256 maturity;
+    bool isFullySettled;
 }
 
 /// @notice Represents an account's position within an individual vault
 struct VaultAccountStorage {
-    // Share of the total fCash borrowed in the vault. If total fCash
-    // is paid down on the vault, then the account will owe less as a result.
-    int88 fCashShare;
-    // This is the amount of asset cash deposited and held against the fCash
-    // as collateral for the borrowing.
+    // The maturity at which the fCash is owed
+    uint32 maturity;
+    // The amount of fCash the account has borrowed from Notional.
+    int88 fCash;
+    // In the case that the account cannot lend to exit their fCash, the
+    // account may need to hold a cash balance against the fCash temporarily
+    // as collateral
     int88 cashBalance;
-    // Represents the maturity at which the fCash is owed
-    uint256 maturity;
 
     // NOTE: 48 bytes left
 }
 
 struct VaultAccount {
-    int256 fCashShare;
+    address account;
+    int256 fCash;
     int256 cashBalance;
     uint256 maturity;
 }
