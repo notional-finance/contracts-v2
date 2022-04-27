@@ -3,6 +3,7 @@ pragma solidity ^0.7.0;
 
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/compound/CTokenInterface.sol";
+import "../../../interfaces/compound/CTokenInterestRateModel.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -37,6 +38,19 @@ contract cTokenAggregator is AssetRateAdapter {
         require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
     }
 
+    function _getBorrowRate(
+        uint256 totalCash,
+        uint256 borrowsPrior,
+        uint256 reservesPrior
+    ) internal view virtual returns (uint256) {
+        return
+            CTokenInterestRateModel(cToken.interestRateModel()).getBorrowRate(
+                totalCash,
+                borrowsPrior,
+                reservesPrior
+            );
+    }
+
     /// @dev adapted from https://github.com/transmissions11/libcompound/blob/main/src/LibCompound.sol
     function _viewExchangeRate() internal view returns (uint256) {
         uint256 accrualBlockNumberPrior = cToken.accrualBlockNumber();
@@ -47,11 +61,7 @@ contract cTokenAggregator is AssetRateAdapter {
         uint256 borrowsPrior = cToken.totalBorrows();
         uint256 reservesPrior = cToken.totalReserves();
 
-        uint256 borrowRateMantissa = cToken.interestRateModel().getBorrowRate(
-            totalCash,
-            borrowsPrior,
-            reservesPrior
-        );
+        uint256 borrowRateMantissa = _getBorrowRate(totalCash, borrowsPrior, reservesPrior);
 
         require(borrowRateMantissa <= 0.0005e16, "RATE_TOO_HIGH"); // Same as borrowRateMaxMantissa in CTokenInterfaces.sol
 

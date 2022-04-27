@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.7.0;
 
-import "./InterestRateModel.sol";
-
 interface CTokenInterface {
 
     /*** User Interface ***/
@@ -29,7 +27,7 @@ interface CTokenInterface {
     function accrualBlockNumber() external view returns (uint256);
     function totalBorrows() external view returns (uint256);
     function totalReserves() external view returns (uint256);
-    function interestRateModel() external view returns (InterestRateModel);
+    function interestRateModel() external view returns (address);
     function reserveFactorMantissa() external view returns (uint256);
     function initialExchangeRateMantissa() external view returns (uint256);
 }
