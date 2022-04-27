@@ -34,11 +34,11 @@ library VaultConfiguration {
     }
 
     function getVaultState(
-        address vaultAddress,
+        VaultConfig memory vaultConfig,
         uint256 maturity
     ) internal view returns (VaultState memory vaultState) {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultAddress][maturity];
+        VaultStateStorage storage s = store[vaultConfig.vaultAddress][maturity];
 
         vaultState.maturity = maturity;
         vaultState.totalAssetCash = s.totalAssetCash;
@@ -47,11 +47,11 @@ library VaultConfiguration {
     }
 
     function setVaultState(
-        address vaultAddress,
+        VaultConfig memory vaultConfig,
         VaultState memory vaultState
     ) internal {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultAddress][vaultState.maturity];
+        VaultStateStorage storage s = store[vaultConfig.vaultAddress][vaultState.maturity];
 
         require(type(int88).min <= vaultState.totalAssetCash && vaultState.totalAssetCash <= type(int88).max); // dev: asset cash overflow
         require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= type(int88).max); // dev: total fcash overflow
@@ -132,140 +132,38 @@ library VaultConfiguration {
 
 
     /**
-     * @notice Allows an account to exit a vault term prematurely by lending fCash
-     * - Check that fCash is less than or equal to account's position
-     * - Either:
-     *      Lend fCash on the market, calculate the cost to do so
-     *      Deposit cash,  calculate the cost to do so
-     * - Net off the cost to lend fCash with the account's collateral position
-     * - Return the cost to exit the position (normally negative but theoretically can
-     *   be positive if holding a collateral buffer > 100%)
-     * - Clear the account's fCash and collateral position
+     * @notice Updates state when the vault is being settled.
      */
-    function exitActiveVault(
+    function settleVault(
         VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        VaultAccount memory vaultAccount,
-        int256 fCash,
-        uint256 maxLendRate,
+        uint256 maturity,
+        int256 assetCashRaised,
         uint256 blockTime
-    ) internal returns (
-        int256 assetCashCostToExit
-    ) {
-        checkAndSettleVault(vaultConfig, vaultState, blockTime);
-        // Netting off the fCash cannot go above zero (we don't want the account to over lend their position)
-        require(fCash > 0 && vaultAccount.fCashShare.add(fCash) <= 0);
-        {
-            // You can only exit the current vault or the next vault term.
-            uint256 nextTerm = vaultState.currentMaturity.add(vaultConfig.termLengthInDays.mul(Constants.DAY));
-            require(
-                vaultAccount.fCashMaturity == vaultState.currentMaturity ||
-                vaultAccount.fCashMaturity == nextTerm
+    ) internal returns (int256, bool) {
+        VaultState memory vaultState = getVaultState(vaultConfig, maturity);
+        AssetRateParameters memory assetRate;
+
+        if (blockTime < maturity) {
+            // Before maturity, we use the current asset exchange rate
+            assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+        } else {
+            // After maturity, we use the settlement rate
+            assetRate = AssetRate.buildSettlementRateStateful(
+                vaultConfig.borrowCurrencyId,
+                maturity,
+                blockTime
             );
         }
 
-        (
-            int256 assetCashCostToLend,
-            AssetRateParameters memory assetRate
-        ) = _executeTrade(
-            vaultConfig.borrowCurrencyId,
-            vaultAccount.fCashMaturity,,
-            fCash, // positive amount of fCash to lend (checked above)
-            maxLendRate,
-            blockTime
-        );
+        vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashRaised);
+        // If this is gte 0, then we have sufficient cash to repay the debt. Else, we still need some more cash.
+        netAssetCash = vaultState.totalAssetCash.add(assetRate.convertFromUnderlying(vaultState.totalfCash));
+        vaultState.isFullySettled = netAssetCash >= 0;
 
-        // TODO: the account has a claim on the total vault cash balance in addition to any
-        // cash balance in their account. This cash balance is here from on settlements
-        int256 vaultCashBalanceClaim = vaultState.cashBalance.mul(vaultAccount.fCashShare).div(vaultState.currentfCashBalance);
+        vaultConfig.setVaultState(vaultState);
 
-        if (assetCashCostToLend == 0) {
-            // If the cost to lend is zero it signifies that there was insufficient liquidity,
-            // therefore we will just deposit the asset cash instead of lending. This will be
-            // sufficient to cover the fCash debt, and in all likelihood the account will accrue
-            // some amount assetCash interest over the amount they owe.
-            assetCashCostToLend = assetRate.convertFromUnderlying(fCash).neg();
-            // Net off from the cost to lend the amount the account has already deposited
-            assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
-            // In this case we just mark that the account has deposited some amount of asset cash
-            // against their fCash. Once maturity occurs we will mark a settlement rate and the
-            // account can fully exit their position by netting off the fCash.
-            vaultAccount.cashBalance = assetCashCostToLend;
-        } else {
-            int256 remainingfCash = vaultAccount.fCashShare.add(fCash);
 
-            if (remainingfCash == 0) {
-                // If fully exiting the fCash position then we can use all of the deposit and
-                // clear the maturity
-                assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
-                vaultAccount.fCashShare = 0;
-                vaultAccount.fCashMaturity = 0;
-                vaultAccount.cashBalance = 0;
-            } else {
-                // If partially exiting the fCash position then we can apply a prorata portion
-                // of the deposit against the cost to exit.
-                assetCashDepositShare = vaultAccount.cashBalance.mul(remainingfCash).div(vaultAccount.fCashShare);
-                assetCashCostToExit = assetCashCostToLend.add(assetCashDepositShare);
-
-                vaultAccount.assetCashDeposit = vaultAccount.assetCashDeposit.sub(assetCashDepositShare);
-                vaultAccount.fCashShare = remainingfCash;
-            }
-
-            // Modify the vault state since were are changing the fCash balance here.
-            vaultState.currentfCashBalance = vaultState.currentfCashBalance.add(fCash);
-        }
-        
-        // If assetCashCostToExit < 0 then the account will deposit that amount of cash into
-        // the vault, if the assetCashCostToExit > 0 then the account will withdraw their profits
-        // from the vault.
-        vaultState.cashBalance = vaultState.cashBalance.sub(assetCashCostToExit);
-    }
-
-    function exitMaturedVault(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        VaultAccount memory vaultAccount,
-        uint256 blockTime
-    ) internal returns (int256 assetCashCostToExit) {
-        checkAndSettleVault(vaultConfig, vaultState, blockTime);
-        require(vaultAccount.fCashMaturity <= blockTime);
-
-        AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
-            vaultConfig.borrowCurrencyId,
-            vaultAccount.fCashMaturity,
-            blockTime
-        );
-
-        assetCashCostToExit = settlementRate.convertFromUnderlying(vaultAccount.fCashShare)
-            .add(vaultAccount.assetCashDeposit);
-        
-        vaultAccount.fCashShare = 0;
-        vaultAccount.assetCashDeposit = 0;
-        vaultAccount.fCashMaturity = 0;
-
-        // No need to update the vault config, it will have proceeded to the next term already
-    }
-
-    function exitVaultGlobal(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 vaultSharesSettled,
-        uint256 vaultTotalSupply,
-        uint256 blockTime
-    ) internal returns (int256 assetCashCostToExit) {
-        // TODO: what do we do if this has not settled properly?
-        require(vaultState.currentMaturity < blockTime);
-        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
-
-        // This is the net asset cash required to pay off the entire debt. If this value is positive
-        // then the vault has made profits on the interest from cash deposits alone.
-        int256 netAssetCashRemaining = assetRate.convertFromUnderlying(vaultState.currentfCashBalance)
-            .add(vaultState.cashBalance);
-
-        assetCashCostToExit = netAssetCashRemaining.mul(vaultSharesSettled).div(vaultTotalSupply);
-
-        // Since we do not modify the fCash balance via lending, we don't update it here.
-        vaultState.cashBalance = vaultState.cashBalance.sub(assetCashCostToExit);
+        // TODO: how do we determine if a vault is empty and must redeem?
     }
 
 }
