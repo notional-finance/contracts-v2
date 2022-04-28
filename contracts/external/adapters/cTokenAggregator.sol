@@ -3,14 +3,13 @@ pragma solidity ^0.7.0;
 
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/compound/CTokenInterface.sol";
-import "../../../interfaces/compound/CTokenInterestRateModel.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract cTokenAggregator is AssetRateAdapter {
     using SafeMath for uint256;
 
-    CTokenInterface private immutable cToken;
+    CTokenInterface internal immutable cToken;
     uint8 public override decimals = 18;
     uint256 public override version = 1;
     string public override description;
@@ -34,7 +33,7 @@ contract cTokenAggregator is AssetRateAdapter {
         return cToken.underlying();
     }
 
-    function _checkExchangeRate(uint256 exchangeRate) private pure {
+    function _checkExchangeRate(uint256 exchangeRate) internal pure {
         require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
     }
 
@@ -43,12 +42,7 @@ contract cTokenAggregator is AssetRateAdapter {
         uint256 borrowsPrior,
         uint256 reservesPrior
     ) internal view virtual returns (uint256) {
-        return
-            CTokenInterestRateModel(cToken.interestRateModel()).getBorrowRate(
-                totalCash,
-                borrowsPrior,
-                reservesPrior
-            );
+        revert("not implemented");
     }
 
     /// @dev adapted from https://github.com/transmissions11/libcompound/blob/main/src/LibCompound.sol
@@ -87,8 +81,8 @@ contract cTokenAggregator is AssetRateAdapter {
         return int256(exchangeRate);
     }
 
-    function getExchangeRateView() external view override returns (int256) {
-        uint256 exchangeRate = _viewExchangeRate();
+    function getExchangeRateView() external view virtual override returns (int256) {
+        uint256 exchangeRate = cToken.exchangeRateStored();
         _checkExchangeRate(exchangeRate);
 
         return int256(exchangeRate);
