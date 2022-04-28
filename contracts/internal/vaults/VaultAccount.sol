@@ -118,7 +118,7 @@ library VaultAccount {
         uint256 blockTime
     ) private {
         require(fCash < 0); // dev: fcash must be negative
-        VaultState memory vaultState = getVaultState(vaultConfig.vault, maturity);
+        VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
         // Cannot enter a vault if it is in a shortfall
         require(vaultState.cashBalance >= 0); // dev: in shortfall
@@ -129,7 +129,7 @@ library VaultAccount {
 
         // All of the cash borrowed will go to the vault. Additional collateral and fees required
         // will be calculated below and taken from the account's external balances.
-        (assetCashBorrowed, assetRate) = _executeTrade(
+        (int256 assetCashBorrowed, AssetRateParameters memory assetRate) = _executeTrade(
             vaultConfig.borrowCurrencyId,
             maturity,
             fCash,
@@ -163,95 +163,81 @@ library VaultAccount {
         vaultAccount.cashBalance = vaultAccount.cashBalance.add(maxNTokenFee).sub(nTokenFee);
 
         // Done modifying the vault state at this point.
-        VaultConfiguration.setVaultState(vaultConfig.vault, vaultState);
+        vaultConfig.setVaultState(vaultState);
     }
 
     /**
-     * @notice Allows an account to exit a vault term prematurely by lending fCash
-     * - Check that fCash is less than or equal to account's position
-     * - Either:
-     *      Lend fCash on the market, calculate the cost to do so
-     *      Deposit cash,  calculate the cost to do so
-     * - Net off the cost to lend fCash with the account's collateral position
-     * - Return the cost to exit the position (normally negative but theoretically can
-     *   be positive if holding a collateral buffer > 100%)
-     * - Clear the account's fCash and collateral position
+     * @notice Allows an account to exit a vault term prematurely by lending fCash.
+     * @dev Updates vault fCash in storage, updates vaultAccount in memory.
+     * @param vaultAccount the account's position in the vault
+     * @param vaultConfig configuration for the given vault
+     * @param fCash amount of fCash to lend from the market, must be positive and cannot
+     * lend more than the account's debt
+     * @param minLendRate minimum rate to lend at
+     * @param blockTime current block time
+     * @return netCashTransfer a positive value means that the account must deposit this
+     * much asset cash into the protocol, a negative value will mean that it will withdraw
      */
     function _lendToExitVault(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
         VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
         int256 fCash,
-        uint256 maxLendRate,
+        uint256 minLendRate,
         uint256 blockTime
-    ) internal returns (int256 assetCashCostToExit) {
-        // checkAndSettleVault(vaultConfig, vaultState, blockTime);
-        // // Netting off the fCash cannot go above zero (we don't want the account to over lend their position)
-        // require(fCash > 0 && vaultAccount.fCashShare.add(fCash) <= 0);
-        // {
-        //     // You can only exit the current vault or the next vault term.
-        //     uint256 nextTerm = vaultState.currentMaturity.add(vaultConfig.termLengthInDays.mul(Constants.DAY));
-        //     require(
-        //         vaultAccount.fCashMaturity == vaultState.currentMaturity ||
-        //         vaultAccount.fCashMaturity == nextTerm
-        //     );
-        // }
-
-        // (
-        //     int256 assetCashCostToLend,
-        //     AssetRateParameters memory assetRate
-        // ) = _executeTrade(
-        //     vaultConfig.borrowCurrencyId,
-        //     vaultAccount.fCashMaturity,,
-        //     fCash, // positive amount of fCash to lend (checked above)
-        //     maxLendRate,
-        //     blockTime
-        // );
-
-        // // TODO: the account has a claim on the total vault cash balance in addition to any
-        // // cash balance in their account. This cash balance is here from on settlements
-        // int256 vaultCashBalanceClaim = vaultState.cashBalance.mul(vaultAccount.fCashShare).div(vaultState.currentfCashBalance);
-
-        // if (assetCashCostToLend == 0) {
-        //     // If the cost to lend is zero it signifies that there was insufficient liquidity,
-        //     // therefore we will just deposit the asset cash instead of lending. This will be
-        //     // sufficient to cover the fCash debt, and in all likelihood the account will accrue
-        //     // some amount assetCash interest over the amount they owe.
-        //     assetCashCostToLend = assetRate.convertFromUnderlying(fCash).neg();
-        //     // Net off from the cost to lend the amount the account has already deposited
-        //     assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
-        //     // In this case we just mark that the account has deposited some amount of asset cash
-        //     // against their fCash. Once maturity occurs we will mark a settlement rate and the
-        //     // account can fully exit their position by netting off the fCash.
-        //     vaultAccount.cashBalance = assetCashCostToLend;
-        // } else {
-        //     int256 remainingfCash = vaultAccount.fCashShare.add(fCash);
-
-        //     if (remainingfCash == 0) {
-        //         // If fully exiting the fCash position then we can use all of the deposit and
-        //         // clear the maturity
-        //         assetCashCostToExit = assetCashCostToLend.add(vaultAccount.cashBalance);
-        //         vaultAccount.fCashShare = 0;
-        //         vaultAccount.fCashMaturity = 0;
-        //         vaultAccount.cashBalance = 0;
-        //     } else {
-        //         // If partially exiting the fCash position then we can apply a prorata portion
-        //         // of the deposit against the cost to exit.
-        //         assetCashDepositShare = vaultAccount.cashBalance.mul(remainingfCash).div(vaultAccount.fCashShare);
-        //         assetCashCostToExit = assetCashCostToLend.add(assetCashDepositShare);
-
-        //         vaultAccount.assetCashDeposit = vaultAccount.assetCashDeposit.sub(assetCashDepositShare);
-        //         vaultAccount.fCashShare = remainingfCash;
-        //     }
-
-        //     // Modify the vault state since were are changing the fCash balance here.
-        //     vaultState.currentfCashBalance = vaultState.currentfCashBalance.add(fCash);
-        // }
+    ) internal returns (int256 netCashTransfer) {
+        require(fCash > 0); // dev: fcash must be positive
+        // Don't allow the vault to lend to positive fCash
+        require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
+        // Cannot exit vault if in shortfall
+        require(vaultState.cashBalance >= 0); // dev: in shortfall
         
-        // // If assetCashCostToExit < 0 then the account will deposit that amount of cash into
-        // // the vault, if the assetCashCostToExit > 0 then the account will withdraw their profits
-        // // from the vault.
-        // vaultState.cashBalance = vaultState.cashBalance.sub(assetCashCostToExit);
+        // Check that the account is in an active vault
+        require(vaultAccount.maturity != 0 && blockTime < maturity);
+        VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
+        
+        // Returns the cost in asset cash terms to lend an offsetting fCash position
+        // so that the account can exit. assetCashRequired is negative here.
+        (int256 assetCashCostToLend, AssetRateParameters memory assetRate) = _executeTrade(
+            vaultConfig.borrowCurrencyId,
+            vaultAccount.maturity,
+            fCash,
+            minLendRate,
+            blockTime
+        );
+        require(assetCashCostToLend <= 0);
+
+        if (assetCashCostToLend == 0) {
+            // In this case, the lending has failed due to a lack of liquidity or
+            // negative interest rates. Instead of lending, we will deposit into the
+            // account cash balance instead. Since the total fCash balance does not change
+            // we do not update the vault state. We also don't update the cash balance on
+            // the vault state because no other account has a claim on this cash.
+            int256 assetCashDeposit = assetRate.convertFromUnderlying(fCash);
+
+            // The account needs to keep assetCashDeposit in their cash balance, so the
+            // the net transfer is assetCashDeposit - vaultAccount.cashBalance. A positive
+            // amount signifies a deposit into Notional, a negative amount signifies a
+            // withdraw
+            netCashTransfer = assetCashDeposit.sub(vaultAccount.cashBalance);
+        } else {
+            // Net off the cash balance required and remove the fcash. It's possible
+            // that cash balance is negative here. If that is the case then we need to
+            // transfer in sufficient cash to get the balance up to 0.
+            vaultAccount.cashBalance = vaultAccount.cashBalance.add(assetCashCostToLend);
+
+            // Flip the sign here, a positive vaultAccount.cashBalance will be withdrawn,
+            // a negative vault.cashBalance must be deposited.
+            netCashTransfer = vaultAccount.cashBalance.neg();
+
+            // In this case we are changing fCash so we update it on the account and the
+            // vault.
+            vaultAccount.fCash = vaultAccount.fCash.add(fCash);
+            if (vaultAccount.fCash == 0) vaultAccount.maturity = 0;
+            // The fCash on the entire vault is reduced when lending
+            vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+        }
+
+        vaultConfig.setVaultState(vaultState);
     }
 
 
