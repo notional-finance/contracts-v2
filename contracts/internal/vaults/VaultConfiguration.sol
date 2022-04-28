@@ -19,10 +19,11 @@ library VaultConfiguration {
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
         vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
         vaultConfig.minAccountBorrowSize = s.minAccountBorrowSize.mul(Constants.INTERNAL_TOKEN_PRECISION);
-        vaultConfig.riskFactor = s.riskFactor;
         vaultConfig.termLengthSeconds = s.termLengthInDays.mul(Constants.DAYS);
-        vaultConfig.nTokenFeeBPS = s.nTokenFee5BPS.mul(Constants.BASIS_POINT * 5);
-        vaultConfig.collateralBufferPercent = s.collateralBufferPercent;
+        vaultConfig.maxNTokenFeeRate = s.nTokenFeeRate5BPS.mul(Constants.BASIS_POINT * 5);
+        vaultConfig.maxLeverageRatio = s.maxLeverageRatioBPS.mul(Constants.BASIS_POINT);
+
+        vaultConfig.riskFactor = s.riskFactor;
     }
 
     function setVaultConfig(
@@ -30,6 +31,9 @@ library VaultConfiguration {
         VaultConfigStorage memory vaultConfig
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        // Sanity check this value, leverage ratio must be greater than 1
+        require(Constants.RATE_PRECISION < vaultConfig.maxLeverageRatioBPS.mul(Constants.BASIS_POINT));
+
         store[vaultAddress] = vaultConfig;
     }
 
@@ -128,7 +132,30 @@ library VaultConfiguration {
         // TODO
     }
 
-    function getNTokenFee() internal {}
+    function getNTokenFee(
+        VaultConfig memory vaultConfig,
+        int256 leverageRatio,
+        int256 fCash
+    ) internal pure returns (int256 nTokenFee) {
+        // If there is no leverage then we don't charge a fee.
+        if (leverageRatio <= Constants.RATE_PRECISION) return 0;
+
+        // Linearly interpolate the fee between the maxLeverageRatio and the minimum leverage
+        // ratio (Constants.RATE_PRECISION)
+        // nTokenFee = (leverage - 1) * (maxFee / (maxLeverage - 1))
+
+        // No overflow and positive, checked above.
+        int256 leverageRatioAdj = leverageRatio - Constants.RATE_PRECISION;
+        // All of these figures are in RATE_PRECISION
+        int256 nTokenFeeRate = leverageRatioAdj
+            .mul(vaultConfig.maxNTokenFee)
+            // maxLeverageRatio must be > 1 when set in governance, also vaults are
+            // not allowed to exceed the maxLeverageRatio
+            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION)
+
+        // nTokenFee is expected to be a positive number
+        nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
+    }
 
 
     /**

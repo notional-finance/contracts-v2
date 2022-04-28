@@ -261,8 +261,10 @@ library VaultAccount {
         // Can never have negative value of assets
         require(netAssetValue > 0);
 
-        // Leverage ratio is: (borrowValue / netAssetValue)
-        leverageRatio = vaultAccount.fCash.neg().divInRatePrecision(netAssetValue);
+        // Leverage ratio is: (borrowValue / netAssetValue) + 1
+        leverageRatio = vaultAccount.fCash.neg()
+            .divInRatePrecision(netAssetValue)
+            .add(Constants.RATE_PRECISION);
     }
 
     /**

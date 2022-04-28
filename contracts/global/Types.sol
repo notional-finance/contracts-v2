@@ -470,17 +470,17 @@ struct VaultConfigStorage {
     uint88 maxVaultBorrowSize;
     // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
     uint32 minAccountBorrowSize;
+    // Maximum leverage ratio for a vault specified in basis points, allows up to a 655.36x leverage
+    uint16 maxLeverageRatioBPS;
+    // The number of days of each vault term (this is sufficient for 20 year vaults)
+    uint16 termLengthInDays;
+    // Allows up to a 12.75% fee for an account at the max leverage ratio
+    uint8 maxNTokenFeeRate5BPS;
     // A value in XXX scale that represents the relative risk of this vault. Governs how large the
     // vault can get relative to staked nToken insurance (TODO: how much leverage should we allow?)
     uint32 riskFactor;
-    // The number of days of each vault term (this is sufficient for 20 year vaults)
-    uint16 termLengthInDays;
-    // Allows up to a 12.75% fee
-    uint8 nTokenFee5BPS;
-    // Can be anywhere from 0% to 255% additional collateral required on the principal borrowed
-    uint8 collateralBufferPercent;
 
-    // 48 bytes left
+    // 32 bytes left
 }
 
 struct VaultConfig {
@@ -489,10 +489,10 @@ struct VaultConfig {
     uint16 borrowCurrencyId;
     uint256 maxVaultBorrowSize;
     uint256 minAccountBorrowSize;
-    uint256 riskFactor;
     uint256 termLengthSeconds;
-    uint256 nTokenFeeBPS;
-    uint256 collateralBuffer;
+    uint256 maxNTokenFeeRate;
+    uint256 maxLeverageRatio;
+    uint256 riskFactor;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state
