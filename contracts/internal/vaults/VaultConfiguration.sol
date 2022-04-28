@@ -166,4 +166,27 @@ library VaultConfiguration {
         // TODO: how do we determine if a vault is empty and must redeem?
     }
 
+    /**
+     * @notice Transfers asset cash between Notional and the vault. Vaults must always keep cash
+     * balances in the asset cash token if they are not deployed into the strategy.
+     * @param vaultConfig the vault config
+     * @param netAssetTransferInternal If positive, then taking asset cash from the vault into Notional,
+     * if negative then depositing cash from Notional into the vault
+     * @param actualTransferExternal returns the actual amount transferred in external precision
+     * @param actualTransferInternal returns the actual amount transferred in internal precision
+     */
+    function transferVault(
+        VaultConfig memory vaultConfig,
+        int256 netAssetTransferInternal
+    ) internal returns (
+        int256 actualTransferExternal,
+        int256 actualTransferInternal
+    ) {
+        // If net asset transfer > 0 then we are taking asset cash from the vault into Notional
+        // If net asset transfer < 0 then we are deposit cash into the vault
+        TokenHandler memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        actualTransferExternal = assetToken.transfer(vaultConfig.vaultAddress, borrowCurrencyId, assetToken.convertToExternal(netTransferExternal));
+        actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
+    }
+
 }

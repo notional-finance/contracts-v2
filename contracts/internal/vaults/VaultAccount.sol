@@ -304,4 +304,72 @@ library VaultAccount {
 
         return (assetCash, cashGroup.assetRate);
     }
+
+    /**
+     * @notice Deposits a specified amount from the account
+     */
+    function _depositFromAccount(
+        VaultAccount memory vaultAccount,
+        uint16 borrowCurrencyId,
+        int256 depositAmountExternal,
+        bool useUnderlying
+    ) internal {
+        require(depositAmountExternal > 0);
+        Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
+        int256 assetAmountExternal;
+
+        if (useUnderlying) {
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(borrowCurrencyId);
+            // This is the actual amount of underlying transferred
+            int256 underlyingAmountExternal = underlyingToken.transfer(
+                vaultAccount.account, 
+                borrowCurrencyId,
+                depositAmountExternal
+            );
+
+            // This is the actual amount of asset tokens minted
+            assetAmountExternal = assetToken.mint(
+                borrowCurrencyId,
+                SafeInt256.toUint(underlyingAmountExternal)
+            );
+        } else {
+            if (assetToken.tokenType == TokenType.aToken) {
+                // Handles special accounting requirements for aTokens
+                depositAmountExternal = AaveHandler.convertToScaledBalanceExternal(
+                    balanceState.currencyId,
+                    depositAmountExternal
+                );
+            }
+
+            assetAmountExternal = assetToken.transfer(
+                vaultAccount.account,
+                borrowCurrencyId,
+                depositAmountExternal
+            );
+        }
+
+        vaultAccount.cashBalance = vaultAccount.cashBalance
+            .add(assetToken.convertToInternal(assetAmountExternal));
+    }
+
+    function _withdrawToAccount(
+        VaultAccount memory vaultAccount,
+        uint16 borrowCurrencyId,
+        int256 withdrawAmountInternal,
+        bool useUnderlying
+    ) internal {
+        require(withdrawAmountInternal < 0);
+        // Remove the cash balance (the actual amount transferred is not relevant to the
+        // protocol when withdrawing) NOTE: is this true?
+        vaultAccount.cashBalance = vaultAccount.cashBalance.add(withdrawAmountInternal);
+
+        Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
+        int256 withdrawAmountExternal = assetToken.convertToExternal(withdrawAmountInternal);
+
+        if (useUnderlying) {
+            assetToken.redeem(borrowCurrencyId, vaultAccount.account, SafeInt256.toUint(withdrawAmountExternal.neg()));
+        } else {
+            assetToken.transfer(vaultAccount.account, borrowCurrencyId, withdrawAmountExternal);
+        }
+    }
 }
