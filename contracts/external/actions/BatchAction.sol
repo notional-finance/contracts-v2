@@ -115,8 +115,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
         for (uint256 i = 0; i < actions.length; i++) {
             BatchLend calldata action = actions[i];
-            // msg.value will only be used when currency id == 1, referencing ETH. The requirement
-            // to sort actions by increasing id enforces that msg.value will only be used once.
             if (i > 0) {
                 require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
@@ -153,19 +151,9 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                     AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(action.currencyId);
                     Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
                     int256 underlyingInternalAmount = ar.convertToUnderlying(requiredCash);
-                    int256 underlyingExternalAmount;
-
-                    if (underlyingToken.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
-                        // If external < 8, we could truncate down and cause an off by one error, for example we need
-                        // 1.00000011 cash and we deposit only 1.000000, missing 11 units. Therefore, we add a unit at the
-                        // lower precision (external) to get around off by one errors
-                        underlyingExternalAmount = underlyingToken.convertToExternal(underlyingInternalAmount).add(1);
-                    } else {
-                        // If external > 8, we may not mint enough asset tokens because in the case of 1e18 precision 
-                        // an off by 1 error at 1e8 precision is 1e10 units of the underlying token. In this case we
-                        // add 1 at the internal precision which has the effect of rounding up by 1e10
-                        underlyingExternalAmount = underlyingToken.convertToExternal(underlyingInternalAmount.add(1));
-                    }
+                    int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                        underlyingInternalAmount
+                    );
 
                     // This returns the cToken / aToken amount as a result of transfer and mint. It must be sufficient to
                     // cover the required cash.

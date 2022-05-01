@@ -288,6 +288,24 @@ library TokenHandler {
         return amount.mul(token.decimals).div(Constants.INTERNAL_TOKEN_PRECISION);
     }
 
+    /// @notice Converts a token to an underlying external amount with adjustments for rounding errors when depositing
+    function convertToUnderlyingExternalWithAdjustment(
+        Token memory token,
+        int256 underlyingInternalAmount
+    ) internal pure returns (int256 underlyingExternalAmount) {
+        if (token.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
+            // If external < 8, we could truncate down and cause an off by one error, for example we need
+            // 1.00000011 cash and we deposit only 1.000000, missing 11 units. Therefore, we add a unit at the
+            // lower precision (external) to get around off by one errors
+            underlyingExternalAmount = convertToExternal(token, underlyingInternalAmount).add(1);
+        } else {
+            // If external > 8, we may not mint enough asset tokens because in the case of 1e18 precision 
+            // an off by 1 error at 1e8 precision is 1e10 units of the underlying token. In this case we
+            // add 1 at the internal precision which has the effect of rounding up by 1e10
+            underlyingExternalAmount = convertToExternal(token, underlyingInternalAmount.add(1));
+        }
+    }
+
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
         GenericToken.safeTransferOut(Deployments.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
     }
