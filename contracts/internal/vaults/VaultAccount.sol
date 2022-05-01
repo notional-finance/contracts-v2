@@ -47,7 +47,7 @@ library VaultAccount {
      * @param vaultConfig configuration for the given vault
      * @param blockTime current block time
      */
-    function _settleVaultAccount(
+    function settleVaultAccount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         uint256 blockTime
@@ -109,15 +109,15 @@ library VaultAccount {
      * @param maxBorrowRate maximum annualized rate to pay for the borrow
      * @param blockTime current block time
      */
-    function _borrowIntoVault(
+    function borrowIntoVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         uint256 maturity,
         int256 fCash,
         uint256 maxBorrowRate,
         uint256 blockTime
-    ) private {
-        require(fCash < 0); // dev: fcash must be negative
+    ) internal {
+        require(fCash <= 0); // dev: fcash must be negative
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
         // Cannot enter a vault if it is in a shortfall
@@ -129,14 +129,19 @@ library VaultAccount {
 
         // All of the cash borrowed will go to the vault. Additional collateral and fees required
         // will be calculated below and taken from the account's external balances.
-        (int256 assetCashBorrowed, AssetRateParameters memory assetRate) = _executeTrade(
-            vaultConfig.borrowCurrencyId,
-            maturity,
-            fCash,
-            maxBorrowRate,
-            blockTime
-        );
-        require(assetCashBorrowed > 0, "Borrow failed");
+        int256 assetCashBorrowed;
+        AssetRateParameters memory assetRate;
+
+        if (fCash > 0) {
+            (assetCashBorrowed, assetRate) = _executeTrade(
+                vaultConfig.borrowCurrencyId,
+                maturity,
+                fCash,
+                maxBorrowRate,
+                blockTime
+            );
+            require(assetCashBorrowed > 0, "Borrow failed");
+        }
 
         // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
         // assuming the worst case scenario. Will adjust the fee properly at the end
@@ -158,7 +163,8 @@ library VaultAccount {
         require(leverageRatio <= vaultConfig.maxLeverageRatio, "Excess leverage");
 
         int256 nTokenFee = vaultConfig.getNTokenFee(leverageRatio, fCash);
-        // This will mint nTokens assuming that the fee will be paid. If the fee is not paid the txn will revert.
+        // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
+        // end the transaction with a negative cash balance.
         nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
         vaultAccount.cashBalance = vaultAccount.cashBalance.add(maxNTokenFee).sub(nTokenFee);
 
@@ -178,14 +184,14 @@ library VaultAccount {
      * @return netCashTransfer a positive value means that the account must deposit this
      * much asset cash into the protocol, a negative value will mean that it will withdraw
      */
-    function _lendToExitVault(
+    function lendToExitVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         int256 fCash,
         uint256 minLendRate,
         uint256 blockTime
     ) internal returns (int256 netCashTransfer) {
-        require(fCash > 0); // dev: fcash must be positive
+        require(fCash >= 0); // dev: fcash must be positive
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
         // Cannot exit vault if in shortfall
@@ -233,13 +239,20 @@ library VaultAccount {
             // vault.
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
             if (vaultAccount.fCash == 0) vaultAccount.maturity = 0;
+
             // The fCash on the entire vault is reduced when lending
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+            vaultConfig.setVaultState(vaultState);
         }
-
-        vaultConfig.setVaultState(vaultState);
     }
 
+    function _enterVault(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig, 
+        bytes calldata vaultData
+    ) internal {
+
+    }
 
     /**
      * @notice Calculates the leverage ratio of the account given how much assetCashDeposit
@@ -283,7 +296,7 @@ library VaultAccount {
         int256 netfCashToAccount
         uint256 rateLimit,
         uint256 blockTime
-    ) internal returns (int256, AssetRateParameters memory) {
+    ) private returns (int256, AssetRateParameters memory) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);
@@ -308,9 +321,27 @@ library VaultAccount {
     }
 
     /**
+     * @notice Redeems vault shares and credits them to the vault account's cash balance.
+     * @dev Updates account cash balance in memory
+     * @param vaultAccount the account's position in the vault
+     * @param vault address of the vault
+     * @param vaultSharesToRedeem shares of the vault to redeem
+     */
+    function redeemShares(
+        VaultAccount memory vaultAccount,
+        address vault,
+        uint256 vaultSharesToRedeem
+    ) internal {
+        if (vaultSharesToRedeem > 0) {
+            uint256 assetCashRaised = ILeveragedVault(vault).redeemToNotional(vaultSharesToRedeem, account);
+            vaultAccount.cashBalance = vaultAccount.cashBalance.add(SafeInt256.toInt(assetCashRaised));
+        }
+    }
+
+    /**
      * @notice Deposits a specified amount from the account
      */
-    function _depositFromAccount(
+    function depositFromAccount(
         VaultAccount memory vaultAccount,
         uint16 borrowCurrencyId,
         int256 depositAmountExternal,
@@ -354,7 +385,7 @@ library VaultAccount {
             .add(assetToken.convertToInternal(assetAmountExternal));
     }
 
-    function _withdrawToAccount(
+    function withdrawToAccount(
         VaultAccount memory vaultAccount,
         uint16 borrowCurrencyId,
         int256 withdrawAmountInternal,

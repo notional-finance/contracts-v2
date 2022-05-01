@@ -28,7 +28,7 @@ library VaultConfiguration {
 
     function setVaultConfig(
         address vaultAddress,
-        VaultConfigStorage memory vaultConfig
+        VaultConfigStorage calldata vaultConfig
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         // Sanity check this value, leverage ratio must be greater than 1
@@ -91,45 +91,6 @@ library VaultConfiguration {
         uint256 offset = blockTimeUTC0 % vaultConfig.termLengthInSeconds;
 
         return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
-    }
-
-    /**
-     * @notice Returns the maximum capacity a vault has to borrow. The formula for this is:
-     * min(vaultConfig.maxVaultBorrowSize, nTokenPVUnderlying(stakedNToken.nTokenBalance) * 1e8 / riskFactor)
-     */
-    function getMaxBorrowSize(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) internal view returns (uint256 maxBorrowfCash) {
-        // If riskFactor < 1e8 then the maxNTokenCapacity will be greater than the staked nToken
-        // PV in underlying. If riskFactor > 1e8 then the max capacity will be less than the PV
-        // of the staked nToken pool.
-        uint256 maxNTokenCapacity = nTokenStaked.getStakedNTokenValueUnderlying(vaultConfig.borrowCurrencyId)
-            .mul(1e8)
-            .div(vaultConfig.riskFactor);
-        
-        // Gets the minimum value between the two amounts
-        uint256 maxCapacity = vaultConfig.maxVaultBorrowSize < maxNTokenCapacity ?
-            vaultConfig.maxVaultBorrowSize : 
-            maxNTokenCapacity;
-
-        if (maxCapacity <= vaultState.currentfCashBalance) {
-            // It is possible that a vault goes over the max borrow size because nTokens can change
-            // in value as interest rates change. If this is the case, we just don't allow any more
-            // borrowing.
-            return 0;
-        } else {
-            return maxCapacity.sub(vaultState.currentfCashBalance);
-        }
-    }
-
-    function getPredictedMaxBorrowSize(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) internal view returns (uint256 maxBorrowfCash) {
-        // TODO
     }
 
     function getNTokenFee(
