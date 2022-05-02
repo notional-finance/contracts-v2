@@ -3,7 +3,15 @@ import re
 import subprocess
 
 import scripts.mainnet.deploy_governance as deploy_governance
-from brownie import MockAggregator, MockCToken, MockERC20, accounts, cTokenAggregator, network
+from brownie import (
+    MockAggregator, 
+    MockCToken, 
+    MockERC20, 
+    accounts, 
+    cTokenLegacyAggregator, 
+    cTokenV2Aggregator, 
+    network
+)
 from scripts.deployment import TokenType, deployNotional
 from scripts.mainnet.deploy_governance import EnvironmentConfig
 
@@ -281,7 +289,7 @@ def listCurrency(notional, deployer, symbol):
     networkName = network.show_active()
     if symbol == "ETH":
         currencyId = 1
-        assetRateAggregator = cTokenAggregator.deploy(
+        assetRateAggregator = cTokenLegacyAggregator.deploy(
             TokenConfig[networkName]["cETH"], {"from": deployer}
         )
     else:
@@ -299,9 +307,14 @@ def listCurrency(notional, deployer, symbol):
         currencyId = txn.events["ListCurrency"]["newCurrencyId"]
         print("Listed currency {} with id {}".format(symbol, currencyId))
 
-        assetRateAggregator = cTokenAggregator.deploy(
-            TokenConfig[networkName][symbol]["assetToken"][0], {"from": deployer}
-        )
+        if symbol == "USDC":
+            assetRateAggregator = cTokenLegacyAggregator.deploy(
+                TokenConfig[networkName][symbol]["assetToken"][0], {"from": deployer}
+            )
+        else:
+            assetRateAggregator = cTokenV2Aggregator.deploy(
+                TokenConfig[networkName][symbol]["assetToken"][0], {"from": deployer}
+            )
         print("Deployed cToken aggregator at {}".format(assetRateAggregator.address))
 
     txn = notional.enableCashGroup(
