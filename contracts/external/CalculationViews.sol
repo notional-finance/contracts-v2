@@ -454,7 +454,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         if (useUnderlying && depositAmountInternal < 0) {
             // We have to do a special rounding adjustment for underlying internal deposits from lending.
-            amountExternal = token.convertToUnderlyingExternalWithAdjustment(depositAmountInternal).neg();
+            amountExternal = token.convertToUnderlyingExternalWithAdjustment(depositAmountInternal.neg());
         } else {
             amountExternal = token.convertToExternal(depositAmountInternal).abs();
         }

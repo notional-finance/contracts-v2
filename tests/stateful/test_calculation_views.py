@@ -81,7 +81,7 @@ def test_borrow_from_fcash_underlying_using_calculation_view(environment, accoun
 def test_lend_from_fcash_asset_using_calculation_view(environment, accounts):
     maturity = environment.notional.getActiveMarkets(2)[0][1]
     (fCash, marketIndex, encodedTrade) = environment.notional.getfCashLendFromDeposit(
-        2, 5000e8, maturity, 0, chain.time(), False
+        2, 50000e8, maturity, 0, chain.time(), False
     )
 
     assert encodedTrade == HexString(
@@ -92,26 +92,17 @@ def test_lend_from_fcash_asset_using_calculation_view(environment, accounts):
     )
     assert marketIndex == 1
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[0])
-    environment.notional.batchBalanceAndTradeAction(
-        accounts[0],
-        [
-            get_balance_action(
-                2, "DepositAsset", depositActionAmount=5000e8, withdrawEntireCashBalance=True
-            )
-            + tuple([[encodedTrade]])
-        ],
-        {"from": accounts[0]},
-    )
+    environment.notional.batchLend(accounts[0], [(2, False, [encodedTrade])], {"from": accounts[0]})
     balanceAfter = environment.cToken["DAI"].balanceOf(accounts[0])
 
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == 5000e8
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == 50000e8
     check_system_invariants(environment, accounts)
 
 
 def test_lend_from_fcash_underlying_using_calculation_view(environment, accounts):
     maturity = environment.notional.getActiveMarkets(2)[0][1]
     (fCash, marketIndex, encodedTrade) = environment.notional.getfCashLendFromDeposit(
-        2, 100e18, maturity, 0, chain.time(), True
+        2, 1000e18, maturity, 0, chain.time(), True
     )
 
     assert encodedTrade == HexString(
@@ -122,23 +113,10 @@ def test_lend_from_fcash_underlying_using_calculation_view(environment, accounts
     )
     assert marketIndex == 1
     balanceBefore = environment.token["DAI"].balanceOf(accounts[0])
-    environment.notional.batchBalanceAndTradeAction(
-        accounts[0],
-        [
-            get_balance_action(
-                2,
-                "DepositUnderlying",
-                depositActionAmount=100e18,
-                withdrawEntireCashBalance=True,
-                redeemToUnderlying=True,
-            )
-            + tuple([[encodedTrade]])
-        ],
-        {"from": accounts[0]},
-    )
+    environment.notional.batchLend(accounts[0], [(2, True, [encodedTrade])], {"from": accounts[0]})
     balanceAfter = environment.token["DAI"].balanceOf(accounts[0])
 
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == 100e18
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == 1000e18
     check_system_invariants(environment, accounts)
 
 
@@ -151,14 +129,14 @@ def test_borrow_using_calculation_view(environment, accounts):
         marketIndex,
         encodedTrade,
     ) = environment.notional.getPrincipalFromfCashBorrow(
-        2, 100e8, maturity, maxSlippage, chain.time()
+        2, 1000e8, maturity, maxSlippage, chain.time()
     )
 
     assert encodedTrade == HexString(
         get_trade_action(
             tradeActionType="Borrow",
             marketIndex=marketIndex,
-            notional=100e8,
+            notional=1000e8,
             maxSlippage=maxSlippage,
         ),
         type_str="bytes32",
@@ -173,11 +151,17 @@ def test_borrow_using_calculation_view(environment, accounts):
         {"from": accounts[3], "value": 100e18},
     )
 
-    assert environment.cToken["DAI"].balanceOf(accounts[3]) == borrowAmountAsset
+    assert (
+        pytest.approx(environment.cToken["DAI"].balanceOf(accounts[3]), rel=1e-9)
+        == borrowAmountAsset
+    )
     environment.cToken["DAI"].redeem(
         environment.cToken["DAI"].balanceOf(accounts[3]), {"from": accounts[3]}
     )
-    assert environment.token["DAI"].balanceOf(accounts[3]) == borrowAmountUnderlying
+    assert (
+        pytest.approx(environment.token["DAI"].balanceOf(accounts[3]), rel=1e-9)
+        == borrowAmountUnderlying
+    )
 
     check_system_invariants(environment, accounts)
 
@@ -189,47 +173,36 @@ def test_lend_asset_using_calculation_view(environment, accounts):
         depositAmountAsset,
         marketIndex,
         encodedTrade,
-    ) = environment.notional.getDepositFromfCashLend(2, 100e8, maturity, 0, chain.time())
+    ) = environment.notional.getDepositFromfCashLend(2, 10_000e8, maturity, 0, chain.time())
 
     assert encodedTrade == HexString(
         get_trade_action(
-            tradeActionType="Lend", marketIndex=marketIndex, notional=100e8, minSlippage=0
+            tradeActionType="Lend", marketIndex=marketIndex, notional=10_000e8, minSlippage=0
         ),
         type_str="bytes32",
     )
     assert marketIndex == 1
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[0])
-    environment.notional.batchBalanceAndTradeAction(
-        accounts[0],
-        [
-            get_balance_action(
-                2,
-                "DepositAsset",
-                depositActionAmount=depositAmountAsset,
-                withdrawEntireCashBalance=True,
-            )
-            + tuple([[encodedTrade]])
-        ],
-        {"from": accounts[0]},
-    )
+    environment.notional.batchLend(accounts[0], [(2, False, [encodedTrade])], {"from": accounts[0]})
     balanceAfter = environment.cToken["DAI"].balanceOf(accounts[0])
 
-    assert balanceBefore - balanceAfter == depositAmountAsset
+    assert pytest.approx(balanceBefore - balanceAfter, 1e-9) == depositAmountAsset
     check_system_invariants(environment, accounts)
 
 
 def test_lend_underlying_using_calculation_view(environment, accounts):
+    fCash = 50_000e8
     maturity = environment.notional.getActiveMarkets(2)[0][1]
     (
         depositAmountUnderlying,
         depositAmountAsset,
         marketIndex,
         encodedTrade,
-    ) = environment.notional.getDepositFromfCashLend(2, 100e8, maturity, 0, chain.time())
+    ) = environment.notional.getDepositFromfCashLend(2, fCash, maturity, 0, chain.time())
 
     assert encodedTrade == HexString(
         get_trade_action(
-            tradeActionType="Lend", marketIndex=marketIndex, notional=100e8, minSlippage=0
+            tradeActionType="Lend", marketIndex=marketIndex, notional=fCash, minSlippage=0
         ),
         type_str="bytes32",
     )
@@ -238,7 +211,7 @@ def test_lend_underlying_using_calculation_view(environment, accounts):
     environment.notional.batchLend(accounts[0], [(2, True, [encodedTrade])], {"from": accounts[0]})
     balanceAfter = environment.token["DAI"].balanceOf(accounts[0])
 
-    assert balanceBefore - balanceAfter == depositAmountUnderlying
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == depositAmountUnderlying
     check_system_invariants(environment, accounts)
 
 
