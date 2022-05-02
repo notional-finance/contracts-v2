@@ -201,7 +201,13 @@ contract Router is StorageLayoutV1 {
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
             sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
-            sig == NotionalCalculations.getPresentfCashValue.selector
+            sig == NotionalCalculations.getPresentfCashValue.selector ||
+            sig == NotionalCalculations.getMarketIndex.selector ||
+            sig == NotionalCalculations.getfCashLendFromDeposit.selector ||
+            sig == NotionalCalculations.getfCashBorrowFromPrincipal.selector ||
+            sig == NotionalCalculations.getDepositFromfCashLend.selector ||
+            sig == NotionalCalculations.getPrincipalFromfCashBorrow.selector ||
+            sig == NotionalCalculations.convertCashBalanceToExternal.selector
         ) {
             return CALCULATION_VIEWS;
         } else {
