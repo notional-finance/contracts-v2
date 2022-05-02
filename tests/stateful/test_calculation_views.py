@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
@@ -15,6 +16,13 @@ def environment(accounts):
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
+
+
+def test_lend_borrow_reverts_on_rate_limit(environment):
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
+    with brownie.reverts("Trade failed, slippage"):
+        environment.notional.getfCashLendFromDeposit(2, 50000e8, maturity, 1e9, chain.time(), False)
+        environment.notional.getPrincipalFromfCashBorrow(2, 1000e8, maturity, 1, chain.time())
 
 
 def test_borrow_from_fcash_asset_using_calculation_view(environment, accounts):

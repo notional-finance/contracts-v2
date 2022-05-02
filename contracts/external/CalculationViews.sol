@@ -119,14 +119,15 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 marketIndex,
         uint256 blockTime
     ) external view override returns (int256, int256) {
-        return _getCashAmountGivenfCashAmount(currencyId, fCashAmount, marketIndex, blockTime);
+        return _getCashAmountGivenfCashAmount(currencyId, fCashAmount, marketIndex, blockTime, 0);
     }
 
     function _getCashAmountGivenfCashAmount(
         uint16 currencyId,
         int88 fCashAmount,
         uint256 marketIndex,
-        uint256 blockTime
+        uint256 blockTime, 
+        uint256 rateLimit
     ) internal view returns (int256, int256) {
         _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
@@ -139,6 +140,17 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         // prettier-ignore
         (int256 assetCash, /* int fee */) =
             market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+
+        // Check the slippage here and revert
+        if (rateLimit != 0) {
+            if (fCashAmount < 0) {
+                // Do not allow borrows over the rate limit
+                require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
+            } else {
+                // Do not allow lends under the rate limit
+                require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
+            }
+        }
 
         return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));
     }
@@ -378,7 +390,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         (
             int256 assetCashInternal,
             int256 underlyingCashInternal
-        ) =_getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime);
+        ) = _getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime, minLendRate);
 
         depositAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal, true);
         depositAmountAsset = _convertToAmountExternal(currencyId, assetCashInternal, false);
@@ -416,7 +428,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         (
             int256 assetCashInternal,
             int256 underlyingCashInternal
-        ) =_getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime);
+        ) = _getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime, maxBorrowRate);
 
         borrowAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal, true);
         borrowAmountAsset = _convertToAmountExternal(currencyId, assetCashInternal, false);
