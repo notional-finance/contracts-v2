@@ -2,7 +2,7 @@
     "actions": {
         "AccountAction": "0xBbb9750beB6a4A4a1bB219c9dc750a5A11c853B8",
         "BatchAction": "0xd97CAA093e3D50152E530Ea2Eb7cCb7DC7d7CDcA",
-        "CalculationViews": "0xE6270EEe5D3473d41BE4D6C13748b9a2784c607C",
+        "CalculationViews": "0x6594c50A3f5FBA3785bfbD5a5E2b25CD2977f197",
         "ERC1155Action": "0x00f3DF3d9e896192F8ee2b0CEaD892De00b313CC",
         "GovernanceAction": "0x04BdEB742e2524cabCE4251F790D131ae1CaF341",
         "InitializeMarketsAction": "0x1d71A77cd0B3b08a2B3D9082eD68C1C95F4Ba424",
@@ -65,8 +65,8 @@
     "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "notional": "0x0EAE7BAdEF8f95De91fDDb74a89A786cF891Eb0e",
     "routers": {
-        "PauseRouter": "0xfaAdfD8f023e5Fcf75AE04415C4D747FC0c59528",
-        "Router": "0x5dfDEA70d98A7D6EED70391151A42143DE030b2d"
+        "PauseRouter": "0xE6aaFea8809bb15655F727ded100a6b35bccAD65",
+        "Router": "0x74225D7190A790Ec6Cb51Cf8cA5d9FcC044C3200"
     },
     "startBlock": 27189640,
     "tokens": {
