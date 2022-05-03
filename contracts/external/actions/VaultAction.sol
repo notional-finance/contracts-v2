@@ -3,9 +3,13 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 import "./ActionGuards.sol";
+import "../../internal/vaults/VaultConfiguration.sol";
+import "../../internal/vaults/VaultAccount.sol";
 
 contract VaultAction is ActionGuards {
     using VaultConfiguration for VaultConfig;
+    using VaultAccountLib for VaultAccount;
+    using SafeInt256 for int256;
 
     /// @notice Emitted when a new vault is listed or updated
     event VaultChange(address vaultAddress, bool enabled);
@@ -14,6 +18,7 @@ contract VaultAction is ActionGuards {
 
     modifier allowAccountOrVault(address account, address vault) {
         require(msg.sender == account || msg.sender == vault, "Unauthorized");
+        _;
     }
 
     /**
@@ -26,15 +31,15 @@ contract VaultAction is ActionGuards {
         address vaultAddress,
         VaultConfigStorage calldata vaultConfig
     ) external onlyOwner {
-        require(Address.isContract(vaultAddress));
+        // require(Address.isContract(vaultAddress));
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         // Require that we have a significant amount of allowance set on the vault so we can transfer
         // asset tokens from the vault.
         require(IERC20(assetToken.tokenAddress).allowance(vaultAddress, address(this)) >= type(uint248).max);
 
-        vaultConfig.setVaultConfiguration(vaultAddress);
-        bool enabled = vaultConfig.getFlag(VaultFlags.ENABLED);
-        emit VaultListed(vaultAddress, enabled);
+        VaultConfiguration.setVaultConfig(vaultAddress, vaultConfig);
+        bool enabled = (vaultConfig.flags & VaultConfiguration.ENABLED) == VaultConfiguration.ENABLED;
+        emit VaultChange(vaultAddress, enabled);
     }
 
     /**
@@ -48,14 +53,15 @@ contract VaultAction is ActionGuards {
         address vaultAddress,
         bool enable
     ) external onlyOwner {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVault(vaultAddress);
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vaultAddress);
 
-        if (enable) {
-            vaultConfig.flags = vaultConfig.flags | VaultFlags.ENABLED;
-        } else {
-            vaultConfig.flags = vaultConfig.flags & ~VaultFlags.ENABLED;
-        }
-        vaultConfig.setVaultConfiguration(vaultAddress);
+        // TODO: fix this
+        // if (enable) {
+        //     vaultConfig.flags = vaultConfig.flags | VaultConfiguration.ENABLED;
+        // } else {
+        //     vaultConfig.flags = vaultConfig.flags & ~VaultConfiguration.ENABLED;
+        // }
+        // vaultConfig.setVaultConfig(vaultAddress);
 
         emit VaultPauseStatus(vaultAddress, enable);
     }
@@ -81,21 +87,21 @@ contract VaultAction is ActionGuards {
         bytes calldata vaultData
     ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256 vaultTokensMinted) { 
         // Vaults cannot be entered if they are paused
-        VaultConfig memory vaultConfig = VaultConfiguration.getVault(vault);
-        require(vaultConfig.getFlag(VaultFlags.ENABLED), "Not Enabled");
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
 
         // Vaults cannot be entered if they are in the settlement time period at the end of a quarter.
         uint256 blockTime = block.timestamp;
         require(!vaultConfig.isInSettlement(blockTime), "In Settlement");
 
-        VaultAccount memory vaultAccount = VaultAccount.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Do this first in case the vault has a matured vault position
         vaultAccount.settleVaultAccount(vaultConfig, blockTime);
 
         // TODO: allow this to transfer from the vault as well?
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has.
-        vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
+        // vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
         vaultAccount.borrowIntoVault(
             vaultConfig,
             vaultConfig.getCurrentMaturity(blockTime),
@@ -118,12 +124,13 @@ contract VaultAction is ActionGuards {
             /* int256 actualTransferInternal */
         ) = vaultConfig.transferVault(vaultAccount.cashBalance.neg());
         vaultAccount.cashBalance = 0;
-        vaultAccount.setVaultAccount(account, vaultConfig.vaultAddress);
+        vaultAccount.setVaultAccount(vaultConfig.vault);
 
         // This call will tell the vault that a particular account has entered and it will
         // enter it's yield position. It will then check that the vault is under it's leverage
         // ratio and max capacity.
-        return vaultConfig.enterVaultAndCheckHealth(account, assetCashToVaultExternal, vaultData);
+        // TODO: fix this
+        // return vaultConfig.enterVaultAndCheckHealth(account, assetCashToVaultExternal, vaultData);
     }
 
     /**
@@ -146,8 +153,8 @@ contract VaultAction is ActionGuards {
         address withdrawTo
     ) external allowAccountOrVault(account, vault) nonReentrant { 
         uint256 blockTime = block.timestamp;
-        VaultConfig memory vaultConfig = VaultConfiguration.getVault(vault);
-        VaultAccount memory vaultAccount = VaultAccount.getVaultAccount(account, vault);
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
@@ -161,23 +168,24 @@ contract VaultAction is ActionGuards {
         } else {
             netCashTransfer = vaultAccount.lendToExitVault(
                 vaultConfig,
-                SafeInt256.toInt(fCash),
+                SafeInt256.toInt(fCashToLend),
                 minLendRate,
                 blockTime
             );
         }
         
-        if (netCashTransfer > 0) {
-            // TODO: this takes an external amount...
-            vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
-        } else if (netCashTransfer < 0) {
-            vaultAccount.withdrawToAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
-        }
+        // bool useUnderlying;
+        // if (netCashTransfer > 0) {
+        //     // TODO: this takes an external amount...
+        //     vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
+        // } else if (netCashTransfer < 0) {
+        //     vaultAccount.withdrawToAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
+        // }
         
-        // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
-        // will be reducing their leverage ratio here, so we check that this is the case).
-        int256 leverageRatio = _calculateLeverage(vaultAccount, vaultConfig, assetRate);
-        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Excess leverage");
+        // // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
+        // // will be reducing their leverage ratio here, so we check that this is the case).
+        // int256 leverageRatio = _calculateLeverage(vaultAccount, vaultConfig, assetRate);
+        // require(leverageRatio <= vaultConfig.maxLeverageRatio, "Excess leverage");
     }
 
     /**
@@ -187,11 +195,10 @@ contract VaultAction is ActionGuards {
      *
      * @param account the address that will reenter the vault
      * @param vault the vault to reenter
-     * @param fCashToEnter the total amount of fCash to enter in the next vault term
+     * @param vaultSharesToRedeem the amount of vault shares to redeem for asset tokens
+     * @param fCashToBorrow amount of fCash to borrow in the next maturity
      * @param minLendRate minimum lend rate to close out current position
-     * @param maxLendRate maximum borrow rate to initiate new position
-     * @param vaultSharesToExit optional parameter for selling part of the vault shares to cover
-     * the cost to exit the position, any remaining cost will be transferred from the account
+     * @param maxBorrowRate maximum borrow rate to initiate new position
      * @param vaultData additional data to pass to the vault contract
      */
     function rollVaultPosition(
@@ -204,17 +211,17 @@ contract VaultAction is ActionGuards {
         bytes calldata vaultData
     ) external allowAccountOrVault(account, vault) nonReentrant {
         // Cannot enter a vault if it is not enabled
-        VaultConfig memory vaultConfig = VaultConfiguration.getVault(vaultAddress);
-        require(vaultConfig.getFlag(VaultFlags.ENABLED), "Not Enabled");
-        require(vaultConfig.getFlag(VaultFlags.ALLOW_REENTER), "No Reenter");
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
+        require(vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTER), "No Reenter");
 
         // Vaults can only be rolled during the settlement period
         uint256 blockTime = block.timestamp;
         require(vaultConfig.isInSettlement(blockTime), "Not in Settlement");
-        VaultAccount memory vaultAccount = VaultAccount.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // Can only roll vaults that are in the current maturity
-        require(vaultAccount.maturity == vaultConfig.getCurrentMaturity(), "Incorrect maturity");
+        require(vaultAccount.maturity == vaultConfig.getCurrentMaturity(blockTime), "Incorrect maturity");
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
@@ -235,7 +242,7 @@ contract VaultAction is ActionGuards {
         // Execute the borrow in the next maturity 
         vaultAccount.borrowIntoVault(
             vaultConfig,
-            vaultConfig.getNextMaturity(),
+            vaultConfig.getNextMaturity(blockTime),
             SafeInt256.toInt(fCashToBorrow).neg(),
             maxBorrowRate,
             blockTime
@@ -254,7 +261,7 @@ contract VaultAction is ActionGuards {
         address vault,
         bytes calldata vaultData
     ) external nonReentrant {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVault(vaultAddress);
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
 
         // TODO: pay the caller a fee for the transaction...
     }

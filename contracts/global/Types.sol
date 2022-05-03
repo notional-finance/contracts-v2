@@ -484,14 +484,14 @@ struct VaultConfigStorage {
 }
 
 struct VaultConfig {
-    ILeveredVault vault;
+    address vault;
     uint16 flags;
     uint16 borrowCurrencyId;
-    uint256 maxVaultBorrowSize;
-    uint256 minAccountBorrowSize;
-    uint256 termLengthSeconds;
-    uint256 maxNTokenFeeRate;
-    uint256 maxLeverageRatio;
+    int256 maxVaultBorrowSize;
+    int256 minAccountBorrowSize;
+    uint256 termLengthInSeconds;
+    int256 maxNTokenFeeRate;
+    int256 maxLeverageRatio;
     uint256 riskFactor;
 }
 

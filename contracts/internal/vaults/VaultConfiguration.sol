@@ -2,7 +2,20 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import "../../global/Types.sol";
+import "../../global/LibStorage.sol";
+import "../../global/Constants.sol";
+import "../../math/SafeInt256.sol";
+import "../markets/AssetRate.sol";
+import "../markets/DateTime.sol";
+import "../balances/TokenHandler.sol";
+
 library VaultConfiguration {
+    using TokenHandler for Token;
+    using SafeMath for uint256;
+    using SafeInt256 for int256;
+    using AssetRate for AssetRateParameters;
+
     uint16 internal constant ENABLED            = 1 << 0;
     uint16 internal constant ALLOW_REENTER      = 1 << 1;
     uint16 internal constant IS_INSURED         = 1 << 2;
@@ -18,10 +31,10 @@ library VaultConfiguration {
         vaultConfig.flags = s.flags;
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
         vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
-        vaultConfig.minAccountBorrowSize = s.minAccountBorrowSize.mul(Constants.INTERNAL_TOKEN_PRECISION);
-        vaultConfig.termLengthSeconds = s.termLengthInDays.mul(Constants.DAYS);
-        vaultConfig.maxNTokenFeeRate = s.nTokenFeeRate5BPS.mul(Constants.BASIS_POINT * 5);
-        vaultConfig.maxLeverageRatio = s.maxLeverageRatioBPS.mul(Constants.BASIS_POINT);
+        vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
+        vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
+        vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
+        vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
 
         vaultConfig.riskFactor = s.riskFactor;
     }
@@ -32,7 +45,7 @@ library VaultConfiguration {
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         // Sanity check this value, leverage ratio must be greater than 1
-        require(Constants.RATE_PRECISION < vaultConfig.maxLeverageRatioBPS.mul(Constants.BASIS_POINT));
+        require(uint256(Constants.RATE_PRECISION) < uint256(vaultConfig.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
 
         store[vaultAddress] = vaultConfig;
     }
@@ -42,7 +55,7 @@ library VaultConfiguration {
         uint256 maturity
     ) internal view returns (VaultState memory vaultState) {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultConfig.vaultAddress][maturity];
+        VaultStateStorage storage s = store[vaultConfig.vault][maturity];
 
         vaultState.maturity = maturity;
         vaultState.totalAssetCash = s.totalAssetCash;
@@ -55,7 +68,7 @@ library VaultConfiguration {
         VaultState memory vaultState
     ) internal {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultConfig.vaultAddress][vaultState.maturity];
+        VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
 
         require(type(int88).min <= vaultState.totalAssetCash && vaultState.totalAssetCash <= type(int88).max); // dev: asset cash overflow
         require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= type(int88).max); // dev: total fcash overflow
@@ -66,10 +79,10 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Returns that status of a given flagID from VaultFlags
+     * @notice Returns that status of a given flagID
      */
     function getFlag(
-        VaultConfig memory vaultConfig
+        VaultConfig memory vaultConfig,
         uint16 flagID
     ) internal pure returns (bool) {
         return (vaultConfig.flags & flagID) == flagID;
@@ -93,6 +106,13 @@ library VaultConfiguration {
         return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
     }
 
+    function getNextMaturity(
+        VaultConfig memory vaultConfig,
+        uint256 blockTime
+    ) internal pure returns (uint256) {
+        // TODO: implement
+    }
+
     function getNTokenFee(
         VaultConfig memory vaultConfig,
         int256 leverageRatio,
@@ -109,13 +129,27 @@ library VaultConfiguration {
         int256 leverageRatioAdj = leverageRatio - Constants.RATE_PRECISION;
         // All of these figures are in RATE_PRECISION
         int256 nTokenFeeRate = leverageRatioAdj
-            .mul(vaultConfig.maxNTokenFee)
+            .mul(vaultConfig.maxNTokenFeeRate)
             // maxLeverageRatio must be > 1 when set in governance, also vaults are
             // not allowed to exceed the maxLeverageRatio
-            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION)
+            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION);
 
         // nTokenFee is expected to be a positive number
         nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
+    }
+
+    function underlyingValueOf(
+        VaultConfig memory vaultConfig,
+        address account
+    ) internal view returns (int256 valueOf) {
+        // TODO: implement
+    }
+
+    function isInSettlement(
+        VaultConfig memory vaultConfig,
+        uint256 blockTime
+    ) internal view returns (bool) {
+        // TODO: implement
     }
 
 
@@ -127,7 +161,7 @@ library VaultConfiguration {
         uint256 maturity,
         int256 assetCashRaised,
         uint256 blockTime
-    ) internal returns (int256, bool) {
+    ) internal returns (int256 netAssetCash) {
         VaultState memory vaultState = getVaultState(vaultConfig, maturity);
         AssetRateParameters memory assetRate;
 
@@ -148,7 +182,7 @@ library VaultConfiguration {
         netAssetCash = vaultState.totalAssetCash.add(assetRate.convertFromUnderlying(vaultState.totalfCash));
         vaultState.isFullySettled = netAssetCash >= 0;
 
-        vaultConfig.setVaultState(vaultState);
+        setVaultState(vaultConfig, vaultState);
 
 
         // TODO: how do we determine if a vault is empty and must redeem?
@@ -172,8 +206,12 @@ library VaultConfiguration {
     ) {
         // If net asset transfer > 0 then we are taking asset cash from the vault into Notional
         // If net asset transfer < 0 then we are deposit cash into the vault
-        TokenHandler memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        actualTransferExternal = assetToken.transfer(vaultConfig.vaultAddress, borrowCurrencyId, assetToken.convertToExternal(netTransferExternal));
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        actualTransferExternal = assetToken.transfer(
+            vaultConfig.vault, 
+            vaultConfig.borrowCurrencyId,
+            assetToken.convertToExternal(netAssetTransferInternal)
+        );
         actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
     }
 

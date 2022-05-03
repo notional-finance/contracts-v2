@@ -2,7 +2,22 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-library VaultAccount {
+import "./VaultConfiguration.sol";
+import "../nToken/nTokenStaked.sol";
+import "../markets/CashGroup.sol";
+import "../markets/AssetRate.sol";
+import "../../math/SafeInt256.sol";
+import "../balances/TokenHandler.sol";
+
+library VaultAccountLib {
+    using VaultConfiguration for VaultConfig;
+    using AssetRate for AssetRateParameters;
+    using CashGroup for CashGroupParameters;
+    using Market for MarketParameters;
+    using TokenHandler for Token;
+    using SafeInt256 for int256;
+    using SafeMath for uint256;
+
     /// @notice Returns a single account's vault position
     function getVaultAccount(address account, address vaultAddress)
         internal
@@ -20,13 +35,12 @@ library VaultAccount {
 
     /// @notice Sets a single account's vault position in storage
     function setVaultAccount(
-        address account,
-        address vaultAddress,
-        VaultAccount memory vaultAccount
+        VaultAccount memory vaultAccount,
+        address vaultAddress
     ) internal {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
-        VaultAccountStorage storage s = store[account][vaultAddress];
+        VaultAccountStorage storage s = store[vaultAccount.account][vaultAddress];
 
         // Individual accounts cannot have a negative cash balance
         require(0 <= vaultAccount.cashBalance && vaultAccount.cashBalance <= type(int88).max); // dev: cash balance overflow
@@ -121,7 +135,7 @@ library VaultAccount {
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
         // Cannot enter a vault if it is in a shortfall
-        require(vaultState.cashBalance >= 0); // dev: in shortfall
+        require(vaultState.totalAssetCash >= 0); // dev: in shortfall
         // The vault account can only be increasing their position or not have one set. If they are
         // at a different maturity they must exit first. The vaultState maturity will always be the
         // current maturity because we check if it must be settled first.
@@ -194,12 +208,12 @@ library VaultAccount {
         require(fCash >= 0); // dev: fcash must be positive
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
-        // Cannot exit vault if in shortfall
-        require(vaultState.cashBalance >= 0); // dev: in shortfall
         
         // Check that the account is in an active vault
-        require(vaultAccount.maturity != 0 && blockTime < maturity);
+        require(vaultAccount.maturity != 0 && blockTime < vaultAccount.maturity);
         VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
+        // Cannot exit vault if in shortfall
+        require(vaultState.totalAssetCash >= 0); // dev: in shortfall
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
@@ -251,6 +265,7 @@ library VaultAccount {
         VaultConfig memory vaultConfig, 
         bytes calldata vaultData
     ) internal {
+        // TODO: fill in this method
 
     }
 
@@ -269,7 +284,7 @@ library VaultAccount {
             .add(vaultConfig.underlyingValueOf(vaultAccount.account))
             // We do not discount fCash to present value so that we do not introduce interest
             // rate risk in this calculation.
-            .add(vaultAccount.fCash)
+            .add(vaultAccount.fCash);
 
         // Can never have negative value of assets
         require(netAssetValue > 0);
@@ -292,8 +307,8 @@ library VaultAccount {
      */
     function _executeTrade(
         uint16 currencyId,
-        uint256 maturity
-        int256 netfCashToAccount
+        uint256 maturity,
+        int256 netfCashToAccount,
         uint256 rateLimit,
         uint256 blockTime
     ) private returns (int256, AssetRateParameters memory) {
@@ -306,12 +321,12 @@ library VaultAccount {
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
         int256 assetCash = market.executeTrade(
             cashGroup,
-            fCash,
+            netfCashToAccount,
             market.maturity.sub(blockTime),
             marketIndex
         );
 
-        if (fCash < 0 && rateLimit > 0) {
+        if (netfCashToAccount < 0 && rateLimit > 0) {
             require(market.lastImpliedRate <= rateLimit);
         } else {
             require(market.lastImpliedRate >= rateLimit);
@@ -333,7 +348,7 @@ library VaultAccount {
         uint256 vaultSharesToRedeem
     ) internal {
         if (vaultSharesToRedeem > 0) {
-            uint256 assetCashRaised = ILeveragedVault(vault).redeemToNotional(vaultSharesToRedeem, account);
+            uint256 assetCashRaised;// = ILeveragedVault(vault).redeemToNotional(vaultSharesToRedeem, vaultAccount.account);
             vaultAccount.cashBalance = vaultAccount.cashBalance.add(SafeInt256.toInt(assetCashRaised));
         }
     }
@@ -369,7 +384,7 @@ library VaultAccount {
             if (assetToken.tokenType == TokenType.aToken) {
                 // Handles special accounting requirements for aTokens
                 depositAmountExternal = AaveHandler.convertToScaledBalanceExternal(
-                    balanceState.currencyId,
+                    borrowCurrencyId,
                     depositAmountExternal
                 );
             }

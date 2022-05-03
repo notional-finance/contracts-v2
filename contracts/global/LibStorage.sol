@@ -215,7 +215,7 @@ library LibStorage {
 
     /// @dev Returns object for an VaultState, mapping is from vault address to maturity to VaultState object
     function getVaultState() internal pure returns (
-        mapping(address => mapping(uint256 => VaultStateStorage))) storage store
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultState);
         assembly { store.slot := slot }
@@ -223,7 +223,7 @@ library LibStorage {
 
     /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to VaultAccount object
     function getVaultAccount() internal pure returns (
-        mapping(address => mapping(address => VaultAccountStorage))) storage store
+        mapping(address => mapping(address => VaultAccountStorage)) storage store
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultAccount);
         assembly { store.slot := slot }
