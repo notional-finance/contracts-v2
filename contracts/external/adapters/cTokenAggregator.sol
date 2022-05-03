@@ -35,7 +35,7 @@ abstract contract cTokenAggregator is AssetRateAdapter {
         return cToken.underlying();
     }
 
-    function _checkExchangeRate(uint256 exchangeRate) internal pure {
+    function _checkExchangeRate(uint256 exchangeRate) private pure {
         require(exchangeRate <= uint256(type(int256).max), "cTokenAdapter: overflow");
     }
 
