@@ -46,7 +46,7 @@ abstract contract cTokenAggregator is AssetRateAdapter {
     ) internal view virtual returns (uint256);
 
     /// @dev adapted from https://github.com/transmissions11/libcompound/blob/main/src/LibCompound.sol
-    function _viewExchangeRate() internal view returns (uint256) {
+    function _viewExchangeRate() private view returns (uint256) {
         uint256 accrualBlockNumberPrior = cToken.accrualBlockNumber();
 
         if (accrualBlockNumberPrior == block.number) return cToken.exchangeRateStored();
@@ -81,7 +81,7 @@ abstract contract cTokenAggregator is AssetRateAdapter {
         return int256(exchangeRate);
     }
 
-    function getExchangeRateView() external view virtual override returns (int256) {
+    function getExchangeRateView() external view override returns (int256) {
         // Return stored exchange rate if interest rate model is updated.
         // This prevents the function from returning incorrect exchange rates
         uint256 exchangeRate = cToken.interestRateModel() == INTEREST_RATE_MODEL
