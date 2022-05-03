@@ -6,9 +6,10 @@ import "../../../interfaces/compound/CTokenInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract cTokenAggregator is AssetRateAdapter {
+abstract contract cTokenAggregator is AssetRateAdapter {
     using SafeMath for uint256;
 
+    address public immutable INTEREST_RATE_MODEL;
     CTokenInterface internal immutable cToken;
     uint8 public override decimals = 18;
     uint256 public override version = 1;
@@ -23,6 +24,7 @@ contract cTokenAggregator is AssetRateAdapter {
     constructor(CTokenInterface _cToken) {
         cToken = _cToken;
         description = ERC20(address(_cToken)).symbol();
+        INTEREST_RATE_MODEL = _cToken.interestRateModel();
     }
 
     function token() external view override returns (address) {
@@ -41,9 +43,7 @@ contract cTokenAggregator is AssetRateAdapter {
         uint256 totalCash,
         uint256 borrowsPrior,
         uint256 reservesPrior
-    ) internal view virtual returns (uint256) {
-        revert("not implemented");
-    }
+    ) internal view virtual returns (uint256);
 
     /// @dev adapted from https://github.com/transmissions11/libcompound/blob/main/src/LibCompound.sol
     function _viewExchangeRate() internal view returns (uint256) {
@@ -82,7 +82,11 @@ contract cTokenAggregator is AssetRateAdapter {
     }
 
     function getExchangeRateView() external view virtual override returns (int256) {
-        uint256 exchangeRate = cToken.exchangeRateStored();
+        // Return stored exchange rate if interest rate model is updated.
+        // This prevents the function from returning incorrect exchange rates
+        uint256 exchangeRate = cToken.interestRateModel() == INTEREST_RATE_MODEL
+            ? _viewExchangeRate()
+            : cToken.exchangeRateStored();
         _checkExchangeRate(exchangeRate);
 
         return int256(exchangeRate);

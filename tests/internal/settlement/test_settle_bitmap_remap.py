@@ -9,9 +9,9 @@ nextSettleTime = START_TIME - START_TIME % SECONDS_IN_DAY
 
 
 @pytest.fixture(scope="module", autouse=True)
-def mockAggregator(MockCToken, cTokenAggregator, accounts):
+def mockAggregator(MockCToken, cTokenV2Aggregator, accounts):
     mockToken = MockCToken.deploy(8, {"from": accounts[0]})
-    mock = cTokenAggregator.deploy(mockToken.address, {"from": accounts[0]})
+    mock = cTokenV2Aggregator.deploy(mockToken.address, {"from": accounts[0]})
     # Set the settlement rate to be set
     mockToken.setAnswer(50e18)
 

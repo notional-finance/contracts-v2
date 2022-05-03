@@ -42,6 +42,10 @@ contract MockCToken {
     function accrualBlockNumber() external view returns (uint256) {
         return block.number;
     }
+
+    function interestRateModel() external view returns (address) {
+        return address(0);
+    }
 }
 
 

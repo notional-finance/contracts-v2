@@ -42,10 +42,10 @@ class TestBitmapAssets:
         return handler
 
     @pytest.fixture(scope="module", autouse=True)
-    def mockAssetRate(self, MockCToken, cTokenAggregator, accounts):
+    def mockAssetRate(self, MockCToken, cTokenV2Aggregator, accounts):
         # Deploy 8 different aggregators for each currency
         mockToken = MockCToken.deploy(8, {"from": accounts[0]})
-        mockAggregator = cTokenAggregator.deploy(mockToken.address, {"from": accounts[0]})
+        mockAggregator = cTokenV2Aggregator.deploy(mockToken.address, {"from": accounts[0]})
         # Set the settlement rate to be set
         mockToken.setSupplyRate(0.01e18)
         mockToken.setAnswer(0.01e18)
