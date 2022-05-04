@@ -59,18 +59,19 @@ abstract contract cTokenAggregator is AssetRateAdapter {
 
         require(borrowRateMantissa <= 0.0005e16, "RATE_TOO_HIGH"); // Same as borrowRateMaxMantissa in CTokenInterfaces.sol
 
-        uint256 interestAccumulated = (borrowRateMantissa *
-            (block.number - accrualBlockNumberPrior)).mul(borrowsPrior).div(1e18);
+        uint256 interestAccumulated = borrowRateMantissa
+            .mul(block.number.sub(accrualBlockNumberPrior))
+            .mul(borrowsPrior)
+            .div(1e18);
 
-        uint256 totalReserves = cToken.reserveFactorMantissa().mul(interestAccumulated).div(1e18) +
-            reservesPrior;
-        uint256 totalBorrows = interestAccumulated + borrowsPrior;
+        uint256 totalReserves = cToken.reserveFactorMantissa().mul(interestAccumulated).div(1e18).add(reservesPrior);
+        uint256 totalBorrows = interestAccumulated.add(borrowsPrior);
         uint256 totalSupply = cToken.totalSupply();
 
         return
             totalSupply == 0
                 ? cToken.initialExchangeRateMantissa()
-                : (totalCash + totalBorrows - totalReserves).mul(1e18).div(totalSupply);
+                : (totalCash.add(totalBorrows).sub(totalReserves)).mul(1e18).div(totalSupply);
     }
 
     /** @notice Returns the current exchange rate for the cToken to the underlying */
