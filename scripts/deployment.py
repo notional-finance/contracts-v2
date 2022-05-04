@@ -24,7 +24,7 @@ from brownie import (
     TreasuryAction,
     Views,
     accounts,
-    cTokenAggregator,
+    cTokenV2Aggregator,
     network,
     nProxy,
     nProxyAdmin,
@@ -304,20 +304,23 @@ class TestEnvironment:
             )
         else:
             cToken = deployArtifact(
-                "scripts/compound_artifacts/nCErc20.json",
-                [
-                    underlyingToken.address,
-                    self.comptroller.address,
-                    interestRateModel.address,
-                    config["initialExchangeRate"],
-                    "Compound " + symbol,  # This is not exactly correct but whatever
-                    "c" + symbol,
-                    8,
-                    self.deployer.address,
-                ],
-                self.deployer,
-                "cErc20",
+                "scripts/compound_artifacts/nCErc20.json", [], self.deployer, "cErc20"
             )
+
+            # Super hack but only way to initialize the cToken given the ABI
+            zeroAddress = HexString(0, type_str="bytes20")
+            zero = accounts.at(zeroAddress, force=True)
+            cToken.initialize(
+                underlyingToken.address,
+                self.comptroller.address,
+                interestRateModel.address,
+                config["initialExchangeRate"],
+                "Compound " + symbol,  # This is not exactly correct but whatever
+                "c" + symbol,
+                8,
+                {"from": zero},
+            )
+            accounts.remove(zeroAddress)
 
         self.comptroller._supportMarket(cToken.address, {"from": self.deployer})
         self.comptroller._setCollateralFactor(
@@ -327,8 +330,7 @@ class TestEnvironment:
             self.compPriceOracle.setUnderlyingPrice(cToken.address, rate)
 
         self.cToken[symbol] = cToken
-        # TODO: can we simplify the deployment of cTokenAggregator to one overall?
-        self.cTokenAggregator[symbol] = cTokenAggregator.deploy(
+        self.cTokenAggregator[symbol] = cTokenV2Aggregator.deploy(
             cToken.address, {"from": self.deployer}
         )
 

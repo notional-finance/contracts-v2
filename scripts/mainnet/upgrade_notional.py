@@ -23,7 +23,7 @@ ROUTER_ARG_POSITION = {
 
 def full_upgrade(deployer, verify=True):
     networkName = network.show_active()
-    if networkName == "hardhat-fork":
+    if networkName == "hardhat-fork" or networkName == "mainnet-fork":
         networkName = "mainnet"
 
     (router, pauseRouter, contracts) = deployNotionalContracts(

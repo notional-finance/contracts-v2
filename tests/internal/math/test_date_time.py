@@ -7,7 +7,7 @@ from tests.constants import SECONDS_IN_DAY, START_TIME
 
 class TestDateTime:
     @pytest.fixture(scope="module", autouse=True)
-    def dateTime(self, MockCashGroup, MockCToken, cTokenAggregator, accounts):
+    def dateTime(self, MockCashGroup, MockCToken, accounts):
         return accounts[0].deploy(MockCashGroup)
 
     @pytest.fixture(autouse=True)
