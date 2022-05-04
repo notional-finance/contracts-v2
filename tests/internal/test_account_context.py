@@ -396,32 +396,32 @@ class TestAccountContext:
         acBytes = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
 
         # is active and append to end, too long
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 20, True, PORTFOLIO_FLAG, 0)
 
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 20, True, BALANCE_FLAG, 0)
 
         # is active and must insert, too long
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG, 0)
 
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 0)
 
         # duplicate tests with bitmap
         # is active and append to end, too long
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 20, True, PORTFOLIO_FLAG, 10)
 
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 20, True, BALANCE_FLAG, 10)
 
         # is active and must insert, too long
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 3, True, PORTFOLIO_FLAG, 10)
 
-        with brownie.reverts("dev: AC: too many currencies"):
+        with brownie.reverts():
             accountContext.setActiveCurrency(acBytes, 3, True, BALANCE_FLAG, 10)
 
     def test_clear_portfolio_flags(self, accountContext):

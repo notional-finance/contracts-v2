@@ -352,7 +352,7 @@ def test_cannot_enable_cash_group_on_capped_token(environment, accounts):
     )
 
     currencyId = txn.events["ListCurrency"]["newCurrencyId"]
-    with brownie.reverts("dev: cannot enable trading, collateral cap"):
+    with brownie.reverts():
         config = CurrencyDefaults
         environment.notional.enableCashGroup(
             currencyId,
