@@ -7,6 +7,7 @@ interface ILeveragedVault {
     // Tells a vault to mint vault shares given the amount of cash transferred
     function mintVaultShares(
         address account,
+        uint256 maturity,
         uint256 assetCashTransferred,
         bytes calldata data
     ) external returns (
