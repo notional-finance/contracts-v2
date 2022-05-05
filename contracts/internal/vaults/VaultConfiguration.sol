@@ -153,6 +153,32 @@ library VaultConfiguration {
         nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
     }
 
+    /**
+     * @notice Calculates the leverage ratio of the account or vault
+     */
+    function calculateLeverage(
+        int256 assetCashBalanceInternal,
+        int256 vaultSharesUnderlyingInternalValue,
+        int256 fCash,
+        AssetRateParameters memory assetRate
+    ) internal pure returns (int256 leverageRatio) {
+        // The net asset value includes all value in cash and vault shares in underlying internal
+        // precision minus the total amount borrowed
+        int256 netAssetValue = assetRate.convertToUnderlying(assetCashBalanceInternal)
+            .add(vaultSharesUnderlyingInternalValue)
+            // We do not discount fCash to present value so that we do not introduce interest
+            // rate risk in this calculation. The economic benefit of discounting will be very
+            // minor relative to the added complexity of accounting for interest rate risk.
+            .add(fCash);
+
+        // Can never have negative value of assets
+        require(netAssetValue > 0);
+
+        // Leverage ratio is: (borrowValue / netAssetValue) + 1
+        leverageRatio = fCash.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
+    }
+
+
     function underlyingValueOf(
         VaultConfig memory vaultConfig,
         address account
@@ -167,6 +193,30 @@ library VaultConfiguration {
         // TODO: implement
     }
 
+    function checkTotalBorrowCapacity(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        int256 stakedNTokenPV
+    ) internal view returns (int256 totalVaultDebt) {
+        // TODO: implement
+
+    }
+
+    function checkVaultAndAccountHealth(
+        VaultConfig memory vaultConfig,
+        int256 vaultUnderlyingInternalValue,
+        int256 totalVaultDebt,
+        int256 accountUnderlyingInternalValue,
+        VaultAccount memory vaultAccount,
+        AssetRateParameters memory assetRate
+    ) internal pure {
+        // In both cases here we do not account for cash balances. For the vault, any cash balances are held in
+        // escrow to offset fCash debts. Accounts will not have any cash balance at this point.
+        int256 vaultLeverageRatio = calculateLeverage(0, vaultUnderlyingInternalValue, totalVaultDebt, assetRate);
+        require(vaultLeverageRatio <= vaultConfig.maxLeverageRatio, "Vault Unhealthy");
+        int256 accountLeverageRatio = calculateLeverage(0, accountUnderlyingInternalValue, vaultAccount.fCash, assetRate);
+        require(accountLeverageRatio <= vaultConfig.maxLeverageRatio, "Account Unhealthy");
+    }
 
     /**
      * @notice Updates state when the vault is being settled.

@@ -66,7 +66,7 @@ contract VaultAction is ActionGuards {
      * @param fCash total amount of fCash to borrow to enter the vault
      * @param maxBorrowRate maximum interest rate to borrow at
      * @param vaultData additional data to pass to the vault contract
-     * @return vaultTokensMinted
+     * @return vaultSharesMinted
      */
     function enterVault(
         address account,
@@ -76,57 +76,33 @@ contract VaultAction is ActionGuards {
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256 vaultTokensMinted) { 
+    ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256) { 
         // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
 
         // Vaults cannot be entered if they are in the settlement time period at the end of a quarter.
-        uint256 blockTime = block.timestamp;
-        require(!vaultConfig.isInSettlement(blockTime), "In Settlement");
+        require(!vaultConfig.isInSettlement(block.timestamp), "In Settlement");
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Do this first in case the vault has a matured vault position
-        vaultAccount.settleVaultAccount(vaultConfig, blockTime);
+        vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
 
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.
-        vaultAccount.depositFromAccount(
-            vaultConfig.borrowCurrencyId,
-            depositAmountExternal,
-            useUnderlying
-        );
+        vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        vaultAccount.borrowIntoVault(
-            vaultConfig,
-            vaultConfig.getCurrentMaturity(blockTime),
-            SafeInt256.toInt(fCash).neg(),
-            maxBorrowRate,
-            blockTime
-        );
-
-        // At this point the vault must have some cash balance to enter the vault with. There are three
-        // sources of this potential cash balance:
-        //  - settling a matured vault account
-        //  - deposits from the account
-        //  - borrowing into the vault
-        require(vaultAccount.cashBalance > 0);
-
-        // Now, push the entire cash balance into the vault and let the vault know that this account
-        // needs to enter a position.
-        (
-            int256 assetCashToVaultExternal,
-            /* int256 actualTransferInternal */
-        ) = vaultConfig.transferVault(vaultAccount.cashBalance.neg());
-        vaultAccount.cashBalance = 0;
-        vaultAccount.setVaultAccount(vaultConfig.vault);
-
-        // This call will tell the vault that a particular account has entered and it will
-        // enter it's yield position. It will then check that the vault is under it's leverage
-        // ratio and max capacity.
-        // TODO: fix this
-        // return vaultConfig.enterVaultAndCheckHealth(account, assetCashToVaultExternal, vaultData);
+        if (fCash > 0) {
+            return _borrowAndEnterVault(vaultConfig, vaultAccount, fCash, maxBorrowRate, vaultData);
+        } else {
+            // If the account is not using any leverage we just enter the vault. No matter what the leverage
+            // ratio will decrease in this case so we do not need to check vault health and the account will
+            // not have to pay any nToken fees. This is useful for accounts that want to quickly and cheaply
+            // deleverage their account without paying down debts.
+            (/* */, /* */, uint256 vaultSharesMinted) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
+            return vaultSharesMinted;
+        }
     }
 
     /**
@@ -205,19 +181,20 @@ contract VaultAction is ActionGuards {
         uint32 minLendRate,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external allowAccountOrVault(account, vault) nonReentrant {
+    ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256) {
         // Cannot enter a vault if it is not enabled
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
         require(vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTER), "No Reenter");
 
         // Vaults can only be rolled during the settlement period
-        uint256 blockTime = block.timestamp;
-        require(vaultConfig.isInSettlement(blockTime), "Not in Settlement");
+        require(vaultConfig.isInSettlement(block.timestamp), "Not in Settlement");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // Can only roll vaults that are in the current maturity
-        require(vaultAccount.maturity == vaultConfig.getCurrentMaturity(blockTime), "Incorrect maturity");
+        require(vaultAccount.maturity == vaultConfig.getCurrentMaturity(block.timestamp), "Incorrect maturity");
+        // Account must be borrowing fCash, otherwise they should exit.
+        require(fCashToBorrow > 0, "Must Borrow");
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
@@ -228,21 +205,15 @@ contract VaultAction is ActionGuards {
             vaultConfig,
             vaultAccount.fCash.neg(), // must fully exit the fCash position
             minLendRate,
-            blockTime
+            block.timestamp
         );
 
-        // If the lending was unsuccessful then we cannot roll the position, the account cannot have two
-        // fCash balances.
+        // If the lending was unsuccessful then we cannot roll the position, the account cannot
+        // have two fCash balances.
         require(vaultAccount.fCash == 0, "Failed Lend");
 
-        // Execute the borrow in the next maturity 
-        vaultAccount.borrowIntoVault(
-            vaultConfig,
-            vaultConfig.getNextMaturity(blockTime),
-            SafeInt256.toInt(fCashToBorrow).neg(),
-            maxBorrowRate,
-            blockTime
-        );
+        // Borrows into the vault, paying nToken fees and checks borrow capacity
+        return _borrowAndEnterVault(vaultConfig, vaultAccount, fCashToBorrow, maxBorrowRate, vaultData);
     }
 
     /**
@@ -260,5 +231,48 @@ contract VaultAction is ActionGuards {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
 
         // TODO: pay the caller a fee for the transaction...
+    }
+
+    function _borrowAndEnterVault(
+        VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
+        uint256 fCashToBorrow,
+        uint256 maxBorrowRate,
+        bytes calldata vaultData
+    ) private returns (uint256) {
+        (AssetRateParameters memory assetRate, int256 totalVaultDebt) = vaultAccount.borrowIntoVault(
+            vaultConfig,
+            vaultConfig.getNextMaturity(block.timestamp),
+            SafeInt256.toInt(fCashToBorrow).neg(),
+            maxBorrowRate,
+            block.timestamp
+        );
+
+        return _checkHealth(vaultAccount, vaultConfig, assetRate, totalVaultDebt, vaultData);
+    }
+
+    /// @notice Convenience method for borrowing and entering a vault, used in enterVault and rollVaultPosition
+    function _checkHealth(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory assetRate,
+        int256 totalVaultDebt,
+        bytes calldata vaultData
+    ) private returns (uint256) {
+        // Transfers cash, sets vault account state, mints vault shares
+        (
+            int256 accountUnderlyingInternalValue,
+            int256 vaultUnderlyingInternalValue,
+            uint256 vaultSharesMinted
+        ) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
+
+        // Checks final vault and account leverage ratios
+        vaultConfig.checkVaultAndAccountHealth(
+            vaultUnderlyingInternalValue,
+            totalVaultDebt,
+            accountUnderlyingInternalValue,
+            vaultAccount,
+            assetRate
+        );
     }
 }

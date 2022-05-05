@@ -122,6 +122,8 @@ library VaultAccountLib {
      * @param fCash amount of fCash to borrow from the market, must be negative
      * @param maxBorrowRate maximum annualized rate to pay for the borrow
      * @param blockTime current block time
+     * @return assetRate for future calculations
+     * @return totalVaultDebt for future calculations
      */
     function borrowIntoVault(
         VaultAccount memory vaultAccount,
@@ -130,8 +132,8 @@ library VaultAccountLib {
         int256 fCash,
         uint256 maxBorrowRate,
         uint256 blockTime
-    ) internal {
-        require(fCash <= 0); // dev: fcash must be negative
+    ) internal returns (AssetRateParameters memory assetRate, int256 totalVaultDebt) {
+        require(fCash < 0); // dev: fcash must be negative
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
         // Cannot enter a vault if it is in a shortfall
@@ -141,12 +143,12 @@ library VaultAccountLib {
         // current maturity because we check if it must be settled first.
         require(vaultAccount.maturity == 0 || vaultAccount.maturity == maturity);
 
-        // All of the cash borrowed will go to the vault. Additional collateral and fees required
-        // will be calculated below and taken from the account's external balances.
-        int256 assetCashBorrowed;
-        AssetRateParameters memory assetRate;
+        // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
+        // assuming the worst case scenario. Will adjust the fee properly at the end
+        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash);
 
-        if (fCash > 0) {
+        {
+            int256 assetCashBorrowed;
             (assetCashBorrowed, assetRate) = _executeTrade(
                 vaultConfig.borrowCurrencyId,
                 maturity,
@@ -155,35 +157,78 @@ library VaultAccountLib {
                 blockTime
             );
             require(assetCashBorrowed > 0, "Borrow failed");
+
+            // Update the account and vault state to account for the borrowing
+            vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+            vaultAccount.fCash = vaultAccount.fCash.add(fCash);
+            vaultAccount.maturity = maturity;
+            vaultAccount.cashBalance = vaultAccount.cashBalance.add(assetCashBorrowed).sub(maxNTokenFee);
         }
-
-        // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
-        // assuming the worst case scenario. Will adjust the fee properly at the end
-        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash);
-
-        // Update the account and vault state to account for the borrowing
-        vaultState.totalfCash = vaultState.totalfCash.add(fCash);
-        vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-        vaultAccount.maturity = maturity;
-        vaultAccount.cashBalance = vaultAccount.cashBalance.add(assetCashBorrowed).sub(maxNTokenFee);
 
         // Ensure that we are above the minimum borrow size. Accounts smaller than this are not profitable
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
-        require(vaultState.totalfCash.neg() <= vaultConfig.maxVaultBorrowSize, "Max Vault Size");
 
-        // Leverage ratio is calculated as a ratio of the total borrowing to net assets
-        int256 leverageRatio = _calculateLeverage(vaultAccount, vaultConfig, assetRate);
-        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Excess leverage");
+        // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
+        // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
+        // actual fee amount (if there is significant slippage than the account's leverage ratio will be higher),
+        // however, for the sake of simplicity we do it here (rather than rely on a bunch of back and forth transfers
+        // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
+        // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
+        // vault shares to ensure that both the account and vault are healthy.
+        int256 nTokenFee;
+        {
+            int256 preSlippageLeverageRatio = VaultConfiguration.calculateLeverage(
+                vaultAccount.cashBalance,
+                vaultConfig.underlyingValueOf(vaultAccount.account),
+                vaultAccount.fCash,
+                assetRate
+            );
 
-        int256 nTokenFee = vaultConfig.getNTokenFee(leverageRatio, fCash);
+            nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
+        }
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
-        nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
+        int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
         vaultAccount.cashBalance = vaultAccount.cashBalance.add(maxNTokenFee).sub(nTokenFee);
 
         // Done modifying the vault state at this point.
         vaultConfig.setVaultState(vaultState);
+
+        // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
+        totalVaultDebt = vaultConfig.checkTotalBorrowCapacity(vaultState, stakedNTokenPV);
+    }
+
+    /**
+     * @notice Enters an account into a vault using it's cash balance. Checks final leverage ratios
+     * of both the account and vault. Sets the vault account in storage.
+     */
+    function enterAccountIntoVault(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig, 
+        bytes calldata vaultData
+    ) internal returns (
+        int256 accountUnderlyingInternalValue,
+        int256 vaultUnderlyingInternalValue,
+        uint256 vaultSharesMinted
+    ) {
+        int256 cashFromAccount = vaultAccount.cashBalance;
+        require(cashFromAccount > 0);
+
+        vaultAccount.cashBalance = 0;
+        // Done modifying the vault account at this point.
+        setVaultAccount(vaultAccount, vaultConfig.vault);
+
+        // Transfer the entire cash balance into the vault. We do not allow the vault to
+        // transferFrom the Notional contract.
+        (int256 assetCashToVaultExternal, /* */) = vaultConfig.transferVault(cashFromAccount.neg());
+
+        // TODO: implement
+        // (
+        //     accountUnderlyingInternalValue,
+        //     vaultUnderlyingInternalValue,
+        //     vaultSharesMinted
+        // ) = vaultConfig.mintVaultShares(vaultAccount.account, assetCashToVaultExternal, vaultData);
     }
 
     /**
@@ -232,6 +277,11 @@ library VaultAccountLib {
             // account cash balance instead. Since the total fCash balance does not change
             // we do not update the vault state. We also don't update the cash balance on
             // the vault state because no other account has a claim on this cash.
+
+            // NOTE: if the account tries to re-enter the vault after this occurs, this
+            // cash balance will be used to mint additional vault shares and the fCash debt
+            // will either stay the same (or increase if the account borrows more). This ensures
+            // that the account's total debt position is properly accounted for.
             int256 assetCashDeposit = assetRate.convertFromUnderlying(fCash);
 
             // The account needs to keep assetCashDeposit in their cash balance, so the
@@ -258,41 +308,6 @@ library VaultAccountLib {
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
             vaultConfig.setVaultState(vaultState);
         }
-    }
-
-    function _enterVault(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig, 
-        bytes calldata vaultData
-    ) internal {
-        // TODO: fill in this method
-
-    }
-
-    /**
-     * @notice Calculates the leverage ratio of the account given how much assetCashDeposit
-     * and how much fee to pay to the nToken
-     */
-    function _calculateLeverage(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate
-    ) private view returns (int256 leverageRatio) {
-        // The net asset value includes all value in cash and vault shares in underlying internal
-        // precision minus the total amount borrowed
-        int256 netAssetValue = assetRate.convertToUnderlying(vaultAccount.cashBalance)
-            .add(vaultConfig.underlyingValueOf(vaultAccount.account))
-            // We do not discount fCash to present value so that we do not introduce interest
-            // rate risk in this calculation.
-            .add(vaultAccount.fCash);
-
-        // Can never have negative value of assets
-        require(netAssetValue > 0);
-
-        // Leverage ratio is: (borrowValue / netAssetValue) + 1
-        leverageRatio = vaultAccount.fCash.neg()
-            .divInRatePrecision(netAssetValue)
-            .add(Constants.RATE_PRECISION);
     }
 
     /**
@@ -355,6 +370,9 @@ library VaultAccountLib {
 
     /**
      * @notice Deposits a specified amount from the account
+     * @param borrowCurrencyId the currency id to borrow in
+     * @param _depositAmountExternal the amount to deposit in external precision
+     * @param useUnderlying if true then use the underlying token
      */
     function depositFromAccount(
         VaultAccount memory vaultAccount,
