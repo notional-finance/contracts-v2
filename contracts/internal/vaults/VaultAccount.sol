@@ -248,6 +248,7 @@ library VaultAccountLib {
      * lend more than the account's debt
      * @param minLendRate minimum rate to lend at
      * @param blockTime current block time
+     * @return assetRate the asset rate for further calculations
      * @return netCashTransfer a positive value means that the account must deposit this
      * much asset cash into the protocol, a negative value will mean that it will withdraw
      */
@@ -257,7 +258,7 @@ library VaultAccountLib {
         int256 fCash,
         uint256 minLendRate,
         uint256 blockTime
-    ) internal returns (int256 netCashTransfer) {
+    ) internal returns (AssetRateParameters memory assetRate, int256 netCashTransfer) {
         require(fCash >= 0); // dev: fcash must be positive
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
@@ -270,7 +271,8 @@ library VaultAccountLib {
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
-        (int256 assetCashCostToLend, AssetRateParameters memory assetRate) = _executeTrade(
+        int256 assetCashCostToLend;
+        (assetCashCostToLend, assetRate) = _executeTrade(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
             fCash,

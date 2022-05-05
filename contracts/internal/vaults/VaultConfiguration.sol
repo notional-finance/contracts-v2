@@ -218,6 +218,14 @@ library VaultConfiguration {
         require(accountLeverageRatio <= vaultConfig.maxLeverageRatio, "Account Unhealthy");
     }
 
+    function checkVaultAndAccountHealth(
+        VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
+        AssetRateParameters memory assetRate
+    ) internal view {
+        // IMPLEMENT
+    }
+
     /**
      * @notice Updates state when the vault is being settled.
      */

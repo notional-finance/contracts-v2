@@ -9,6 +9,7 @@ import "../../internal/vaults/VaultAccount.sol";
 contract VaultAction is ActionGuards {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
+    using TokenHandler for Token;
     using SafeInt256 for int256;
 
     /// @notice Emitted when a new vault is listed or updated
@@ -106,61 +107,6 @@ contract VaultAction is ActionGuards {
     }
 
     /**
-     * @notice Exits a vault by redeeming yield tokens, lending to offset fCash debt
-     * and then withdrawing any earnings back to the account.
-     *
-     * @param account the address that will exit the vault
-     * @param vault the vault to enter
-     * @param vaultSharesToRedeem amount of vault tokens to exit
-     * @param fCashToLend amount of fCash to lend
-     * @param minLendRate the minimum rate to lend at
-     * @param withdrawTo address to receive withdrawn funds
-     */
-    function exitVault(
-        address account,
-        address vault,
-        uint256 vaultSharesToRedeem,
-        uint256 fCashToLend,
-        uint32 minLendRate,
-        address withdrawTo
-    ) external allowAccountOrVault(account, vault) nonReentrant { 
-        uint256 blockTime = block.timestamp;
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
-        
-        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
-        // back into the cash balance.
-        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
-        
-        int256 netCashTransfer;
-        if (vaultAccount.maturity <= blockTime) {
-            vaultAccount.settleVaultAccount(vaultConfig, blockTime);
-            // If the cash balance is negative, then this will attempt to pull cash from the account.
-            netCashTransfer = vaultAccount.cashBalance.neg();
-        } else {
-            netCashTransfer = vaultAccount.lendToExitVault(
-                vaultConfig,
-                SafeInt256.toInt(fCashToLend),
-                minLendRate,
-                blockTime
-            );
-        }
-        
-        // bool useUnderlying;
-        // if (netCashTransfer > 0) {
-        //     // TODO: this takes an external amount...
-        //     vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
-        // } else if (netCashTransfer < 0) {
-        //     vaultAccount.withdrawToAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
-        // }
-        
-        // // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
-        // // will be reducing their leverage ratio here, so we check that this is the case).
-        // int256 leverageRatio = _calculateLeverage(vaultAccount, vaultConfig, assetRate);
-        // require(leverageRatio <= vaultConfig.maxLeverageRatio, "Excess leverage");
-    }
-
-    /**
      * @notice Re-enters the vault at a longer dated maturity. There is no way to
      * partially re-enter a vault, the account's entire position will be rolled
      * forward.
@@ -216,23 +162,6 @@ contract VaultAction is ActionGuards {
         return _borrowAndEnterVault(vaultConfig, vaultAccount, fCashToBorrow, maxBorrowRate, vaultData);
     }
 
-    /**
-     * @notice Settles an entire vault, can only be called during an emergency stop out or during
-     * the vault's defined settlement period. May be called multiple times during a vault term if
-     * the vault has been stopped out early.
-     *
-     * @param vault the vault to settle
-     * @param vaultData data to pass to the vault
-     */
-    function settleVault(
-        address vault,
-        bytes calldata vaultData
-    ) external nonReentrant {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
-
-        // TODO: pay the caller a fee for the transaction...
-    }
-
     function _borrowAndEnterVault(
         VaultConfig memory vaultConfig,
         VaultAccount memory vaultAccount,
@@ -275,4 +204,91 @@ contract VaultAction is ActionGuards {
             assetRate
         );
     }
+
+    /**
+     * @notice Exits a vault by redeeming yield tokens, lending to offset fCash debt
+     * and then withdrawing any earnings back to the account.
+     *
+     * @param account the address that will exit the vault
+     * @param vault the vault to enter
+     * @param vaultSharesToRedeem amount of vault tokens to exit
+     * @param fCashToLend amount of fCash to lend
+     * @param minLendRate the minimum rate to lend at
+     * @param useUnderlying if vault shares should be redeemed to underlying
+     */
+    function exitVault(
+        address account,
+        address vault,
+        uint256 vaultSharesToRedeem,
+        uint256 fCashToLend,
+        uint32 minLendRate,
+        bool useUnderlying
+    ) external allowAccountOrVault(account, vault) nonReentrant { 
+        uint256 blockTime = block.timestamp;
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        
+        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
+        // back into the cash balance.
+        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        
+        int256 netCashTransfer;
+        if (vaultAccount.maturity <= blockTime) {
+            vaultAccount.settleVaultAccount(vaultConfig, blockTime);
+            // If the cash balance is negative, then this will attempt to pull cash from the account.
+            netCashTransfer = vaultAccount.cashBalance.neg();
+        } else {
+            AssetRateParameters memory assetRate;
+            (assetRate, netCashTransfer) = vaultAccount.lendToExitVault(
+                vaultConfig,
+                SafeInt256.toInt(fCashToLend),
+                minLendRate,
+                blockTime
+            );
+        
+            // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
+            // will be reducing their leverage ratio here, so we check that this is the case).
+            vaultConfig.checkVaultAndAccountHealth(vaultAccount, assetRate);
+        }
+        
+        if (netCashTransfer < 0) {
+            // It will be more common that accounts will be able to withdraw their profits
+            vaultAccount.withdrawToAccount(vaultConfig.borrowCurrencyId, netCashTransfer, useUnderlying);
+        } else if (netCashTransfer > 0) {
+            // It's unlikely that an account will need to deposit to exit, so while this is slightly inefficient
+            // it also won't be a very common execution path.
+            Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+            int256 netCashTransferExternal = assetToken.convertToExternal(netCashTransfer);
+
+            // TODO: we require deposits to be in asset tokens here for simplicity...is this going
+            // to create problems?
+            vaultAccount.depositIntoAccount(
+                vaultAccount.account,
+                vaultConfig.borrowCurrencyId,
+                uint256(netCashTransferExternal), // overflow checked above
+                true
+            );
+        }
+
+        vaultAccount.setVaultAccount(vault);
+    }
+
+    /**
+     * @notice Settles an entire vault, can only be called during an emergency stop out or during
+     * the vault's defined settlement period. May be called multiple times during a vault term if
+     * the vault has been stopped out early.
+     *
+     * @param vault the vault to settle
+     * @param vaultData data to pass to the vault
+     */
+    function settleVault(
+        address vault,
+        bytes calldata vaultData
+    ) external nonReentrant {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+
+        // TODO: pay the caller a fee for the transaction...
+    }
+
+
 }
