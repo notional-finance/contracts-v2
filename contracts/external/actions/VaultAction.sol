@@ -274,6 +274,60 @@ contract VaultAction is ActionGuards {
     }
 
     /**
+     * @notice If an account is above the maximum leverage ratio, some amount of vault shares can be redeemed
+     * such that they fall back under the maximum leverage ratio. A portion of the redemption will be paid
+     * to the msg.sender.
+     * @param account the address that will exit the vault
+     * @param vault the vault to enter
+     * @param vaultSharesToRedeem amount of vault tokens to exit
+     */
+    function deleverageAccount(
+        address account,
+        address vault,
+        uint256 vaultSharesToRedeem
+    ) external nonReentrant { 
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+
+        // Check that the account has an active position
+        require(block.timestamp < vaultAccount.maturity);
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+
+        // Check that the leverage ratio is above the maximum allowed
+        int256 underlyingInternalValue = vaultConfig.underlyingValueOf(account);
+        int256 leverageRatio = VaultConfiguration.calculateLeverage(
+            vaultAccount.cashBalance,
+            underlyingInternalValue,
+            vaultAccount.fCash,
+            assetRate
+        );
+        require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
+
+        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
+        // back into the cash balance.
+        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+
+        // TODO: Pay the liquidator some portion of the cash balance here
+
+        // Recalculate the leverage ratio and ensure that it is under the maxLeverageRatio
+        underlyingInternalValue = vaultConfig.underlyingValueOf(account);
+        leverageRatio = VaultConfiguration.calculateLeverage(
+            vaultAccount.cashBalance,
+            underlyingInternalValue,
+            vaultAccount.fCash,
+            assetRate
+        );
+
+        // Ensure that the leverage ratio does not drop too much (we would over liquidate the account
+        // in this case). It's possible that the account is still over levered after this forced exit, however,
+        // we still allow the transaction to complete.
+        require(vaultConfig.maxLeverageRatio.mulInRatePrecision(0.70e9) < leverageRatio, "Over liquidation");
+
+        // Sets the vault account
+        vaultAccount.setVaultAccount(vault);
+    }
+
+    /**
      * @notice Settles an entire vault, can only be called during an emergency stop out or during
      * the vault's defined settlement period. May be called multiple times during a vault term if
      * the vault has been stopped out early.
