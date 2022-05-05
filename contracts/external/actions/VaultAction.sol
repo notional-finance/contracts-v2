@@ -89,10 +89,15 @@ contract VaultAction is ActionGuards {
         // Do this first in case the vault has a matured vault position
         vaultAccount.settleVaultAccount(vaultConfig, blockTime);
 
-        // TODO: allow this to transfer from the vault as well?
         // This will update the account's cash balance in memory, this will establish the amount of
-        // collateral that the vault account has.
-        // vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
+        // collateral that the vault account has. This method only transfers from the account, so approvals
+        // must be set accordingly.
+        vaultAccount.depositFromAccount(
+            vaultConfig.borrowCurrencyId,
+            depositAmountExternal,
+            useUnderlying
+        );
+
         vaultAccount.borrowIntoVault(
             vaultConfig,
             vaultConfig.getCurrentMaturity(blockTime),

@@ -359,10 +359,12 @@ library VaultAccountLib {
     function depositFromAccount(
         VaultAccount memory vaultAccount,
         uint16 borrowCurrencyId,
-        int256 depositAmountExternal,
+        uint256 _depositAmountExternal,
         bool useUnderlying
     ) internal {
-        require(depositAmountExternal > 0);
+        if (_depositAmountExternal == 0) return;
+        int256 depositAmountExternal = SafeInt256.toInt(_depositAmountExternal);
+
         Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
         int256 assetAmountExternal;
 
