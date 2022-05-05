@@ -224,12 +224,19 @@ library VaultAccountLib {
         // transferFrom the Notional contract.
         (int256 assetCashToVaultExternal, /* */) = vaultConfig.transferVault(cashFromAccount.neg());
 
-        // TODO: implement
-        // (
-        //     accountUnderlyingInternalValue,
-        //     vaultUnderlyingInternalValue,
-        //     vaultSharesMinted
-        // ) = vaultConfig.mintVaultShares(vaultAccount.account, assetCashToVaultExternal, vaultData);
+        uint256 accountUnderlyingValue;
+        uint256 vaultUnderlyingValue;
+        ( accountUnderlyingValue, vaultUnderlyingValue, vaultSharesMinted) =
+            ILeveragedVault(vaultConfig.vault).mintVaultShares(
+                vaultAccount.account,
+                SafeInt256.toUint(assetCashToVaultExternal),
+                vaultData
+            );
+
+        // Convert external precision to internal precision here
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        accountUnderlyingInternalValue = underlyingToken.convertToInternal(SafeInt256.toInt(accountUnderlyingValue));
+        vaultUnderlyingInternalValue = underlyingToken.convertToInternal(SafeInt256.toInt(vaultUnderlyingValue));
     }
 
     /**

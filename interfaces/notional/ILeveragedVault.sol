@@ -4,6 +4,17 @@ pragma solidity >=0.7.0;
 // Inherits ERC20? or ERC4626?
 interface ILeveragedVault {
 
+    // Tells a vault to mint vault shares given the amount of cash transferred
+    function mintVaultShares(
+        address account,
+        uint256 assetCashTransferred,
+        bytes calldata data
+    ) external returns (
+        uint256 accountUnderlyingValue,
+        uint256 vaultUnderlyingValue,
+        uint256 vaultSharesMinted
+    );
+
     // Redeems shares from the vault to asset cash.
     function redeemForNotional(address account, uint256 vaultShares) external returns (uint256);
 
