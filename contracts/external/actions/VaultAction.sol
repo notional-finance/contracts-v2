@@ -53,16 +53,7 @@ contract VaultAction is ActionGuards {
         address vaultAddress,
         bool enable
     ) external onlyOwner {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vaultAddress);
-
-        // TODO: fix this
-        // if (enable) {
-        //     vaultConfig.flags = vaultConfig.flags | VaultConfiguration.ENABLED;
-        // } else {
-        //     vaultConfig.flags = vaultConfig.flags & ~VaultConfiguration.ENABLED;
-        // }
-        // vaultConfig.setVaultConfig(vaultAddress);
-
+        VaultConfiguration.setVaultEnabledStatus(vaultAddress, enable);
         emit VaultPauseStatus(vaultAddress, enable);
     }
 

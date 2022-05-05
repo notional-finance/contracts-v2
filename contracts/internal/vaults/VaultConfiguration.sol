@@ -39,6 +39,21 @@ library VaultConfiguration {
         vaultConfig.riskFactor = s.riskFactor;
     }
 
+    function setVaultEnabledStatus(
+        address vaultAddress,
+        bool enable
+    ) internal {
+        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        VaultConfigStorage storage s = store[vaultAddress];
+        uint16 flags = s.flags;
+
+        if (enable) {
+            s.flags = flags | VaultConfiguration.ENABLED;
+        } else {
+            s.flags = flags & ~VaultConfiguration.ENABLED;
+        }
+    }
+
     function setVaultConfig(
         address vaultAddress,
         VaultConfigStorage calldata vaultConfig
