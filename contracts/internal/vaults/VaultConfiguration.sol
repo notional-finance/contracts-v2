@@ -121,13 +121,6 @@ library VaultConfiguration {
         return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
     }
 
-    function getNextMaturity(
-        VaultConfig memory vaultConfig,
-        uint256 blockTime
-    ) internal pure returns (uint256) {
-        // TODO: implement
-    }
-
     function getNTokenFee(
         VaultConfig memory vaultConfig,
         int256 leverageRatio,
@@ -186,13 +179,6 @@ library VaultConfiguration {
         // TODO: implement
     }
 
-    function isInSettlement(
-        VaultConfig memory vaultConfig,
-        uint256 blockTime
-    ) internal view returns (bool) {
-        // TODO: implement
-    }
-
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
@@ -214,6 +200,8 @@ library VaultConfiguration {
         // escrow to offset fCash debts. Accounts will not have any cash balance at this point.
         int256 vaultLeverageRatio = calculateLeverage(0, vaultUnderlyingInternalValue, totalVaultDebt, assetRate);
         require(vaultLeverageRatio <= vaultConfig.maxLeverageRatio, "Vault Unhealthy");
+
+        // TODO: the account may also have a claim on the cash in the vault, it should grab that here.
         int256 accountLeverageRatio = calculateLeverage(0, accountUnderlyingInternalValue, vaultAccount.fCash, assetRate);
         require(accountLeverageRatio <= vaultConfig.maxLeverageRatio, "Account Unhealthy");
     }

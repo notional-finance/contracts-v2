@@ -226,7 +226,7 @@ library VaultAccountLib {
 
         uint256 accountUnderlyingValue;
         uint256 vaultUnderlyingValue;
-        ( accountUnderlyingValue, vaultUnderlyingValue, vaultSharesMinted) =
+        (accountUnderlyingValue, vaultUnderlyingValue, vaultSharesMinted) =
             ILeveragedVault(vaultConfig.vault).mintVaultShares(
                 vaultAccount.account,
                 SafeInt256.toUint(assetCashToVaultExternal),

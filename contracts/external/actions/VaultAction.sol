@@ -11,6 +11,7 @@ contract VaultAction is ActionGuards {
     using VaultAccountLib for VaultAccount;
     using TokenHandler for Token;
     using SafeInt256 for int256;
+    using SafeMath for uint256;
 
     /// @notice Emitted when a new vault is listed or updated
     event VaultChange(address vaultAddress, bool enabled);
@@ -95,7 +96,14 @@ contract VaultAction is ActionGuards {
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
         if (fCash > 0) {
-            return _borrowAndEnterVault(vaultConfig, vaultAccount, fCash, maxBorrowRate, vaultData);
+            return _borrowAndEnterVault(
+                vaultConfig,
+                vaultAccount,
+                vaultConfig.getCurrentMaturity(block.timestamp),
+                fCash,
+                maxBorrowRate,
+                vaultData
+            );
         } else {
             // If the account is not using any leverage we just enter the vault. No matter what the leverage
             // ratio will decrease in this case so we do not need to check vault health and the account will
@@ -138,7 +146,8 @@ contract VaultAction is ActionGuards {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // Can only roll vaults that are in the current maturity
-        require(vaultAccount.maturity == vaultConfig.getCurrentMaturity(block.timestamp), "Incorrect maturity");
+        uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
+        require(vaultAccount.maturity == currentMaturity, "Incorrect maturity");
         // Account must be borrowing fCash, otherwise they should exit.
         require(fCashToBorrow > 0, "Must Borrow");
 
@@ -159,19 +168,28 @@ contract VaultAction is ActionGuards {
         require(vaultAccount.fCash == 0, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
-        return _borrowAndEnterVault(vaultConfig, vaultAccount, fCashToBorrow, maxBorrowRate, vaultData);
+
+        return _borrowAndEnterVault(
+            vaultConfig,
+            vaultAccount,
+            currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
+            fCashToBorrow,
+            maxBorrowRate,
+            vaultData
+        );
     }
 
     function _borrowAndEnterVault(
         VaultConfig memory vaultConfig,
         VaultAccount memory vaultAccount,
+        uint256 maturity,
         uint256 fCashToBorrow,
         uint256 maxBorrowRate,
         bytes calldata vaultData
     ) private returns (uint256) {
         (AssetRateParameters memory assetRate, int256 totalVaultDebt) = vaultAccount.borrowIntoVault(
             vaultConfig,
-            vaultConfig.getNextMaturity(block.timestamp),
+            maturity,
             SafeInt256.toInt(fCashToBorrow).neg(),
             maxBorrowRate,
             block.timestamp
