@@ -91,7 +91,7 @@ contract VaultAction is ActionGuards {
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.
-        vaultAccount.depositFromAccount(vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
+        vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
         if (fCash > 0) {
             return _borrowAndEnterVault(vaultConfig, vaultAccount, fCash, maxBorrowRate, vaultData);
@@ -130,7 +130,7 @@ contract VaultAction is ActionGuards {
         
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
-        vaultAccount.redeemShares(vault, vaultSharesToRedeem);
+        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
         
         int256 netCashTransfer;
         if (vaultAccount.maturity <= blockTime) {
@@ -198,7 +198,7 @@ contract VaultAction is ActionGuards {
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
-        vaultAccount.redeemShares(vault, vaultSharesToRedeem);
+        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
 
         // Fully exit the current lending position
         vaultAccount.lendToExitVault(

@@ -8,6 +8,7 @@ import "../markets/CashGroup.sol";
 import "../markets/AssetRate.sol";
 import "../../math/SafeInt256.sol";
 import "../balances/TokenHandler.sol";
+import "../../../interfaces/notional/ILeveragedVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
@@ -354,17 +355,27 @@ library VaultAccountLib {
      * @notice Redeems vault shares and credits them to the vault account's cash balance.
      * @dev Updates account cash balance in memory
      * @param vaultAccount the account's position in the vault
-     * @param vault address of the vault
+     * @param vaultConfig vault config object
      * @param vaultSharesToRedeem shares of the vault to redeem
      */
     function redeemShares(
         VaultAccount memory vaultAccount,
-        address vault,
+        VaultConfig memory vaultConfig, 
         uint256 vaultSharesToRedeem
     ) internal {
         if (vaultSharesToRedeem > 0) {
-            uint256 assetCashRaised;// = ILeveragedVault(vault).redeemToNotional(vaultSharesToRedeem, vaultAccount.account);
-            vaultAccount.cashBalance = vaultAccount.cashBalance.add(SafeInt256.toInt(assetCashRaised));
+            uint256 assetCashExternal = ILeveragedVault(vaultConfig.vault).redeemForNotional(
+                vaultAccount.account,
+                vaultSharesToRedeem
+            );
+
+            depositIntoAccount(
+                vaultAccount,
+                vaultConfig.vault,
+                vaultConfig.borrowCurrencyId,
+                assetCashExternal,
+                false // vault will mint asset cash
+            );
         }
     }
 
@@ -374,8 +385,9 @@ library VaultAccountLib {
      * @param _depositAmountExternal the amount to deposit in external precision
      * @param useUnderlying if true then use the underlying token
      */
-    function depositFromAccount(
+    function depositIntoAccount(
         VaultAccount memory vaultAccount,
+        address transferFrom,
         uint16 borrowCurrencyId,
         uint256 _depositAmountExternal,
         bool useUnderlying
@@ -390,7 +402,7 @@ library VaultAccountLib {
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(borrowCurrencyId);
             // This is the actual amount of underlying transferred
             int256 underlyingAmountExternal = underlyingToken.transfer(
-                vaultAccount.account, 
+                transferFrom,
                 borrowCurrencyId,
                 depositAmountExternal
             );
@@ -410,7 +422,7 @@ library VaultAccountLib {
             }
 
             assetAmountExternal = assetToken.transfer(
-                vaultAccount.account,
+                transferFrom,
                 borrowCurrencyId,
                 depositAmountExternal
             );

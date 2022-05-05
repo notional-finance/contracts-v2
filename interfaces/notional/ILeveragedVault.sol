@@ -2,7 +2,13 @@
 pragma solidity >=0.7.0;
 
 // Inherits ERC20? or ERC4626?
-interface ILeveredVault {
+interface ILeveragedVault {
+
+    // Redeems shares from the vault to asset cash.
+    function redeemForNotional(address account, uint256 vaultShares) external returns (uint256);
+
+
+
 
     function assetCashValueOfShares(uint256 vaultShares) external view returns (uint256);
     function assetCashValueOf(address account) external view returns (uint256);
