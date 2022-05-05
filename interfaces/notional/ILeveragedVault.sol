@@ -16,7 +16,22 @@ interface ILeveragedVault {
     );
 
     // Redeems shares from the vault to asset cash.
-    function redeemForNotional(address account, uint256 vaultShares) external returns (uint256);
+    function redeemVaultShares(
+        address account,
+        uint256 vaultShares,
+        bytes calldata data
+    ) external returns (uint256);
+
+    function settleVaultShares(
+        uint256 vaultSharesToRedeem,
+        bytes calldata data
+    ) external returns (uint256 assetCashExternal);
+
+    function isInSettlement() external view returns (bool);
+    function getSharesToSettle(uint256 maturity) external view returns (
+        uint256 settleableShares,
+        uint256 totalSettleableShares
+    );
 
 
 

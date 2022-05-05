@@ -373,9 +373,10 @@ library VaultAccountLib {
         uint256 vaultSharesToRedeem
     ) internal {
         if (vaultSharesToRedeem > 0) {
-            uint256 assetCashExternal = ILeveragedVault(vaultConfig.vault).redeemForNotional(
+            uint256 assetCashExternal = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
-                vaultSharesToRedeem
+                vaultSharesToRedeem,
+                "" // TODO: implement
             );
 
             depositIntoAccount(

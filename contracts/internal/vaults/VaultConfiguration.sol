@@ -229,15 +229,23 @@ library VaultConfiguration {
     /**
      * @notice Updates state when the vault is being settled.
      */
-    function settleVault(
+    function settleVaultState(
         VaultConfig memory vaultConfig,
         uint256 maturity,
-        int256 assetCashRaised,
-        uint256 blockTime
+        uint256 assetCashRaisedExternal,
+        uint256 blockTime,
+        bool hasSupplyLeft
     ) internal returns (int256 netAssetCash) {
+        // Transfer in the tokens that were raised
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        
+        // We are transferring assetCashRaisedExternal into Notional
+        int256 actualTransferInternal = assetToken.convertToInternal(
+            assetToken.transfer(vaultConfig.vault, vaultConfig.borrowCurrencyId, SafeInt256.toInt(assetCashRaisedExternal))
+        );
+
         VaultState memory vaultState = getVaultState(vaultConfig, maturity);
         AssetRateParameters memory assetRate;
-
         if (blockTime < maturity) {
             // Before maturity, we use the current asset exchange rate
             assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
@@ -250,15 +258,13 @@ library VaultConfiguration {
             );
         }
 
-        vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashRaised);
+        vaultState.totalAssetCash = vaultState.totalAssetCash.add(actualTransferInternal);
         // If this is gte 0, then we have sufficient cash to repay the debt. Else, we still need some more cash.
         netAssetCash = vaultState.totalAssetCash.add(assetRate.convertFromUnderlying(vaultState.totalfCash));
-        vaultState.isFullySettled = netAssetCash >= 0;
 
+        // If the vault does not have supply left then it is fully settled
+        vaultState.isFullySettled = netAssetCash >= 0 || !hasSupplyLeft;
         setVaultState(vaultConfig, vaultState);
-
-
-        // TODO: how do we determine if a vault is empty and must redeem?
     }
 
     /**

@@ -83,7 +83,7 @@ contract VaultAction is ActionGuards {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
 
         // Vaults cannot be entered if they are in the settlement time period at the end of a quarter.
-        require(!vaultConfig.isInSettlement(block.timestamp), "In Settlement");
+        require(!ILeveragedVault(vault).isInSettlement(), "In Settlement");
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Do this first in case the vault has a matured vault position
@@ -134,7 +134,7 @@ contract VaultAction is ActionGuards {
         require(vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTER), "No Reenter");
 
         // Vaults can only be rolled during the settlement period
-        require(vaultConfig.isInSettlement(block.timestamp), "Not in Settlement");
+        require(ILeveragedVault(vault).isInSettlement(), "Not in Settlement");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // Can only roll vaults that are in the current maturity
@@ -337,12 +337,29 @@ contract VaultAction is ActionGuards {
      */
     function settleVault(
         address vault,
+        uint256 maturity,
+        uint256 vaultSharesToRedeem,
         bytes calldata vaultData
     ) external nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
+        (
+            uint256 settleableShares,
+            uint256 totalSettleableShares
+        ) = ILeveragedVault(vault).getSharesToSettle(maturity);
 
-        // TODO: pay the caller a fee for the transaction...
+        // Allow the caller to settle part of the shares (not the whole thing), if that is
+        // required for whatever reason. If vaultSharesToRedeem is set to zero then we will
+        // use the settleableShares reported by the vault
+        if (vaultSharesToRedeem > 0) {
+            require(vaultSharesToRedeem <= settleableShares);
+        } else {
+            vaultSharesToRedeem = settleableShares;
+        }
+
+        uint256 assetCashExternal = ILeveragedVault(vault).settleVaultShares(vaultSharesToRedeem, vaultData);
+        bool hasSupplyLeft = totalSettleableShares > vaultSharesToRedeem;
+
+        // This method will transfer the cash into Notional and update the relevant vault state
+        vaultConfig.settleVaultState(maturity, assetCashExternal, block.timestamp, hasSupplyLeft);
     }
-
-
 }
