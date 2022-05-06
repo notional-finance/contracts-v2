@@ -35,8 +35,7 @@ library VaultConfiguration {
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
         vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
         vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
-
-        vaultConfig.riskFactor = s.riskFactor;
+        vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
     }
 
     function setVaultEnabledStatus(
@@ -147,45 +146,37 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Calculates the leverage ratio of the account or vault
+     * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
+     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance
      */
-    function calculateLeverage(
-        int256 assetCashBalanceInternal,
-        int256 vaultSharesUnderlyingInternalValue,
-        int256 fCash,
-        AssetRateParameters memory assetRate
-    ) internal pure returns (int256 leverageRatio) {
-        // The net asset value includes all value in cash and vault shares in underlying internal
-        // precision minus the total amount borrowed
-        int256 netAssetValue = assetRate.convertToUnderlying(assetCashBalanceInternal)
-            .add(vaultSharesUnderlyingInternalValue)
-            // We do not discount fCash to present value so that we do not introduce interest
-            // rate risk in this calculation. The economic benefit of discounting will be very
-            // minor relative to the added complexity of accounting for interest rate risk.
-            .add(fCash);
-
-        // Can never have negative value of assets
-        require(netAssetValue > 0);
-
-        // Leverage ratio is: (borrowValue / netAssetValue) + 1
-        leverageRatio = fCash.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
-    }
-
-
-    function underlyingValueOf(
-        VaultConfig memory vaultConfig,
-        address account
-    ) internal view returns (int256 valueOf) {
-        // TODO: implement
-    }
-
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
+        AssetRateParameters memory assetRate,
         int256 stakedNTokenPV
-    ) internal view returns (int256 totalVaultDebt) {
-        // TODO: implement
+    ) internal view returns (int256 totalVaultfCashDebt) {
+        totalVaultfCashDebt = vaultState.totalfCash.add(assetRate.convertToUnderlying(vaultState.totalAssetCash));
+        
+        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
+            // If this is true then there is potentially debt in the next term as well
+            VaultState memory nextTerm = getVaultState(
+                vaultConfig,
+                vaultState.maturity.add(vaultConfig.termLengthInSeconds)
+            );
 
+            totalVaultfCashDebt = totalVaultfCashDebt.add(
+                nextTerm.totalfCash.add(assetRate.convertToUnderlying(nextTerm.totalAssetCash))
+            );
+        }
+
+        int256 maxNTokenCapacity = stakedNTokenPV
+            .mul(vaultConfig.capacityMultiplierPercentage)
+            .div(Constants.PERCENTAGE_DECIMALS);
+
+        // It's possible (however unlikely), that the vault has more cash than debt. In that case totalVaultfCashDebt
+        // will be positive (and we flip it to negative here) and the require statement will pass. This is the correct
+        // behavior
+        require(totalVaultfCashDebt.neg() <= maxNTokenCapacity, "Insufficient capacity");
     }
 
     function checkVaultAndAccountHealth(

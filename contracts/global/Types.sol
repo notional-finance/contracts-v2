@@ -476,11 +476,12 @@ struct VaultConfigStorage {
     uint16 termLengthInDays;
     // Allows up to a 12.75% fee for an account at the max leverage ratio
     uint8 maxNTokenFeeRate5BPS;
-    // A value in XXX scale that represents the relative risk of this vault. Governs how large the
-    // vault can get relative to staked nToken insurance (TODO: how much leverage should we allow?)
-    uint32 riskFactor;
+    // A value in percent scale that represents the relative risk of this vault. Governs how large the
+    // vault can get relative to staked nToken insurance. Allows up to 655x leverage which should be
+    // plenty.
+    uint16 capacityMultiplierPercentage;
 
-    // 32 bytes left
+    // 48 bytes left
 }
 
 struct VaultConfig {
@@ -492,7 +493,7 @@ struct VaultConfig {
     uint256 termLengthInSeconds;
     int256 maxNTokenFeeRate;
     int256 maxLeverageRatio;
-    uint256 riskFactor;
+    int256 capacityMultiplierPercentage;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state

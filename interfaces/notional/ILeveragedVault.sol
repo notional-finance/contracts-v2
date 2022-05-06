@@ -34,6 +34,8 @@ interface ILeveragedVault {
         uint256 totalSettleableShares
     );
 
+    function underlyingInternalValueOf(address account) external view returns (int256);
+
 
 
 

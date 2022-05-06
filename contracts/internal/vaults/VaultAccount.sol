@@ -197,7 +197,7 @@ library VaultAccountLib {
         vaultConfig.setVaultState(vaultState);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
-        totalVaultDebt = vaultConfig.checkTotalBorrowCapacity(vaultState, stakedNTokenPV);
+        totalVaultDebt = vaultConfig.checkTotalBorrowCapacity(vaultState, stakedNTokenPV, assetRate);
     }
 
     /**
