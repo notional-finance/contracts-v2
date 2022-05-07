@@ -30,7 +30,7 @@ library VaultAccountLib {
         VaultAccountStorage storage s = store[account][vaultAddress];
 
         vaultAccount.fCash = s.fCash;
-        vaultAccount.cashBalance = s.cashBalance;
+        vaultAccount.escrowedAssetCash = s.escrowedAssetCash;
         vaultAccount.maturity = s.maturity;
     }
 
@@ -43,14 +43,16 @@ library VaultAccountLib {
             .getVaultAccount();
         VaultAccountStorage storage s = store[vaultAccount.account][vaultAddress];
 
-        // Individual accounts cannot have a negative cash balance
-        require(0 <= vaultAccount.cashBalance && vaultAccount.cashBalance <= type(int88).max); // dev: cash balance overflow
+        // Individual accounts cannot have a negative escrowed cash balance
+        require(0 <= vaultAccount.escrowedAssetCash && vaultAccount.escrowedAssetCash <= type(int88).max); // dev: cash balance overflow
         // Individual accounts cannot have a positive fCash balance
         require(type(int88).min <= vaultAccount.fCash && vaultAccount.fCash <= 0); // dev: fCash overflow
         require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
+        // The temporary cash balance must be cleared to zero by the end of the transaction
+        require(vaultAccount.temporaryCashBalance == 0); // dev: cash balance not cleared
 
         s.fCash = int88(vaultAccount.fCash);
-        s.cashBalance = int88(vaultAccount.cashBalance);
+        s.escrowedAssetCash = int88(vaultAccount.escrowedAssetCash);
         s.maturity = uint32(vaultAccount.maturity);
     }
 

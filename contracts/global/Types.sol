@@ -498,10 +498,10 @@ struct VaultConfig {
 
 /// @notice Represents a Vault's current borrow and collateral state
 struct VaultStateStorage {
-    // This represents cash held against fCash balances. All accounts have a proportional
-    // claim on a positive value to their fCash balance. If it is negative then the vault
-    // is in shortfall.
-    int88 totalAssetCash;
+    // This represents cash held against fCash balances. Accounts do not have a claim on this
+    // balance proportially, it is stored here to ensure that we properly calculate how much vault
+    // shares need to be redeemed to repay the totalfCash debt.
+    int88 totalEscrowedAssetCash;
     // This represents the total amount of borrowing in the vault for the current
     // vault term. This value must equal the total fCash borrowed by all accounts
     // in the vault.
@@ -510,15 +510,22 @@ struct VaultStateStorage {
     // accounts must wait for this flag to be set before they can proceed to exit after
     // maturity
     bool isFullySettled;
+    // This holds a counter for the number of accounts that are potentially insolvent (i.e.
+    // they have been deleveraged fully to zero vault shares but have insufficient cash to repay
+    // their debts).
+    // 4.3 billion is likely more than enough to hold the number of potentially insolvent accounts,
+    // we should never overflow this since even one should be exceedingly rare.
+    uint32 potentialInsolventAccounts;
 
-    // NOTE: 72 bytes left
+    // NOTE: 40 bytes left
 }
 
 struct VaultState {
-    int256 totalAssetCash;
+    int256 totalEscrowedAssetCash;
     int256 totalfCash;
     uint256 maturity;
     bool isFullySettled;
+    uint256 potentialInsolventAccounts;
 }
 
 /// @notice Represents an account's position within an individual vault
@@ -527,17 +534,21 @@ struct VaultAccountStorage {
     uint32 maturity;
     // The amount of fCash the account has borrowed from Notional.
     int88 fCash;
-    // In the case that the account cannot lend to exit their fCash, the
-    // account may need to hold a cash balance against the fCash temporarily
-    // as collateral
-    int88 cashBalance;
+    // It's possible that an account may not be able to repay their fCash on the market.
+    // in that case we hold asset cash against their fCash as repayment. When this occurs,
+    // we must also update the totalEscrowedAssetCash on the VaultState object to ensure
+    // that we do not over-sell vault shares to repay debt.
+    int88 escrowedAssetCash;
 
     // NOTE: 48 bytes left
 }
 
 struct VaultAccount {
     address account;
+    // This cash balance is used just within a transaction to track deposits
+    // and withdraws for an account.
+    int256 temporaryCashBalance;
     int256 fCash;
-    int256 cashBalance;
+    int256 escrowedAssetCash;
     uint256 maturity;
 }

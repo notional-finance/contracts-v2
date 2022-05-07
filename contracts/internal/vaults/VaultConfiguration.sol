@@ -75,6 +75,7 @@ library VaultConfiguration {
         vaultState.totalAssetCash = s.totalAssetCash;
         vaultState.totalfCash = s.totalfCash;
         vaultState.isFullySettled = s.isFullySettled;
+        vaultState.potentialInsolventAccounts = s.potentialInsolventAccounts;
     }
 
     function setVaultState(
@@ -86,10 +87,12 @@ library VaultConfiguration {
 
         require(type(int88).min <= vaultState.totalAssetCash && vaultState.totalAssetCash <= type(int88).max); // dev: asset cash overflow
         require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= type(int88).max); // dev: total fcash overflow
+        require(vaultState.potentialInsolventAccounts <= type(uint32).max); // dev: potential insolvent accounts overflow
 
         s.totalAssetCash= int88(vaultState.totalAssetCash);
         s.totalfCash = int88(vaultState.totalfCash);
         s.isFullySettled = vaultState.isFullySettled;
+        s.potentialInsolventAccounts = uint32(vaultState.potentialInsolventAccounts);
     }
 
     /**
@@ -145,17 +148,17 @@ library VaultConfiguration {
         nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
     }
 
-    /**
-     * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
-     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance
-     */
-    function checkTotalBorrowCapacity(
+    function getTotalVaultDebt(
         VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
         AssetRateParameters memory assetRate,
-        int256 stakedNTokenPV
+        uint256 blockTime
     ) internal view returns (int256 totalVaultfCashDebt) {
-        totalVaultfCashDebt = vaultState.totalfCash.add(assetRate.convertToUnderlying(vaultState.totalAssetCash));
+        VaultState memory vaultState = getVaultState(vaultConfig, getCurrentMaturity(vaultConfig, blockTime));
+
+        totalVaultfCashDebt = vaultState.totalfCash.add(
+            assetRate.convertToUnderlying(vaultState.totalEscrowedAssetCash)
+        );
+
         
         if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
             // If this is true then there is potentially debt in the next term as well
@@ -165,9 +168,23 @@ library VaultConfiguration {
             );
 
             totalVaultfCashDebt = totalVaultfCashDebt.add(
-                nextTerm.totalfCash.add(assetRate.convertToUnderlying(nextTerm.totalAssetCash))
+                nextTerm.totalfCash.add(assetRate.convertToUnderlying(nextTerm.totalEscrowedAssetCash))
             );
         }
+    }
+
+
+    /**
+     * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
+     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance
+     */
+    function checkTotalBorrowCapacity(
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory assetRate,
+        int256 stakedNTokenPV,
+        uint256 blockTime
+    ) internal view {
+        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, assetRate, blockTime);
 
         int256 maxNTokenCapacity = stakedNTokenPV
             .mul(vaultConfig.capacityMultiplierPercentage)
@@ -179,30 +196,31 @@ library VaultConfiguration {
         require(totalVaultfCashDebt.neg() <= maxNTokenCapacity, "Insufficient capacity");
     }
 
-    function checkVaultAndAccountHealth(
+    function checkVaultLeverageRatio(
         VaultConfig memory vaultConfig,
-        int256 vaultUnderlyingInternalValue,
-        int256 totalVaultDebt,
-        int256 accountUnderlyingInternalValue,
-        VaultAccount memory vaultAccount,
-        AssetRateParameters memory assetRate
-    ) internal pure {
-        // In both cases here we do not account for cash balances. For the vault, any cash balances are held in
-        // escrow to offset fCash debts. Accounts will not have any cash balance at this point.
-        int256 vaultLeverageRatio = calculateLeverage(0, vaultUnderlyingInternalValue, totalVaultDebt, assetRate);
-        require(vaultLeverageRatio <= vaultConfig.maxLeverageRatio, "Vault Unhealthy");
-
-        // TODO: the account may also have a claim on the cash in the vault, it should grab that here.
-        int256 accountLeverageRatio = calculateLeverage(0, accountUnderlyingInternalValue, vaultAccount.fCash, assetRate);
-        require(accountLeverageRatio <= vaultConfig.maxLeverageRatio, "Account Unhealthy");
-    }
-
-    function checkVaultAndAccountHealth(
-        VaultConfig memory vaultConfig,
-        VaultAccount memory vaultAccount,
-        AssetRateParameters memory assetRate
+        AssetRateParameters memory assetRate,
+        uint256 blockTime,
     ) internal view {
-        // IMPLEMENT
+        uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
+
+        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, assetRate, blockTime);
+        int256 underlyingVaultValue = ILeveragedVault(vaultConfig.vault)
+            .underlyingInternalValueOfMaturity(currentMaturity);
+
+        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
+            // Get the value of the positions in the next maturity
+            underlyingVaultValue = underlyingVaultValue.add(
+                ILeveragedVault(vaultConfig.vault).underlyingInternalValueOfMaturity(
+                    currentMaturity.add(vaultConfig.termLengthInSeconds)
+                );
+            );
+        }
+
+        int256 leverageRatio = totalVaultfCashDebt.neg().divInRatePrecision(
+            underlyingVaultValue.add(totalVaultfCashDebt)
+        ).add(Constants.RATE_PRECISION);
+
+        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Vault Overleveraged");
     }
 
     /**
