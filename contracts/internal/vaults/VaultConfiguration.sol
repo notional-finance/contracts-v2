@@ -8,7 +8,9 @@ import "../../global/Constants.sol";
 import "../../math/SafeInt256.sol";
 import "../markets/AssetRate.sol";
 import "../markets/DateTime.sol";
+import "../nToken/nTokenStaked.sol";
 import "../balances/TokenHandler.sol";
+import "../balances/BalanceHandler.sol";
 import "../../../interfaces/notional/ILeveragedVault.sol";
 
 library VaultConfiguration {
@@ -16,6 +18,8 @@ library VaultConfiguration {
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
+
+    event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
     uint16 internal constant ENABLED            = 1 << 0;
     uint16 internal constant ALLOW_REENTER      = 1 << 1;
@@ -212,5 +216,55 @@ library VaultConfiguration {
             assetToken.convertToExternal(netAssetTransferInternal)
         );
         actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
+    }
+
+    function settlePooledfCash(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        AssetRateParameters memory settlementRate
+    ) internal {
+        if (vaultState.totalfCashRequiringSettlement > 0) {
+            // It's possible that there is no fCash requiring settlement if everyone has exited or
+            // all accounts require specialized settlement but in most cases this will be true.
+            int256 assetCashRequired = settlementRate.convertFromUnderlying(
+                vaultState.totalfCashRequiringSettlement.neg()
+            );
+            (/* */, int256 actualTransferInternal) = transferVault(vaultConfig, assetCashRequired);
+            require(actualTransferInternal == assetCashRequired); // dev: transfer amount mismatch
+
+            vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
+            vaultState.totalfCashRequiringSettlement = 0;
+        }
+    }
+
+    function resolveCashShortfall(
+        VaultConfig memory vaultConfig,
+        int256 assetCashShortfall,
+        uint256 nTokensToRedeem
+    ) internal {
+        uint16 currencyId = vaultConfig.borrowCurrencyId;
+        // First attempt to redeem nTokens
+        (/* int256 actualNTokensRedeemed */, int256 assetCashRaised) = nTokenStaked.redeemNTokenToCoverShortfall(
+            currencyId,
+            SafeInt256.toInt(nTokensToRedeem),
+            assetCashShortfall,
+            block.timestamp
+        );
+
+        int256 remainingShortfall = assetCashRaised.sub(assetCashShortfall);
+        if (remainingShortfall > 0) {
+            // Then reduce the reserves
+            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
+
+            if (remainingShortfall <= reserveInternal) {
+                BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - remainingShortfall);
+            } else {
+                // At this point the protocol needs to raise funds from sNOTE
+                BalanceHandler.setReserveCashBalance(currencyId, 0);
+                // Disable the vault, users can still exit but no one can enter.
+                setVaultEnabledStatus(vaultConfig.vault, false);
+                emit ProtocolInsolvency(currencyId, vaultConfig.vault, remainingShortfall - reserveInternal);
+            }
+        }
     }
 }

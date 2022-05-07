@@ -9,7 +9,6 @@ import "../../internal/vaults/VaultAccount.sol";
 contract VaultAction is ActionGuards {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
-    using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeMath for uint256;
@@ -18,7 +17,6 @@ contract VaultAction is ActionGuards {
     event VaultChange(address vaultAddress, bool enabled);
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address vaultAddress, bool enabled);
-    event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
     modifier allowAccountOrVault(address account, address vault) {
         require(msg.sender == account || msg.sender == vault, "Unauthorized");
@@ -340,77 +338,47 @@ contract VaultAction is ActionGuards {
             block.timestamp
         );
 
-        if (vaultState.totalfCashRequiringSettlement > 0) {
-            // It's possible that there is no fCash requiring settlement if everyone has exited or
-            // all accounts require specialized settlement but in most cases this will be true.
-            int256 assetCashRequired = settlementRate.convertFromUnderlying(
-                vaultState.totalfCashRequiringSettlement.neg()
-            );
-            (/* */, int256 actualTransferInternal) = vaultConfig.transferVault(assetCashRequired);
-            require(actualTransferInternal == assetCashRequired); // dev: transfer amount mismatch
+        vaultConfig.settlePooledfCash(vaultState, settlementRate);
 
-            vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
-            vaultState.totalfCashRequiringSettlement = 0;
-        }
-
-        VaultAccount memory vaultAccount;
         int256 assetCashShortfall;
-        for (uint i; i < settleAccounts.length; i++) {
-            vaultAccount = VaultAccountLib.getVaultAccount(settleAccounts[i], vault);
-            require(
-                vaultState.maturity == vaultAccount.maturity &&
-                vaultAccount.requiresSettlement
-            );
-            vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem[i]);
-            vaultAccount.settleEscrowedAccount(vaultState, vaultConfig, settlementRate);
+        {
+            VaultAccount memory vaultAccount;
+            for (uint i; i < settleAccounts.length; i++) {
+                vaultAccount = VaultAccountLib.getVaultAccount(settleAccounts[i], vault);
+                require(
+                    vaultState.maturity == vaultAccount.maturity &&
+                    vaultAccount.requiresSettlement
+                );
+                vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem[i]);
+                vaultAccount.settleEscrowedAccount(vaultState, vaultConfig, settlementRate);
 
-            if (vaultAccount.tempCashBalance >= 0) {
-                // Return excess asset cash to the account
-                vaultAccount.transferTempCashBalance(currencyId, false);
-            } else {
-                // Account is insolvent here, add the balance to the shortfall required
-                // and clear the account requiring settlement
-                assetCashShortfall = assetCashShortfall.add(vaultAccount.tempCashBalance.neg());
+                if (vaultAccount.tempCashBalance >= 0) {
+                    // Return excess asset cash to the account
+                    vaultAccount.transferTempCashBalance(currencyId, false);
+                } else {
+                    // Account is insolvent here, add the balance to the shortfall required
+                    // and clear the account requiring settlement
+                    assetCashShortfall = assetCashShortfall.add(vaultAccount.tempCashBalance.neg());
 
-                // Pre-emptively clear the vault account assuming the shortfall will be cleared
-                vaultAccount.requiresSettlement = false;
-                vaultAccount.maturity = 0;
-                vaultAccount.tempCashBalance = 0;
+                    // Pre-emptively clear the vault account assuming the shortfall will be cleared
+                    vaultAccount.requiresSettlement = false;
+                    vaultAccount.maturity = 0;
+                    vaultAccount.tempCashBalance = 0;
 
-                if (vaultState.accountsRequiringSettlement > 0) {
-                    // Don't revert on underflow here, just floor the value at 0 in case
-                    // we somehow miss an insolvent account in tracking.
-                    vaultState.accountsRequiringSettlement -= 1;
+                    if (vaultState.accountsRequiringSettlement > 0) {
+                        // Don't revert on underflow here, just floor the value at 0 in case
+                        // we somehow miss an insolvent account in tracking.
+                        vaultState.accountsRequiringSettlement -= 1;
+                    }
                 }
-            }
-            vaultAccount.setVaultAccount(vault);
-        }
-
-
-        // First attempt to redeem nTokens
-        (int256 actualNTokensRedeemed, int256 assetCashRaised) = nTokenStaked.redeemNTokenToCoverShortfall(
-            currencyId,
-            SafeInt256.toInt(nTokensToRedeem),
-            assetCashShortfall,
-            block.timestamp
-        );
-
-        int256 remainingShortfall = assetCashRaised.sub(assetCashShortfall);
-        if (remainingShortfall > 0) {
-            // Then reduce the reserves
-            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
-
-            if (remainingShortfall <= reserveInternal) {
-                BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - remainingShortfall);
-            } else {
-                // At this point the protocol needs to raise funds from sNOTE
-                BalanceHandler.setReserveCashBalance(currencyId, 0);
-                // Disable the vault, users can still exit but no one can enter.
-                VaultConfiguration.setVaultEnabledStatus(vault, false);
-                emit ProtocolInsolvency(currencyId, vault, remainingShortfall - reserveInternal);
+                vaultAccount.setVaultAccount(vault);
             }
         }
-        
+
+        if (assetCashShortfall > 0) {
+            vaultConfig.resolveCashShortfall(assetCashShortfall, nTokensToRedeem);
+        }
+
         // TODO: is this the correct behavior if we are in an insolvency
         vaultState.isFullySettled = vaultState.totalfCash == 0 && vaultState.accountsRequiringSettlement == 0;
         vaultConfig.setVaultState(vaultState);
