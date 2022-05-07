@@ -154,6 +154,11 @@ library VaultConfiguration {
         nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
     }
 
+    /**
+     * @notice Returns the total amount of debt in a vault, will over estimate the actual amount of
+     * debt if there are accounts with escrowed asset cash. The effect of this would mean that vaults
+     * would be more conservative with their total borrow capacity and leverage ratios.
+     */
     function getTotalVaultDebt(
         VaultConfig memory vaultConfig,
         uint256 blockTime
@@ -175,7 +180,7 @@ library VaultConfiguration {
 
     /**
      * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
-     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance
+     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance.
      */
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,

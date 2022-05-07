@@ -143,9 +143,8 @@ library VaultAccountLib {
             // redemption.
 
             // If we are inside borrowIntoVault, it will revert since we do not
-            // clear the maturity here. That is the correct behavior. 
-
-            // TODO: what if we are in exit vault then will attempt to repay the cash from the account.
+            // clear the maturity here. That is the correct behavior.  If we are
+            // inside exitVault, then it will revert.
         }
     }
 
@@ -214,8 +213,18 @@ library VaultAccountLib {
         // vault shares to ensure that both the account and vault are healthy.
         int256 nTokenFee;
         {
-            // TODO: this is wrong...
-            int256 preSlippageLeverageRatio = calculateLeverage(vaultAccount, vaultConfig, assetRate);
+            // We don't know the true underlying value here but we approximate it assuming zero slippage
+            // for the cash that will enter the vault.
+            int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault)
+                .underlyingInternalValueOf(vaultAccount.account)
+                .add(assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
+
+            int256 preSlippageLeverageRatio = calculateLeverage(
+                vaultAccount,
+                vaultConfig,
+                assetRate,
+                underlyingInternalValue
+            );
             nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
         }
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
@@ -364,21 +373,27 @@ library VaultAccountLib {
         }
     }
 
-    /**
-     * @notice Calculates the leverage ratio of the account or vault
-     */
     function calculateLeverage(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         AssetRateParameters memory assetRate
     ) internal view returns (int256 leverageRatio) {
         int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault).underlyingInternalValueOf(vaultAccount.account);
-        // TODO: should we consider temp cash balance here?
-        int256 totalAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
+        return calculateLeverage(vaultAccount, vaultConfig, assetRate, underlyingInternalValue);
+    }
 
+    /**
+     * @notice Calculates the leverage ratio of the account or vault
+     */
+    function calculateLeverage(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory assetRate,
+        int256 underlyingInternalValue
+    ) internal view returns (int256 leverageRatio) {
         // The net asset value includes all value in cash and vault shares in underlying internal
         // precision minus the total amount borrowed
-        int256 netAssetValue = assetRate.convertToUnderlying(totalAssetCash)
+        int256 netAssetValue = assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
             .add(underlyingInternalValue)
             // We do not discount fCash to present value so that we do not introduce interest
             // rate risk in this calculation. The economic benefit of discounting will be very

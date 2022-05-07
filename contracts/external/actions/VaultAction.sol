@@ -165,7 +165,7 @@ contract VaultAction is ActionGuards {
 
         // If the lending was unsuccessful then we cannot roll the position, the account cannot
         // have two fCash balances.
-        require(vaultAccount.fCash == 0, "Failed Lend");
+        require(vaultAccount.fCash == 0 && vaultAccount.requiresSettlement, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
        return _borrowAndEnterVault(
@@ -200,7 +200,7 @@ contract VaultAction is ActionGuards {
             uint256 vaultSharesMinted
         ) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
 
-        vaultAccount.calculateLeverage(vaultConfig, assetRate);
+        vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
         return vaultSharesMinted;
     }
 
@@ -232,6 +232,7 @@ contract VaultAction is ActionGuards {
         
         if (vaultAccount.maturity <= block.timestamp) {
             vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
+            require(vaultAccount.requiresSettlement == false); // dev: unsuccessful settlement
         } else {
             AssetRateParameters memory assetRate = vaultAccount.lendToExitVault(
                 vaultConfig,
