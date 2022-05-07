@@ -32,6 +32,7 @@ library VaultAccountLib {
         vaultAccount.fCash = s.fCash;
         vaultAccount.escrowedAssetCash = s.escrowedAssetCash;
         vaultAccount.maturity = s.maturity;
+        vaultAccount.requiresSettlement = s.requiresSettlement;
     }
 
     /// @notice Sets a single account's vault position in storage
@@ -49,11 +50,12 @@ library VaultAccountLib {
         require(type(int88).min <= vaultAccount.fCash && vaultAccount.fCash <= 0); // dev: fCash overflow
         require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
         // The temporary cash balance must be cleared to zero by the end of the transaction
-        require(vaultAccount.temporaryCashBalance == 0); // dev: cash balance not cleared
+        require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
 
         s.fCash = int88(vaultAccount.fCash);
         s.escrowedAssetCash = int88(vaultAccount.escrowedAssetCash);
         s.maturity = uint32(vaultAccount.maturity);
+        s.requiresSettlement = vaultAccount.requiresSettlement;
     }
 
     /**
@@ -71,64 +73,80 @@ library VaultAccountLib {
     ) internal {
         // These conditions mean that the vault account does not require settlement
         if (blockTime < vaultAccount.maturity || vaultAccount.maturity == 0) return;
-
         VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
 
-        // A vault must be fully settled for an account to settle. Most vaults should be able to settle
-        // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
-        // they can settle (i.e. some vaults may be trading between two fCash currencies). Those vaults must
-        // be settled within 24 hours of maturity expiration and before the staked nToken unstaking window begins.
-        // For accounts that are within these vaults, they will face a period of time (< 24 hours) where they cannot
-        // exit until the vault is settled. Vault settlement should be permissionless so this should not create
-        // significant issues.
-        require(vaultState.isFullySettled, "Vault not settled");
+        if (!vaultAccount.requiresSettlement && vaultAccount.escrowedAssetCash == 0) {
+            // A vault must be fully settled for an account to settle. Most vaults should be able to settle
+            // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
+            // they can settle (i.e. some vaults may be trading between two fCash currencies). Those vaults must
+            // be settled within 24 hours of maturity expiration and before the staked nToken unstaking window begins.
+            // For accounts that are within these vaults, they will face a period of time (< 24 hours) where they cannot
+            // exit until the vault is settled. Vault settlement should be permissionless so this should not create
+            // significant issues.
+            require(vaultState.isFullySettled, "Vault not settled");
 
-        // If the vault has escrowed asset cash calculate the final total that it needs to hold to repay
-        // its fCash debt. NOTE: escrowedAssetCash cannot be negative in storage
-        if (vaultAccount.escrowedAssetCash > 0) {
+            // Update the vault account in memory
+            vaultAccount.fCash = 0;
+            vaultAccount.maturity = 0;
+
+            // At this point, the account has cleared its fCash balance on the vault and can re-enter a new vault maturity.
+            // In all likelihood, it still has some balance of vaultShares on the vault. If it wants to re-enter a vault
+            // these shares will be considered as part of its netAssetValue for its leverage ratio.
+        } else {
             AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
                 vaultConfig.borrowCurrencyId,
                 vaultAccount.maturity,
                 blockTime
             );
-
-            // This is a positive number
-            int256 assetCashToRepayfCash = settlementRate.convertFromUnderlying(vaultAccount.fCash).neg();
-
-            // TODO: it's possible that this causes an insolvency...we need to know how much debt to repay
-            // on the entire vault and that is (fCash - totalEscrowedAssetCash.toUnderlying()). However, the
-            // interest on this escrowed asset cash should just go to one user not the entire pool. 
-            //
-            // - mark the escrowed asset cash on the account
-            // - mark the escrowed underlying amount on the pool
-
-            if (assetCashToRepayfCash < vaultAccount.escrowedAssetCash) {
-                // If this is the case then the account has deposited excess cash to repay their fCash
-                // balance. Debit the cash that was used to repay the debt and credit back to the temporary
-                // cash balance the excess so the account can use it
-                vaultAccount.temporaryCashBalance = vaultAccount.temporaryCashBalance.add(
-                    vaultAccount.escrowedAssetCash - assetCashToRepayfCash  // overflow checked above
-                );
-            }
-
-            // If the escrowed cash balance is insufficient to repay the fCash that is ok. Since the vault has sold
-            // vault shares to repay debts and is fully settled at this point, the account's escrowed cash balance has
-            // already been applied towards that. Always clear the escrowed asset cash at this point.
-            vaultAccount.escrowedAssetCash = 0;
+            settleEscrowedAccount(vaultAccount, vaultState, vaultConfig, settlementRate);
         }
+    }
 
-        // TODO: these should just be updated on the vault
-        // vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.sub(vaultAccount.cashBalance);
-        // vaultState.totalfCash = vaultState.totalfCash.sub(vaultAccount.fCash);
-        // vaultConfig.setVaultState(vaultState);
+    function settleEscrowedAccount(
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState,
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory settlementRate
+    ) internal view {
+        // This is a positive number
+        int256 assetCashToRepayfCash = settlementRate.convertFromUnderlying(vaultAccount.fCash).neg();
 
-        // Update the vault account in memory
+        // The temporary cash balance is now any cash remaining after repayment of the debt.
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
+            .add(vaultAccount.escrowedAssetCash)
+            .sub(assetCashToRepayfCash);
+        
+        // This balance has now been applied to the account
+        vaultAccount.escrowedAssetCash = 0;
+
+        // In both cases remove the totalfCash from the vault state
+        vaultState.totalfCash = vaultState.totalfCash.sub(vaultAccount.fCash);
         vaultAccount.fCash = 0;
-        vaultAccount.maturity = 0;
 
-        // At this point, the account has cleared its fCash balance on the vault and can re-enter a new vault maturity.
-        // In all likelihood, it still has some balance of vaultShares on the vault. If it wants to re-enter a vault
-        // these shares will be considered as part of its netAssetValue for its leverage ratio.
+        if (vaultAccount.tempCashBalance >= 0) {
+            // In this case the vault is now free and clear
+            vaultAccount.requiresSettlement = false;
+            vaultAccount.maturity = 0;
+
+            if (vaultState.accountsRequiringSettlement > 0) {
+                // Don't revert on underflow here, just floor the value at 0 in case
+                // we somehow miss an insolvent account in tracking.
+                vaultState.accountsRequiringSettlement -= 1;
+            }
+        } else {
+            // If there are vault shares left then this will revert, more vault shares
+            // need to be sold to exit the account's debt.
+            require(ILeveragedVault(vaultConfig.vault).balanceOf(vaultAccount.account) == 0);
+
+            // If there are no vault shares left at this point then we have an
+            // insolvency. The negative cash balance needs to be cleared via nToken
+            // redemption.
+
+            // If we are inside borrowIntoVault, it will revert since we do not
+            // clear the maturity here. That is the correct behavior. 
+
+            // TODO: what if we are in exit vault then will attempt to repay the cash from the account.
+        }
     }
 
     /**
@@ -178,7 +196,7 @@ library VaultAccountLib {
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
             vaultAccount.maturity = maturity;
-            vaultAccount.temporaryCashBalance = vaultAccount.temporaryCashBalance
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
                 .add(assetCashBorrowed)
                 .sub(maxNTokenFee);
         }
@@ -196,19 +214,20 @@ library VaultAccountLib {
         // vault shares to ensure that both the account and vault are healthy.
         int256 nTokenFee;
         {
-            int256 preSlippageLeverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate);
+            // TODO: this is wrong...
+            int256 preSlippageLeverageRatio = calculateLeverage(vaultAccount, vaultConfig, assetRate);
             nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
         }
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
         int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
-        vaultAccount.temporaryCashBalance = vaultAccount.temporaryCashBalance.add(maxNTokenFee).sub(nTokenFee);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(maxNTokenFee).sub(nTokenFee);
 
         // Done modifying the vault state at this point.
         vaultConfig.setVaultState(vaultState);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
-        vaultConfig.checkTotalBorrowCapacity(assetRate, stakedNTokenPV, blockTime);
+        vaultConfig.checkTotalBorrowCapacity(stakedNTokenPV, blockTime);
     }
 
     /**
@@ -221,13 +240,12 @@ library VaultAccountLib {
         bytes calldata vaultData
     ) internal returns (
         int256 accountUnderlyingInternalValue,
-        int256 vaultUnderlyingInternalValue,
         uint256 vaultSharesMinted
     ) {
-        int256 cashFromAccount = vaultAccount.temporaryCashBalance;
+        int256 cashFromAccount = vaultAccount.tempCashBalance;
         require(cashFromAccount > 0);
 
-        vaultAccount.temporaryCashBalance = 0;
+        vaultAccount.tempCashBalance = 0;
         // Done modifying the vault account at this point.
         setVaultAccount(vaultAccount, vaultConfig.vault);
 
@@ -236,11 +254,11 @@ library VaultAccountLib {
         (int256 assetCashToVaultExternal, /* */) = vaultConfig.transferVault(cashFromAccount.neg());
 
         return ILeveragedVault(vaultConfig.vault).mintVaultShares(
-                vaultAccount.account,
-                vaultAccount.maturity,
-                SafeInt256.toUint(assetCashToVaultExternal),
-                vaultData
-            );
+            vaultAccount.account,
+            vaultAccount.maturity,
+            SafeInt256.toUint(assetCashToVaultExternal),
+            vaultData
+        );
     }
 
     /**
@@ -253,17 +271,14 @@ library VaultAccountLib {
      * @param minLendRate minimum rate to lend at
      * @param blockTime current block time
      * @return assetRate the asset rate for further calculations
-     * @return netCashTransfer a positive value means that the account must deposit this
-     * much asset cash into the protocol, a negative value will mean that it will withdraw
      */
     function lendToExitVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         int256 fCash,
         uint256 minLendRate,
-        uint256 blockTime,
-        bool useUnderlying
-    ) internal returns (AssetRateParameters memory assetRate, int256 netCashTransfer) {
+        uint256 blockTime
+    ) internal returns (AssetRateParameters memory assetRate) {
         require(fCash >= 0); // dev: fcash must be positive
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
@@ -282,60 +297,71 @@ library VaultAccountLib {
             minLendRate,
             blockTime
         );
-        require(assetCashCostToLend <= 0);
 
-        if (assetCashCostToLend == 0) {
-            // In this case, the lending has failed due to a lack of liquidity or
-            // negative interest rates. Instead of lending, we will deposit into the
-            // account cash balance instead. Since the total fCash balance does not change
-            // we do not change it on the vault state. We do update the total escrowed
-            // asset cash to ensure that the vault is aware of fCash t
-
-            // NOTE: if the account tries to re-enter the vault after this occurs, this
-            // cash balance will be used to mint additional vault shares and the fCash debt
-            // will either stay the same (or increase if the account borrows more). This ensures
-            // that the account's total debt position is properly accounted for.
-            int256 assetCashDeposit = assetRate.convertFromUnderlying(fCash); // this is a positive number
-            int256 maxAssetCashRequired = assetRate.convertFromUnderlying(vaultAccount.fCash).neg(); // this is a positive number
-
-            // The account needs to keep assetCashDeposit in their cash balance, to repay the specified
-            // amount of fCash. It's also possible that they have an existing cash balance also being
-            // held against fCash.
-
-
-            netCashTransfer = assetCashDeposit.sub(vaultAccount.cashBalance);
-            
-            int256 actualTransferInternal = _netTransferToAccount(
-                vaultAccount,
-                vaultConfig.borrowCurrencyId,
-                netCashTransfer,
-                useUnderlying
-            );
-
-            vaultAccount.cashBalance = vaultAccount.cashBalance.add(actualTransferInternal);
-
-            // However, we know that the totalEscrowedAsset cash must have increased by the assetCashDeposit
-            vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.add(assetCashDeposit);
-        } else {
+        if (assetCashCostToLend < 0) {
             // Net off the cash balance required and remove the fcash. It's possible
             // that cash balance is negative here. If that is the case then we need to
             // transfer in sufficient cash to get the balance up to 0.
-            vaultAccount.cashBalance = vaultAccount.cashBalance.add(assetCashCostToLend);
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
+                .add(vaultAccount.escrowedAssetCash)
+                .add(assetCashCostToLend); // this is a negative number
 
-            // Flip the sign here, a positive vaultAccount.cashBalance will be withdrawn,
-            // a negative vault.cashBalance must be deposited.
-            netCashTransfer = vaultAccount.cashBalance.neg();
-
-            // In this case we are changing fCash so we update it on the account and the
-            // vault.
+            // Update fCash state on the account and the vault
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
             if (vaultAccount.fCash == 0) vaultAccount.maturity = 0;
-
-            // The fCash on the entire vault is reduced when lending
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+
+            if (vaultAccount.escrowedAssetCash > 0) {
+                // Apply the escrowed asset cash against the amount of fCash to exit. Depending
+                // on the amount of fCash the account is attempting to lend here, the leverage
+                // ratio may actually increase (this would be the case where a lot of asset cash
+                // is held against debt from a previous exit but now the account attempts to exit
+                // a smaller amount of fCash and is successful). We don't want this to be the case
+                // because then an account may repeatedly put itself back at a higher leverage
+                // ratio when it should be deleveraged. To prevent this, we ensure that the account
+                // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
+                // temporary cash balance or lend the fCash down to zero.
+                require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
+                vaultAccount.escrowedAssetCash = 0;
+                vaultAccount.requiresSettlement = false;
+
+                if (vaultState.accountsRequiringSettlement > 0) {
+                    vaultState.accountsRequiringSettlement -= 1;
+                    // Add the account's remaining fCash back into the vault state for pooled settlement
+                    vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(vaultAccount.fCash);
+                }
+            }
+        } else if (assetCashCostToLend == 0) {
+            // In this case, the lending has failed due to a lack of liquidity or negative interest rates.
+            // Instead of lending, we will deposit into the account escrow cash balance instead. When this
+            // happens, the account will require special handling for settlement.
+            int256 assetCashDeposit = assetRate.convertFromUnderlying(fCash); // this is a positive number
+            increaseEscrowedAssetCash(vaultAccount, vaultState, assetCashDeposit);
+        } else {
+            // This should never be the case.
+            revert(); // dev: asset cash to lend is positive
         }
 
         vaultConfig.setVaultState(vaultState);
+    }
+
+    function increaseEscrowedAssetCash(
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState,
+        int256 assetCashDeposit
+    ) internal pure {
+        require(assetCashDeposit > 0);
+        // Move the asset cash deposit into the escrowed asset cash
+        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
+
+        if (!vaultAccount.requiresSettlement) {
+            // If this flag is not set then on the account then we set it up for individual settlement. The
+            // account's individual fCash is now removed from the pool and not considered for pooled settlement.
+            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
+            vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
+            vaultAccount.requiresSettlement = true;
+        }
     }
 
     /**
@@ -347,10 +373,12 @@ library VaultAccountLib {
         AssetRateParameters memory assetRate
     ) internal view returns (int256 leverageRatio) {
         int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault).underlyingInternalValueOf(vaultAccount.account);
+        // TODO: should we consider temp cash balance here?
+        int256 totalAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
 
         // The net asset value includes all value in cash and vault shares in underlying internal
         // precision minus the total amount borrowed
-        int256 netAssetValue = assetRate.convertToUnderlying(vaultAccount.cashBalance)
+        int256 netAssetValue = assetRate.convertToUnderlying(totalAssetCash)
             .add(underlyingInternalValue)
             // We do not discount fCash to present value so that we do not introduce interest
             // rate risk in this calculation. The economic benefit of discounting will be very
@@ -415,7 +443,7 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
         uint256 vaultSharesToRedeem
-    ) internal returns (int256 actualTransferInternal) {
+    ) internal {
         if (vaultSharesToRedeem > 0) {
             uint256 assetCashExternal = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
@@ -423,7 +451,7 @@ library VaultAccountLib {
                 "" // TODO: implement
             );
 
-            actualTransferInternal = depositIntoAccount(
+            depositIntoAccount(
                 vaultAccount,
                 vaultConfig.vault,
                 vaultConfig.borrowCurrencyId,
@@ -445,7 +473,7 @@ library VaultAccountLib {
         uint16 borrowCurrencyId,
         uint256 _depositAmountExternal,
         bool useUnderlying
-    ) internal return (int256 actualTransferInternal) {
+    ) internal {
         if (_depositAmountExternal == 0) return;
         int256 depositAmountExternal = SafeInt256.toInt(_depositAmountExternal);
 
@@ -482,34 +510,33 @@ library VaultAccountLib {
             );
         }
 
-        return assetToken.convertToInternal(assetAmountExternal)
+        // TODO: potential off by one errors here in transfer temp cash balance
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+            assetToken.convertToInternal(assetAmountExternal)
+        );
     }
 
-    function _netTransferToAccount(
+    function transferTempCashBalance(
         VaultAccount memory vaultAccount,
         uint16 borrowCurrencyId,
-        int256 netTransferAmount,
         bool useUnderlying
-    ) private return (int256 actualTransferInternal) {
+    ) internal {
         Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
-        int256 netTransferAmountExternal = assetToken.convertToExternal(netTransferAmount);
+        int256 netTransferAmountExternal = assetToken.convertToExternal(vaultAccount.tempCashBalance);
 
         if (netTransferAmountExternal < 0) {
             if (useUnderlying) {
-                assetToken.redeem(borrowCurrencyId, vaultAccount.account, SafeInt256.toUint(withdrawAmountExternal.neg()));
+                assetToken.redeem(borrowCurrencyId, vaultAccount.account, SafeInt256.toUint(netTransferAmountExternal.neg()));
             } else {
-                assetToken.transfer(vaultAccount.account, borrowCurrencyId, withdrawAmountExternal);
+                assetToken.transfer(vaultAccount.account, borrowCurrencyId, netTransferAmountExternal);
             }
-
-            // When transferring out of the protocol, we just return the net transfer amount. Even if the receiver
-            // receives less, that will not change our accounting.
-            actualTransferInternal = netTransferAmount;
+            vaultAccount.tempCashBalance = 0;
         } else {
             return depositIntoAccount(
                 vaultAccount,
                 vaultAccount.account,
-                vaultConfig.borrowCurrencyId,
-                uint256(netTransferAmount), // overflow checked via if statement
+                borrowCurrencyId,
+                uint256(vaultAccount.tempCashBalance), // overflow checked via if statement
                 useUnderlying
             );
         }

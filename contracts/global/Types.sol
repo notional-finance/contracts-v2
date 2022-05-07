@@ -480,8 +480,10 @@ struct VaultConfigStorage {
     // vault can get relative to staked nToken insurance. Allows up to 655x leverage which should be
     // plenty.
     uint16 capacityMultiplierPercentage;
+    // A percentage that represents the share of the cash raised that will go to the liquidator
+    uint8 liquidationRate;
 
-    // 48 bytes left
+    // 40 bytes left
 }
 
 struct VaultConfig {
@@ -494,38 +496,37 @@ struct VaultConfig {
     int256 maxNTokenFeeRate;
     int256 maxLeverageRatio;
     int256 capacityMultiplierPercentage;
+    int256 liquidationRate;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state
 struct VaultStateStorage {
-    // This represents cash held against fCash balances. Accounts do not have a claim on this
-    // balance proportially, it is stored here to ensure that we properly calculate how much vault
-    // shares need to be redeemed to repay the totalfCash debt.
-    int88 totalEscrowedAssetCash;
     // This represents the total amount of borrowing in the vault for the current
     // vault term. This value must equal the total fCash borrowed by all accounts
     // in the vault.
     int88 totalfCash;
+    // This represents the fCash requiring settlement (excludes accounts that have been removed
+    // because they require individualized settlement.
+    int88 totalfCashRequiringSettlement;
     // Set to true if a vault has been fully settled and the cash can be pulled. Matured
     // accounts must wait for this flag to be set before they can proceed to exit after
     // maturity
     bool isFullySettled;
-    // This holds a counter for the number of accounts that are potentially insolvent (i.e.
-    // they have been deleveraged fully to zero vault shares but have insufficient cash to repay
-    // their debts).
-    // 4.3 billion is likely more than enough to hold the number of potentially insolvent accounts,
+    // This holds a counter for the number of accounts that are require settlement (i.e. were unable
+    // to lend to exit positions).
+    // 4.3 billion is likely more than enough to hold the number of accounts,
     // we should never overflow this since even one should be exceedingly rare.
-    uint32 potentialInsolventAccounts;
+    uint32 accountsRequiringSettlement;
 
     // NOTE: 40 bytes left
 }
 
 struct VaultState {
-    int256 totalEscrowedAssetCash;
+    int256 totalfCashRequiringSettlement;
     int256 totalfCash;
     uint256 maturity;
     bool isFullySettled;
-    uint256 potentialInsolventAccounts;
+    uint256 accountsRequiringSettlement;
 }
 
 /// @notice Represents an account's position within an individual vault
@@ -539,6 +540,9 @@ struct VaultAccountStorage {
     // we must also update the totalEscrowedAssetCash on the VaultState object to ensure
     // that we do not over-sell vault shares to repay debt.
     int88 escrowedAssetCash;
+    // Set to true if there is escrowed asset cash or the vault has no vault shares and
+    // an fCash debt. This requires special handling at settlement.
+    bool requiresSettlement;
 
     // NOTE: 48 bytes left
 }
@@ -547,8 +551,9 @@ struct VaultAccount {
     address account;
     // This cash balance is used just within a transaction to track deposits
     // and withdraws for an account.
-    int256 temporaryCashBalance;
+    int256 tempCashBalance;
     int256 fCash;
     int256 escrowedAssetCash;
     uint256 maturity;
+    bool requiresSettlement;
 }

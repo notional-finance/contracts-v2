@@ -11,8 +11,7 @@ interface ILeveragedVault {
         uint256 assetCashTransferred,
         bytes calldata data
     ) external returns (
-        uint256 accountUnderlyingInternalValue,
-        uint256 vaultUnderlyingInternalValue,
+        int256 accountUnderlyingInternalValue,
         uint256 vaultSharesMinted
     );
 
@@ -23,19 +22,11 @@ interface ILeveragedVault {
         bytes calldata data
     ) external returns (uint256);
 
-    function settleVaultShares(
-        uint256 vaultSharesToRedeem,
-        bytes calldata data
-    ) external returns (uint256 assetCashExternal);
 
     function isInSettlement() external view returns (bool);
-    function getSharesToSettle(uint256 maturity) external view returns (
-        uint256 settleableShares,
-        uint256 totalSettleableShares
-    );
-
+    function canSettleMaturity(uint256 maturity) external view returns (bool);
     function underlyingInternalValueOf(address account) external view returns (int256);
-
+    function balanceOf(address account) external view returns (uint256);
 
 
 

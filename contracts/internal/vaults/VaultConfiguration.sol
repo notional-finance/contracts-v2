@@ -9,6 +9,7 @@ import "../../math/SafeInt256.sol";
 import "../markets/AssetRate.sol";
 import "../markets/DateTime.sol";
 import "../balances/TokenHandler.sol";
+import "../../../interfaces/notional/ILeveragedVault.sol";
 
 library VaultConfiguration {
     using TokenHandler for Token;
@@ -19,8 +20,6 @@ library VaultConfiguration {
     uint16 internal constant ENABLED            = 1 << 0;
     uint16 internal constant ALLOW_REENTER      = 1 << 1;
     uint16 internal constant IS_INSURED         = 1 << 2;
-    uint16 internal constant CAN_INITIALIZE     = 1 << 3;
-    uint16 internal constant ACCEPTS_COLLATERAL = 1 << 4;
 
     function getVaultConfig(
         address vaultAddress
@@ -36,6 +35,7 @@ library VaultConfiguration {
         vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
         vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
+        vaultConfig.liquidationRate = int256(uint256(s.liquidationRate));
     }
 
     function setVaultEnabledStatus(
@@ -72,10 +72,10 @@ library VaultConfiguration {
         VaultStateStorage storage s = store[vaultConfig.vault][maturity];
 
         vaultState.maturity = maturity;
-        vaultState.totalAssetCash = s.totalAssetCash;
+        vaultState.totalfCashRequiringSettlement = s.totalfCashRequiringSettlement;
         vaultState.totalfCash = s.totalfCash;
         vaultState.isFullySettled = s.isFullySettled;
-        vaultState.potentialInsolventAccounts = s.potentialInsolventAccounts;
+        vaultState.accountsRequiringSettlement = s.accountsRequiringSettlement;
     }
 
     function setVaultState(
@@ -85,14 +85,16 @@ library VaultConfiguration {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
         VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
 
-        require(type(int88).min <= vaultState.totalAssetCash && vaultState.totalAssetCash <= type(int88).max); // dev: asset cash overflow
-        require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= type(int88).max); // dev: total fcash overflow
-        require(vaultState.potentialInsolventAccounts <= type(uint32).max); // dev: potential insolvent accounts overflow
+        require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= 0); // dev: total fcash overflow
+        // Total fCash requiring settlement is always less than total fCash
+        require(vaultState.totalfCash <= vaultState.totalfCashRequiringSettlement 
+            && vaultState.totalfCashRequiringSettlement <= 0); // dev: total fcash requiring settlement overflow
+        require(vaultState.accountsRequiringSettlement <= type(uint32).max); // dev: accounts settlement overflow
 
-        s.totalAssetCash= int88(vaultState.totalAssetCash);
+        s.totalfCashRequiringSettlement= int88(vaultState.totalfCashRequiringSettlement);
         s.totalfCash = int88(vaultState.totalfCash);
         s.isFullySettled = vaultState.isFullySettled;
-        s.potentialInsolventAccounts = uint32(vaultState.potentialInsolventAccounts);
+        s.accountsRequiringSettlement = uint32(vaultState.accountsRequiringSettlement);
     }
 
     /**
@@ -150,15 +152,11 @@ library VaultConfiguration {
 
     function getTotalVaultDebt(
         VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate,
         uint256 blockTime
     ) internal view returns (int256 totalVaultfCashDebt) {
+        // NOTE: this is not completely correct because it does not take into account escrowed asset cash
         VaultState memory vaultState = getVaultState(vaultConfig, getCurrentMaturity(vaultConfig, blockTime));
-
-        totalVaultfCashDebt = vaultState.totalfCash.add(
-            assetRate.convertToUnderlying(vaultState.totalEscrowedAssetCash)
-        );
-
+        totalVaultfCashDebt = vaultState.totalfCash;
         
         if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
             // If this is true then there is potentially debt in the next term as well
@@ -167,12 +165,9 @@ library VaultConfiguration {
                 vaultState.maturity.add(vaultConfig.termLengthInSeconds)
             );
 
-            totalVaultfCashDebt = totalVaultfCashDebt.add(
-                nextTerm.totalfCash.add(assetRate.convertToUnderlying(nextTerm.totalEscrowedAssetCash))
-            );
+            totalVaultfCashDebt = totalVaultfCashDebt.add(nextTerm.totalfCash);
         }
     }
-
 
     /**
      * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
@@ -180,88 +175,16 @@ library VaultConfiguration {
      */
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate,
         int256 stakedNTokenPV,
         uint256 blockTime
     ) internal view {
-        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, assetRate, blockTime);
+        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, blockTime);
 
         int256 maxNTokenCapacity = stakedNTokenPV
             .mul(vaultConfig.capacityMultiplierPercentage)
             .div(Constants.PERCENTAGE_DECIMALS);
 
-        // It's possible (however unlikely), that the vault has more cash than debt. In that case totalVaultfCashDebt
-        // will be positive (and we flip it to negative here) and the require statement will pass. This is the correct
-        // behavior
         require(totalVaultfCashDebt.neg() <= maxNTokenCapacity, "Insufficient capacity");
-    }
-
-    function checkVaultLeverageRatio(
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate,
-        uint256 blockTime,
-    ) internal view {
-        uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
-
-        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, assetRate, blockTime);
-        int256 underlyingVaultValue = ILeveragedVault(vaultConfig.vault)
-            .underlyingInternalValueOfMaturity(currentMaturity);
-
-        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
-            // Get the value of the positions in the next maturity
-            underlyingVaultValue = underlyingVaultValue.add(
-                ILeveragedVault(vaultConfig.vault).underlyingInternalValueOfMaturity(
-                    currentMaturity.add(vaultConfig.termLengthInSeconds)
-                );
-            );
-        }
-
-        int256 leverageRatio = totalVaultfCashDebt.neg().divInRatePrecision(
-            underlyingVaultValue.add(totalVaultfCashDebt)
-        ).add(Constants.RATE_PRECISION);
-
-        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Vault Overleveraged");
-    }
-
-    /**
-     * @notice Updates state when the vault is being settled.
-     */
-    function settleVaultState(
-        VaultConfig memory vaultConfig,
-        uint256 maturity,
-        uint256 assetCashRaisedExternal,
-        uint256 blockTime,
-        bool hasSupplyLeft
-    ) internal returns (int256 netAssetCash) {
-        // Transfer in the tokens that were raised
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        
-        // We are transferring assetCashRaisedExternal into Notional
-        int256 actualTransferInternal = assetToken.convertToInternal(
-            assetToken.transfer(vaultConfig.vault, vaultConfig.borrowCurrencyId, SafeInt256.toInt(assetCashRaisedExternal))
-        );
-
-        VaultState memory vaultState = getVaultState(vaultConfig, maturity);
-        AssetRateParameters memory assetRate;
-        if (blockTime < maturity) {
-            // Before maturity, we use the current asset exchange rate
-            assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
-        } else {
-            // After maturity, we use the settlement rate
-            assetRate = AssetRate.buildSettlementRateStateful(
-                vaultConfig.borrowCurrencyId,
-                maturity,
-                blockTime
-            );
-        }
-
-        vaultState.totalAssetCash = vaultState.totalAssetCash.add(actualTransferInternal);
-        // If this is gte 0, then we have sufficient cash to repay the debt. Else, we still need some more cash.
-        netAssetCash = vaultState.totalAssetCash.add(assetRate.convertFromUnderlying(vaultState.totalfCash));
-
-        // If the vault does not have supply left then it is fully settled
-        vaultState.isFullySettled = netAssetCash >= 0 || !hasSupplyLeft;
-        setVaultState(vaultConfig, vaultState);
     }
 
     /**
@@ -290,5 +213,4 @@ library VaultConfiguration {
         );
         actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
     }
-
 }
