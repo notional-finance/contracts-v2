@@ -11,8 +11,8 @@ interface ILeveragedVault {
         uint256 assetCashTransferred,
         bytes calldata data
     ) external returns (
-        uint256 accountUnderlyingValue,
-        uint256 vaultUnderlyingValue,
+        uint256 accountUnderlyingInternalValue,
+        uint256 vaultUnderlyingInternalValue,
         uint256 vaultSharesMinted
     );
 
