@@ -1,7 +1,7 @@
 import json
 import os
 
-from brownie import NoteERC20, accounts
+from brownie import accounts, network
 from scripts.deployment import deployArtifact
 
 IncentiveAirdropTree = json.load(
@@ -10,14 +10,15 @@ IncentiveAirdropTree = json.load(
 
 
 def main():
-    deployer = accounts.load("KOVAN_DEPLOYER")
-    output_file = "v2.kovan.json"
+    networkName = network.show_active()
+    if networkName == "mainnet-fork":
+        networkName = "mainnet"
+
+    deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    output_file = "v2.{}.json".format(networkName)
     addresses = None
     with open(output_file, "r") as f:
         addresses = json.load(f)
-
-    note = NoteERC20.at(addresses["note"])
-    noteWhale = accounts.at("0x4ba1d028e053A53842Ce31b0357C5864B40Ef909", force=True)
 
     airdrop = deployArtifact(
         os.path.join(os.path.dirname(__file__), "MerkleDistributor.json"),
@@ -25,5 +26,4 @@ def main():
         deployer,
         "IncentiveAirdrop",
     )
-
-    note.transfer(airdrop.address, IncentiveAirdropTree["tokenTotal"], {"from": noteWhale})
+    print("Airdrop Deployed To: ", airdrop.address)
