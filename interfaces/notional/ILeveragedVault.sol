@@ -7,8 +7,10 @@ interface ILeveragedVault {
     // Tells a vault to mint vault shares given the amount of cash transferred
     function mintVaultShares(
         address account,
-        uint256 maturity,
+        uint256 newMaturity,
+        uint256 oldMaturity,
         uint256 assetCashTransferred,
+        int256 assetCashExchangeRate,
         bytes calldata data
     ) external returns (
         int256 accountUnderlyingInternalValue,
@@ -20,11 +22,14 @@ interface ILeveragedVault {
         address account,
         uint256 vaultShares,
         bytes calldata data
-    ) external returns (uint256);
+    ) external returns (
+        int256 accountUnderlyingInternalValue,
+        uint256 assetCashExternal
+    );
 
 
     function isInSettlement() external view returns (bool);
     function canSettleMaturity(uint256 maturity) external view returns (bool);
-    function underlyingInternalValueOf(address account) external view returns (int256);
+    function underlyingInternalValueOf(address account, uint256 maturity) external view returns (int256);
     function balanceOf(address account) external view returns (uint256);
 }

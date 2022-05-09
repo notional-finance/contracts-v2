@@ -9,6 +9,7 @@ import "../../internal/vaults/VaultAccount.sol";
 contract VaultAction is ActionGuards {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
+    using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeMath for uint256;
@@ -109,7 +110,8 @@ contract VaultAction is ActionGuards {
             // ratio will decrease in this case so we do not need to check vault health and the account will
             // not have to pay any nToken fees. This is useful for accounts that want to quickly and cheaply
             // deleverage their account without paying down debts.
-            (/* */, uint256 vaultSharesMinted) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
+            AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+            (/* */, uint256 vaultSharesMinted) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData, assetRate);
             return vaultSharesMinted;
         }
     }
@@ -198,7 +200,7 @@ contract VaultAction is ActionGuards {
         (
             int256 accountUnderlyingInternalValue,
             uint256 vaultSharesMinted
-        ) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
+        ) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData, assetRate);
 
         vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
         return vaultSharesMinted;
@@ -228,7 +230,7 @@ contract VaultAction is ActionGuards {
         
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the temporary cash balance.
-        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        int256 accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
         
         if (vaultAccount.maturity <= block.timestamp) {
             vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
@@ -243,7 +245,7 @@ contract VaultAction is ActionGuards {
         
             // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
             // will be reducing their leverage ratio here, so we check that this is the case).
-            int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate);
+            int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
             require(leverageRatio <= vaultConfig.maxLeverageRatio, "Over Leverage");
         }
         
@@ -274,12 +276,14 @@ contract VaultAction is ActionGuards {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
 
         // Check that the leverage ratio is above the maximum allowed
-        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate);
+        int256 accountUnderlyingInternalValue = ILeveragedVault(vaultConfig.vault)
+            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.maturity);
+        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
         require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the temporary cash balance.
-        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
 
         // Pay the liquidator their share out of temp cash balance
         int256 liquidatorPayment = vaultAccount.tempCashBalance
@@ -297,7 +301,7 @@ contract VaultAction is ActionGuards {
         // Ensure that the leverage ratio does not drop too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
-        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate);
+        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
         require(vaultConfig.maxLeverageRatio.mulInRatePrecision(0.70e9) < leverageRatio, "Over liquidation");
 
         // Sets the vault account

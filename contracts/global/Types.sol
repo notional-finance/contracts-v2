@@ -554,6 +554,7 @@ struct VaultAccount {
     int256 tempCashBalance;
     int256 fCash;
     int256 escrowedAssetCash;
+    uint256 oldMaturity;
     uint256 maturity;
     bool requiresSettlement;
 }

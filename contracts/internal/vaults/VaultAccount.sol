@@ -32,6 +32,7 @@ library VaultAccountLib {
         vaultAccount.fCash = s.fCash;
         vaultAccount.escrowedAssetCash = s.escrowedAssetCash;
         vaultAccount.maturity = s.maturity;
+        vaultAccount.oldMaturity = vaultAccount.maturity;
         vaultAccount.requiresSettlement = s.requiresSettlement;
     }
 
@@ -204,29 +205,7 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
-        // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
-        // actual fee amount (if there is significant slippage than the account's leverage ratio will be higher),
-        // however, for the sake of simplicity we do it here (rather than rely on a bunch of back and forth transfers
-        // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
-        // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
-        // vault shares to ensure that both the account and vault are healthy.
-        int256 nTokenFee;
-        {
-            // We don't know the true underlying value here but we approximate it assuming zero slippage
-            // for the cash that will enter the vault.
-            int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault)
-                .underlyingInternalValueOf(vaultAccount.account)
-                .add(assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
-
-            int256 preSlippageLeverageRatio = calculateLeverage(
-                vaultAccount,
-                vaultConfig,
-                assetRate,
-                underlyingInternalValue
-            );
-            nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
-        }
+        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, assetRate, fCash);
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
         int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
@@ -239,6 +218,33 @@ library VaultAccountLib {
         vaultConfig.checkTotalBorrowCapacity(stakedNTokenPV, blockTime);
     }
 
+    function _getNTokenFee(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory assetRate,
+        int256 fCash
+    ) private view returns (int256 nTokenFee) {
+        // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
+        // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
+        // actual fee amount (if there is significant slippage than the account's leverage ratio will be higher),
+        // however, for the sake of simplicity we do it here (rather than rely on a bunch of back and forth transfers
+        // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
+        // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
+        // vault shares to ensure that both the account and vault are healthy.
+        int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault)
+            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.oldMaturity)
+            .add(assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
+
+        int256 preSlippageLeverageRatio = calculateLeverage(
+            vaultAccount,
+            vaultConfig,
+            assetRate,
+            underlyingInternalValue
+        );
+
+        nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
+    }
+
     /**
      * @notice Enters an account into a vault using it's cash balance. Checks final leverage ratios
      * of both the account and vault. Sets the vault account in storage.
@@ -246,7 +252,8 @@ library VaultAccountLib {
     function enterAccountIntoVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
-        bytes calldata vaultData
+        bytes calldata vaultData,
+        AssetRateParameters memory assetRate
     ) internal returns (
         int256 accountUnderlyingInternalValue,
         uint256 vaultSharesMinted
@@ -265,7 +272,9 @@ library VaultAccountLib {
         return ILeveragedVault(vaultConfig.vault).mintVaultShares(
             vaultAccount.account,
             vaultAccount.maturity,
+            vaultAccount.oldMaturity,
             SafeInt256.toUint(assetCashToVaultExternal),
+            assetRate.rate,
             vaultData
         );
     }
@@ -373,15 +382,6 @@ library VaultAccountLib {
         }
     }
 
-    function calculateLeverage(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate
-    ) internal view returns (int256 leverageRatio) {
-        int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault).underlyingInternalValueOf(vaultAccount.account);
-        return calculateLeverage(vaultAccount, vaultConfig, assetRate, underlyingInternalValue);
-    }
-
     /**
      * @notice Calculates the leverage ratio of the account or vault
      */
@@ -458,9 +458,13 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
         uint256 vaultSharesToRedeem
-    ) internal {
+    ) internal returns (int256 accountUnderlyingInternalValue) {
         if (vaultSharesToRedeem > 0) {
-            uint256 assetCashExternal = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
+            uint256 assetCashExternal;
+            (
+                accountUnderlyingInternalValue,
+                assetCashExternal
+            ) = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
                 vaultSharesToRedeem,
                 "" // TODO: implement
