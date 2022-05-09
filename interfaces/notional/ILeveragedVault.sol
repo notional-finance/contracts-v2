@@ -20,7 +20,8 @@ interface ILeveragedVault {
     // Redeems shares from the vault to asset cash.
     function redeemVaultShares(
         address account,
-        uint256 vaultShares,
+        uint256 vaultSharesToRedeem,
+        uint256 maturity,
         bytes calldata data
     ) external returns (
         int256 accountUnderlyingInternalValue,

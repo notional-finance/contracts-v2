@@ -457,6 +457,34 @@ library VaultAccountLib {
     function redeemShares(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
+        uint256 vaultSharesToRedeem,
+        bytes calldata exitVaultData
+    ) internal returns (int256 accountUnderlyingInternalValue) {
+        if (vaultSharesToRedeem > 0) {
+            uint256 assetCashExternal;
+            (
+                accountUnderlyingInternalValue,
+                assetCashExternal
+            ) = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
+                vaultAccount.account,
+                vaultSharesToRedeem,
+                vaultAccount.maturity,
+                exitVaultData
+            );
+
+            depositIntoAccount(
+                vaultAccount,
+                vaultConfig.vault,
+                vaultConfig.borrowCurrencyId,
+                assetCashExternal,
+                false // vault will mint asset cash
+            );
+        }
+    }
+
+    function redeemShares(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig, 
         uint256 vaultSharesToRedeem
     ) internal returns (int256 accountUnderlyingInternalValue) {
         if (vaultSharesToRedeem > 0) {
@@ -467,7 +495,8 @@ library VaultAccountLib {
             ) = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
                 vaultSharesToRedeem,
-                "" // TODO: implement
+                vaultAccount.maturity,
+                ""
             );
 
             depositIntoAccount(

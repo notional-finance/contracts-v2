@@ -125,18 +125,14 @@ contract VaultAction is ActionGuards {
      * @param vault the vault to reenter
      * @param vaultSharesToRedeem the amount of vault shares to redeem for asset tokens
      * @param fCashToBorrow amount of fCash to borrow in the next maturity
-     * @param minLendRate minimum lend rate to close out current position
-     * @param maxBorrowRate maximum borrow rate to initiate new position
-     * @param vaultData additional data to pass to the vault contract
+     * @param opts struct with slippage limits and data to send to vault
      */
     function rollVaultPosition(
         address account,
         address vault,
         uint256 vaultSharesToRedeem,
         uint256 fCashToBorrow,
-        uint32 minLendRate,
-        uint32 maxBorrowRate,
-        bytes calldata vaultData
+        RollVaultOpts calldata opts
     ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256) {
         // Cannot enter a vault if it is not enabled
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
@@ -155,19 +151,19 @@ contract VaultAction is ActionGuards {
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
-        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, opts.exitVaultData);
 
         // Fully exit the current lending position
         vaultAccount.lendToExitVault(
             vaultConfig,
             vaultAccount.fCash.neg(), // must fully exit the fCash position
-            minLendRate,
+            opts.minLendRate,
             block.timestamp
         );
 
         // If the lending was unsuccessful then we cannot roll the position, the account cannot
         // have two fCash balances.
-        require(vaultAccount.fCash == 0 && vaultAccount.requiresSettlement, "Failed Lend");
+        require(vaultAccount.fCash == 0 && !vaultAccount.requiresSettlement, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
        return _borrowAndEnterVault(
@@ -175,8 +171,8 @@ contract VaultAction is ActionGuards {
             vaultAccount,
             currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
             fCashToBorrow,
-            maxBorrowRate,
-            vaultData
+            opts.maxBorrowRate,
+            opts.enterVaultData
         );
     }
 
@@ -223,14 +219,15 @@ contract VaultAction is ActionGuards {
         uint256 vaultSharesToRedeem,
         uint256 fCashToLend,
         uint32 minLendRate,
-        bool useUnderlying
+        bool useUnderlying,
+        bytes calldata exitVaultData
     ) external allowAccountOrVault(account, vault) nonReentrant { 
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the temporary cash balance.
-        int256 accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        int256 accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, exitVaultData);
         
         if (vaultAccount.maturity <= block.timestamp) {
             vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
@@ -266,7 +263,8 @@ contract VaultAction is ActionGuards {
         address account,
         address vault,
         uint256 vaultSharesToRedeem,
-        uint256 fCashToLend
+        uint256 fCashToLend,
+        bytes calldata exitVaultData
     ) external nonReentrant { 
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfig(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
@@ -283,7 +281,7 @@ contract VaultAction is ActionGuards {
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the temporary cash balance.
-        accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem);
+        accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, exitVaultData);
 
         // Pay the liquidator their share out of temp cash balance
         int256 liquidatorPayment = vaultAccount.tempCashBalance
@@ -354,6 +352,8 @@ contract VaultAction is ActionGuards {
                     vaultState.maturity == vaultAccount.maturity &&
                     vaultAccount.requiresSettlement
                 );
+                // Vaults must have some default behavior defined for redemptions and not rely on
+                // calldata to make redemption decisions.
                 vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem[i]);
                 vaultAccount.settleEscrowedAccount(vaultState, vaultConfig, settlementRate);
 

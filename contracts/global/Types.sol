@@ -558,3 +558,10 @@ struct VaultAccount {
     uint256 maturity;
     bool requiresSettlement;
 }
+
+struct RollVaultOpts {
+    uint32 minLendRate;
+    uint32 maxBorrowRate;
+    bytes exitVaultData;
+    bytes enterVaultData;
+}
