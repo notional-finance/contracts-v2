@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-v3
-pragma solidity >=0.7.0;
+pragma solidity >=0.7.6;
 
 // Inherits ERC20? or ERC4626?
 interface ILeveragedVault {
