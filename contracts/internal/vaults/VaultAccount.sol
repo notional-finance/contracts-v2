@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "./VaultConfiguration.sol";
@@ -391,20 +391,23 @@ library VaultAccountLib {
         AssetRateParameters memory assetRate,
         int256 underlyingInternalValue
     ) internal view returns (int256 leverageRatio) {
+        // We do not discount fCash to present value so that we do not introduce interest
+        // rate risk in this calculation. The economic benefit of discounting will be very
+        // minor relative to the added complexity of accounting for interest rate risk.
+        // Escrowed asset cash is held as payment against borrowed fCash, so we net it off here.
+        int256 debtOutstanding = assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash).add(vaultAccount.fCash);
+
         // The net asset value includes all value in cash and vault shares in underlying internal
-        // precision minus the total amount borrowed
-        int256 netAssetValue = assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
-            .add(underlyingInternalValue)
-            // We do not discount fCash to present value so that we do not introduce interest
-            // rate risk in this calculation. The economic benefit of discounting will be very
-            // minor relative to the added complexity of accounting for interest rate risk.
-            .add(vaultAccount.fCash);
+        // precision net off against the total outstanding borrowing
+        int256 netAssetValue = debtOutstanding.add(underlyingInternalValue);
 
         // Can never have negative value of assets
         require(netAssetValue > 0);
 
-        // Leverage ratio is: (borrowValue / netAssetValue) + 1
-        leverageRatio = vaultAccount.fCash.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
+        // Leverage ratio is: (debtOutanding / netAssetValue) + 1
+        leverageRatio = debtOutstanding.neg()
+            .divInRatePrecision(netAssetValue)
+            .add(Constants.RATE_PRECISION);
     }
 
     /**
