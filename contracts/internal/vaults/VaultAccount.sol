@@ -8,7 +8,7 @@ import "../markets/CashGroup.sol";
 import "../markets/AssetRate.sol";
 import "../../math/SafeInt256.sol";
 import "../balances/TokenHandler.sol";
-import "../../../interfaces/notional/ILeveragedVault.sol";
+import "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
@@ -137,7 +137,7 @@ library VaultAccountLib {
         } else {
             // If there are vault shares left then this will revert, more vault shares
             // need to be sold to exit the account's debt.
-            require(ILeveragedVault(vaultConfig.vault).balanceOf(vaultAccount.account) == 0);
+            require(IStrategyVault(vaultConfig.vault).balanceOf(vaultAccount.account) == 0);
 
             // If there are no vault shares left at this point then we have an
             // insolvency. The negative cash balance needs to be cleared via nToken
@@ -231,7 +231,7 @@ library VaultAccountLib {
         // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
         // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
         // vault shares to ensure that both the account and vault are healthy.
-        int256 underlyingInternalValue = ILeveragedVault(vaultConfig.vault)
+        int256 underlyingInternalValue = IStrategyVault(vaultConfig.vault)
             .underlyingInternalValueOf(vaultAccount.account, vaultAccount.oldMaturity)
             .add(assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
 
@@ -269,7 +269,7 @@ library VaultAccountLib {
         // transferFrom the Notional contract.
         (int256 assetCashToVaultExternal, /* */) = vaultConfig.transferVault(cashFromAccount.neg());
 
-        return ILeveragedVault(vaultConfig.vault).mintVaultShares(
+        return IStrategyVault(vaultConfig.vault).mintVaultShares(
             vaultAccount.account,
             vaultAccount.maturity,
             vaultAccount.oldMaturity,
@@ -468,7 +468,7 @@ library VaultAccountLib {
             (
                 accountUnderlyingInternalValue,
                 assetCashExternal
-            ) = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
+            ) = IStrategyVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
                 vaultSharesToRedeem,
                 vaultAccount.maturity,
@@ -495,7 +495,7 @@ library VaultAccountLib {
             (
                 accountUnderlyingInternalValue,
                 assetCashExternal
-            ) = ILeveragedVault(vaultConfig.vault).redeemVaultShares(
+            ) = IStrategyVault(vaultConfig.vault).redeemVaultShares(
                 vaultAccount.account,
                 vaultSharesToRedeem,
                 vaultAccount.maturity,

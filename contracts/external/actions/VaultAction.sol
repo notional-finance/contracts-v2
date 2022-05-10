@@ -85,7 +85,7 @@ contract VaultAction is ActionGuards {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
 
         // Vaults cannot be entered if they are in the settlement time period at the end of a quarter.
-        require(!ILeveragedVault(vault).isInSettlement(), "In Settlement");
+        require(!IStrategyVault(vault).isInSettlement(), "In Settlement");
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Do this first in case the vault has a matured vault position
@@ -140,7 +140,7 @@ contract VaultAction is ActionGuards {
         require(vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTER), "No Reenter");
 
         // Vaults can only be rolled during the settlement period
-        require(ILeveragedVault(vault).isInSettlement(), "Not in Settlement");
+        require(IStrategyVault(vault).isInSettlement(), "Not in Settlement");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // Can only roll vaults that are in the current maturity
@@ -274,7 +274,7 @@ contract VaultAction is ActionGuards {
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
 
         // Check that the leverage ratio is above the maximum allowed
-        int256 accountUnderlyingInternalValue = ILeveragedVault(vaultConfig.vault)
+        int256 accountUnderlyingInternalValue = IStrategyVault(vaultConfig.vault)
             .underlyingInternalValueOf(vaultAccount.account, vaultAccount.maturity);
         int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, assetRate, accountUnderlyingInternalValue);
         require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
@@ -331,7 +331,7 @@ contract VaultAction is ActionGuards {
         require(maturity <= block.timestamp);
         require(settleAccounts.length == vaultSharesToRedeem.length);
         // The vault will let us know when settlement can begin after maturity
-        require(ILeveragedVault(vault).canSettleMaturity(maturity), "Vault Cannot Settle");
+        require(IStrategyVault(vault).canSettleMaturity(maturity), "Vault Cannot Settle");
         uint16 currencyId = vaultConfig.borrowCurrencyId;
 
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
