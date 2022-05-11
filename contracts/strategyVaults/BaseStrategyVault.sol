@@ -9,6 +9,20 @@ import {IVaultController} from "../../../interfaces/notional/IVaultController.so
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 
 abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
+    function _mintStrategyTokens(
+        address account,
+        uint256 maturity,
+        uint256 assetCashToUse,
+        bytes calldata data
+    ) internal virtual returns (uint256 strategyTokensMinted);
+    function _redeemStrategyTokens(
+        address account,
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata data
+    ) internal virtual returns (uint256 cashTokensRaised);
+    function _convertStrategyToUnderlying(uint256 strategyTokens) internal view virtual returns (uint256 underlyingValue);
+    function isInSettlement() external view virtual returns (bool);
     
     struct MaturityPool {
         uint128 totalVaultShares;
@@ -18,7 +32,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     }
 
     /// @notice A mapping between vault shares and a maturity
-    mapping(uint256 => MaturityPool) public vaultMaturityPools;
+    mapping(uint256 => MaturityPool) private vaultMaturityPools;
 
     uint16 internal immutable BORROW_CURRENCY_ID;
     // IERC20 public immutable ASSET_TOKEN;
@@ -29,6 +43,11 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     uint256 immutable internal UNDERLYING_TOKEN_PRECISION;
 
     function decimals() public view override returns (uint8) { return _decimals; }
+
+    modifier onlyNotional() {
+        require(msg.sender == address(NOTIONAL));
+        _;
+    }
 
     constructor(
         string memory name_,
@@ -53,16 +72,55 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     }
 
     // TODO: asset token mint / redeem methods
-    // TODO: rebase matured pool
+    //function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
+    
+    /** 
+     * @notice Vaults can optionally settle their matured pools back into either 100% strategy
+     * tokens or 100% asset cash. Only Notional can call this method.
+     * @param rebaseToAssetCash
+     */
+    function settleMaturedPool(
+        uint256 maturity,
+        bool rebaseToAssetCash,
+        bytes calldata vaultData
+    ) external onlyNotional override {
+        MaturityPool memory maturityPool = vaultMaturityPools[maturity];
+
+        if (rebaseToCash && maturityPool.totalStrategyTokens > 0) {
+            uint256 assetCashWithdrawn = _redeemStrategyTokens(address(0), maturity, maturityPool.totalStrategyTokens, vaultData);
+            maturityPool.totalAssetCash += _safeUint128(assetCasWithdrawn);
+            maturityPool.totalStrategyTokens = 0;
+        } else if (maturityPool.totalAssetCash > 0) {
+            uint256 strategyTokensMinted = _mintStrategyTokens(address(0), maturity, maturityPool.totalAssetCash, vaultData);
+            maturityPool.totalStrategyTokens += _safeUint128(strategyTokensMinted);
+            maturityPool.totalAssetCash = 0;
+        }
+
+        vaultMaturityPools[maturity] = maturityPool;
+    }
 
     function _beforeTokenTransfer(
         address from,
         address to,
-        uint256 amount
+        /* uint256 amount */
     ) internal override {
-        if (from != address(0) && to != address(0)) {
-            // TODO: check fungibility between the maturities here.
-        }
+        // When we transfer from one account to another we want to make sure that
+        // the maturities of from and to are matching (so that the vaultShares base is
+        // the same between the accounts).
+        uint256 fromMaturity = NOTIONAL.getVaultAccountMaturity(address(this), from);
+        uint256 toMaturity = NOTIONAL.getVaultAccountMaturity(address(this), to);
+        require(fromMaturity == toMaturity);
+    }
+
+    function _afterTokenTransfer(
+        address from,
+        /* address to */,
+        /* uint256 amount */
+    ) internal override {
+        // During a token transfer, the from account's leverage ratio will increase, ensure that
+        // it does not go past the maximum allowed.
+        (uint256 leverageRatio, uint256 maxLeverageRatio) = NOTIONAL.getLeverageRatioFor(from)
+        require(leverageRatio <= maxLeverageRatio, "Max Leverage");
     }
 
     /**
@@ -83,7 +141,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         uint256 assetCashTransferred,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external override returns (int256 accountUnderlyingInternalValue) {
+    ) external onlyNotional override returns (int256 accountUnderlyingInternalValue) {
         // Only Notional is authorized to mint vault shares
         require(msg.sender == address(NOTIONAL));
 
@@ -147,7 +205,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         uint256 maturity,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external override returns (
+    ) external onlyNotional override returns (
         int256 accountUnderlyingInternalValue,
         uint256 cashToTransfer
     ) {
@@ -262,6 +320,10 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         );
     }
 
+    function getMaturityPool(uint256 maturity) public view returns (MaturityPool memory) {
+        return vaultMaturityPool[maturity];
+    }
+
     // function maturityPoolSharesOf(address account) public view returns (
     //     uint256 maturity,
     //     uint256 assetCash,
@@ -303,25 +365,4 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         underlyingTokenAmount = (cashTokenAmount * uint256(assetExchangeRate)) / UNDERLYING_TOKEN_PRECISION;
     }
 
-    function _mintStrategyTokens(
-        address account,
-        uint256 maturity,
-        uint256 assetCashToUse,
-        bytes calldata data
-    ) internal virtual returns (uint256 strategyTokensMinted);
-    function _redeemStrategyTokens(
-        address account,
-        uint256 maturity,
-        uint256 strategyTokensToRedeem,
-        bytes calldata data
-    ) internal virtual returns (uint256 cashTokensRaised);
-    function _convertStrategyToUnderlying(uint256 strategyTokens) internal view virtual returns (uint256 underlyingValue);
-    function isInSettlement() external view virtual returns (bool);
-    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
-
-    // // // TODO: put these on the main vault actions
-    // // function assetValueOf(address account) external view returns (int256);
-    // // function assetInternalValueOf(address account) external view returns (int256);
-    // // function leverageRatioFor(address account) external view returns (uint256);
-    // // function escrowedCashBalance(address account) external view returns (uint256);
 }

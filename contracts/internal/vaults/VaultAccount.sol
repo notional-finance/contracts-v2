@@ -73,7 +73,7 @@ library VaultAccountLib {
         uint256 blockTime
     ) internal {
         // These conditions mean that the vault account does not require settlement
-        if (blockTime < vaultAccount.maturity || vaultAccount.maturity == 0) return;
+        if (blockTime < vaultAccount.maturity || vaultAccount.fCash == 0) return;
         VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
 
         if (!vaultAccount.requiresSettlement && vaultAccount.escrowedAssetCash == 0) {
@@ -88,7 +88,6 @@ library VaultAccountLib {
 
             // Update the vault account in memory
             vaultAccount.fCash = 0;
-            vaultAccount.maturity = 0;
 
             // At this point, the account has cleared its fCash balance on the vault and can re-enter a new vault maturity.
             // In all likelihood, it still has some balance of vaultShares on the vault. If it wants to re-enter a vault
@@ -127,7 +126,6 @@ library VaultAccountLib {
         if (vaultAccount.tempCashBalance >= 0) {
             // In this case the vault is now free and clear
             vaultAccount.requiresSettlement = false;
-            vaultAccount.maturity = 0;
 
             if (vaultState.accountsRequiringSettlement > 0) {
                 // Don't revert on underflow here, just floor the value at 0 in case
@@ -170,10 +168,13 @@ library VaultAccountLib {
         require(fCash < 0); // dev: fcash must be negative
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
-        // The vault account can only be increasing their position or not have one set. If they are
-        // at a different maturity they must exit first. The vaultState maturity will always be the
-        // current maturity because we check if it must be settled first.
-        require(vaultAccount.maturity == 0 || vaultAccount.maturity == maturity);
+        // The vault account can only be increasing their borrow position or not have one set. If they
+        // are increasing their position they will be in the current maturity
+        if (vaultAccount.fCash == 0) {
+            vaultAccount.maturity = maturity;
+        } else {
+            require(vaultAccount.maturity == maturity);
+        }
 
         // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
         // assuming the worst case scenario. Will adjust the fee properly at the end
@@ -192,7 +193,6 @@ library VaultAccountLib {
             // Update the account and vault state to account for the borrowing
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-            vaultAccount.maturity = maturity;
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
                 .add(assetCashBorrowed)
                 .sub(maxNTokenFee);
@@ -292,7 +292,7 @@ library VaultAccountLib {
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
         
         // Check that the account is in an active vault
-        require(vaultAccount.maturity != 0 && blockTime < vaultAccount.maturity);
+        require(blockTime < vaultAccount.maturity);
         VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
@@ -315,7 +315,6 @@ library VaultAccountLib {
 
             // Update fCash state on the account and the vault
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-            if (vaultAccount.fCash == 0) vaultAccount.maturity = 0;
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
 
             if (vaultAccount.escrowedAssetCash > 0) {

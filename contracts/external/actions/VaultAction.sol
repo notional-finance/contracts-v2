@@ -108,7 +108,6 @@ contract VaultAction is ActionGuards, IVaultAction {
 
                     // Pre-emptively clear the vault account assuming the shortfall will be cleared
                     vaultAccount.requiresSettlement = false;
-                    vaultAccount.maturity = 0;
                     vaultAccount.tempCashBalance = 0;
 
                     if (vaultState.accountsRequiringSettlement > 0) {

@@ -38,6 +38,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint32 maxBorrowRate,
         bytes calldata vaultData
     ) external allowAccountOrVault(account, vault) override nonReentrant { 
+        // Ensure that system level accounts cannot enter vaults
+        requireValidAccount(account);
         // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
@@ -259,4 +261,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         assetToken.transfer(msg.sender, vaultConfig.borrowCurrencyId, liquidatorPayment.neg());
     }
+
+    // // function assetValueOf(address account) external view returns (int256);
+    // // function assetInternalValueOf(address account) external view returns (int256);
+    // // function leverageRatioFor(address account) external view returns (uint256);
+    // // function escrowedCashBalance(address account) external view returns (uint256);
 }
