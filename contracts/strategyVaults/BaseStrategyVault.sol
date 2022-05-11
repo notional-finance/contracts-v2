@@ -19,8 +19,8 @@ abstract contract BaseStrategyVault is ERC20 {
     mapping(uint256 => MaturityPool) public vaultMaturityPools;
 
     uint16 internal immutable BORROW_CURRENCY_ID;
-    // address public immutable ASSET_TOKEN;
-    // address public immutable UNDERLYING_TOKEN;
+    // IERC20 public immutable ASSET_TOKEN;
+    // IERC20 public immutable UNDERLYING_TOKEN;
     uint256 constant internal INTERNAL_TOKEN_PRECISION = 1e8;
     uint8 immutable private _decimals;
     NotionalProxy public immutable NOTIONAL;

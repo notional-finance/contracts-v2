@@ -497,6 +497,7 @@ struct VaultConfig {
     int256 maxLeverageRatio;
     int256 capacityMultiplierPercentage;
     int256 liquidationRate;
+    AssetRateParameters assetRate;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state

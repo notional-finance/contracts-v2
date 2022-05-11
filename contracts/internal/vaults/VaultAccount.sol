@@ -158,8 +158,6 @@ library VaultAccountLib {
      * @param fCash amount of fCash to borrow from the market, must be negative
      * @param maxBorrowRate maximum annualized rate to pay for the borrow
      * @param blockTime current block time
-     * @return assetRate for future calculations
-     * @return totalVaultDebt for future calculations
      */
     function borrowIntoVault(
         VaultAccount memory vaultAccount,
@@ -168,7 +166,7 @@ library VaultAccountLib {
         int256 fCash,
         uint256 maxBorrowRate,
         uint256 blockTime
-    ) internal returns (AssetRateParameters memory assetRate, int256 totalVaultDebt) {
+    ) internal {
         require(fCash < 0); // dev: fcash must be negative
         VaultState memory vaultState = vaultConfig.getVaultState(maturity);
 
@@ -182,8 +180,7 @@ library VaultAccountLib {
         int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash);
 
         {
-            int256 assetCashBorrowed;
-            (assetCashBorrowed, assetRate) = _executeTrade(
+            int256 assetCashBorrowed  = _executeTrade(
                 vaultConfig.borrowCurrencyId,
                 maturity,
                 fCash,
@@ -205,7 +202,7 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, assetRate, fCash);
+        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, fCash);
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
         int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
@@ -221,7 +218,6 @@ library VaultAccountLib {
     function _getNTokenFee(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate,
         int256 fCash
     ) private view returns (int256 nTokenFee) {
         // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
@@ -232,13 +228,12 @@ library VaultAccountLib {
         // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
         // vault shares to ensure that both the account and vault are healthy.
         int256 underlyingInternalValue = IStrategyVault(vaultConfig.vault)
-            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.oldMaturity)
-            .add(assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
+            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.oldMaturity, vaultConfig.assetRate.rate)
+            .add(vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
 
         int256 preSlippageLeverageRatio = calculateLeverage(
             vaultAccount,
             vaultConfig,
-            assetRate,
             underlyingInternalValue
         );
 
@@ -252,8 +247,7 @@ library VaultAccountLib {
     function enterAccountIntoVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
-        bytes calldata vaultData,
-        AssetRateParameters memory assetRate
+        bytes calldata vaultData
     ) internal returns (
         int256 accountUnderlyingInternalValue,
         uint256 vaultSharesMinted
@@ -274,7 +268,7 @@ library VaultAccountLib {
             vaultAccount.maturity,
             vaultAccount.oldMaturity,
             SafeInt256.toUint(assetCashToVaultExternal),
-            assetRate.rate,
+            vaultConfig.assetRate.rate,
             vaultData
         );
     }
@@ -288,7 +282,6 @@ library VaultAccountLib {
      * lend more than the account's debt
      * @param minLendRate minimum rate to lend at
      * @param blockTime current block time
-     * @return assetRate the asset rate for further calculations
      */
     function lendToExitVault(
         VaultAccount memory vaultAccount,
@@ -296,7 +289,7 @@ library VaultAccountLib {
         int256 fCash,
         uint256 minLendRate,
         uint256 blockTime
-    ) internal returns (AssetRateParameters memory assetRate) {
+    ) internal {
         require(fCash >= 0); // dev: fcash must be positive
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
@@ -307,8 +300,7 @@ library VaultAccountLib {
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
-        int256 assetCashCostToLend;
-        (assetCashCostToLend, assetRate) = _executeTrade(
+        int256 assetCashCostToLend  = _executeTrade(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
             fCash,
@@ -353,7 +345,7 @@ library VaultAccountLib {
             // In this case, the lending has failed due to a lack of liquidity or negative interest rates.
             // Instead of lending, we will deposit into the account escrow cash balance instead. When this
             // happens, the account will require special handling for settlement.
-            int256 assetCashDeposit = assetRate.convertFromUnderlying(fCash); // this is a positive number
+            int256 assetCashDeposit = vaultConfig.assetRate.convertFromUnderlying(fCash); // this is a positive number
             increaseEscrowedAssetCash(vaultAccount, vaultState, assetCashDeposit);
         } else {
             // This should never be the case.
@@ -388,14 +380,14 @@ library VaultAccountLib {
     function calculateLeverage(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        AssetRateParameters memory assetRate,
         int256 underlyingInternalValue
-    ) internal view returns (int256 leverageRatio) {
+    ) internal pure returns (int256 leverageRatio) {
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
         // Escrowed asset cash is held as payment against borrowed fCash, so we net it off here.
-        int256 debtOutstanding = assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash).add(vaultAccount.fCash);
+        int256 debtOutstanding = vaultConfig.assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
+            .add(vaultAccount.fCash);
 
         // The net asset value includes all value in cash and vault shares in underlying internal
         // precision net off against the total outstanding borrowing
@@ -418,7 +410,6 @@ library VaultAccountLib {
      * @param rateLimit 0 if there is no limit, otherwise is a slippage limit
      * @param blockTime current time
      * @return netAssetCash amount of cash to credit to the account
-     * @return assetRate conversion rate between asset cash and underlying
      */
     function _executeTrade(
         uint16 currencyId,
@@ -426,7 +417,7 @@ library VaultAccountLib {
         int256 netfCashToAccount,
         uint256 rateLimit,
         uint256 blockTime
-    ) private returns (int256, AssetRateParameters memory) {
+    ) private returns (int256) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);
@@ -447,7 +438,7 @@ library VaultAccountLib {
             require(market.lastImpliedRate >= rateLimit);
         }
 
-        return (assetCash, cashGroup.assetRate);
+        return assetCash;
     }
 
     /**
@@ -472,6 +463,7 @@ library VaultAccountLib {
                 vaultAccount.account,
                 vaultSharesToRedeem,
                 vaultAccount.maturity,
+                vaultConfig.assetRate.rate,
                 exitVaultData
             );
 
@@ -499,6 +491,7 @@ library VaultAccountLib {
                 vaultAccount.account,
                 vaultSharesToRedeem,
                 vaultAccount.maturity,
+                vaultConfig.assetRate.rate,
                 ""
             );
 

@@ -25,9 +25,9 @@ library VaultConfiguration {
     uint16 internal constant ALLOW_REENTER      = 1 << 1;
     uint16 internal constant IS_INSURED         = 1 << 2;
 
-    function getVaultConfig(
+    function _getVaultConfig(
         address vaultAddress
-    ) internal view returns (VaultConfig memory vaultConfig) {
+    ) private view returns (VaultConfig memory vaultConfig) {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         VaultConfigStorage storage s = store[vaultAddress];
 
@@ -40,6 +40,20 @@ library VaultConfiguration {
         vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
         vaultConfig.liquidationRate = int256(uint256(s.liquidationRate));
+    }
+
+    function getVaultConfigStateful(
+        address vaultAddress
+    ) internal returns (VaultConfig memory vaultConfig) {
+        vaultConfig = _getVaultConfig(vaultAddress);
+        vaultConfig.assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+    }
+
+    function getVaultConfigView(
+        address vaultAddress
+    ) internal returns (VaultConfig memory vaultConfig) {
+        vaultConfig = _getVaultConfig(vaultAddress);
+        vaultConfig.assetRate = AssetRate.buildAssetRateView(vaultConfig.borrowCurrencyId);
     }
 
     function setVaultEnabledStatus(
