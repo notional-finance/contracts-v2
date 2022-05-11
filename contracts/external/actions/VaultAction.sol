@@ -69,7 +69,6 @@ contract VaultAction is ActionGuards {
      * @param fCash total amount of fCash to borrow to enter the vault
      * @param maxBorrowRate maximum interest rate to borrow at
      * @param vaultData additional data to pass to the vault contract
-     * @return vaultSharesMinted
      */
     function enterVault(
         address account,
@@ -79,7 +78,7 @@ contract VaultAction is ActionGuards {
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256) { 
+    ) external allowAccountOrVault(account, vault) nonReentrant { 
         // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
@@ -97,7 +96,7 @@ contract VaultAction is ActionGuards {
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
         if (fCash > 0) {
-            return _borrowAndEnterVault(
+            _borrowAndEnterVault(
                 vaultConfig,
                 vaultAccount,
                 vaultConfig.getCurrentMaturity(block.timestamp),
@@ -110,8 +109,7 @@ contract VaultAction is ActionGuards {
             // ratio will decrease in this case so we do not need to check vault health and the account will
             // not have to pay any nToken fees. This is useful for accounts that want to quickly and cheaply
             // deleverage their account without paying down debts.
-            (/* */, uint256 vaultSharesMinted) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
-            return vaultSharesMinted;
+            vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
         }
     }
 
@@ -132,7 +130,7 @@ contract VaultAction is ActionGuards {
         uint256 vaultSharesToRedeem,
         uint256 fCashToBorrow,
         RollVaultOpts calldata opts
-    ) external allowAccountOrVault(account, vault) nonReentrant returns (uint256) {
+    ) external allowAccountOrVault(account, vault) nonReentrant {
         // Cannot enter a vault if it is not enabled
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
@@ -165,7 +163,7 @@ contract VaultAction is ActionGuards {
         require(vaultAccount.fCash == 0 && !vaultAccount.requiresSettlement, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
-       return _borrowAndEnterVault(
+        _borrowAndEnterVault(
             vaultConfig,
             vaultAccount,
             currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
@@ -182,7 +180,7 @@ contract VaultAction is ActionGuards {
         uint256 fCashToBorrow,
         uint256 maxBorrowRate,
         bytes calldata vaultData
-    ) private returns (uint256) {
+    ) private {
         vaultAccount.borrowIntoVault(
             vaultConfig,
             maturity,
@@ -192,13 +190,8 @@ contract VaultAction is ActionGuards {
         );
 
         // Transfers cash, sets vault account state, mints vault shares
-        (
-            int256 accountUnderlyingInternalValue,
-            uint256 vaultSharesMinted
-        ) = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
-
+        int256 accountUnderlyingInternalValue = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
         vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
-        return vaultSharesMinted;
     }
 
     /**

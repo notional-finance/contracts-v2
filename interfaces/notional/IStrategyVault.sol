@@ -12,10 +12,7 @@ interface IStrategyVault {
         uint256 assetCashTransferred,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external returns (
-        int256 accountUnderlyingInternalValue,
-        uint256 vaultSharesMinted
-    );
+    ) external returns (int256 accountUnderlyingInternalValue);
 
     // Redeems shares from the vault to asset cash.
     function redeemVaultShares(

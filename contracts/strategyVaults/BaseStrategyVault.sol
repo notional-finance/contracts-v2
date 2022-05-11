@@ -64,6 +64,17 @@ abstract contract BaseStrategyVault is ERC20 {
         }
     }
 
+    /**
+     * @notice Only callable by Notional, will initiate redemption of vault shares.
+     * @param account the account to redeem vault shares from
+     * @param newMaturity the new maturity of the account
+     * @param oldMaturity the previous (if any) maturity of the account
+     * @param assetCashTransferred amount of cash transferred to the strategy vault
+     * @param assetCashExchangeRate the exchange rate between asset cash to underlying
+     * @param data arbitrary data for the vault exection
+     * @return accountUnderlyingInternalValue the value (in underlying terms) of the account's vault shares 
+     * (i.e. strategy tokens + cash tokens)
+     */
     function mintVaultShares(
         address account,
         uint256 newMaturity,
@@ -71,10 +82,7 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 assetCashTransferred,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external returns (
-        int256 accountUnderlyingInternalValue,
-        uint256 vaultSharesMinted
-    ) {
+    ) external returns (int256 accountUnderlyingInternalValue) {
         // Only Notional is authorized to mint vault shares
         require(msg.sender == address(NOTIONAL));
 
@@ -116,7 +124,7 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 strategyTokensMinted = _mintStrategyTokens(account, newMaturity, assetCashToUse, data);
 
         // Return values
-        vaultSharesMinted = _mintVaultSharesInMaturity(account, newMaturity, cashToDeposit, strategyTokensMinted, maturityPool);
+        _mintVaultSharesInMaturity(account, newMaturity, cashToDeposit, strategyTokensMinted, maturityPool);
         accountUnderlyingInternalValue = _convertUnderlyingToInternalPrecision(
             _getAccountValue(maturityPool, balanceOf(account), assetCashExchangeRate)
         );
@@ -127,6 +135,7 @@ abstract contract BaseStrategyVault is ERC20 {
      * @param account the account to redeem vault shares from
      * @param vaultSharesToRedeem the number of vault shares to redeem
      * @param maturity the maturity that the account is in
+     * @param assetCashExchangeRate the exchange rate between asset cash to underlying
      * @return accountUnderlyingInternalValue the value (in underlying terms) of the account's vault shares 
      * (i.e. strategy tokens + cash tokens)
      * @return cashToTransfer the amount of asset cash Notional should transfer from this vault
@@ -296,9 +305,9 @@ abstract contract BaseStrategyVault is ERC20 {
     function _mintStrategyTokens(
         address account,
         uint256 maturity,
-        uint256 strategyTokensToRedeem,
+        uint256 assetCashToUse,
         bytes calldata data
-    ) internal virtual returns (uint256 cashTokensRaised);
+    ) internal virtual returns (uint256 strategyTokensMinted);
     function _redeemStrategyTokens(
         address account,
         uint256 maturity,

@@ -248,10 +248,7 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
         bytes calldata vaultData
-    ) internal returns (
-        int256 accountUnderlyingInternalValue,
-        uint256 vaultSharesMinted
-    ) {
+    ) internal returns (int256 accountUnderlyingInternalValue) {
         int256 cashFromAccount = vaultAccount.tempCashBalance;
         require(cashFromAccount > 0);
 

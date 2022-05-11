@@ -234,7 +234,6 @@ library VaultConfiguration {
             vaultConfig.borrowCurrencyId,
             assetToken.convertToExternal(netAssetTransferInternal)
         );
-        actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
     }
 
     function settlePooledfCash(
