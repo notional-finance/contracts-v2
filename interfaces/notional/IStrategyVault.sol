@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-v3
 pragma solidity >=0.7.6;
 
-// Inherits ERC20? or ERC4626?
-interface IStrategyVault {
+import "../IERC20.sol";
+
+interface IStrategyVault is IERC20 {
 
     // Tells a vault to mint vault shares given the amount of cash transferred
     function mintVaultShares(
@@ -34,5 +35,4 @@ interface IStrategyVault {
 
     function isInSettlement() external view returns (bool);
     function canSettleMaturity(uint256 maturity) external view returns (bool);
-    function balanceOf(address account) external view returns (uint256);
 }

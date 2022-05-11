@@ -8,7 +8,7 @@ import "../markets/CashGroup.sol";
 import "../markets/AssetRate.sol";
 import "../../math/SafeInt256.sol";
 import "../balances/TokenHandler.sol";
-import "../../../interfaces/notional/IStrategyVault.sol";
+import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
@@ -504,7 +504,9 @@ library VaultAccountLib {
 
     /**
      * @notice Deposits a specified amount from the account
-     * @param borrowCurrencyId the currency id to borrow in
+     * @param vaultAccount vault account object
+     * @param transferFrom address to transfer the tokens from
+     * @param borrowCurrencyId the currency id to transfer
      * @param _depositAmountExternal the amount to deposit in external precision
      * @param useUnderlying if true then use the underlying token
      */
@@ -557,6 +559,12 @@ library VaultAccountLib {
         );
     }
 
+    /**
+     * @notice Transfers into and out of an account's temporary cash balance
+     * @param vaultAccount vault account object
+     * @param borrowCurrencyId the currency id to transfer
+     * @param useUnderlying if true then use the underlying token
+     */
     function transferTempCashBalance(
         VaultAccount memory vaultAccount,
         uint16 borrowCurrencyId,

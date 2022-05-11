@@ -11,7 +11,7 @@ import "../markets/DateTime.sol";
 import "../nToken/nTokenStaked.sol";
 import "../balances/TokenHandler.sol";
 import "../balances/BalanceHandler.sol";
-import "../../../interfaces/notional/IStrategyVault.sol";
+import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultConfiguration {
     using TokenHandler for Token;
