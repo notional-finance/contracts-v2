@@ -514,9 +514,9 @@ struct VaultStateStorage {
     // maturity
     bool isFullySettled;
     // This holds a counter for the number of accounts that are require settlement (i.e. were unable
-    // to lend to exit positions).
-    // 4.3 billion is likely more than enough to hold the number of accounts,
-    // we should never overflow this since even one should be exceedingly rare.
+    // to lend to exit positions). This counter must be zero before the vault is considered fully settled.
+    // 4.3 billion is likely more than enough to hold the number of accounts, we should never overflow
+    // this since even one should be exceedingly rare.
     uint32 accountsRequiringSettlement;
 
     // NOTE: 40 bytes left
@@ -538,7 +538,7 @@ struct VaultAccountStorage {
     int88 fCash;
     // It's possible that an account may not be able to repay their fCash on the market.
     // in that case we hold asset cash against their fCash as repayment. When this occurs,
-    // we must also update the totalEscrowedAssetCash on the VaultState object to ensure
+    // we must also update the totalfCashRequiringSettlement on the VaultState object to ensure
     // that we do not over-sell vault shares to repay debt.
     int88 escrowedAssetCash;
     // Set to true if there is escrowed asset cash or the vault has no vault shares and
@@ -555,6 +555,7 @@ struct VaultAccount {
     int256 tempCashBalance;
     int256 fCash;
     int256 escrowedAssetCash;
+    // This holds the previous maturity when entering a new vault
     uint256 oldMaturity;
     uint256 maturity;
     bool requiresSettlement;

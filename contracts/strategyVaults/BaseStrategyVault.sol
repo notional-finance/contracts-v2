@@ -10,7 +10,7 @@ abstract contract BaseStrategyVault is ERC20 {
     
     struct MaturityPool {
         uint128 totalVaultShares;
-        uint128 totalCashTokens;
+        uint128 totalAssetCash;
         uint128 totalStrategyTokens;
         // 128 bytes left
     }
@@ -53,6 +53,7 @@ abstract contract BaseStrategyVault is ERC20 {
     }
 
     // TODO: asset token mint / redeem methods
+    // TODO: rebase matured pool
 
     function _beforeTokenTransfer(
         address from,
@@ -63,6 +64,13 @@ abstract contract BaseStrategyVault is ERC20 {
             // TODO: check fungibility between the maturities here.
         }
     }
+
+    // function cashRequiredToSettle(uint256 maturity) public view override returns (uint256) {
+    //     // Calculates the amount of asset cash required to settle a position
+
+    // }
+
+    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
 
     /**
      * @notice Only callable by Notional, will initiate redemption of vault shares.
@@ -103,28 +111,28 @@ abstract contract BaseStrategyVault is ERC20 {
         // When minting, we need to maintain the ratio of tokens to asset cash (if there is any). This ensures
         // that redeeming vault shares for each account results in the same proportion of each token.
         uint256 assetCashToUse = previousMaturityCashTokens + assetCashTransferred;
-        uint256 cashToDeposit;
-        if (maturityPool.totalCashTokens > 0) {
+        uint256 assetCashToDeposit;
+        if (maturityPool.totalAssetCash > 0) {
             uint256 totalMaturityValueInAssetCash = 
                 _convertToCashTokens(_convertStrategyToUnderlying(maturityPool.totalStrategyTokens), assetCashExchangeRate) +
-                maturityPool.totalCashTokens;
+                maturityPool.totalAssetCash;
 
             uint256 totalValueOfDeposits = 
                 _convertToCashTokens(_convertStrategyToUnderlying(strategyTokensToDeposit), assetCashExchangeRate) +
                 assetCashToUse;
 
-            cashToDeposit = (totalValueOfDeposits * maturityPool.totalCashTokens) / totalMaturityValueInAssetCash;
+            assetCashToDeposit = (totalValueOfDeposits * maturityPool.totalAssetCash) / totalMaturityValueInAssetCash;
 
             // It's possible that an account cannot roll into a new maturity when the new maturity is holding
             // cash tokens. It would need to redeem additional strategy tokens in order to have sufficient cash
             // to enter the new maturity. This is will only happen for accounts that are rolling maturities with
             // active strategy token positions (not entering maturities for the first time).
-            require(cashToDeposit <= assetCashToUse, "Insufficient cash");
+            require(assetCashToDeposit <= assetCashToUse, "Insufficient cash");
         }
         uint256 strategyTokensMinted = _mintStrategyTokens(account, newMaturity, assetCashToUse, data);
 
         // Return values
-        _mintVaultSharesInMaturity(account, newMaturity, cashToDeposit, strategyTokensMinted, maturityPool);
+        _mintVaultSharesInMaturity(account, newMaturity, assetCashToDeposit, strategyTokensMinted, maturityPool);
         accountUnderlyingInternalValue = _convertUnderlyingToInternalPrecision(
             _getAccountValue(maturityPool, balanceOf(account), assetCashExchangeRate)
         );
@@ -154,12 +162,12 @@ abstract contract BaseStrategyVault is ERC20 {
         require(msg.sender == address(NOTIONAL));
         MaturityPool memory maturityPool = vaultMaturityPools[maturity];
         (
-            uint256 cashTokensWithdrawn,
+            uint256 assetCashWithdrawn,
             uint256 strategyTokensWithdrawn
         ) = _redeemVaultSharesInMaturity(account, maturity, vaultSharesToRedeem, maturityPool);
 
         // Return values
-        cashToTransfer = cashTokensWithdrawn + _redeemStrategyTokens(account, maturity, strategyTokensWithdrawn, data);
+        cashToTransfer = assetCashWithdrawn + _redeemStrategyTokens(account, maturity, strategyTokensWithdrawn, data);
         accountUnderlyingInternalValue = _convertUnderlyingToInternalPrecision(
             _getAccountValue(maturityPool, balanceOf(account), assetCashExchangeRate)
         );
@@ -171,7 +179,7 @@ abstract contract BaseStrategyVault is ERC20 {
     function _mintVaultSharesInMaturity(
         address account,
         uint256 maturity,
-        uint256 cashTokensDeposited,
+        uint256 assetCashDeposited,
         uint256 strategyTokensDeposited,
         MaturityPool memory maturityPool
     ) private returns (uint256 vaultSharesMinted) {
@@ -182,7 +190,7 @@ abstract contract BaseStrategyVault is ERC20 {
         }
 
         // Update the vault maturity in storage
-        maturityPool.totalCashTokens += _safeUint128(cashTokensDeposited);
+        maturityPool.totalAssetCash += _safeUint128(assetCashDeposited);
         maturityPool.totalStrategyTokens += _safeUint128(strategyTokensDeposited);
         maturityPool.totalVaultShares += _safeUint128(vaultSharesMinted);
         vaultMaturityPools[maturity] = maturityPool;
@@ -200,17 +208,17 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 vaultSharesToRedeem,
         MaturityPool memory maturityPool
     ) private returns (
-        uint256 cashTokensWithdrawn,
+        uint256 assetCashWithdrawn,
         uint256 strategyTokensWithdrawn
     ) {
         // First update global supply storage
         _burn(account, vaultSharesToRedeem);
 
         // Calculate the claim on cash tokens and strategy tokens
-        (cashTokensWithdrawn, strategyTokensWithdrawn) = _getPoolShare(maturityPool, vaultSharesToRedeem);
+        (assetCashWithdrawn, strategyTokensWithdrawn) = _getPoolShare(maturityPool, vaultSharesToRedeem);
 
         // Remove tokens from the maturityPool and set the storage
-        maturityPool.totalCashTokens -= _safeUint128(cashTokensWithdrawn);
+        maturityPool.totalAssetCash -= _safeUint128(assetCashWithdrawn);
         maturityPool.totalStrategyTokens -= _safeUint128(strategyTokensWithdrawn);
         maturityPool.totalVaultShares -= _safeUint128(vaultSharesToRedeem);
         vaultMaturityPools[maturity] = maturityPool;
@@ -221,21 +229,21 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 vaultShares,
         int256 assetCashExchangeRate
     ) internal view returns (uint256 underlyingValue) {
-        (uint256 cashTokens, uint256 strategyTokens) = _getPoolShare(maturityPool, vaultShares);
+        (uint256 assetCash, uint256 strategyTokens) = _getPoolShare(maturityPool, vaultShares);
 
         underlyingValue = 
             _convertStrategyToUnderlying(strategyTokens) +
-            _convertToUnderlying(cashTokens, assetCashExchangeRate);
+            _convertToUnderlying(assetCash, assetCashExchangeRate);
     }
 
     function _getPoolShare(
         MaturityPool memory maturityPool,
         uint256 vaultShares
     ) internal pure returns (
-        uint256 cashTokens,
+        uint256 assetCash,
         uint256 strategyTokens
     ) {
-        cashTokens = (vaultShares * maturityPool.totalCashTokens) / maturityPool.totalVaultShares;
+        assetCash = (vaultShares * maturityPool.totalAssetCash) / maturityPool.totalVaultShares;
         strategyTokens = (vaultShares * maturityPool.totalStrategyTokens) / maturityPool.totalVaultShares;
     }
 
@@ -243,7 +251,7 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 maturity,
         uint256 vaultShares
     ) public view returns (
-        uint256 cashTokens,
+        uint256 assetCash,
         uint256 strategyTokens
     ) {
         MaturityPool memory maturityPool = vaultMaturityPools[maturity];
@@ -263,14 +271,14 @@ abstract contract BaseStrategyVault is ERC20 {
 
     // function maturityPoolSharesOf(address account) public view returns (
     //     uint256 maturity,
-    //     uint256 cashTokens,
+    //     uint256 assetCash,
     //     uint256 strategyTokens
     // ) external view returns (
-    //     uint256 cashTokens,
+    //     uint256 assetCash,
     //     uint256 strategyTokens
     // ) {
     //     maturity = NOTIONAL.vaultMaturityOf(address(this), account);
-    //     (cashTokens, strategyTokens) = getMaturityPoolShares(maturity, balanceOf(account));
+    //     (assetCash, strategyTokens) = getMaturityPoolShares(maturity, balanceOf(account));
     // }
 
     function _safeUint128(uint256 x) private pure returns (uint128) {
@@ -316,7 +324,6 @@ abstract contract BaseStrategyVault is ERC20 {
     ) internal virtual returns (uint256 cashTokensRaised);
     function _convertStrategyToUnderlying(uint256 strategyTokens) internal view virtual returns (uint256 underlyingValue);
     function isInSettlement() external view virtual returns (bool);
-    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
 
     // // // TODO: put these on the main vault actions
     // // function assetValueOf(address account) external view returns (int256);
