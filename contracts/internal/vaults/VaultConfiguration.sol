@@ -51,7 +51,7 @@ library VaultConfiguration {
 
     function getVaultConfigView(
         address vaultAddress
-    ) internal returns (VaultConfig memory vaultConfig) {
+    ) internal view returns (VaultConfig memory vaultConfig) {
         vaultConfig = _getVaultConfig(vaultAddress);
         vaultConfig.assetRate = AssetRate.buildAssetRateView(vaultConfig.borrowCurrencyId);
     }
@@ -83,17 +83,24 @@ library VaultConfiguration {
     }
 
     function getVaultState(
-        VaultConfig memory vaultConfig,
+        address vault,
         uint256 maturity
     ) internal view returns (VaultState memory vaultState) {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultConfig.vault][maturity];
+        VaultStateStorage storage s = store[vault][maturity];
 
         vaultState.maturity = maturity;
         vaultState.totalfCashRequiringSettlement = s.totalfCashRequiringSettlement;
         vaultState.totalfCash = s.totalfCash;
         vaultState.isFullySettled = s.isFullySettled;
         vaultState.accountsRequiringSettlement = s.accountsRequiringSettlement;
+    }
+
+    function getVaultState(
+        VaultConfig memory vaultConfig,
+        uint256 maturity
+    ) internal view returns (VaultState memory) {
+        return getVaultState(vaultConfig.vault, maturity);
     }
 
     function setVaultState(

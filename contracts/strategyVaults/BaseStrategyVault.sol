@@ -3,12 +3,12 @@ pragma solidity =0.8.11;
 pragma abicoder v2;
 
 import {Token} from "../global/Types.sol";
-import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
+import {IStrategyVaultCustom} from "../../../interfaces/notional/IStrategyVault.sol";
 import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
 import {IVaultController} from "../../../interfaces/notional/IVaultController.sol";
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 
-abstract contract BaseStrategyVault is ERC20, IStrategyVault {
+abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     
     struct MaturityPool {
         uint128 totalVaultShares;
@@ -64,13 +64,6 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVault {
             // TODO: check fungibility between the maturities here.
         }
     }
-
-    // function cashRequiredToSettle(uint256 maturity) public view override returns (uint256) {
-    //     // Calculates the amount of asset cash required to settle a position
-
-    // }
-
-    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
 
     /**
      * @notice Only callable by Notional, will initiate redemption of vault shares.
@@ -324,6 +317,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVault {
     ) internal virtual returns (uint256 cashTokensRaised);
     function _convertStrategyToUnderlying(uint256 strategyTokens) internal view virtual returns (uint256 underlyingValue);
     function isInSettlement() external view virtual returns (bool);
+    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
 
     // // // TODO: put these on the main vault actions
     // // function assetValueOf(address account) external view returns (int256);

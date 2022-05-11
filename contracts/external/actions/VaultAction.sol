@@ -10,6 +10,7 @@ import "../../internal/vaults/VaultAccount.sol";
 contract VaultAction is ActionGuards, IVaultAction {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
+    using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
 
@@ -127,5 +128,74 @@ contract VaultAction is ActionGuards, IVaultAction {
         // TODO: is this the correct behavior if we are in an insolvency
         vaultState.isFullySettled = vaultState.totalfCash == 0 && vaultState.accountsRequiringSettlement == 0;
         vaultConfig.setVaultState(vaultState);
+    }
+
+    /** View Methods **/
+    function getVaultConfig(
+        address vault
+    ) external view override returns (VaultConfig memory vaultConfig) {
+        vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+    }
+
+    function getVaultState(
+        address vault,
+        uint256 maturity
+    ) external view override returns (VaultState memory vaultState) {
+        vaultState = VaultConfiguration.getVaultState(vault, maturity);
+    }
+
+    function getCurrentVaultState(
+        address vault
+    ) external view override returns (VaultState memory vaultState) {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        vaultState = vaultConfig.getVaultState(vaultConfig.getCurrentMaturity(block.timestamp));
+    }
+
+    function getCurrentVaultMaturity(
+        address vault
+    ) external override view returns (uint256) {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        return vaultConfig.getCurrentMaturity(block.timestamp);
+    }
+
+    function getCashRequiredToSettle(
+        address vault,
+        uint256 maturity
+    ) external view override returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    ) {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        return _getCashRequiredToSettle(vaultConfig, maturity);
+    }
+
+    function getCashRequiredToSettleCurrent(
+        address vault
+    ) external view override returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    ) {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
+        return _getCashRequiredToSettle(vaultConfig, currentMaturity);
+    }
+
+    function _getCashRequiredToSettle(
+        VaultConfig memory vaultConfig,
+        uint256 maturity
+    ) private view returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    ) {
+        VaultState memory vaultState = vaultConfig.getVaultState(maturity);
+        // If this is prior to maturity, it will return the current asset rate. After maturity it will
+        // return the settlement rate.
+        AssetRateParameters memory ar = AssetRate.buildSettlementRateView(vaultConfig.borrowCurrencyId, maturity);
+        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCashRequiringSettlement);
+
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        assetCashRequiredToSettle = assetToken.convertToExternal(assetCashInternal);
+        underlyingCashRequiredToSettle = underlyingToken.convertToExternal(vaultState.totalfCashRequiringSettlement);
     }
 }

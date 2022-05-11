@@ -2,7 +2,12 @@
 pragma solidity >=0.7.6;
 pragma abicoder v2;
 
-import "../../contracts/global/Types.sol";
+import {
+    VaultConfigStorage,
+    VaultConfig,
+    VaultState,
+    RollVaultOpts
+} from "../../contracts/global/Types.sol";
 
 interface IVaultAction {
     /// @notice Emitted when a new vault is listed or updated
@@ -29,6 +34,38 @@ interface IVaultAction {
         uint256[] calldata vaultSharesToRedeem,
         uint256 nTokensToRedeem
     ) external;
+
+    function getVaultConfig(
+        address vault
+    ) external view returns (VaultConfig memory vaultConfig);
+
+    function getVaultState(
+        address vault,
+        uint256 maturity
+    ) external view returns (VaultState memory vaultState);
+
+    function getCurrentVaultState(
+        address vault
+    ) external view returns (VaultState memory vaultState);
+
+    function getCurrentVaultMaturity(
+        address vault
+    ) external view returns (uint256);
+
+    function getCashRequiredToSettle(
+        address vault,
+        uint256 maturity
+    ) external view returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    );
+
+    function getCashRequiredToSettleCurrent(
+        address vault
+    ) external view returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    );
 }
 
 interface IVaultAccountAction {
