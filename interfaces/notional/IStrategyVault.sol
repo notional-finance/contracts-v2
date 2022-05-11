@@ -27,6 +27,12 @@ interface IStrategyVaultCustom {
         uint256 assetCashExternal
     );
 
+    function settleMaturedPool(
+        uint256 maturity,
+        bool rebaseToAssetCash,
+        bytes calldata data
+    ) external;
+
     function underlyingInternalValueOf(
         address account,
         uint256 maturity,

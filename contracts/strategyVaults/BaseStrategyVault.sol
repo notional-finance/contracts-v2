@@ -77,7 +77,6 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     /** 
      * @notice Vaults can optionally settle their matured pools back into either 100% strategy
      * tokens or 100% asset cash. Only Notional can call this method.
-     * @param rebaseToAssetCash
      */
     function settleMaturedPool(
         uint256 maturity,
@@ -86,9 +85,9 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     ) external onlyNotional override {
         MaturityPool memory maturityPool = vaultMaturityPools[maturity];
 
-        if (rebaseToCash && maturityPool.totalStrategyTokens > 0) {
+        if (rebaseToAssetCash && maturityPool.totalStrategyTokens > 0) {
             uint256 assetCashWithdrawn = _redeemStrategyTokens(address(0), maturity, maturityPool.totalStrategyTokens, vaultData);
-            maturityPool.totalAssetCash += _safeUint128(assetCasWithdrawn);
+            maturityPool.totalAssetCash += _safeUint128(assetCashWithdrawn);
             maturityPool.totalStrategyTokens = 0;
         } else if (maturityPool.totalAssetCash > 0) {
             uint256 strategyTokensMinted = _mintStrategyTokens(address(0), maturity, maturityPool.totalAssetCash, vaultData);
@@ -102,24 +101,24 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     function _beforeTokenTransfer(
         address from,
         address to,
-        /* uint256 amount */
+        uint256 /* amount */
     ) internal override {
         // When we transfer from one account to another we want to make sure that
         // the maturities of from and to are matching (so that the vaultShares base is
         // the same between the accounts).
-        uint256 fromMaturity = NOTIONAL.getVaultAccountMaturity(address(this), from);
-        uint256 toMaturity = NOTIONAL.getVaultAccountMaturity(address(this), to);
+        uint256 fromMaturity = NOTIONAL.getVaultAccountMaturity(from, address(this));
+        uint256 toMaturity = NOTIONAL.getVaultAccountMaturity(to, address(this));
         require(fromMaturity == toMaturity);
     }
 
     function _afterTokenTransfer(
         address from,
-        /* address to */,
-        /* uint256 amount */
+        address /* to */,
+        uint256 /* amount */
     ) internal override {
         // During a token transfer, the from account's leverage ratio will increase, ensure that
         // it does not go past the maximum allowed.
-        (uint256 leverageRatio, uint256 maxLeverageRatio) = NOTIONAL.getLeverageRatioFor(from)
+        (int256 leverageRatio, int256 maxLeverageRatio) = NOTIONAL.getVaultAccountLeverage(from, address(this));
         require(leverageRatio <= maxLeverageRatio, "Max Leverage");
     }
 
@@ -321,7 +320,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     }
 
     function getMaturityPool(uint256 maturity) public view returns (MaturityPool memory) {
-        return vaultMaturityPool[maturity];
+        return vaultMaturityPools[maturity];
     }
 
     // function maturityPoolSharesOf(address account) public view returns (

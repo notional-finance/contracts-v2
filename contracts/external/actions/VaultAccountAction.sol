@@ -152,7 +152,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Transfers cash, sets vault account state, mints vault shares
         int256 accountUnderlyingInternalValue = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
-        vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
+        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
+        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Max Leverage");
     }
 
     /**
@@ -262,8 +263,26 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         assetToken.transfer(msg.sender, vaultConfig.borrowCurrencyId, liquidatorPayment.neg());
     }
 
-    // // function assetValueOf(address account) external view returns (int256);
-    // // function assetInternalValueOf(address account) external view returns (int256);
-    // // function leverageRatioFor(address account) external view returns (uint256);
-    // // function escrowedCashBalance(address account) external view returns (uint256);
+    /** View Methods **/
+    function getVaultAccount(address account, address vault) external override view returns (VaultAccount memory) {
+        return VaultAccountLib.getVaultAccount(account, vault);
+    }
+
+    function getVaultAccountMaturity(address account, address vault) external override view returns (uint256) {
+        return VaultAccountLib.getVaultAccount(account, vault).maturity;
+    }
+
+    function getVaultAccountLeverage(address account, address vault) external override view returns (
+        int256 leverageRatio,
+        int256 maxLeverageRatio
+    ) {
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        int256 underlyingInternalValue = IStrategyVault(vault).underlyingInternalValueOf(
+            vaultAccount.account, vaultAccount.maturity, vaultConfig.assetRate.rate
+        );
+
+        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, underlyingInternalValue);
+        maxLeverageRatio = vaultConfig.maxLeverageRatio;
+    }
 }
