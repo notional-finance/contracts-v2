@@ -2,11 +2,13 @@
 pragma solidity =0.8.11;
 pragma abicoder v2;
 
-import "../../../interfaces/notional/IStrategyVault.sol";
-import "../../../interfaces/notional/NotionalProxy.sol";
-import "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
+import {Token} from "../global/Types.sol";
+import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
+import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {IVaultController} from "../../../interfaces/notional/IVaultController.sol";
+import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 
-abstract contract BaseStrategyVault is ERC20 {
+abstract contract BaseStrategyVault is ERC20, IStrategyVault {
     
     struct MaturityPool {
         uint128 totalVaultShares;
@@ -23,22 +25,20 @@ abstract contract BaseStrategyVault is ERC20 {
     // IERC20 public immutable UNDERLYING_TOKEN;
     uint256 constant internal INTERNAL_TOKEN_PRECISION = 1e8;
     uint8 immutable private _decimals;
-    NotionalProxy public immutable NOTIONAL;
+    IVaultController public immutable NOTIONAL;
     uint256 immutable internal UNDERLYING_TOKEN_PRECISION;
 
-    function decimals() public view override returns (uint8) {
-        return _decimals;
-    }
+    function decimals() public view override returns (uint8) { return _decimals; }
 
     constructor(
         string memory name_,
         string memory symbol_,
         uint8 decimals_,
-        NotionalProxy notional_,
+        address notional_,
         uint16 borrowCurrencyId_
     ) ERC20(name_, symbol_) {
         _decimals = decimals_;
-        NOTIONAL = notional_;
+        NOTIONAL = IVaultController(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
 
         (
@@ -46,7 +46,7 @@ abstract contract BaseStrategyVault is ERC20 {
             Token memory underlyingToken,
             /* ETHRate memory ethRate */,
             /* AssetRateParameters memory assetRate */
-        ) = notional_.getCurrencyAndRates(borrowCurrencyId_);
+        ) = NotionalProxy(notional_).getCurrencyAndRates(borrowCurrencyId_);
 
         require(underlyingToken.decimals > 0);
         UNDERLYING_TOKEN_PRECISION = uint256(underlyingToken.decimals);
@@ -90,7 +90,7 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 assetCashTransferred,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external returns (int256 accountUnderlyingInternalValue) {
+    ) external override returns (int256 accountUnderlyingInternalValue) {
         // Only Notional is authorized to mint vault shares
         require(msg.sender == address(NOTIONAL));
 
@@ -154,7 +154,7 @@ abstract contract BaseStrategyVault is ERC20 {
         uint256 maturity,
         int256 assetCashExchangeRate,
         bytes calldata data
-    ) external returns (
+    ) external override returns (
         int256 accountUnderlyingInternalValue,
         uint256 cashToTransfer
     ) {
@@ -262,7 +262,7 @@ abstract contract BaseStrategyVault is ERC20 {
         address account,
         uint256 maturity,
         int256 assetCashExchangeRate
-    ) external view returns (int256 underlyingInternalValue) {
+    ) external view override returns (int256 underlyingInternalValue) {
         MaturityPool memory maturityPool = vaultMaturityPools[maturity];
         underlyingInternalValue = _convertUnderlyingToInternalPrecision(
             _getAccountValue(maturityPool, balanceOf(account), assetCashExchangeRate)

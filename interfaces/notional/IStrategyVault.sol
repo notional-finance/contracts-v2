@@ -3,7 +3,7 @@ pragma solidity >=0.7.6;
 
 import "../IERC20.sol";
 
-interface IStrategyVault is IERC20 {
+interface IStrategyVault {
 
     // Tells a vault to mint vault shares given the amount of cash transferred
     function mintVaultShares(
@@ -36,3 +36,5 @@ interface IStrategyVault is IERC20 {
     function isInSettlement() external view returns (bool);
     function canSettleMaturity(uint256 maturity) external view returns (bool);
 }
+
+interface IStrategyVaultComplete is IStrategyVault, IERC20  {}

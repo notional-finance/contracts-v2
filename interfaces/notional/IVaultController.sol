@@ -68,3 +68,5 @@ interface IVaultAccountAction {
         bytes calldata exitVaultData
     ) external;
 }
+
+interface IVaultController is IVaultAccountAction, IVaultAction {}
