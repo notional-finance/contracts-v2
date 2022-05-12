@@ -21,9 +21,12 @@ library VaultConfiguration {
 
     event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
-    uint16 internal constant ENABLED            = 1 << 0;
-    uint16 internal constant ALLOW_REENTER      = 1 << 1;
-    uint16 internal constant IS_INSURED         = 1 << 2;
+    uint16 internal constant ENABLED                 = 1 << 0;
+    uint16 internal constant ALLOW_REENTER           = 1 << 1;
+    uint16 internal constant IS_INSURED              = 1 << 2;
+    uint16 internal constant PREFER_ASSET_CASH       = 1 << 3;
+    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 4;
+    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 5;
 
     function _getVaultConfig(
         address vaultAddress

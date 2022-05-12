@@ -42,10 +42,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         requireValidAccount(account);
         // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Not Enabled");
-
-        // Vaults cannot be entered if they are in the settlement time period at the end of a quarter.
-        require(!IStrategyVault(vault).isInSettlement(), "In Settlement");
+        require(
+            vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
+            "Cannot Enter"
+        );
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Do this first in case the vault has a matured vault position

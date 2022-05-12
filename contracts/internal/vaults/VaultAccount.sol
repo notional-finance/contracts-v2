@@ -241,36 +241,6 @@ library VaultAccountLib {
     }
 
     /**
-     * @notice Enters an account into a vault using it's cash balance. Checks final leverage ratios
-     * of both the account and vault. Sets the vault account in storage.
-     */
-    function enterAccountIntoVault(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig, 
-        bytes calldata vaultData
-    ) internal returns (int256 accountUnderlyingInternalValue) {
-        int256 cashFromAccount = vaultAccount.tempCashBalance;
-        require(cashFromAccount > 0);
-
-        vaultAccount.tempCashBalance = 0;
-        // Done modifying the vault account at this point.
-        setVaultAccount(vaultAccount, vaultConfig.vault);
-
-        // Transfer the entire cash balance into the vault. We do not allow the vault to
-        // transferFrom the Notional contract.
-        (int256 assetCashToVaultExternal, /* */) = vaultConfig.transferVault(cashFromAccount.neg());
-
-        return IStrategyVault(vaultConfig.vault).mintVaultShares(
-            vaultAccount.account,
-            vaultAccount.maturity,
-            vaultAccount.oldMaturity,
-            SafeInt256.toUint(assetCashToVaultExternal),
-            vaultConfig.assetRate.rate,
-            vaultData
-        );
-    }
-
-    /**
      * @notice Allows an account to exit a vault term prematurely by lending fCash.
      * @dev Updates vault fCash in storage, updates vaultAccount in memory.
      * @param vaultAccount the account's position in the vault
@@ -413,7 +383,7 @@ library VaultAccountLib {
         int256 netfCashToAccount,
         uint256 rateLimit,
         uint256 blockTime
-    ) private returns (int256) {
+    ) private returns (int256 netAssetCash) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);
@@ -421,7 +391,7 @@ library VaultAccountLib {
         MarketParameters memory market;
         // NOTE: this loads the market in memory
         cashGroup.loadMarket(market, marketIndex, false, blockTime);
-        int256 assetCash = market.executeTrade(
+        netAssetCash = market.executeTrade(
             cashGroup,
             netfCashToAccount,
             market.maturity.sub(blockTime),
@@ -433,8 +403,6 @@ library VaultAccountLib {
         } else {
             require(market.lastImpliedRate >= rateLimit);
         }
-
-        return assetCash;
     }
 
     /**
@@ -444,32 +412,17 @@ library VaultAccountLib {
      * @param vaultConfig vault config object
      * @param vaultSharesToRedeem shares of the vault to redeem
      */
-    function redeemShares(
+    function redeemSharesToCash(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig, 
         uint256 vaultSharesToRedeem,
         bytes calldata exitVaultData
     ) internal returns (int256 accountUnderlyingInternalValue) {
         if (vaultSharesToRedeem > 0) {
-            uint256 assetCashExternal;
-            (
-                accountUnderlyingInternalValue,
-                assetCashExternal
-            ) = IStrategyVault(vaultConfig.vault).redeemVaultShares(
-                vaultAccount.account,
-                vaultSharesToRedeem,
-                vaultAccount.maturity,
-                vaultConfig.assetRate.rate,
-                exitVaultData
-            );
+            uint256 strategyTokens = VaultAssetPool.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
 
-            depositIntoAccount(
-                vaultAccount,
-                vaultConfig.vault,
-                vaultConfig.borrowCurrencyId,
-                assetCashExternal,
-                false // vault will mint asset cash
-            );
+            // This needs to check the amount of underlying / asset tokens redeemed
+            vaultConfig.redeem(strategyTokens, address(this), address(this), exitVaultData);
         }
     }
 
