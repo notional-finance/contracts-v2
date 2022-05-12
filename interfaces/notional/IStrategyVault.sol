@@ -41,6 +41,7 @@ interface IStrategyVaultCustom {
 
     function isInSettlement() external view returns (bool);
     function canSettleMaturity(uint256 maturity) external view returns (bool);
+    function convertStrategyToUnderlying(uint256 strategyTokens) public view virtual returns (uint256 underlyingValue);
 }
 
 interface IStrategyVault is IStrategyVaultCustom, IERC20  {}

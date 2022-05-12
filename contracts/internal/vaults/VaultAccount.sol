@@ -341,31 +341,45 @@ library VaultAccountLib {
     }
 
     /**
-     * @notice Calculates the leverage ratio of the account or vault
+     * @notice Calculates the leverage ratio of an account: (debtOutstanding / (debtOutstanding - valueOfAssets))
+     * All values in this method are calculated using asset cash denomination. Higher leverage equates to
+     * greater risk.
+     * @param vaultAccount vault account
+     * @param vaultConfig vault config
+     * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
+     * should be set to zero in all other cases.
+     * @return the leverage ratio for an account
      */
     function calculateLeverage(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        int256 underlyingInternalValue
+        int256 preSlippageAssetCashAdjustment
     ) internal pure returns (int256 leverageRatio) {
+        int256 vaultShareValue = SafeInt256.toInt(
+            VaultAssetPool.getCashValueOfShares(
+                vaultConfig,
+                VaultAssetPool.getMaturityPool(vaultAccount.maturity),
+                vaultAccount.vaultShares
+            )
+        ).add(preSlippageAssetCashAdjustment);
+
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
         // Escrowed asset cash is held as payment against borrowed fCash, so we net it off here.
-        int256 debtOutstanding = vaultConfig.assetRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
-            .add(vaultAccount.fCash);
+        // NOTE: asset cash held in maturity pools is not net off here, see comment inside getCashValueOfShare
+        int256 debtOutstanding = vaultAccount.escrowedAssetCash
+            .add(vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash));
 
         // The net asset value includes all value in cash and vault shares in underlying internal
         // precision net off against the total outstanding borrowing
-        int256 netAssetValue = debtOutstanding.add(underlyingInternalValue);
+        int256 netAssetValue = debtOutstanding.add(vaultShareValue);
 
         // Can never have negative value of assets
         require(netAssetValue > 0);
 
-        // Leverage ratio is: (debtOutanding / netAssetValue) + 1
-        leverageRatio = debtOutstanding.neg()
-            .divInRatePrecision(netAssetValue)
-            .add(Constants.RATE_PRECISION);
+        // Leverage ratio is: (debtOutstanding / netAssetValue) + 1
+        leverageRatio = debtOutstanding.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
     }
 
     /**
@@ -384,6 +398,7 @@ library VaultAccountLib {
         uint256 rateLimit,
         uint256 blockTime
     ) private returns (int256 netAssetCash) {
+        // TODO: either have the asset rate passed in here or move this into TradingAction library to reduce code size
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);

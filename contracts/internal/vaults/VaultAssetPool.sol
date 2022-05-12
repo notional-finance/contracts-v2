@@ -1,4 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.7.6;
+pragma abicoder v2;
 
+/**
+ * @notice VaultAssetPool holds a combination of asset cash and strategy tokens on behalf of the
+ * vault accounts. When accounts enter or exit the pool they receive vault shares corresponding to
+ * at the ratio of asset cash to strategy tokens in their maturity pool. A maturity pool may hold
+ * asset cash during a risk-off event or as it unwinds to repay its debt at maturity.
+ */
 library VaultAssetPool {
 
     struct MaturityPool {
@@ -7,6 +16,13 @@ library VaultAssetPool {
         uint80 totalStrategyTokens;
     }
 
+    /**
+     * @notice Exits a maturity pool for an account given the shares to redeem. Asset cash will be credited
+     * to tempCashBalance.
+     * @param vaultAccount will use the maturity on the vault account to choose which pool to exit
+     * @param vaultSharesToRedeem amount of shares to redeem
+     * @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
+     */
     function exitMaturityPool(
         VaultAccount memory vaultAccount,
         uint256 vaultSharesToRedeem
@@ -27,6 +43,15 @@ library VaultAssetPool {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashWithdrawn);
     }
 
+    /**
+     * @notice Enters a maturity pool (including depositing cash and minting vault shares). If the maturity
+     * on the account is changing, then we will first redeem from the old maturity pool and move the account's
+     * positions to the new maturity pool.
+     * @param vaultAccount will update maturity and reduce tempCashBalance to zero
+     * @param vaultConfig vault config
+     * @param maturity the new maturity to set on the vault account
+     * @param vaultData calldata to pass to the vault
+     */
     function enterMaturityPool(
         VaultAccount memory vaultAccount,
         VaultConfig vaultConfig,
@@ -68,11 +93,13 @@ library VaultAssetPool {
         vaultAccount.tempCashBalance = 0;
         vaultAccount.tempStrategyTokens = 0;
 
-        // TODO: this should redeem to underlying or asset and then transfer to the vault
+        // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
+        // to the current contract.
         strategyTokensDeposit = strategyTokensDeposit.add(vaultConfig.deposit(cashToTransfer, vaultData));
         _mintVaultSharesInMaturity(maturityPool, maturity, assetCashWithheld, strategyTokensDeposit);
     }
 
+    /** @notice Updates maturity vault shares in storage.  */
     function _mintVaultSharesInMaturity(
         MaturityPool memory pool,
         uint256 maturity,
@@ -82,9 +109,7 @@ library VaultAssetPool {
         if (pool.totalVaultShares == 0) {
             vaultSharesMinted = strategyTokensDeposited;
         } else {
-            vaultSharesMinted = strategyTokensDeposited
-                .mul(pool.totalVaultShares)
-                .div(pool.totalStrategyTokens);
+            vaultSharesMinted = strategyTokensDeposited.mul(pool.totalVaultShares).div(pool.totalStrategyTokens);
         }
 
         pool.totalAssetCash = pool.totalAssetCash.add(assetCashDeposited);
@@ -93,6 +118,7 @@ library VaultAssetPool {
         setMaturityPool(maturity, pool);
     }
 
+    /** @notice Returns the component amounts for a given amount of vaultShares */
     function getPoolShare(
         MaturityPool memory maturityPool,
         uint256 vaultShares
@@ -104,22 +130,31 @@ library VaultAssetPool {
         strategyTokens = (vaultShares * maturityPool.totalStrategyTokens) / maturityPool.totalVaultShares;
     }
 
+    /** @notice Returns the value in asset cash of a given amount of pool share */
     function getCashValueOfShare(
         VaultConfig memory vaultConfig,
-        uint256 strategyTokens
-    ) internal view returns (uint256 assetCashValue) {
-        if (strategyTokens == 0) return 0;
-
-        int256 underlyingValue = SafeInt256.toInt(
-            IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(strategyTokens)
-        );
+        MaturityPool memory maturityPool,
+        uint256 vaultShares
+    ) internal view returns (int256 assetCashValue) {
+        if (vaultShares == 0) return 0;
+        (uint256 assetCash, uint256 strategyTokens) = getPoolShare(maturityPool, vaultShares);
+        uint256 underlyingValue = IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(strategyTokens);
         
+        // Generally speaking, asset cash held in the maturity pool is held in escrow for repaying the
+        // vault debt. This may not always be the case, vaults may hold asset cash during a risk-off event
+        // where they trade strategy tokens back to asset cash during a potentially volatile time. In both
+        // cases we do not use asset cash held in a maturity pool to net off against outstanding fCash debt.
+        // If we did, this would reduce the leverage ratio of the vault. However, it's possible that asset
+        // cash may re-enter a vault as strategy tokens once the volatility has passed which would then increase
+        // the leverage ratio of the vault -- we don't want it to increase past its maximum. During settlement,
+        // accounts cannot re-enter the vault anyway so a higher leverage ratio should not have an effect. The
+        // leverage ratio will also fluctuate less to changes in strategy token value when asset cash is
+        // held in the pool.
         assetCashValue = SafeInt256.toUint(vaultConfig.assetRate.convertFromUnderlying(
             // Convert the underlying value to internal precision
-            underlyingValue
-                .mul(Constants.INTERNAL_TOKEN_PRECISION)
-                .div(vaultConfig.assetRate.underlyingPrecision);
-        ));
+            SafeInt.toInt(underlyingValue)
+                .mul(Constants.INTERNAL_TOKEN_PRECISION).div(vaultConfig.assetRate.underlyingPrecision);
+        ))).add(assetCash);
     }
 
 }
