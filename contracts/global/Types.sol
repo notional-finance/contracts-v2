@@ -509,16 +509,16 @@ struct VaultStateStorage {
     // This represents the fCash requiring settlement (excludes accounts that have been removed
     // because they require individualized settlement.
     uint80 totalfCashRequiringSettlement;
-    // Total vault shares in this maturity
-    uint80 totalVaultShares;
+    // The total amount of asset cash in the pool held as prepayment for fCash
+    uint80 totalAssetCash;
     // Set to true if a vault has been fully settled and the cash can be pulled. Matured
     // accounts must wait for this flag to be set before they can proceed to exit after
     // maturity
     bool isFullySettled;
     // NOTE: 8 bytes left
     // ----- (248 bytes) This breaks into a new storage slot -------    
-    // The total amount of asset cash in the pool held as prepayment for fCash
-    uint80 totalAssetCash;
+    // Total vault shares in this maturity
+    uint80 totalVaultShares;
     // The total amount of strategy tokens held in the pool
     uint80 totalStrategyTokens;
     // This holds a counter for the number of accounts that are require settlement (i.e. were unable

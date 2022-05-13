@@ -255,7 +255,7 @@ library VaultAccountLib {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(maxNTokenFee).sub(nTokenFee);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
-        vaultConfig.checkTotalBorrowCapacity(stakedNTokenPV, blockTime);
+        vaultConfig.checkTotalBorrowCapacity(vaultState, stakedNTokenPV, blockTime);
     }
 
     function _getNTokenFee(

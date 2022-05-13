@@ -15,7 +15,7 @@ import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHand
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 
 import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
-import {VaultStateLib, VaultState} from "./VaultState.sol";
+import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultConfiguration {
@@ -150,46 +150,85 @@ library VaultConfiguration {
         nTokenFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(nTokenFeeRate));
     }
 
-    /**
-     * @notice Returns the total amount of debt in a vault, will over estimate the actual amount of
-     * debt if there are accounts with escrowed asset cash. The effect of this would mean that vaults
-     * would be more conservative with their total borrow capacity and leverage ratios.
-     */
-    function getTotalVaultDebt(
-        VaultConfig memory vaultConfig,
-        uint256 blockTime
-    ) internal view returns (int256 totalVaultfCashDebt) {
-        // NOTE: this is not completely correct because it does not take into account escrowed asset cash
-        VaultState memory vaultState = getVaultState(vaultConfig, getCurrentMaturity(vaultConfig, blockTime));
-        totalVaultfCashDebt = vaultState.totalfCash;
-        
-        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
-            // If this is true then there is potentially debt in the next term as well
-            VaultState memory nextTerm = getVaultState(
-                vaultConfig,
-                vaultState.maturity.add(vaultConfig.termLengthInSeconds)
-            );
-
-            totalVaultfCashDebt = totalVaultfCashDebt.add(nextTerm.totalfCash);
-        }
+    function _netDebtOutstanding(
+        AssetRateParameters memory assetRate,
+        int256 totalfCash,
+        int256 totalAssetCash
+    ) private pure returns (int256) {
+        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash));
     }
 
     /**
      * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
      * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance.
+     * @param vaultConfig vault configuration
+     * @param vaultState the current vault state to get the total fCash debt
+     * @param stakedNTokenUnderlyingPV the amount of staked nToken present value
      */
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
-        int256 stakedNTokenPV,
+        VaultState memory vaultState,
+        int256 stakedNTokenUnderlyingPV,
         uint256 blockTime
     ) internal view {
-        int256 totalVaultfCashDebt = getTotalVaultDebt(vaultConfig, blockTime);
+        // This is a partially calculated storage slot for the vault's state. The mapping is from maturity
+        // to vault state for this vault.
+        mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
 
-        int256 maxNTokenCapacity = stakedNTokenPV
+        int256 totalUnderlyingCapacity = stakedNTokenUnderlyingPV
             .mul(vaultConfig.capacityMultiplierPercentage)
             .div(Constants.PERCENTAGE_DECIMALS);
 
-        require(totalVaultfCashDebt.neg() <= maxNTokenCapacity, "Insufficient capacity");
+        uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
+        bool isInSettlement = IStrategyVault(vaultConfig.vault).isInSettlement();
+        int256 totalOutstandingDebt;
+        
+        // First, handle the current vault state
+        if (currentMaturity == vaultState.maturity) {
+            totalOutstandingDebt = _netDebtOutstanding(
+                vaultConfig.assetRate,
+                vaultState.totalfCash, 
+                // Only account for asset cash when we're in settlement
+                isInSettlement ? SafeInt256.toInt(vaultState.totalAssetCash) : 0
+            );
+        } else {
+            // Fetch the current vault state's relevant data and do the math
+            VaultStateStorage storage s = vaultStore[currentMaturity];
+            totalOutstandingDebt = _netDebtOutstanding(
+                vaultConfig.assetRate,
+                -int256(uint256(s.totalfCash)), 
+                // Only account for asset cash when we're in settlement
+                isInSettlement ? int256(uint256(s.totalAssetCash)) : 0
+            );
+        }
+
+        // Next, handle the next vault state (if it allows re-enters)
+        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
+            uint256 nextMaturity = currentMaturity.add(vaultConfig.termLengthInSeconds);
+            // Use the absolute value (positive) here to save a couple negations
+            int256 nextMaturityDebtAbs;
+
+            if (nextMaturity == vaultState.maturity) {
+                nextMaturityDebtAbs = vaultState.totalfCash.neg();
+            } else {
+                VaultStateStorage storage s = vaultStore[currentMaturity];
+                nextMaturityDebtAbs = int256(uint256(s.totalfCash));
+            }
+
+            // We cannot use any staked nToken capacity that may unstake in the next unstaking period
+            // to determine the borrow 
+            /*
+            TODO: pass this value in
+            int256 nextMaturityPredictedCapacity = predictedStakedNTokenPV
+                .mul(vaultConfig.capacityMultiplierPercentage)
+                .div(Constants.PERCENTAGE_DECIMALS);
+            require(nextMaturityDebtAbs <= nextMaturityPredictedCapacity, "Insufficient capacity");
+            */
+
+            totalOutstandingDebt = totalOutstandingDebt.sub(nextMaturityDebtAbs);
+        }
+
+        require(totalOutstandingDebt.neg() <= totalUnderlyingCapacity, "Insufficient capacity");
     }
 
     /**
