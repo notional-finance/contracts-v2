@@ -48,13 +48,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
             "Cannot Enter"
         );
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         if (vaultAccount.maturity < block.timestamp && vaultAccount.fCash != 0) {
             // A matured vault account that still requires settlement has to be settled via a separate
             // method and should not be able to reach this point. (Vaults requiring settlement that are not
@@ -63,7 +63,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // Code here is the same as VaultAccountLib.settleVaultAccount but does not do any settlement
             // of of escrowed accounts and does not modify matured state.
             VaultState memory maturedState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
-            require(vaultAccount.requiresSettlement == false && vaultState.isFullySettled, "Unable to Settle");
+            require(vaultAccount.requiresSettlement == false && maturedState.isFullySettled, "Unable to Settle");
             vaultAccount.fCash = 0;
         }
 

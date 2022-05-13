@@ -5,27 +5,10 @@ import "../IERC20.sol";
 
 interface IStrategyVaultCustom {
 
-    // Tells a vault to mint vault shares given the amount of cash transferred
-    function mintVaultShares(
-        address account,
-        uint256 newMaturity,
-        uint256 oldMaturity,
-        uint256 assetCashTransferred,
-        int256 assetCashExchangeRate,
-        bytes calldata data
-    ) external returns (int256 accountUnderlyingInternalValue);
-
-    // Redeems shares from the vault to asset cash.
-    function redeemVaultShares(
-        address account,
-        uint256 vaultSharesToRedeem,
-        uint256 maturity,
-        int256 assetCashExchangeRate,
-        bytes calldata data
-    ) external returns (
-        int256 accountUnderlyingInternalValue,
-        uint256 assetCashExternal
-    );
+    // Tells a vault to deposit some amount of tokens from Notional and mint strategy tokens with it.
+    function depositFromNotional(uint256 depositAmount, bytes calldata data) external returns (uint256 strategyTokensMinted);
+    // Tells a vault to redeem some amount of strategy tokens from Notional and transfer the resulting asset cash
+    function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external;
 
     function settleMaturedPool(
         uint256 maturity,

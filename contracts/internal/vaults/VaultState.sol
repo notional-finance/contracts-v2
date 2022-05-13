@@ -144,7 +144,7 @@ library VaultStateLib {
         // maturity is holding cash tokens. It would need to redeem additional strategy tokens in order to have
         // sufficient cash to enter the new maturity. This is will only happen for accounts that are rolling maturities
         // with active strategy token positions (not entering maturities for the first time).
-        uint256 cashToTransfer = uint256(vaultAccount.tempCashBalance).sub(assetCashWithheld);
+        int256 cashToTransfer = vaultAccount.tempCashBalance.sub(SafeInt256.toInt(assetCashWithheld));
         vaultAccount.tempCashBalance = 0;
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred

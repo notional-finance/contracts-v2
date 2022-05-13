@@ -7,10 +7,11 @@ import {Constants} from "../../global/Constants.sol";
 import {DateTime} from "../markets/DateTime.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {nTokenStaked} from "../nToken/nTokenStaked.sol";
-import {Token, TokenHandler} from "../balances/TokenHandler.sol";
+import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 
 import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
@@ -179,30 +180,76 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Transfers asset cash between Notional and the vault. Vaults must always keep cash
-     * balances in the asset cash token if they are not deployed into the strategy.
-     * @param vaultConfig the vault config
-     * @param netAssetTransferInternal If positive, then taking asset cash from the vault into Notional,
-     * if negative then depositing cash from Notional into the vault
-     * @param actualTransferExternal returns the actual amount transferred in external precision
-     * @param actualTransferInternal returns the actual amount transferred in internal precision
+     * @notice This will allow the strategy vault to pull the approved amount of tokens from Notional. We allow
+     * the strategy vault to pull tokens so that it can get an accurate accounting of the tokens it received in
+     * case of tokens with transfer fees or other non-standard behaviors on transfer.
+     * @param vaultConfig vault config
+     * @param cashToTransferInternal amount to transfer in internal precision
+     * @param data arbitrary data to pass to the vault
+     * @return strategyTokensMinted the amount of strategy tokens minted and transferred back to the
+     * Notional contract for escrow, will be credited back to the vault account.
      */
-    function transferVault(
+    function deposit(
         VaultConfig memory vaultConfig,
-        int256 netAssetTransferInternal
-    ) internal returns (
-        int256 actualTransferExternal,
-        int256 actualTransferInternal
-    ) {
-        // If net asset transfer > 0 then we are taking asset cash from the vault into Notional
-        // If net asset transfer < 0 then we are deposit cash into the vault
+        int256 cashToTransferInternal,
+        bytes calldata data
+    ) internal returns (uint256 strategyTokensMinted) {
+        if (cashToTransferInternal == 0) return 0;
+
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        actualTransferExternal = assetToken.transfer(
-            vaultConfig.vault, 
-            vaultConfig.borrowCurrencyId,
-            assetToken.convertToExternal(netAssetTransferInternal)
-        );
-        actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
+        int256 transferAmountExternal = assetToken.convertToExternal(cashToTransferInternal);
+
+        if (assetToken.tokenType == TokenType.aToken) {
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+            // aTokens need to be converted when we handle the transfer since the external balance format
+            // is not the same as the internal balance format that we use
+            transferAmountExternal = AaveHandler.convertFromScaledBalanceExternal(
+                underlyingToken.tokenAddress,
+                transferAmountExternal
+            );
+        }
+        
+        // Ensures that transfer amounts are always positive
+        uint256 transferAmount = SafeInt256.toUint(transferAmountExternal);
+        IERC20(assetToken.tokenAddress).approve(vaultConfig.vault, transferAmount);
+        strategyTokensMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(transferAmount, data);
+        IERC20(assetToken.tokenAddress).approve(vaultConfig.vault, 0);
+    }
+
+    /**
+     * @notice This will call the strategy vault and have it redeem the specified amount of Notional strategy tokens
+     * for asset tokens. The vault will transfer tokens to Notional.
+     * @param vaultConfig vault config
+     * @param strategyTokens amount of strategy tokens to redeem
+     * @param data arbitrary data to pass to the vault
+     * @return assetCashInternalRaised the amount of asset cash (positive) that was raised as a result of redeeming
+     * strategy tokens
+     */
+    function redeem(
+        VaultConfig memory vaultConfig,
+        uint256 strategyTokens,
+        bytes calldata data
+    ) internal returns (int256 assetCashInternalRaised) {
+        if (strategyTokens == 0) return 0;
+
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+
+        uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
+        // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
+        IStrategyVault(vaultConfig.vault).redeemFromNotional(strategyTokens, data);
+        uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
+
+        // Subtraction is done inside uint256 so a negative amount will revert.
+        int256 assetCashExternal = SafeInt256.toInt(balanceAfter.sub(balanceBefore));
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Special handling for aave aTokens which are rebasing
+            assetCashExternal = AaveHandler.convertToScaledBalanceExternal(
+                vaultConfig.borrowCurrencyId,
+                assetCashExternal
+            );
+        }
+
+        assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 
     function settlePooledfCash(

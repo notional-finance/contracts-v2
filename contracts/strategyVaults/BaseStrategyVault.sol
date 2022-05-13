@@ -9,18 +9,8 @@ import {IVaultController} from "../../../interfaces/notional/IVaultController.so
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 
 abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
-    function deposit(
-        uint256 deposit,
-        address receiver,
-        bytes calldata data
-    ) internal virtual returns (uint256 strategyTokensMinted);
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner,
-        bytes calldata data
-    ) internal virtual returns (uint256 tokensReturned);
+    function depositFromNotional(uint256 deposit, bytes calldata data) external virtual returns (uint256 strategyTokensMinted);
+    function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external virtual;
 
     function convertStrategyToUnderlying(uint256 strategyTokens) public view virtual returns (uint256 underlyingValue);
     function isInSettlement() external view virtual returns (bool);
@@ -66,7 +56,6 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     /** 
      * @notice Vaults can optionally settle their matured pools back into either 100% strategy
      * tokens or 100% asset cash. Only Notional can call this method.
-     */
     function settleMaturedPool(
         uint256 maturity,
         bool rebaseToAssetCash,
@@ -86,5 +75,6 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
 
         vaultMaturityPools[maturity] = maturityPool;
     }
+     */
 
 }
