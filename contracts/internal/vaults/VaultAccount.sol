@@ -489,34 +489,6 @@ library VaultAccountLib {
         }
     }
 
-    function redeemShares(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig, 
-        uint256 vaultSharesToRedeem
-    ) internal returns (int256 accountUnderlyingInternalValue) {
-        if (vaultSharesToRedeem > 0) {
-            uint256 assetCashExternal;
-            (
-                accountUnderlyingInternalValue,
-                assetCashExternal
-            ) = IStrategyVault(vaultConfig.vault).redeemVaultShares(
-                vaultAccount.account,
-                vaultSharesToRedeem,
-                vaultAccount.maturity,
-                vaultConfig.assetRate.rate,
-                ""
-            );
-
-            depositIntoAccount(
-                vaultAccount,
-                vaultConfig.vault,
-                vaultConfig.borrowCurrencyId,
-                assetCashExternal,
-                false // vault will mint asset cash
-            );
-        }
-    }
-
     /**
      * @notice Deposits a specified amount from the account
      * @param vaultAccount vault account object

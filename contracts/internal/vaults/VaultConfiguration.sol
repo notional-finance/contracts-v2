@@ -304,25 +304,6 @@ library VaultConfiguration {
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 
-    function settlePooledfCash(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        AssetRateParameters memory settlementRate
-    ) internal {
-        if (vaultState.totalfCashRequiringSettlement > 0) {
-            // It's possible that there is no fCash requiring settlement if everyone has exited or
-            // all accounts require specialized settlement but in most cases this will be true.
-            int256 assetCashRequired = settlementRate.convertFromUnderlying(
-                vaultState.totalfCashRequiringSettlement.neg()
-            );
-            (/* */, int256 actualTransferInternal) = transferVault(vaultConfig, assetCashRequired);
-            require(actualTransferInternal == assetCashRequired); // dev: transfer amount mismatch
-
-            vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
-            vaultState.totalfCashRequiringSettlement = 0;
-        }
-    }
-
     function resolveCashShortfall(
         VaultConfig memory vaultConfig,
         int256 assetCashShortfall,

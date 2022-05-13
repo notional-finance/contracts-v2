@@ -36,6 +36,15 @@ interface IVaultAction {
         uint256 nTokensToRedeem
     ) external;
 
+    function redeemStrategyTokensToCash(
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) external returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    );
+
     function getVaultConfig(
         address vault
     ) external view returns (VaultConfig memory vaultConfig);

@@ -7,6 +7,7 @@ import {IVaultAction} from "../../../../interfaces/notional/IVaultController.sol
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
 import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract VaultAction is ActionGuards, IVaultAction {
     using VaultConfiguration for VaultConfig;
@@ -15,6 +16,7 @@ contract VaultAction is ActionGuards, IVaultAction {
     using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
+    using SafeMath for uint256;
 
     /**
      * @notice Updates or lists a deployed vault along with its configuration.
@@ -50,6 +52,37 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) external override onlyOwner {
         VaultConfiguration.setVaultEnabledStatus(vaultAddress, enable);
         emit VaultPauseStatus(vaultAddress, enable);
+    }
+
+    /**
+     * @notice Strategy vaults can call this method to redeem strategy tokens to cash
+     * and hold them as asset cash within the pool. This should typically be used
+     * during settlement but can also be used for vault-wide deleveraging.
+     * @param maturity the maturity of the vault where the redemption will take place
+     * @param strategyTokensToRedeem the number of strategy tokens redeemed
+     * @param vaultData arbitrary data to pass back to the vault
+     * @return assetCashRequiredToSettle amount of asset cash still remaining to settle the debt
+     * @return underlyingCashRequiredToSettle amount of underlying cash still remaining to settle the debt
+     */
+    function redeemStrategyTokensToCash(
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) external override nonReentrant returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    ) {
+        // NOTE: this call must come from the vault itself
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
+        int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, vaultData);
+        require(assetCashReceived > 0);
+
+        vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));
+        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensToRedeem);
+        vaultState.setVaultState(msg.sender);
+
+        return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
 
     /**
@@ -167,7 +200,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 underlyingCashRequiredToSettle
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        return _getCashRequiredToSettle(vaultConfig, maturity);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
+        return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
 
     function getCashRequiredToSettleCurrent(
@@ -178,17 +212,19 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
-        return _getCashRequiredToSettle(vaultConfig, currentMaturity);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, currentMaturity);
+
+        return _getCashRequiredToSettle(vaultConfig, vaultState, currentMaturity);
     }
 
     function _getCashRequiredToSettle(
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         uint256 maturity
     ) private view returns (
         int256 assetCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
-        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
         // If this is prior to maturity, it will return the current asset rate. After maturity it will
         // return the settlement rate.
         AssetRateParameters memory ar = AssetRate.buildSettlementRateView(vaultConfig.borrowCurrencyId, maturity);
