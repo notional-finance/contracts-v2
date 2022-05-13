@@ -220,9 +220,10 @@ library VaultAccountLib {
         uint256 blockTime
     ) private {
         require(fCash < 0); // dev: fcash must be negative
+        uint256 timeToMaturity = blockTime.sub(maturity);
         // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
         // assuming the worst case scenario. Will adjust the fee properly at the end
-        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash);
+        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash, timeToMaturity);
 
         {
             int256 assetCashBorrowed  = _executeTrade(
@@ -247,7 +248,7 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, vaultState, fCash);
+        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, vaultState, fCash, timeToMaturity);
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
         int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
@@ -261,7 +262,8 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        int256 fCash
+        int256 fCash,
+        uint256 timeToMaturity
     ) private view returns (int256 nTokenFee) {
         // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
         // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
@@ -274,7 +276,7 @@ library VaultAccountLib {
             vaultAccount, vaultConfig, vaultState, vaultAccount.tempCashBalance
         );
 
-        nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
+        nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash, timeToMaturity);
     }
 
     function redeemVaultSharesAndLend(

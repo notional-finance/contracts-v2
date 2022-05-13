@@ -112,10 +112,21 @@ library VaultConfiguration {
         return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
     }
 
+    /**
+     * @notice Returns the nToken fee denominated in asset internal precision. The nTokenFee
+     * is assessed based on the linear interpolation between the min and the max leverage and
+     * then scaled based on the time to maturity.
+     * @param vaultConfig vault configuration
+     * @param leverageRatio the amount of leverage the account is taking
+     * @param fCash the amount of fCash the account is borrowing
+     * @param timeToMaturity time until maturity of fCash
+     * @return nTokenFee the amount of asset cash in internal precision paid to the nToken
+     */
     function getNTokenFee(
         VaultConfig memory vaultConfig,
         int256 leverageRatio,
-        int256 fCash
+        int256 fCash,
+        uint256 timeToMaturity
     ) internal pure returns (int256 nTokenFee) {
         // If there is no leverage then we don't charge a fee.
         if (leverageRatio <= Constants.RATE_PRECISION) return 0;
@@ -128,13 +139,15 @@ library VaultConfiguration {
         int256 leverageRatioAdj = leverageRatio - Constants.RATE_PRECISION;
         // All of these figures are in RATE_PRECISION
         int256 nTokenFeeRate = leverageRatioAdj
+            .mul(SafeInt256.toInt(timeToMaturity))
             .mul(vaultConfig.maxNTokenFeeRate)
             // maxLeverageRatio must be > 1 when set in governance, also vaults are
             // not allowed to exceed the maxLeverageRatio
-            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION);
+            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION)
+            .div(int256(Constants.YEAR));
 
         // nTokenFee is expected to be a positive number
-        nTokenFee = fCash.neg().mulInRatePrecision(nTokenFeeRate);
+        nTokenFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(nTokenFeeRate));
     }
 
     /**
