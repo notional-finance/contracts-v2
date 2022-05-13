@@ -178,14 +178,15 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * to the msg.sender.
      * @param account the address that will exit the vault
      * @param vault the vault to enter
-     * @param vaultSharesToRedeem amount of vault tokens to exit
+     * @param depositAmountExternal amount of cash to deposit
+     * @param useUnderlying true if we should use the underlying token
      */
     function deleverageAccount(
         address account,
         address vault,
-        uint256 vaultSharesToRedeem,
-        bytes calldata exitVaultData
-    ) external nonReentrant override {
+        uint256 depositAmountExternal,
+        bool useUnderlying
+    ) external nonReentrant override returns (uint256 vaultSharesToLiquidator) {
         require(account != msg.sender); // Cannot liquidate yourself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
@@ -198,19 +199,36 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
         require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
 
-        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
-        // back into the temporary cash balance.
-        accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, exitVaultData);
+        // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
+        // vault shares at a discount to the deposited amount
+        vaultAccount.depositIntoAccount(msg.sender, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        // Pay the liquidator their share out of temp cash balance
-        int256 liquidatorPayment = vaultAccount.tempCashBalance
+        // The liquidator will purchase vault shares from the vault account at discount. The calculation is:
+        // (cashDeposited / assetCashValueOfShares) * liquidationRate * vaultShares
+        //      where cashDeposited / assetCashValueOfShares represents the share of the total vault share
+        //      value the liquidator has deposited
+        //      and liquidationRate is a percentage greater than 100% that represents their bonus
+        uint256 assetCashValue = SafeInt256.toUint(vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares));
+        vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
             .mul(vaultConfig.liquidationRate)
-            .div(Constants.PERCENTAGE_DECIMALS);
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(liquidatorPayment);
+            .mul(vaultAccount.vaultShares)
+            .div(assetCashValue)
+            .div(uint256(Constants.PERCENTAGE_DECIMALS));
 
-        // The account will now require specialized settlement. We do not allow the liquidator to lend on behalf
-        // of the account during liquidation or they can move the fCash market against the account and put them
-        // in an insolvent position.
+        // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
+        // leveraged position on then their leverage ratio will decrease
+        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vault);
+        // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
+        // vault at the same maturity).
+        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
+        liquidator.maturity = vaultAccount.maturity;
+        liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
+        liquidator.setVaultAccount(vault);
+
+        vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
+        // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
+        // fCash market against the account and put them in an insolvent position. All the cash balance deposited
+        // goes into the escrowed asset cash balance.
         vaultAccount.increaseEscrowedAssetCash(vaultState, vaultAccount.tempCashBalance);
         vaultState.setVaultState(vault);
 
@@ -222,10 +240,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Sets the vault account
         vaultAccount.setVaultAccount(vault);
-
-        // Transfer the liquidator payment
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        assetToken.transfer(msg.sender, vaultConfig.borrowCurrencyId, liquidatorPayment.neg());
     }
 
     /** View Methods **/

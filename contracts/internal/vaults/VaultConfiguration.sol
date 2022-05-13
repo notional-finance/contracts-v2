@@ -47,7 +47,7 @@ library VaultConfiguration {
         vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
         vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
-        vaultConfig.liquidationRate = int256(uint256(s.liquidationRate));
+        vaultConfig.liquidationRate = s.liquidationRate;
     }
 
     function getVaultConfigStateful(

@@ -496,7 +496,7 @@ struct VaultConfig {
     int256 maxNTokenFeeRate;
     int256 maxLeverageRatio;
     int256 capacityMultiplierPercentage;
-    int256 liquidationRate;
+    uint256 liquidationRate;
     AssetRateParameters assetRate;
 }
 
