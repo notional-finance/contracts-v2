@@ -2,16 +2,25 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./VaultConfiguration.sol";
-import "../nToken/nTokenStaked.sol";
-import "../markets/CashGroup.sol";
-import "../markets/AssetRate.sol";
-import "../../math/SafeInt256.sol";
-import "../balances/TokenHandler.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {VaultAccount, VaultAccountStorage} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {DateTime} from "../markets/DateTime.sol";
+
+import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
+import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
+import {TokenType, Token, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
+import {nTokenStaked} from "../nToken/nTokenStaked.sol";
+
+import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
+import {VaultStateLib, VaultState} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
+    using VaultStateLib for VaultState;
     using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
@@ -29,11 +38,12 @@ library VaultAccountLib {
             .getVaultAccount();
         VaultAccountStorage storage s = store[account][vaultAddress];
 
-        vaultAccount.fCash = s.fCash;
-        vaultAccount.escrowedAssetCash = s.escrowedAssetCash;
+        // fCash is negative on the stack
+        vaultAccount.fCash = -int256(uint256(s.fCash));
+        vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
         vaultAccount.maturity = s.maturity;
-        vaultAccount.oldMaturity = vaultAccount.maturity;
         vaultAccount.requiresSettlement = s.requiresSettlement;
+        vaultAccount.vaultShares = s.vaultShares;
     }
 
     /// @notice Sets a single account's vault position in storage
@@ -45,16 +55,13 @@ library VaultAccountLib {
             .getVaultAccount();
         VaultAccountStorage storage s = store[vaultAccount.account][vaultAddress];
 
-        // Individual accounts cannot have a negative escrowed cash balance
-        require(0 <= vaultAccount.escrowedAssetCash && vaultAccount.escrowedAssetCash <= type(int88).max); // dev: cash balance overflow
-        // Individual accounts cannot have a positive fCash balance
-        require(type(int88).min <= vaultAccount.fCash && vaultAccount.fCash <= 0); // dev: fCash overflow
         require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
         // The temporary cash balance must be cleared to zero by the end of the transaction
         require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
 
-        s.fCash = int88(vaultAccount.fCash);
-        s.escrowedAssetCash = int88(vaultAccount.escrowedAssetCash);
+        s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
+        s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
+        s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
         s.maturity = uint32(vaultAccount.maturity);
         s.requiresSettlement = vaultAccount.requiresSettlement;
     }
@@ -70,11 +77,11 @@ library VaultAccountLib {
     function settleVaultAccount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         uint256 blockTime
     ) internal {
         // These conditions mean that the vault account does not require settlement
         if (blockTime < vaultAccount.maturity || vaultAccount.fCash == 0) return;
-        VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
 
         if (!vaultAccount.requiresSettlement && vaultAccount.escrowedAssetCash == 0) {
             // A vault must be fully settled for an account to settle. Most vaults should be able to settle
@@ -147,6 +154,52 @@ library VaultAccountLib {
         }
     }
 
+    function borrowAndEnterVault(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        uint256 maturity,
+        uint256 fCashToBorrow,
+        uint256 maxBorrowRate,
+        bytes calldata vaultData
+    ) internal {
+        // The vault account can only be increasing their borrow position or not have one set. If they
+        // are increasing their position they will be in the current maturity. We won't update the
+        // maturity in this method, it will be updated when we enter the maturity pool at the end
+        // of the parent method borrowAndEnterVault
+        require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
+
+        // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
+        if (fCashToBorrow > 0) {
+            _borrowIntoVault(
+                vaultAccount,
+                vaultConfig,
+                vaultState,
+                maturity,
+                SafeInt256.toInt(fCashToBorrow).neg(),
+                maxBorrowRate,
+                block.timestamp
+            );
+        }
+
+        // Migrates the account from its old pool to the new pool if required, updates the current
+        // pool and deposits asset tokens into the vault
+        vaultState.enterMaturityPool(vaultAccount, vaultConfig, vaultData);
+
+        // Set the vault state and account in storage and check the vault's leverage ratio
+        vaultState.setVaultState(vaultConfig.vault);
+        setVaultAccount(vaultAccount, vaultConfig.vault);
+            
+        if (fCashToBorrow > 0) {
+            int256 leverageRatio = calculateLeverage(vaultAccount, vaultConfig, vaultState, 0);
+            require(leverageRatio <= vaultConfig.maxLeverageRatio, "Max Leverage");
+        }
+
+        // If the account is not using any leverage (fCashToBorrow == 0) we don't check the leverage, no matter
+        // what the amount is the leverage ratio will decrease. This is useful for accounts that want to quickly and cheaply
+        // deleverage their account without paying down debts.
+    }
+
     /**
      * @notice Borrows fCash to enter a vault, checks the leverage ratio and pays the nToken fee
      * @dev Updates vault fCash in storage, updates vaultAccount in memory
@@ -157,25 +210,16 @@ library VaultAccountLib {
      * @param maxBorrowRate maximum annualized rate to pay for the borrow
      * @param blockTime current block time
      */
-    function borrowIntoVault(
+    function _borrowIntoVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         uint256 maturity,
         int256 fCash,
         uint256 maxBorrowRate,
         uint256 blockTime
-    ) internal {
+    ) private {
         require(fCash < 0); // dev: fcash must be negative
-        VaultState memory vaultState = vaultConfig.getVaultState(maturity);
-
-        // The vault account can only be increasing their borrow position or not have one set. If they
-        // are increasing their position they will be in the current maturity
-        if (vaultAccount.fCash == 0) {
-            vaultAccount.maturity = maturity;
-        } else {
-            require(vaultAccount.maturity == maturity);
-        }
-
         // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
         // assuming the worst case scenario. Will adjust the fee properly at the end
         int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash);
@@ -192,6 +236,7 @@ library VaultAccountLib {
 
             // Update the account and vault state to account for the borrowing
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
                 .add(assetCashBorrowed)
@@ -202,14 +247,11 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, fCash);
+        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, vaultState, fCash);
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
         int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(maxNTokenFee).sub(nTokenFee);
-
-        // Done modifying the vault state at this point.
-        vaultConfig.setVaultState(vaultState);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
         vaultConfig.checkTotalBorrowCapacity(stakedNTokenPV, blockTime);
@@ -218,6 +260,7 @@ library VaultAccountLib {
     function _getNTokenFee(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         int256 fCash
     ) private view returns (int256 nTokenFee) {
         // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
@@ -227,17 +270,48 @@ library VaultAccountLib {
         // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
         // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
         // vault shares to ensure that both the account and vault are healthy.
-        int256 underlyingInternalValue = IStrategyVault(vaultConfig.vault)
-            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.oldMaturity, vaultConfig.assetRate.rate)
-            .add(vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
-
         int256 preSlippageLeverageRatio = calculateLeverage(
-            vaultAccount,
-            vaultConfig,
-            underlyingInternalValue
+            vaultAccount, vaultConfig, vaultState, vaultAccount.tempCashBalance
         );
 
         nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash);
+    }
+
+    function redeemVaultSharesAndLend(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        uint256 vaultSharesToRedeem,
+        int256 fCashToLend,
+        uint256 minLendRate,
+        bytes calldata vaultData
+    ) internal returns (VaultState memory vaultState) {
+        vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
+        // When an account exits 
+        uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+
+        // Redeems and updates temp cash balance
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultConfig.redeem(strategyTokens, vaultData));
+
+
+        if (vaultAccount.maturity <= block.timestamp) {
+            settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp);
+            require(vaultAccount.requiresSettlement == false); // dev: unsuccessful settlement
+        } else if (fCashToLend > 0) {
+            _lendToExitVault(
+                vaultAccount,
+                vaultConfig,
+                vaultState,
+                fCashToLend,
+                minLendRate,
+                block.timestamp
+            );
+        }
+
+        vaultState.setVaultState(vaultConfig.vault);
+
+        // Don't set the account here, depending on roll or exit we have different mechanics. We also don't
+        // check for leverage here, during roll it will happen at the end. During exit it will happen just after
+        // this method completes
     }
 
     /**
@@ -250,20 +324,19 @@ library VaultAccountLib {
      * @param minLendRate minimum rate to lend at
      * @param blockTime current block time
      */
-    function lendToExitVault(
+    function _lendToExitVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         int256 fCash,
         uint256 minLendRate,
         uint256 blockTime
-    ) internal {
-        require(fCash >= 0); // dev: fcash must be positive
+    ) private {
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
         
         // Check that the account is in an active vault
         require(blockTime < vaultAccount.maturity);
-        VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
@@ -317,8 +390,6 @@ library VaultAccountLib {
             // This should never be the case.
             revert(); // dev: asset cash to lend is positive
         }
-
-        vaultConfig.setVaultState(vaultState);
     }
 
     function increaseEscrowedAssetCash(
@@ -348,20 +419,16 @@ library VaultAccountLib {
      * @param vaultConfig vault config
      * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
      * should be set to zero in all other cases.
-     * @return the leverage ratio for an account
+     * @return leverageRatio for an account
      */
     function calculateLeverage(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
         int256 preSlippageAssetCashAdjustment
-    ) internal pure returns (int256 leverageRatio) {
-        int256 vaultShareValue = SafeInt256.toInt(
-            VaultAssetPool.getCashValueOfShares(
-                vaultConfig,
-                VaultAssetPool.getMaturityPool(vaultAccount.maturity),
-                vaultAccount.vaultShares
-            )
-        ).add(preSlippageAssetCashAdjustment);
+    ) internal view returns (int256 leverageRatio) {
+        int256 vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares)
+            .add(preSlippageAssetCashAdjustment);
 
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
@@ -417,27 +484,6 @@ library VaultAccountLib {
             require(market.lastImpliedRate <= rateLimit);
         } else {
             require(market.lastImpliedRate >= rateLimit);
-        }
-    }
-
-    /**
-     * @notice Redeems vault shares and credits them to the vault account's cash balance.
-     * @dev Updates account cash balance in memory
-     * @param vaultAccount the account's position in the vault
-     * @param vaultConfig vault config object
-     * @param vaultSharesToRedeem shares of the vault to redeem
-     */
-    function redeemSharesToCash(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig, 
-        uint256 vaultSharesToRedeem,
-        bytes calldata exitVaultData
-    ) internal returns (int256 accountUnderlyingInternalValue) {
-        if (vaultSharesToRedeem > 0) {
-            uint256 strategyTokens = VaultAssetPool.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
-
-            // This needs to check the amount of underlying / asset tokens redeemed
-            vaultConfig.redeem(strategyTokens, address(this), address(this), exitVaultData);
         }
     }
 

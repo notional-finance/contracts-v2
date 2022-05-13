@@ -6,10 +6,12 @@ import "./ActionGuards.sol";
 import {IVaultAction} from "../../../../interfaces/notional/IVaultController.sol";
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
+import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
 
 contract VaultAction is ActionGuards, IVaultAction {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
+    using VaultStateLib for VaultState;
     using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
@@ -74,7 +76,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(IStrategyVault(vault).canSettleMaturity(maturity), "Vault Cannot Settle");
         uint16 currencyId = vaultConfig.borrowCurrencyId;
 
-        VaultState memory vaultState = vaultConfig.getVaultState(maturity);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
         AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
             currencyId,
             maturity,
@@ -126,7 +128,7 @@ contract VaultAction is ActionGuards, IVaultAction {
 
         // TODO: is this the correct behavior if we are in an insolvency
         vaultState.isFullySettled = vaultState.totalfCash == 0 && vaultState.accountsRequiringSettlement == 0;
-        vaultConfig.setVaultState(vaultState);
+        vaultState.setVaultState(vault);
     }
 
     /** View Methods **/
@@ -140,14 +142,14 @@ contract VaultAction is ActionGuards, IVaultAction {
         address vault,
         uint256 maturity
     ) external view override returns (VaultState memory vaultState) {
-        vaultState = VaultConfiguration.getVaultState(vault, maturity);
+        vaultState = VaultStateLib.getVaultState(vault, maturity);
     }
 
     function getCurrentVaultState(
         address vault
     ) external view override returns (VaultState memory vaultState) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        vaultState = vaultConfig.getVaultState(vaultConfig.getCurrentMaturity(block.timestamp));
+        vaultState = VaultStateLib.getVaultState(vault, vaultConfig.getCurrentMaturity(block.timestamp));
     }
 
     function getCurrentVaultMaturity(
@@ -186,7 +188,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 assetCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
-        VaultState memory vaultState = vaultConfig.getVaultState(maturity);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
         // If this is prior to maturity, it will return the current asset rate. After maturity it will
         // return the settlement rate.
         AssetRateParameters memory ar = AssetRate.buildSettlementRateView(vaultConfig.borrowCurrencyId, maturity);

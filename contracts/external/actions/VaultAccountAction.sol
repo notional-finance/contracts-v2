@@ -6,10 +6,12 @@ import "./ActionGuards.sol";
 import {IVaultAccountAction} from "../../../../interfaces/notional/IVaultController.sol";
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
+import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
 
 contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
+    using VaultStateLib for VaultState;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeMath for uint256;
@@ -56,22 +58,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // must be set accordingly.
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        if (fCash > 0) {
-            _borrowAndEnterVault(
-                vaultConfig,
-                vaultAccount,
-                vaultConfig.getCurrentMaturity(block.timestamp),
-                fCash,
-                maxBorrowRate,
-                vaultData
-            );
-        } else {
-            // If the account is not using any leverage we just enter the vault. No matter what the leverage
-            // ratio will decrease in this case so we do not need to check vault health and the account will
-            // not have to pay any nToken fees. This is useful for accounts that want to quickly and cheaply
-            // deleverage their account without paying down debts.
-            vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
-        }
+        uint256 maturity = vaultConfig.getCurrentMaturity(block.timestamp);
+        vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData);
     }
 
     /**
@@ -109,14 +97,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
-        vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, opts.exitVaultData);
-
-        // Fully exit the current lending position
-        vaultAccount.lendToExitVault(
+        vaultAccount.redeemVaultSharesAndLend(
             vaultConfig,
+            vaultSharesToRedeem,
+            // NOTE: the vault will receive its share of the asset cash held in escrow for settlement here
             vaultAccount.fCash.neg(), // must fully exit the fCash position
             opts.minLendRate,
-            block.timestamp
+            opts.exitVaultData
         );
 
         // If the lending was unsuccessful then we cannot roll the position, the account cannot
@@ -124,36 +111,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(vaultAccount.fCash == 0 && !vaultAccount.requiresSettlement, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
-        _borrowAndEnterVault(
+        vaultAccount.borrowAndEnterVault(
             vaultConfig,
-            vaultAccount,
             currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
             fCashToBorrow,
             opts.maxBorrowRate,
             opts.enterVaultData
         );
-    }
-
-    function _borrowAndEnterVault(
-        VaultConfig memory vaultConfig,
-        VaultAccount memory vaultAccount,
-        uint256 maturity,
-        uint256 fCashToBorrow,
-        uint256 maxBorrowRate,
-        bytes calldata vaultData
-    ) private {
-        vaultAccount.borrowIntoVault(
-            vaultConfig,
-            maturity,
-            SafeInt256.toInt(fCashToBorrow).neg(),
-            maxBorrowRate,
-            block.timestamp
-        );
-
-        // Transfers cash, sets vault account state, mints vault shares
-        int256 accountUnderlyingInternalValue = vaultAccount.enterAccountIntoVault(vaultConfig, vaultData);
-        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
-        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Max Leverage");
     }
 
     /**
@@ -179,24 +143,18 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         
-        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
-        // back into the temporary cash balance.
-        int256 accountUnderlyingInternalValue = vaultAccount.redeemShares(vaultConfig, vaultSharesToRedeem, exitVaultData);
-        
-        if (vaultAccount.maturity <= block.timestamp) {
-            vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
-            require(vaultAccount.requiresSettlement == false); // dev: unsuccessful settlement
-        } else {
-            vaultAccount.lendToExitVault(
-                vaultConfig,
-                SafeInt256.toInt(fCashToLend),
-                minLendRate,
-                block.timestamp
-            );
-        
+        VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
+            vaultConfig,
+            vaultSharesToRedeem,
+            SafeInt256.toInt(fCashToLend),
+            minLendRate,
+            exitVaultData
+        );
+            
+        if (vaultAccount.fCash < 0) {
             // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
             // will be reducing their leverage ratio here, so we check that this is the case).
-            int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
+            int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
             require(leverageRatio <= vaultConfig.maxLeverageRatio, "Over Leverage");
         }
         
@@ -222,14 +180,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(account != msg.sender); // Cannot liquidate yourself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
         // Check that the account has an active position
         require(block.timestamp < vaultAccount.maturity);
 
         // Check that the leverage ratio is above the maximum allowed
-        int256 accountUnderlyingInternalValue = IStrategyVault(vaultConfig.vault)
-            .underlyingInternalValueOf(vaultAccount.account, vaultAccount.maturity, vaultConfig.assetRate.rate);
-        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
+        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
         require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
 
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
@@ -245,14 +202,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // The account will now require specialized settlement. We do not allow the liquidator to lend on behalf
         // of the account during liquidation or they can move the fCash market against the account and put them
         // in an insolvent position.
-        VaultState memory vaultState = vaultConfig.getVaultState(vaultAccount.maturity);
         vaultAccount.increaseEscrowedAssetCash(vaultState, vaultAccount.tempCashBalance);
-        vaultConfig.setVaultState(vaultState);
+        vaultState.setVaultState(vault);
 
         // Ensure that the leverage ratio does not drop too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
-        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, accountUnderlyingInternalValue);
+        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
         require(vaultConfig.maxLeverageRatio.mulInRatePrecision(0.70e9) < leverageRatio, "Over liquidation");
 
         // Sets the vault account
@@ -278,11 +234,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        int256 underlyingInternalValue = IStrategyVault(vault).underlyingInternalValueOf(
-            vaultAccount.account, vaultAccount.maturity, vaultConfig.assetRate.rate
-        );
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
-        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, underlyingInternalValue);
+        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
         maxLeverageRatio = vaultConfig.maxLeverageRatio;
     }
 }

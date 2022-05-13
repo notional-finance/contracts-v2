@@ -2,15 +2,19 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../global/Types.sol";
-import "../../global/LibStorage.sol";
-import "../../global/Constants.sol";
-import "../../math/SafeInt256.sol";
-import "../markets/AssetRate.sol";
-import "../markets/DateTime.sol";
-import "../nToken/nTokenStaked.sol";
-import "../balances/TokenHandler.sol";
-import "../balances/BalanceHandler.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {DateTime} from "../markets/DateTime.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+
+import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
+import {nTokenStaked} from "../nToken/nTokenStaked.sol";
+import {Token, TokenHandler} from "../balances/TokenHandler.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+
+import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
+import {VaultStateLib, VaultState} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultConfiguration {
@@ -85,53 +89,10 @@ library VaultConfiguration {
         store[vaultAddress] = vaultConfig;
     }
 
-    function getVaultState(
-        address vault,
-        uint256 maturity
-    ) internal view returns (VaultState memory vaultState) {
-        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vault][maturity];
-
-        vaultState.maturity = maturity;
-        vaultState.totalfCashRequiringSettlement = s.totalfCashRequiringSettlement;
-        vaultState.totalfCash = s.totalfCash;
-        vaultState.isFullySettled = s.isFullySettled;
-        vaultState.accountsRequiringSettlement = s.accountsRequiringSettlement;
-    }
-
-    function getVaultState(
-        VaultConfig memory vaultConfig,
-        uint256 maturity
-    ) internal view returns (VaultState memory) {
-        return getVaultState(vaultConfig.vault, maturity);
-    }
-
-    function setVaultState(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState
-    ) internal {
-        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
-
-        require(type(int88).min <= vaultState.totalfCash && vaultState.totalfCash <= 0); // dev: total fcash overflow
-        // Total fCash requiring settlement is always less than total fCash
-        require(vaultState.totalfCash <= vaultState.totalfCashRequiringSettlement 
-            && vaultState.totalfCashRequiringSettlement <= 0); // dev: total fcash requiring settlement overflow
-        require(vaultState.accountsRequiringSettlement <= type(uint32).max); // dev: accounts settlement overflow
-
-        s.totalfCashRequiringSettlement= int88(vaultState.totalfCashRequiringSettlement);
-        s.totalfCash = int88(vaultState.totalfCash);
-        s.isFullySettled = vaultState.isFullySettled;
-        s.accountsRequiringSettlement = uint32(vaultState.accountsRequiringSettlement);
-    }
-
     /**
      * @notice Returns that status of a given flagID
      */
-    function getFlag(
-        VaultConfig memory vaultConfig,
-        uint16 flagID
-    ) internal pure returns (bool) {
+    function getFlag(VaultConfig memory vaultConfig, uint16 flagID) internal pure returns (bool) {
         return (vaultConfig.flags & flagID) == flagID;
     }
 
@@ -142,10 +103,7 @@ library VaultConfiguration {
      * @param blockTime current block time
      * @return the current maturity for the vault given the block time
      */
-    function getCurrentMaturity(
-        VaultConfig memory vaultConfig,
-        uint256 blockTime
-    ) internal pure returns (uint256) {
+    function getCurrentMaturity(VaultConfig memory vaultConfig, uint256 blockTime) internal pure returns (uint256) {
         uint256 blockTimeUTC0 = DateTime.getTimeUTC0(blockTime);
         // NOTE: termLengthInSeconds cannot be 0
         uint256 offset = blockTimeUTC0 % vaultConfig.termLengthInSeconds;
@@ -244,6 +202,7 @@ library VaultConfiguration {
             vaultConfig.borrowCurrencyId,
             assetToken.convertToExternal(netAssetTransferInternal)
         );
+        actualTransferInternal = assetToken.convertToInternal(actualTransferExternal);
     }
 
     function settlePooledfCash(

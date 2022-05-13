@@ -505,40 +505,50 @@ struct VaultStateStorage {
     // This represents the total amount of borrowing in the vault for the current
     // vault term. This value must equal the total fCash borrowed by all accounts
     // in the vault.
-    int88 totalfCash;
+    uint80 totalfCash;
     // This represents the fCash requiring settlement (excludes accounts that have been removed
     // because they require individualized settlement.
-    int88 totalfCashRequiringSettlement;
+    uint80 totalfCashRequiringSettlement;
+    // Total vault shares in this maturity
+    uint80 totalVaultShares;
     // Set to true if a vault has been fully settled and the cash can be pulled. Matured
     // accounts must wait for this flag to be set before they can proceed to exit after
     // maturity
     bool isFullySettled;
+    // NOTE: 8 bytes left
+    // ----- (248 bytes) This breaks into a new storage slot -------    
+    // The total amount of asset cash in the pool held as prepayment for fCash
+    uint80 totalAssetCash;
+    // The total amount of strategy tokens held in the pool
+    uint80 totalStrategyTokens;
     // This holds a counter for the number of accounts that are require settlement (i.e. were unable
     // to lend to exit positions). This counter must be zero before the vault is considered fully settled.
     // 4.3 billion is likely more than enough to hold the number of accounts, we should never overflow
     // this since even one should be exceedingly rare.
     uint32 accountsRequiringSettlement;
-
-    // NOTE: 40 bytes left
+    // NOTE: 64 bytes left
 }
 
 struct VaultState {
-    int256 totalfCashRequiringSettlement;
-    int256 totalfCash;
     uint256 maturity;
+    int256 totalfCash;
+    int256 totalfCashRequiringSettlement;
     bool isFullySettled;
     uint256 accountsRequiringSettlement;
+    uint256 totalVaultShares;
+    uint256 totalAssetCash;
+    uint256 totalStrategyTokens;
 }
 
 /// @notice Represents an account's position within an individual vault
 struct VaultAccountStorage {
     // The amount of fCash the account has borrowed from Notional.
-    int80 fCash;
+    uint80 fCash;
     // It's possible that an account may not be able to repay their fCash on the market.
     // in that case we hold asset cash against their fCash as repayment. When this occurs,
     // we must also update the totalfCashRequiringSettlement on the VaultState object to ensure
     // that we do not over-sell vault shares to repay debt.
-    int80 escrowedAssetCash;
+    uint80 escrowedAssetCash;
     // Vault shares that the account holds
     uint80 vaultShares;
     // Set to true if there is escrowed asset cash or the vault has no vault shares and
@@ -559,8 +569,7 @@ struct VaultAccount {
     int256 tempCashBalance;
     int256 fCash;
     int256 escrowedAssetCash;
-    // This holds the previous maturity when entering a new vault
-    uint256 oldMaturity;
+    uint256 vaultShares;
     uint256 maturity;
     bool requiresSettlement;
 }
