@@ -142,7 +142,7 @@ library VaultAccountLib {
         } else {
             // If there are vault shares left then this will revert, more vault shares
             // need to be sold to exit the account's debt.
-            require(IStrategyVault(vaultConfig.vault).balanceOf(vaultAccount.account) == 0);
+            require(vaultAccount.vaultShares == 0);
 
             // If there are no vault shares left at this point then we have an
             // insolvency. The negative cash balance needs to be cleared via nToken
