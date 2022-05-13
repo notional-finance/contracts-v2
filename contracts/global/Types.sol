@@ -563,15 +563,15 @@ struct VaultAccountStorage {
 }
 
 struct VaultAccount {
+    int256 fCash;
+    int256 escrowedAssetCash;
+    uint256 maturity;
+    uint256 vaultShares;
+    bool requiresSettlement;
     address account;
     // This cash balance is used just within a transaction to track deposits
     // and withdraws for an account.
     int256 tempCashBalance;
-    int256 fCash;
-    int256 escrowedAssetCash;
-    uint256 vaultShares;
-    uint256 maturity;
-    bool requiresSettlement;
 }
 
 struct RollVaultOpts {

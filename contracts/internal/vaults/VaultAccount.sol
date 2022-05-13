@@ -44,6 +44,8 @@ library VaultAccountLib {
         vaultAccount.maturity = s.maturity;
         vaultAccount.requiresSettlement = s.requiresSettlement;
         vaultAccount.vaultShares = s.vaultShares;
+        vaultAccount.account = account;
+        vaultAccount.tempCashBalance = 0;
     }
 
     /// @notice Sets a single account's vault position in storage
