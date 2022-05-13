@@ -9,20 +9,17 @@ import {IVaultController} from "../../../interfaces/notional/IVaultController.so
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 
 abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
-    function depositFromNotional(uint256 deposit, bytes calldata data) external virtual returns (uint256 strategyTokensMinted);
-    function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external virtual;
 
+    /** These view methods need to be implemented by the vault */
+    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
     function convertStrategyToUnderlying(uint256 strategyTokens) public view virtual returns (uint256 underlyingValue);
     function isInSettlement() external view virtual returns (bool);
     
-    uint16 internal immutable BORROW_CURRENCY_ID;
-    // IERC20 public immutable ASSET_TOKEN;
-    // IERC20 public immutable UNDERLYING_TOKEN;
-    uint256 constant internal INTERNAL_TOKEN_PRECISION = 1e8;
-    uint8 constant internal INTERNAL_TOKEN_DECIMALS = 8;
-    IVaultController public immutable NOTIONAL;
-    uint256 immutable internal UNDERLYING_TOKEN_PRECISION;
 
+    uint16 internal immutable BORROW_CURRENCY_ID;
+    ERC20 public immutable ASSET_TOKEN;
+    IVaultController public immutable NOTIONAL;
+    uint8 constant internal INTERNAL_TOKEN_DECIMALS = 8;
     function decimals() public view override returns (uint8) { return INTERNAL_TOKEN_DECIMALS; }
 
     modifier onlyNotional() {
@@ -40,41 +37,25 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         BORROW_CURRENCY_ID = borrowCurrencyId_;
 
         (
-            /* Token memory assetToken */,
-            Token memory underlyingToken,
+            Token memory assetToken,
+            /* Token memory underlyingToken */,
             /* ETHRate memory ethRate */,
             /* AssetRateParameters memory assetRate */
         ) = NotionalProxy(notional_).getCurrencyAndRates(borrowCurrencyId_);
 
-        require(underlyingToken.decimals > 0);
-        UNDERLYING_TOKEN_PRECISION = uint256(underlyingToken.decimals);
+        ASSET_TOKEN = ERC20(assetToken.tokenAddress);
     }
 
-    // TODO: asset token mint / redeem methods
-    //function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
-    
-    /** 
-     * @notice Vaults can optionally settle their matured pools back into either 100% strategy
-     * tokens or 100% asset cash. Only Notional can call this method.
-    function settleMaturedPool(
-        uint256 maturity,
-        bool rebaseToAssetCash,
-        bytes calldata vaultData
-    ) external onlyNotional override {
-        MaturityPool memory maturityPool = vaultMaturityPools[maturity];
-
-        if (rebaseToAssetCash && maturityPool.totalStrategyTokens > 0) {
-            uint256 assetCashWithdrawn = _redeemStrategyTokens(address(0), maturity, maturityPool.totalStrategyTokens, vaultData);
-            maturityPool.totalAssetCash += _safeUint128(assetCashWithdrawn);
-            maturityPool.totalStrategyTokens = 0;
-        } else if (maturityPool.totalAssetCash > 0) {
-            uint256 strategyTokensMinted = _mintStrategyTokens(address(0), maturity, maturityPool.totalAssetCash, vaultData);
-            maturityPool.totalStrategyTokens += _safeUint128(strategyTokensMinted);
-            maturityPool.totalAssetCash = 0;
-        }
-
-        vaultMaturityPools[maturity] = maturityPool;
+    // External methods are authenticated to be just Notional
+    function depositFromNotional(uint256 deposit, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
+        _depositFromNotional(deposit, data);
     }
-     */
 
+    function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external onlyNotional {
+        _redeemFromNotional(strategyTokens, data);
+    }
+
+    // Vaults need to implement these two methods
+    function _depositFromNotional(uint256 deposit, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
+    function _redeemFromNotional(uint256 strategyTokens, bytes calldata data) internal virtual;
 }
