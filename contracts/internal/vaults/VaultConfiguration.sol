@@ -86,6 +86,8 @@ library VaultConfiguration {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         // Sanity check this value, leverage ratio must be greater than 1
         require(uint256(Constants.RATE_PRECISION) < uint256(vaultConfig.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
+        // Liquidation rate must be greater than or equal to 100
+        require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
 
         store[vaultAddress] = vaultConfig;
     }

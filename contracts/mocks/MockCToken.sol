@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.7.6;
+pragma solidity =0.8.11;
 
-contract MockCToken {
+import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
+
+contract MockCToken is ERC20 {
     uint private _answer;
     uint private _supplyRate;
-    uint8 public decimals;
+    uint8 internal _decimals;
     address public underlying;
-    string public symbol = "cMock";
+    function decimals() public view override returns (uint8) { return _decimals; }
     event AccrueInterest(uint cashPrior, uint interestAccumulated, uint borrowIndex, uint totalBorrows);
 
-    constructor(uint8 _decimals) {
-        decimals = _decimals;
+    constructor(uint8 decimals_) ERC20("cMock", "cMock") {
+        _decimals = _decimals;
     }
 
     function setUnderlying(address underlying_) external {

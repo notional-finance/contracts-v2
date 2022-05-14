@@ -122,10 +122,11 @@ library VaultStateLib {
             setVaultState(oldVaultState, vaultConfig.vault);
 
             vaultAccount.maturity = vaultState.maturity;
+            vaultAccount.vaultShares = 0;
         }
 
         uint256 assetCashWithheld;
-        if (vaultState.totalAssetCash > 0) {
+        if (vaultState.totalAssetCash > 0 && vaultAccount.vaultShares > 0) {
             // TODO: should we even allow this to happen?
             uint256 totalValueOfPool = SafeInt256.toUint(getCashValueOfShare(vaultState, vaultConfig, vaultState.totalVaultShares));
 
@@ -133,8 +134,6 @@ library VaultStateLib {
             // Generally, pools should not be in this position unless something strange has happened
             // but if an account does enter here then they will take a penalty on the vault shares they
             // receive.
-            // TODO: this calculation is incorrect, it is the wrong vault shares to vault if the maturity
-            // is not matching.
             uint256 totalValueOfDeposits = SafeInt256.toUint(getCashValueOfShare(vaultState, vaultConfig, vaultAccount.vaultShares));
 
             assetCashWithheld = totalValueOfDeposits.mul(vaultState.totalAssetCash).div(totalValueOfPool);
