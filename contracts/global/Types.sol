@@ -465,16 +465,16 @@ struct VaultConfigStorage {
     uint16 flags;
     // Each vault only borrows in a single currency
     uint16 borrowCurrencyId;
-    // Absolute maximum vault size (fCash overflows at int88)
+    // Absolute maximum vault size (fCash overflows at uint80)
     // NOTE: we can reduce this to uint48 to allow for a 281 trillion token vault (in whole 8 decimals)
-    uint88 maxVaultBorrowSize;
+    uint80 maxVaultBorrowSize;
     // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
     uint32 minAccountBorrowSize;
     // Maximum leverage ratio for a vault specified in basis points, allows up to a 655.36x leverage
     uint16 maxLeverageRatioBPS;
     // The number of days of each vault term (this is sufficient for 20 year vaults)
     uint16 termLengthInDays;
-    // Allows up to a 12.75% fee for an account at the max leverage ratio
+    // Allows up to a 12.75% annualized fee for an account at the max leverage ratio
     uint8 maxNTokenFeeRate5BPS;
     // A value in percent scale that represents the relative risk of this vault. Governs how large the
     // vault can get relative to staked nToken insurance. Allows up to 655x leverage which should be
@@ -483,7 +483,7 @@ struct VaultConfigStorage {
     // A percentage that represents the share of the cash raised that will go to the liquidator
     uint8 liquidationRate;
 
-    // 40 bytes left
+    // 48 bytes left
 }
 
 struct VaultConfig {

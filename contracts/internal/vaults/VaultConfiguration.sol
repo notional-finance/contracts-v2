@@ -39,6 +39,7 @@ library VaultConfiguration {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         VaultConfigStorage storage s = store[vaultAddress];
 
+        vaultConfig.vault = vaultAddress;
         vaultConfig.flags = s.flags;
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
         vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
