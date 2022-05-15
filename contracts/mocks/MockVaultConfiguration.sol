@@ -48,13 +48,32 @@ contract MockVaultConfiguration {
         return VaultConfiguration.getVaultConfigView(vault).getNTokenFee(leverageRatio, fCash, timeToMaturity);
     }
 
+    function getBorrowCapacity(
+        address vault,
+        uint256 maturity,
+        int256 stakedNTokenUnderlyingPV,
+        int256 predictedStakedNTokenPV,
+        uint256 blockTime
+    ) external view returns (
+        int256 totalUnderlyingCapacity,
+        // Inside this method, total outstanding debt is a positive integer
+        int256 nextMaturityPredictedCapacity,
+        int256 totalOutstandingDebt,
+        int256 nextMaturityDebt
+    ) {
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
+        return VaultConfiguration.getVaultConfigView(vault).getBorrowCapacity(
+            vaultState, stakedNTokenUnderlyingPV, predictedStakedNTokenPV, blockTime
+        );
+    }
+
     function checkTotalBorrowCapacity(
         address vault,
         VaultState memory vaultState,
         int256 stakedNTokenUnderlyingPV,
         uint256 blockTime
     ) external view {
-        return VaultConfiguration.getVaultConfigView(vault).checkTotalBorrowCapacity(
+        VaultConfiguration.getVaultConfigView(vault).checkTotalBorrowCapacity(
             vaultState, stakedNTokenUnderlyingPV, blockTime
         );
     }

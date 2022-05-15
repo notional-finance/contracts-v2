@@ -36,6 +36,25 @@ def isolation(fn_isolation):
     pass
 
 
+def set_flags(flags, **kwargs):
+    binList = list(format(flags, "b").rjust(16, "0"))
+    if "ENABLED" in kwargs:
+        binList[0] = "1"
+    if "ALLOW_REENTER" in kwargs:
+        binList[1] = "1"
+    if "IS_INSURED" in kwargs:
+        binList[2] = "1"
+    if "ONLY_VAULT_ENTRY" in kwargs:
+        binList[3] = "1"
+    if "ONLY_VAULT_EXIT" in kwargs:
+        binList[4] = "1"
+    if "ONLY_VAULT_ROLL" in kwargs:
+        binList[5] = "1"
+    if "ONLY_VAULT_DELEVERAGE" in kwargs:
+        binList[6] = "1"
+    return int("".join(reversed(binList)), 2)
+
+
 def get_vault_config(**kwargs):
     return [
         kwargs.get("flags", 0),  # 0: flags
@@ -47,6 +66,19 @@ def get_vault_config(**kwargs):
         kwargs.get("maxNTokenFeeRate5BPS", 20),  # 6: 1% fee
         kwargs.get("capacityMultiplierPercentage", 200),  # 7: 200% capacity multiplier
         kwargs.get("liquidationRate", 104),  # 8: 4% liquidation discount
+    ]
+
+
+def get_vault_state(**kwargs):
+    return [
+        kwargs.get("maturity", START_TIME_TREF + SECONDS_IN_QUARTER),
+        kwargs.get("totalfCash", 0),
+        kwargs.get("totalfCashRequiringSettlement", 0),
+        kwargs.get("isFullySettled", False),
+        kwargs.get("accountsRequiringSettlement", 0),
+        kwargs.get("totalVaultShares", 0),
+        kwargs.get("totalAssetCash", 0),
+        kwargs.get("totalStrategyTokens", 0),
     ]
 
 
@@ -157,23 +189,207 @@ def test_ntoken_fee_increases_with_time_to_maturity(vaultConfig, accounts):
         lastFee = fee
 
 
-# def test_max_borrow_capacity_old_maturity(vaultConfig, accounts):
-#     pass
+def test_max_borrow_capacity_no_reenter(vaultConfig, vault, accounts):
+    vaultConfig.setVaultConfig(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0), maxVaultBorrowSize=100_000_000e8, capacityMultiplierPercentage=200
+        ),
+    )
 
-# def test_max_borrow_capacity_current_maturity(vaultConfig, accounts):
-#     pass
+    # Set current maturity
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+            totalfCash=-90_000_000e8,
+            totalfCashRequiringSettlement=-80_000_000e8,
+            totalAssetCash=100_000e8,
+        ),
+    )
 
-# def test_max_borrow_capacity_next_maturity(vaultConfig, accounts):
-#     pass
+    (
+        totalCapacity,
+        nextMaturityCapacity,
+        totalDebt,
+        nextMaturityDebt,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
 
-# def test_max_borrow_capacity_old_maturity_in_settlement(vaultConfig, accounts):
-#     pass
+    assert totalCapacity == 200_000_000e8
+    assert nextMaturityCapacity == 0
+    assert totalDebt == 90_000_000e8
+    assert nextMaturityDebt == 0
 
-# def test_max_borrow_capacity_current_maturity_in_settlement(vaultConfig, accounts):
-#     pass
+    # Turn on settlement
+    vault.setSettlement(True)
 
-# def test_max_borrow_capacity_next_maturity_in_settlement(vaultConfig, accounts):
-#     pass
+    (
+        totalCapacity,
+        nextMaturityCapacity,
+        totalDebt,
+        nextMaturityDebt,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
+
+    assert totalCapacity == 200_000_000e8
+    assert nextMaturityCapacity == 0
+    assert totalDebt == 85_000_000e8
+    assert nextMaturityDebt == 0
+
+
+def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
+    vaultConfig.setVaultConfig(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0, ALLOW_REENTER=True),
+            maxVaultBorrowSize=100_000_000e8,
+            capacityMultiplierPercentage=200,
+        ),
+    )
+
+    # Set current maturity
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+            totalfCash=-90_000_000e8,
+            totalfCashRequiringSettlement=-80_000_000e8,
+            totalAssetCash=100_000e8,
+        ),
+    )
+
+    # Next maturity
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
+            totalfCash=-20_000_000e8,
+            totalfCashRequiringSettlement=-20_000_000e8,
+            totalAssetCash=100_000e8,
+        ),
+    )
+
+    (
+        totalCapacity,
+        nextMaturityCapacity,
+        totalDebt,
+        nextMaturityDebt,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
+
+    assert totalCapacity == 200_000_000e8
+    assert nextMaturityCapacity == 160_000_000e8
+    assert totalDebt == 110_000_000e8
+    assert nextMaturityDebt == 20_000_000e8
+
+    # Should see same capacity numbers if the vault state is the
+    # next maturity
+    (
+        totalCapacity2,
+        nextMaturityCapacity2,
+        totalDebt2,
+        nextMaturityDebt2,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
+
+    assert totalCapacity == totalCapacity2
+    assert nextMaturityCapacity == nextMaturityCapacity2
+    assert totalDebt == totalDebt2
+    assert nextMaturityDebt == nextMaturityDebt2
+
+
+def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, accounts):
+    vaultConfig.setVaultConfig(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0, ALLOW_REENTER=True),
+            maxVaultBorrowSize=100_000_000e8,
+            capacityMultiplierPercentage=200,
+        ),
+    )
+
+    # Set current maturity
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+            totalfCash=-90_000_000e8,
+            totalfCashRequiringSettlement=-80_000_000e8,
+            totalAssetCash=100_000e8,
+        ),
+    )
+
+    # Next maturity
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
+            totalfCash=-20_000_000e8,
+            totalfCashRequiringSettlement=-20_000_000e8,
+            totalAssetCash=100_000e8,
+        ),
+    )
+
+    vault.setSettlement(True)
+
+    (
+        totalCapacity,
+        nextMaturityCapacity,
+        totalDebt,
+        nextMaturityDebt,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
+
+    assert totalCapacity == 200_000_000e8
+    assert nextMaturityCapacity == 160_000_000e8
+    assert totalDebt == 105_000_000e8
+    assert nextMaturityDebt == 20_000_000e8
+
+    # Should see same capacity numbers if the vault state is the
+    # next maturity
+    (
+        totalCapacity2,
+        nextMaturityCapacity2,
+        totalDebt2,
+        nextMaturityDebt2,
+    ) = vaultConfig.getBorrowCapacity(
+        vault.address,
+        START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
+        100_000_000e8,
+        80_000_000e8,
+        START_TIME_TREF + 100,
+    )
+
+    assert totalCapacity == totalCapacity2
+    assert nextMaturityCapacity == nextMaturityCapacity2
+    assert totalDebt == totalDebt2
+    assert nextMaturityDebt == nextMaturityDebt2
 
 
 # def test_deposit_ctoken(vaultConfig, vault, accounts):

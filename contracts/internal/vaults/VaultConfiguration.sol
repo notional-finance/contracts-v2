@@ -29,9 +29,10 @@ library VaultConfiguration {
     uint16 internal constant ENABLED                 = 1 << 0;
     uint16 internal constant ALLOW_REENTER           = 1 << 1;
     uint16 internal constant IS_INSURED              = 1 << 2;
-    uint16 internal constant PREFER_ASSET_CASH       = 1 << 3;
-    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 4;
-    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 5;
+    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 3;
+    uint16 internal constant ONLY_VAULT_EXIT         = 1 << 4;
+    uint16 internal constant ONLY_VAULT_ROLL         = 1 << 5;
+    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 6;
 
     function _getVaultConfig(
         address vaultAddress
@@ -158,7 +159,9 @@ library VaultConfiguration {
         int256 totalfCash,
         int256 totalAssetCash
     ) private pure returns (int256) {
-        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash));
+        // NOTE: it is possible that totalAssetCash > 0 and therefore this would
+        // return a negative debt outstanding
+        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash)).neg();
     }
 
     /**
@@ -167,24 +170,36 @@ library VaultConfiguration {
      * @param vaultConfig vault configuration
      * @param vaultState the current vault state to get the total fCash debt
      * @param stakedNTokenUnderlyingPV the amount of staked nToken present value
+     * @param predictedStakedNTokenPV the amount of staked nToken present value in the next quarter
+     * @param blockTime current block time
+     * @return totalUnderlyingCapacity total capacity between this quarter and next
+     * @return nextMaturityPredictedCapacity total capacity in the next quarter
+     * @return totalOutstandingDebt positively valued debt outstanding
+     * @return nextMaturityDebt positively valued debt in the next maturity
      */
-    function checkTotalBorrowCapacity(
+    function getBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         int256 stakedNTokenUnderlyingPV,
+        int256 predictedStakedNTokenPV,
         uint256 blockTime
-    ) internal view {
+    ) internal view returns (
+        int256 totalUnderlyingCapacity,
+        // Inside this method, total outstanding debt is a positive integer
+        int256 nextMaturityPredictedCapacity,
+        int256 totalOutstandingDebt,
+        int256 nextMaturityDebt
+    ) {
+        totalUnderlyingCapacity = stakedNTokenUnderlyingPV
+            .mul(vaultConfig.capacityMultiplierPercentage)
+            .div(Constants.PERCENTAGE_DECIMALS);
+
         // This is a partially calculated storage slot for the vault's state. The mapping is from maturity
         // to vault state for this vault.
         mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
 
-        int256 totalUnderlyingCapacity = stakedNTokenUnderlyingPV
-            .mul(vaultConfig.capacityMultiplierPercentage)
-            .div(Constants.PERCENTAGE_DECIMALS);
-
         uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
         bool isInSettlement = IStrategyVault(vaultConfig.vault).isInSettlement();
-        int256 totalOutstandingDebt;
         
         // First, handle the current vault state
         if (currentMaturity == vaultState.maturity) {
@@ -208,30 +223,45 @@ library VaultConfiguration {
         // Next, handle the next vault state (if it allows re-enters)
         if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
             uint256 nextMaturity = currentMaturity.add(vaultConfig.termLengthInSeconds);
-            // Use the absolute value (positive) here to save a couple negations
-            int256 nextMaturityDebtAbs;
-
             if (nextMaturity == vaultState.maturity) {
-                nextMaturityDebtAbs = vaultState.totalfCash.neg();
+                nextMaturityDebt = vaultState.totalfCash.neg();
             } else {
-                VaultStateStorage storage s = vaultStore[currentMaturity];
-                nextMaturityDebtAbs = int256(uint256(s.totalfCash));
+                VaultStateStorage storage s = vaultStore[nextMaturity];
+                nextMaturityDebt = int256(uint256(s.totalfCash));
             }
 
             // We cannot use any staked nToken capacity that may unstake in the next unstaking period
             // to determine the borrow 
-            /*
-            TODO: pass this value in
-            int256 nextMaturityPredictedCapacity = predictedStakedNTokenPV
+            nextMaturityPredictedCapacity = predictedStakedNTokenPV
                 .mul(vaultConfig.capacityMultiplierPercentage)
                 .div(Constants.PERCENTAGE_DECIMALS);
-            require(nextMaturityDebtAbs <= nextMaturityPredictedCapacity, "Insufficient capacity");
-            */
 
-            totalOutstandingDebt = totalOutstandingDebt.sub(nextMaturityDebtAbs);
+            totalOutstandingDebt = totalOutstandingDebt.add(nextMaturityDebt);
         }
+    }
 
-        require(totalOutstandingDebt.neg() <= totalUnderlyingCapacity, "Insufficient capacity");
+
+    function checkTotalBorrowCapacity(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        int256 stakedNTokenUnderlyingPV,
+        uint256 blockTime
+    ) internal view {
+        // TODO: add predicted pv in here
+        (
+            int256 totalUnderlyingCapacity,
+            // Inside this method, total outstanding debt is a positive integer
+            int256 nextMaturityPredictedCapacity,
+            int256 totalOutstandingDebt,
+            int256 nextMaturityDebt
+        ) = getBorrowCapacity(vaultConfig, vaultState, stakedNTokenUnderlyingPV, 0, blockTime);
+
+        require(
+            totalOutstandingDebt <= totalUnderlyingCapacity &&
+            totalOutstandingDebt <= vaultConfig.maxVaultBorrowSize &&
+            nextMaturityDebt <= nextMaturityPredictedCapacity,
+            "Insufficient capacity"
+        );
     }
 
     /**
