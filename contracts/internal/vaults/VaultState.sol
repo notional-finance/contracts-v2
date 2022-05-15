@@ -82,6 +82,7 @@ library VaultStateLib {
         VaultAccount memory vaultAccount,
         uint256 vaultSharesToRedeem
     ) internal pure returns (uint256 strategyTokensWithdrawn) {
+        require(vaultAccount.maturity == vaultState.maturity);
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToRedeem);
 
         // Calculate the claim on cash tokens and strategy tokens
