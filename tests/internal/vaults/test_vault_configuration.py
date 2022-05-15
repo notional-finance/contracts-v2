@@ -7,12 +7,21 @@ from tests.constants import BASIS_POINT, RATE_PRECISION, SECONDS_IN_QUARTER, STA
 
 
 @pytest.fixture(scope="module", autouse=True)
-def vaultConfig(MockVaultConfiguration, MockERC20, MockCToken, cTokenAggregator, accounts):
-    underlying = MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
-    cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    cToken.setAnswer(50e28)
-    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+def underlying(MockERC20, accounts):
+    return MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cToken(MockCToken, accounts):
+    token = MockCToken.deploy(8, {"from": accounts[0]})
+    token.setAnswer(50e28)
+    return token
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vaultConfig(MockVaultConfiguration, cToken, cTokenAggregator, accounts, underlying):
     mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
+    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
     mockVaultConf.setToken(
         1,
         aggregator.address,
@@ -392,14 +401,29 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
     assert nextMaturityDebt == nextMaturityDebt2
 
 
-# def test_deposit_ctoken(vaultConfig, vault, accounts):
-#     pass
+def test_deposit_and_redeem_ctoken(vaultConfig, vault, accounts, cToken):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    vault.setExchangeRate(Wei(5e18))
 
-# def test_deposit_atoken(vaultConfig, vault, accounts):
-#     pass
+    cToken.transfer(vaultConfig.address, 100_000e8, {"from": accounts[0]})
+    balanceBefore = cToken.balanceOf(vaultConfig.address)
+    txn = vaultConfig.deposit(vault.address, 100e8, "", {"from": accounts[0]})
+    balanceAfter = cToken.balanceOf(vaultConfig.address)
 
-# def test_redeem_ctoken(vaultConfig, vault, accounts):
-#     pass
+    assert balanceBefore - balanceAfter == 100e8
+    assert cToken.balanceOf(vault.address) == 100e8
+    assert vault.balanceOf(vaultConfig.address) == 500e8
+    assert cToken.allowance(vaultConfig.address, vault.address) == 0
+    assert txn.return_value == 500e8
 
-# def test_redeem_atoken(vaultConfig, vault, accounts):
+    txn = vaultConfig.redeem(vault.address, 250e8, "", {"from": accounts[0]})
+    balanceAfterRedeem = cToken.balanceOf(vaultConfig.address)
+
+    assert cToken.balanceOf(vault.address) == 50e8
+    assert vault.balanceOf(vaultConfig.address) == 250e8
+    assert balanceAfterRedeem - balanceAfter == 50e8
+    assert txn.return_value == 50e8
+
+
+# def test_deposit_and_redeem_atoken(vaultConfig, vault, accounts):
 #     pass

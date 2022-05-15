@@ -13,6 +13,7 @@ contract MockCToken is ERC20 {
 
     constructor(uint8 decimals_) ERC20("cMock", "cMock") {
         _decimals = _decimals;
+        _mint(msg.sender, type(uint80).max);
     }
 
     function setUnderlying(address underlying_) external {

@@ -23,7 +23,8 @@ contract SimpleStrategyVault is BaseStrategyVault {
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
         // TODO: convert deposit from asset cash denomination first, perhaps
-        _mint(address(NOTIONAL), (deposit * _tokenExchangeRate / 1e18));
+        strategyTokensMinted = (deposit * _tokenExchangeRate / 1e18);
+        _mint(address(NOTIONAL), strategyTokensMinted);
     }
 
     function _redeemFromNotional(

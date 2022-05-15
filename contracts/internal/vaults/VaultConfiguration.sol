@@ -12,6 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {nTokenStaked} from "../nToken/nTokenStaked.sol";
 import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
+import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 
 import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
@@ -265,9 +266,8 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice This will allow the strategy vault to pull the approved amount of tokens from Notional. We allow
-     * the strategy vault to pull tokens so that it can get an accurate accounting of the tokens it received in
-     * case of tokens with transfer fees or other non-standard behaviors on transfer.
+     * @notice This will transfer asset tokens to the strategy vault and mint strategy tokens back to Notional.
+     * Vaults cannot pull tokens from Notional (they are never granted approval) for security reasons.
      * @param vaultConfig vault config
      * @param cashToTransferInternal amount to transfer in internal precision
      * @param data arbitrary data to pass to the vault
@@ -296,9 +296,15 @@ library VaultConfiguration {
         
         // Ensures that transfer amounts are always positive
         uint256 transferAmount = SafeInt256.toUint(transferAmountExternal);
-        IERC20(assetToken.tokenAddress).approve(vaultConfig.vault, transferAmount);
-        strategyTokensMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(transferAmount, data);
-        IERC20(assetToken.tokenAddress).approve(vaultConfig.vault, 0);
+        address vault = vaultConfig.vault;
+        IERC20 token = IERC20(assetToken.tokenAddress);
+
+        // Do the transfer, ensuring that we get the most accurate accounting of the amount transferred to the vault
+        uint256 balanceBefore = token.balanceOf(vault);
+        GenericToken.safeTransferOut(address(token), vault, transferAmount);
+        uint256 balanceAfter = token.balanceOf(vault);
+
+        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(balanceAfter.sub(balanceBefore), data);
     }
 
     /**

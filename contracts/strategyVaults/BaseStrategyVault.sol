@@ -62,13 +62,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
 
     // External methods are authenticated to be just Notional
     function depositFromNotional(uint256 deposit, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
-        // TODO: what if this is an aToken
-        uint256 balanceBefore = ASSET_TOKEN.balanceOf(address(this));
-        ASSET_TOKEN.safeTransferFrom(address(NOTIONAL), address(this), deposit);
-        uint256 balanceAfter = ASSET_TOKEN.balanceOf(address(this));
-
-        // Returns the actual transferred amount
-        _depositFromNotional(balanceAfter - balanceBefore, data);
+        return _depositFromNotional(deposit, data);
     }
 
     function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external onlyNotional {
