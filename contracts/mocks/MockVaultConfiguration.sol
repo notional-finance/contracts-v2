@@ -132,6 +132,13 @@ contract MockVaultConfiguration {
         return vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
     }
 
+    function getPoolShare(
+        VaultState memory vaultState,
+        uint256 vaultShares
+    ) external pure returns (uint256 assetCash, uint256 strategyTokens) {
+        return vaultState.getPoolShare(vaultShares);
+    }
+
     /*** Set Other Globals ***/
 
     function setToken(

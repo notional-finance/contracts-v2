@@ -90,17 +90,139 @@ def test_exit_maturity_pool(vaultConfig, vault):
     assert totalStrategyTokens - newState.dict()["totalStrategyTokens"] == tokens
 
 
-# @pytest.mark.only
-# def test_enter_maturity_pool_no_previous(vaultConfig, vault):
-#     pass
+def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    tempCashBalance = 100e8
+    totalVaultShares = 100_000e8
+    totalStrategyTokens = 100_000e8
+
+    account = get_vault_account(tempCashBalance=tempCashBalance)
+
+    state = get_vault_state(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        totalVaultShares=totalVaultShares,
+        totalStrategyTokens=totalStrategyTokens,
+    )
+
+    cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
+    vault.setExchangeRate(1.2e28)
+
+    (newState, newAccount) = vaultConfig.enterMaturityPool(
+        vault.address, state, account, ""
+    ).return_value
+    # Total Vault Shares Net Off
+    assert (
+        newState.dict()["totalVaultShares"] - totalVaultShares == newAccount.dict()["vaultShares"]
+    )
+    # Total Cash Balance Nets Off
+    assert newState.dict()["totalAssetCash"] == 0
+    assert newAccount.dict()["tempCashBalance"] == 0
+    # Total Strategy Tokens Nets Off
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 120e8
+
+    (assetCash, strategyTokens) = vaultConfig.getPoolShare(
+        newState, newAccount.dict()["vaultShares"]
+    )
+    assert assetCash == 0
+    # Account has a claim on all new strategy tokens
+    assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
 
 
-# def test_enter_maturity_with_previous(vaultConfig, vault):
-#     pass
+def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    tempCashBalance = 100e8
+    accountVaultShares = 500e8
+    totalVaultShares = 100_000e8
+    totalStrategyTokens = 100_000e8
+
+    account = get_vault_account(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        tempCashBalance=tempCashBalance,
+        vaultShares=accountVaultShares,
+    )
+
+    state = get_vault_state(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        totalVaultShares=totalVaultShares,
+        totalStrategyTokens=totalStrategyTokens,
+    )
+
+    cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
+    vault.setExchangeRate(1.2e28)
+
+    (newState, newAccount) = vaultConfig.enterMaturityPool(
+        vault.address, state, account, ""
+    ).return_value
+    # Total Vault Shares Net Off
+    assert (
+        newState.dict()["totalVaultShares"] - totalVaultShares
+        == newAccount.dict()["vaultShares"] - accountVaultShares
+    )
+    # Total Cash Balance Nets Off
+    assert newState.dict()["totalAssetCash"] == 0
+    assert newAccount.dict()["tempCashBalance"] == 0
+    # Total Strategy Tokens Nets Off
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 120e8
+
+    (assetCash, strategyTokens) = vaultConfig.getPoolShare(
+        newState, newAccount.dict()["vaultShares"] - accountVaultShares
+    )
+    assert assetCash == 0
+    # Account has a claim on all new strategy tokens
+    assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
 
 
-# def test_enter_maturity_with_same(vaultConfig, vault):
-#     pass
+def test_enter_maturity_with_old_maturity(vaultConfig, vault, cToken, accounts):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    tempCashBalance = 100e8
+    accountVaultShares = 500e8
+    totalVaultShares = 100_000e8
+    totalStrategyTokens = 100_000e8
+
+    account = get_vault_account(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        tempCashBalance=tempCashBalance,
+        vaultShares=accountVaultShares,
+    )
+
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+            totalAssetCash=100_000e8,
+            totalVaultShares=50_000e8,
+            totalStrategyTokens=50_000e8,
+        ),
+    )
+
+    state = get_vault_state(
+        maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
+        totalVaultShares=totalVaultShares,
+        totalStrategyTokens=totalStrategyTokens,
+    )
+
+    cToken.transfer(vaultConfig.address, tempCashBalance + 1000e8, {"from": accounts[0]})
+    vault.setExchangeRate(1.2e28)
+
+    (newState, newAccount) = vaultConfig.enterMaturityPool(
+        vault.address, state, account, ""
+    ).return_value
+    # Account vault shares are rebased into the new vault shares
+    assert (
+        newState.dict()["totalVaultShares"] - totalVaultShares == newAccount.dict()["vaultShares"]
+    )
+    # Total Cash Balance Nets Off
+    assert newState.dict()["totalAssetCash"] == 0
+    assert newAccount.dict()["tempCashBalance"] == 0
+    # Total Strategy Tokens Nets Off
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 1820e8
+
+    (assetCash, strategyTokens) = vaultConfig.getPoolShare(
+        newState, newAccount.dict()["vaultShares"]
+    )
+    assert assetCash == 0
+    # Account has a claim on all new strategy tokens
+    assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
 
 
 # def test_leverage_calculation(vaultState):

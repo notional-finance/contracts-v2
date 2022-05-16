@@ -112,10 +112,17 @@ library VaultStateLib {
         VaultConfig memory vaultConfig,
         bytes calldata vaultData
     ) internal {
-        require(vaultAccount.tempCashBalance > 0);
+        // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
+        // event or the vault is in the process of settling debts. In both cases, we do not allow accounts to enter
+        // the vault.
+        require(vaultAccount.tempCashBalance > 0 && vaultState.totalAssetCash == 0);
 
         uint256 strategyTokenDeposit;
-        if (vaultAccount.maturity != vaultState.maturity) {
+        if (vaultAccount.maturity == 0) {
+            // If the vault account has no maturity, then set it here
+            vaultAccount.maturity = vaultState.maturity;
+            require(vaultAccount.vaultShares == 0);
+        } else if (vaultAccount.maturity < vaultState.maturity) {
             // If the vault account is in an old maturity, we exit that pool move their shares
             // into the new maturity and update their account
             VaultState memory oldVaultState = getVaultState(vaultConfig.vault, vaultAccount.maturity);
@@ -126,48 +133,25 @@ library VaultStateLib {
             vaultAccount.vaultShares = 0;
         }
 
-        uint256 assetCashWithheld;
-        if (vaultState.totalAssetCash > 0 && vaultAccount.vaultShares > 0) {
-            // TODO: should we even allow this to happen?
-            uint256 totalValueOfPool = SafeInt256.toUint(getCashValueOfShare(vaultState, vaultConfig, vaultState.totalVaultShares));
-
-            // NOTE: this valuation assumes zero slippage, in reality that probably won't be the case.
-            // Generally, pools should not be in this position unless something strange has happened
-            // but if an account does enter here then they will take a penalty on the vault shares they
-            // receive.
-            uint256 totalValueOfDeposits = SafeInt256.toUint(getCashValueOfShare(vaultState, vaultConfig, vaultAccount.vaultShares));
-
-            assetCashWithheld = totalValueOfDeposits.mul(vaultState.totalAssetCash).div(totalValueOfPool);
-        }
-
-        // If this becomes negative, it's possible that an account cannot roll into a new maturity when the new
-        // maturity is holding cash tokens. It would need to redeem additional strategy tokens in order to have
-        // sufficient cash to enter the new maturity. This is will only happen for accounts that are rolling maturities
-        // with active strategy token positions (not entering maturities for the first time).
-        int256 cashToTransfer = vaultAccount.tempCashBalance.sub(SafeInt256.toInt(assetCashWithheld));
-        vaultAccount.tempCashBalance = 0;
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
         // to the current contract.
-        strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(cashToTransfer, vaultData));
-        vaultAccount.vaultShares = _mintVaultSharesInMaturity(vaultState, assetCashWithheld, strategyTokenDeposit);
-    }
+        strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(vaultAccount.tempCashBalance, vaultData));
+        // Clear the cash balance after the deposit
+        vaultAccount.tempCashBalance = 0;
 
-    /** @notice Updates maturity vault shares in storage.  */
-    function _mintVaultSharesInMaturity(
-        VaultState memory vaultState,
-        uint256 assetCashDeposited,
-        uint256 strategyTokensDeposited
-    ) private pure returns (uint256 vaultSharesMinted) {
+        // Calculate the number of vault shares to mint to the account. Note that totalAssetCash is required to be zero
+        // at this point.
+        uint256 vaultSharesMinted;
         if (vaultState.totalVaultShares == 0) {
-            vaultSharesMinted = strategyTokensDeposited;
+            vaultSharesMinted = strategyTokenDeposit;
         } else {
-            vaultSharesMinted = strategyTokensDeposited.mul(vaultState.totalVaultShares).div(vaultState.totalStrategyTokens);
+            vaultSharesMinted = strategyTokenDeposit.mul(vaultState.totalVaultShares).div(vaultState.totalStrategyTokens);
         }
 
-        vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashDeposited);
-        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensDeposited);
+        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokenDeposit);
         vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
+        vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
     }
 
     /** @notice Returns the component amounts for a given amount of vaultShares */
