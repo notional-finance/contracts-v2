@@ -49,7 +49,7 @@ library VaultConfiguration {
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
         vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
-        vaultConfig.maxLeverageRatio = int256(uint256(s.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
+        vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
         vaultConfig.liquidationRate = s.liquidationRate;
     }
@@ -88,8 +88,8 @@ library VaultConfiguration {
         VaultConfigStorage calldata vaultConfig
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
-        // Sanity check this value, leverage ratio must be greater than 1
-        require(uint256(Constants.RATE_PRECISION) < uint256(vaultConfig.maxLeverageRatioBPS).mul(Constants.BASIS_POINT));
+        // Sanity check this value, collateral ratio must be greater than 1
+        require(uint256(Constants.RATE_PRECISION) < uint256(vaultConfig.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         // Liquidation rate must be greater than or equal to 100
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
 
@@ -120,36 +120,36 @@ library VaultConfiguration {
 
     /**
      * @notice Returns the nToken fee denominated in asset internal precision. The nTokenFee
-     * is assessed based on the linear interpolation between the min and the max leverage and
+     * is assessed based on the linear interpolation between the min and the max collateral and
      * then scaled based on the time to maturity.
      * @param vaultConfig vault configuration
-     * @param leverageRatio the amount of leverage the account is taking
+     * @param collateralRatio the amount of leverage the account is taking
      * @param fCash the amount of fCash the account is borrowing
      * @param timeToMaturity time until maturity of fCash
      * @return nTokenFee the amount of asset cash in internal precision paid to the nToken
      */
     function getNTokenFee(
         VaultConfig memory vaultConfig,
-        int256 leverageRatio,
+        int256 collateralRatio,
         int256 fCash,
         uint256 timeToMaturity
     ) internal pure returns (int256 nTokenFee) {
-        // If there is no leverage then we don't charge a fee.
-        if (leverageRatio <= Constants.RATE_PRECISION) return 0;
+        // This number is used to signify the maximum collateral ratio (where there is no debt)
+        if (collateralRatio == type(int256).max) return 0;
 
-        // Linearly interpolate the fee between the maxLeverageRatio and the minimum leverage
-        // ratio (Constants.RATE_PRECISION)
-        // nTokenFee = (leverage - 1) * (maxFee / (maxLeverage - 1))
+        // If collateral ratio is below 1 then the account is insolvent and will revert
+        int256 collateralRatioAdjusted = collateralRatio - Constants.RATE_PRECISION;
+        require(collateralRatioAdjusted > 0);
 
-        // No overflow and positive, checked above.
-        int256 leverageRatioAdj = leverageRatio - Constants.RATE_PRECISION;
+        // The fee is assessed where the maximum fee is at a collateral ratio of 1, as the
+        // collateral ratio increases, the fee decreases proportionally. The fee is also scaled
+        // proportionally to time to maturity.
+        // nTokenFee = maxFee / (collateralRatio - 1)
+
         // All of these figures are in RATE_PRECISION
-        int256 nTokenFeeRate = leverageRatioAdj
+        int256 nTokenFeeRate = vaultConfig.maxNTokenFeeRate
             .mul(SafeInt256.toInt(timeToMaturity))
-            .mul(vaultConfig.maxNTokenFeeRate)
-            // maxLeverageRatio must be > 1 when set in governance, also vaults are
-            // not allowed to exceed the maxLeverageRatio
-            .div(vaultConfig.maxLeverageRatio - Constants.RATE_PRECISION)
+            .div(collateralRatioAdjusted)
             .div(int256(Constants.YEAR));
 
         // nTokenFee is expected to be a positive number
@@ -267,57 +267,71 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Calculates the leverage ratio of an account: (debtOutstanding / (debtOutstanding - valueOfAssets))
-     * All values in this method are calculated using asset cash denomination. Higher leverage equates to
+     * @notice Calculates the collateral ratio of an account: (debtOutstanding - valueOfAssets) / debtOutstanding
+     * All values in this method are calculated using asset cash denomination. Higher collateral equates to
      * greater risk.
      * @param vaultConfig vault config
      * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
      * should be set to zero in all other cases.
-     * @return leverageRatio for an account
+     * @return collateralRatio for an account
      */
-    function calculateLeverage(
+    function calculateCollateralRatio(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 vaultShares,
         int256 fCash,
         int256 escrowedAssetCash,
         int256 preSlippageAssetCashAdjustment
-    ) internal view returns (int256 leverageRatio) {
+    ) internal view returns (int256 collateralRatio) {
         (int256 vaultShareValue, int256 assetCashHeld) = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
 
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
+
         // Escrowed asset cash and asset cash held in the vault are both held as payment against
         // borrowed fCash, so we net them off here.
+
+        // debtOutstanding can either be positive or negative here, if it is positive then
+        // there is more fCash left to repay, if it is negative than we have more than enough asset cash
+        // to repay the debt.
         int256 debtOutstanding = escrowedAssetCash
             .add(assetCashHeld)
-            .add(vaultConfig.assetRate.convertFromUnderlying(fCash));
+            .add(vaultConfig.assetRate.convertFromUnderlying(fCash))
+            .neg();
 
-        // The net asset value includes all value in cash and vault shares in underlying internal
-        // precision net off against the total outstanding borrowing. If netAssetValue is negative then
-        // the account is insolvent.
-        int256 netAssetValue = debtOutstanding.add(vaultShareValue).add(preSlippageAssetCashAdjustment);
+        // netAssetValue includes the value held in strategyTokens (vaultShareValue - assetCashHeld) net
+        // off against the outstanding debt. netAssetValue can be either positive or negative here. If it
+        // is positive (normal condition) then the account has more value than debt, if it is negative then
+        // the account is insolvent (it cannot repay its debt if we sold all of its strategy tokens).
+        int256 netAssetValue = vaultShareValue
+            .add(preSlippageAssetCashAdjustment) // this amount will be used to mint strategy tokens
+            .sub(assetCashHeld)
+            .sub(debtOutstanding);
 
-        // If net asset value is exactly zero will get a div by zero error here. This can happen in the case of a
-        // smart contract hack where the value of a token goes to zero instantly. More commonly, this may occur
-        // if there is some dust amount in the vault share value and in debtOutstanding. Use a dust value here to
-        // allow the calculation to continue.
-        if (netAssetValue == 0) netAssetValue = 1;
-
-        // Leverage ratio is: (debtOutstanding / netAssetValue) + 1
-        leverageRatio = debtOutstanding.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
+        // We calculate the collateral ratio (netAssetValue to debt ratio):
+        //  if netAssetValue > 0 and debtOutstanding > 0: collateralRatio > 0, closer to zero means more risk, less than 1 is insolvent
+        //  if netAssetValue < 0 and debtOutstanding > 0: collateralRatio < 1, the account is insolvent
+        //  if netAssetValue > 0 and debtOutstanding < 0: collateralRatio < 0, there is no risk at all (no debt left)
+        //  if netAssetValue < 0 and debtOutstanding < 0: collateralRatio > 0, there is no risk at all (no debt left)
+        if (debtOutstanding <= 0)  {
+            // When there is no debt outstanding then we use a maximal collateral ratio to represent "infinity"
+            collateralRatio = type(int256).max;
+        } else {
+            // The closer this is to zero the more risk there is. Below zero and the account is insolvent
+            collateralRatio = netAssetValue.divInRatePrecision(debtOutstanding);
+        }
     }
 
-    function checkLeverage(
+    function checkCollateralRatio(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 vaultShares,
         int256 fCash,
         int256 escrowedAssetCash
     ) internal view {
-        int256 leverageRatio = calculateLeverage(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash, 0);
-        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Over Leverage");
+        int256 collateralRatio = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash, 0);
+        require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 
     /**

@@ -43,11 +43,11 @@ contract MockVaultConfiguration {
 
     function getNTokenFee(
         address vault,
-        int256 leverageRatio,
+        int256 collateralRatio,
         int256 fCash,
         uint256 timeToMaturity
     ) external view returns (int256 nTokenFee) {
-        return VaultConfiguration.getVaultConfigView(vault).getNTokenFee(leverageRatio, fCash, timeToMaturity);
+        return VaultConfiguration.getVaultConfigView(vault).getNTokenFee(collateralRatio, fCash, timeToMaturity);
     }
 
     function getBorrowCapacity(
@@ -141,13 +141,13 @@ contract MockVaultConfiguration {
         return vaultState.getPoolShare(vaultShares);
     }
 
-    function calculateLeverage(
+    function calculateCollateralRatio(
         address vault,
         VaultAccount memory vaultAccount,
         VaultState memory vaultState,
         int256 preSlippageAssetCashAdjustment
-    ) external view returns (int256 leverageRatio) {
-        return getVaultConfigView(vault).calculateLeverage(
+    ) external view returns (int256 collateralRatio) {
+        return getVaultConfigView(vault).calculateCollateralRatio(
             vaultState,
             vaultAccount.vaultShares,
             vaultAccount.fCash,

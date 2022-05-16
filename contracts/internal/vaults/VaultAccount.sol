@@ -100,7 +100,7 @@ library VaultAccountLib {
 
             // At this point, the account has cleared its fCash balance on the vault and can re-enter a new vault maturity.
             // In all likelihood, it still has some balance of vaultShares on the vault. If it wants to re-enter a vault
-            // these shares will be considered as part of its netAssetValue for its leverage ratio.
+            // these shares will be considered as part of its netAssetValue for its collateral ratio.
         } else {
             AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
                 vaultConfig.borrowCurrencyId,
@@ -188,21 +188,21 @@ library VaultAccountLib {
         // pool and deposits asset tokens into the vault
         vaultState.enterMaturityPool(vaultAccount, vaultConfig, vaultData);
 
-        // Set the vault state and account in storage and check the vault's leverage ratio
+        // Set the vault state and account in storage and check the vault's collateral ratio
         vaultState.setVaultState(vaultConfig.vault);
         setVaultAccount(vaultAccount, vaultConfig.vault);
             
         if (fCashToBorrow > 0) {
-            vaultConfig.checkLeverage(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
 
-        // If the account is not using any leverage (fCashToBorrow == 0) we don't check the leverage, no matter
-        // what the amount is the leverage ratio will decrease. This is useful for accounts that want to quickly and cheaply
+        // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
+        // what the amount is the collateral ratio will increase. This is useful for accounts that want to quickly and cheaply
         // deleverage their account without paying down debts.
     }
 
     /**
-     * @notice Borrows fCash to enter a vault, checks the leverage ratio and pays the nToken fee
+     * @notice Borrows fCash to enter a vault, checks the collateral ratio and pays the nToken fee
      * @dev Updates vault fCash in storage, updates vaultAccount in memory
      * @param vaultAccount the account's position in the vault
      * @param vaultConfig configuration for the given vault
@@ -222,9 +222,9 @@ library VaultAccountLib {
     ) private {
         require(fCash < 0); // dev: fcash must be negative
         uint256 timeToMaturity = blockTime.sub(maturity);
-        // Since the nToken fee depends on the leverage ratio, we calculate the leverage ratio
+        // Since the nToken fee depends on the collateral ratio, we calculate the collateral ratio
         // assuming the worst case scenario. Will adjust the fee properly at the end
-        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.maxLeverageRatio, fCash, timeToMaturity);
+        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.minCollateralRatio, fCash, timeToMaturity);
 
         {
             int256 assetCashBorrowed  = _executeTrade(
@@ -266,14 +266,14 @@ library VaultAccountLib {
         int256 fCash,
         uint256 timeToMaturity
     ) private view returns (int256 nTokenFee) {
-        // We calculate the minimum leverage ratio here before accounting for slippage and other factors when
+        // We calculate the maximum collateral ratio here before accounting for slippage and other factors when
         // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
-        // actual fee amount (if there is significant slippage than the account's leverage ratio will be higher),
+        // actual fee amount (if there is significant slippage than the account's collateral ratio will be lower),
         // however, for the sake of simplicity we do it here (rather than rely on a bunch of back and forth transfers
         // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
-        // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
-        // vault shares to ensure that both the account and vault are healthy.
-        int256 preSlippageLeverageRatio = vaultConfig.calculateLeverage(
+        // such that stakers are compensated fairly. We will calculate the actual collateral ratio again after minting
+        // vault shares to ensure that both the account is healthy.
+        int256 preSlippageLeverageRatio = vaultConfig.calculateCollateralRatio(
             vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash, vaultAccount.tempCashBalance
         );
 
@@ -313,7 +313,7 @@ library VaultAccountLib {
         vaultState.setVaultState(vaultConfig.vault);
 
         // Don't set the account here, depending on roll or exit we have different mechanics. We also don't
-        // check for leverage here, during roll it will happen at the end. During exit it will happen just after
+        // check collateral ratio here, during roll it will happen at the end. During exit it will happen just after
         // this method completes
     }
 
@@ -365,11 +365,11 @@ library VaultAccountLib {
 
             if (vaultAccount.escrowedAssetCash > 0) {
                 // Apply the escrowed asset cash against the amount of fCash to exit. Depending
-                // on the amount of fCash the account is attempting to lend here, the leverage
-                // ratio may actually increase (this would be the case where a lot of asset cash
+                // on the amount of fCash the account is attempting to lend here, the collateral
+                // ratio may actually decrease (this would be the case where a lot of asset cash
                 // is held against debt from a previous exit but now the account attempts to exit
                 // a smaller amount of fCash and is successful). We don't want this to be the case
-                // because then an account may repeatedly put itself back at a higher leverage
+                // because then an account may repeatedly put itself back at a lower collateral
                 // ratio when it should be deleveraged. To prevent this, we ensure that the account
                 // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
                 // temporary cash balance or lend the fCash down to zero.

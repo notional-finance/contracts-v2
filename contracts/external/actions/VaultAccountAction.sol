@@ -162,8 +162,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             
         if (vaultAccount.fCash < 0) {
             // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
-            // will be reducing their leverage ratio here, so we check that this is the case).
-            vaultConfig.checkLeverage(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+            // will be increasing their collateral ratio here, so we check that this is the case).
+            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
         
         // Transfers any net deposit or withdraw from the account
@@ -172,8 +172,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     }
 
     /**
-     * @notice If an account is above the maximum leverage ratio, some amount of vault shares can be redeemed
-     * such that they fall back under the maximum leverage ratio. A portion of the redemption will be paid
+     * @notice If an account is below the minimum collateral ratio, some amount of vault shares can be redeemed
+     * such that they fall back under the minimum collateral ratio. A portion of the redemption will be paid
      * to the msg.sender.
      * @param account the address that will exit the vault
      * @param vault the vault to enter
@@ -194,10 +194,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Check that the account has an active position
         require(block.timestamp < vaultAccount.maturity);
 
-        // Check that the leverage ratio is above the maximum allowed
-        int256 leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+        // Check that the collateral ratio is below the minimum allowed
+        int256 collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
             vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
-        require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
+        require(vaultConfig.minCollateralRatio < collateralRatio, "Sufficient Collateral");
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
         // vault shares at a discount to the deposited amount
@@ -216,7 +216,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             .div(uint256(Constants.PERCENTAGE_DECIMALS));
 
         // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
-        // leveraged position on then their leverage ratio will decrease
+        // leveraged position on then their collateral ratio will increase
         VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vault);
         // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
         // vault at the same maturity).
@@ -232,12 +232,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.increaseEscrowedAssetCash(vaultState, vaultAccount.tempCashBalance);
         vaultState.setVaultState(vault);
 
-        // Ensure that the leverage ratio does not drop too much (we would over liquidate the account
+        // Ensure that the collateral ratio does not increase too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
-        leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+        collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
             vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
-        require(vaultConfig.maxLeverageRatio.mulInRatePrecision(0.70e9) < leverageRatio, "Over liquidation");
+        require(collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(1.30e9) , "Over liquidation");
 
         // Sets the vault account
         vaultAccount.setVaultAccount(vault);
@@ -253,15 +253,15 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     }
 
     function getVaultAccountLeverage(address account, address vault) external override view returns (
-        int256 leverageRatio,
-        int256 maxLeverageRatio
+        int256 collateralRatio,
+        int256 minCollateralRatio
     ) {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
-        leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+        collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
             vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
-        maxLeverageRatio = vaultConfig.maxLeverageRatio;
+        minCollateralRatio = vaultConfig.minCollateralRatio;
     }
 }

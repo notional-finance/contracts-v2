@@ -108,15 +108,15 @@ contract VaultAction is ActionGuards, IVaultAction {
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);
         vaultState.setVaultState(msg.sender);
 
-        // When exchanging asset cash for strategy tokens we will increase the vault's leverage, ensure that
-        // we don't go over the configured maximum here.
+        // When exchanging asset cash for strategy tokens we will decrease the vault's collateral, ensure that
+        // we don't go under the configured minimum here.
 
         // NOTE: this debt outstanding does not net off escrowed asset cash held in individual accounts so it
-        // is a more pessimistic view of the vault's leverage ratio than reality. It's better to be on the safe
-        // side here than underestimate the leverage ratio. If there is a lot of escrowed asset cash held in
+        // is a more pessimistic view of the vault's collateral ratio than reality. It's better to be on the safe
+        // side here than overestimate the collateral ratio. If there is a lot of escrowed asset cash held in
         // individual accounts it means there has been a lot of deleveraging or lend rates are near zero. Neither
         // of those things are good economic conditions.
-        vaultConfig.checkLeverage(vaultState, vaultState.totalVaultShares, vaultState.totalfCash, 0);
+        vaultConfig.checkCollateralRatio(vaultState, vaultState.totalVaultShares, vaultState.totalfCash, 0);
     }
 
     /**
