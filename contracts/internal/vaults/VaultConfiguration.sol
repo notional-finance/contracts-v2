@@ -21,6 +21,7 @@ import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultConfiguration {
     using TokenHandler for Token;
+    using VaultStateLib for VaultState;
     using SafeMath for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
@@ -263,6 +264,60 @@ library VaultConfiguration {
             nextMaturityDebt <= nextMaturityPredictedCapacity,
             "Insufficient capacity"
         );
+    }
+
+    /**
+     * @notice Calculates the leverage ratio of an account: (debtOutstanding / (debtOutstanding - valueOfAssets))
+     * All values in this method are calculated using asset cash denomination. Higher leverage equates to
+     * greater risk.
+     * @param vaultConfig vault config
+     * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
+     * should be set to zero in all other cases.
+     * @return leverageRatio for an account
+     */
+    function calculateLeverage(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        uint256 vaultShares,
+        int256 fCash,
+        int256 escrowedAssetCash,
+        int256 preSlippageAssetCashAdjustment
+    ) internal view returns (int256 leverageRatio) {
+        (int256 vaultShareValue, int256 assetCashHeld) = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
+
+        // We do not discount fCash to present value so that we do not introduce interest
+        // rate risk in this calculation. The economic benefit of discounting will be very
+        // minor relative to the added complexity of accounting for interest rate risk.
+        // Escrowed asset cash and asset cash held in the vault are both held as payment against
+        // borrowed fCash, so we net them off here.
+        int256 debtOutstanding = escrowedAssetCash
+            .add(assetCashHeld)
+            .add(vaultConfig.assetRate.convertFromUnderlying(fCash));
+
+        // The net asset value includes all value in cash and vault shares in underlying internal
+        // precision net off against the total outstanding borrowing. If netAssetValue is negative then
+        // the account is insolvent.
+        int256 netAssetValue = debtOutstanding.add(vaultShareValue).add(preSlippageAssetCashAdjustment);
+
+        // If net asset value is exactly zero will get a div by zero error here. This can happen in the case of a
+        // smart contract hack where the value of a token goes to zero instantly. More commonly, this may occur
+        // if there is some dust amount in the vault share value and in debtOutstanding. Use a dust value here to
+        // allow the calculation to continue.
+        if (netAssetValue == 0) netAssetValue = 1;
+
+        // Leverage ratio is: (debtOutstanding / netAssetValue) + 1
+        leverageRatio = debtOutstanding.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
+    }
+
+    function checkLeverage(
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        uint256 vaultShares,
+        int256 fCash,
+        int256 escrowedAssetCash
+    ) internal view {
+        int256 leverageRatio = calculateLeverage(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash, 0);
+        require(leverageRatio <= vaultConfig.maxLeverageRatio, "Over Leverage");
     }
 
     /**

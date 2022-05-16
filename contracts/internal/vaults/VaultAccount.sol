@@ -193,8 +193,7 @@ library VaultAccountLib {
         setVaultAccount(vaultAccount, vaultConfig.vault);
             
         if (fCashToBorrow > 0) {
-            int256 leverageRatio = calculateLeverage(vaultAccount, vaultConfig, vaultState, 0);
-            require(leverageRatio <= vaultConfig.maxLeverageRatio, "Max Leverage");
+            vaultConfig.checkLeverage(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
 
         // If the account is not using any leverage (fCashToBorrow == 0) we don't check the leverage, no matter
@@ -274,8 +273,8 @@ library VaultAccountLib {
         // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
         // such that stakers are compensated fairly. We will calculate the actual leverage ratio again after minting
         // vault shares to ensure that both the account and vault are healthy.
-        int256 preSlippageLeverageRatio = calculateLeverage(
-            vaultAccount, vaultConfig, vaultState, vaultAccount.tempCashBalance
+        int256 preSlippageLeverageRatio = vaultConfig.calculateLeverage(
+            vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash, vaultAccount.tempCashBalance
         );
 
         nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash, timeToMaturity);
@@ -413,44 +412,6 @@ library VaultAccountLib {
             vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
             vaultAccount.requiresSettlement = true;
         }
-    }
-
-    /**
-     * @notice Calculates the leverage ratio of an account: (debtOutstanding / (debtOutstanding - valueOfAssets))
-     * All values in this method are calculated using asset cash denomination. Higher leverage equates to
-     * greater risk.
-     * @param vaultAccount vault account
-     * @param vaultConfig vault config
-     * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
-     * should be set to zero in all other cases.
-     * @return leverageRatio for an account
-     */
-    function calculateLeverage(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        int256 preSlippageAssetCashAdjustment
-    ) internal view returns (int256 leverageRatio) {
-        int256 vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares)
-            .add(preSlippageAssetCashAdjustment);
-
-        // We do not discount fCash to present value so that we do not introduce interest
-        // rate risk in this calculation. The economic benefit of discounting will be very
-        // minor relative to the added complexity of accounting for interest rate risk.
-        // Escrowed asset cash is held as payment against borrowed fCash, so we net it off here.
-        // NOTE: asset cash held in maturity pools is not net off here, see comment inside getCashValueOfShare
-        int256 debtOutstanding = vaultAccount.escrowedAssetCash
-            .add(vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash));
-
-        // The net asset value includes all value in cash and vault shares in underlying internal
-        // precision net off against the total outstanding borrowing
-        int256 netAssetValue = debtOutstanding.add(vaultShareValue);
-
-        // Can never have negative value of assets
-        require(netAssetValue > 0);
-
-        // Leverage ratio is: (debtOutstanding / netAssetValue) + 1
-        leverageRatio = debtOutstanding.neg().divInRatePrecision(netAssetValue).add(Constants.RATE_PRECISION);
     }
 
     /**

@@ -4,11 +4,13 @@ pragma abicoder v2;
 
 import "../internal/vaults/VaultConfiguration.sol";
 import "../internal/vaults/VaultState.sol";
+import "../internal/vaults/VaultAccount.sol";
 import "../internal/balances/TokenHandler.sol";
 
 contract MockVaultConfiguration {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
+    using VaultAccountLib for VaultAccount;
 
     function getVaultConfigView(
         address vault
@@ -129,7 +131,7 @@ contract MockVaultConfiguration {
         VaultState memory vaultState,
         uint256 vaultShares
     ) external view returns (int256 assetCashValue) {
-        return vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
+        (assetCashValue, /* */) = vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
     }
 
     function getPoolShare(
@@ -137,6 +139,21 @@ contract MockVaultConfiguration {
         uint256 vaultShares
     ) external pure returns (uint256 assetCash, uint256 strategyTokens) {
         return vaultState.getPoolShare(vaultShares);
+    }
+
+    function calculateLeverage(
+        address vault,
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState,
+        int256 preSlippageAssetCashAdjustment
+    ) external view returns (int256 leverageRatio) {
+        return getVaultConfigView(vault).calculateLeverage(
+            vaultState,
+            vaultAccount.vaultShares,
+            vaultAccount.fCash,
+            vaultAccount.escrowedAssetCash,
+            vaultAccount.tempCashBalance
+        );
     }
 
     /*** Set Other Globals ***/

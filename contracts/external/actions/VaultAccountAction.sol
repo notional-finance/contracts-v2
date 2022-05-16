@@ -163,8 +163,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         if (vaultAccount.fCash < 0) {
             // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
             // will be reducing their leverage ratio here, so we check that this is the case).
-            int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
-            require(leverageRatio <= vaultConfig.maxLeverageRatio, "Over Leverage");
+            vaultConfig.checkLeverage(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
         
         // Transfers any net deposit or withdraw from the account
@@ -196,7 +195,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(block.timestamp < vaultAccount.maturity);
 
         // Check that the leverage ratio is above the maximum allowed
-        int256 leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
+        int256 leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
         require(leverageRatio > vaultConfig.maxLeverageRatio, "Insufficient Leverage");
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
@@ -208,11 +208,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         //      where cashDeposited / assetCashValueOfShares represents the share of the total vault share
         //      value the liquidator has deposited
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
-        uint256 assetCashValue = SafeInt256.toUint(vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares));
+        (int256 assetCashValue, /* */) = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
         vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
             .mul(vaultConfig.liquidationRate)
             .mul(vaultAccount.vaultShares)
-            .div(assetCashValue)
+            .div(SafeInt256.toUint(assetCashValue))
             .div(uint256(Constants.PERCENTAGE_DECIMALS));
 
         // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
@@ -235,7 +235,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Ensure that the leverage ratio does not drop too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
-        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
+        leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
         require(vaultConfig.maxLeverageRatio.mulInRatePrecision(0.70e9) < leverageRatio, "Over liquidation");
 
         // Sets the vault account
@@ -259,7 +260,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
-        leverageRatio = vaultAccount.calculateLeverage(vaultConfig, vaultState, 0);
+        leverageRatio = vaultConfig.calculateLeverage(vaultState, vaultAccount.vaultShares,
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
         maxLeverageRatio = vaultConfig.maxLeverageRatio;
     }
 }

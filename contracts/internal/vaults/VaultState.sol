@@ -171,26 +171,22 @@ library VaultStateLib {
         VaultState memory vaultState,
         VaultConfig memory vaultConfig,
         uint256 vaultShares
-    ) internal view returns (int256 assetCashValue) {
-        if (vaultShares == 0) return 0;
-        (uint256 assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
+    ) internal view returns (int256 assetCashValue, int256 assetCashHeld) {
+        if (vaultShares == 0) return (0, 0);
+        (uint256 _assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
         uint256 underlyingValue = IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(strategyTokens);
-        
+
         // Generally speaking, asset cash held in the maturity pool is held in escrow for repaying the
         // vault debt. This may not always be the case, vaults may hold asset cash during a risk-off event
         // where they trade strategy tokens back to asset cash during a potentially volatile time. In both
-        // cases we do not use asset cash held in a maturity pool to net off against outstanding fCash debt.
-        // If we did, this would reduce the leverage ratio of the vault. However, it's possible that asset
-        // cash may re-enter a vault as strategy tokens once the volatility has passed which would then increase
-        // the leverage ratio of the vault -- we don't want it to increase past its maximum. During settlement,
-        // accounts cannot re-enter the vault anyway so a higher leverage ratio should not have an effect. The
-        // leverage ratio will also fluctuate less to changes in strategy token value when asset cash is
-        // held in the pool.
+        // cases we use the asset cash held to net off against fCash debt.
+        assetCashHeld = SafeInt256.toInt(_assetCash);
+        
         assetCashValue = vaultConfig.assetRate.convertFromUnderlying(
             // Convert the underlying value to internal precision
             SafeInt256.toInt(underlyingValue)
                 .mul(Constants.INTERNAL_TOKEN_PRECISION).div(vaultConfig.assetRate.underlyingDecimals)
-        ).add(SafeInt256.toInt(assetCash));
+        ).add(assetCashHeld);
     }
 
     function safeUint80(int256 x) internal pure returns (uint80) {
