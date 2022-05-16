@@ -68,7 +68,7 @@ def get_vault_config(**kwargs):
         kwargs.get("currencyId", 1),  # 1: currency id
         kwargs.get("maxVaultBorrowSize", 100_000_000e8),  # 2: max vault borrow size
         kwargs.get("minAccountBorrowSize", 100_000),  # 3: min account borrow size
-        kwargs.get("maxLeverageRatioBPS", 20000),  # 4: 200% leverage ratio
+        kwargs.get("minCollateralRatioBPS", 12000),  # 4: 120% collateral ratio
         kwargs.get("termLengthInDays", 90),  # 5: 3 month term
         kwargs.get("maxNTokenFeeRate5BPS", 20),  # 6: 1% fee
         kwargs.get("capacityMultiplierPercentage", 200),  # 7: 200% capacity multiplier

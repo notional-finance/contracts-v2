@@ -225,5 +225,91 @@ def test_enter_maturity_with_old_maturity(vaultConfig, vault, cToken, accounts):
     assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
 
 
-# def test_leverage_calculation(vaultState):
-#     pass
+def get_collateral_ratio(vaultConfig, vault, **kwargs):
+    vault.setExchangeRate(kwargs.get("exchangeRate", 1.2e28))
+
+    account = get_vault_account(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        fCash=kwargs.get("fCash", -100_000e8),
+        escrowedAssetCash=kwargs.get("escrowedAssetCash", 0),
+        tempCashBalance=kwargs.get("tempCashBalance", 100e8),
+        vaultShares=kwargs.get("accountVaultShares", 100_000e8),
+    )
+
+    state = get_vault_state(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        totalAssetCash=kwargs.get("totalAssetCash", 100_000e8),
+        totalVaultShares=kwargs.get("totalVaultShares", 100_000e8),
+        totalStrategyTokens=kwargs.get("totalStrategyTokens", 100_000e8),
+    )
+
+    return vaultConfig.calculateCollateralRatio(
+        vault.address, account, state, kwargs.get("adjustment", 0)
+    )
+
+
+def test_collateral_ratio_decreases_with_debt(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    fCash = 0
+    decrement = -10_000e8
+    lastCollateral = 2 ** 255
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, fCash=fCash)
+        fCash += decrement
+        assert ratio < lastCollateral
+        lastCollateral = ratio
+
+
+def test_collateral_ratio_increases_with_exchange_rate(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    exchangeRate = 1.2e28
+    increment = 0.01e28
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, exchangeRate=exchangeRate)
+        exchangeRate += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio
+
+
+def test_collateral_ratio_increases_with_escrowed_cash(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    escrowedAssetCash = 0
+    increment = 1000e8
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, escrowedAssetCash=escrowedAssetCash)
+        escrowedAssetCash += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio
+
+
+def test_collateral_ratio_increases_with_vault_shares(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    vaultShares = 1000e8
+    increment = 1000e8
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(
+            vaultConfig, vault, fCash=-100e8, accountVaultShares=vaultShares, totalAssetCash=0
+        )
+        vaultShares += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio
+
+
+def test_collateral_ratio_increases_with_vault_asset_cash(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    assetCashHeld = 0
+    increment = 10_000e8
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, totalAssetCash=assetCashHeld)
+        assetCashHeld += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio

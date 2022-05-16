@@ -1,7 +1,6 @@
 import brownie
 import pytest
 from brownie.convert.datatypes import Wei
-from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import BASIS_POINT, RATE_PRECISION, SECONDS_IN_QUARTER, START_TIME_TREF
 
@@ -33,7 +32,7 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["borrowCurrencyId"] == conf[1]
     assert config["maxVaultBorrowSize"] == conf[2]
     assert config["minAccountBorrowSize"] == conf[3] * 1e8
-    assert config["maxLeverageRatio"] == conf[4] * BASIS_POINT
+    assert config["minCollateralRatio"] == conf[4] * BASIS_POINT
     assert config["termLengthInSeconds"] == conf[5] * 86400
     assert config["maxNTokenFeeRate"] == conf[6] * 5 * BASIS_POINT
     assert config["capacityMultiplierPercentage"] == conf[7]
@@ -55,57 +54,56 @@ def test_current_maturity(vaultConfig, accounts):
     assert currentMaturity == START_TIME_TREF + SECONDS_IN_QUARTER
 
 
-@given(leverageRatio=strategy("uint", min_value=0, max_value=RATE_PRECISION))
-def test_ntoken_fee_no_leverage(vaultConfig, accounts, leverageRatio):
+@pytest.mark.only
+def test_ntoken_fee_no_debt(vaultConfig, accounts):
     vaultConfig.setVaultConfig(accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255))
 
-    # no fee when under min leverage
-    assert vaultConfig.getNTokenFee(accounts[0], leverageRatio, 100_000e8, SECONDS_IN_QUARTER) == 0
+    # no fee when at max
+    assert vaultConfig.getNTokenFee(accounts[0], 2 ** 255 - 1, -100e8, SECONDS_IN_QUARTER) == 0
 
 
-def test_ntoken_fee_increases_with_leverage(vaultConfig, accounts):
+def test_ntoken_fee_decreases_with_collateral(vaultConfig, accounts):
     vaultConfig.setVaultConfig(
         accounts[0],
-        get_vault_config(maxNTokenFeeRate5BPS=255, maxLeverageRatioBPS=40000),  # max 400% leverage
+        get_vault_config(
+            maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000
+        ),  # 110% collateral ratio
     )
 
-    leverageRatio = RATE_PRECISION
-    maxLeverageRatio = 4 * RATE_PRECISION
+    collateralRatio = 1.1 * RATE_PRECISION
     # go over the max leverage ratio and see what happens to the fee
-    increment = Wei((maxLeverageRatio - leverageRatio) / 18)
-    lastFee = 0
+    increment = 0.1 * RATE_PRECISION
+    lastFee = 255 * 5 * BASIS_POINT * 100_000e8 / 4
     for i in range(0, 20):
-        leverageRatio += increment
-        fee = vaultConfig.getNTokenFee(accounts[0], leverageRatio, -100_000e8, SECONDS_IN_QUARTER)
-        assert fee > lastFee
+        collateralRatio += increment
+        fee = vaultConfig.getNTokenFee(accounts[0], collateralRatio, -100_000e8, SECONDS_IN_QUARTER)
+        assert fee < lastFee
         lastFee = fee
 
 
 def test_ntoken_fee_increases_with_debt(vaultConfig, accounts):
     vaultConfig.setVaultConfig(
-        accounts[0],
-        get_vault_config(maxNTokenFeeRate5BPS=255, maxLeverageRatioBPS=40000),  # max 400% leverage
+        accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
     )
 
-    assert vaultConfig.getNTokenFee(accounts[0], 2 * RATE_PRECISION, 0, SECONDS_IN_QUARTER) == 0
+    assert vaultConfig.getNTokenFee(accounts[0], 1.2 * RATE_PRECISION, 0, SECONDS_IN_QUARTER) == 0
 
     fCash = 0
     decrement = 100e8
     lastFee = 0
     for i in range(0, 20):
         fCash -= decrement
-        fee = vaultConfig.getNTokenFee(accounts[0], 2 * RATE_PRECISION, fCash, SECONDS_IN_QUARTER)
+        fee = vaultConfig.getNTokenFee(accounts[0], 1.2 * RATE_PRECISION, fCash, SECONDS_IN_QUARTER)
         assert fee > lastFee
         lastFee = fee
 
 
 def test_ntoken_fee_increases_with_time_to_maturity(vaultConfig, accounts):
     vaultConfig.setVaultConfig(
-        accounts[0],
-        get_vault_config(maxNTokenFeeRate5BPS=255, maxLeverageRatioBPS=40000),  # max 400% leverage
+        accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
     )
 
-    assert vaultConfig.getNTokenFee(accounts[0], 2 * RATE_PRECISION, 100_000e8, 0) == 0
+    assert vaultConfig.getNTokenFee(accounts[0], 1.2 * RATE_PRECISION, 100_000e8, 0) == 0
 
     timeToMaturity = 0
     # go over the max leverage ratio and see what happens to the fee
@@ -113,7 +111,9 @@ def test_ntoken_fee_increases_with_time_to_maturity(vaultConfig, accounts):
     lastFee = 0
     for i in range(0, 20):
         timeToMaturity += increment
-        fee = vaultConfig.getNTokenFee(accounts[0], 2 * RATE_PRECISION, -100_000e8, timeToMaturity)
+        fee = vaultConfig.getNTokenFee(
+            accounts[0], 1.2 * RATE_PRECISION, -100_000e8, timeToMaturity
+        )
         assert fee > lastFee
         lastFee = fee
 
@@ -323,7 +323,7 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
 
 def test_deposit_and_redeem_ctoken(vaultConfig, vault, accounts, cToken):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    vault.setExchangeRate(Wei(5e18))
+    vault.setExchangeRate(Wei(5e28))
 
     cToken.transfer(vaultConfig.address, 100_000e8, {"from": accounts[0]})
     balanceBefore = cToken.balanceOf(vaultConfig.address)

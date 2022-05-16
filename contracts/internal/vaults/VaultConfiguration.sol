@@ -134,9 +134,6 @@ library VaultConfiguration {
         int256 fCash,
         uint256 timeToMaturity
     ) internal pure returns (int256 nTokenFee) {
-        // This number is used to signify the maximum collateral ratio (where there is no debt)
-        if (collateralRatio == type(int256).max) return 0;
-
         // If collateral ratio is below 1 then the account is insolvent and will revert
         int256 collateralRatioAdjusted = collateralRatio - Constants.RATE_PRECISION;
         require(collateralRatioAdjusted > 0);
@@ -148,6 +145,7 @@ library VaultConfiguration {
 
         // All of these figures are in RATE_PRECISION
         int256 nTokenFeeRate = vaultConfig.maxNTokenFeeRate
+            .mul(Constants.RATE_PRECISION)
             .mul(SafeInt256.toInt(timeToMaturity))
             .div(collateralRatioAdjusted)
             .div(int256(Constants.YEAR));
