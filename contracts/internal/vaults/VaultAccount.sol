@@ -16,11 +16,13 @@ import {nTokenStaked} from "../nToken/nTokenStaked.sol";
 
 import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
 import {VaultStateLib, VaultState} from "./VaultState.sol";
+import {VaultAccountLib, VaultAccount} from "./VaultAccount.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
+    using VaultAccountLib for VaultAccount;
     using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
@@ -42,7 +44,6 @@ library VaultAccountLib {
         vaultAccount.fCash = -int256(uint256(s.fCash));
         vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
         vaultAccount.maturity = s.maturity;
-        vaultAccount.requiresSettlement = s.requiresSettlement;
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
@@ -65,7 +66,6 @@ library VaultAccountLib {
         s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
         s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
         s.maturity = uint32(vaultAccount.maturity);
-        s.requiresSettlement = vaultAccount.requiresSettlement;
     }
 
     /**
@@ -85,7 +85,7 @@ library VaultAccountLib {
         // These conditions mean that the vault account does not require settlement
         if (blockTime < vaultAccount.maturity || vaultAccount.fCash == 0) return;
 
-        if (!vaultAccount.requiresSettlement && vaultAccount.escrowedAssetCash == 0) {
+        if (vaultAccount.requiresSettlement() == false) {
             // A vault must be fully settled for an account to settle. Most vaults should be able to settle
             // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
             // they can settle (i.e. some vaults may be trading between two fCash currencies). Those vaults must
@@ -116,7 +116,7 @@ library VaultAccountLib {
         VaultState memory vaultState,
         VaultConfig memory vaultConfig,
         AssetRateParameters memory settlementRate
-    ) internal view {
+    ) internal pure {
         // This is a positive number
         int256 assetCashToRepayfCash = settlementRate.convertFromUnderlying(vaultAccount.fCash).neg();
 
@@ -130,29 +130,29 @@ library VaultAccountLib {
 
         // In both cases remove the totalfCash from the vault state
         vaultState.totalfCash = vaultState.totalfCash.sub(vaultAccount.fCash);
+        
+        // fCash is zeroed out here no matter what, the tempCashBalance will represent the net
+        // cash the account has a credit for or owes the protocol.
         vaultAccount.fCash = 0;
 
-        if (vaultAccount.tempCashBalance >= 0) {
-            // In this case the vault is now free and clear
-            vaultAccount.requiresSettlement = false;
-
-            if (vaultState.accountsRequiringSettlement > 0) {
-                // Don't revert on underflow here, just floor the value at 0 in case
-                // we somehow miss an insolvent account in tracking.
-                vaultState.accountsRequiringSettlement -= 1;
-            }
-        } else {
+        if (vaultAccount.tempCashBalance < 0) {
             // If there are vault shares left then this will revert, more vault shares
             // need to be sold to exit the account's debt.
             require(vaultAccount.vaultShares == 0);
 
             // If there are no vault shares left at this point then we have an
             // insolvency. The negative cash balance needs to be cleared via nToken
-            // redemption.
+            // redemption. The tempCashBalance will represent the amount the account
+            // has left to repay.
 
             // If we are inside borrowIntoVault, it will revert since we do not
             // clear the maturity here. That is the correct behavior.  If we are
             // inside exitVault, then it will revert.
+        } else if (vaultState.accountsRequiringSettlement > 0) {
+            // If we reach this point the account has been cleared of needing settlement, we don't
+            // want to revert on underflow here, just floor the value at 0 in case we somehow miss
+            // an insolvent account in tracking.
+            vaultState.accountsRequiringSettlement -= 1;
         }
     }
 
@@ -298,7 +298,7 @@ library VaultAccountLib {
 
         if (vaultAccount.maturity <= block.timestamp) {
             settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp);
-            require(vaultAccount.requiresSettlement == false); // dev: unsuccessful settlement
+            require(vaultAccount.requiresSettlement() == false); // dev: unsuccessful settlement
         } else if (fCashToLend > 0) {
             _lendToExitVault(
                 vaultAccount,
@@ -375,7 +375,6 @@ library VaultAccountLib {
                 // temporary cash balance or lend the fCash down to zero.
                 require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
                 vaultAccount.escrowedAssetCash = 0;
-                vaultAccount.requiresSettlement = false;
 
                 if (vaultState.accountsRequiringSettlement > 0) {
                     vaultState.accountsRequiringSettlement -= 1;
@@ -395,6 +394,20 @@ library VaultAccountLib {
         }
     }
 
+    /**
+     * @notice An account requires settlement if it has escrowedAssetCash (has been liquidated or failed to lend to exit
+     * in an fCash market) or if it has fCash debt but no vault shares (it is insolvent).
+     */
+    function requiresSettlement(
+        VaultAccount memory vaultAccount
+    ) internal pure returns (bool) {
+        return vaultAccount.escrowedAssetCash > 0 || (vaultAccount.fCash < 0 && vaultAccount.vaultShares == 0) ;
+    }
+
+    /**
+     * @notice Called in the two places that would trigger an account to require settlement, during liquidation
+     * and in a failed lending attempt.
+     */
     function increaseEscrowedAssetCash(
         VaultAccount memory vaultAccount,
         VaultState memory vaultState,
@@ -405,12 +418,11 @@ library VaultAccountLib {
         vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
 
-        if (!vaultAccount.requiresSettlement) {
+        if (vaultAccount.requiresSettlement() == false) {
             // If this flag is not set then on the account then we set it up for individual settlement. The
             // account's individual fCash is now removed from the pool and not considered for pooled settlement.
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
             vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
-            vaultAccount.requiresSettlement = true;
         }
     }
 

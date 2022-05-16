@@ -552,9 +552,6 @@ struct VaultAccountStorage {
     uint80 escrowedAssetCash;
     // Vault shares that the account holds
     uint80 vaultShares;
-    // Set to true if there is escrowed asset cash or the vault has no vault shares and
-    // an fCash debt. This requires special handling at settlement.
-    bool requiresSettlement;
 
     // TODO: remove the require settlement flag and just calculate it, we can
     // turn maturity into uint16 "epochs" based on the vault term.
@@ -568,7 +565,6 @@ struct VaultAccount {
     int256 escrowedAssetCash;
     uint256 maturity;
     uint256 vaultShares;
-    bool requiresSettlement;
     address account;
     // This cash balance is used just within a transaction to track deposits
     // and withdraws for an account.

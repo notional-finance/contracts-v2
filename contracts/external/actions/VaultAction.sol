@@ -220,7 +220,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig.vault);
         require(
             vaultState.maturity == vaultAccount.maturity &&
-            vaultAccount.requiresSettlement
+            vaultAccount.requiresSettlement()
         );
         // Vaults must have some default behavior defined for redemptions and not rely on
         // calldata to make redemption decisions.
@@ -242,8 +242,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             // and clear the account requiring settlement
             assetCashShortfall = vaultAccount.tempCashBalance.neg();
 
-            // Pre-emptively clear the vault account assuming the shortfall will be cleared
-            vaultAccount.requiresSettlement = false;
+            // Pre-emptive clear the vault account assuming the shortfall will be cleared
             vaultAccount.tempCashBalance = 0;
 
             if (vaultState.accountsRequiringSettlement > 0) {

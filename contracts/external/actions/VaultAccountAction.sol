@@ -63,7 +63,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // Code here is the same as VaultAccountLib.settleVaultAccount but does not do any settlement
             // of of escrowed accounts and does not modify matured state.
             VaultState memory maturedState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
-            require(vaultAccount.requiresSettlement == false && maturedState.isFullySettled, "Unable to Settle");
+            require(vaultAccount.requiresSettlement() == false && maturedState.isFullySettled, "Unable to Settle");
             vaultAccount.fCash = 0;
         }
 
@@ -117,7 +117,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // If the lending was unsuccessful then we cannot roll the position, the account cannot
         // have two fCash balances.
-        require(vaultAccount.fCash == 0 && !vaultAccount.requiresSettlement, "Failed Lend");
+        require(vaultAccount.fCash == 0 && vaultAccount.requiresSettlement() == false, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
         vaultAccount.borrowAndEnterVault(

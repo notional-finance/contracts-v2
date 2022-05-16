@@ -95,7 +95,6 @@ def get_vault_account(**kwargs):
         kwargs.get("escrowedAssetCash", 0),
         kwargs.get("maturity", 0),
         kwargs.get("vaultShares", 0),
-        kwargs.get("requiresSettlement", False),
         kwargs.get("account", accounts[0].address),
         kwargs.get("tempCashBalance", 0),
     ]

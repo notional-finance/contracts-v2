@@ -156,6 +156,28 @@ contract MockVaultConfiguration {
         );
     }
 
+    /*** Vault Account Methods ***/
+
+    function settleVaultAccount(
+        address vault,
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState,
+        uint256 blockTime
+    ) external returns (VaultAccount memory, VaultState memory) {
+        vaultAccount.settleVaultAccount(
+            getVaultConfigView(vault),
+            vaultState,
+            blockTime
+        );
+
+        return (vaultAccount, vaultState);
+    }
+
+    function requiresSettlement(VaultAccount memory vaultAccount) external view returns (bool) {
+        return vaultAccount.requiresSettlement();
+    }
+
+
     /*** Set Other Globals ***/
 
     function setToken(
