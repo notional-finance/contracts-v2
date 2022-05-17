@@ -48,7 +48,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
             "Cannot Enter"
         );
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
@@ -90,7 +90,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         RollVaultOpts calldata opts
     ) external allowAccountOrVault(account, vault) override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         // Can only roll vaults that are in the current maturity
         uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
 
@@ -150,7 +150,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bytes calldata exitVaultData
     ) external allowAccountOrVault(account, vault) override nonReentrant { 
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         
         VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
             vaultConfig,
@@ -188,7 +188,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) external nonReentrant override returns (uint256 vaultSharesToLiquidator) {
         require(account != msg.sender); // Cannot liquidate yourself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
         // Check that the account has an active position
@@ -217,7 +217,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
         // leveraged position on then their collateral ratio will increase
-        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vault);
+        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vaultConfig);
         // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
         // vault at the same maturity).
         require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
@@ -245,19 +245,19 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
     /** View Methods **/
     function getVaultAccount(address account, address vault) external override view returns (VaultAccount memory) {
-        return VaultAccountLib.getVaultAccount(account, vault);
+        return VaultAccountLib.getVaultAccount(account, VaultConfiguration.getVaultConfigNoAssetRate(vault));
     }
 
     function getVaultAccountMaturity(address account, address vault) external override view returns (uint256) {
-        return VaultAccountLib.getVaultAccount(account, vault).maturity;
+        return VaultAccountLib.getVaultAccount(account, VaultConfiguration.getVaultConfigNoAssetRate(vault)).maturity;
     }
 
     function getVaultAccountLeverage(address account, address vault) external override view returns (
         int256 collateralRatio,
         int256 minCollateralRatio
     ) {
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
         collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,

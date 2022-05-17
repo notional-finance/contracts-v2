@@ -29,35 +29,50 @@ library VaultAccountLib {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
+    // As a storage optimization to keep VaultAccountStorage inside bytes32, we store the maturity as epochs
+    // from an arbitrary start time before we've deployed this feature. This allows us to have 65536 epochs
+    // which is plenty even with the smallest potential term length being 1 month (5461 years).
+    function _convertEpochToMaturity(
+        uint256 vaultEpoch, uint256 termLengthInSeconds
+    ) private pure returns (uint256 maturity) {
+        maturity = vaultEpoch.mul(termLengthInSeconds).add(Constants.VAULT_EPOCH_START);
+    }
+
+    function _convertMaturityToEpoch(
+        uint256 maturity, uint256 termLengthInSeconds
+    ) private pure returns (uint16) {
+        require(maturity % termLengthInSeconds == 0);
+        uint256 vaultEpoch = maturity.sub(Constants.VAULT_EPOCH_START).div(termLengthInSeconds);
+        require(vaultEpoch <= type(uint16).max);
+
+        return uint16(vaultEpoch);
+    }
+
     /// @notice Returns a single account's vault position
-    function getVaultAccount(address account, address vaultAddress)
+    function getVaultAccount(address account, VaultConfig memory vaultConfig)
         internal
         view
         returns (VaultAccount memory vaultAccount)
     {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
-        VaultAccountStorage storage s = store[account][vaultAddress];
+        VaultAccountStorage storage s = store[account][vaultConfig.vault];
 
         // fCash is negative on the stack
         vaultAccount.fCash = -int256(uint256(s.fCash));
         vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
-        vaultAccount.maturity = s.maturity;
+        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch, vaultConfig.termLengthInSeconds);
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
     }
 
     /// @notice Sets a single account's vault position in storage
-    function setVaultAccount(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig
-    ) internal {
+    function setVaultAccount(VaultAccount memory vaultAccount, VaultConfig memory vaultConfig) internal {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
         VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
 
-        require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
         // The temporary cash balance must be cleared to zero by the end of the transaction
         require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
         // An account must maintain a minimum borrow size in order to enter the vault. If the account
@@ -69,7 +84,7 @@ library VaultAccountLib {
         s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
         s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
         s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
-        s.maturity = uint32(vaultAccount.maturity);
+        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity, vaultConfig.termLengthInSeconds);
     }
 
     /**

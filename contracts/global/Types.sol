@@ -543,7 +543,8 @@ struct VaultState {
 
 /// @notice Represents an account's position within an individual vault
 struct VaultAccountStorage {
-    // The amount of fCash the account has borrowed from Notional.
+    // The amount of fCash the account has borrowed from Notional. Stored as a uint but on the stack it
+    // is represented as a negative number.
     uint80 fCash;
     // It's possible that an account may not be able to repay their fCash on the market.
     // in that case we hold asset cash against their fCash as repayment. When this occurs,
@@ -552,12 +553,9 @@ struct VaultAccountStorage {
     uint80 escrowedAssetCash;
     // Vault shares that the account holds
     uint80 vaultShares;
-
-    // TODO: remove the require settlement flag and just calculate it, we can
-    // turn maturity into uint16 "epochs" based on the vault term.
-
-    // The maturity at which the fCash is owed
-    uint32 maturity;
+    // As a storage optimization, we use epochs to store the vault maturity (each epoch is equal to the
+    // term length of the vault from an arbitrary start time). This keeps the storage under 32 bytes.
+    uint16 vaultEpoch;
 }
 
 struct VaultAccount {
@@ -567,7 +565,7 @@ struct VaultAccount {
     uint256 vaultShares;
     address account;
     // This cash balance is used just within a transaction to track deposits
-    // and withdraws for an account.
+    // and withdraws for an account. Must be zeroed by the time we store the account
     int256 tempCashBalance;
 }
 

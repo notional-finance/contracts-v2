@@ -54,6 +54,12 @@ library VaultConfiguration {
         vaultConfig.liquidationRate = s.liquidationRate;
     }
 
+    function getVaultConfigNoAssetRate(
+        address vaultAddress
+    ) internal view returns (VaultConfig memory vaultConfig) {
+        vaultConfig = _getVaultConfig(vaultAddress);
+    }
+
     function getVaultConfigStateful(
         address vaultAddress
     ) internal returns (VaultConfig memory vaultConfig) {

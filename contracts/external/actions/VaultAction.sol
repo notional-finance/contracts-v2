@@ -217,7 +217,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 assetCashRedeemed,
         uint256 totalStrategyTokens
     ) private returns (int256 assetCashShortfall) {
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig.vault);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         require(
             vaultState.maturity == vaultAccount.maturity &&
             vaultAccount.requiresSettlement()

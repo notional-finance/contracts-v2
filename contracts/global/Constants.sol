@@ -133,4 +133,7 @@ library Constants {
     bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
+
+    // Arbitrary start date for vault epochs (Wed Dec 29 2021 00:00:00 GMT+0000)
+    uint256 internal constant VAULT_EPOCH_START = 1640736000;
 }
