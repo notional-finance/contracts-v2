@@ -4,9 +4,10 @@ pragma abicoder v2;
 
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
-import {VaultAccount, VaultAccountStorage} from "../../global/Types.sol";
+import {VaultAccount, VaultAccountStorage, TradeActionType} from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
+import {TradingAction} from "../../external/actions/TradingAction.sol";
 import {DateTime} from "../markets/DateTime.sol";
 
 import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
@@ -16,13 +17,11 @@ import {nTokenStaked} from "../nToken/nTokenStaked.sol";
 
 import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
 import {VaultStateLib, VaultState} from "./VaultState.sol";
-import {VaultAccountLib, VaultAccount} from "./VaultAccount.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
-    using VaultAccountLib for VaultAccount;
     using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
@@ -85,7 +84,7 @@ library VaultAccountLib {
         // These conditions mean that the vault account does not require settlement
         if (blockTime < vaultAccount.maturity || vaultAccount.fCash == 0) return;
 
-        if (vaultAccount.requiresSettlement() == false) {
+        if (requiresSettlement(vaultAccount) == false) {
             // A vault must be fully settled for an account to settle. Most vaults should be able to settle
             // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
             // they can settle (i.e. some vaults may be trading between two fCash currencies). Those vaults must
@@ -161,7 +160,7 @@ library VaultAccountLib {
         VaultConfig memory vaultConfig,
         uint256 maturity,
         uint256 fCashToBorrow,
-        uint256 maxBorrowRate,
+        uint32 maxBorrowRate,
         bytes calldata vaultData
     ) internal {
         // The vault account can only be increasing their borrow position or not have one set. If they
@@ -217,7 +216,7 @@ library VaultAccountLib {
         VaultState memory vaultState,
         uint256 maturity,
         int256 fCash,
-        uint256 maxBorrowRate,
+        uint32 maxBorrowRate,
         uint256 blockTime
     ) private {
         require(fCash < 0); // dev: fcash must be negative
@@ -285,7 +284,7 @@ library VaultAccountLib {
         VaultConfig memory vaultConfig,
         uint256 vaultSharesToRedeem,
         int256 fCashToLend,
-        uint256 minLendRate,
+        uint32 minLendRate,
         bytes calldata vaultData
     ) internal returns (VaultState memory vaultState) {
         vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
@@ -298,7 +297,7 @@ library VaultAccountLib {
 
         if (vaultAccount.maturity <= block.timestamp) {
             settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp);
-            require(vaultAccount.requiresSettlement() == false); // dev: unsuccessful settlement
+            require(requiresSettlement(vaultAccount) == false); // dev: unsuccessful settlement
         } else if (fCashToLend > 0) {
             _lendToExitVault(
                 vaultAccount,
@@ -332,7 +331,7 @@ library VaultAccountLib {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         int256 fCash,
-        uint256 minLendRate,
+        uint32 minLendRate,
         uint256 blockTime
     ) private {
         // Don't allow the vault to lend to positive fCash
@@ -418,7 +417,7 @@ library VaultAccountLib {
         vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
 
-        if (vaultAccount.requiresSettlement() == false) {
+        if (requiresSettlement(vaultAccount) == false) {
             // If this flag is not set then on the account then we set it up for individual settlement. The
             // account's individual fCash is now removed from the pool and not considered for pooled settlement.
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
@@ -439,29 +438,27 @@ library VaultAccountLib {
         uint16 currencyId,
         uint256 maturity,
         int256 netfCashToAccount,
-        uint256 rateLimit,
+        uint32 rateLimit,
         uint256 blockTime
     ) private returns (int256 netAssetCash) {
-        // TODO: either have the asset rate passed in here or move this into TradingAction library to reduce code size
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
-        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
+        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);
 
-        MarketParameters memory market;
-        // NOTE: this loads the market in memory
-        cashGroup.loadMarket(market, marketIndex, false, blockTime);
-        netAssetCash = market.executeTrade(
-            cashGroup,
-            netfCashToAccount,
-            market.maturity.sub(blockTime),
-            marketIndex
+        // fCash is restricted from being larger than uint88 inside the trade module
+        uint256 fCashAmount = uint256(netfCashToAccount.abs());
+        require(fCashAmount < type(uint88).max);
+
+        // Encodes trade data for the TradingAction module
+        bytes32 trade = bytes32(
+            (uint256(uint8(netfCashToAccount > 0 ? TradeActionType.Lend : TradeActionType.Borrow)) << 248) |
+            (uint256(marketIndex) << 240) |
+            (uint256(fCashAmount) << 152) |
+            (uint256(rateLimit) << 120)
         );
 
-        if (netfCashToAccount < 0 && rateLimit > 0) {
-            require(market.lastImpliedRate <= rateLimit);
-        } else {
-            require(market.lastImpliedRate >= rateLimit);
-        }
+        // Use the library here to reduce the deployed bytecode size
+        netAssetCash = TradingAction.executeVaultTrade(currencyId, trade);
     }
 
     /**
