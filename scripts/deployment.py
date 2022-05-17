@@ -24,6 +24,8 @@ from brownie import (
     TradingAction,
     TreasuryAction,
     UpgradeableBeacon,
+    VaultAccountAction,
+    VaultAction,
     Views,
     accounts,
     cTokenV2Aggregator,
@@ -127,6 +129,8 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
     contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
+    contracts["VaultAction"] = VaultAction.deploy({"from": deployer})
+    contracts["VaultAccountAction"] = VaultAccountAction.deploy({"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
@@ -152,6 +156,8 @@ def deployNotionalContracts(deployer, **kwargs):
             kwargs["cETH"],
             contracts["TreasuryAction"].address,
             contracts["CalculationViews"].address,
+            contracts["VaultAccountAction"].address,
+            contracts["VaultAction"].address,
         ),
         {"from": deployer},
     )

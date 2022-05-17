@@ -68,6 +68,9 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) {
         // NOTE: this call must come from the vault itself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        // NOTE: if the msg.sender is not the vault itself this will revert
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+
         VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
         int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, vaultData);
         require(assetCashReceived > 0);
@@ -90,8 +93,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 assetCashToDepositExternal,
         bytes calldata vaultData
     ) external override nonReentrant {
-        // NOTE: this call must come from the vault itself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        // NOTE: if the msg.sender is not the vault itself this will revert
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+
         VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 

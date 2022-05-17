@@ -8,9 +8,10 @@ import "../global/Types.sol";
 import {INTokenAction} from "../../interfaces/notional/INTokenAction.sol";
 import {IStakedNTokenAction} from "../../interfaces/notional/IStakedNTokenAction.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
-import "../../interfaces/notional/nERC1155Interface.sol";
-import "../../interfaces/notional/NotionalGovernance.sol";
-import "../../interfaces/notional/NotionalCalculations.sol";
+import {IVaultAction, IVaultAccountAction} from "../../interfaces/notional/IVaultController.sol";
+import {nERC1155Interface} from "../../interfaces/notional/nERC1155Interface.sol";
+import {NotionalGovernance} from "../../interfaces/notional/NotionalGovernance.sol";
+import {NotionalCalculations} from "../../interfaces/notional/NotionalCalculations.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -35,9 +36,11 @@ contract Router is StorageLayoutV1 {
     address public immutable cETH;
     address public immutable TREASURY;
     address public immutable CALCULATION_VIEWS;
+    address public immutable VAULT_ACCOUNT_ACTION;
+    address public immutable VAULT_ACTION;
     address private immutable DEPLOYER;
 
-    struct RouterContracts {
+    struct DeployedContracts {
         address governance;
         address views;
         address initializeMarket;
@@ -50,9 +53,13 @@ contract Router is StorageLayoutV1 {
         address cETH;
         address treasury;
         address calculationViews;
+        address vaultAccountAction;
+        address vaultAction;
     }
 
-    constructor(RouterContracts memory contracts) {
+    constructor(
+        DeployedContracts memory contracts
+    ) {
         GOVERNANCE = contracts.governance;
         VIEWS = contracts.views;
         INITIALIZE_MARKET = contracts.initializeMarket;
@@ -65,6 +72,8 @@ contract Router is StorageLayoutV1 {
         cETH = contracts.cETH;
         TREASURY = contracts.treasury;
         CALCULATION_VIEWS = contracts.calculationViews;
+        VAULT_ACCOUNT_ACTION = contracts.vaultAccountAction;
+        VAULT_ACTION = contracts.vaultAction;
 
         DEPLOYER = msg.sender;
         // This will lock everyone from calling initialize on the implementation contract
@@ -116,6 +125,16 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.batchLend.selector
         ) {
             return BATCH_ACTION;
+        } else if (
+            sig == IVaultAccountAction.enterVault.selector ||
+            sig == IVaultAccountAction.rollVaultPosition.selector ||
+            sig == IVaultAccountAction.exitVault.selector ||
+            sig == IVaultAccountAction.deleverageAccount.selector ||
+            sig == IVaultAccountAction.getVaultAccount.selector ||
+            sig == IVaultAccountAction.getVaultAccountMaturity.selector ||
+            sig == IVaultAccountAction.getVaultAccountLeverage.selector
+        ) {
+            return VAULT_ACCOUNT_ACTION;
         } else if (
             sig == NotionalProxy.depositUnderlyingToken.selector ||
             sig == NotionalProxy.depositAssetToken.selector ||
@@ -169,6 +188,20 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
+        } else if (
+            sig == IVaultAction.updateVault.selector ||
+            sig == IVaultAction.setVaultPauseStatus.selector ||
+            sig == IVaultAction.settleVault.selector ||
+            sig == IVaultAction.depositVaultCashToStrategyTokens.selector ||
+            sig == IVaultAction.redeemStrategyTokensToCash.selector ||
+            sig == IVaultAction.getVaultConfig.selector ||
+            sig == IVaultAction.getVaultState.selector ||
+            sig == IVaultAction.getCurrentVaultState.selector ||
+            sig == IVaultAction.getCurrentVaultMaturity.selector ||
+            sig == IVaultAction.getCashRequiredToSettle.selector ||
+            sig == IVaultAction.getCashRequiredToSettleCurrent.selector
+        ) {
+            return VAULT_ACTION;
         } else if (
             sig == NotionalProxy.initializeMarkets.selector ||
             sig == NotionalProxy.sweepCashIntoMarkets.selector

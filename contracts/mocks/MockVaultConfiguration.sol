@@ -157,6 +157,13 @@ contract MockVaultConfiguration {
     }
 
     /*** Vault Account Methods ***/
+    function getVaultAccount(address account, address vault) external view returns (VaultAccount memory) {
+        return VaultAccountLib.getVaultAccount(account, getVaultConfigView(vault));
+    }
+
+    function setVaultAccount(VaultAccount memory vaultAccount, address vault) external {
+        vaultAccount.setVaultAccount(getVaultConfigView(vault));
+    }
 
     function settleVaultAccount(
         address vault,
