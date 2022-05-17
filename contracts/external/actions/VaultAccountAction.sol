@@ -191,7 +191,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
-        // Check that the account has an active position
+        // Check that the account has an active position. After maturity, accounts will be settled instead.
         require(block.timestamp < vaultAccount.maturity);
 
         // Check that the collateral ratio is below the minimum allowed
@@ -215,16 +215,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             .div(SafeInt256.toUint(assetCashValue))
             .div(uint256(Constants.PERCENTAGE_DECIMALS));
 
-        // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
-        // leveraged position on then their collateral ratio will increase
-        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vaultConfig);
-        // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
-        // vault at the same maturity).
-        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
-        liquidator.maturity = vaultAccount.maturity;
-        liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
-        liquidator.setVaultAccount(vaultConfig);
-
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
         // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
         // fCash market against the account and put them in an insolvent position. All the cash balance deposited
@@ -241,6 +231,19 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Sets the vault account
         vaultAccount.setVaultAccount(vaultConfig);
+
+        // TODO: allow the liquidator to exit their vault shares at this point? we could just call redeem
+        // strategy tokens here...
+
+        // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
+        // leveraged position on then their collateral ratio will increase
+        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vaultConfig);
+        // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
+        // vault at the same maturity).
+        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
+        liquidator.maturity = vaultAccount.maturity;
+        liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
+        liquidator.setVaultAccount(vaultConfig);
     }
 
     /** View Methods **/
