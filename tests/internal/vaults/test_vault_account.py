@@ -1,12 +1,58 @@
 import brownie
 import pytest
+from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
+
+VAULT_EPOCH_START = 1640736000
 
 
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
+
+
+def test_enforce_borrow_size(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config(minAccountBorrowSize=100_000))
+
+    with brownie.reverts("Min Borrow"):
+        account = get_vault_account(fCash=-100e8)
+        vaultConfig.setVaultAccount(account, vault.address)
+
+    # Setting with 0 fCash is ok
+    account = get_vault_account()
+    vaultConfig.setVaultAccount(account, vault.address)
+    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
+
+    # Borrowing at min borrow succeeds
+    account = get_vault_account(fCash=-100_000e8)
+    vaultConfig.setVaultAccount(account, vault.address)
+    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
+
+    # Borrowing above min borrow succeeds
+    account = get_vault_account(fCash=-500_000e8)
+    vaultConfig.setVaultAccount(account, vault.address)
+    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
+
+
+def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    with brownie.reverts():
+        # Any temp cash balance should fail
+        account = get_vault_account(tempCashBalance=100e8)
+        vaultConfig.setVaultAccount(account, vault.address)
+
+
+@given(epoch=strategy("uint16", min_value=1))
+def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    account = get_vault_account(
+        fCash=-100_000e8, maturity=VAULT_EPOCH_START + epoch * SECONDS_IN_QUARTER
+    )
+    vaultConfig.setVaultAccount(account, vault.address)
+    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
 
 
 def test_settle_account_normal_conditions(vaultConfig, accounts, vault):

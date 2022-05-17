@@ -35,12 +35,16 @@ library VaultAccountLib {
     function _convertEpochToMaturity(
         uint256 vaultEpoch, uint256 termLengthInSeconds
     ) private pure returns (uint256 maturity) {
+        if (vaultEpoch == 0) return 0;
+
         maturity = vaultEpoch.mul(termLengthInSeconds).add(Constants.VAULT_EPOCH_START);
     }
 
     function _convertMaturityToEpoch(
         uint256 maturity, uint256 termLengthInSeconds
     ) private pure returns (uint16) {
+        if (maturity == 0) return 0;
+
         require(maturity % termLengthInSeconds == 0);
         uint256 vaultEpoch = maturity.sub(Constants.VAULT_EPOCH_START).div(termLengthInSeconds);
         require(vaultEpoch <= type(uint16).max);

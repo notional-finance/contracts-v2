@@ -28,12 +28,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         address vaultAddress,
         VaultConfigStorage calldata vaultConfig
     ) external override onlyOwner {
-        // require(Address.isContract(vaultAddress));
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        // Require that we have a significant amount of allowance set on the vault so we can transfer
-        // asset tokens from the vault.
-        require(IERC20(assetToken.tokenAddress).allowance(vaultAddress, address(this)) >= type(uint248).max);
-
         VaultConfiguration.setVaultConfig(vaultAddress, vaultConfig);
         bool enabled = (vaultConfig.flags & VaultConfiguration.ENABLED) == VaultConfiguration.ENABLED;
         emit VaultChange(vaultAddress, enabled);
@@ -156,6 +150,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(vaultState.totalfCashRequiringSettlement.neg());
         // This will revert if we have insufficient cash. Any remaining cash will be left behind on the vault for vault
         // accounts to withdraw their share of.
+
+        // TODO: this shouldn't revert due to a shortfall
         vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashRequiredToSettle));
         vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
         vaultState.totalfCashRequiringSettlement = 0;
