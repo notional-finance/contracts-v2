@@ -168,7 +168,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         
         // Transfers any net deposit or withdraw from the account
         vaultAccount.transferTempCashBalance(vaultConfig.borrowCurrencyId, useUnderlying);
-        vaultAccount.setVaultAccount(vault);
+        vaultAccount.setVaultAccount(vaultConfig);
     }
 
     /**
@@ -223,7 +223,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
         liquidator.maturity = vaultAccount.maturity;
         liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
-        liquidator.setVaultAccount(vault);
+        liquidator.setVaultAccount(vaultConfig);
 
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
         // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
@@ -240,7 +240,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(1.30e9) , "Over liquidation");
 
         // Sets the vault account
-        vaultAccount.setVaultAccount(vault);
+        vaultAccount.setVaultAccount(vaultConfig);
     }
 
     /** View Methods **/

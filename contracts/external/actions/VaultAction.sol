@@ -235,6 +235,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         vaultAccount.settleEscrowedAccount(vaultState, vaultConfig, settlementRate);
 
         if (vaultAccount.tempCashBalance >= 0) {
+            // TODO: need to authenticate that there is not excess vault shares sold here...
             // Return excess asset cash to the account
             vaultAccount.transferTempCashBalance(vaultConfig.borrowCurrencyId, false);
         } else {
@@ -251,7 +252,7 @@ contract VaultAction is ActionGuards, IVaultAction {
                 vaultState.accountsRequiringSettlement -= 1;
             }
         }
-        vaultAccount.setVaultAccount(vaultConfig.vault);
+        vaultAccount.setVaultAccount(vaultConfig);
     }
 
     /** View Methods **/

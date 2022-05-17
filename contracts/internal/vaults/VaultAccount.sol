@@ -51,15 +51,20 @@ library VaultAccountLib {
     /// @notice Sets a single account's vault position in storage
     function setVaultAccount(
         VaultAccount memory vaultAccount,
-        address vaultAddress
+        VaultConfig memory vaultConfig
     ) internal {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
-        VaultAccountStorage storage s = store[vaultAccount.account][vaultAddress];
+        VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
 
         require(vaultAccount.maturity <= type(uint32).max); // dev: maturity overflow
         // The temporary cash balance must be cleared to zero by the end of the transaction
         require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
+        // An account must maintain a minimum borrow size in order to enter the vault. If the account
+        // wants to exit under the minimum borrow size it must fully exit so that we do not have dust
+        // accounts that become insolvent or require manual settlements which will require expensive
+        // transactions.
+        require(vaultAccount.fCash == 0 || vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
         s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
         s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
@@ -189,7 +194,7 @@ library VaultAccountLib {
 
         // Set the vault state and account in storage and check the vault's collateral ratio
         vaultState.setVaultState(vaultConfig.vault);
-        setVaultAccount(vaultAccount, vaultConfig.vault);
+        setVaultAccount(vaultAccount, vaultConfig);
             
         if (fCashToBorrow > 0) {
             vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
