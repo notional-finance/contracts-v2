@@ -488,42 +488,23 @@ struct StakedNTokenSupplyStorage {
     // nTokens held by this Staked nToken
     uint96 nTokenBalance;
     // Additional staked note emission rate
-    uint32 totalAnnualTermEmission;
-    // Relative weights for all terms when calculation share of total emissions, must add up
-    // to 200 total (each weight is a half percentage point)
-    bytes4 termIncentiveWeights;
+    uint32 totalAnnualStakedEmission;
+    // Previous accumulated time for the staked emission
+    uint32 lastAccumulatedTime;
     
     // Second storage slot starts here, holds the incentive accumulators for the staked nToken.
     // Previous value of NOTE per nToken seen by the staked nToken
     uint128 lastBaseAccumulatedNOTEPerNToken;
-    // Current accumulated NOTE per staked nToken
-    uint128 baseAccumulatedNOTEPerStaked;
+    // Total accumulated NOTE per staked nToken
+    uint128 totalAccumulatedNOTEPerStaked;
 }
 
 // Staked nToken supply in memory
 struct StakedNTokenSupply {
     uint256 totalSupply;
     uint256 nTokenBalance;
-    uint256 totalAnnualTermEmission;
-    uint256 lastBaseAccumulatedNOTEPerNToken;
-    uint256 baseAccumulatedNOTEPerStaked;
-    bytes4 termIncentiveWeights;
-}
-
-// Incentive factors for a particular staked nToken maturity in storage
-struct StakedMaturityIncentivesStorage {
-    // Technically this can overflow at 100 million NOTE in 1e8 precision but it's not going
-    // to be the case that a single maturity accumulates all NOTE in existence.
-    uint112 termAccumulatedNOTEPerStaked;
-    uint96 termStakedSupply;
-    uint32 lastAccumulatedTime;
-    // 16 bytes left
-}
-
-// In memory object for staked maturity incentives
-struct StakedMaturityIncentive {
-    uint256 unstakeMaturity;
-    uint256 termAccumulatedNOTEPerStaked;
-    uint256 termStakedSupply;
+    uint256 totalAnnualStakedEmission;
     uint256 lastAccumulatedTime;
+    uint256 lastBaseAccumulatedNOTEPerNToken;
+    uint256 totalAccumulatedNOTEPerStaked;
 }

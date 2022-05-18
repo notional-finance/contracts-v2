@@ -217,14 +217,6 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
-    /// @dev Returns object for an StakedMaturityIncentives, mapping is from currency id to maturity to object
-    function getStakedMaturityIncentives() internal pure returns (
-        mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store
-    ) {
-        uint256 slot = _getStorageSlot(StorageId.StakedMaturityIncentives);
-        assembly { store.slot := slot }
-    }
-
     /// @dev Get the storage slot given a storage ID.
     /// @param storageId An entry in `StorageId`
     /// @return slot The storage slot.

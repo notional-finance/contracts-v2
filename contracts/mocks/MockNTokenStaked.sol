@@ -19,11 +19,6 @@ contract MockNTokenStaked {
         nTokenStaked.setStakedNTokenEmissions(currencyId, termEmissionRate, termIncentiveWeights, blockTime);
     }
 
-    function getTermWeights(uint16 currencyId, uint256 index) external view returns (uint256) {
-        StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
-        return nTokenStaked._getTermIncentiveWeight(stakedSupply.termIncentiveWeights, index);
-    }
-
     function getNTokenClaim(uint16 currencyId, address account) public view returns (uint256) {
         StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
         nTokenStaker memory staker = nTokenStaked.getNTokenStaker(account, currencyId);
@@ -50,15 +45,6 @@ contract MockNTokenStaked {
         store[account][currencyId] = s;
     }
 
-    function setStakedMaturityIncentives(
-        uint16 currencyId,
-        uint256 unstakeMaturity,
-        StakedMaturityIncentivesStorage memory s
-    ) external {
-        mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
-        store[currencyId][unstakeMaturity] = s;
-    }
-
     function getNTokenStaker(
         address account,
         uint16 currencyId
@@ -70,24 +56,6 @@ contract MockNTokenStaked {
         uint16 currencyId
     ) external view returns (StakedNTokenSupply memory stakedSupply) {
         return nTokenStaked.getStakedNTokenSupply(currencyId);
-    }
-
-    function getStakedMaturityIncentive(uint16 currencyId, uint256 unstakeMaturity) 
-        external view returns (StakedMaturityIncentive memory) {
-        mapping(uint256 => mapping(uint256 => StakedMaturityIncentivesStorage)) storage store = LibStorage.getStakedMaturityIncentives();
-        StakedMaturityIncentivesStorage storage s = store[currencyId][unstakeMaturity];
-        StakedMaturityIncentive memory m;
-
-        m.termAccumulatedNOTEPerStaked = s.termAccumulatedNOTEPerStaked;
-        m.termStakedSupply = s.termStakedSupply;
-        m.unstakeMaturity = unstakeMaturity;
-        m.lastAccumulatedTime = s.lastAccumulatedTime;
-        return m;
-    }
-
-    function getStakedMaturityIncentivesFromRef(uint16 currencyId, uint256 tRef) 
-        external view returns (StakedMaturityIncentive[] memory) {
-        return nTokenStaked.getStakedMaturityIncentivesFromRef(currencyId, tRef);
     }
 
     function stakeNToken(
@@ -164,7 +132,7 @@ contract MockNTokenStaked {
         // This updates the base accumulated NOTE and the nToken supply. Term staking has not changed
         // so we do not update those accumulated incentives. The netNTokenSupply change is negative since we
         // have redeemed nTokens
-        nTokenStaked._updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg(), 0);
+        nTokenStaked._updateBaseAccumulatedNOTE(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg());
         stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(uint256(actualNTokensRedeemed)); // overflow checked above
         nTokenStaked._setStakedNTokenSupply(currencyId, stakedSupply);
     }
@@ -179,16 +147,10 @@ contract MockNTokenStaked {
         return nTokenStaked.transferStakedNToken(from, to, currencyId, amount, blockTime);
     }
 
-    function updateAccumulatedNOTEIncentives(
-        uint16 currencyId,
-        uint256 blockTime
-    ) external returns (uint256 baseAccumulatedNOTEPerStaked) {
+    function updateAccumulatedNOTEIncentives(uint16 currencyId, uint256 blockTime) external returns (uint256) {
         StakedNTokenSupply memory stakedSupply = nTokenStaked.getStakedNTokenSupply(currencyId);
-        return nTokenStaked._updateAccumulatedNOTEIncentives(
-            currencyId,
-            blockTime,
-            stakedSupply
-        );
+        nTokenStaked._updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
         nTokenStaked._setStakedNTokenSupply(currencyId, stakedSupply);
+        return stakedSupply.totalAccumulatedNOTEPerStaked;
     }
 }

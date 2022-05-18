@@ -46,59 +46,51 @@ library nTokenSupply {
             lastAccumulatedTime
         ) = getStoredNTokenSupplyFactors(tokenAddress);
 
+        // prettier-ignore
+        (
+            /* currencyId */,
+            uint256 emissionRatePerYear,
+            /* initializedTime */,
+            /* assetArrayLength */,
+            /* parameters */
+        ) = nTokenHandler.getNTokenContext(tokenAddress);
+
+        accumulatedNOTEPerNToken = accumulatedNOTEPerNToken.add(
+            calculateAdditionalNOTEPerSupply(totalSupply, lastAccumulatedTime, emissionRatePerYear, blockTime)
+        );
+        require(accumulatedNOTEPerNToken < type(uint128).max); // dev: accumulated NOTE overflow
+    }
+
+    /// @notice This method is used for both nTokens and staked nTokens
+    function calculateAdditionalNOTEPerSupply(
+        uint256 totalSupply,
+        uint256 lastAccumulatedTime,
+        uint256 emissionRatePerYear,
+        uint256 blockTime
+    ) internal view returns (uint256 additionalNOTE) {
         // nToken totalSupply is never allowed to drop to zero but we check this here to avoid
         // divide by zero errors during initialization. Also ensure that lastAccumulatedTime is not
         // zero to avoid a massive accumulation amount on initialization.
         if (blockTime > lastAccumulatedTime && lastAccumulatedTime > 0 && totalSupply > 0) {
-            // prettier-ignore
-            (
-                /* currencyId */,
-                uint256 emissionRatePerYear,
-                /* initializedTime */,
-                /* assetArrayLength */,
-                /* parameters */
-            ) = nTokenHandler.getNTokenContext(tokenAddress);
+            // If we use 18 decimal places as the accumulation precision then we will overflow uint128 when
+            // a single nToken has accumulated 3.4 x 10^20 NOTE tokens. This isn't possible since the max
+            // NOTE that can accumulate is 10^16 (100 million NOTE in 1e8 precision) so we should be safe
+            // using 18 decimal places and uint128 storage slot
 
-            uint256 additionalNOTEAccumulatedPerNToken = _calculateAdditionalNOTE(
+            // timeSinceLastAccumulation (SECONDS)
+            // accumulatedNOTEPerSharePrecision (1e18)
+            // emissionRatePerYear (INTERNAL_TOKEN_PRECISION)
+            // DIVIDE BY
+            // YEAR (SECONDS)
+            // totalSupply (INTERNAL_TOKEN_PRECISION)
+            additionalNOTE = (blockTime - lastAccumulatedTime)
+                .mul(Constants.INCENTIVE_ACCUMULATION_PRECISION)
                 // Emission rate is denominated in whole tokens, scale to 1e8 decimals here
-                emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)),
-                // Time since last accumulation (overflow checked above)
-                blockTime - lastAccumulatedTime,
-                totalSupply
-            );
-
-            accumulatedNOTEPerNToken = accumulatedNOTEPerNToken.add(additionalNOTEAccumulatedPerNToken);
-            require(accumulatedNOTEPerNToken < type(uint128).max); // dev: accumulated NOTE overflow
+                .mul(emissionRatePerYear.mul(uint256(Constants.INTERNAL_TOKEN_PRECISION)))
+                .div(Constants.YEAR)
+                // totalSupply > 0 checked above
+                .div(totalSupply);
         }
-    }
-
-    /// @notice additionalNOTEPerNToken accumulated since last accumulation time in 1e18 precision
-    function _calculateAdditionalNOTE(
-        uint256 emissionRatePerYear,
-        uint256 timeSinceLastAccumulation,
-        uint256 totalSupply
-    )
-        private
-        pure
-        returns (uint256)
-    {
-        // If we use 18 decimal places as the accumulation precision then we will overflow uint128 when
-        // a single nToken has accumulated 3.4 x 10^20 NOTE tokens. This isn't possible since the max
-        // NOTE that can accumulate is 10^16 (100 million NOTE in 1e8 precision) so we should be safe
-        // using 18 decimal places and uint128 storage slot
-
-        // timeSinceLastAccumulation (SECONDS)
-        // accumulatedNOTEPerSharePrecision (1e18)
-        // emissionRatePerYear (INTERNAL_TOKEN_PRECISION)
-        // DIVIDE BY
-        // YEAR (SECONDS)
-        // totalSupply (INTERNAL_TOKEN_PRECISION)
-        return timeSinceLastAccumulation
-            .mul(Constants.INCENTIVE_ACCUMULATION_PRECISION)
-            .mul(emissionRatePerYear)
-            .div(Constants.YEAR)
-            // totalSupply > 0 is checked in the calling function
-            .div(totalSupply);
     }
 
     /// @notice Updates the nToken token supply amount when minting or redeeming.
