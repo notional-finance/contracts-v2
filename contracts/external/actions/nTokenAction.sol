@@ -28,11 +28,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// @param nTokenAddress The address of the nToken
     /// @return totalSupply number of tokens held
     function nTokenTotalSupply(address nTokenAddress)
-        external
-        view
-        override
-        returns (uint256 totalSupply)
-    {
+        external view override returns (uint256 totalSupply) {
         // prettier-ignore
         (
             totalSupply,
@@ -45,11 +41,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
     function nTokenBalanceOf(uint16 currencyId, address account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+        external view override returns (uint256) {
         // prettier-ignore
         (
             /* int cashBalance */,
@@ -57,9 +49,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             /* uint lastClaimTime */,
             /* uint accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(account, currencyId);
-
-        require(nTokenBalance >= 0); // dev: negative nToken balance
-        return uint256(nTokenBalance);
+        return SafeInt256.toUint(nTokenBalance);
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -175,7 +165,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         returns (bool)
     {
         nTokenWhitelist[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
+        emit nTokenApproveAll(msg.sender, spender, amount);
         return true;
     }
 
@@ -216,45 +206,46 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
-    function nTokenPresentValueAssetDenominated(uint16 currencyId)
-        external
-        view
-        override
-        returns (int256)
-    {
-        // prettier-ignore
-        (
-            int256 totalAssetPV,
-            /* portfolio */
-        ) = _getNTokenPV(currencyId);
-
-        return totalAssetPV;
+    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view override returns (
+        int256 totalAssetPV
+    ) {
+        (totalAssetPV, /* portfolio */) = _getNTokenPV(currencyId);
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
-    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
-        external
-        view
-        override
-        returns (int256)
-    {
+    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId) external view override returns (
+        int256 totalUnderlyingPVInternal
+    ) {
         (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
-
-        return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
+        totalUnderlyingPVInternal = nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
-    function _getNTokenPV(uint16 currencyId)
-        private
-        view
-        returns (int256, nTokenPortfolio memory)
-    {
-        uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken;
+    function nTokenPresentValueUnderlyingExternal(uint16 currencyId) external view override returns (
+        uint256 underlyingExternal
+    ) {
+        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
+        AssetRateParameters memory assetRate = nToken.cashGroup.assetRate;
+        underlyingExternal = SafeInt256.toUint(
+            assetRate.convertToUnderlying(totalAssetPV)
+                .mul(assetRate.underlyingDecimals)
+                .div(Constants.INTERNAL_TOKEN_PRECISION)
+        );
+    }
+
+    function _getNTokenPV(uint16 currencyId) private view returns (
+        int256 totalAssetPV, nTokenPortfolio memory nToken
+    ) {
         nToken.loadNTokenPortfolioView(currencyId);
+        totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, block.timestamp);
+    }
 
-        int256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
+    function nTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
+        external override returns (uint256) {
 
-        return (totalAssetPV, nToken);
+    }
+
+    function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
+        external override returns (uint256) {
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time

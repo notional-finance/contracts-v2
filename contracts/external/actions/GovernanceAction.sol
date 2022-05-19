@@ -11,7 +11,7 @@ import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
-import "../adapters/nTokenERC20Proxy.sol";
+import "../../proxy/beacon/BeaconProxy.sol";
 import "../../../interfaces/notional/IRewarder.sol";
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
@@ -22,6 +22,19 @@ import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {
+    address immutable NTOKEN_BEACON;
+
+    constructor(address nTokenBeacon) { NTOKEN_BEACON = nTokenBeacon; }
+
+    /// @dev Throws if called by any account other than the owner.
+    modifier onlyOwner() {
+        require(owner == msg.sender, "Ownable: caller is not the owner");
+        _;
+    }
+
+    function _checkValidCurrency(uint16 currencyId) internal view {
+        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
+    }
 
     /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
     /// Can only be invoked by the current `owner`.
@@ -186,12 +199,14 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        nTokenERC20Proxy proxy = new nTokenERC20Proxy(
-            nTokenERC20(address(this)),
+        bytes memory initCallData = abi.encodeWithSignature(
+            "initialize(uint16,string,string)",
             currencyId,
             underlyingName,
             underlyingSymbol
         );
+
+        BeaconProxy proxy = new BeaconProxy(NTOKEN_BEACON, initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
         emit DeployNToken(currencyId, address(proxy));
     }
