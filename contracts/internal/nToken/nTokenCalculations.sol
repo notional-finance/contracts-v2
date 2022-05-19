@@ -19,9 +19,6 @@ library nTokenCalculations {
         view
         returns (int256)
     {
-        int256 totalAssetPV;
-        int256 totalUnderlyingPV;
-
         {
             uint256 nextSettleTime = nTokenHandler.getNextSettleTime(nToken);
             // If the first asset maturity has passed (the 3 month), this means that all the LTs must

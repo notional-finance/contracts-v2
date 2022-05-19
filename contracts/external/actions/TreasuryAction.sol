@@ -71,8 +71,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         onlyOwner
     {
         _checkValidCurrency(currencyId);
-        // prettier-ignore
-        (int256 reserveBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
         // newBalance cannot be negative and is checked inside BalanceHandler.setReserveCashBalance
         BalanceHandler.setReserveCashBalance(currencyId, newBalance);
     }
@@ -104,7 +102,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         Token memory asset,
         int256 assetInternalRedeemAmount
     ) private returns (uint256) {
-        Token memory underlying = TokenHandler.getUnderlyingToken(currencyId);
         int256 assetExternalRedeemAmount = asset.convertToExternal(assetInternalRedeemAmount);
 
         // This is the actual redeemed amount in underlying external precision

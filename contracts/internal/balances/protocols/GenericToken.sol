@@ -14,7 +14,7 @@ library GenericToken {
         address token,
         address account,
         bytes4 balanceOfSelector
-    ) internal returns (uint256 balance) {
+    ) internal view returns (uint256 balance) {
         (bool success, bytes memory returnData) = token.staticcall(abi.encodeWithSelector(balanceOfSelector, account));
         require(success);
         (balance) = abi.decode(returnData, (uint256));

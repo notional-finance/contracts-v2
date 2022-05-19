@@ -165,7 +165,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     /// @notice Returns current ownership status of the contract
     /// @return owner is the current owner of the Notional system
     /// @return pendingOwner can claim ownership from the owner
-    function getOwnershipStatus() external view override returns (address owner, address pendingOwner) {
+    function getOwnershipStatus() external view override returns (address, address) {
         return (owner, pendingOwner);
     }
 
@@ -493,7 +493,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address, address) {
+    function getLibInfo() external pure returns (address, address) {
         return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 

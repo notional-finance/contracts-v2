@@ -228,7 +228,7 @@ contract AccountAction is ActionGuards {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address, address, address, address) {
+    function getLibInfo() external pure returns (address, address, address, address) {
         return (
             address(FreeCollateralExternal),
             address(MigrateIncentives), 

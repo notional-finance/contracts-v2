@@ -46,7 +46,7 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
     }
 
     /// @dev Only authorizes an upgrades to the specific destination contract
-    function _authorizeUpgrade(address newImplementation) internal override {
+    function _authorizeUpgrade(address newImplementation) internal view override {
         require(
             msg.sender == SELF &&
                 (newImplementation == FINAL_ROUTER || newImplementation == CURRENT_ROUTER)

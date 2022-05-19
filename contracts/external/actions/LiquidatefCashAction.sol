@@ -249,7 +249,7 @@ contract LiquidatefCashAction is ActionGuards {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address) {
+    function getLibInfo() external pure returns (address) {
         return address(FreeCollateralExternal);
     }
 }

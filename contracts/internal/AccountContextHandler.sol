@@ -41,7 +41,7 @@ library AccountContextHandler {
         AccountContext memory accountContext,
         uint16 currencyId,
         uint256 blockTime
-    ) internal view {
+    ) internal pure {
         require(!isBitmapEnabled(accountContext), "Cannot change bitmap");
         require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES, "Invalid currency id");
 
