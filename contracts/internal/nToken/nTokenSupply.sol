@@ -67,7 +67,7 @@ library nTokenSupply {
         uint256 lastAccumulatedTime,
         uint256 emissionRatePerYear,
         uint256 blockTime
-    ) internal view returns (uint256 additionalNOTE) {
+    ) internal pure returns (uint256 additionalNOTE) {
         // nToken totalSupply is never allowed to drop to zero but we check this here to avoid
         // divide by zero errors during initialization. Also ensure that lastAccumulatedTime is not
         // zero to avoid a massive accumulation amount on initialization.

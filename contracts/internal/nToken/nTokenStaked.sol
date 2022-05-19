@@ -21,7 +21,6 @@ library nTokenStaked {
     function setStakedNTokenEmissions(
         uint16 currencyId,
         uint32 totalAnnualStakedEmission,
-        uint8[] calldata termIncentiveWeights,
         uint32 blockTime
     ) internal {
         // First accumulate incentives up to the block time
@@ -156,7 +155,6 @@ library nTokenStaked {
         // Accumulate NOTE incentives to the staker based on their staking term and balance.
         _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
         _updateStakerIncentives(
-            currencyId,
             stakedSupply.totalAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
@@ -212,7 +210,6 @@ library nTokenStaked {
         _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
         // Update the staker's incentive counters in memory
         _updateStakerIncentives(
-            currencyId,
             stakedSupply.totalAccumulatedNOTEPerStaked,
             staker.stakedNTokenBalance,
             stakedNTokenBalanceAfter,
@@ -332,7 +329,6 @@ library nTokenStaked {
         // Update the incentive accumulators then the incentives on each staker
         _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
         _updateStakerIncentives(
-            currencyId,
             stakedSupply.totalAccumulatedNOTEPerStaked,
             fromStaker.stakedNTokenBalance,
             fromStakerBalanceAfter,
@@ -340,7 +336,6 @@ library nTokenStaked {
         );
 
         _updateStakerIncentives(
-            currencyId,
             stakedSupply.totalAccumulatedNOTEPerStaked,
             toStaker.stakedNTokenBalance,
             toStakerBalanceAfter,
@@ -471,7 +466,6 @@ library nTokenStaked {
 
     /**
      * @notice Updates a staker's incentive factors in memory
-     * @param currencyId id of the currency 
      * @param totalAccumulatedNOTEPerStaked this is the total accumulated NOTE for every staked nToken
      * @param stakedNTokenBalanceBefore staked ntoken balance before the stake/unstake action, accumulate
      * incentives up to this point
@@ -480,12 +474,11 @@ library nTokenStaked {
      * @param staker has its incentive counters updated in memory, the unstakeMaturity has not updated yet
      */
     function _updateStakerIncentives(
-        uint16 currencyId,
         uint256 totalAccumulatedNOTEPerStaked,
         uint256 stakedNTokenBalanceBefore,
         uint256 stakedNTokenBalanceAfter,
         nTokenStaker memory staker
-    ) internal {
+    ) internal pure {
         // This is the additional incentives accumulated before any net change to the balance
         staker.accumulatedNOTE = staker.accumulatedNOTE.add(
             stakedNTokenBalanceBefore

@@ -12,11 +12,10 @@ contract MockNTokenStaked {
         uint16 currencyId,
         uint32 baseEmissionRate,
         uint32 termEmissionRate,
-        uint8[] calldata termIncentiveWeights,
         uint32 blockTime
     ) external {
         nTokenSupply.setIncentiveEmissionRate(address(0), baseEmissionRate, blockTime);
-        nTokenStaked.setStakedNTokenEmissions(currencyId, termEmissionRate, termIncentiveWeights, blockTime);
+        nTokenStaked.setStakedNTokenEmissions(currencyId, termEmissionRate, blockTime);
     }
 
     function getNTokenClaim(uint16 currencyId, address account) public view returns (uint256) {
