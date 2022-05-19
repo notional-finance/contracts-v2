@@ -126,6 +126,14 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
         return convertToAssets(shares);
     }
 
+    function previewRedeem(uint256 shares) external view override returns (uint256 assets) {
+        return convertToAssets(shares);
+    }
+
+    function previewWithdraw(uint256 assets) public view override returns (uint256 shares) {
+        return convertToShares(assets);
+    }
+
     function deposit(uint256 assets, address receiver) external override returns (uint256 shares) {
         // Transfer the underlying token directly to Notional to save a hop
         IERC20(underlying).transferFrom(msg.sender, address(Notional), assets);
@@ -164,7 +172,6 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
     function initialize(uint16 currencyId_, string memory underlyingName_, string memory underlyingSymbol_) external virtual;
     function balanceOf(address account) public view override virtual returns (uint256);
     function totalSupply() public view override virtual returns (uint256 supply);
-    function previewWithdraw(uint256 assets) public view override virtual returns (uint256 shares);
     function _getUnderlyingPVExternal() internal view virtual returns (uint256 pvUnderlyingExternal);
     function _mint(uint256 assets, address receiver) internal virtual returns (uint256 tokensMinted);
     function _redeem(uint256 shares, address receiver, address owner) internal virtual returns (uint256 assets);

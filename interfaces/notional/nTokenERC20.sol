@@ -69,7 +69,9 @@ interface StakedNTokenERC20 {
     // TODO: allowances on the staked nToken are set on each contract individually
     function stakedNTokenTotalSupply(uint16 currencyId) external view returns (uint256);
 
-    function stakedNTokenBalance(uint16 currencyId, address account) external view returns (uint256);
+    function stakedNTokenBalanceOf(uint16 currencyId, address account) external view returns (uint256);
+
+    function stakedNTokenRedeemAllowed(uint16 currencyId, address account) external view returns (uint256);
 
     function stakedNTokenTransfer(
         uint16 currencyId,
@@ -92,6 +94,16 @@ interface StakedNTokenERC20 {
         returns (uint256);
 
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
+        external
+        view
+        returns (uint256);
+
+    function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId)
+        external
+        view
+        returns (uint256);
+
+    function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
         external
         view
         returns (uint256);
