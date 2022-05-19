@@ -60,6 +60,9 @@ interface nTokenERC20 {
     function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
         external
         returns (uint256);
+
+    function emitMint(address account, uint256 amount) external;
+    function emitBurn(address account, uint256 amount) external;
 }
 
 interface StakedNTokenERC20 {
