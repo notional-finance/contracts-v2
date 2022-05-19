@@ -2,25 +2,33 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../internal/nToken/nTokenSupply.sol";
-import "../../internal/nToken/nTokenCalculations.sol";
-import "../../internal/markets/AssetRate.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/balances/Incentives.sol";
-import "../../math/SafeInt256.sol";
-import "../../global/StorageLayoutV1.sol";
-import "../../external/FreeCollateralExternal.sol";
-import "../../../interfaces/notional/nTokenERC20.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {StorageLayoutV1} from "../../global/StorageLayoutV1.sol";
+import {Constants} from "../../global/Constants.sol";
+import {nTokenHandler, nTokenPortfolio} from "../../internal/nToken/nTokenHandler.sol";
+import {AccountContext, AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
+import {nTokenCalculations} from "../../internal/nToken/nTokenCalculations.sol";
+import {AssetRate, AssetRateParameters} from "../../internal/markets/AssetRate.sol";
+import {BalanceHandler, BalanceState} from "../../internal/balances/BalanceHandler.sol";
+import {Token, TokenHandler} from "../../internal/balances/TokenHandler.sol";
+import {Incentives} from "../../internal/balances/Incentives.sol";
+
+import {ActionGuards} from "./ActionGuards.sol";
+import {nTokenRedeemAction} from "../../external/actions/nTokenRedeemAction.sol";
+import {nTokenMintAction} from "../../external/actions/nTokenMintAction.sol";
+import {FreeCollateralExternal} from "../../external/FreeCollateralExternal.sol";
+import {SettleAssetsExternal} from "../../external/SettleAssetsExternal.sol";
+import {MigrateIncentives} from "../../external/MigrateIncentives.sol";
+import {nTokenERC20} from "../../../interfaces/notional/nTokenERC20.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
+    using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
@@ -85,7 +93,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(msg.sender == nTokenAddress);
         require(tokenHolder != address(0));
 
         nTokenAllowance[tokenHolder][spender][currencyId] = amount;
@@ -106,7 +114,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(msg.sender == nTokenAddress);
         require(from != to, "Cannot transfer to self");
         requireValidAccount(to);
 
@@ -129,7 +137,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(msg.sender == nTokenAddress);
         require(from != to, "Cannot transfer to self");
         requireValidAccount(to);
 
@@ -240,12 +248,54 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     }
 
     function nTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
-        external override returns (uint256) {
+        external override returns (uint256) 
+    {
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        // We don't implement separate receivers for ERC4626
+        require(msg.sender == nTokenAddress && receiver == owner, "Unauthorized caller");
+        int256 tokensToRedeem = SafeInt256.toInt(shares);
+        BalanceState memory balanceState;
+        AccountContext memory ownerContext = AccountContextHandler.getAccountContext(owner);
+        if (ownerContext.mustSettleAssets()) {
+            ownerContext = SettleAssetsExternal.settleAccount(owner, ownerContext);
+        }
 
+        balanceState.loadBalanceState(owner, currencyId, ownerContext);
+        balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(tokensToRedeem);
+        int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, tokensToRedeem);
+        balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
+        balanceState.finalize(owner, ownerContext, true);
+        ownerContext.setAccountContext(owner);
+
+        if (ownerContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(owner);
+        }
+
+        return SafeInt256.toUint(assetCash);
     }
 
     function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
         external override returns (uint256) {
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        require(msg.sender == nTokenAddress);
+
+        // At this point the proxy will have transferred underlying
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+        int256 assetTokensReceivedInternal = assetToken.convertToInternal(
+            assetToken.mint(currencyId, assets)
+        );
+
+        BalanceState memory balanceState;
+        AccountContext memory receiverContext = AccountContextHandler.getAccountContext(receiver);
+        balanceState.loadBalanceState(receiver, currencyId, receiverContext);
+
+        int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetTokensReceivedInternal);
+        balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(nTokensMinted);
+
+        balanceState.finalize(receiver, receiverContext, true);
+        receiverContext.setAccountContext(receiver);
+
+        return SafeInt256.toUint(nTokensMinted);
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time
@@ -256,7 +306,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) internal returns (bool) {
         // This prevents amountInt from being negative
-        int256 amountInt = SafeCast.toInt256(amount);
+        int256 amountInt = SafeInt256.toInt(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         // If sender has debt then we will check free collateral which will revert if we have not
