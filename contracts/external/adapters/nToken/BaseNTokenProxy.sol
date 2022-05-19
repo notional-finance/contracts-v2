@@ -131,6 +131,7 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
         IERC20(underlying).transferFrom(msg.sender, address(Notional), assets);
         shares = _mint(assets, receiver);
 
+        emit Transfer(address(0), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -139,6 +140,7 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
         IERC20(underlying).transferFrom(msg.sender, address(Notional), assets);
         _mint(assets, receiver);
 
+        emit Transfer(address(0), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -148,11 +150,13 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
         if (shares > balance) shares = balance;
 
         _redeem(shares, receiver, owner);
+        emit Transfer(owner, address(0), shares);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
     function redeem(uint256 shares, address receiver, address owner) external override returns (uint256 assets) {
         assets = _redeem(shares, receiver, owner);
+        emit Transfer(owner, address(0), shares);
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
