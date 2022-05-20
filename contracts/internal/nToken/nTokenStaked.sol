@@ -17,6 +17,8 @@ library nTokenStaked {
     using SafeMath for uint256;
     using SafeInt256 for int256;
 
+    function stakedNTokenAddress(uint16 currencyId) internal view returns (address) { }
+
     /** Getter and Setter Methods **/
     function setStakedNTokenEmissions(
         uint16 currencyId,

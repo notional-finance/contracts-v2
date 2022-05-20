@@ -78,7 +78,7 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     ) external override returns (bool) {
         _spendAllowance(from, msg.sender, amount);
         bool success =
-            IStakedNTokenAction(Notional).stakedNTokenTransferFrom(currencyId, msg.sender, from, to, amount);
+            IStakedNTokenAction(Notional).stakedNTokenTransfer(currencyId, from, to, amount);
 
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(from, to, amount);

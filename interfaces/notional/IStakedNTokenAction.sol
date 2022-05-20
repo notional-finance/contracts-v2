@@ -17,22 +17,12 @@ interface IStakedNTokenAction {
         uint256 amount
     ) external returns (bool);
 
-    function stakedNTokenTransferFrom(
-        uint16 currencyId,
-        address spender,
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
-
     function stakedNTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
         external
-        view
         returns (uint256);
 
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
         external
-        view
         returns (uint256);
 
     function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId)
@@ -40,8 +30,5 @@ interface IStakedNTokenAction {
         view
         returns (uint256);
 
-    function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
-        external
-        view
-        returns (uint256);
+    function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount) external;
 }
