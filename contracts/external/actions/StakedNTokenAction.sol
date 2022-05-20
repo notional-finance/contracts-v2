@@ -172,7 +172,11 @@ contract StakedNTokenAction is IStakedNTokenAction {
         address account,
         int256 assetTokensReceivedInternal
     ) internal returns (uint256 snTokensMinted) {
-        uint256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetTokensReceivedInternal).toUint();
-        snTokensMinted = nTokenStaked.stakeNToken(account, currencyId, nTokensMinted, block.timestamp);
+        int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetTokensReceivedInternal);
+        // When we mint and stake nTokens directly, we do not go via the balance handler so we have to update the
+        // total supply on the nToken directly. This also updates accumulatedNOTEPerNToken and sets it in storage.
+        nTokenSupply.changeNTokenSupply(nTokenHandler.nTokenAddress(currencyId), nTokensMinted, block.timestamp);
+
+        snTokensMinted = nTokenStaked.stakeNToken(account, currencyId, nTokensMinted.toUint(), block.timestamp);
     }
 }
