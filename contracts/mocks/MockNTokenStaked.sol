@@ -78,9 +78,9 @@ contract MockNTokenStaked {
 
     function payFeeToStakedNToken(
         uint16 currencyId,
-        int256 assetAmountInternal,
+        uint256 assetAmountInternal,
         uint256 blockTime
-    ) external returns (int256 nTokensMinted) {
+    ) external {
         return nTokenStaked.payFeeToStakedNToken(currencyId, assetAmountInternal, blockTime);
     }
 

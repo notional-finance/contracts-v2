@@ -9,6 +9,8 @@ import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
 import {nTokenStaker, StakedNTokenSupply, nTokenStaked} from "../../internal/nToken/nTokenStaked.sol";
+import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
 import {BalanceHandler, BalanceState} from "../../internal/balances/BalanceHandler.sol";
 import {Token, TokenHandler} from "../../internal/balances/TokenHandler.sol";
 import {AccountContext, AccountContextHandler} from "../../internal/AccountContextHandler.sol";
@@ -118,6 +120,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
         stakerBalance.netNTokenTransfer = nTokensToStake.toInt().neg();
         stakerBalance.finalize(msg.sender, stakerContext, false);
         stakerContext.setAccountContext(msg.sender);
+        // TODO: need to emit a Transfer event on the nToken here
 
         // nTokens are used as collateral so we have to check the free collateral when we transfer.
         if (stakerContext.hasDebt != 0x00) {

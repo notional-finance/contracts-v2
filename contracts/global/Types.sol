@@ -460,8 +460,6 @@ struct AccountBalance {
 
 // A per account, per currency context object for Staked nTokens
 struct nTokenStakerStorage {
-    // Maturity when these staked nTokens will be able to unstake
-    uint32 unstakeMaturity;
     // Staked NToken balance for this account
     uint96 stakedNTokenBalance;
     // Share of the NOTE incentives the account does not have a claim over, overflows
@@ -470,12 +468,19 @@ struct nTokenStakerStorage {
     // Accumulated NOTE incentives, overflows at 720 million NOTE tokens
     // (in 1e8 precision, only 100 million NOTE token supply)
     uint56 accumulatedNOTE;
-    // 16 bytes remaining
+}
+
+struct nTokenStakerUnstakeSignalStorage {
+    // Maturity when these staked nTokens will be able to unstake
+    uint32 unstakeMaturity;
+    // Staked nTokens signalled for unstaking
+    uint96 snTokensToUnstake;
+    // Withhold some snTokens as a deposit if the staker does not unstake
+    uint96 snTokenDeposit;
 }
 
 // In memory object for the staker context
 struct nTokenStaker {
-    uint256 unstakeMaturity;
     uint256 stakedNTokenBalance;
     uint256 accountIncentiveDebt;
     uint256 accumulatedNOTE;
@@ -497,6 +502,24 @@ struct StakedNTokenSupplyStorage {
     uint128 lastBaseAccumulatedNOTEPerNToken;
     // Total accumulated NOTE per staked nToken
     uint128 totalAccumulatedNOTEPerStaked;
+}
+
+struct StakedNTokenMaturityStorage {
+    // Holds the accrued cash profits for a given maturity 
+    uint80 totalCashProfits;
+    // Total snTokens that have signalled they will unstake in the following
+    // unstaking window
+    uint96 snTokensSignalledForUnstaking;
+    // Set to true when the previous maturity's profits have been cleared, used as
+    // a storage optimization to ensure that we properly calculate the snToken PV
+    // without a look back to the previous maturity.
+    bool hasClearedPreviousProfits;
+}
+
+struct StakedNTokenMaturity {
+    uint256 totalCashProfits;
+    uint256 snTokensSignalledForUnstaking;
+    bool hasClearedPreviousProfits;
 }
 
 struct StakedNTokenAddressStorage {

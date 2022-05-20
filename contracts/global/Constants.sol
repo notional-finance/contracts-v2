@@ -135,7 +135,9 @@ library Constants {
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
 
     // nToken Staking Parameters
-    uint256 internal constant MAX_STAKING_TERMS = 4;
-    uint256 internal constant UNSTAKE_WINDOW_SECONDS = DAY * 7;
-    uint256 internal constant TOTAL_TERM_INCENTIVE_WEIGHT = 200;
+    uint256 internal constant UNSTAKE_SIGNAL_WINDOW_BEGIN_OFFSET = DAY * 28;
+    uint256 internal constant UNSTAKE_SIGNAL_WINDOW_END_OFFSET = DAY * 14;
+    uint256 internal constant UNSTAKE_WINDOW_BEGIN_OFFSET = DAY;
+    uint256 internal constant UNSTAKE_WINDOW_END_OFFSET = DAY * 8;
+    uint256 internal constant UNSTAKE_DEPOSIT_RATE = 50 * BASIS_POINT;
 }
