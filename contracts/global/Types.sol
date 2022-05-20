@@ -508,3 +508,10 @@ struct StakedNTokenSupply {
     uint256 lastBaseAccumulatedNOTEPerNToken;
     uint256 totalAccumulatedNOTEPerStaked;
 }
+
+enum UnstakeNTokenMethod {
+    UnstakeToNToken,
+    RedeemToCashBalance,
+    TransferToAccountAssetCash,
+    TransferToAccountUnderlying
+}

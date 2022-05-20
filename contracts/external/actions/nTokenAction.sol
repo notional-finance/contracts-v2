@@ -14,11 +14,11 @@ import {Token, TokenHandler} from "../../internal/balances/TokenHandler.sol";
 import {Incentives} from "../../internal/balances/Incentives.sol";
 
 import {ActionGuards} from "./ActionGuards.sol";
-import {nTokenRedeemAction} from "../../external/actions/nTokenRedeemAction.sol";
-import {nTokenMintAction} from "../../external/actions/nTokenMintAction.sol";
-import {FreeCollateralExternal} from "../../external/FreeCollateralExternal.sol";
-import {SettleAssetsExternal} from "../../external/SettleAssetsExternal.sol";
-import {MigrateIncentives} from "../../external/MigrateIncentives.sol";
+import {nTokenRedeemAction} from "./nTokenRedeemAction.sol";
+import {nTokenMintAction} from "./nTokenMintAction.sol";
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
+import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
+import {MigrateIncentives} from "../MigrateIncentives.sol";
 import {INTokenAction} from "../../../interfaces/notional/INTokenAction.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";

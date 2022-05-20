@@ -61,11 +61,10 @@ contract MockNTokenStaked {
         address account,
         uint16 currencyId,
         uint256 nTokensToStake,
-        uint256 unstakeMaturity,
         uint256 blockTime
     ) external returns (uint256 sNTokensToMint) {
         changeNTokenSupply(int256(nTokensToStake), blockTime);
-        return nTokenStaked.stakeNToken(account, currencyId, nTokensToStake, unstakeMaturity, blockTime);
+        return nTokenStaked.stakeNToken(account, currencyId, nTokensToStake, blockTime);
     }
 
     function unstakeNToken(

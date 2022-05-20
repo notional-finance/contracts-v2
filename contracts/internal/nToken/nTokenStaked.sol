@@ -5,16 +5,17 @@ pragma abicoder v2;
 import "../../global/Types.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Constants.sol";
-import "../../math/SafeInt256.sol";
 import "../markets/DateTime.sol";
 import "./nTokenHandler.sol";
 import "./nTokenSupply.sol";
 import "../../external/actions/nTokenMintAction.sol";
 import "../../external/actions/nTokenRedeemAction.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
 library nTokenStaked {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
 
     function stakedNTokenAddress(uint16 currencyId) internal view returns (address) { }
@@ -60,15 +61,10 @@ library nTokenStaked {
         mapping(address => mapping(uint256 => nTokenStakerStorage)) storage store = LibStorage.getNTokenStaker();
         nTokenStakerStorage storage s = store[account][currencyId];
 
-        require(staker.unstakeMaturity <= type(uint32).max); // dev: unstake maturity overflow
-        require(staker.stakedNTokenBalance <= type(uint96).max); // dev: staked nToken balance overflow
-        require(staker.accountIncentiveDebt <= type(uint56).max); // dev: account incentive debt overflow
-        require(staker.accumulatedNOTE <= type(uint56).max); // dev: accumulated note overflow
-
-        s.unstakeMaturity = uint32(staker.unstakeMaturity);
-        s.stakedNTokenBalance = uint96(staker.stakedNTokenBalance);
-        s.accountIncentiveDebt = uint56(staker.accountIncentiveDebt);
-        s.accumulatedNOTE = uint56(staker.accumulatedNOTE);
+        s.unstakeMaturity = staker.unstakeMaturity.toUint32();
+        s.stakedNTokenBalance = staker.stakedNTokenBalance.toUint96();
+        s.accountIncentiveDebt = staker.accountIncentiveDebt.toUint56();
+        s.accumulatedNOTE = staker.accumulatedNOTE.toUint56();
     }
 
     function getStakedNTokenSupply(
@@ -93,18 +89,12 @@ library nTokenStaked {
         mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
         StakedNTokenSupplyStorage storage s = store[currencyId];
 
-        require(stakedSupply.totalSupply <= type(uint96).max); // dev: staked total supply overflow
-        require(stakedSupply.nTokenBalance <= type(uint96).max); // dev: staked ntoken balance overflow
-        require(stakedSupply.lastAccumulatedTime <= type(uint32).max); // dev: last accumulated time overflow
-        require(stakedSupply.lastBaseAccumulatedNOTEPerNToken <= type(uint128).max); // dev: staked last accumulated note overflow
-        require(stakedSupply.totalAccumulatedNOTEPerStaked <= type(uint128).max); // dev: staked base accumulated note overflow
-
         // Incentive rates are not updated in here, they are updated separately in governance
-        s.totalSupply = uint96(stakedSupply.totalSupply);
-        s.nTokenBalance = uint96(stakedSupply.nTokenBalance);
-        s.lastAccumulatedTime = uint32(stakedSupply.lastAccumulatedTime);
-        s.lastBaseAccumulatedNOTEPerNToken = uint128(stakedSupply.lastBaseAccumulatedNOTEPerNToken);
-        s.totalAccumulatedNOTEPerStaked = uint128(stakedSupply.totalAccumulatedNOTEPerStaked);
+        s.totalSupply = stakedSupply.totalSupply.toUint96();
+        s.nTokenBalance = stakedSupply.nTokenBalance.toUint96();
+        s.lastAccumulatedTime = stakedSupply.lastAccumulatedTime.toUint32();
+        s.lastBaseAccumulatedNOTEPerNToken = stakedSupply.lastBaseAccumulatedNOTEPerNToken.toUint128();
+        s.totalAccumulatedNOTEPerStaked = stakedSupply.totalAccumulatedNOTEPerStaked.toUint128();
     }
 
     /**
@@ -120,8 +110,6 @@ library nTokenStaked {
      * in the ActionGuards.sol file
      * @param currencyId the currency id of the nToken to stake
      * @param nTokensToStake the amount of nTokens to stake
-     * @param unstakeMaturity the timestamp of the maturity when the account can unstake, this must align with
-     * an existing quarterly maturity date and be within the max staking terms defined.
      * @param blockTime the current block time
      * @return sNTokensToMint the number of staked nTokens minted
      */
@@ -129,7 +117,6 @@ library nTokenStaked {
         address account,
         uint16 currencyId,
         uint256 nTokensToStake,
-        uint256 unstakeMaturity,
         uint256 blockTime
     ) internal returns (uint256 sNTokensToMint) {
         // If nTokensToStake == 0 then the user could just be resetting their unstakeMaturity
@@ -165,7 +152,7 @@ library nTokenStaked {
 
         // Update unstake maturity only after we accumulate incentives, we don't want users to accumulate
         // incentives on a term they are not currently staked in.
-        staker.unstakeMaturity = unstakeMaturity;
+        // staker.unstakeMaturity = unstakeMaturity;
         staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
         stakedSupply.totalSupply = stakedSupply.totalSupply.add(sNTokensToMint);
         stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(nTokensToStake);
