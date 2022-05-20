@@ -76,12 +76,12 @@ contract MockNTokenStaked {
         return nTokenStaked.unstakeNToken(account, currencyId, tokensToUnstake, blockTime);
     }
 
-    function payFeeToStakedNToken(
+    function updateStakedNTokenProfits(
         uint16 currencyId,
-        uint256 assetAmountInternal,
+        int256 assetAmountInternal,
         uint256 blockTime
     ) external {
-        return nTokenStaked.payFeeToStakedNToken(currencyId, assetAmountInternal, blockTime);
+        return nTokenStaked.updateStakedNTokenProfits(currencyId, assetAmountInternal, blockTime);
     }
 
     function changeNTokenSupply(

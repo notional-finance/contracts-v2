@@ -311,15 +311,20 @@ library nTokenStaked {
      * @param assetAmountInternal amount of asset tokens the fee is paid in
      * @param blockTime current block time
      */
-    function payFeeToStakedNToken(
+    function updateStakedNTokenProfits(
         uint16 currencyId,
-        uint256 assetAmountInternal,
+        int256 assetAmountInternal,
         uint256 blockTime
     ) internal {
         uint256 unstakeMaturity = getCurrentMaturity(blockTime);
         StakedNTokenMaturity memory snTokenMaturity = getStakedNTokenMaturity(currencyId, unstakeMaturity);
-        // Adds the fee to the profits
-        snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.add(assetAmountInternal);
+        if (assetAmountInternal >= 0) {
+            // Adds the fee to the profits
+            snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.add(uint256(assetAmountInternal));
+        } else {
+            // The fee may be negative in the case it is a refund
+            snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.sub(uint256(assetAmountInternal.neg()));
+        }
         _setStakedNTokenMaturity(currencyId, unstakeMaturity, snTokenMaturity);
     }
 
