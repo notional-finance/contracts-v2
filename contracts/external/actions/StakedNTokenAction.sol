@@ -2,9 +2,11 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
+import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 import {IStakedNTokenAction} from "../../../../interfaces/notional/IStakedNTokenAction.sol";
 import {UnstakeNTokenMethod} from "../../global/Types.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
 import {nTokenStaker, StakedNTokenSupply, nTokenStaked} from "../../internal/nToken/nTokenStaked.sol";
 import {BalanceHandler, BalanceState} from "../../internal/balances/BalanceHandler.sol";
@@ -21,6 +23,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
     using SafeInt256 for int256;
+    using SafeUint256 for uint256;
 
     modifier onlyStakedNTokenProxy(uint16 currencyId) {
         require(msg.sender == nTokenStaked.stakedNTokenAddress(currencyId));
@@ -101,10 +104,30 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
     // NOTE: these methods use msg.sender
 
-    function stakeNToken(uint16 currencyId, uint256 nTokensToStake) external {
-        // TODO transfer from cash balance
+    function stakeNToken(uint16 currencyId, uint256 nTokensToStake) external returns (uint256 snTokensMinted) {
+        AccountContext memory stakerContext = AccountContextHandler.getAccountContext(msg.sender);
+        // When removing nTokens from an account context, it is potentially used as collateral. We check
+        // if the account has to settle, remove the nTokens via transfer (such that we do not change the
+        // total supply of nTokens) and then check free collateral if required.
+        if (stakerContext.mustSettleAssets()) {
+            stakerContext = SettleAssetsExternal.settleAccount(msg.sender, stakerContext);
+        }
 
-        // need to do FC check
+        BalanceState memory stakerBalance;
+        stakerBalance.loadBalanceState(msg.sender, currencyId, stakerContext);
+        stakerBalance.netNTokenTransfer = nTokensToStake.toInt().neg();
+        stakerBalance.finalize(msg.sender, stakerContext, false);
+        stakerContext.setAccountContext(msg.sender);
+
+        // nTokens are used as collateral so we have to check the free collateral when we transfer.
+        if (stakerContext.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
+        }
+
+        snTokensMinted = nTokenStaked.stakeNToken(msg.sender, currencyId, nTokensToStake, block.timestamp);
+        
+        // This emits a Transfer(address(0), account, snTokensMinted) event for tracking ERC20 balances
+        INTokenProxy(nTokenStaked.stakedNTokenAddress(currencyId)).emitMint(msg.sender, snTokensMinted);
     }
 
     function mintAndStakeNToken(

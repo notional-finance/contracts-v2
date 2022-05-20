@@ -104,4 +104,9 @@ library SafeUint256 {
         return uint128(x);
     }
 
+    function toInt(uint256 x) internal pure returns (int256) {
+        require (x <= uint256(type(int256).max)); // dev: toInt overflow
+        return int256(x);
+    }
+
 }
