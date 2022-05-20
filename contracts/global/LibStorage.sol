@@ -47,7 +47,7 @@ library LibStorage {
         LendingPool,
         nTokenStaker,
         StakedNTokenSupply,
-        StakedMaturityIncentives
+        StakedNTokenAddress
     }
 
     /// @dev Mapping from an account address to account context
@@ -214,6 +214,12 @@ library LibStorage {
     /// @dev Returns object for an StakedNTokenSupply, mapping is from currency id to object
     function getStakedNTokenSupply() internal pure returns (mapping(uint256 => StakedNTokenSupplyStorage) storage store) {
         uint256 slot = _getStorageSlot(StorageId.StakedNTokenSupply);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an StakedNTokenSupply, mapping is from currency id to object
+    function getStakedNTokenAddress() internal pure returns (mapping(uint256 => StakedNTokenAddressStorage) storage store) {
+        uint256 slot = _getStorageSlot(StorageId.StakedNTokenAddress);
         assembly { store.slot := slot }
     }
 

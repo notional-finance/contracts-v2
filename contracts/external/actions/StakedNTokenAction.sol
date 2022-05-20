@@ -26,7 +26,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     using SafeUint256 for uint256;
 
     modifier onlyStakedNTokenProxy(uint16 currencyId) {
-        require(msg.sender == nTokenStaked.stakedNTokenAddress(currencyId));
+        require(msg.sender == nTokenStaked.getStakedNTokenAddress(currencyId));
         _;
     }
 
@@ -87,7 +87,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
     function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
         external override onlyStakedNTokenProxy(currencyId) {
-
+        // TODO
     }
 
     function stakedNTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
@@ -127,7 +127,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
         snTokensMinted = nTokenStaked.stakeNToken(msg.sender, currencyId, nTokensToStake, block.timestamp);
         
         // This emits a Transfer(address(0), account, snTokensMinted) event for tracking ERC20 balances
-        INTokenProxy(nTokenStaked.stakedNTokenAddress(currencyId)).emitMint(msg.sender, snTokensMinted);
+        INTokenProxy(nTokenStaked.getStakedNTokenAddress(currencyId)).emitMint(msg.sender, snTokensMinted);
     }
 
     function mintAndStakeNToken(
@@ -152,6 +152,9 @@ contract StakedNTokenAction is IStakedNTokenAction {
         UnstakeNTokenMethod unstakeMethod
     ) external {
         _unstakeNToken(currencyId, msg.sender, receiver, unstakeAmount, unstakeMethod);
+
+        // This emits a Transfer(account, address(0), unstakeAmount) event for tracking ERC20 balances
+        INTokenProxy(nTokenStaked.getStakedNTokenAddress(currencyId)).emitMint(msg.sender, unstakeAmount);
     }
 
     function _unstakeNToken(

@@ -499,6 +499,10 @@ struct StakedNTokenSupplyStorage {
     uint128 totalAccumulatedNOTEPerStaked;
 }
 
+struct StakedNTokenAddressStorage {
+    address stakedNTokenAddress;
+}
+
 // Staked nToken supply in memory
 struct StakedNTokenSupply {
     uint256 totalSupply;
