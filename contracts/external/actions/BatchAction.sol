@@ -14,7 +14,7 @@ import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../../interfaces/notional/NotionalCallback.sol";
-import {nTokenERC20} from "../../../interfaces/notional/nTokenERC20.sol";
+import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
@@ -367,7 +367,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
                 tokensMinted
             );
-            try nTokenERC20(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
+            try INTokenProxy(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
                 // prettier-ignore
@@ -388,7 +388,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
-            try nTokenERC20(nToken).emitBurn(account, SafeInt256.toUint(depositActionAmount)) {} catch {}
+            try INTokenProxy(nToken).emitBurn(account, SafeInt256.toUint(depositActionAmount)) {} catch {}
         }
     }
 

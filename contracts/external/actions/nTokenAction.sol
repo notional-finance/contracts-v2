@@ -19,11 +19,11 @@ import {nTokenMintAction} from "../../external/actions/nTokenMintAction.sol";
 import {FreeCollateralExternal} from "../../external/FreeCollateralExternal.sol";
 import {SettleAssetsExternal} from "../../external/SettleAssetsExternal.sol";
 import {MigrateIncentives} from "../../external/MigrateIncentives.sol";
-import {nTokenERC20} from "../../../interfaces/notional/nTokenERC20.sol";
+import {INTokenAction} from "../../../interfaces/notional/INTokenAction.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
-contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
+contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;

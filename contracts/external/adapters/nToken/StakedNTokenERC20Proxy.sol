@@ -2,7 +2,7 @@
 pragma solidity ^0.7.0;
 pragma abicoder v2;
 
-import {StakedNTokenERC20} from "../../../../interfaces/notional/nTokenERC20.sol";
+import {IStakedNTokenAction} from "../../../../interfaces/notional/IStakedNTokenAction.sol";
 import {BaseNTokenProxy} from "./BaseNTokenProxy.sol";
 
 contract StakedNTokenProxy is BaseNTokenProxy {
@@ -22,14 +22,14 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     /// @notice Total number of tokens in circulation
     function totalSupply() public view override returns (uint256) {
         // Total supply is looked up via the token address
-        return StakedNTokenERC20(Notional).stakedNTokenTotalSupply(currencyId);
+        return IStakedNTokenAction(Notional).stakedNTokenTotalSupply(currencyId);
     }
 
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
     function balanceOf(address account) public view override returns (uint256) {
-        return StakedNTokenERC20(Notional).stakedNTokenBalanceOf(currencyId, account);
+        return IStakedNTokenAction(Notional).stakedNTokenBalanceOf(currencyId, account);
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -59,7 +59,7 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
     function transfer(address to, uint256 amount) external override returns (bool) {
-        bool success = StakedNTokenERC20(Notional).stakedNTokenTransfer(currencyId, msg.sender, to, amount);
+        bool success = IStakedNTokenAction(Notional).stakedNTokenTransfer(currencyId, msg.sender, to, amount);
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(msg.sender, to, amount);
         return success;
@@ -78,7 +78,7 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     ) external override returns (bool) {
         _spendAllowance(from, msg.sender, amount);
         bool success =
-            StakedNTokenERC20(Notional).stakedNTokenTransferFrom(currencyId, msg.sender, from, to, amount);
+            IStakedNTokenAction(Notional).stakedNTokenTransferFrom(currencyId, msg.sender, from, to, amount);
 
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(from, to, amount);
@@ -86,7 +86,7 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     }
 
     function _getUnderlyingPVExternal() internal view override returns (uint256 pvUnderlyingExternal) {
-        return StakedNTokenERC20(Notional).stakedNTokenPresentValueUnderlyingExternal(currencyId);
+        return IStakedNTokenAction(Notional).stakedNTokenPresentValueUnderlyingExternal(currencyId);
     }
 
     function maxWithdraw(address owner) external override view returns (uint256 maxAssets) {
@@ -94,20 +94,20 @@ contract StakedNTokenProxy is BaseNTokenProxy {
     }
 
     function maxRedeem(address owner) public view override returns (uint256 maxShares) {
-        return StakedNTokenERC20(Notional).stakedNTokenRedeemAllowed(currencyId, owner);
+        return IStakedNTokenAction(Notional).stakedNTokenRedeemAllowed(currencyId, owner);
     }
 
     function signalUnstake(uint256 amount) external {
-        StakedNTokenERC20(Notional).stakedNTokenSignalUnstake(currencyId, msg.sender, amount);
+        IStakedNTokenAction(Notional).stakedNTokenSignalUnstake(currencyId, msg.sender, amount);
     }
 
     function _redeem(uint256 shares, address receiver, address owner) internal override returns (uint256 assets) {
         if (receiver != owner) _spendAllowance(owner, msg.sender, shares);
-        return StakedNTokenERC20(Notional).stakedNTokenRedeemViaProxy(currencyId, shares, receiver, owner);
+        return IStakedNTokenAction(Notional).stakedNTokenRedeemViaProxy(currencyId, shares, receiver, owner);
     }
 
     function _mint(uint256 assets, address receiver) internal override returns (uint256 tokensMinted) {
-        return StakedNTokenERC20(Notional).stakedNTokenMintViaProxy(currencyId, assets, receiver);
+        return IStakedNTokenAction(Notional).stakedNTokenMintViaProxy(currencyId, assets, receiver);
     }
 
     function _spendAllowance(address account, address spender, uint256 amount) internal {

@@ -9,7 +9,7 @@ import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/AccountContextHandler.sol";
-import {nTokenERC20} from "../../../interfaces/notional/nTokenERC20.sol";
+import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 
 contract AccountAction is ActionGuards {
     using BalanceHandler for BalanceState;
@@ -211,7 +211,7 @@ contract AccountAction is ActionGuards {
         }
 
         address nToken = nTokenHandler.nTokenAddress(currencyId);
-        try nTokenERC20(nToken).emitBurn(redeemer, SafeInt256.toUint(tokensToRedeem)) {} catch {}
+        try INTokenProxy(nToken).emitBurn(redeemer, SafeInt256.toUint(tokensToRedeem)) {} catch {}
         emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
         return (totalAssetCash, hasResidual);
     }
