@@ -85,18 +85,25 @@ contract StakedNTokenProxy is BaseNTokenProxy {
         return success;
     }
 
+    /// @notice Returns the value of the total supply of staked nTokens in external precision
     function _getUnderlyingPVExternal() internal view override returns (uint256 pvUnderlyingExternal) {
         return IStakedNTokenAction(Notional).stakedNTokenPresentValueUnderlyingExternal(currencyId);
     }
 
+    /// @notice Suffers from estimation issues related to nToken redemption. maxAssets is an overestimation
+    /// of the amount the owner can withdraw.
     function maxWithdraw(address owner) external override view returns (uint256 maxAssets) {
         return convertToShares(maxRedeem(owner));
     }
 
+    /// @notice Maximum redemption amount will return a positive number during the unstake window if the 
+    /// owner has signalled that they wil unstake, otherwise it will always be zero.
     function maxRedeem(address owner) public view override returns (uint256 maxShares) {
         return IStakedNTokenAction(Notional).stakedNTokenRedeemAllowed(currencyId, owner);
     }
 
+    /// @notice Allows msg.sender to signal that they will unstake some amount of nTokens. Will only succeed
+    /// during the unstake signalling window.
     function signalUnstake(uint256 amount) external {
         IStakedNTokenAction(Notional).stakedNTokenSignalUnstake(currencyId, msg.sender, amount);
     }

@@ -76,7 +76,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     }
 
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external override onlyStakedNTokenProxy(currencyId) returns (uint256 snTokensMinted) {
+        external payable override onlyStakedNTokenProxy(currencyId) returns (uint256 snTokensMinted) {
 
         // The proxy will have transferred to Notional exactly assets amount in underlying
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);

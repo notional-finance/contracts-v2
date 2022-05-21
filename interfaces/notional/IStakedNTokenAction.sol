@@ -3,7 +3,6 @@ pragma solidity ^0.7.0;
 pragma abicoder v2;
 
 interface IStakedNTokenAction {
-    // TODO: allowances on the staked nToken are set on each contract individually
     function stakedNTokenTotalSupply(uint16 currencyId) external view returns (uint256);
 
     function stakedNTokenBalanceOf(uint16 currencyId, address account) external view returns (uint256);
