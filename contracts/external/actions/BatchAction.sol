@@ -367,6 +367,10 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
                 tokensMinted
             );
+
+            // Emits a Transfer(address(0), account, tokensMinted) event (if the proxy has this method),
+            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
+            // not have this method, it is only available in newer proxies.
             try INTokenProxy(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
@@ -388,6 +392,10 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
 
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
+
+            // Emits a Transfer(account, address(0), tokensRedeemed) event (if the proxy has this method),
+            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
+            // not have this method, it is only available in newer proxies.
             try INTokenProxy(nToken).emitBurn(account, SafeInt256.toUint(depositActionAmount)) {} catch {}
         }
     }
