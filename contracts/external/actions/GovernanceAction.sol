@@ -11,7 +11,8 @@ import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
-import "../../proxy/beacon/BeaconProxy.sol";
+import {BeaconProxy} from "../../proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "../../proxy/beacon/UpgradeableBeacon.sol";
 import "../../../interfaces/notional/IRewarder.sol";
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
@@ -22,9 +23,12 @@ import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {
-    address immutable NTOKEN_BEACON;
+    /// @notice Address of the upgradeable nToken Beacon. This UpgradeableBeacon can have its
+    /// implementation upgraded which will change the implementation for all nToken proxies.
+    /// Governance deploys  nBeaconProxies which point to this beacon.
+    address public immutable NTOKEN_UPGRADEABLE_BEACON;
 
-    constructor(address nTokenBeacon) { NTOKEN_BEACON = nTokenBeacon; }
+    constructor(address nTokenBeacon) { NTOKEN_UPGRADEABLE_BEACON = nTokenBeacon; }
 
     /// @dev Throws if called by any account other than the owner.
     modifier onlyOwner() {
@@ -69,6 +73,12 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit OwnershipTransferred(owner, _pendingOwner);
         owner = _pendingOwner;
         pendingOwner = address(0);
+    }
+
+    /// @notice Allows the owner to upgrade the nToken Beacon which will upgrade the implementation
+    /// on all the nToken beacon proxies.
+    function upgradeNTokenBeacon(address newImplementation) external onlyOwner {
+        UpgradeableBeacon(NTOKEN_UPGRADEABLE_BEACON).upgradeTo(newImplementation);
     }
 
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
@@ -206,7 +216,8 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
             underlyingSymbol
         );
 
-        BeaconProxy proxy = new BeaconProxy(NTOKEN_BEACON, initCallData);
+        // A beacon proxy gets its implementation via the UpgradeableBeacon set here.
+        BeaconProxy proxy = new BeaconProxy(NTOKEN_UPGRADEABLE_BEACON, initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
         emit DeployNToken(currencyId, address(proxy));
     }
