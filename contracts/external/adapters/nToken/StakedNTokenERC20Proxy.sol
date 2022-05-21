@@ -8,7 +8,7 @@ import {BaseNTokenProxy} from "./BaseNTokenProxy.sol";
 contract StakedNTokenProxy is BaseNTokenProxy {
     mapping(address => mapping(address => uint256)) private _allowance;
 
-    constructor(address notional_) BaseNTokenProxy(notional_) { }
+    constructor(address notional_, address weth_) BaseNTokenProxy(notional_, weth_) { }
 
     function initialize(
         uint16 currencyId_,
@@ -106,8 +106,8 @@ contract StakedNTokenProxy is BaseNTokenProxy {
         return IStakedNTokenAction(Notional).stakedNTokenRedeemViaProxy(currencyId, shares, receiver, owner);
     }
 
-    function _mint(uint256 assets, address receiver) internal override returns (uint256 tokensMinted) {
-        return IStakedNTokenAction(Notional).stakedNTokenMintViaProxy(currencyId, assets, receiver);
+    function _mint(uint256 assets, uint256 msgValue, address receiver) internal override returns (uint256 tokensMinted) {
+        return IStakedNTokenAction(Notional).stakedNTokenMintViaProxy{value: msgValue}(currencyId, assets, receiver);
     }
 
     function _spendAllowance(address account, address spender, uint256 amount) internal {

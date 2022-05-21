@@ -58,7 +58,5 @@ interface INTokenAction {
         returns (uint256);
 
     function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external
-        returns (uint256);
-
+        external payable returns (uint256);
 }

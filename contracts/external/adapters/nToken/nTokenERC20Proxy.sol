@@ -7,7 +7,7 @@ import {BaseNTokenProxy} from "./BaseNTokenProxy.sol";
 
 contract nTokenERC20Proxy is BaseNTokenProxy {
 
-    constructor(address notional_) BaseNTokenProxy(notional_) { }
+    constructor(address notional_, address weth_) BaseNTokenProxy(notional_, weth_) { }
 
     function initialize(
         uint16 currencyId_,
@@ -36,6 +36,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     /// @param spender The address of the account spending the funds
     /// @return The number of tokens approved
     function allowance(address account, address spender) external view override returns (uint256) {
+        // For the nToken proxy, allowances are tracked on the Notional contract itself.
         return INTokenAction(Notional).nTokenTransferAllowance(currencyId, account, spender);
     }
 
@@ -94,14 +95,19 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
         return INTokenAction(Notional).nTokenPresentValueUnderlyingDenominated(currencyId);
     }
 
+    /// @notice Returns the present value in underlying external precision, used for the ERC4626 methods
     function _getUnderlyingPVExternal() internal view override returns (uint256 pvUnderlyingExternal) {
         return INTokenAction(Notional).nTokenPresentValueUnderlyingExternal(currencyId);
     }
 
+    /// @notice Suffers from estimation issues related to nToken redemption. maxAssets is an overestimation
+    /// of the amount the owner can withdraw.
     function maxWithdraw(address owner) external override view returns (uint256 maxAssets) {
         return convertToShares(balanceOf(owner));
     }
 
+    /// @notice All nTokens are freely redeemable, however, in certain economic conditions they may need to
+    /// be converted to fCash.
     function maxRedeem(address owner) external view override returns (uint256 maxShares) {
         return balanceOf(owner);
     }
@@ -110,7 +116,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
         return INTokenAction(Notional).nTokenRedeemViaProxy(currencyId, shares, receiver, owner);
     }
 
-    function _mint(uint256 assets, address receiver) internal override returns (uint256 tokensMinted) {
-        return INTokenAction(Notional).nTokenMintViaProxy(currencyId, assets, receiver);
+    function _mint(uint256 assets, uint256 msgValue, address receiver) internal override returns (uint256 tokensMinted) {
+        return INTokenAction(Notional).nTokenMintViaProxy{value: msgValue}(currencyId, assets, receiver);
     }
 }

@@ -22,8 +22,7 @@ interface IStakedNTokenAction {
         returns (uint256);
 
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external
-        returns (uint256);
+        external payable returns (uint256);
 
     function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId)
         external
