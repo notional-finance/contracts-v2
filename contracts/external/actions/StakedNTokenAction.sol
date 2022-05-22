@@ -33,58 +33,66 @@ contract StakedNTokenAction is IStakedNTokenAction {
         _;
     }
 
-    function stakedNTokenTotalSupply(uint16 currencyId) external override view returns (
-        uint256
-    ) {
-        return nTokenStaked.getStakedNTokenSupply(currencyId).totalSupply;
+    function stakedNTokenTotalSupply(uint16 currencyId)
+        external override view returns (uint256) {
+        return StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId).totalSupply;
     }
 
-    function stakedNTokenBalanceOf(uint16 currencyId, address account) external override view returns (
-        uint256
-    ) {
+    function stakedNTokenBalanceOf(uint16 currencyId, address account)
+        external override view returns (uint256) {
         return nTokenStakerLib.getNTokenStaker(account, currencyId).stakedNTokenBalance;
+    }
+
+    function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId) external override view returns (uint256) {
+        StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
+        (
+            uint256 valueInAssetCash,
+            /* */,
+            AssetRateParameters memory assetRate
+        ) = stakedSupply.getSNTokenPresentValue(currencyId, block.timestamp);
+
+        return assetRate.convertToUnderlying(valueInAssetCash)
+            .mul(assetRate.underlyingDecimals)
+            .div(Constants.INTERNAL_TOKEN_PRECISION)
+            .toUint();
     }
 
     function stakedNTokenRedeemAllowed(uint16 currencyId, address account) 
         external override view returns (uint256) {
         // TODO
-
     }
 
-    function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId)
-        external override view
-        returns (uint256) {
-        // TODO
-
-    }
-
-    function stakedNTokenPresentValue(uint16 currencyId)
-        external view
-        returns (uint256) {
-        // TODO
-
-    }
 
     // These are called via the ERC20 proxy
 
+    /**
+     * @notice Transfers staked nTokens between accounts.
+     * @param from account to transfer from
+     * @param to account to transfer to
+     * @param currencyId currency id of the nToken
+     * @param amount amount of staked nTokens to transfer
+     */
     function stakedNTokenTransfer(
         uint16 currencyId,
         address from,
         address to,
         uint256 amount
     ) external override onlyStakedNTokenProxy(currencyId) returns (bool) {
-        nTokenStaked.transferStakedNToken(from, to, currencyId, amount, block.timestamp);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+
+        // Update the incentive accumulators then the incentives on each staker, no nToken supply change
+        uint256 accumulatedNOTE = stakedSupply.updateAccumulatedNOTE(currencyId, block.timestamp, 0);
+        nTokenStakerLib.updateStakerBalance(from, currencyId, amount.toInt().neg(), accumulatedNOTE);
+        nTokenStakerLib.updateStakerBalance(to, currencyId, amount.toInt(), accumulatedNOTE);
     }
 
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external payable override onlyStakedNTokenProxy(currencyId) returns (uint256 snTokensMinted) {
+        external payable override onlyStakedNTokenProxy(currencyId)
+        returns (uint256 snTokensMinted) {
 
         // The proxy will have transferred to Notional exactly assets amount in underlying
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        int256 assetTokensReceivedInternal = assetToken.convertToInternal(
-            assetToken.mint(currencyId, assets)
-        );
-
+        int256 assetTokensReceivedInternal = assetToken.convertToInternal(assetToken.mint(currencyId, assets));
         snTokensMinted = _mintAndStakeNToken(currencyId, receiver, assetTokensReceivedInternal);
     }
 

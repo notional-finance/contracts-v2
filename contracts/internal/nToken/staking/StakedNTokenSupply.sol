@@ -9,7 +9,9 @@ import {
 } from "../../../global/Types.sol";
 import {Constants} from "../../../global/Constants.sol";
 import {nTokenSupply} from "../nTokenSupply.sol";
-import {nTokenHandler} from "../nTokenHandler.sol";
+import {AssetRate, AssetRateParameters} from "../../markets/AssetRate.sol";
+import {nTokenPortfolio, nTokenHandler} from "../nTokenHandler.sol";
+import {nTokenCalculations} from "../nTokenCalculations.sol";
 import {LibStorage} from "../../../global/LibStorage.sol";
 
 import {SafeInt256} from "../../../math/SafeInt256.sol";
@@ -144,6 +146,60 @@ library StakedNTokenSupplyLib {
             baseNOTEPerStaked = increaseInAccumulatedNOTE
                 .mul(stakedSupply.nTokenBalance)
                 .div(stakedSupply.totalSupply);
+        }
+    }
+
+    /// @notice Returns the present value of the staked nToken in asset cash terms as well as in nToken terms. Includes
+    /// profits held in asset cash on the staked nToken and the underlying balance of nTokens.
+    /// @param stakedSupply the staked ntoken supply factors
+    /// @param currencyId staked nToken currency id
+    /// @param blockTime current block time
+    /// @return valueInAssetCash the present value of the staked nToken in asset cash terms
+    /// @return valueInNTokens the present value of the staked nToken in nToken terms
+    /// @return assetRate used for further denomination conversions
+    function getSNTokenPresentValue(
+        StakedNTokenSupply memory stakedSupply,
+        uint16 currencyId,
+        uint256 blockTime
+    ) internal view returns (
+        uint256 valueInAssetCash,
+        uint256 valueInNTokens,
+        AssetRateParameters memory assetRate
+    ) {
+        nTokenPortfolio memory nToken;
+        nTokenHandler.loadNTokenPortfolioView(nToken, currencyId);
+
+        uint256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime).toUint();
+        uint256 totalSupply = nToken.totalSupply.toUint();
+
+        // assetCash = nTokenAssetPV * nTokenBalance / totalSupply + totalCashProfits
+        valueInAssetCash = stakedSupply.nTokenBalance
+            .mul(totalAssetPV)
+            .div(totalSupply)
+            .add(stakedSupply.totalCashProfits);
+
+        // nToken = totalCashProfits * totalSupply / nTokenAssetPV + nTokenBalance
+        valueInNTokens = stakedSupply.totalCashProfits
+            .mul(totalSupply)
+            .div(totalAssetPV)
+            .add(stakedSupply.nTokenBalance);
+
+        assetRate = nToken.cashGroup.assetRate;
+    }
+
+    function calculateSNTokenToMint(
+        StakedNTokenSupply memory stakedSupply,
+        uint16 currencyId,
+        uint256 nTokensToStake,
+        uint256 blockTime
+    ) internal returns (uint256 sNTokenToMint) {
+        if (stakedSupply.totalSupply == 0) {
+            sNTokenToMint = nTokensToStake;
+        } else {
+            (/* */, uint256 valueInNTokens, /* */) = getSNTokenPresentValue(stakedSupply, currencyId, blockTime);
+            // The total snTokens to mint is:
+            // snTokenToMint = totalSupply * nTokensToStake / valueInNTokens
+            sNTokenToMint = stakedSupply.totalSupply.mul(nTokensToStake).div(valueInNTokens);
         }
     }
 }
