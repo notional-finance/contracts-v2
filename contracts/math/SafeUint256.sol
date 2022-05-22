@@ -104,9 +104,9 @@ library SafeUint256 {
         return uint88(x);
     }
 
-    function toUint128(uint256 x) internal pure returns (uint128) {
-        require(x <= type(uint128).max);
-        return uint128(x);
+    function toUint112(uint256 x) internal pure returns (uint112) {
+        require(x <= type(uint112).max);
+        return uint112(x);
     }
 
     function toInt(uint256 x) internal pure returns (int256) {

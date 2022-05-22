@@ -509,12 +509,8 @@ struct StakedNTokenIncentivesStorage {
     // and redeemed, this second storage slot is only updated by governance infrequently.
     uint32 totalAnnualStakedEmission;
 }
-
-struct StakedNTokenMaturity {
-    uint256 totalCashProfits;
-    uint256 snTokensSignalledForUnstaking;
-    bool hasClearedPreviousProfits;
-}
+    // // Total snTokens that have signalled they will unstake in the following unstaking window.
+    // uint96 snTokensSignalledForUnstaking;
 
 struct StakedNTokenAddressStorage {
     address stakedNTokenAddress;
@@ -525,10 +521,6 @@ struct StakedNTokenSupply {
     uint256 totalSupply;
     uint256 nTokenBalance;
     uint256 totalCashProfits;
-    uint256 totalAnnualStakedEmission;
-    uint256 lastAccumulatedTime;
-    uint256 lastBaseAccumulatedNOTEPerNToken;
-    uint256 totalAccumulatedNOTEPerStaked;
 }
 
 enum UnstakeNTokenMethod {
