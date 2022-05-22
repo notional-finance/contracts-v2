@@ -8,6 +8,7 @@ import {UnstakeNTokenMethod} from "../../global/Types.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
+import {nTokenStaker, nTokenStakerLib} from "../../internal/nToken/staking/nTokenStaker.sol";
 import {nTokenStaker, StakedNTokenSupply, nTokenStaked} from "../../internal/nToken/nTokenStaked.sol";
 import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
 import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
@@ -41,7 +42,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     function stakedNTokenBalanceOf(uint16 currencyId, address account) external override view returns (
         uint256
     ) {
-        return nTokenStaked.getNTokenStaker(account, currencyId).stakedNTokenBalance;
+        return nTokenStakerLib.getNTokenStaker(account, currencyId).stakedNTokenBalance;
     }
 
     function stakedNTokenRedeemAllowed(uint16 currencyId, address account) 

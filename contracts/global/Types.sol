@@ -461,7 +461,7 @@ struct AccountBalance {
 // A per account, per currency context object for Staked nTokens
 struct nTokenStakerStorage {
     // Staked NToken balance for this account
-    uint96 stakedNTokenBalance;
+    uint88 stakedNTokenBalance;
     // Share of the NOTE incentives the account does not have a claim over, overflows
     // at 720 million NOTE tokens (in 1e8 precision, only 100 million NOTE token supply)
     uint56 accountIncentiveDebt;
@@ -474,9 +474,9 @@ struct nTokenStakerUnstakeSignalStorage {
     // Maturity when these staked nTokens will be able to unstake
     uint32 unstakeMaturity;
     // Staked nTokens signalled for unstaking
-    uint96 snTokensToUnstake;
+    uint88 snTokensToUnstake;
     // Withhold some snTokens as a deposit if the staker does not unstake
-    uint96 snTokenDeposit;
+    uint88 snTokenDeposit;
 }
 
 // In memory object for the staker context
@@ -489,31 +489,25 @@ struct nTokenStaker {
 // Stores relevant supply factors for a Staked NToken, maps to a single nToken
 struct StakedNTokenSupplyStorage {
     // Total supply of this particular nToken
-    uint96 totalSupply;
+    uint88 totalSupply;
     // nTokens held by this Staked nToken
-    uint96 nTokenBalance;
-    // Additional staked note emission rate
-    uint32 totalAnnualStakedEmission;
-    // Previous accumulated time for the staked emission
-    uint32 lastAccumulatedTime;
-    
-    // Second storage slot starts here, holds the incentive accumulators for the staked nToken.
-    // Previous value of NOTE per nToken seen by the staked nToken
-    uint128 lastBaseAccumulatedNOTEPerNToken;
-    // Total accumulated NOTE per staked nToken
-    uint128 totalAccumulatedNOTEPerStaked;
+    uint88 nTokenBalance;
+    // Holds the accrued cash profits that have not been minted to nTokens yet
+    uint80 totalCashProfits;
 }
 
-struct StakedNTokenMaturityStorage {
-    // Holds the accrued cash profits for a given maturity 
-    uint80 totalCashProfits;
-    // Total snTokens that have signalled they will unstake in the following
-    // unstaking window
-    uint96 snTokensSignalledForUnstaking;
-    // Set to true when the previous maturity's profits have been cleared, used as
-    // a storage optimization to ensure that we properly calculate the snToken PV
-    // without a look back to the previous maturity.
-    bool hasClearedPreviousProfits;
+struct StakedNTokenIncentivesStorage {
+    // Previous accumulated time for the staked emission
+    uint32 lastAccumulatedTime;
+    // This will overflow if a single nToken has accumulated 51.9 million NOTE which is basically impossible,
+    // there are only 100 million NOTE and many of those tokens have already been accrued to millions of nTokens
+    uint112 lastBaseAccumulatedNOTEPerNToken;
+    // Total accumulated NOTE per staked nToken
+    uint112 totalAccumulatedNOTEPerStaked;
+
+    // This starts a second storage slot, the first storage slot is updated more frequently as snTokens are minted
+    // and redeemed, this second storage slot is only updated by governance infrequently.
+    uint32 totalAnnualStakedEmission;
 }
 
 struct StakedNTokenMaturity {
@@ -530,6 +524,7 @@ struct StakedNTokenAddressStorage {
 struct StakedNTokenSupply {
     uint256 totalSupply;
     uint256 nTokenBalance;
+    uint256 totalCashProfits;
     uint256 totalAnnualStakedEmission;
     uint256 lastAccumulatedTime;
     uint256 lastBaseAccumulatedNOTEPerNToken;

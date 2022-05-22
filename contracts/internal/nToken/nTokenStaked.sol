@@ -11,114 +11,13 @@ import "./nTokenSupply.sol";
 import "../../external/actions/nTokenMintAction.sol";
 import "../../external/actions/nTokenRedeemAction.sol";
 
+import {nTokenStaker, nTokenStakerLib} from "./staking/nTokenStaker.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
 library nTokenStaked {
     using SafeUint256 for uint256;
     using SafeInt256 for int256;
-
-    /** Getter and Setter Methods **/
-    function getStakedNTokenAddress(uint16 currencyId) internal view returns (address) {
-        mapping(uint256 => StakedNTokenAddressStorage) storage store = LibStorage.getStakedNTokenAddress();
-        return store[currencyId].stakedNTokenAddress;
-    }
-
-    function setStakedNTokenEmissions(
-        uint16 currencyId,
-        uint32 totalAnnualStakedEmission,
-        uint32 blockTime
-    ) internal {
-        // First accumulate incentives up to the block time
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-        // No nToken supply change
-        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
-        _setStakedNTokenSupply(currencyId, stakedSupply);
-
-        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
-        StakedNTokenSupplyStorage storage s = store[currencyId];
-
-        // Sanity check that emissions rate is not specified in 1e8 terms.
-        require(totalAnnualStakedEmission < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
-        s.totalAnnualStakedEmission = totalAnnualStakedEmission;
-    }
-
-    function getNTokenStaker(
-        address account,
-        uint16 currencyId
-    ) internal view returns (nTokenStaker memory staker) {
-        mapping(address => mapping(uint256 => nTokenStakerStorage)) storage store = LibStorage.getNTokenStaker();
-        nTokenStakerStorage storage s = store[account][currencyId];
-
-        staker.stakedNTokenBalance = s.stakedNTokenBalance;
-        staker.accountIncentiveDebt = s.accountIncentiveDebt;
-        staker.accumulatedNOTE = s.accumulatedNOTE;
-    }
-
-    function _setNTokenStaker(
-        address account,
-        uint16 currencyId,
-        nTokenStaker memory staker
-    ) private {
-        mapping(address => mapping(uint256 => nTokenStakerStorage)) storage store = LibStorage.getNTokenStaker();
-        nTokenStakerStorage storage s = store[account][currencyId];
-
-        s.stakedNTokenBalance = staker.stakedNTokenBalance.toUint96();
-        s.accountIncentiveDebt = staker.accountIncentiveDebt.toUint56();
-        s.accumulatedNOTE = staker.accumulatedNOTE.toUint56();
-    }
-
-    function getStakedNTokenSupply(
-        uint16 currencyId
-    ) internal view returns (StakedNTokenSupply memory stakedSupply) {
-        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
-        StakedNTokenSupplyStorage storage s = store[currencyId];
-
-        stakedSupply.totalSupply = s.totalSupply;
-        stakedSupply.nTokenBalance = s.nTokenBalance;
-        stakedSupply.totalAnnualStakedEmission = s.totalAnnualStakedEmission;
-        stakedSupply.lastAccumulatedTime = s.lastAccumulatedTime;
-
-        stakedSupply.lastBaseAccumulatedNOTEPerNToken = s.lastBaseAccumulatedNOTEPerNToken;
-        stakedSupply.totalAccumulatedNOTEPerStaked = s.totalAccumulatedNOTEPerStaked;
-    }
-
-    function _setStakedNTokenSupply(
-        uint16 currencyId,
-        StakedNTokenSupply memory stakedSupply
-    ) internal {
-        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
-        StakedNTokenSupplyStorage storage s = store[currencyId];
-
-        // Incentive rates are not updated in here, they are updated separately in governance
-        s.totalSupply = stakedSupply.totalSupply.toUint96();
-        s.nTokenBalance = stakedSupply.nTokenBalance.toUint96();
-        s.lastAccumulatedTime = stakedSupply.lastAccumulatedTime.toUint32();
-        s.lastBaseAccumulatedNOTEPerNToken = stakedSupply.lastBaseAccumulatedNOTEPerNToken.toUint128();
-        s.totalAccumulatedNOTEPerStaked = stakedSupply.totalAccumulatedNOTEPerStaked.toUint128();
-    }
-
-    function getStakerUnstakeSignal(address account, uint16 currencyId) internal view returns (
-        uint256 unstakeMaturity,
-        uint256 snTokensToUnstake,
-        uint256 snTokenDeposit
-    ) { }
-
-    function setStakerUnstakeSignal(
-        address account,
-        uint16 currencyId,
-        uint256 unstakeMaturity,
-        uint256 snTokensToUnstake,
-        uint256 snTokenDeposit
-    ) internal { }
-
-    function getStakedNTokenMaturity(uint16 currencyId, uint256 maturity) internal view returns (StakedNTokenMaturity memory snTokenMaturity) {
-
-    }
-
-    function _setStakedNTokenMaturity(uint16 currencyId, uint256 maturity, StakedNTokenMaturity memory snTokenMaturity) internal{
-
-    }
 
     /// @notice Current unstaking maturity is always the end of the quarter
     /// @param blockTime blocktime
@@ -140,37 +39,26 @@ library nTokenStaked {
      * @param currencyId the currency id of the nToken to stake
      * @param nTokensToStake the amount of nTokens to stake
      * @param blockTime the current block time
-     * @return sNTokensToMint the number of staked nTokens minted
+     * @return snTokensToMint the number of staked nTokens minted
      */
     function stakeNToken(
         address account,
         uint16 currencyId,
         uint256 nTokensToStake,
         uint256 blockTime
-    ) internal returns (uint256 sNTokensToMint) {
-        // If nTokensToStake == 0 then the user could just be resetting their unstakeMaturity
-        nTokenStaker memory staker = getNTokenStaker(account, currencyId);
+    ) internal returns (uint256 snTokensToMint) {
         StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
 
-        // Calculate the share of sNTokens the staker will receive. Immediately after this calculation, the
-        // staker's share of the pool will exactly equal the nTokens they staked.
-        sNTokensToMint = _calculateSNTokenToMint(currencyId, nTokensToStake, stakedSupply, blockTime);
+        // Calculate the share of sNTokens the staker will receive as a share of the total snToken present value
+        snTokensToMint = _calculateSNTokenToMint(currencyId, nTokensToStake, stakedSupply, blockTime);
 
-        uint256 stakedNTokenBalanceAfter = staker.stakedNTokenBalance.add(sNTokensToMint);
         // Accumulate NOTE incentives to the staker based on their staking term and balance.
-        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
-        _updateStakerIncentives(
-            stakedSupply.totalAccumulatedNOTEPerStaked,
-            staker.stakedNTokenBalance,
-            stakedNTokenBalanceAfter,
-            staker
-        );
+        uint256 accumulatedNOTE = _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
+        nTokenStakerLib.updateStakerBalance(account, currencyId, snTokensToMint.toInt(), accumulatedNOTE);
 
-        // Update all the staker parameters and store them
-        staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
-        stakedSupply.totalSupply = stakedSupply.totalSupply.add(sNTokensToMint);
+        // Update the total supply parameters
+        stakedSupply.totalSupply = stakedSupply.totalSupply.add(snTokensToMint);
         stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(nTokensToStake);
-        _setNTokenStaker(account, currencyId, staker);
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
@@ -201,8 +89,13 @@ library nTokenStaked {
             blockTime <= unstakeMaturity.sub(Constants.UNSTAKE_SIGNAL_WINDOW_END_OFFSET),
             "Not in Signal Window"
         );
+
+        nTokenStaker memory staker = nTokenStakerLib.getStaker(account, currencyId);
+        
+        /************ TODO: review inside here ***********************/
+        // TODO: need to properly accumulate incentives based on the deposit
+
         (uint256 prevUnstakeMaturity, /* uint256 snTokensToUnstake */, uint256 snTokenDeposit) = getStakerUnstakeSignal(account, currencyId);
-        nTokenStaker memory staker = getNTokenStaker(account, currencyId);
         if (prevUnstakeMaturity == unstakeMaturity) {
             // If the staker is resetting their signal on the current maturity then we refund the deposit
             // in full and they will set a new deposit based on their new signal.
@@ -218,10 +111,11 @@ library nTokenStaked {
         staker.stakedNTokenBalance = staker.stakedNTokenBalance.sub(snTokenDeposit);
 
         setStakerUnstakeSignal(account, currencyId, unstakeMaturity, snTokensToUnstake, snTokenDeposit);
-        // incrementSnTokensSignalledForUnstaking()
+        // _updateTokensSignalledForUnstaking(currencyId, unstakeMaturity, snTokensToUnstake.toInt());
+        /************ TODO: review inside here ***********************/
         
         // Updates the staker's nToken balance
-        _setNTokenStaker(account, currencyId, staker);
+        // staker.setStaker(account, currencyId);
     }
 
     /**
@@ -253,79 +147,92 @@ library nTokenStaked {
             tokensToUnstake <= snTokensToUnstake
         );
 
-        nTokenStaker memory staker = getNTokenStaker(account, currencyId);
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-
         // Return the snTokenDeposit to the staker since they are unstaking during the correct period
         uint256 depositRefund = snTokenDeposit.mul(tokensToUnstake).div(snTokensToUnstake);
-        staker.stakedNTokenBalance = staker.stakedNTokenBalance.add(depositRefund);
+        int256 netStakerBalanceChange = tokensToUnstake.toInt().neg().add(depositRefund.toInt());
+
         setStakerUnstakeSignal(account, currencyId, unstakeMaturity,
             snTokensToUnstake.sub(tokensToUnstake),
             snTokenDeposit.sub(depositRefund)
         );
 
-        // Mint all the cash profits to nTokens if that has not occurred
-        StakedNTokenMaturity memory snTokenMaturity = getStakedNTokenMaturity(currencyId, unstakeMaturity);
-
-        // Decrement the tokens to unstake. This should never underflow but if it does then something has
-        // gone wrong in the accounting.
-        snTokenMaturity.snTokensSignalledForUnstaking = snTokenMaturity.snTokensSignalledForUnstaking
-            .sub(tokensToUnstake);
-
-        if (snTokenMaturity.totalCashProfits > 0) {
-            // This will mark that the previous maturity has cleared its profits. No more profits
-            // will be allocated to the unstake maturity.
-            _mintNTokenProfits(currencyId, snTokenMaturity, stakedSupply, unstakeMaturity, blockTime);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        if (stakedSupply.totalCashProfits > 0) {
+            // Mint nToken profits if this has not yet occurred. Minting nToken profits will be allowed
+            // once the unstaking window opens. If we mint cash profits before we have settled all vaults
+            // it may be that we do not have sufficient profits to refund vault accounts that want to exit
+            // their vault positions early.
+            _mintNTokenProfits(currencyId, stakedSupply, blockTime);
         }
-
-        // Set the snToken maturity state here
-        _setStakedNTokenMaturity(currencyId, unstakeMaturity, snTokenMaturity);
 
         // This is the share of the overall nToken balance that the staked nToken has a claim on
         nTokenClaim = stakedSupply.nTokenBalance.mul(tokensToUnstake).div(stakedSupply.totalSupply);
-        uint256 stakedNTokenBalanceAfter = staker.stakedNTokenBalance.sub(tokensToUnstake);
-        
+
         // Updates the accumulators and sets the storage values
-        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
-        // Update the staker's incentive counters in memory
-        _updateStakerIncentives(
-            stakedSupply.totalAccumulatedNOTEPerStaked,
-            staker.stakedNTokenBalance,
-            stakedNTokenBalanceAfter,
-            staker
-        );
+        uint256 accumulatedNOTE = _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
+
+        // Update the staker's balance and incentive counters
+        nTokenStakerLib.updateStakerBalance(account, currencyId, netStakerBalanceChange, accumulatedNOTE);
 
         // Update balances and set state
-        staker.stakedNTokenBalance = stakedNTokenBalanceAfter;
         stakedSupply.totalSupply = stakedSupply.totalSupply.sub(tokensToUnstake);
         stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(nTokenClaim);
-        _setNTokenStaker(account, currencyId, staker);
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+
+        // Decrement the tokens to unstake. This should never underflow but if it does then something has
+        // gone wrong in the accounting.
+        // _updateTokensSignalledForUnstaking(currencyId, unstakeMaturity, tokensToUnstake.toInt().neg());
+    }
+
+    /**
+     * @notice Transfers staked nTokens between accounts. Unstake maturities must match or they are not fungible.
+     * @dev If unstake maturities are in the past, we bump them up to the next unstake maturity.
+     *
+     * @param from account to transfer from
+     * @param to account to transfer to
+     * @param currencyId currency id of the nToken
+     * @param amount amount of staked nTokens to transfer
+     * @param blockTime current block time
+     */
+    function transferStakedNToken(
+        address from,
+        address to,
+        uint16 currencyId,
+        uint256 amount,
+        uint256 blockTime
+    ) internal {
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+
+        // Update the incentive accumulators then the incentives on each staker
+        uint256 accumulatedNOTE =_updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
+        nTokenStakerLib.updateStakerBalance(from, currencyId, amount.toInt().neg(), accumulatedNOTE);
+        nTokenStakerLib.updateStakerBalance(to, currencyId, amount.toInt(), accumulatedNOTE);
+
+        // Set the staked supply since accumulators have updated
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
     /**
      * @notice Levered vaults will pay fees to the staked nToken in the form of asset cash in the
-     * same currency, these profits will be held in storage until they are minted as nTokens on demand
-     * or during the unstaking maturity when unstakers attempt to exit.
+     * same currency, these profits will be held in storage until they are minted as nTokens after maturity.
+     * Profits are held until that point to ensure that there is sufficient cash to refund vault accounts
+     * a portion of their fees if they exit early.
      * @param currencyId the currency of the nToken
-     * @param assetAmountInternal amount of asset tokens the fee is paid in
+     * @param netFeePaid positive if the fee is paid to the staked nToken, negative if it is a refund
      * @param blockTime current block time
      */
     function updateStakedNTokenProfits(
         uint16 currencyId,
-        int256 assetAmountInternal,
+        int256 netFeePaid,
         uint256 blockTime
     ) internal {
-        uint256 unstakeMaturity = getCurrentMaturity(blockTime);
-        StakedNTokenMaturity memory snTokenMaturity = getStakedNTokenMaturity(currencyId, unstakeMaturity);
-        if (assetAmountInternal >= 0) {
-            // Adds the fee to the profits
-            snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.add(uint256(assetAmountInternal));
-        } else {
-            // The fee may be negative in the case it is a refund
-            snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.sub(uint256(assetAmountInternal.neg()));
-        }
-        _setStakedNTokenMaturity(currencyId, unstakeMaturity, snTokenMaturity);
+        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
+        StakedNTokenSupplyStorage storage s = store[currencyId];
+
+        int256 totalCashProfits = int256(uint256(s.totalCashProfits));
+        totalCashProfits = totalCashProfits.add(netFeePaid);
+        // This ensures that the total cash profits is both positive and does not overflow uint80
+        s.totalCashProfits = totalCashProfits.toUint().toUint80();
     }
 
     /**
@@ -352,133 +259,81 @@ library nTokenStaked {
     ) internal returns (int256 actualNTokensRedeemed, int256 assetCashRaised) {
         require(assetCashRequired > 0 && nTokensToRedeem > 0);
         // First attempt to withdraw asset cash from profits that have not been minted into nTokens
-        StakedNTokenMaturity memory snTokenMaturity = getStakedNTokenMaturity(currencyId, maturity);
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
 
         // NOTE: uint256 conversion overflows checked above
-        if (snTokenMaturity.totalCashProfits > uint256(assetCashRequired)) {
+        if (stakedSupply.totalCashProfits > uint256(assetCashRequired)) {
             // In this case we have sufficient cash in the profits and we don't need to redeem
-            snTokenMaturity.totalCashProfits = snTokenMaturity.totalCashProfits.sub(uint256(assetCashRequired));
-            _setStakedNTokenMaturity(currencyId, maturity, snTokenMaturity);
-            return (0, assetCashRequired);
-        } else if (snTokenMaturity.totalCashProfits > 0) {
+            assetCashRequired = 0;
+            stakedSupply.totalCashProfits = stakedSupply.totalCashProfits.sub(uint256(assetCashRequired));
+        } else if (stakedSupply.totalCashProfits > 0) {
             // In this case we net off the required amount from the total profits and zero them out. We know that
             // this subtraction will not go negative because assetCashRequired > 0 and assetCashRequired >= totalCashProfits
             // at this point.
-            assetCashRequired = assetCashRequired.subNoNeg(snTokenMaturity.totalCashProfits.toInt());
-            snTokenMaturity.totalCashProfits = 0;
-            _setStakedNTokenMaturity(currencyId, maturity, snTokenMaturity);
+            assetCashRequired = assetCashRequired.subNoNeg(stakedSupply.totalCashProfits.toInt());
+            stakedSupply.totalCashProfits = 0;
         }
 
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-        // overflow is checked above on nTokensToRedeem
-        require(uint256(nTokensToRedeem) <= stakedSupply.nTokenBalance, "Insufficient nTokens");
+        if (assetCashRequired > 0) {
+            // overflow is checked above on nTokensToRedeem
+            require(uint256(nTokensToRedeem) <= stakedSupply.nTokenBalance, "Insufficient nTokens");
 
-        actualNTokensRedeemed = nTokensToRedeem;
-        assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
-        // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
-        // clean out the nTokenBalance altogether
-        require(
-            assetCashRaised >= assetCashRequired || uint256(nTokensToRedeem) == stakedSupply.nTokenBalance,
-            "Insufficient cash raised"
-        );
+            actualNTokensRedeemed = nTokensToRedeem;
+            assetCashRaised = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokensToRedeem);
+            // Require that the cash raised by the specified amount of nTokens to redeem is sufficient or we
+            // clean out the nTokenBalance altogether
+            require(
+                assetCashRaised >= assetCashRequired || uint256(nTokensToRedeem) == stakedSupply.nTokenBalance,
+                "Insufficient cash raised"
+            );
 
-        if (assetCashRaised > assetCashRequired) {
-            // Put any surplus asset cash back into the nToken
-            int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
-            int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
-            actualNTokensRedeemed = actualNTokensRedeemed.sub(nTokensMinted);
+            if (assetCashRaised > assetCashRequired) {
+                // Put any surplus asset cash back into the nToken
+                int256 assetCashSurplus = assetCashRaised - assetCashRequired; // overflow checked above
+                int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetCashSurplus);
+                actualNTokensRedeemed = actualNTokensRedeemed.sub(nTokensMinted);
 
-            // Set this for the return value
-            assetCashRaised = assetCashRequired;
+                // Set this for the return value
+                assetCashRaised = assetCashRequired;
+            }
+            require(actualNTokensRedeemed > 0); // dev: nTokens redeemed negative
+
+            _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg());
+            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(uint256(actualNTokensRedeemed)); // overflow checked above
         }
-        require(actualNTokensRedeemed > 0); // dev: nTokens redeemed negative
 
-        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, actualNTokensRedeemed.neg());
-        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(uint256(actualNTokensRedeemed)); // overflow checked above
         _setStakedNTokenSupply(currencyId, stakedSupply);
     }
 
     function _mintNTokenProfits(
         uint16 currencyId,
-        StakedNTokenMaturity memory snTokenMaturity,
         StakedNTokenSupply memory stakedSupply,
-        uint256 maturity,
         uint256 blockTime
     ) internal {
         // TODO: do we need to emit a transfer event here
         uint256 nTokensMinted = nTokenMintAction.nTokenMint(
-            currencyId, snTokenMaturity.totalCashProfits.toInt()
+            currencyId, stakedSupply.totalCashProfits.toInt()
         ).toUint();
         _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, nTokensMinted.toInt());
 
         stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.add(nTokensMinted);
-        snTokenMaturity.totalCashProfits = 0;
+        stakedSupply.totalCashProfits = 0;
 
-        if (maturity <= blockTime) {
-            // If we've cleared cash profits and we've also gone past maturity, we can set the
-            // hasClearedPreviousProfits on the next staked nToken maturity storage. This lets
-            // the protocol know that it does not need to check the cash balance on this maturity
-            // for present value calculations
-            uint256 nextMaturity = maturity.add(Constants.QUARTER);
-            StakedNTokenMaturity memory snTokenNextMaturity = getStakedNTokenMaturity(currencyId, nextMaturity);
-            snTokenNextMaturity.hasClearedPreviousProfits = true;
-            _setStakedNTokenMaturity(currencyId, nextMaturity, snTokenNextMaturity);
-        }
-    }
-
-    /**
-     * @notice Transfers staked nTokens between accounts. Unstake maturities must match or they are not fungible.
-     * @dev If unstake maturities are in the past, we bump them up to the next unstake maturity.
-     *
-     * @param from account to transfer from
-     * @param to account to transfer to
-     * @param currencyId currency id of the nToken
-     * @param amount amount of staked nTokens to transfer
-     * @param blockTime current block time
-     */
-    function transferStakedNToken(
-        address from,
-        address to,
-        uint16 currencyId,
-        uint256 amount,
-        uint256 blockTime
-    ) internal {
-        nTokenStaker memory fromStaker = getNTokenStaker(from, currencyId);
-        nTokenStaker memory toStaker = getNTokenStaker(to, currencyId);
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
-
-        uint256 fromStakerBalanceAfter = fromStaker.stakedNTokenBalance.sub(amount);
-        uint256 toStakerBalanceAfter = toStaker.stakedNTokenBalance.add(amount);
-
-        // Update the incentive accumulators then the incentives on each staker
-        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
-        _updateStakerIncentives(
-            stakedSupply.totalAccumulatedNOTEPerStaked,
-            fromStaker.stakedNTokenBalance,
-            fromStakerBalanceAfter,
-            fromStaker
-        );
-
-        _updateStakerIncentives(
-            stakedSupply.totalAccumulatedNOTEPerStaked,
-            toStaker.stakedNTokenBalance,
-            toStakerBalanceAfter,
-            toStaker
-        );
-
-        fromStaker.stakedNTokenBalance = fromStakerBalanceAfter;
-        toStaker.stakedNTokenBalance = toStakerBalanceAfter;
-
-        _setNTokenStaker(from, currencyId, fromStaker);
-        _setNTokenStaker(to, currencyId, toStaker);
-        // Set the staked supply since accumulators have updated
-        _setStakedNTokenSupply(currencyId, stakedSupply);
+        // if (maturity <= blockTime) {
+        //     // If we've cleared cash profits and we've also gone past maturity, we can set the
+        //     // hasClearedPreviousProfits on the next staked nToken maturity storage. This lets
+        //     // the protocol know that it does not need to check the cash balance on this maturity
+        //     // for present value calculations
+        //     uint256 nextMaturity = maturity.add(Constants.QUARTER);
+        //     StakedNTokenMaturity memory snTokenNextMaturity = getStakedNTokenMaturity(currencyId, nextMaturity);
+        //     snTokenNextMaturity.hasClearedPreviousProfits = true;
+        //     _setStakedNTokenMaturity(currencyId, nextMaturity, snTokenNextMaturity);
+        // }
     }
 
     function getSNTokenPresentValue(
         uint16 currencyId,
         StakedNTokenSupply memory stakedSupply,
-        StakedNTokenMaturity memory snTokenMaturity,
         uint256 blockTime
     ) internal view returns (
         uint256 stakedNTokenAssetPV,
@@ -494,9 +349,9 @@ library nTokenStaked {
         stakedNTokenAssetPV = stakedSupply.nTokenBalance
             .mul(totalAssetPV)
             .div(totalSupply)
-            .add(snTokenMaturity.totalCashProfits);
+            .add(stakedSupply.totalCashProfits);
 
-        stakedNTokenValueInNTokens = snTokenMaturity.totalCashProfits
+        stakedNTokenValueInNTokens = stakedSupply.totalCashProfits
             .mul(totalSupply)
             .div(totalAssetPV)
             .add(stakedSupply.nTokenBalance);
@@ -504,24 +359,12 @@ library nTokenStaked {
         assetRate = nToken.cashGroup.assetRate;
     }
 
-
     function _calculateSNTokenToMint(
         uint16 currencyId,
         uint256 nTokensToStake,
         StakedNTokenSupply memory stakedSupply,
         uint256 blockTime
     ) internal returns (uint256 sNTokenToMint) {
-        uint256 currentMaturity = getCurrentMaturity(blockTime);
-        StakedNTokenMaturity memory snTokenMaturity = getStakedNTokenMaturity(currencyId, currentMaturity);
-
-        if (!snTokenMaturity.hasClearedPreviousProfits) {
-            uint256 previousMaturity = DateTime.getReferenceTime(blockTime);
-            StakedNTokenMaturity memory snTokenPrevMaturity = getStakedNTokenMaturity(currencyId, previousMaturity);
-            // stakedSupply is updated with the nTokens minted from profits in the previous maturity
-            _mintNTokenProfits(currencyId, snTokenPrevMaturity, stakedSupply, previousMaturity, blockTime);
-            _setStakedNTokenMaturity(currencyId, previousMaturity, snTokenPrevMaturity);
-        }
-
         if (stakedSupply.totalSupply == 0) {
             sNTokenToMint = nTokensToStake;
         } else {
@@ -529,7 +372,7 @@ library nTokenStaked {
                 /* int256 stakedNTokenAssetPV */,
                 uint256 stakedNTokenValueInNTokens,
                 /* assetRate */
-            ) = getSNTokenPresentValue(currencyId, stakedSupply, snTokenMaturity, blockTime);
+            ) = getSNTokenPresentValue(currencyId, stakedSupply, blockTime);
             sNTokenToMint = stakedSupply.totalSupply.mul(nTokensToStake).div(stakedNTokenValueInNTokens);
         }
     }
@@ -611,31 +454,74 @@ library nTokenStaked {
         }
     }
 
-    /**
-     * @notice Updates a staker's incentive factors in memory
-     * @param totalAccumulatedNOTEPerStaked this is the total accumulated NOTE for every staked nToken
-     * @param stakedNTokenBalanceBefore staked ntoken balance before the stake/unstake action, accumulate
-     * incentives up to this point
-     * @param stakedNTokenBalanceAfter staked ntoken balance after the stake/unstake action, used to set
-     * the incentive debt counter
-     * @param staker has its incentive counters updated in memory, the unstakeMaturity has not updated yet
-     */
-    function _updateStakerIncentives(
-        uint256 totalAccumulatedNOTEPerStaked,
-        uint256 stakedNTokenBalanceBefore,
-        uint256 stakedNTokenBalanceAfter,
-        nTokenStaker memory staker
-    ) internal pure {
-        // This is the additional incentives accumulated before any net change to the balance
-        staker.accumulatedNOTE = staker.accumulatedNOTE.add(
-            stakedNTokenBalanceBefore
-                .mul(totalAccumulatedNOTEPerStaked)
-                .div(Constants.INCENTIVE_ACCUMULATION_PRECISION)
-                .sub(staker.accountIncentiveDebt)
-        );
+    /**************** Getter and Setter Methods *********************/
 
-        staker.accountIncentiveDebt = stakedNTokenBalanceAfter
-            .mul(totalAccumulatedNOTEPerStaked)
-            .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
+    /// @notice the staked nToken proxy address is only set by governance when it is deployed
+    function getStakedNTokenAddress(uint16 currencyId) internal view returns (address) {
+        mapping(uint256 => StakedNTokenAddressStorage) storage store = LibStorage.getStakedNTokenAddress();
+        return store[currencyId].stakedNTokenAddress;
     }
+
+    /// @notice This can only be called by governance to update the emission rate for staked nTokens
+    function setStakedNTokenEmissions(
+        uint16 currencyId,
+        uint32 totalAnnualStakedEmission,
+        uint32 blockTime
+    ) internal {
+        // First accumulate incentives up to the block time
+        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        // No nToken supply change
+        _updateAccumulatedNOTEIncentives(currencyId, blockTime, stakedSupply, 0);
+        _setStakedNTokenSupply(currencyId, stakedSupply);
+
+        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
+        StakedNTokenSupplyStorage storage s = store[currencyId];
+
+        // Sanity check that emissions rate is not specified in 1e8 terms.
+        require(totalAnnualStakedEmission < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
+        // s.totalAnnualStakedEmission = totalAnnualStakedEmission;
+    }
+
+    /// @notice Gets the current staked nToken supply
+    function getStakedNTokenSupply(uint16 currencyId) internal view returns (StakedNTokenSupply memory stakedSupply) {
+        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
+        StakedNTokenSupplyStorage storage s = store[currencyId];
+
+        stakedSupply.totalSupply = s.totalSupply;
+        stakedSupply.nTokenBalance = s.nTokenBalance;
+        stakedSupply.totalCashProfits = s.totalCashProfits;
+        // stakedSupply.totalAnnualStakedEmission = s.totalAnnualStakedEmission;
+        // stakedSupply.lastAccumulatedTime = s.lastAccumulatedTime;
+
+        // stakedSupply.lastBaseAccumulatedNOTEPerNToken = s.lastBaseAccumulatedNOTEPerNToken;
+        // stakedSupply.totalAccumulatedNOTEPerStaked = s.totalAccumulatedNOTEPerStaked;
+    }
+
+    function _setStakedNTokenSupply(uint16 currencyId, StakedNTokenSupply memory stakedSupply) internal {
+        mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
+        StakedNTokenSupplyStorage storage s = store[currencyId];
+
+        // Incentive rates are not updated in here, they are updated separately in governance
+        s.totalSupply = stakedSupply.totalSupply.toUint88();
+        s.nTokenBalance = stakedSupply.nTokenBalance.toUint88();
+        s.totalCashProfits = stakedSupply.totalCashProfits.toUint80();
+
+        // s.lastAccumulatedTime = stakedSupply.lastAccumulatedTime.toUint32();
+        // s.lastBaseAccumulatedNOTEPerNToken = stakedSupply.lastBaseAccumulatedNOTEPerNToken.toUint128();
+        // s.totalAccumulatedNOTEPerStaked = stakedSupply.totalAccumulatedNOTEPerStaked.toUint128();
+    }
+
+    function getStakerUnstakeSignal(address account, uint16 currencyId) internal view returns (
+        uint256 unstakeMaturity,
+        uint256 snTokensToUnstake,
+        uint256 snTokenDeposit
+    ) { }
+
+    function setStakerUnstakeSignal(
+        address account,
+        uint16 currencyId,
+        uint256 unstakeMaturity,
+        uint256 snTokensToUnstake,
+        uint256 snTokenDeposit
+    ) internal { }
 }
