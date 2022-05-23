@@ -5,13 +5,15 @@ pragma abicoder v2;
 import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 import {IStakedNTokenAction} from "../../../../interfaces/notional/IStakedNTokenAction.sol";
 import {UnstakeNTokenMethod} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
 import {nTokenStaker, nTokenStakerLib} from "../../internal/nToken/staking/nTokenStaker.sol";
-import {nTokenStaker, StakedNTokenSupply, nTokenStaked} from "../../internal/nToken/nTokenStaked.sol";
+import {StakedNTokenSupply, StakedNTokenSupplyLib} from "../../internal/nToken/staking/StakedNTokenSupply.sol";
 import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
 import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {AssetRate, AssetRateParameters} from "../../internal/markets/AssetRate.sol";
 import {BalanceHandler, BalanceState} from "../../internal/balances/BalanceHandler.sol";
 import {Token, TokenHandler} from "../../internal/balances/TokenHandler.sol";
 import {AccountContext, AccountContextHandler} from "../../internal/AccountContextHandler.sol";
@@ -22,27 +24,33 @@ import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
 import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
 
 contract StakedNTokenAction is IStakedNTokenAction {
+    using StakedNTokenSupplyLib for StakedNTokenSupply;
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
+    using AssetRate for AssetRateParameters;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
+    /// @notice Authenticates calls to the proxy
     modifier onlyStakedNTokenProxy(uint16 currencyId) {
-        require(msg.sender == nTokenStaked.getStakedNTokenAddress(currencyId));
+        require(msg.sender == StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId));
         _;
     }
 
+    /// @notice Returns the total supply
     function stakedNTokenTotalSupply(uint16 currencyId)
         external override view returns (uint256) {
         return StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId).totalSupply;
     }
 
+    /// @notice Returns the balance of an account
     function stakedNTokenBalanceOf(uint16 currencyId, address account)
         external override view returns (uint256) {
-        return nTokenStakerLib.getNTokenStaker(account, currencyId).snTokenBalance;
+        return nTokenStakerLib.getStaker(account, currencyId).snTokenBalance;
     }
 
+    /// @notice Returns the present value of the entire staked nTokens supply in underlying external
     function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId) external override view returns (uint256) {
         StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
         (
@@ -51,19 +59,23 @@ contract StakedNTokenAction is IStakedNTokenAction {
             AssetRateParameters memory assetRate
         ) = stakedSupply.getSNTokenPresentValue(currencyId, block.timestamp);
 
-        return assetRate.convertToUnderlying(valueInAssetCash)
+        return assetRate.convertToUnderlying(valueInAssetCash.toInt())
             .mul(assetRate.underlyingDecimals)
             .div(Constants.INTERNAL_TOKEN_PRECISION)
             .toUint();
     }
 
+    /// @notice If the account can redeem staked nTokens, returns the max amount they can redeem
     function stakedNTokenRedeemAllowed(uint16 currencyId, address account) 
         external override view returns (uint256) {
-        // TODO
+        (/* */, uint256 maxUnstake, /* */, bool canUnstake) = nTokenStakerLib.canAccountUnstake(
+            account, currencyId, block.timestamp
+        );
+        return canUnstake ? maxUnstake : 0;
     }
 
 
-    // These are called via the ERC20 proxy
+    /**** ERC20 Proxy Stateful Methods, must be authenticated via modifier  ****/
 
     /**
      * @notice Transfers staked nTokens between accounts.
@@ -78,7 +90,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
         address to,
         uint256 amount
     ) external override onlyStakedNTokenProxy(currencyId) returns (bool) {
-        StakedNTokenSupply memory stakedSupply = getStakedNTokenSupply(currencyId);
+        StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
 
         // Update the incentive accumulators then the incentives on each staker, no nToken supply change
         uint256 accumulatedNOTE = stakedSupply.updateAccumulatedNOTE(currencyId, block.timestamp, 0);
@@ -86,6 +98,8 @@ contract StakedNTokenAction is IStakedNTokenAction {
         nTokenStakerLib.updateStakerBalance(to, currencyId, amount.toInt(), accumulatedNOTE);
     }
 
+    /// @notice Mints staked nTokens from some amount of underlying tokens transferred to Notional from
+    /// the proxy. The receiver will get the staked nTokens.
     function stakedNTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
         external payable override onlyStakedNTokenProxy(currencyId)
         returns (uint256 snTokensMinted) {
@@ -96,11 +110,14 @@ contract StakedNTokenAction is IStakedNTokenAction {
         snTokensMinted = _mintAndStakeNToken(currencyId, receiver, assetTokensReceivedInternal);
     }
 
+    /// @notice Sets an unstake signal for the account, called from the proxy
     function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
         external override onlyStakedNTokenProxy(currencyId) {
         nTokenStakerLib.setUnstakeSignal(account, currencyId, amount, block.timestamp);
     }
 
+    /// @notice Redeems "shares" amount of staked nTokens from the owner and then redeems them to underlying.
+    /// Transfers the underlying tokens to the receiver account.
     function stakedNTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
         external override onlyStakedNTokenProxy(currencyId)
         returns (uint256 assetsTransferred) {
@@ -113,9 +130,15 @@ contract StakedNTokenAction is IStakedNTokenAction {
         );
     }
 
-    // NOTE: these methods use msg.sender
+    /**** Direct call to Notional, must be authenticated via msg.sender  ****/
 
-    function stakeNToken(uint16 currencyId, uint256 nTokensToStake) external returns (uint256 snTokensMinted) {
+    // TODO: see if we can move this into batch action
+    function stakeNToken(
+        uint16 currencyId,
+        uint256 nTokensToStake,
+        uint256 depositAmountExternal,
+        bool useUnderlying
+    ) external returns (uint256 snTokensMinted) {
         AccountContext memory stakerContext = AccountContextHandler.getAccountContext(msg.sender);
         // When removing nTokens from an account context, it is potentially used as collateral. We check
         // if the account has to settle, remove the nTokens via transfer (such that we do not change the
@@ -136,26 +159,16 @@ contract StakedNTokenAction is IStakedNTokenAction {
             FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
         }
 
-        snTokensMinted = nTokenStaked.stakeNToken(msg.sender, currencyId, nTokensToStake, block.timestamp);
+        snTokensMinted = nTokenStakerLib.stakeNToken(msg.sender, currencyId, nTokensToStake, block.timestamp);
         
         // This emits a Transfer(address(0), account, snTokensMinted) event for tracking ERC20 balances
-        INTokenProxy(nTokenStaked.getStakedNTokenAddress(currencyId)).emitMint(msg.sender, snTokensMinted);
+        INTokenProxy(StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId)).emitMint(msg.sender, snTokensMinted);
     }
 
-    function mintAndStakeNToken(
-        uint16 currencyId,
-        uint256 depositAmountExternal,
-        bool useUnderlying
-    ) external {
-        // TODO: Transfer tokens in....
-
-        // _mintAndStakeNToken(currencyId, msg.sender, assetTokensReceivedInternal);
-    }
-
+    /// @notice Sets an unstake signal for the account, called from msg.sender
     function signalUnstakeNToken(uint16 currencyId, uint256 amount) external {
         nTokenStakerLib.setUnstakeSignal(msg.sender, currencyId, amount, block.timestamp);
     }
-
 
     function unstakeNToken(
         uint16 currencyId,
@@ -166,7 +179,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
         _unstakeNToken(currencyId, msg.sender, receiver, unstakeAmount, unstakeMethod);
 
         // This emits a Transfer(account, address(0), unstakeAmount) event for tracking ERC20 balances
-        INTokenProxy(nTokenStaked.getStakedNTokenAddress(currencyId)).emitMint(msg.sender, unstakeAmount);
+        INTokenProxy(StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId)).emitBurn(msg.sender, unstakeAmount);
     }
 
     function _unstakeNToken(
@@ -189,6 +202,6 @@ contract StakedNTokenAction is IStakedNTokenAction {
         // total supply on the nToken directly. This also updates accumulatedNOTEPerNToken and sets it in storage.
         nTokenSupply.changeNTokenSupply(nTokenHandler.nTokenAddress(currencyId), nTokensMinted, block.timestamp);
 
-        snTokensMinted = nTokenStaked.stakeNToken(account, currencyId, nTokensMinted.toUint(), block.timestamp);
+        snTokensMinted = nTokenStakerLib.stakeNToken(account, currencyId, nTokensMinted.toUint(), block.timestamp);
     }
 }
