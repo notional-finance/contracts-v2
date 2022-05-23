@@ -187,34 +187,37 @@ library nTokenStakerLib {
         uint256 tokensToUnstake,
         uint256 blockTime
     ) internal returns (uint256 nTokenClaim)  {
-        (
-            uint256 maturity,
-            uint256 snTokensToUnstake,
-            uint256 snTokenDeposit,
-            bool canUnstake
-        ) = canAccountUnstake(account, currencyId, blockTime);
-        // The account can unstake if they have set their signal, they are within the window and they specify
-        // an appropriate unstaking amount.
-        require(canUnstake && tokensToUnstake <= snTokensToUnstake, "Cannot Unstake");
+        uint256 maturity;
+        uint256 snTokensToUnstake;
+        uint256 snTokenDeposit;
+        {
+            bool canUnstake;
+            (maturity, snTokensToUnstake, snTokenDeposit, canUnstake) = canAccountUnstake(account, currencyId, blockTime);
+            // The account can unstake if they have set their signal, they are within the window and they specify
+            // an appropriate unstaking amount.
+            require(canUnstake && tokensToUnstake <= snTokensToUnstake, "Cannot Unstake");
+        }
 
         // Return the snTokenDeposit to the staker since they are unstaking during the correct period
         uint256 depositRefund = snTokenDeposit.mul(tokensToUnstake).div(snTokensToUnstake);
         int256 netStakerBalanceChange = tokensToUnstake.toInt().neg().add(depositRefund.toInt());
 
-        // This will mint nTokens from totalCashProfits so that the user can withdraw the proper amount
-        // of nTokens, this will ony happen on the first unstaking action.
-        (StakedNTokenSupply memory stakedSupply, uint256 accumulatedNOTE) = _mintNTokenProfits(currencyId, blockTime);
+        {
+            // This will mint nTokens from totalCashProfits so that the user can withdraw the proper amount
+            // of nTokens, this will ony happen on the first unstaking action.
+            (StakedNTokenSupply memory stakedSupply, uint256 accumulatedNOTE) = _mintNTokenProfits(currencyId, blockTime);
 
-        // This is the share of the overall nToken balance that the staked nToken has a claim on
-        nTokenClaim = stakedSupply.nTokenBalance.mul(tokensToUnstake).div(stakedSupply.totalSupply);
+            // This is the share of the overall nToken balance that the staked nToken has a claim on
+            nTokenClaim = stakedSupply.nTokenBalance.mul(tokensToUnstake).div(stakedSupply.totalSupply);
 
-        // Update the staker's balance and incentive counters
-        updateStakerBalance(account, currencyId, netStakerBalanceChange, accumulatedNOTE);
+            // Update the staker's balance and incentive counters
+            updateStakerBalance(account, currencyId, netStakerBalanceChange, accumulatedNOTE);
 
-        // Update total supply
-        stakedSupply.totalSupply = stakedSupply.totalSupply.sub(tokensToUnstake);
-        stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(nTokenClaim);
-        stakedSupply.setStakedNTokenSupply(currencyId);
+            // Update total supply
+            stakedSupply.totalSupply = stakedSupply.totalSupply.sub(tokensToUnstake);
+            stakedSupply.nTokenBalance = stakedSupply.nTokenBalance.sub(nTokenClaim);
+            stakedSupply.setStakedNTokenSupply(currencyId);
+        }
 
         // Updates the unstake signal
         _updateUnstakeSignal(

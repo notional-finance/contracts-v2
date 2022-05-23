@@ -170,6 +170,10 @@ contract StakedNTokenAction is IStakedNTokenAction {
         nTokenStakerLib.setUnstakeSignal(msg.sender, currencyId, amount, block.timestamp);
     }
 
+    function claimStakedNTokenIncentives(uint16[] calldata currencyId) external {
+        // TODO add a method for this
+    }
+
     function unstakeNToken(
         uint16 currencyId,
         uint256 unstakeAmount,
