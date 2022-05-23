@@ -57,7 +57,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
             uint256 valueInAssetCash,
             /* */,
             AssetRateParameters memory assetRate
-        ) = stakedSupply.getSNTokenPresentValue(currencyId, block.timestamp);
+        ) = stakedSupply.getSNTokenPresentValueView(currencyId, block.timestamp);
 
         return assetRate.convertToUnderlying(valueInAssetCash.toInt())
             .mul(assetRate.underlyingDecimals)

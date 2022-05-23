@@ -56,7 +56,7 @@ library nTokenStakerLib {
         StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
 
         // Calculate the share of sNTokens the staker will receive as a share of the total snToken present value
-        snTokensToMint = stakedSupply.calculateSNTokenToMint(currencyId, nTokensToStake, blockTime);
+        snTokensToMint = stakedSupply.calculateSNTokenToMintStateful(currencyId, nTokensToStake, blockTime);
 
         // Accumulate NOTE incentives to the staker based on their staking term and balance.
         uint256 accumulatedNOTE = stakedSupply.updateAccumulatedNOTE(currencyId, blockTime, 0);
