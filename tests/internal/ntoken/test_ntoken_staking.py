@@ -268,33 +268,179 @@ def test_lost_unstake_signal(StakedNToken, accounts):
     # START_TIME_TREF + SECONDS_IN_QUARTER + 62 * SECONDS_IN_DAY)
 
 
-def test_balance_of_selector_with_signal(StakedNToken, accounts):
-    pass
-
-
 def test_fail_unstake_token_outside_window(StakedNToken, accounts):
-    pass
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+
+    StakedNToken.setUnstakeSignal(accounts[0], 1, 50e8, START_TIME_TREF + 62 * SECONDS_IN_DAY)
+    with brownie.reverts("Cannot Unstake"):
+        StakedNToken.unstakeNToken(accounts[0], 1, 50e8, START_TIME_TREF + 63 * SECONDS_IN_DAY)
+        StakedNToken.unstakeNToken(accounts[0], 1, 50e8, START_TIME_TREF + SECONDS_IN_QUARTER)
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 50e8, START_TIME_TREF + SECONDS_IN_QUARTER + 86300
+        )
+        # After window ends
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 50e8, START_TIME_TREF + SECONDS_IN_QUARTER + 9 * SECONDS_IN_DAY
+        )
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 50e8, START_TIME_TREF + 2 * SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+        )
 
 
 def test_fail_unstake_token_no_signal(StakedNToken, accounts):
-    pass
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+
+    with brownie.reverts("Cannot Unstake"):
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 50e8, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+        )
 
 
 def test_fail_unstake_token_old_signal(StakedNToken, accounts):
-    pass
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+
+    StakedNToken.setUnstakeSignal(
+        accounts[0], 1, 50e8, START_TIME_TREF - SECONDS_IN_QUARTER + 62 * SECONDS_IN_DAY
+    )
+    with brownie.reverts("Cannot Unstake"):
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 50e8, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+        )
 
 
 def test_fail_unstake_token_insufficient_signal(StakedNToken, accounts):
-    pass
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+
+    StakedNToken.setUnstakeSignal(accounts[0], 1, 50e8, START_TIME_TREF + 62 * SECONDS_IN_DAY)
+
+    with brownie.reverts("Cannot Unstake"):
+        StakedNToken.unstakeNToken(
+            accounts[0], 1, 75e8, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+        )
 
 
-def test_unstake_token_multiple_times(StakedNToken, accounts):
-    pass
-
-
+@pytest.mark.only
 def test_unstake_token_maximum(StakedNToken, accounts):
-    pass
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+    StakedNToken.setUnstakeSignal(accounts[0], 1, 100e8, START_TIME_TREF + 62 * SECONDS_IN_DAY)
+
+    txn = StakedNToken.unstakeNToken(
+        accounts[0], 1, 100e8, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+    )
+    (
+        maturity,
+        snTokensToUnstake,
+        snTokenDeposit,
+        totalUnstakeSignal,
+    ) = StakedNToken.getUnstakeSignal(
+        accounts[0], 1, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+    )
+    supply = StakedNToken.getStakedSupply(1).dict()
+    staker = StakedNToken.getStaker(accounts[0], 1).dict()
+
+    assert txn.return_value == 100e8
+    assert maturity == START_TIME_TREF + SECONDS_IN_QUARTER
+    assert snTokensToUnstake == 0
+    assert snTokenDeposit == 0
+    assert totalUnstakeSignal == 0
+    assert staker["snTokenBalance"] == 0
+    assert supply["totalSupply"] == 0
+    assert supply["nTokenBalance"] == 0
+
+    check_invariants(StakedNToken, accounts, START_TIME_TREF + SECONDS_IN_QUARTER)
 
 
+@pytest.mark.only
+def test_unstake_token_multiple_times(StakedNToken, accounts):
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+
+    StakedNToken.setUnstakeSignal(accounts[0], 1, 100e8, START_TIME_TREF + 62 * SECONDS_IN_DAY)
+
+    txn = StakedNToken.unstakeNToken(
+        accounts[0], 1, 10e8, START_TIME_TREF + SECONDS_IN_QUARTER + 3 * SECONDS_IN_DAY
+    )
+    (
+        maturity,
+        snTokensToUnstake,
+        snTokenDeposit,
+        totalUnstakeSignal,
+    ) = StakedNToken.getUnstakeSignal(
+        accounts[0], 1, START_TIME_TREF + SECONDS_IN_QUARTER - SECONDS_IN_DAY
+    )
+    supply = StakedNToken.getStakedSupply(1).dict()
+    staker = StakedNToken.getStaker(accounts[0], 1).dict()
+
+    assert txn.return_value == 10e8
+    assert maturity == START_TIME_TREF + SECONDS_IN_QUARTER
+    assert snTokensToUnstake == 90e8
+    assert snTokenDeposit == 0.45e8
+    assert totalUnstakeSignal == 90e8
+    assert staker["snTokenBalance"] == 90e8 - 0.45e8
+    assert supply["nTokenBalance"] == 90e8
+    assert supply["totalSupply"] == 90e8
+
+    txn = StakedNToken.unstakeNToken(
+        accounts[0], 1, 25e8, START_TIME_TREF + SECONDS_IN_QUARTER + 4 * SECONDS_IN_DAY
+    )
+    (
+        maturity,
+        snTokensToUnstake,
+        snTokenDeposit,
+        totalUnstakeSignal,
+    ) = StakedNToken.getUnstakeSignal(
+        accounts[0], 1, START_TIME_TREF + SECONDS_IN_QUARTER - SECONDS_IN_DAY
+    )
+    supply = StakedNToken.getStakedSupply(1).dict()
+    staker = StakedNToken.getStaker(accounts[0], 1).dict()
+
+    assert txn.return_value == 25e8
+    assert maturity == START_TIME_TREF + SECONDS_IN_QUARTER
+    assert snTokensToUnstake == 65e8
+    assert snTokenDeposit == 0.325e8
+    assert totalUnstakeSignal == 65e8
+    assert staker["snTokenBalance"] == 65e8 - 0.325e8
+    assert supply["nTokenBalance"] == 65e8
+    assert supply["totalSupply"] == 65e8
+
+    # Fails on unused deposits
+    # check_invariants(StakedNToken, accounts,
+    # START_TIME_TREF + SECONDS_IN_QUARTER + 4 * SECONDS_IN_DAY)
+
+
+@pytest.mark.only
 def test_unstake_token_with_cash_balance(StakedNToken, accounts):
+    StakedNToken.setupIncentives(1, 100_000, 200_000, START_TIME_TREF)
+    StakedNToken.mintNTokens(1, 100_000e8, START_TIME_TREF)
+    StakedNToken.stakeNToken(accounts[0], 1, 100e8, START_TIME_TREF + 100)
+    StakedNToken.updateStakedNTokenProfits(1, 100e8)
+
+    StakedNToken.setUnstakeSignal(accounts[0], 1, 100e8, START_TIME_TREF + 62 * SECONDS_IN_DAY)
+    txn = StakedNToken.unstakeNToken(
+        accounts[0], 1, 10e8, START_TIME_TREF + SECONDS_IN_QUARTER + 4 * SECONDS_IN_DAY
+    )
+
+    supply = StakedNToken.getStakedSupply(1).dict()
+
+    assert txn.return_value == 20e8
+    assert supply["nTokenBalance"] == 180e8
+    assert supply["totalCashProfits"] == 0
+
+    # Fails on unused deposits
+    # check_invariants(StakedNToken, accounts,
+    # START_TIME_TREF + SECONDS_IN_QUARTER + 4 * SECONDS_IN_DAY)
+
+
+def test_balance_of_selector_with_signal(StakedNToken, accounts):
     pass
