@@ -40,7 +40,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
     function stakedNTokenBalanceOf(uint16 currencyId, address account)
         external override view returns (uint256) {
-        return nTokenStakerLib.getNTokenStaker(account, currencyId).stakedNTokenBalance;
+        return nTokenStakerLib.getNTokenStaker(account, currencyId).snTokenBalance;
     }
 
     function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId) external override view returns (uint256) {
@@ -98,7 +98,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
     function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
         external override onlyStakedNTokenProxy(currencyId) {
-        // TODO
+        nTokenStakerLib.setUnstakeSignal(account, currencyId, amount, block.timestamp);
     }
 
     function stakedNTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
@@ -153,7 +153,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     }
 
     function signalUnstakeNToken(uint16 currencyId, uint256 amount) external {
-        // TODO
+        nTokenStakerLib.setUnstakeSignal(msg.sender, currencyId, amount, block.timestamp);
     }
 
 

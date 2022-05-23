@@ -65,52 +65,6 @@ library nTokenStaked {
     }
 
     /**
-     * @notice Allows a staker to signal that they want to unstake a certain amount of snTokens in
-     * the next unstaking window. By signalling their intent to unstake before the unstaking window
-     * opens it allows the vaults to calculate the borrow capacity for the subsequent maturity.
-     * @param account the address of the staker
-     * @param currencyId currency id of the snToken
-     * @param snTokensToUnstake the amount of snTokens to unstake at the next maturity, if there is already
-     * a value in storage for the current unstake maturity this will overwrite it.
-     * @param blockTime the current block time
-     */
-    function signalUnstake(
-        address account,
-        uint16 currencyId,
-        uint256 snTokensToUnstake,
-        uint256 blockTime
-    ) internal {
-
-
-        nTokenStaker memory staker = nTokenStakerLib.getStaker(account, currencyId);
-        
-        /************ TODO: review inside here ***********************/
-        // TODO: need to properly accumulate incentives based on the deposit
-
-        (uint256 prevUnstakeMaturity, /* uint256 snTokensToUnstake */, uint256 snTokenDeposit) = getStakerUnstakeSignal(account, currencyId);
-        if (prevUnstakeMaturity == unstakeMaturity) {
-            // If the staker is resetting their signal on the current maturity then we refund the deposit
-            // in full and they will set a new deposit based on their new signal.
-            staker.stakedNTokenBalance = staker.stakedNTokenBalance.add(snTokenDeposit);
-        }
-
-        // Assert that the required balance exists.
-        require(snTokensToUnstake <= staker.stakedNTokenBalance);
-        // Withhold some amount of snTokens as a deposit for unstaking. If the user does come back to unstake
-        // this deposit will be credited back to their balance. If they do not unstake then the deposit will
-        // be "lost" and essentially become protocol owned liquidity.
-        snTokenDeposit = snTokensToUnstake.mul(Constants.UNSTAKE_DEPOSIT_RATE).div(uint256(Constants.RATE_PRECISION));
-        staker.stakedNTokenBalance = staker.stakedNTokenBalance.sub(snTokenDeposit);
-
-        setStakerUnstakeSignal(account, currencyId, unstakeMaturity, snTokensToUnstake, snTokenDeposit);
-        // _updateTokensSignalledForUnstaking(currencyId, unstakeMaturity, snTokensToUnstake.toInt());
-        /************ TODO: review inside here ***********************/
-        
-        // Updates the staker's nToken balance
-        // staker.setStaker(account, currencyId);
-    }
-
-    /**
      * @notice Unstaking nTokens can only be done during designated windows. At this point, the staker
      * will remove their share of nTokens.
      *

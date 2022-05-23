@@ -48,7 +48,9 @@ library LibStorage {
         nTokenStaker,
         StakedNTokenSupply,
         StakedNTokenIncentives,
-        StakedNTokenAddress
+        StakedNTokenAddress,
+        StakedNTokenUnstakeSignal,
+        TotalUnstakeSignal
     }
 
     /// @dev Mapping from an account address to account context
@@ -226,6 +228,18 @@ library LibStorage {
     /// @dev Returns object for an StakedNTokenSupply, mapping is from currency id to object
     function getStakedNTokenAddress() internal pure returns (mapping(uint256 => StakedNTokenAddressStorage) storage store) {
         uint256 slot = _getStorageSlot(StorageId.StakedNTokenAddress);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns unstake signal for an nTokenStaker, mapping is from account address to currency id to object
+    function getStakedNTokenUnstakeSignal() internal pure returns (mapping(address => mapping(uint256 => nTokenUnstakeSignalStorage)) storage store) {
+        uint256 slot = _getStorageSlot(StorageId.StakedNTokenUnstakeSignal);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns unstake signal for an nTokenStaker, mapping is from currency id to maturity to object
+    function getStakedNTokenTotalUnstakeSignal() internal pure returns (mapping(uint256 => mapping(uint256 => nTokenTotalUnstakeSignalStorage)) storage store) {
+        uint256 slot = _getStorageSlot(StorageId.TotalUnstakeSignal);
         assembly { store.slot := slot }
     }
 

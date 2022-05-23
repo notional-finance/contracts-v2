@@ -461,7 +461,7 @@ struct AccountBalance {
 // A per account, per currency context object for Staked nTokens
 struct nTokenStakerStorage {
     // Staked NToken balance for this account
-    uint88 stakedNTokenBalance;
+    uint88 snTokenBalance;
     // Share of the NOTE incentives the account does not have a claim over, overflows
     // at 720 million NOTE tokens (in 1e8 precision, only 100 million NOTE token supply)
     uint56 accountIncentiveDebt;
@@ -470,7 +470,7 @@ struct nTokenStakerStorage {
     uint56 accumulatedNOTE;
 }
 
-struct nTokenStakerUnstakeSignalStorage {
+struct nTokenUnstakeSignalStorage {
     // Maturity when these staked nTokens will be able to unstake
     uint32 unstakeMaturity;
     // Staked nTokens signalled for unstaking
@@ -481,7 +481,7 @@ struct nTokenStakerUnstakeSignalStorage {
 
 // In memory object for the staker context
 struct nTokenStaker {
-    uint256 stakedNTokenBalance;
+    uint256 snTokenBalance;
     uint256 accountIncentiveDebt;
     uint256 accumulatedNOTE;
 }
@@ -494,6 +494,11 @@ struct StakedNTokenSupplyStorage {
     uint88 nTokenBalance;
     // Holds the accrued cash profits that have not been minted to nTokens yet
     uint80 totalCashProfits;
+}
+
+struct nTokenTotalUnstakeSignalStorage {
+    // Total snTokens that have signalled they will unstake in the following unstaking window.
+    uint88 totalUnstakeSignal;
 }
 
 struct StakedNTokenIncentivesStorage {
@@ -509,8 +514,6 @@ struct StakedNTokenIncentivesStorage {
     // and redeemed, this second storage slot is only updated by governance infrequently.
     uint32 totalAnnualStakedEmission;
 }
-    // // Total snTokens that have signalled they will unstake in the following unstaking window.
-    // uint96 snTokensSignalledForUnstaking;
 
 struct StakedNTokenAddressStorage {
     address stakedNTokenAddress;
