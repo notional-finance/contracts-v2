@@ -105,6 +105,7 @@ library nTokenStakerLib {
         }
 
         // This is the incentives the account does not have a claim on after the balance change
+        // TODO: should this be able to decrease in short periods of time?
         accountIncentiveDebt = snTokenBalance
             .mul(totalAccumulatedNOTEPerStaked)
             .div(Constants.INCENTIVE_ACCUMULATION_PRECISION);
@@ -144,14 +145,14 @@ library nTokenStakerLib {
 
         (uint256 unstakeMaturity, uint256 prevTokensToUnstake, uint256 snTokenDeposit) = getUnstakeSignal(account, currencyId);
         int256 netBalanceChange;
-        int256 netSignalChange;
+        int256 netSignalChange = snTokensToUnstake.toInt();
 
         if (unstakeMaturity == maturity) {
             // If the staker is resetting their signal on the current maturity then we refund the deposit
             // in full and they will set a new deposit based on their new signal.
             netBalanceChange = snTokenDeposit.toInt();
             // We also update that total signal value based on the net change from the old signal to the new signal
-            netSignalChange = prevTokensToUnstake.toInt().neg();
+            netSignalChange = netSignalChange.sub(prevTokensToUnstake.toInt());
         }
 
         // Withhold some amount of snTokens as a deposit for unstaking. If the user does come back to unstake
@@ -166,7 +167,7 @@ library nTokenStakerLib {
         uint256 accumulatedNOTE = stakedSupply.updateAccumulatedNOTE(currencyId, blockTime, 0);
         uint256 finalTokenBalance = updateStakerBalance(account, currencyId, netBalanceChange, accumulatedNOTE);
         // Check that snTokensToUnstake is less than or equal to the tokens held
-        require(finalTokenBalance >= snTokensToUnstake.add(newTokenDeposit));
+        require(finalTokenBalance.add(newTokenDeposit) >= snTokensToUnstake);
 
         _updateUnstakeSignal(account, currencyId, maturity, snTokensToUnstake, newTokenDeposit, netSignalChange);
     }
