@@ -30,6 +30,14 @@ library StakedNTokenSupplyLib {
         return store[currencyId].stakedNTokenAddress;
     }
 
+    function setStakedNTokenAddress(uint16 currencyId, address tokenAddress) internal returns (address) {
+        StakedNTokenAddressStorage storage s = LibStorage.getStakedNTokenAddress()[currencyId];
+        // The token address cannot change once set.
+        require(s.stakedNTokenAddress == address(0));
+
+        s.stakedNTokenAddress = tokenAddress;
+    }
+
     /// @notice Gets the current staked nToken supply
     function getStakedNTokenSupply(uint16 currencyId) internal view returns (StakedNTokenSupply memory stakedSupply) {
         mapping(uint256 => StakedNTokenSupplyStorage) storage store = LibStorage.getStakedNTokenSupply();
@@ -53,7 +61,7 @@ library StakedNTokenSupplyLib {
     function setStakedNTokenEmissions(
         uint16 currencyId,
         uint32 totalAnnualStakedEmission,
-        uint32 blockTime
+        uint256 blockTime
     ) internal {
         // No nToken supply change
         updateAccumulatedNOTE(getStakedNTokenSupply(currencyId), currencyId, blockTime, 0);

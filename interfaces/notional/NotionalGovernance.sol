@@ -25,10 +25,16 @@ interface NotionalGovernance {
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
     event UpdateSecondaryIncentiveRewarder(uint16 indexed currencyId, address rewarder);
     event UpdateLendingPool(address pool);
+    event UpdateStakedIncentiveEmissionRate(uint16 currencyId, uint32 totalAnnualStakedEmission);
+    event DeployStakedNToken(uint16 currencyId, address stakedNTokenAddress);
 
     function transferOwnership(address newOwner, bool direct) external;
 
     function claimOwnership() external;
+
+    function upgradeNTokenBeacon(address newImplementation) external;
+
+    function upgradeStakedNTokenBeacon(address newImplementation) external;
 
     function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
@@ -53,6 +59,18 @@ interface NotionalGovernance {
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
+    ) external;
+
+    function enableStakedNToken(
+        uint16 currencyId,
+        uint32 totalAnnualStakedEmission,
+        string calldata underlyingName,
+        string calldata underlyingSymbol
+    ) external;
+
+    function updateStakedNTokenIncentives(
+        uint16 currencyId,
+        uint32 totalAnnualStakedEmission
     ) external;
 
     function updateDepositParameters(
