@@ -80,7 +80,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress);
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(tokenHolder != address(0));
 
         nTokenAllowance[tokenHolder][spender][currencyId] = amount;
@@ -101,7 +101,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress);
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
         requireValidAccount(to);
 
@@ -124,7 +124,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress);
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
         require(from != to, "Cannot transfer to self");
         requireValidAccount(to);
 
@@ -275,7 +275,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
     function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
         external payable override returns (uint256) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress);
+        require(msg.sender == nTokenAddress, "Unauthorized caller");
 
         // If we are minting nETH then we assets must equal the ETH sent
         if (currencyId == Constants.ETH_CURRENCY_ID) require(assets == msg.value);

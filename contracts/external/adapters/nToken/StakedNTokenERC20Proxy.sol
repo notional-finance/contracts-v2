@@ -5,7 +5,7 @@ pragma abicoder v2;
 import {IStakedNTokenAction} from "../../../../interfaces/notional/IStakedNTokenAction.sol";
 import {BaseNTokenProxy} from "./BaseNTokenProxy.sol";
 
-contract StakedNTokenProxy is BaseNTokenProxy {
+contract StakedNTokenERC20Proxy is BaseNTokenProxy {
     mapping(address => mapping(address => uint256)) private _allowance;
 
     constructor(address notional_, address weth_) BaseNTokenProxy(notional_, weth_) { }

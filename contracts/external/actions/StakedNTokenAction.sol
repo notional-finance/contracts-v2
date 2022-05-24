@@ -33,7 +33,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
     /// @notice Authenticates calls to the proxy
     modifier onlyStakedNTokenProxy(uint16 currencyId) {
-        require(msg.sender == StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId));
+        require(msg.sender == StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId), "Unauthorized caller");
         _;
     }
 
