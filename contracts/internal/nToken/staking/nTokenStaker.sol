@@ -316,4 +316,15 @@ library nTokenStakerLib {
             blockTime <= maturity.add(Constants.UNSTAKE_WINDOW_END_OFFSET)
         );
     }
+
+    /// @notice Returns the balance of the account including any available snTokenDeposits
+    function balanceOf(uint16 currencyId, address account, uint256 blockTime) internal view returns (uint256 balance) {
+        balance = nTokenStakerLib.getStaker(account, currencyId).snTokenBalance;
+        uint256 timeRef = DateTime.getReferenceTime(blockTime);
+        (uint256 unstakeMaturity, /* snTokensToUnstake */, uint256 snTokenDeposit) = getUnstakeSignal(account, currencyId);
+        bool inSignalWindow = timeRef.add(Constants.QUARTER) == unstakeMaturity;
+        bool inUnstakeWindow = timeRef == unstakeMaturity && blockTime <= timeRef.add(Constants.UNSTAKE_WINDOW_END_OFFSET);
+        
+        if (inSignalWindow || inUnstakeWindow) balance = balance.add(snTokenDeposit);
+    }
 }

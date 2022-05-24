@@ -29,4 +29,10 @@ interface IStakedNTokenAction {
         returns (uint256);
 
     function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount) external;
+
+    function stakeNTokenViaBatch(address account, uint16 currencyId, uint256 nTokensToStake)
+        external returns (uint256);
+
+    function unstakeNTokenViaBatch(address account, uint16 currencyId, uint256 snNTokens)
+        external returns (uint256);
 }

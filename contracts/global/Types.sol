@@ -58,7 +58,22 @@ enum DepositActionType {
     RedeemNToken,
     // Converts specified amount of asset cash balance already in Notional to nTokens. depositActionAmount is specified in
     // Notional internal 8 decimal precision.
-    ConvertCashToNToken
+    ConvertCashToNToken,
+
+    // Transfers depositActionAmount of nTokens into staked nTokens and mints them back to the user.
+    StakeNToken,
+    // Deposits asset tokens and uses them to mint nTokens, and then stake all of the nTokens minted
+    DepositAssetAndMintStakedNToken,
+    // Deposits underlying tokens and uses them to mint nTokens, and then stake all of the nTokens minted
+    DepositUnderlyingAndMintStakedNToken,
+    // Converts a cash balance to staked nTokens
+    ConvertCashToStakedNToken,
+
+    // Unstake staked nTokens and transfers the nToken claim into the account's portfolio.
+    UnstakeToNToken,
+    // Unstake staked nTokens and redeems them to a cash balance, which can then be withdrawn. DepositActionAmount
+    // equals the staked nTokens to redeem.
+    UnstakeAndRedeemNToken
 }
 
 /// @notice Used internally for PortfolioHandler state
@@ -524,11 +539,4 @@ struct StakedNTokenSupply {
     uint256 totalSupply;
     uint256 nTokenBalance;
     uint256 totalCashProfits;
-}
-
-enum UnstakeNTokenMethod {
-    UnstakeToNToken,
-    RedeemToCashBalance,
-    TransferToAccountAssetCash,
-    TransferToAccountUnderlying
 }

@@ -8,12 +8,16 @@ import "./nTokenMintAction.sol";
 import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
-import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../../interfaces/notional/NotionalCallback.sol";
+
+import {nTokenStakerLib} from "../../internal/nToken/staking/nTokenStaker.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {IStakedNTokenAction} from "../../../interfaces/notional/IStakedNTokenAction.sol";
 import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
@@ -23,6 +27,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
+    using SafeUint256 for uint256;
 
     /// @notice Executes a batch of balance transfers including minting and redeeming nTokens.
     /// @param account the account for the action
@@ -352,51 +357,73 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         if (
             depositType == DepositActionType.DepositAssetAndMintNToken ||
             depositType == DepositActionType.DepositUnderlyingAndMintNToken ||
-            depositType == DepositActionType.ConvertCashToNToken
+            depositType == DepositActionType.ConvertCashToNToken ||
+            depositType == DepositActionType.DepositAssetAndMintStakedNToken ||
+            depositType == DepositActionType.DepositUnderlyingAndMintStakedNToken ||
+            depositType == DepositActionType.ConvertCashToStakedNToken
         ) {
             // Will revert if trying to mint ntokens and results in a negative cash balance
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
-            int256 tokensMinted = nTokenMintAction.nTokenMint(
-                balanceState.currencyId,
-                assetInternalAmount
-            );
+            int256 tokensMinted = nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(tokensMinted);
 
-            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
-                tokensMinted
-            );
+            if (
+                depositType == DepositActionType.DepositAssetAndMintStakedNToken ||
+                depositType == DepositActionType.DepositUnderlyingAndMintStakedNToken ||
+                depositType == DepositActionType.ConvertCashToStakedNToken
+            ) {
+                // If staking the newly minted nTokens, then we call stake nToken and mark the tokens as transferred
+                balanceState.netNTokenTransfer = balanceState.netNTokenTransfer.sub(tokensMinted);
+                IStakedNTokenAction(address(this)).stakeNTokenViaBatch(account, balanceState.currencyId, tokensMinted.toUint());
+            }
+        } else if (
+            depositType == DepositActionType.RedeemNToken ||
+            depositType == DepositActionType.UnstakeAndRedeemNToken
+        ) {
+            int256 nTokensToRedeem = depositActionAmount;
 
-            // Emits a Transfer(address(0), account, tokensMinted) event (if the proxy has this method),
-            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
-            // not have this method, it is only available in newer proxies.
-            try INTokenProxy(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
-        } else if (depositType == DepositActionType.RedeemNToken) {
+            if (depositType == DepositActionType.UnstakeAndRedeemNToken) {
+                // If unstaking, then transfer and add the nToken balance
+                nTokensToRedeem = IStakedNTokenAction(address(this)).unstakeNTokenViaBatch(
+                    account,
+                    balanceState.currencyId,
+                    depositActionAmount.toUint()
+                ).toInt();
+
+                balanceState.netNTokenTransfer = balanceState.netNTokenTransfer.add(nTokensToRedeem);
+            }
+
             require(
                 // prettier-ignore
                 balanceState
                     .storedNTokenBalance
-                    .add(balanceState.netNTokenTransfer) // transfers would not occur at this point
-                    .add(balanceState.netNTokenSupplyChange) >= depositActionAmount,
+                    .add(balanceState.netNTokenTransfer)
+                    .add(balanceState.netNTokenSupplyChange) >= nTokensToRedeem,
                 "Insufficient token balance"
             );
 
-            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(
-                depositActionAmount
-            );
-
-            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(
-                balanceState.currencyId,
-                depositActionAmount
-            );
-
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(nTokensToRedeem);
+            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(balanceState.currencyId, nTokensToRedeem);
             balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
 
             // Emits a Transfer(account, address(0), tokensRedeemed) event (if the proxy has this method),
             // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
             // not have this method, it is only available in newer proxies.
-            try INTokenProxy(nToken).emitBurn(account, SafeInt256.toUint(depositActionAmount)) {} catch {}
+            try INTokenProxy(nToken).emitBurn(account, SafeInt256.toUint(nTokensToRedeem)) {} catch {}
+        } else if (depositType == DepositActionType.StakeNToken) {
+            // In this case we are just transferring nTokens from the account
+            // NOTE: we do not check sufficient balance here, but the total nToken balance cannot go negative when we finalize.
+            balanceState.netNTokenTransfer = balanceState.netNTokenTransfer.sub(depositActionAmount);
+            IStakedNTokenAction(address(this)).stakeNTokenViaBatch(account, balanceState.currencyId, depositActionAmount.toUint());
+        } else if (depositType == DepositActionType.UnstakeToNToken) {
+            // In this case we are just transferring nTokens to the account
+            int256 nTokenClaim = IStakedNTokenAction(address(this)).unstakeNTokenViaBatch(
+                account, balanceState.currencyId, depositActionAmount.toUint()
+            ).toInt();
+            balanceState.netNTokenTransfer = balanceState.netNTokenTransfer.add(nTokenClaim);
         }
     }
 
