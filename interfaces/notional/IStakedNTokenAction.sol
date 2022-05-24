@@ -35,4 +35,7 @@ interface IStakedNTokenAction {
 
     function unstakeNTokenViaBatch(address account, uint16 currencyId, uint256 snNTokens)
         external returns (uint256);
+
+    function signalUnstakeNToken(uint16 currencyId, uint256 amount) external;
+    function claimStakedNTokenIncentives(uint16[] calldata currencyId) external;
 }

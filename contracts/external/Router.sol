@@ -2,10 +2,11 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
+import {INTokenAction} from "../../interfaces/notional/INTokenAction.sol";
+import {IStakedNTokenAction} from "../../interfaces/notional/IStakedNTokenAction.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
 import "../../interfaces/notional/nERC1155Interface.sol";
 import "../../interfaces/notional/NotionalGovernance.sol";
@@ -34,36 +35,41 @@ contract Router is StorageLayoutV1 {
     address public immutable cETH;
     address public immutable TREASURY;
     address public immutable CALCULATION_VIEWS;
+    address public immutable STAKED_NTOKEN_ACTIONS;
     address private immutable DEPLOYER;
 
-    constructor(
-        address governance_,
-        address views_,
-        address initializeMarket_,
-        address nTokenActions_,
-        address batchAction_,
-        address accountAction_,
-        address erc1155_,
-        address liquidateCurrency_,
-        address liquidatefCash_,
-        address cETH_,
-        address treasury_,
-        address calculationViews_
-    ) {
-        GOVERNANCE = governance_;
-        VIEWS = views_;
-        INITIALIZE_MARKET = initializeMarket_;
-        NTOKEN_ACTIONS = nTokenActions_;
-        BATCH_ACTION = batchAction_;
-        ACCOUNT_ACTION = accountAction_;
-        ERC1155 = erc1155_;
-        LIQUIDATE_CURRENCY = liquidateCurrency_;
-        LIQUIDATE_FCASH = liquidatefCash_;
-        cETH = cETH_;
-        DEPLOYER = msg.sender;
-        TREASURY = treasury_;
-        CALCULATION_VIEWS = calculationViews_;
+    struct RouterContracts {
+        address governance;
+        address views;
+        address initializeMarket;
+        address nTokenActions;
+        address batchAction;
+        address accountAction;
+        address erc1155;
+        address liquidateCurrency;
+        address liquidatefCash;
+        address cETH;
+        address treasury;
+        address calculationViews;
+        address stakedNTokenActions;
+    }
 
+    constructor(RouterContracts memory contracts) {
+        GOVERNANCE = contracts.governance;
+        VIEWS = contracts.views;
+        INITIALIZE_MARKET = contracts.initializeMarket;
+        NTOKEN_ACTIONS = contracts.nTokenActions;
+        BATCH_ACTION = contracts.batchAction;
+        ACCOUNT_ACTION = contracts.accountAction;
+        ERC1155 = contracts.erc1155;
+        LIQUIDATE_CURRENCY = contracts.liquidateCurrency;
+        LIQUIDATE_FCASH = contracts.liquidatefCash;
+        cETH = contracts.cETH;
+        TREASURY = contracts.treasury;
+        CALCULATION_VIEWS = contracts.calculationViews;
+        STAKED_NTOKEN_ACTIONS = contracts.stakedNTokenActions;
+
+        DEPLOYER = msg.sender;
         // This will lock everyone from calling initialize on the implementation contract
         hasInitialized = true;
     }
@@ -114,19 +120,6 @@ contract Router is StorageLayoutV1 {
         ) {
             return BATCH_ACTION;
         } else if (
-            sig == nTokenAction.nTokenTotalSupply.selector ||
-            sig == nTokenAction.nTokenBalanceOf.selector ||
-            sig == nTokenAction.nTokenTransferAllowance.selector ||
-            sig == nTokenAction.nTokenTransferApprove.selector ||
-            sig == nTokenAction.nTokenTransfer.selector ||
-            sig == nTokenAction.nTokenTransferFrom.selector ||
-            sig == nTokenAction.nTokenClaimIncentives.selector ||
-            sig == nTokenAction.nTokenTransferApproveAll.selector ||
-            sig == nTokenAction.nTokenPresentValueAssetDenominated.selector ||
-            sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
-        ) {
-            return NTOKEN_ACTIONS;
-        } else if (
             sig == NotionalProxy.depositUnderlyingToken.selector ||
             sig == NotionalProxy.depositAssetToken.selector ||
             sig == NotionalProxy.withdraw.selector ||
@@ -149,6 +142,36 @@ contract Router is StorageLayoutV1 {
             sig == nERC1155Interface.isApprovedForAll.selector
         ) {
             return ERC1155;
+        } else if (
+            sig == INTokenAction.nTokenTotalSupply.selector ||
+            sig == INTokenAction.nTokenTransferAllowance.selector ||
+            sig == INTokenAction.nTokenBalanceOf.selector ||
+            sig == INTokenAction.nTokenTransferApprove.selector ||
+            sig == INTokenAction.nTokenTransfer.selector ||
+            sig == INTokenAction.nTokenTransferFrom.selector ||
+            sig == INTokenAction.nTokenTransferApproveAll.selector ||
+            sig == INTokenAction.nTokenClaimIncentives.selector ||
+            sig == INTokenAction.nTokenPresentValueAssetDenominated.selector ||
+            sig == INTokenAction.nTokenPresentValueUnderlyingDenominated.selector ||
+            sig == INTokenAction.nTokenPresentValueUnderlyingExternal.selector ||
+            sig == INTokenAction.nTokenRedeemViaProxy.selector ||
+            sig == INTokenAction.nTokenMintViaProxy.selector
+        ) {
+            return NTOKEN_ACTIONS;
+        } else if (
+            sig == IStakedNTokenAction.stakedNTokenTotalSupply.selector ||
+            sig == IStakedNTokenAction.stakedNTokenBalanceOf.selector ||
+            sig == IStakedNTokenAction.stakedNTokenRedeemAllowed.selector ||
+            sig == IStakedNTokenAction.stakedNTokenTransfer.selector ||
+            sig == IStakedNTokenAction.stakedNTokenRedeemViaProxy.selector ||
+            sig == IStakedNTokenAction.stakedNTokenMintViaProxy.selector ||
+            sig == IStakedNTokenAction.stakedNTokenPresentValueUnderlyingExternal.selector ||
+            sig == IStakedNTokenAction.stakeNTokenViaBatch.selector ||
+            sig == IStakedNTokenAction.unstakeNTokenViaBatch.selector ||
+            sig == IStakedNTokenAction.signalUnstakeNToken.selector ||
+            sig == IStakedNTokenAction.claimStakedNTokenIncentives.selector
+        ) {
+            return STAKED_NTOKEN_ACTIONS;
         } else if (
             sig == NotionalProxy.liquidateLocalCurrency.selector ||
             sig == NotionalProxy.liquidateCollateralCurrency.selector ||

@@ -154,11 +154,11 @@ contract StakedNTokenAction is IStakedNTokenAction {
     /**** Direct call to Notional, must be authenticated via msg.sender  ****/
 
     /// @notice Sets an unstake signal for the account, called from msg.sender
-    function signalUnstakeNToken(uint16 currencyId, uint256 amount) external {
+    function signalUnstakeNToken(uint16 currencyId, uint256 amount) external override {
         nTokenStakerLib.setUnstakeSignal(msg.sender, currencyId, amount, block.timestamp);
     }
 
-    function claimStakedNTokenIncentives(uint16[] calldata currencyId) external {
+    function claimStakedNTokenIncentives(uint16[] calldata currencyId) external override {
         // TODO add a method for this
     }
 

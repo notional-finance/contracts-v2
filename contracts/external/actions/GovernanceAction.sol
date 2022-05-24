@@ -11,7 +11,7 @@ import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
-import {BeaconProxy} from "../../proxy/beacon/BeaconProxy.sol";
+import {nBeaconProxy} from "../../proxy/nBeaconProxy.sol";
 import {UpgradeableBeacon} from "../../proxy/beacon/UpgradeableBeacon.sol";
 import "../../../interfaces/notional/IRewarder.sol";
 import "../../../interfaces/notional/AssetRateAdapter.sol";
@@ -231,7 +231,7 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         );
 
         // A beacon proxy gets its implementation via the UpgradeableBeacon set here.
-        BeaconProxy proxy = new BeaconProxy(NTOKEN_UPGRADEABLE_BEACON, initCallData);
+        nBeaconProxy proxy = new nBeaconProxy(NTOKEN_UPGRADEABLE_BEACON, initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
         emit DeployNToken(currencyId, address(proxy));
     }
@@ -258,7 +258,7 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
             underlyingSymbol
         );
 
-        BeaconProxy proxy = new BeaconProxy(STAKED_NTOKEN_UPGRADEABLE_BEACON, initCallData);
+        nBeaconProxy proxy = new nBeaconProxy(STAKED_NTOKEN_UPGRADEABLE_BEACON, initCallData);
         StakedNTokenSupplyLib.setStakedNTokenAddress(currencyId, address(proxy));
         emit DeployStakedNToken(currencyId, address(proxy));
     }
