@@ -257,6 +257,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(tokensToRedeem);
         int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, tokensToRedeem);
         // All of the tokens redeemed will be transferred back to the owner and redeemed to underlying
+        balanceState.netCashChange = assetCash;
         balanceState.netAssetTransferInternalPrecision = assetCash.neg();
         balanceState.finalize({account: owner, accountContext: ownerContext, redeemToUnderlying: true});
         ownerContext.setAccountContext(owner);

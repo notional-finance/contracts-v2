@@ -103,7 +103,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     /// @notice Suffers from estimation issues related to nToken redemption. maxAssets is an overestimation
     /// of the amount the owner can withdraw.
     function maxWithdraw(address owner) external override view returns (uint256 maxAssets) {
-        return convertToShares(balanceOf(owner));
+        return convertToAssets(balanceOf(owner));
     }
 
     /// @notice All nTokens are freely redeemable, however, in certain economic conditions they may need to
@@ -113,6 +113,8 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     }
 
     function _redeem(uint256 shares, address receiver, address owner) internal override returns (uint256 assets) {
+        // We don't support any redemption delegation in the nToken proxy
+        require(msg.sender == owner);
         return INTokenAction(Notional).nTokenRedeemViaProxy(currencyId, shares, receiver, owner);
     }
 
