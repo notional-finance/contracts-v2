@@ -126,7 +126,7 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
         uint256 supply = totalSupply();
         if (supply == 0) return shares;
 
-        shares = totalAssets().mul(shares).div(supply);
+        assets = totalAssets().mul(shares).div(supply);
     }
 
     /// @notice No supply constraints on nTokens or staked nTokens
@@ -206,7 +206,7 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
             uint256 balanceAfter = IERC20(underlying).balanceOf(address(Notional));
 
             // Get the most accurate accounting of the assets transferred
-            assetsActual = balanceAfter.sub(balanceAfter);
+            assetsActual = balanceAfter.sub(balanceBefore);
             msgValue = 0;
         }
     }

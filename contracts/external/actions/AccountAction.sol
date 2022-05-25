@@ -215,6 +215,7 @@ contract AccountAction is ActionGuards {
         address nToken = nTokenHandler.nTokenAddress(currencyId);
         try INTokenProxy(nToken).emitBurn(redeemer, SafeInt256.toUint(tokensToRedeem)) {} catch {}
 
+        // TODO: is this emitted twice?
         emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
         return (totalAssetCash, hasResidual);
     }

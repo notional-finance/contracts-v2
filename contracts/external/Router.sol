@@ -207,6 +207,10 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateGlobalTransferOperator.selector ||
             sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
             sig == NotionalGovernance.setLendingPool.selector ||
+            sig == NotionalGovernance.upgradeNTokenBeacon.selector ||
+            sig == NotionalGovernance.upgradeStakedNTokenBeacon.selector ||
+            sig == NotionalGovernance.enableStakedNToken.selector ||
+            sig == NotionalGovernance.updateStakedNTokenIncentives.selector ||
             sig == NotionalProxy.upgradeTo.selector ||
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
