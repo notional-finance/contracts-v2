@@ -108,6 +108,16 @@ interface NotionalViews {
             uint256 lastAccumulatedTime
         );
 
+    function getStakedNTokenSupply(uint16 currencyId) external view returns (
+        uint256 totalSupply,
+        uint256 nTokenBalance,
+        uint256 totalCashProfits,
+        uint256 lastAccumulatedTime,
+        uint256 totalAnnualStakedEmission,
+        uint256 lastBaseAccumulatedNOTEPerNToken,
+        uint256 totalAccumulatedNOTEPerStaked
+    );
+
     function getAccount(address account)
         external
         view

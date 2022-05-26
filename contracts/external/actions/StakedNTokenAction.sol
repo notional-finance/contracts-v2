@@ -108,7 +108,8 @@ contract StakedNTokenAction is IStakedNTokenAction {
         int256 assetTokensReceivedInternal = assetToken.convertToInternal(assetToken.mint(currencyId, assets));
         int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetTokensReceivedInternal);
         // When we mint and stake nTokens directly, we do not go via the balance handler so we have to update the
-        // total supply on the nToken directly. This also updates accumulatedNOTEPerNToken and sets it in storage.
+        // total supply on the nToken directly. This also updates accumulatedNOTEPerNToken and sets it in storage,
+        // this will be read inside the stakeNToken method when calculating incentives.
         nTokenSupply.changeNTokenSupply(nTokenHandler.nTokenAddress(currencyId), nTokensMinted, block.timestamp);
 
         snTokensMinted = nTokenStakerLib.stakeNToken(receiver, currencyId, nTokensMinted.toUint(), block.timestamp);
@@ -125,8 +126,12 @@ contract StakedNTokenAction is IStakedNTokenAction {
     function stakedNTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
         external override onlyStakedNTokenProxy(currencyId)
         returns (uint256 assetsTransferred) {
-        uint256 nTokenClaim = nTokenStakerLib.unstakeNToken(owner, currencyId, shares, block.timestamp);
-        int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokenClaim.toInt());
+        int256 nTokenClaim = nTokenStakerLib.unstakeNToken(owner, currencyId, shares, block.timestamp).toInt();
+        int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, nTokenClaim);
+        // When we mint and stake nTokens directly, we do not go via the balance handler so we have to update the
+        // total supply on the nToken directly. accumulatedNOTEPerNToken has already been updated to the block inside
+        // unstakeNToken so we will not end up doing a second accumulation in this method.
+        nTokenSupply.changeNTokenSupply(nTokenHandler.nTokenAddress(currencyId), nTokenClaim.neg(), block.timestamp);
 
         // Redeem Tokens to Sender
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);

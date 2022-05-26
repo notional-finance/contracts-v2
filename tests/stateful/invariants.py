@@ -98,20 +98,20 @@ def check_cash_balance(env, accounts):
             contractBalance = tokenBalance * 1e8 / 1e18
 
         accountBalances = 0
-        nTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, nTokenBalance, _) = env.notional.getAccountBalance(
-                currencyId, account.address
-            )
+            (cashBalance, _, _) = env.notional.getAccountBalance(currencyId, account.address)
             accountBalances += cashBalance
-            nTokenTotalBalances += nTokenBalance
 
         # Add nToken balances
         (cashBalance, _, _) = env.notional.getAccountBalance(
             currencyId, env.nToken[currencyId].address
         )
         accountBalances += cashBalance
+
+        # Add snToken cash profits
+        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
+        accountBalances += snToken["totalCashProfits"]
 
         # Loop markets to check for cashBalances
         markets = env.notional.getActiveMarkets(currencyId)
@@ -126,8 +126,6 @@ def check_cash_balance(env, accounts):
         assert pytest.approx(contractBalance, abs=5) == accountBalances
         # Ensure that the contract always retains more balance than the sum of accounts
         assert contractBalance >= accountBalances
-        # Check that total supply equals total balances
-        assert nTokenTotalBalances == env.nToken[currencyId].totalSupply()
 
 
 def check_ntoken(env, accounts):
@@ -136,6 +134,10 @@ def check_ntoken(env, accounts):
     for (currencyId, nToken) in env.nToken.items():
         totalSupply = nToken.totalSupply()
         totalTokensHeld = 0
+
+        # Get the staked nToken holdings
+        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
+        totalTokensHeld += snToken["nTokenBalance"]
 
         for account in accounts:
             (_, tokens, _) = env.notional.getAccountBalance(currencyId, account.address)
@@ -155,7 +157,10 @@ def check_ntoken(env, accounts):
             if testCurrencyId != currencyId:
                 assert cashBalance == 0
 
-        # TODO: ensure that the nToken holds enough PV for negative fcash balances
+        # Ensure that the nToken holds enough PV for negative fcash balances
+        nTokenAccount = env.notional.getNTokenAccount(nToken.address).dict()
+        if nTokenAccount["cashBalance"] < 0:
+            assert nToken.getPresentValueAssetDenominated() + nTokenAccount["cashBalance"] > 0
 
         # Ensure that the FC of the nToken is gte 0
         assert env.notional.getFreeCollateral(nToken.address)[0] >= 0

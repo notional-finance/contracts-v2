@@ -4,8 +4,7 @@ from brownie import Contract, StakedNTokenERC20Proxy
 from brownie.network import Chain
 from tests.constants import SECONDS_IN_DAY
 from tests.helpers import active_currencies_to_list, initialize_environment
-
-# from tests.stateful.invariants import check_system_invariants
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -91,7 +90,7 @@ def test_mint_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
     activeCurrenciesList = active_currencies_to_list(accountContext[4])
     assert len(activeCurrenciesList) == 0
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 def test_deposit_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
@@ -109,7 +108,7 @@ def test_deposit_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
     activeCurrenciesList = active_currencies_to_list(accountContext[4])
     assert len(activeCurrenciesList) == 0
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 def test_redeem_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
@@ -136,7 +135,7 @@ def test_redeem_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
     assert snDAI.balanceOf(accounts[1]) == 0
     assert DAI.balanceOf(snDAI.address) == 0
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 def test_withdraw_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
@@ -165,7 +164,7 @@ def test_withdraw_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
     assert snDAI.balanceOf(accounts[1]) == 0
     assert DAI.balanceOf(snDAI.address) == 0
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 def test_redeem_allowance_staked_ntokens_via_erc4626(environment, accounts, snDAI, DAI):
@@ -205,7 +204,7 @@ def test_redeem_allowance_staked_ntokens_via_erc4626(environment, accounts, snDA
     assert snDAI.balanceOf(accounts[1]) == 5000e8 - sharesWithdrawn - 2000e8
     assert DAI.balanceOf(snDAI.address) == 0
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 def test_balance_of_loses_deposit(environment, accounts, snDAI, DAI):
@@ -229,7 +228,7 @@ def test_balance_of_loses_deposit(environment, accounts, snDAI, DAI):
     # Now they should lose the deposit amount of 25 basis points (50% of the balance was signalled)
     assert (balanceBefore - snDAI.balanceOf(accounts[1])) / balanceBefore == 0.0025
 
-    # check_system_invariants(environment, accounts)
+    check_system_invariants(environment, accounts)
 
 
 # def test_mint_staked_neth_via_erc4626()

@@ -348,6 +348,29 @@ contract Views is StorageLayoutV2, NotionalViews {
         ) = BalanceHandler.getBalanceStorage(tokenAddress, currencyId);
     }
 
+    function getStakedNTokenSupply(uint16 currencyId) external view override returns (
+        uint256 totalSupply,
+        uint256 nTokenBalance,
+        uint256 totalCashProfits,
+        uint256 lastAccumulatedTime,
+        uint256 totalAnnualStakedEmission,
+        uint256 lastBaseAccumulatedNOTEPerNToken,
+        uint256 totalAccumulatedNOTEPerStaked
+    ) {
+        StakedNTokenSupplyStorage storage supply = LibStorage.getStakedNTokenSupply()[currencyId];
+
+        totalSupply = supply.totalSupply;
+        nTokenBalance = supply.nTokenBalance;
+        totalCashProfits = supply.totalCashProfits;
+
+        StakedNTokenIncentivesStorage storage incentives = LibStorage.getStakedNTokenIncentives()[currencyId];
+
+        totalAccumulatedNOTEPerStaked = incentives.totalAccumulatedNOTEPerStaked;
+        lastAccumulatedTime = incentives.lastAccumulatedTime;
+        totalAnnualStakedEmission = incentives.totalAnnualStakedEmission;
+        lastBaseAccumulatedNOTEPerNToken = incentives.lastBaseAccumulatedNOTEPerNToken;
+    }
+
     /** Account Specific View Methods **/
 
     /// @notice Returns all account details in a single view
