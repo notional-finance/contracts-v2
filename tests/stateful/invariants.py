@@ -24,6 +24,7 @@ def get_all_markets(env, currencyId):
 def check_system_invariants(env, accounts):
     check_cash_balance(env, accounts)
     check_ntoken(env, accounts)
+    check_staked_ntoken(env, accounts)
     check_portfolio_invariants(env, accounts)
     check_account_context(env, accounts)
     check_token_incentive_balance(env, accounts)
@@ -164,6 +165,37 @@ def check_ntoken(env, accounts):
 
         # Ensure that the FC of the nToken is gte 0
         assert env.notional.getFreeCollateral(nToken.address)[0] >= 0
+
+
+def check_staked_ntoken(env, accounts):
+    for (currencyId, nToken) in env.nToken.items():
+        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
+        totalSNTokensHeld = 0
+        unstakeMaturities = defaultdict(lambda: 0)
+
+        for account in accounts:
+            (
+                balance,
+                _,
+                _,
+                maturity,
+                snTokensToUnstake,
+                deposit,
+            ) = env.notional.getAccountStakedNTokens(account.address, currencyId)
+
+            totalSNTokensHeld += balance
+            # If the account has multiple signals where they lose their deposit then this will no
+            # longer be true
+            totalSNTokensHeld += deposit
+            unstakeMaturities[maturity] += snTokensToUnstake
+
+        for (maturity, totalSignal) in unstakeMaturities.items():
+            totalSignal = env.notional.getStakedNTokenUnstakeSignal(currencyId, maturity)
+            # If the account has multiple signals where they lose their deposit then this will no
+            # longer be true
+            assert unstakeMaturities[maturity] == totalSignal
+
+        assert totalSNTokensHeld == snToken["totalSupply"]
 
 
 def check_portfolio_invariants(env, accounts):
