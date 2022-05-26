@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/compound/CTokenInterface.sol";
