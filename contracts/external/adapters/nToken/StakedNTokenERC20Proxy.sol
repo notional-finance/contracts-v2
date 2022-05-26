@@ -105,7 +105,7 @@ contract StakedNTokenERC20Proxy is BaseNTokenProxy {
     /// @notice Allows msg.sender to signal that they will unstake some amount of nTokens. Will only succeed
     /// during the unstake signalling window.
     function signalUnstake(uint256 amount) external {
-        IStakedNTokenAction(Notional).stakedNTokenSignalUnstake(currencyId, msg.sender, amount);
+        IStakedNTokenAction(Notional).stakedNTokenSignalUnstakeViaProxy(currencyId, msg.sender, amount);
     }
 
     function _redeem(uint256 shares, address receiver, address owner) internal override returns (uint256 assets) {

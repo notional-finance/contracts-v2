@@ -440,7 +440,3 @@ def test_unstake_token_with_cash_balance(StakedNToken, accounts):
     # Fails on unused deposits
     # check_invariants(StakedNToken, accounts,
     # START_TIME_TREF + SECONDS_IN_QUARTER + 4 * SECONDS_IN_DAY)
-
-
-def test_balance_of_selector_with_signal(StakedNToken, accounts):
-    pass

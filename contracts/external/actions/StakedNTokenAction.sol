@@ -115,7 +115,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
     }
 
     /// @notice Sets an unstake signal for the account, called from the proxy
-    function stakedNTokenSignalUnstake(uint16 currencyId, address account, uint256 amount)
+    function stakedNTokenSignalUnstakeViaProxy(uint16 currencyId, address account, uint256 amount)
         external override onlyStakedNTokenProxy(currencyId) {
         nTokenStakerLib.setUnstakeSignal(account, currencyId, amount, block.timestamp);
     }

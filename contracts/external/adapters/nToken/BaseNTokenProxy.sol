@@ -4,10 +4,13 @@ pragma abicoder v2;
 
 import {Constants} from "../../../global/Constants.sol";
 import {Token, TokenType} from "../../../global/Types.sol";
+import {AssetRate, AssetRateParameters} from "../../../internal/markets/AssetRate.sol";
+import {SafeUint256} from "../../../math/SafeUint256.sol";
+import {SafeInt256} from "../../../math/SafeInt256.sol";
+
 import {NotionalViews} from "../../../../interfaces/notional/NotionalViews.sol";
 import {IERC4626} from "../../../../interfaces/IERC4626.sol";
 import {WETH9} from "../../../../interfaces/WETH9.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 
@@ -19,7 +22,9 @@ import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 /// contracts and are not easily upgraded. This may change in the future but requires a lot of testing
 /// and may break backwards compatibility with integrations.
 abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
-    using SafeMath for uint256;
+    using AssetRate for AssetRateParameters;
+    using SafeUint256 for uint256;
+    using SafeInt256 for int256;
 
     /// @notice Inherits from Constants.INTERNAL_TOKEN_PRECISION
     uint8 public constant decimals = 8;
@@ -68,22 +73,34 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
             symbol = string(abi.encodePacked("n", underlyingSymbol_));
         }
 
+        (address _underlying, /* */, /* */) = _underlyingToken(currencyId_);
+        underlying = _underlying;
+    }
+
+    function _underlyingToken(uint16 currencyId_) private view returns (
+        address _underlying,
+        int256 precision,
+        AssetRateParameters memory assetRate
+    ) {
         if (currencyId_ == Constants.ETH_CURRENCY_ID) {
             // If the underlying is ETH then we use WETH as the underlying
-            underlying = address(WETH);
+            _underlying = address(WETH);
+            precision = Constants.ETH_DECIMALS;
+            (/* */, /* */, /* */, assetRate) = NotionalViews(address(Notional))
+                .getCurrencyAndRates(currencyId_);
         } else {
-            (
-                Token memory assetToken,
-                Token memory underlyingToken,
-                /* ETHRate memory ethRate */,
-                /* AssetRateParameters memory assetRate */
-            ) = NotionalViews(address(Notional)).getCurrencyAndRates(currencyId);
+            Token memory assetToken;
+            Token memory underlyingToken;
+            (assetToken, underlyingToken, /* */, assetRate) = NotionalViews(address(Notional))
+                .getCurrencyAndRates(currencyId_);
 
             // The underlying token is set for the ERC4626 compatibility
             if (assetToken.tokenType == TokenType.NonMintable) {
-                underlying = address(assetToken.tokenAddress);
+                _underlying = address(assetToken.tokenAddress);
+                precision = assetToken.decimals;
             } else {
-                underlying = address(underlyingToken.tokenAddress);
+                _underlying = address(underlyingToken.tokenAddress);
+                precision = underlyingToken.decimals;
             }
         }
     }
@@ -115,7 +132,21 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
     function convertToShares(uint256 assets) public override view returns (uint256 shares) {
         // nTokenShares = totalSupply * assets / nTokenPV
         uint256 supply = totalSupply();
-        if (supply == 0) return assets;
+        if (supply == 0) {
+            // When total supply is zero we need to convert the assets (here they are underlying external
+            // token precision) to asset internal (cToken) denomination.
+            (
+                /* */,
+                int256 underlyingPrecision,
+                AssetRateParameters memory assetRate
+            ) = _underlyingToken(currencyId);
+
+            return assetRate.convertFromUnderlying(
+                assets.toInt()
+                    .mul(Constants.INTERNAL_TOKEN_PRECISION)
+                    .div(underlyingPrecision)
+            ).toUint();
+        }
 
         shares = supply.mul(assets).div(totalAssets());
     }
@@ -124,7 +155,20 @@ abstract contract BaseNTokenProxy is IERC20, IERC4626, Initializable {
     function convertToAssets(uint256 shares) public override view returns (uint256 assets) {
         // assets = nTokenPV * shares / totalSupply
         uint256 supply = totalSupply();
-        if (supply == 0) return shares;
+        if (supply == 0) {
+            // When total supply is zero we need to convert the shares (here they are asset internal
+            // token precision) to underlying external denomination.
+            (
+                /* */,
+                int256 underlyingPrecision,
+                AssetRateParameters memory assetRate
+            ) = _underlyingToken(currencyId);
+
+            return assetRate.convertToUnderlying(shares.toInt())
+                .mul(underlyingPrecision)
+                .div(Constants.INTERNAL_TOKEN_PRECISION)
+                .toUint();
+        }
 
         assets = totalAssets().mul(shares).div(supply);
     }

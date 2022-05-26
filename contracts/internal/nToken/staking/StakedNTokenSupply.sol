@@ -33,7 +33,7 @@ library StakedNTokenSupplyLib {
     function setStakedNTokenAddress(uint16 currencyId, address tokenAddress) internal returns (address) {
         StakedNTokenAddressStorage storage s = LibStorage.getStakedNTokenAddress()[currencyId];
         // The token address cannot change once set.
-        require(s.stakedNTokenAddress == address(0));
+        require(s.stakedNTokenAddress == address(0)); // dev: cannot reset ntoken address
 
         s.stakedNTokenAddress = tokenAddress;
     }

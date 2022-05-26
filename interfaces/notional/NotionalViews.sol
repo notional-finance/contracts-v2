@@ -46,6 +46,8 @@ interface NotionalViews {
         view
         returns (int256[] memory depositShares, int256[] memory leverageThresholds);
 
+    function StakedNTokenAddress(uint16 currencyId) external view returns (address);
+
     function nTokenAddress(uint16 currencyId) external view returns (address);
 
     function getNoteToken() external view returns (address);

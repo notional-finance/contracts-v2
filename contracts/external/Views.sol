@@ -8,6 +8,7 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/nToken/nTokenHandler.sol";
 import "../internal/nToken/nTokenSupply.sol";
+import {StakedNTokenSupplyLib} from "../internal/nToken/staking/StakedNTokenSupply.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV2.sol";
@@ -147,6 +148,14 @@ contract Views is StorageLayoutV2, NotionalViews {
             currencyId,
             maxMarketIndex
         );
+    }
+
+    /// @notice Returns nToken address for a given currency
+    function StakedNTokenAddress(uint16 currencyId) external view override returns (address) {
+        _checkValidCurrency(currencyId);
+        address snToken = StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId);
+        require(snToken != address(0), "Not enabled");
+        return snToken;
     }
 
     /// @notice Returns nToken address for a given currency
