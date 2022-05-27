@@ -288,7 +288,7 @@ contract Views is StorageLayoutV2, NotionalViews {
             /* incentiveRate */,
             uint256 lastInitializedTime,
             uint8 assetArrayLength,
-            bytes5 parameters
+            /* bytes5 parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
         liquidityTokens = PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength);
