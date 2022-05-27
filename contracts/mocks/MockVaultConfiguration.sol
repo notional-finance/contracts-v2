@@ -46,7 +46,7 @@ contract MockVaultConfiguration {
         return VaultConfiguration.getVaultConfigView(vault).getCurrentMaturity(blockTime);
     }
 
-    function getNTokenFee(
+    function getVaultFee(
         address vault,
         int256 fCash,
         uint256 timeToMaturity

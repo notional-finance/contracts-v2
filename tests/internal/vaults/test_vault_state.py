@@ -243,9 +243,7 @@ def get_collateral_ratio(vaultConfig, vault, **kwargs):
         totalStrategyTokens=kwargs.get("totalStrategyTokens", 100_000e8),
     )
 
-    return vaultConfig.calculateCollateralRatio(
-        vault.address, account, state, kwargs.get("adjustment", 0)
-    )
+    return vaultConfig.calculateCollateralRatio(vault.address, account, state)
 
 
 def test_collateral_ratio_decreases_with_debt(vaultConfig, vault):
