@@ -54,7 +54,6 @@ def test_current_maturity(vaultConfig, accounts):
     assert currentMaturity == START_TIME_TREF + SECONDS_IN_QUARTER
 
 
-@pytest.mark.only
 def test_ntoken_fee_no_debt(vaultConfig, accounts):
     vaultConfig.setVaultConfig(accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255))
 
@@ -209,6 +208,7 @@ def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
         ),
     )
 
+    vaultConfig.setStakedNTokenUnstakeSignal(1, START_TIME_TREF + SECONDS_IN_QUARTER, 20_000_000e8)
     (
         totalCapacity,
         nextMaturityCapacity,
@@ -218,7 +218,7 @@ def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
         vault.address,
         START_TIME_TREF + SECONDS_IN_QUARTER,
         100_000_000e8,
-        80_000_000e8,
+        100_000_000e8,
         START_TIME_TREF + 100,
     )
 
@@ -238,7 +238,7 @@ def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
         vault.address,
         START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
         100_000_000e8,
-        80_000_000e8,
+        100_000_000e8,
         START_TIME_TREF + 100,
     )
 
@@ -282,6 +282,7 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
 
     vault.setSettlement(True)
 
+    vaultConfig.setStakedNTokenUnstakeSignal(1, START_TIME_TREF + SECONDS_IN_QUARTER, 20_000_000e8)
     (
         totalCapacity,
         nextMaturityCapacity,
@@ -291,7 +292,7 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
         vault.address,
         START_TIME_TREF + SECONDS_IN_QUARTER,
         100_000_000e8,
-        80_000_000e8,
+        100_000_000e8,
         START_TIME_TREF + 100,
     )
 
@@ -311,7 +312,7 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
         vault.address,
         START_TIME_TREF + 2 * SECONDS_IN_QUARTER,
         100_000_000e8,
-        80_000_000e8,
+        100_000_000e8,
         START_TIME_TREF + 100,
     )
 

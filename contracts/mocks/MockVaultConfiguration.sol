@@ -18,6 +18,11 @@ contract MockVaultConfiguration {
         return VaultConfiguration.getVaultConfigView(vault);
     }
 
+    function setStakedNTokenUnstakeSignal(uint16 currencyId, uint256 maturity, uint88 unstakeSignal) external {
+        nTokenTotalUnstakeSignalStorage storage t = LibStorage.getStakedNTokenTotalUnstakeSignal()[currencyId][maturity];
+        t.totalUnstakeSignal = unstakeSignal;
+    }
+
     function setVaultEnabledStatus(
         address vault,
         bool enable
