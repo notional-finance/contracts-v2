@@ -54,7 +54,7 @@ contract MockVaultConfiguration {
         address vault,
         uint256 maturity,
         int256 stakedNTokenUnderlyingPV,
-        int256 predictedStakedNTokenPV,
+        uint256 totalSupply,
         uint256 blockTime
     ) external view returns (
         int256 totalUnderlyingCapacity,
@@ -65,19 +65,16 @@ contract MockVaultConfiguration {
     ) {
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
         return VaultConfiguration.getVaultConfigView(vault).getBorrowCapacity(
-            vaultState, stakedNTokenUnderlyingPV, predictedStakedNTokenPV, blockTime
+            vaultState, stakedNTokenUnderlyingPV, totalSupply, blockTime
         );
     }
 
     function checkTotalBorrowCapacity(
         address vault,
         VaultState memory vaultState,
-        int256 stakedNTokenUnderlyingPV,
         uint256 blockTime
-    ) external view {
-        VaultConfiguration.getVaultConfigView(vault).checkTotalBorrowCapacity(
-            vaultState, stakedNTokenUnderlyingPV, blockTime
-        );
+    ) external {
+        VaultConfiguration.getVaultConfigView(vault).checkTotalBorrowCapacity(vaultState, blockTime);
     }
 
     function deposit(
@@ -180,7 +177,7 @@ contract MockVaultConfiguration {
         return (vaultAccount, vaultState);
     }
 
-    function requiresSettlement(VaultAccount memory vaultAccount) external view returns (bool) {
+    function requiresSettlement(VaultAccount memory vaultAccount) external pure returns (bool) {
         return vaultAccount.requiresSettlement();
     }
 

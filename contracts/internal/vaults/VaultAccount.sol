@@ -13,7 +13,7 @@ import {DateTime} from "../markets/DateTime.sol";
 import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {TokenType, Token, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
-import {nTokenStaked} from "../nToken/nTokenStaked.sol";
+import {StakedNTokenSupplyLib} from "../nToken/staking/StakedNTokenSupply.sol";
 
 import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
 import {VaultStateLib, VaultState} from "./VaultState.sol";
@@ -275,11 +275,11 @@ library VaultAccountLib {
         int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, vaultState, fCash, timeToMaturity);
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
-        int256 stakedNTokenPV = nTokenStaked.payFeeToStakedNToken(vaultConfig.borrowCurrencyId, nTokenFee, blockTime);
+        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, nTokenFee);
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(maxNTokenFee).sub(nTokenFee);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
-        vaultConfig.checkTotalBorrowCapacity(vaultState, stakedNTokenPV, blockTime);
+        vaultConfig.checkTotalBorrowCapacity(vaultState, blockTime);
     }
 
     function _getNTokenFee(

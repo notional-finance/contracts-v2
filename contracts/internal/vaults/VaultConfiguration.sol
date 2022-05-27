@@ -6,14 +6,14 @@ import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
 import {DateTime} from "../markets/DateTime.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {nTokenStaked} from "../nToken/nTokenStaked.sol";
 import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
 import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {StakedNTokenSupply, StakedNTokenSupplyLib} from "../nToken/staking/StakedNTokenSupply.sol";
 
 import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
@@ -22,7 +22,8 @@ import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 library VaultConfiguration {
     using TokenHandler for Token;
     using VaultStateLib for VaultState;
-    using SafeMath for uint256;
+    using StakedNTokenSupplyLib for StakedNTokenSupply;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
@@ -176,7 +177,7 @@ library VaultConfiguration {
      * @param vaultConfig vault configuration
      * @param vaultState the current vault state to get the total fCash debt
      * @param stakedNTokenUnderlyingPV the amount of staked nToken present value
-     * @param predictedStakedNTokenPV the amount of staked nToken present value in the next quarter
+     * @param totalSNTokenSupply total supply of snTokens
      * @param blockTime current block time
      * @return totalUnderlyingCapacity total capacity between this quarter and next
      * @return nextMaturityPredictedCapacity total capacity in the next quarter
@@ -187,7 +188,7 @@ library VaultConfiguration {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         int256 stakedNTokenUnderlyingPV,
-        int256 predictedStakedNTokenPV,
+        uint256 totalSNTokenSupply,
         uint256 blockTime
     ) internal view returns (
         int256 totalUnderlyingCapacity,
@@ -236,31 +237,59 @@ library VaultConfiguration {
                 nextMaturityDebt = int256(uint256(s.totalfCash));
             }
 
-            // We cannot use any staked nToken capacity that may unstake in the next unstaking period
-            // to determine the borrow 
-            nextMaturityPredictedCapacity = predictedStakedNTokenPV
-                .mul(vaultConfig.capacityMultiplierPercentage)
-                .div(Constants.PERCENTAGE_DECIMALS);
-
             totalOutstandingDebt = totalOutstandingDebt.add(nextMaturityDebt);
+            nextMaturityPredictedCapacity = _getNextMaturityCapacity(
+                vaultConfig,
+                currentMaturity,
+                stakedNTokenUnderlyingPV,
+                totalSNTokenSupply
+
+            );
         }
+    }
+
+    function _getNextMaturityCapacity(
+        VaultConfig memory vaultConfig,
+        uint256 currentMaturity,
+        int256 stakedNTokenUnderlyingPV,
+        uint256 totalSNTokenSupply
+    ) private view returns (int256 nextMaturityPredictedCapacity) {
+        uint256 unstakeSignal = StakedNTokenSupplyLib.getStakedNTokenUnstakeSignal(
+            vaultConfig.borrowCurrencyId,
+            currentMaturity
+        );
+
+        // Predicted next maturity capacity is based on assuming that everyone who has signalled unstaking
+        // will unstake and taking a proportional share of the current present value.
+        int256 predictedStakedNTokenPV = stakedNTokenUnderlyingPV
+            .mul((totalSNTokenSupply.sub(unstakeSignal)).toInt())
+            .div(totalSNTokenSupply.toInt());
+
+        // We cannot use any staked nToken capacity that may unstake in the next unstaking period
+        // to determine the borrow 
+        nextMaturityPredictedCapacity = predictedStakedNTokenPV
+            .mul(vaultConfig.capacityMultiplierPercentage)
+            .div(Constants.PERCENTAGE_DECIMALS);
     }
 
 
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        int256 stakedNTokenUnderlyingPV,
         uint256 blockTime
-    ) internal view {
-        // TODO: add predicted pv in here
+    ) internal {
+        StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(vaultConfig.borrowCurrencyId);
+        (uint256 valueInAssetCash, /* */, /* */) = stakedSupply
+            .getSNTokenPresentValueStateful(vaultConfig.borrowCurrencyId, blockTime);
+        int256 stakedNTokenUnderlyingPV = vaultConfig.assetRate.convertToUnderlying(valueInAssetCash.toInt());
+        
         (
             int256 totalUnderlyingCapacity,
-            // Inside this method, total outstanding debt is a positive integer
             int256 nextMaturityPredictedCapacity,
+            // Inside this method, total outstanding debt is a positive integer
             int256 totalOutstandingDebt,
             int256 nextMaturityDebt
-        ) = getBorrowCapacity(vaultConfig, vaultState, stakedNTokenUnderlyingPV, 0, blockTime);
+        ) = getBorrowCapacity(vaultConfig, vaultState, stakedNTokenUnderlyingPV, stakedSupply.totalSupply, blockTime);
 
         require(
             totalOutstandingDebt <= totalUnderlyingCapacity &&
@@ -423,7 +452,7 @@ library VaultConfiguration {
     ) internal {
         uint16 currencyId = vaultConfig.borrowCurrencyId;
         // First attempt to redeem nTokens
-        (/* int256 actualNTokensRedeemed */, int256 assetCashRaised) = nTokenStaked.redeemNTokenToCoverShortfall(
+        (/* int256 actualNTokensRedeemed */, int256 assetCashRaised) = StakedNTokenSupplyLib.redeemNTokenToCoverShortfall(
             currencyId,
             SafeInt256.toInt(nTokensToRedeem),
             assetCashShortfall,
