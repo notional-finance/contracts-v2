@@ -115,8 +115,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             opts.exitVaultData
         );
 
-        // If the lending was unsuccessful then we cannot roll the position, the account cannot
-        // have two fCash balances.
+        // This should never be the case for a healthy vault account due to the mechanics of exiting the vault
+        // above but we check it for safety here.
         require(vaultAccount.fCash == 0 && vaultAccount.requiresSettlement() == false, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity

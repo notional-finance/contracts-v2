@@ -299,7 +299,6 @@ library VaultAccountLib {
         // Redeems and updates temp cash balance
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultConfig.redeem(strategyTokens, vaultData));
 
-
         if (vaultAccount.maturity <= block.timestamp) {
             settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp);
             require(requiresSettlement(vaultAccount) == false); // dev: unsuccessful settlement
@@ -355,11 +354,11 @@ library VaultAccountLib {
             blockTime
         );
 
-        if (assetCashCostToLend < 0) {
-            // Will refund to the temp cash balance part of the fCash that was successfully lent. This will
-            // be applied to the repayment of the loan. (timeToMaturity overflow checked above)
-            vaultConfig.assessVaultFees(vaultAccount, fCash, vaultAccount.maturity - blockTime);
+        // Will refund to the temp cash balance part of the fCash that was successfully lent. This will
+        // be applied to the repayment of the loan. (timeToMaturity overflow checked above)
+        vaultConfig.assessVaultFees(vaultAccount, fCash, vaultAccount.maturity - blockTime);
 
+        if (assetCashCostToLend < 0) {
             // Net off the cash balance required and remove the fcash. It's possible
             // that cash balance is negative here. If that is the case then we need to
             // transfer in sufficient cash to get the balance up to 0.
@@ -385,14 +384,19 @@ library VaultAccountLib {
                 removeEscrowedAssetCash(vaultAccount, vaultState);
             }
         } else if (assetCashCostToLend == 0) {
-            // In this case, the lending has failed due to a lack of liquidity or negative interest rates.
-            // Instead of lending, we will deposit into the account escrow cash balance instead. When this
-            // happens, the account will require special handling for settlement.
-
-            // NOTE: we do not refund vault fees in this case since the fCash balance is not reduced. If we did,
-            // it would be possible for the account to attempt to re-exit and get the same fee refund a second time.
+            // In this case, the lending has failed due to a lack of liquidity or negative interest rates. In this
+            // case just just net off the the asset cash balance and the account will forgo any money market interest
+            // accrued between now and maturity.
+            
+            // The alternative to this is to put the assetCashDeposit into escrowed asset cash, however, this adds to
+            // the complexity of the solution and may result in more complex settlement dynamics. Also, due to the nature
+            // of accounting, if we were to go with the escrowed asset cash solution the account would also have to forgo
+            // their fee refund here. If this scenario were to occur, it is most likely that interest rates are near zero
+            // suggesting that money market interest rates are also near zero (therefore the account is really not giving
+            // up much by forgoing money market interest).
             int256 assetCashDeposit = vaultConfig.assetRate.convertFromUnderlying(fCash); // this is a positive number
-            increaseEscrowedAssetCash(vaultAccount, vaultState, assetCashDeposit);
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
+            vaultAccount.fCash = 0;
         } else {
             // This should never be the case.
             revert(); // dev: asset cash to lend is positive
