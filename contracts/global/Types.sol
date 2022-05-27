@@ -458,10 +458,7 @@ struct AccountBalance {
     uint256 accountIncentiveDebt;
 }
 struct VaultConfigStorage {
-    // Vault Flags (positions 0 to 15 starting from right):
-    // 0: enabled - true if vault is enabled
-    // 1: allowReenter - true if vault allows reentering before term expiration
-    // 2: isInsured - true if vault is covered by nToken insurance
+    // Vault Flags (documented in VaultConfiguration.sol)
     uint16 flags;
     // Each vault only borrows in a single currency
     uint16 borrowCurrencyId;
@@ -475,14 +472,16 @@ struct VaultConfigStorage {
     uint16 minCollateralRatioBPS;
     // The number of days of each vault term (this is sufficient for 20 year vaults)
     uint16 termLengthInDays;
-    // Allows up to a 12.75% annualized fee for an account at the minimum collateral ratio
-    uint8 maxNTokenFeeRate5BPS;
+    // Allows up to a 12.75% annualized fee
+    uint8 feeRate5BPS;
     // A value in percent scale that represents the relative risk of this vault. Governs how large the
     // vault can get relative to staked nToken insurance. Allows up to 655x leverage which should be
     // plenty.
     uint16 capacityMultiplierPercentage;
     // A percentage that represents the share of the cash raised that will go to the liquidator
     uint8 liquidationRate;
+    // A percentage of the fee given to the protocol
+    uint8 reserveFeeShare;
 
     // 48 bytes left
 }
@@ -494,10 +493,11 @@ struct VaultConfig {
     int256 maxVaultBorrowSize;
     int256 minAccountBorrowSize;
     uint256 termLengthInSeconds;
-    int256 maxNTokenFeeRate;
+    int256 feeRate;
     int256 minCollateralRatio;
     int256 capacityMultiplierPercentage;
     uint256 liquidationRate;
+    int256 reserveFeeShare;
     AssetRateParameters assetRate;
 }
 

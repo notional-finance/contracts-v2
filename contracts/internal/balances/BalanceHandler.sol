@@ -401,11 +401,16 @@ library BalanceHandler {
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
         require(fee >= 0); // dev: invalid fee
+        netFeeToReserve(currencyId, fee);
+    }
+
+    /// @notice Used to update reserve fees for vaults (they both contribute and refund fees)
+    function netFeeToReserve(uint256 currencyId, int256 netFee) internal {
         // prettier-ignore
         (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
-        totalReserve = totalReserve.add(fee);
+        totalReserve = totalReserve.add(netFee);
         _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
-        emit ReserveFeeAccrued(uint16(currencyId), fee);
+        emit ReserveFeeAccrued(uint16(currencyId), netFee);
     }
 
     /// @notice harvests excess reserve balance

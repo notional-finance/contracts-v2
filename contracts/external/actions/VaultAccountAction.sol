@@ -196,7 +196,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Check that the collateral ratio is below the minimum allowed
         int256 collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         require(vaultConfig.minCollateralRatio < collateralRatio, "Sufficient Collateral");
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
@@ -226,7 +226,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
         collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         require(collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(1.30e9) , "Over liquidation");
 
         // Sets the vault account
@@ -264,7 +264,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
         collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash, 0);
+            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         minCollateralRatio = vaultConfig.minCollateralRatio;
     }
 }

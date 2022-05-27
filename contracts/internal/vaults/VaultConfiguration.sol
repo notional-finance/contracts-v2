@@ -50,10 +50,11 @@ library VaultConfiguration {
         vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
-        vaultConfig.maxNTokenFeeRate = int256(uint256(s.maxNTokenFeeRate5BPS).mul(Constants.BASIS_POINT * 5));
+        vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
         vaultConfig.liquidationRate = s.liquidationRate;
+        vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
     }
 
     function getVaultConfigNoAssetRate(
@@ -100,6 +101,8 @@ library VaultConfiguration {
         require(uint256(Constants.RATE_PRECISION) < uint256(vaultConfig.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         // Liquidation rate must be greater than or equal to 100
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
+        // Reserve fee share must be less than or equal to 100
+        require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
 
         store[vaultAddress] = vaultConfig;
     }
@@ -127,39 +130,32 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Returns the nToken fee denominated in asset internal precision. The nTokenFee
-     * is assessed based on the linear interpolation between the min and the max collateral and
-     * then scaled based on the time to maturity.
+     * @notice Returns the fee denominated in asset internal precision. The fee based on time to maturity
+     * and the amount of fCash. If an account is lending fCash they are repaying their debt and will get a fee
+     * rebate. It should not be possible for an account to get a larger fee rebate then they initially paid since
+     * they cannot lend more than they borrowed and the fee rate decreases as we get closer to maturity.
      * @param vaultConfig vault configuration
-     * @param collateralRatio the amount of leverage the account is taking
-     * @param fCash the amount of fCash the account is borrowing
+     * @param fCash the amount of fCash the account is lending or borrowing
      * @param timeToMaturity time until maturity of fCash
-     * @return nTokenFee the amount of asset cash in internal precision paid to the nToken
+     * @return netSNTokenFee fee paid to the snToken
+     * @return netReserveFee fee paid to the protocol reserve
      */
-    function getNTokenFee(
+    function getVaultFees(
         VaultConfig memory vaultConfig,
-        int256 collateralRatio,
         int256 fCash,
         uint256 timeToMaturity
-    ) internal pure returns (int256 nTokenFee) {
-        // If collateral ratio is below 1 then the account is insolvent and will revert
-        int256 collateralRatioAdjusted = collateralRatio - Constants.RATE_PRECISION;
-        require(collateralRatioAdjusted > 0);
-
-        // The fee is assessed where the maximum fee is at a collateral ratio of 1, as the
-        // collateral ratio increases, the fee decreases proportionally. The fee is also scaled
-        // proportionally to time to maturity.
-        // nTokenFee = maxFee / (collateralRatio - 1)
-
-        // All of these figures are in RATE_PRECISION
-        int256 nTokenFeeRate = vaultConfig.maxNTokenFeeRate
-            .mul(Constants.RATE_PRECISION)
+    ) internal pure returns (int256 netSNTokenFee, int256 netReserveFee) {
+        // The fee rate is annualized, we prorate it linearly based on the time to maturity here
+        int256 proratedFeeRate = vaultConfig.feeRate
             .mul(SafeInt256.toInt(timeToMaturity))
-            .div(collateralRatioAdjusted)
             .div(int256(Constants.YEAR));
 
-        // nTokenFee is expected to be a positive number
-        nTokenFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(nTokenFeeRate));
+        // If fCash < 0 we are borrowing and the total fee is positive, if fCash > 0 then we are lending and the fee should
+        // be a rebate back to the account.
+        int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(proratedFeeRate));
+        // Reserve fee share is restricted to less than 100
+        netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
+        netSNTokenFee = netTotalFee.sub(netReserveFee);
     }
 
     function _netDebtOutstanding(
@@ -307,8 +303,6 @@ library VaultConfiguration {
      * All values in this method are calculated using asset cash denomination. Higher collateral equates to
      * greater risk.
      * @param vaultConfig vault config
-     * @param preSlippageAssetCashAdjustment this is only used when calculating the nTokenFee,
-     * should be set to zero in all other cases.
      * @return collateralRatio for an account
      */
     function calculateCollateralRatio(
@@ -316,8 +310,7 @@ library VaultConfiguration {
         VaultState memory vaultState,
         uint256 vaultShares,
         int256 fCash,
-        int256 escrowedAssetCash,
-        int256 preSlippageAssetCashAdjustment
+        int256 escrowedAssetCash
     ) internal view returns (int256 collateralRatio) {
         (int256 vaultShareValue, int256 assetCashHeld) = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
 
@@ -341,7 +334,6 @@ library VaultConfiguration {
         // is positive (normal condition) then the account has more value than debt, if it is negative then
         // the account is insolvent (it cannot repay its debt if we sold all of its strategy tokens).
         int256 netAssetValue = vaultShareValue
-            .add(preSlippageAssetCashAdjustment) // this amount will be used to mint strategy tokens
             .sub(assetCashHeld)
             .sub(debtOutstanding);
 
@@ -366,7 +358,7 @@ library VaultConfiguration {
         int256 fCash,
         int256 escrowedAssetCash
     ) internal view {
-        int256 collateralRatio = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash, 0);
+        int256 collateralRatio = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash);
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 

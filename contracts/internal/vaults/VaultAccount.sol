@@ -245,9 +245,6 @@ library VaultAccountLib {
     ) private {
         require(fCash < 0); // dev: fcash must be negative
         uint256 timeToMaturity = blockTime.sub(maturity);
-        // Since the nToken fee depends on the collateral ratio, we calculate the collateral ratio
-        // assuming the worst case scenario. Will adjust the fee properly at the end
-        int256 maxNTokenFee = vaultConfig.getNTokenFee(vaultConfig.minCollateralRatio, fCash, timeToMaturity);
 
         {
             int256 assetCashBorrowed  = _executeTrade(
@@ -263,44 +260,22 @@ library VaultAccountLib {
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
-                .add(assetCashBorrowed)
-                .sub(maxNTokenFee);
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashBorrowed);
         }
 
         // Ensure that we are above the minimum borrow size. Accounts smaller than this are not profitable
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        int256 nTokenFee = _getNTokenFee(vaultAccount, vaultConfig, vaultState, fCash, timeToMaturity);
+        (int256 netSNTokenFee, int256 netReserveFee) = vaultConfig.getVaultFees(fCash, timeToMaturity);
+
         // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
         // end the transaction with a negative cash balance.
-        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, nTokenFee);
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(maxNTokenFee).sub(nTokenFee);
+        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netSNTokenFee).sub(netReserveFee);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
         vaultConfig.checkTotalBorrowCapacity(vaultState, blockTime);
-    }
-
-    function _getNTokenFee(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        int256 fCash,
-        uint256 timeToMaturity
-    ) private view returns (int256 nTokenFee) {
-        // We calculate the maximum collateral ratio here before accounting for slippage and other factors when
-        // minting vault shares in order to determine the nToken fee. It is true that this undershoots the
-        // actual fee amount (if there is significant slippage than the account's collateral ratio will be lower),
-        // however, for the sake of simplicity we do it here (rather than rely on a bunch of back and forth transfers
-        // to actually get the necessary cash). The nToken fee can be adjusted by governance to account for slippage
-        // such that stakers are compensated fairly. We will calculate the actual collateral ratio again after minting
-        // vault shares to ensure that both the account is healthy.
-        int256 preSlippageLeverageRatio = vaultConfig.calculateCollateralRatio(
-            vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash, vaultAccount.tempCashBalance
-        );
-
-        nTokenFee = vaultConfig.getNTokenFee(preSlippageLeverageRatio, fCash, timeToMaturity);
     }
 
     function redeemVaultSharesAndLend(
