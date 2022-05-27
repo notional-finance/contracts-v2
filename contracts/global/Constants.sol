@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.7.6;
+pragma solidity >=0.7.6;
 
 /// @title All shared constants for the Notional system should be declared here.
 library Constants {
