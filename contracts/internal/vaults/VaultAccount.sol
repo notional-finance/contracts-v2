@@ -193,6 +193,16 @@ library VaultAccountLib {
         // of the parent method borrowAndEnterVault
         require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
+        bool usedEscrowedAssetCash = false;
+
+        // Put all of the escrowed asset cash into the temp cash balance and attempt to enter with it. This will
+        // trigger a collateral check at the end of the method because the collateral ratio of the account may
+        // decrease as a result.
+        if (vaultAccount.escrowedAssetCash > 0) {
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
+            usedEscrowedAssetCash = true;
+            removeEscrowedAssetCash(vaultAccount, vaultState);
+        }
 
         // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
         if (fCashToBorrow > 0) {
@@ -215,7 +225,7 @@ library VaultAccountLib {
         vaultState.setVaultState(vaultConfig.vault);
         setVaultAccount(vaultAccount, vaultConfig);
             
-        if (fCashToBorrow > 0) {
+        if (fCashToBorrow > 0 || usedEscrowedAssetCash) {
             vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
 
@@ -267,12 +277,8 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        (int256 netSNTokenFee, int256 netReserveFee) = vaultConfig.getVaultFees(fCash, timeToMaturity);
-
-        // This will mint nTokens assuming that the fee has been paid by the deposit. The account cannot
-        // end the transaction with a negative cash balance.
-        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netSNTokenFee).sub(netReserveFee);
+        // Will reduce the tempCashBalance based on the assessed vault fee
+        vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
         vaultConfig.checkTotalBorrowCapacity(vaultState, blockTime);
@@ -350,6 +356,10 @@ library VaultAccountLib {
         );
 
         if (assetCashCostToLend < 0) {
+            // Will refund to the temp cash balance part of the fCash that was successfully lent. This will
+            // be applied to the repayment of the loan. (timeToMaturity overflow checked above)
+            vaultConfig.assessVaultFees(vaultAccount, fCash, vaultAccount.maturity - blockTime);
+
             // Net off the cash balance required and remove the fcash. It's possible
             // that cash balance is negative here. If that is the case then we need to
             // transfer in sufficient cash to get the balance up to 0.
@@ -372,18 +382,15 @@ library VaultAccountLib {
                 // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
                 // temporary cash balance or lend the fCash down to zero.
                 require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
-                vaultAccount.escrowedAssetCash = 0;
-
-                if (vaultState.accountsRequiringSettlement > 0) {
-                    vaultState.accountsRequiringSettlement -= 1;
-                    // Add the account's remaining fCash back into the vault state for pooled settlement
-                    vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(vaultAccount.fCash);
-                }
+                removeEscrowedAssetCash(vaultAccount, vaultState);
             }
         } else if (assetCashCostToLend == 0) {
             // In this case, the lending has failed due to a lack of liquidity or negative interest rates.
             // Instead of lending, we will deposit into the account escrow cash balance instead. When this
             // happens, the account will require special handling for settlement.
+
+            // NOTE: we do not refund vault fees in this case since the fCash balance is not reduced. If we did,
+            // it would be possible for the account to attempt to re-exit and get the same fee refund a second time.
             int256 assetCashDeposit = vaultConfig.assetRate.convertFromUnderlying(fCash); // this is a positive number
             increaseEscrowedAssetCash(vaultAccount, vaultState, assetCashDeposit);
         } else {
@@ -422,6 +429,20 @@ library VaultAccountLib {
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
             vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
         }
+    }
+
+    /**
+     * @notice Called in the two places where escrowed cash is reduced on the account, when an account
+     * re-enters a vault and when it is is able to successfully lend to exit the vault
+     */
+    function removeEscrowedAssetCash(
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState
+    ) internal pure {
+        vaultAccount.escrowedAssetCash = 0;
+        vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.sub(1);
+        // Add the account's remaining fCash back into the vault state for pooled settlement
+        vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(vaultAccount.fCash);
     }
 
     /**

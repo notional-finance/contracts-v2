@@ -6,11 +6,15 @@ import "../internal/vaults/VaultConfiguration.sol";
 import "../internal/vaults/VaultState.sol";
 import "../internal/vaults/VaultAccount.sol";
 import "../internal/balances/TokenHandler.sol";
+import "../internal/balances/BalanceHandler.sol";
+import "../internal/nToken/staking/StakedNTokenSupply.sol";
 
 contract MockVaultConfiguration {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
     using VaultAccountLib for VaultAccount;
+
+    event StakedNTokenProfitUpdated(uint16 currencyId, int256 netSNTokenFee, int256 netReserveFee);
 
     function getVaultConfigView(
         address vault
@@ -46,12 +50,18 @@ contract MockVaultConfiguration {
         return VaultConfiguration.getVaultConfigView(vault).getCurrentMaturity(blockTime);
     }
 
-    function getVaultFee(
+    function assessVaultFees(
         address vault,
+        VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) external view returns (int256 snTokenFee, int256 reserveFee) {
-        return VaultConfiguration.getVaultConfigView(vault).getVaultFees(fCash, timeToMaturity);
+    ) external returns (VaultAccount memory, uint256 totalCashProfits, int256 totalReserve) {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
+        vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
+        totalCashProfits = StakedNTokenSupplyLib.getStakedNTokenSupply(vaultConfig.borrowCurrencyId).totalCashProfits;
+        (totalReserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, vaultConfig.borrowCurrencyId);
+
+        return (vaultAccount, totalCashProfits, totalReserve);
     }
 
     function getBorrowCapacity(

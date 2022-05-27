@@ -15,7 +15,7 @@ import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 import {StakedNTokenSupply, StakedNTokenSupplyLib} from "../nToken/staking/StakedNTokenSupply.sol";
 
-import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
+import {VaultConfig, VaultAccount, VaultConfigStorage} from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 import {IStakedNTokenAction} from "../../../interfaces/notional/IStakedNTokenAction.sol";
@@ -130,21 +130,22 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Returns the fee denominated in asset internal precision. The fee based on time to maturity
-     * and the amount of fCash. If an account is lending fCash they are repaying their debt and will get a fee
-     * rebate. It should not be possible for an account to get a larger fee rebate then they initially paid since
-     * they cannot lend more than they borrowed and the fee rate decreases as we get closer to maturity.
+     * @notice Assess fees to the vault account. The fee based on time to maturity and the amount of fCash.
+     * If an account is lending fCash they are repaying their debt and will get a fee rebate. It should not
+     * be possible for an account to get a larger fee rebate then they initially paid since they cannot lend
+     * more than they borrowed and the fee rate decreases as we get closer to maturity.
      * @param vaultConfig vault configuration
      * @param fCash the amount of fCash the account is lending or borrowing
      * @param timeToMaturity time until maturity of fCash
      * @return netSNTokenFee fee paid to the snToken
      * @return netReserveFee fee paid to the protocol reserve
      */
-    function getVaultFees(
+    function assessVaultFees(
         VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) internal pure returns (int256 netSNTokenFee, int256 netReserveFee) {
+    ) internal returns (int256 netSNTokenFee, int256 netReserveFee) {
         // The fee rate is annualized, we prorate it linearly based on the time to maturity here
         int256 proratedFeeRate = vaultConfig.feeRate
             .mul(SafeInt256.toInt(timeToMaturity))
@@ -153,9 +154,16 @@ library VaultConfiguration {
         // If fCash < 0 we are borrowing and the total fee is positive, if fCash > 0 then we are lending and the fee should
         // be a rebate back to the account.
         int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(proratedFeeRate));
+
         // Reserve fee share is restricted to less than 100
         netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
         netSNTokenFee = netTotalFee.sub(netReserveFee);
+
+        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
+
+        // If netReserveFee and netSNTokenFee are negative, they will increase the temp cash balance (they are refunds
+        // in this case).
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netSNTokenFee).sub(netReserveFee);
     }
 
     function _netDebtOutstanding(
