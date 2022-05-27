@@ -6,7 +6,8 @@ import {
     StakedNTokenSupply,
     StakedNTokenSupplyStorage,
     StakedNTokenIncentivesStorage,
-    StakedNTokenAddressStorage
+    StakedNTokenAddressStorage,
+    nTokenTotalUnstakeSignalStorage
 } from "../../../global/Types.sol";
 import {Constants} from "../../../global/Constants.sol";
 import {nTokenSupply} from "../nTokenSupply.sol";
@@ -30,7 +31,7 @@ library StakedNTokenSupplyLib {
         return store[currencyId].stakedNTokenAddress;
     }
 
-    function setStakedNTokenAddress(uint16 currencyId, address tokenAddress) internal returns (address) {
+    function setStakedNTokenAddress(uint16 currencyId, address tokenAddress) internal {
         StakedNTokenAddressStorage storage s = LibStorage.getStakedNTokenAddress()[currencyId];
         // The token address cannot change once set.
         require(s.stakedNTokenAddress == address(0)); // dev: cannot reset ntoken address
@@ -72,6 +73,11 @@ library StakedNTokenSupplyLib {
         // Sanity check that emissions rate is not specified in 1e8 terms.
         require(totalAnnualStakedEmission < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
         s.totalAnnualStakedEmission = totalAnnualStakedEmission;
+    }
+
+    function getStakedNTokenUnstakeSignal(uint16 currencyId, uint256 maturity) internal view returns (uint256) {
+        nTokenTotalUnstakeSignalStorage storage t = LibStorage.getStakedNTokenTotalUnstakeSignal()[currencyId][maturity];
+        return t.totalUnstakeSignal;
     }
 
     /**
@@ -179,7 +185,7 @@ library StakedNTokenSupplyLib {
     ) {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioStateful(nToken, currencyId);
-        return getSNTokenPresentValue(stakedSupply, nToken, currencyId, blockTime);
+        return getSNTokenPresentValue(stakedSupply, nToken, blockTime);
     }
 
     /// @notice Returns the present value of the staked nToken using the view version of the asset rate
@@ -194,13 +200,12 @@ library StakedNTokenSupplyLib {
     ) {
         nTokenPortfolio memory nToken;
         nTokenHandler.loadNTokenPortfolioView(nToken, currencyId);
-        return getSNTokenPresentValue(stakedSupply, nToken, currencyId, blockTime);
+        return getSNTokenPresentValue(stakedSupply, nToken, blockTime);
     }
 
     /// @notice Returns the present value of the staked nToken in asset cash terms as well as in nToken terms. Includes
     /// profits held in asset cash on the staked nToken and the underlying balance of nTokens.
     /// @param stakedSupply the staked ntoken supply factors
-    /// @param currencyId staked nToken currency id
     /// @param blockTime current block time
     /// @return valueInAssetCash the present value of the staked nToken in asset cash terms
     /// @return valueInNTokens the present value of the staked nToken in nToken terms
@@ -208,7 +213,6 @@ library StakedNTokenSupplyLib {
     function getSNTokenPresentValue(
         StakedNTokenSupply memory stakedSupply,
         nTokenPortfolio memory nToken,
-        uint16 currencyId,
         uint256 blockTime
     ) internal view returns (
         uint256 valueInAssetCash,
@@ -287,7 +291,6 @@ library StakedNTokenSupplyLib {
         uint16 currencyId,
         int256 nTokensToRedeem,
         int256 assetCashRequired,
-        uint256 maturity,
         uint256 blockTime
     ) internal returns (int256 actualNTokensRedeemed, int256 assetCashRaised) {
         require(assetCashRequired > 0 && nTokensToRedeem > 0);

@@ -95,6 +95,7 @@ contract StakedNTokenAction is IStakedNTokenAction {
         uint256 accumulatedNOTE = stakedSupply.updateAccumulatedNOTE(currencyId, block.timestamp, 0);
         nTokenStakerLib.updateStakerBalance(from, currencyId, amount.toInt().neg(), accumulatedNOTE);
         nTokenStakerLib.updateStakerBalance(to, currencyId, amount.toInt(), accumulatedNOTE);
+        return true;
     }
 
     /// @notice Mints staked nTokens from some amount of underlying tokens transferred to Notional from
@@ -135,7 +136,8 @@ contract StakedNTokenAction is IStakedNTokenAction {
 
         // Redeem Tokens to Sender
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        assetToken.redeem(currencyId, receiver, assetToken.convertToExternal(assetCash).toUint());
+        int256 underlyingTokensTransferred = assetToken.redeem(currencyId, receiver, assetToken.convertToExternal(assetCash).toUint());
+        return underlyingTokensTransferred.toUint();
     }
 
     /**** Called from Batch Action  ****/

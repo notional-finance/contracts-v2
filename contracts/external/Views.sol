@@ -373,8 +373,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     function getStakedNTokenUnstakeSignal(uint16 currencyId, uint32 maturity) external view override returns (uint256) {
-        nTokenTotalUnstakeSignalStorage storage t = LibStorage.getStakedNTokenTotalUnstakeSignal()[currencyId][maturity];
-        return t.totalUnstakeSignal;
+        return StakedNTokenSupplyLib.getStakedNTokenUnstakeSignal(currencyId, maturity);
     }
 
     /** Account Specific View Methods **/
