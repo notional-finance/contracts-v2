@@ -38,16 +38,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         STAKED_NTOKEN_UPGRADEABLE_BEACON = stakedNTokenBeacon;
     }
 
-    /// @dev Throws if called by any account other than the owner.
-    modifier onlyOwner() {
-        require(owner == msg.sender, "Ownable: caller is not the owner");
-        _;
-    }
-
-    function _checkValidCurrency(uint16 currencyId) internal view {
-        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
-    }
-
     /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
     /// Can only be invoked by the current `owner`.
     /// @param newOwner Address of the new owner.
