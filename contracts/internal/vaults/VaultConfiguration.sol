@@ -18,6 +18,7 @@ import {StakedNTokenSupply, StakedNTokenSupplyLib} from "../nToken/staking/Stake
 import {VaultConfig, VaultConfigStorage} from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
+import {IStakedNTokenAction} from "../../../interfaces/notional/IStakedNTokenAction.sol";
 
 library VaultConfiguration {
     using TokenHandler for Token;
@@ -279,8 +280,10 @@ library VaultConfiguration {
         uint256 blockTime
     ) internal {
         StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(vaultConfig.borrowCurrencyId);
-        (uint256 valueInAssetCash, /* */, /* */) = stakedSupply
-            .getSNTokenPresentValueStateful(vaultConfig.borrowCurrencyId, blockTime);
+        // We do a call back via the proxy to get the present value of the staked nToken. The reason is that this calculation
+        // adds significant bytecode weight so this is the only way to get the contract to be deployable.
+        uint256 valueInAssetCash = IStakedNTokenAction(address(this))
+            .stakedNTokenPresentValueAssetInternal(vaultConfig.borrowCurrencyId);
         int256 stakedNTokenUnderlyingPV = vaultConfig.assetRate.convertToUnderlying(valueInAssetCash.toInt());
         
         (
