@@ -17,7 +17,6 @@ import "../../../interfaces/notional/IRewarder.sol";
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "../../../interfaces/notional/NotionalGovernance.sol";
-import "../../../interfaces/notional/nTokenERC20.sol";
 import "./ActionGuards.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import {StakedNTokenSupplyLib} from "../../internal/nToken/staking/StakedNTokenSupply.sol";

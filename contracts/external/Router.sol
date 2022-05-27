@@ -167,6 +167,7 @@ contract Router is StorageLayoutV1 {
             sig == IStakedNTokenAction.stakedNTokenMintViaProxy.selector ||
             sig == IStakedNTokenAction.stakedNTokenSignalUnstakeViaProxy.selector ||
             sig == IStakedNTokenAction.stakedNTokenPresentValueUnderlyingExternal.selector ||
+            sig == IStakedNTokenAction.stakedNTokenPresentValueAssetInternal.selector ||
             sig == IStakedNTokenAction.stakeNTokenViaBatch.selector ||
             sig == IStakedNTokenAction.unstakeNTokenViaBatch.selector ||
             sig == IStakedNTokenAction.signalUnstakeNToken.selector ||

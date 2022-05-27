@@ -28,6 +28,11 @@ interface IStakedNTokenAction {
         view
         returns (uint256);
 
+    function stakedNTokenPresentValueAssetInternal(uint16 currencyId)
+        external
+        view
+        returns (uint256);
+
     function stakedNTokenSignalUnstakeViaProxy(uint16 currencyId, address account, uint256 amount) external;
 
     function stakeNTokenViaBatch(address account, uint16 currencyId, uint256 nTokensToStake)

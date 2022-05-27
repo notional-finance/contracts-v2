@@ -49,6 +49,11 @@ contract StakedNTokenAction is IStakedNTokenAction {
         return nTokenStakerLib.balanceOf(currencyId, account, block.timestamp);
     }
 
+    function stakedNTokenPresentValueAssetInternal(uint16 currencyId) external override view returns (uint256 valueInAssetCash) {
+        StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
+        (valueInAssetCash, /* */, /* */) = stakedSupply.getSNTokenPresentValueView(currencyId, block.timestamp);
+    }
+
     /// @notice Returns the present value of the entire staked nTokens supply in underlying external
     function stakedNTokenPresentValueUnderlyingExternal(uint16 currencyId) external override view returns (uint256) {
         StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(currencyId);
