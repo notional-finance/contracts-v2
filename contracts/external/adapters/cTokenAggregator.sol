@@ -55,19 +55,26 @@ abstract contract cTokenAggregator is AssetRateAdapter {
         uint256 borrowsPrior = cToken.totalBorrows();
         uint256 reservesPrior = cToken.totalReserves();
 
+        // There are two versions of this method depending on the interest rate model that
+        // have different return signatures.
         uint256 borrowRateMantissa = _getBorrowRate(totalCash, borrowsPrior, reservesPrior);
 
         require(borrowRateMantissa <= 0.0005e16, "RATE_TOO_HIGH"); // Same as borrowRateMaxMantissa in CTokenInterfaces.sol
 
+        // Interest accumulated = (borrowRate * blocksSinceLastAccrual * borrowsPrior) / 1e18
         uint256 interestAccumulated = borrowRateMantissa
             .mul(block.number.sub(accrualBlockNumberPrior))
             .mul(borrowsPrior)
             .div(1e18);
 
+        // Total Reserves = total reserves prior + (interestAccumulated * reserveFactor) / 1e18
         uint256 totalReserves = cToken.reserveFactorMantissa().mul(interestAccumulated).div(1e18).add(reservesPrior);
+        // Total borrows = interestAccumulated + borrowsPrior
         uint256 totalBorrows = interestAccumulated.add(borrowsPrior);
         uint256 totalSupply = cToken.totalSupply();
 
+        // exchangeRate = ((totalCash + totalBorrows - totalReserves) * 1e18) / totalSupply
+        // https://github.com/compound-finance/compound-protocol/blob/master/contracts/CToken.sol#L350
         return
             totalSupply == 0
                 ? cToken.initialExchangeRateMantissa()
