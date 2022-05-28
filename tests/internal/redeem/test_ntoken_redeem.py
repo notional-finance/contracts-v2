@@ -56,10 +56,10 @@ def setup_fixture(mock, aggregator):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def nTokenRedeem1(MockNTokenRedeem1, MockCToken, cTokenAggregator, accounts):
+def nTokenRedeem1(MockNTokenRedeem1, MockCToken, cTokenV2Aggregator, accounts):
     global tokenAddress
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
     tokenAddress = accounts[9]
 
@@ -68,10 +68,10 @@ def nTokenRedeem1(MockNTokenRedeem1, MockCToken, cTokenAggregator, accounts):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def nTokenRedeem2(MockNTokenRedeem2, MockCToken, cTokenAggregator, accounts):
+def nTokenRedeem2(MockNTokenRedeem2, MockCToken, cTokenV2Aggregator, accounts):
     global tokenAddress
     cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
     cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
     tokenAddress = accounts[9]
 

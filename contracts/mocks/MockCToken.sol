@@ -38,6 +38,14 @@ contract MockCToken {
     function supplyRatePerBlock() external view returns (uint) {
         return _supplyRate;
     }
+
+    function accrualBlockNumber() external view returns (uint256) {
+        return block.number;
+    }
+
+    function interestRateModel() external view returns (address) {
+        return address(0);
+    }
 }
 
 

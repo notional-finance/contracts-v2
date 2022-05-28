@@ -27,12 +27,12 @@ chain = Chain()
 @pytest.mark.valuation
 class TestAssetHandler:
     @pytest.fixture(scope="class", autouse=True)
-    def assetLibrary(self, MockAssetHandler, MockCToken, cTokenAggregator, accounts):
+    def assetLibrary(self, MockAssetHandler, MockCToken, cTokenV2Aggregator, accounts):
         assetLibrary = accounts[0].deploy(MockAssetHandler)
         ctoken = accounts[0].deploy(MockCToken, 8)
         # This is the identity rate
         ctoken.setAnswer(1e18)
-        aggregator = cTokenAggregator.deploy(ctoken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(ctoken.address, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, 8)
         assetLibrary.setAssetRateMapping(1, rateStorage)

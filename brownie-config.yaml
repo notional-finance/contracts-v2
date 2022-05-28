@@ -16,7 +16,7 @@ networks:
       mnemonic: owner dignity sense
       log: ganache-out.txt
       default_balance: 100000
-  hardhat-fork:
+  mainnet-fork:
     cmd_settings:
       fork_block: 14445740
 reports:

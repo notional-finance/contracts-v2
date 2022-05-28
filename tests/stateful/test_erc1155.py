@@ -64,7 +64,7 @@ def test_transfer_authentication_failures(environment, accounts):
             accounts[1], accounts[0], [erc1155id], [100e8], "", {"from": accounts[0]}
         )
 
-    with brownie.reverts("dev: toInt overflow"):
+    with brownie.reverts():
         # Ensure that a negative transfer value will revert
         overflowVal = to_uint(2 ** 256 - 1, "uint256") - 99e8
         environment.notional.safeTransferFrom(
@@ -728,7 +728,8 @@ def test_transfer_and_batch_lend(environment, accounts):
     assert toAssets[0][2] == 1
     assert toAssets[0][3] == 100e8
 
-    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance <= 50e8
     assert environment.notional.getFreeCollateral(accounts[1])[0] == 0
 
     check_system_invariants(environment, accounts)
@@ -759,7 +760,8 @@ def test_batch_transfer_and_batch_lend(environment, accounts):
     assert len(toAssets) == 2
     assert len(fromAssets) == 1
 
-    assert (0, 0, 0) == environment.notional.getAccountBalance(2, accounts[1])
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance <= 50e8
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)

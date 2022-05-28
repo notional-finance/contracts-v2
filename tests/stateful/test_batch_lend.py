@@ -43,7 +43,7 @@ def test_fail_on_unsorted_actions(environment, accounts):
 
 def test_fail_on_zero_actions(environment, accounts):
     action = get_lend_action(1, [], False)
-    with brownie.reverts("dev: no actions"):
+    with brownie.reverts():
         environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
 
 
@@ -53,7 +53,7 @@ def test_fail_on_non_lend_actions(environment, accounts):
         [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
         False,
     )
-    with brownie.reverts("dev: only lend trades"):
+    with brownie.reverts():
         environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
 
 

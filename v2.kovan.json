@@ -19,18 +19,22 @@
         "ctokens": {
             "DAI": {
                 "address": "0x4dC87A3D30C4A1B33E4349f02F4c5B1B1eF9A75D",
+                "aggregator": "0x54b35B5783F76B05616A6Bd510a50B858e8C948e",
                 "oracle": "0x4085add59EAC6072A2a15770059Cc4096fcEC73f"
             },
             "ETH": {
                 "address": "0x40575f9eb401f63f66f4c434248ad83d3441bf61",
+                "aggregator": "0x9Af81121987373dd428E5c365C2D885822679c14",
                 "oracle": "0x8910333436c7FD1fEa39e8Aef3264471755772F8"
             },
             "USDC": {
                 "address": "0xf17C5c7240CBc83D3186A9d6935F003e451C5cDd",
+                "aggregator": "0x9333E5CA872e998783950C01888a6becBE3d8aD5",
                 "oracle": "0x32D82Ee53500F0520701B27C531327C6600304D2"
             },
             "WBTC": {
                 "address": "0xA8E51e20985E926dE882EE700eC7F7d51D89D130",
+                "aggregator": "0xF13c5bD2bd92021bD15f05b9206171396f15f5B1",
                 "oracle": "0xE329E81800219Aefeef79D74DB35f8877fE1abdE"
             }
         }
