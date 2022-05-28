@@ -43,8 +43,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     {
         _checkValidCurrency(currencyId);
         Token memory token = TokenHandler.getAssetToken(currencyId);
-        int256 amountToDepositInternal =
-            token.convertToInternal(int256(amountToDepositExternalPrecision));
+        int256 amountToDepositInternal = token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
@@ -74,11 +73,10 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     ) external view override returns (int256) {
         _checkValidCurrency(currencyId);
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
-        return _getfCashAmountGivenCashAmount(currencyId, netCashToAccount, marketIndex, blockTime, cashGroup);
+        return _getfCashAmountGivenCashAmount(netCashToAccount, marketIndex, blockTime, cashGroup);
     }
         
     function _getfCashAmountGivenCashAmount(
-        uint16 currencyId,
         int88 netCashToAccount,
         uint256 marketIndex,
         uint256 blockTime,
@@ -298,13 +296,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             int256 underlyingInternal,
             CashGroupParameters memory cashGroup
         ) = _convertDepositAmountToUnderlyingInternal(currencyId, depositAmountExternal, useUnderlying);
-        int256 fCash = _getfCashAmountGivenCashAmount(
-            currencyId,
-            _safeInt88(underlyingInternal.neg()),
-            marketIndex,
-            blockTime,
-            cashGroup
-        );
+        int256 fCash = _getfCashAmountGivenCashAmount(_safeInt88(underlyingInternal.neg()), marketIndex, blockTime, cashGroup);
         require(0 < fCash);
 
         (
@@ -344,13 +336,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             int256 underlyingInternal,
             CashGroupParameters memory cashGroup
         ) = _convertDepositAmountToUnderlyingInternal(currencyId, borrowedAmountExternal, useUnderlying);
-        int256 fCash = _getfCashAmountGivenCashAmount(
-            currencyId,
-            _safeInt88(underlyingInternal),
-            marketIndex,
-            blockTime,
-            cashGroup
-        );
+        int256 fCash = _getfCashAmountGivenCashAmount(_safeInt88(underlyingInternal), marketIndex, blockTime, cashGroup);
         require(fCash < 0);
 
         (
