@@ -48,7 +48,7 @@ class TestLiquidityCurve:
         proportionDecimal = proportionDecimal / (1 - proportionDecimal)
 
         assert success
-        assert pytest.approx(lnProportion, rel=1e-5) == math.trunc(
+        assert pytest.approx(lnProportion, rel=1e-5, abs=1) == math.trunc(
             math.log(proportionDecimal) * RATE_PRECISION
         )
 
