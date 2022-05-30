@@ -1,18 +1,19 @@
 import json
-from locale import currency
+
 from brownie import ZERO_ADDRESS
-from scripts.common import TokenType, CurrencySymbol, hasTransferFee, encodeNTokenParams
+from scripts.common import CurrencySymbol, TokenType, encodeNTokenParams, hasTransferFee
 from scripts.environment_v2 import EnvironmentV2
 from tests.helpers import get_balance_action
+
 
 class NotionalInitializer:
     def __init__(self, network, deployer, dryRun=True, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
+        if self.config is None:
             self.config = {}
         self.persist = persist
         self.network = network
-        if self.network == "hardhat-fork":
+        if self.network == "hardhat-fork" or self.network == "mainnet-fork":
             self.network = "mainnet"
             self.persist = False
         self.dryRun = dryRun
@@ -20,7 +21,7 @@ class NotionalInitializer:
         self._load()
 
     def _load(self):
-        if self.config == None:
+        if self.config is None:
             with open("v2.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         self.env = EnvironmentV2(self.config)
@@ -52,7 +53,13 @@ class NotionalInitializer:
             underlyingAddress = self.env.tokens[symbol].address
             underlyingDecimals = self.env.tokens[symbol].decimals()
             asset = (assetAddress, hasTransferFee(symbol), TokenType["cToken"], assetDecimals, 0)
-            underlying = (underlyingAddress, hasTransferFee(symbol), TokenType["UnderlyingToken"], underlyingDecimals, 0)
+            underlying = (
+                underlyingAddress,
+                hasTransferFee(symbol),
+                TokenType["UnderlyingToken"],
+                underlyingDecimals,
+                0,
+            )
 
         print("Listing currency {}".format(symbol))
         if not self.dryRun:
@@ -64,7 +71,7 @@ class NotionalInitializer:
                 config["buffer"],
                 config["haircut"],
                 config["liquidationDiscount"],
-                {"from": self.deployer}
+                {"from": self.deployer},
             )
 
     def _enableCashGroup(self, currencyId, symbol, config):
@@ -93,23 +100,23 @@ class NotionalInitializer:
                 ),
                 self.env.tokens[symbol].name() if symbol != "ETH" else "Ether",
                 symbol,
-                {"from": self.deployer}
+                {"from": self.deployer},
             )
-    
+
     def enableCurrency(self, currencyId, config):
         symbol = CurrencySymbol[currencyId]
         try:
             self.env.notional.getCurrency(currencyId)
             print("Currency {} ({}) is already listed".format(currencyId, symbol))
-        except:
+        except Exception:
             # List new currency if getCurrency reverts
             self._listCurrency(symbol, config[symbol])
-        
+
         try:
             # Check if CashGroup is enabled
             self.env.notional.nTokenAddress(currencyId)
             print("CashGroup {} ({}) is already enabled".format(currencyId, symbol))
-        except:
+        except Exception:
             # Enable CashGroup if nTokenAddress reverts
             self._enableCashGroup(currencyId, symbol, config[symbol])
 
@@ -118,19 +125,17 @@ class NotionalInitializer:
         modified = False
         for i, v in enumerate(config):
             for j, vv in enumerate(v):
-                if (current[i][j] != vv):
+                if current[i][j] != vv:
                     modified = True
                     break
 
         if not modified:
             print("Deposit parameters are already set for currency {}".format(currencyId))
-            return        
+            return
 
-        print("Updating deposit parameters for {}".format(currencyId))  
-        if not self.dryRun:          
-            self.env.notional.updateDepositParameters(
-                currencyId, *config, {"from": self.deployer}
-            )
+        print("Updating deposit parameters for {}".format(currencyId))
+        if not self.dryRun:
+            self.env.notional.updateDepositParameters(currencyId, *config, {"from": self.deployer})
 
     def _updateInitializationParameters(self, currencyId, config):
         modified = False
@@ -138,10 +143,10 @@ class NotionalInitializer:
             current = self.env.notional.getInitializationParameters.call(currencyId)
             for i, v in enumerate(config):
                 for j, vv in enumerate(v):
-                    if (current[i][j] != vv):
+                    if current[i][j] != vv:
                         modified = True
                         break
-        except:
+        except Exception:
             # Not intialized yet
             modified = True
 
@@ -150,7 +155,7 @@ class NotionalInitializer:
             return
 
         print("Updating initialization parameters for {}".format(currencyId))
-        if not self.dryRun:          
+        if not self.dryRun:
             self.env.notional.updateInitializationParameters(
                 currencyId, *config, {"from": self.deployer}
             )
@@ -181,7 +186,7 @@ class NotionalInitializer:
         if not modified:
             print("Incentive emission rate is already set for currency {}".format(currencyId))
             return
-        
+
         print("Updating incentive emission rate for {}".format(currencyId))
         if not self.dryRun:
             self.env.notional.updateIncentiveEmissionRate(
@@ -193,8 +198,9 @@ class NotionalInitializer:
         self._updateDepositParameters(currencyId, nTokenConfig[symbol]["Deposit"])
         self._updateInitializationParameters(currencyId, nTokenConfig[symbol]["Initialization"])
         self._updateTokenCollateralParameters(currencyId, nTokenConfig[symbol]["Collateral"])
-        # TODO: enable this once NOTE is deployed to the currect address
-        #self._updateIncentiveEmissionRate(currencyId, currencyConfig[symbol]["incentiveEmissionRate"])
+        self._updateIncentiveEmissionRate(
+            currencyId, currencyConfig[symbol]["incentiveEmissionRate"]
+        )
 
     def _depositLiquidity(self, currencyId, amount):
         print("Depositing liquidity for currency {}".format(currencyId))
@@ -216,9 +222,13 @@ class NotionalInitializer:
             if currencyId != 1:
                 symbol = CurrencySymbol[currencyId]
                 # Approve Notional contract if necessary
-                allowance = self.env.tokens[symbol].allowance(self.deployer, self.env.notional.address)
+                allowance = self.env.tokens[symbol].allowance(
+                    self.deployer, self.env.notional.address
+                )
                 if allowance == 0:
-                    self.env.tokens[symbol].approve(self.env.notional.address, 2**255, {"from": self.deployer})
+                    self.env.tokens[symbol].approve(
+                        self.env.notional.address, 2 ** 255, {"from": self.deployer}
+                    )
             self._depositLiquidity(currencyId, initialLiquidity)
 
         try:
@@ -227,5 +237,5 @@ class NotionalInitializer:
             if not self.dryRun:
                 self.env.notional.initializeMarkets(currencyId, True, {"from": self.deployer})
             print("Successfully initialized markets for currency {}".format(currencyId))
-        except:
+        except Exception:
             print("Markets are already initialized for currency {}".format(currencyId))

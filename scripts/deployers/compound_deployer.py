@@ -1,10 +1,10 @@
 import json
 
-from brownie import cTokenAggregator
-from scripts.deployment import deployArtifact
-from scripts.config import CompoundConfig
+from brownie import cTokenV2Aggregator
 from scripts.common import isProduction
+from scripts.config import CompoundConfig
 from scripts.deployers.contract_deployer import ContractDeployer
+from scripts.deployment import deployArtifact
 
 # Mainnet cToken addresses
 TokenAddress = {
@@ -12,7 +12,7 @@ TokenAddress = {
         "ETH": "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
         "DAI": "0x5d3a536e4d6dbd6114cc1ead35777bab948e3643",
         "USDC": "0x39aa39c021dfbae8fac545936693ac917d5e7563",
-        "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a"
+        "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
     }
 }
 
@@ -22,18 +22,17 @@ OracleAddress = {
         "ETH": "0x5fbf4539a89fbd1e5d784db3f7ba6c394ac450fc",
         "DAI": "0xc7b9c53d345ec7a00d5c085085cb882dce79d2e9",
         "USDC": "0x181900d998a8a922e68b3fc186ce0fa525c3c424",
-        "WBTC": "0x913f575653c933ac15c8eb5996ed71a5547977d8"
+        "WBTC": "0x913f575653c933ac15c8eb5996ed71a5547977d8",
     }
 }
 
-ComptrollerAddress = {
-    "mainnet": "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b"
-}
+ComptrollerAddress = {"mainnet": "0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b"}
+
 
 class CompoundDeployer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
+        if self.config is None:
             self.config = {}
         self.persist = persist
         self.compound = {}
@@ -95,7 +94,7 @@ class CompoundDeployer:
         ctoken.pop("oracle", None)
         ctoken.pop("address", None)
         self._save()
-    
+
     def _deployCETH(self, ctoken):
         if "address" in ctoken:
             print("c{} deployed at {}".format("ETH", ctoken["address"]))
@@ -153,7 +152,7 @@ class CompoundDeployer:
             return
 
         deployer = ContractDeployer(self.deployer)
-        contract = deployer.deploy(cTokenAggregator, [ctoken["address"]], symbol, True)
+        contract = deployer.deploy(cTokenV2Aggregator, [ctoken["address"]], symbol, True)
         ctoken["oracle"] = contract.address
         self._save()
 
@@ -161,7 +160,7 @@ class CompoundDeployer:
         if isProduction(self.network):
             self.ctokens[symbol] = {
                 "address": TokenAddress[self.network][symbol],
-                "oracle": OracleAddress[self.network][symbol]
+                "oracle": OracleAddress[self.network][symbol],
             }
             self._save()
             return
@@ -190,10 +189,7 @@ class CompoundDeployer:
             return
 
         oracle = deployArtifact(
-            "scripts/compound_artifacts/nPriceOracle.json", 
-            [], 
-            self.deployer, 
-            "nPriceOracle"
+            "scripts/compound_artifacts/nPriceOracle.json", [], self.deployer, "nPriceOracle"
         )
         self.compound["oracle"] = oracle.address
         # Re-deploy dependent contracts
@@ -206,10 +202,7 @@ class CompoundDeployer:
             return
 
         comptroller = deployArtifact(
-            "scripts/compound_artifacts/nComptroller.json", 
-            [], 
-            self.deployer, 
-            "nComptroller"
+            "scripts/compound_artifacts/nComptroller.json", [], self.deployer, "nComptroller"
         )
         comptroller._setMaxAssets(20, {"from": self.deployer})
         comptroller._setPriceOracle(self.compound["oracle"], {"from": self.deployer})
