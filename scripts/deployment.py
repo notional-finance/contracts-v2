@@ -152,7 +152,6 @@ def deployNotionalContracts(deployer, **kwargs):
             kwargs["cETH"],
             contracts["TreasuryAction"].address,
             contracts["CalculationViews"].address,
-            contracts["StakedNTokenAction"].address,
         ),
         {"from": deployer},
     )
