@@ -133,7 +133,7 @@ library VaultConfiguration {
      * @param vaultConfig vault configuration
      * @param fCash the amount of fCash the account is lending or borrowing
      * @param timeToMaturity time until maturity of fCash
-     * @return netSNTokenFee fee paid to the snToken
+     * @return netNTokenFee fee paid to the snToken
      * @return netReserveFee fee paid to the protocol reserve
      */
     function assessVaultFees(
@@ -141,7 +141,7 @@ library VaultConfiguration {
         VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) internal returns (int256 netSNTokenFee, int256 netReserveFee) {
+    ) internal returns (int256 netNTokenFee, int256 netReserveFee) {
         // The fee rate is annualized, we prorate it linearly based on the time to maturity here
         int256 proratedFeeRate = vaultConfig.feeRate
             .mul(SafeInt256.toInt(timeToMaturity))
@@ -153,13 +153,16 @@ library VaultConfiguration {
 
         // Reserve fee share is restricted to less than 100
         netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
-        netSNTokenFee = netTotalFee.sub(netReserveFee);
+        netNTokenFee = netTotalFee.sub(netReserveFee);
 
-        // StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
+        // TODO: unclear how these fees will be specified
+        // if (netReserveFee != 0) {
+        //     BalanceHandler.netFeeToReserve(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
+        // }
 
         // If netReserveFee and netSNTokenFee are negative, they will increase the temp cash balance (they are refunds
         // in this case).
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netSNTokenFee).sub(netReserveFee);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netNTokenFee).sub(netReserveFee);
     }
 
     /**
