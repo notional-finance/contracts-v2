@@ -26,6 +26,7 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenAggregator, accounts, unde
         18,
         (cToken.address, False, TokenType["cToken"], 8, 0),
         (underlying.address, True, TokenType["UnderlyingToken"], 18, 0),
+        accounts[9].address,
         {"from": accounts[0]},
     )
     return mockVaultConf

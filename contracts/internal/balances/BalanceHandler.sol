@@ -398,19 +398,23 @@ library BalanceHandler {
         _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
     }
 
+    /// @notice Asses a fee or a refund to the nToken for leveraged vaults
+    function incrementVaultFeeToNToken(uint256 currencyId, int256 fee) internal {
+        require(fee >= 0); // dev: invalid fee
+        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+        (int256 cashBalance, /* */, /* */, /* */) = getBalanceStorage(nTokenAddress, currencyId);
+        cashBalance = cashBalance.add(fee);
+        setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
+    }
+
     /// @notice increments fees to the reserve
     function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
         require(fee >= 0); // dev: invalid fee
-        netFeeToReserve(currencyId, fee);
-    }
-
-    /// @notice Used to update reserve fees for vaults (they both contribute and refund fees)
-    function netFeeToReserve(uint256 currencyId, int256 netFee) internal {
         // prettier-ignore
         (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
-        totalReserve = totalReserve.add(netFee);
+        totalReserve = totalReserve.add(fee);
         _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
-        emit ReserveFeeAccrued(uint16(currencyId), netFee);
+        emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
     /// @notice harvests excess reserve balance

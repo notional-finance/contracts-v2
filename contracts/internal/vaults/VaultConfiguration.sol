@@ -127,21 +127,18 @@ library VaultConfiguration {
 
     /**
      * @notice Assess fees to the vault account. The fee based on time to maturity and the amount of fCash.
-     * If an account is lending fCash they are repaying their debt and will get a fee rebate. It should not
-     * be possible for an account to get a larger fee rebate then they initially paid since they cannot lend
-     * more than they borrowed and the fee rate decreases as we get closer to maturity.
      * @param vaultConfig vault configuration
      * @param fCash the amount of fCash the account is lending or borrowing
      * @param timeToMaturity time until maturity of fCash
-     * @return netNTokenFee fee paid to the snToken
-     * @return netReserveFee fee paid to the protocol reserve
      */
     function assessVaultFees(
         VaultConfig memory vaultConfig,
         VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) internal returns (int256 netNTokenFee, int256 netReserveFee) {
+    ) internal {
+        require(fCash <= 0);
+
         // The fee rate is annualized, we prorate it linearly based on the time to maturity here
         int256 proratedFeeRate = vaultConfig.feeRate
             .mul(SafeInt256.toInt(timeToMaturity))
@@ -152,17 +149,13 @@ library VaultConfiguration {
         int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(proratedFeeRate));
 
         // Reserve fee share is restricted to less than 100
-        netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
-        netNTokenFee = netTotalFee.sub(netReserveFee);
+        int256 netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
+        int256 netNTokenFee = netTotalFee.sub(netReserveFee);
 
-        // TODO: unclear how these fees will be specified
-        // if (netReserveFee != 0) {
-        //     BalanceHandler.netFeeToReserve(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
-        // }
+        BalanceHandler.incrementFeeToReserve(vaultConfig.borrowCurrencyId, netReserveFee);
+        BalanceHandler.incrementVaultFeeToNToken(vaultConfig.borrowCurrencyId, netNTokenFee);
 
-        // If netReserveFee and netSNTokenFee are negative, they will increase the temp cash balance (they are refunds
-        // in this case).
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netNTokenFee).sub(netReserveFee);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netTotalFee);
     }
 
     /**
@@ -238,7 +231,6 @@ library VaultConfiguration {
         // return a negative debt outstanding
         return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash)).neg();
     }
-
 
     /**
      * @notice Calculates the collateral ratio of an account: (debtOutstanding - valueOfAssets) / debtOutstanding

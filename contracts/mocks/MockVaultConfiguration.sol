@@ -13,8 +13,6 @@ contract MockVaultConfiguration {
     using VaultStateLib for VaultState;
     using VaultAccountLib for VaultAccount;
 
-    event StakedNTokenProfitUpdated(uint16 currencyId, int256 netSNTokenFee, int256 netReserveFee);
-
     function getVaultConfigView(
         address vault
     ) public view returns (VaultConfig memory vaultConfig) {
@@ -49,12 +47,15 @@ contract MockVaultConfiguration {
         VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) external returns (VaultAccount memory, int256 totalReserve) {
+    ) external returns (VaultAccount memory, int256 totalReserve, int256 nTokenCashBalance) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
-        (totalReserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, vaultConfig.borrowCurrencyId);
 
-        return (vaultAccount, totalReserve);
+        address nTokenAddress = nTokenHandler.nTokenAddress(vaultConfig.borrowCurrencyId);
+        (totalReserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, vaultConfig.borrowCurrencyId);
+        (nTokenCashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(nTokenAddress, vaultConfig.borrowCurrencyId);
+
+        return (vaultAccount, totalReserve, nTokenCashBalance);
     }
 
     function getBorrowCapacity(
@@ -180,14 +181,17 @@ contract MockVaultConfiguration {
     /*** Set Other Globals ***/
 
     function setToken(
-        uint256 currencyId,
+        uint16 currencyId,
         AssetRateAdapter rateOracle,
         uint8 underlyingDecimals,
         TokenStorage memory assetToken,
-        TokenStorage memory underlyingToken
+        TokenStorage memory underlyingToken,
+        address nTokenAddress
     ) external {
         TokenHandler.setToken(currencyId, true, underlyingToken);
         TokenHandler.setToken(currencyId, false, assetToken);
+
+        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
 
         mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
         store[currencyId] = AssetRateStorage({

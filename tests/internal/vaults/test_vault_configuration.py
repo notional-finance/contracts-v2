@@ -54,45 +54,66 @@ def test_current_maturity(vaultConfig, accounts):
     assert currentMaturity == START_TIME_TREF + SECONDS_IN_QUARTER
 
 
-def test_vault_fee_increases_with_debt(vaultConfig, accounts):
+def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
-        accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
+        vault.address, get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
     )
 
-    assert vaultConfig.getVaultFee(accounts[0], 0, SECONDS_IN_QUARTER) == (0, 0)
+    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)
+    (_, initTotalReserve, initNToken) = txn.return_value
+    assert initTotalReserve == 0
+    assert initNToken == 0
 
     fCash = 0
     decrement = 100e8
-    lastSNTokenFee = 0
-    lastReserveFee = 0
+    lastTotalReserve = 0
+    lastNTokenCashBalance = 0
     for i in range(0, 20):
         fCash -= decrement
-        (snTokenFee, reserveFee) = vaultConfig.getVaultFee(accounts[0], fCash, SECONDS_IN_QUARTER)
-        assert snTokenFee > lastSNTokenFee
-        assert reserveFee > lastReserveFee
-        lastSNTokenFee = snTokenFee
-        lastReserveFee = reserveFee
+        txn = vaultConfig.assessVaultFees(
+            vault.address, get_vault_account(), fCash, SECONDS_IN_QUARTER
+        )
+
+        (vaultAccount, totalReserve, nTokenCashBalance) = txn.return_value
+        assert totalReserve > lastTotalReserve
+        assert nTokenCashBalance > lastNTokenCashBalance
+        assert (totalReserve - lastTotalReserve) + (
+            nTokenCashBalance - lastNTokenCashBalance
+        ) == -vaultAccount.dict()["tempCashBalance"]
+
+        lastTotalReserve = totalReserve
+        lastNTokenCashBalance = nTokenCashBalance
 
 
-def test_vault_fee_increases_with_time_to_maturity(vaultConfig, accounts):
+def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
-        accounts[0], get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
+        vault.address, get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
     )
 
-    assert vaultConfig.getVaultFee(accounts[0], 100_000e8, 0) == (0, 0)
+    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)
+    (_, initTotalReserve, initNToken) = txn.return_value
+    assert initTotalReserve == 0
+    assert initNToken == 0
 
     timeToMaturity = 0
-    # go over the max leverage ratio and see what happens to the fee
     increment = Wei(SECONDS_IN_QUARTER / 20)
-    lastSNTokenFee = 0
-    lastReserveFee = 0
+    lastTotalReserve = 0
+    lastNTokenCashBalance = 0
     for i in range(0, 20):
         timeToMaturity += increment
-        (snTokenFee, reserveFee) = vaultConfig.getVaultFee(accounts[0], -100_000e8, timeToMaturity)
-        assert snTokenFee > lastSNTokenFee
-        assert reserveFee > lastReserveFee
-        lastSNTokenFee = snTokenFee
-        lastReserveFee = reserveFee
+        txn = vaultConfig.assessVaultFees(
+            vault.address, get_vault_account(), -100_000e8, timeToMaturity
+        )
+
+        (vaultAccount, totalReserve, nTokenCashBalance) = txn.return_value
+        assert totalReserve > lastTotalReserve
+        assert nTokenCashBalance > lastNTokenCashBalance
+        assert (totalReserve - lastTotalReserve) + (
+            nTokenCashBalance - lastNTokenCashBalance
+        ) == -vaultAccount.dict()["tempCashBalance"]
+
+        lastTotalReserve = totalReserve
+        lastNTokenCashBalance = nTokenCashBalance
 
 
 def test_max_borrow_capacity_no_reenter(vaultConfig, vault, accounts):

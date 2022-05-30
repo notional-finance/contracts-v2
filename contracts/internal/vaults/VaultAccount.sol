@@ -353,10 +353,6 @@ library VaultAccountLib {
             blockTime
         );
 
-        // Will refund to the temp cash balance part of the fCash that was successfully lent. This will
-        // be applied to the repayment of the loan. (timeToMaturity overflow checked above)
-        vaultConfig.assessVaultFees(vaultAccount, fCash, vaultAccount.maturity - blockTime);
-
         if (assetCashCostToLend < 0) {
             // Net off the cash balance required and remove the fcash. It's possible
             // that cash balance is negative here. If that is the case then we need to
@@ -388,11 +384,9 @@ library VaultAccountLib {
             // accrued between now and maturity.
             
             // The alternative to this is to put the assetCashDeposit into escrowed asset cash, however, this adds to
-            // the complexity of the solution and may result in more complex settlement dynamics. Also, due to the nature
-            // of accounting, if we were to go with the escrowed asset cash solution the account would also have to forgo
-            // their fee refund here. If this scenario were to occur, it is most likely that interest rates are near zero
-            // suggesting that money market interest rates are also near zero (therefore the account is really not giving
-            // up much by forgoing money market interest).
+            // the complexity of the solution and may result in more complex settlement dynamics. If this scenario were
+            // to occur, it is most likely that interest rates are near zero suggesting that money market interest rates
+            // are also near zero (therefore the account is really not giving up much by forgoing money market interest).
             int256 assetCashDeposit = vaultConfig.assetRate.convertFromUnderlying(fCash); // this is a positive number
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
             vaultAccount.fCash = 0;
