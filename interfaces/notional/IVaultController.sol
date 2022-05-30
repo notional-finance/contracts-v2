@@ -33,8 +33,7 @@ interface IVaultAction {
         uint256 maturity,
         address[] calldata settleAccounts,
         uint256[] calldata vaultSharesToRedeem,
-        bytes calldata redeemCallData,
-        uint256 nTokensToRedeem
+        bytes calldata redeemCallData
     ) external;
 
     function depositVaultCashToStrategyTokens(

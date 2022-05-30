@@ -474,16 +474,12 @@ struct VaultConfigStorage {
     uint16 termLengthInDays;
     // Allows up to a 12.75% annualized fee
     uint8 feeRate5BPS;
-    // A value in percent scale that represents the relative risk of this vault. Governs how large the
-    // vault can get relative to staked nToken insurance. Allows up to 655x leverage which should be
-    // plenty.
-    uint16 capacityMultiplierPercentage;
     // A percentage that represents the share of the cash raised that will go to the liquidator
     uint8 liquidationRate;
     // A percentage of the fee given to the protocol
     uint8 reserveFeeShare;
 
-    // 48 bytes left
+    // 56 bytes left
 }
 
 struct VaultConfig {
@@ -495,7 +491,6 @@ struct VaultConfig {
     uint256 termLengthInSeconds;
     int256 feeRate;
     int256 minCollateralRatio;
-    int256 capacityMultiplierPercentage;
     uint256 liquidationRate;
     int256 reserveFeeShare;
     AssetRateParameters assetRate;

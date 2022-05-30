@@ -128,15 +128,13 @@ contract VaultAction is ActionGuards, IVaultAction {
      * @param settleAccounts a list of accounts to manually settle (if any)
      * @param vaultSharesToRedeem the amount of vault shares to settle on each account
      * @param redeemCallData call data passed to redeem for all accounts being settled
-     * @param nTokensToRedeem amount of nTokens to redeem to cover shortfall (0 if not needed)
      */
     function settleVault(
         address vault,
         uint256 maturity,
         address[] calldata settleAccounts,
         uint256[] calldata vaultSharesToRedeem,
-        bytes calldata redeemCallData,
-        uint256 nTokensToRedeem
+        bytes calldata redeemCallData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
 
@@ -165,7 +163,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             settleAccounts, vaultSharesToRedeem, redeemCallData);
 
         if (assetCashShortfall > 0) {
-            vaultConfig.resolveCashShortfall(assetCashShortfall, nTokensToRedeem);
+            vaultConfig.resolveCashShortfall(assetCashShortfall);
         }
 
         // TODO: is this the correct behavior if we are in an insolvency

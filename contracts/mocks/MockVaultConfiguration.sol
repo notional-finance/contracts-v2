@@ -7,7 +7,6 @@ import "../internal/vaults/VaultState.sol";
 import "../internal/vaults/VaultAccount.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../internal/balances/BalanceHandler.sol";
-import "../internal/nToken/staking/StakedNTokenSupply.sol";
 
 contract MockVaultConfiguration {
     using VaultConfiguration for VaultConfig;
@@ -20,11 +19,6 @@ contract MockVaultConfiguration {
         address vault
     ) public view returns (VaultConfig memory vaultConfig) {
         return VaultConfiguration.getVaultConfigView(vault);
-    }
-
-    function setStakedNTokenUnstakeSignal(uint16 currencyId, uint256 maturity, uint88 unstakeSignal) external {
-        nTokenTotalUnstakeSignalStorage storage t = LibStorage.getStakedNTokenTotalUnstakeSignal()[currencyId][maturity];
-        t.totalUnstakeSignal = unstakeSignal;
     }
 
     function setVaultEnabledStatus(
@@ -55,32 +49,21 @@ contract MockVaultConfiguration {
         VaultAccount memory vaultAccount,
         int256 fCash,
         uint256 timeToMaturity
-    ) external returns (VaultAccount memory, uint256 totalCashProfits, int256 totalReserve) {
+    ) external returns (VaultAccount memory, int256 totalReserve) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
-        totalCashProfits = StakedNTokenSupplyLib.getStakedNTokenSupply(vaultConfig.borrowCurrencyId).totalCashProfits;
         (totalReserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, vaultConfig.borrowCurrencyId);
 
-        return (vaultAccount, totalCashProfits, totalReserve);
+        return (vaultAccount, totalReserve);
     }
 
     function getBorrowCapacity(
         address vault,
         uint256 maturity,
-        int256 stakedNTokenUnderlyingPV,
-        uint256 totalSupply,
         uint256 blockTime
-    ) external view returns (
-        int256 totalUnderlyingCapacity,
-        // Inside this method, total outstanding debt is a positive integer
-        int256 nextMaturityPredictedCapacity,
-        int256 totalOutstandingDebt,
-        int256 nextMaturityDebt
-    ) {
+    ) external view returns (int256 totalOutstandingDebt) {
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
-        return VaultConfiguration.getVaultConfigView(vault).getBorrowCapacity(
-            vaultState, stakedNTokenUnderlyingPV, totalSupply, blockTime
-        );
+        return VaultConfiguration.getVaultConfigView(vault).getBorrowCapacity(vaultState, blockTime);
     }
 
     function checkTotalBorrowCapacity(

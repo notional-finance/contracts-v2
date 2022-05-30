@@ -6,7 +6,6 @@ import "./actions/nTokenMintAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
 import {INTokenAction} from "../../interfaces/notional/INTokenAction.sol";
-import {IStakedNTokenAction} from "../../interfaces/notional/IStakedNTokenAction.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
 import {IVaultAction, IVaultAccountAction} from "../../interfaces/notional/IVaultController.sol";
 import {nERC1155Interface} from "../../interfaces/notional/nERC1155Interface.sol";

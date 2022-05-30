@@ -13,17 +13,14 @@ import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
 import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
-import {StakedNTokenSupply, StakedNTokenSupplyLib} from "../nToken/staking/StakedNTokenSupply.sol";
 
 import {VaultConfig, VaultAccount, VaultConfigStorage} from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
-import {IStakedNTokenAction} from "../../../interfaces/notional/IStakedNTokenAction.sol";
 
 library VaultConfiguration {
     using TokenHandler for Token;
     using VaultStateLib for VaultState;
-    using StakedNTokenSupplyLib for StakedNTokenSupply;
     using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
@@ -52,7 +49,6 @@ library VaultConfiguration {
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
-        vaultConfig.capacityMultiplierPercentage = int256(uint256(s.capacityMultiplierPercentage));
         vaultConfig.liquidationRate = s.liquidationRate;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
     }
@@ -159,21 +155,11 @@ library VaultConfiguration {
         netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
         netSNTokenFee = netTotalFee.sub(netReserveFee);
 
-        StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
+        // StakedNTokenSupplyLib.updateStakedNTokenProfits(vaultConfig.borrowCurrencyId, netSNTokenFee, netReserveFee);
 
         // If netReserveFee and netSNTokenFee are negative, they will increase the temp cash balance (they are refunds
         // in this case).
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netSNTokenFee).sub(netReserveFee);
-    }
-
-    function _netDebtOutstanding(
-        AssetRateParameters memory assetRate,
-        int256 totalfCash,
-        int256 totalAssetCash
-    ) private pure returns (int256) {
-        // NOTE: it is possible that totalAssetCash > 0 and therefore this would
-        // return a negative debt outstanding
-        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash)).neg();
     }
 
     /**
@@ -181,31 +167,14 @@ library VaultConfiguration {
      * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance.
      * @param vaultConfig vault configuration
      * @param vaultState the current vault state to get the total fCash debt
-     * @param stakedNTokenUnderlyingPV the amount of staked nToken present value
-     * @param totalSNTokenSupply total supply of snTokens
      * @param blockTime current block time
-     * @return totalUnderlyingCapacity total capacity between this quarter and next
-     * @return nextMaturityPredictedCapacity total capacity in the next quarter
      * @return totalOutstandingDebt positively valued debt outstanding
-     * @return nextMaturityDebt positively valued debt in the next maturity
      */
     function getBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        int256 stakedNTokenUnderlyingPV,
-        uint256 totalSNTokenSupply,
         uint256 blockTime
-    ) internal view returns (
-        int256 totalUnderlyingCapacity,
-        // Inside this method, total outstanding debt is a positive integer
-        int256 nextMaturityPredictedCapacity,
-        int256 totalOutstandingDebt,
-        int256 nextMaturityDebt
-    ) {
-        totalUnderlyingCapacity = stakedNTokenUnderlyingPV
-            .mul(vaultConfig.capacityMultiplierPercentage)
-            .div(Constants.PERCENTAGE_DECIMALS);
-
+    ) internal view returns (int256 totalOutstandingDebt) {
         // This is a partially calculated storage slot for the vault's state. The mapping is from maturity
         // to vault state for this vault.
         mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
@@ -235,6 +204,8 @@ library VaultConfiguration {
         // Next, handle the next vault state (if it allows re-enters)
         if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
             uint256 nextMaturity = currentMaturity.add(vaultConfig.termLengthInSeconds);
+            int256 nextMaturityDebt;
+
             if (nextMaturity == vaultState.maturity) {
                 nextMaturityDebt = vaultState.totalfCash.neg();
             } else {
@@ -243,68 +214,28 @@ library VaultConfiguration {
             }
 
             totalOutstandingDebt = totalOutstandingDebt.add(nextMaturityDebt);
-            nextMaturityPredictedCapacity = _getNextMaturityCapacity(
-                vaultConfig,
-                currentMaturity,
-                stakedNTokenUnderlyingPV,
-                totalSNTokenSupply
-
-            );
         }
     }
-
-    function _getNextMaturityCapacity(
-        VaultConfig memory vaultConfig,
-        uint256 currentMaturity,
-        int256 stakedNTokenUnderlyingPV,
-        uint256 totalSNTokenSupply
-    ) private view returns (int256 nextMaturityPredictedCapacity) {
-        uint256 unstakeSignal = StakedNTokenSupplyLib.getStakedNTokenUnstakeSignal(
-            vaultConfig.borrowCurrencyId,
-            currentMaturity
-        );
-
-        // Predicted next maturity capacity is based on assuming that everyone who has signalled unstaking
-        // will unstake and taking a proportional share of the current present value.
-        int256 predictedStakedNTokenPV = stakedNTokenUnderlyingPV
-            .mul((totalSNTokenSupply.sub(unstakeSignal)).toInt())
-            .div(totalSNTokenSupply.toInt());
-
-        // We cannot use any staked nToken capacity that may unstake in the next unstaking period
-        // to determine the borrow 
-        nextMaturityPredictedCapacity = predictedStakedNTokenPV
-            .mul(vaultConfig.capacityMultiplierPercentage)
-            .div(Constants.PERCENTAGE_DECIMALS);
-    }
-
 
     function checkTotalBorrowCapacity(
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 blockTime
     ) internal {
-        StakedNTokenSupply memory stakedSupply = StakedNTokenSupplyLib.getStakedNTokenSupply(vaultConfig.borrowCurrencyId);
-        // We do a call back via the proxy to get the present value of the staked nToken. The reason is that this calculation
-        // adds significant bytecode weight so this is the only way to get the contract to be deployable.
-        uint256 valueInAssetCash = IStakedNTokenAction(address(this))
-            .stakedNTokenPresentValueAssetInternal(vaultConfig.borrowCurrencyId);
-        int256 stakedNTokenUnderlyingPV = vaultConfig.assetRate.convertToUnderlying(valueInAssetCash.toInt());
-        
-        (
-            int256 totalUnderlyingCapacity,
-            int256 nextMaturityPredictedCapacity,
-            // Inside this method, total outstanding debt is a positive integer
-            int256 totalOutstandingDebt,
-            int256 nextMaturityDebt
-        ) = getBorrowCapacity(vaultConfig, vaultState, stakedNTokenUnderlyingPV, stakedSupply.totalSupply, blockTime);
-
-        require(
-            totalOutstandingDebt <= totalUnderlyingCapacity &&
-            totalOutstandingDebt <= vaultConfig.maxVaultBorrowSize &&
-            nextMaturityDebt <= nextMaturityPredictedCapacity,
-            "Insufficient capacity"
-        );
+        int256 totalOutstandingDebt = getBorrowCapacity(vaultConfig, vaultState, blockTime);
+        require(totalOutstandingDebt <= vaultConfig.maxVaultBorrowSize, "Insufficient capacity");
     }
+
+    function _netDebtOutstanding(
+        AssetRateParameters memory assetRate,
+        int256 totalfCash,
+        int256 totalAssetCash
+    ) private pure returns (int256) {
+        // NOTE: it is possible that totalAssetCash > 0 and therefore this would
+        // return a negative debt outstanding
+        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash)).neg();
+    }
+
 
     /**
      * @notice Calculates the collateral ratio of an account: (debtOutstanding - valueOfAssets) / debtOutstanding
@@ -448,34 +379,21 @@ library VaultConfiguration {
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 
-    function resolveCashShortfall(
-        VaultConfig memory vaultConfig,
-        int256 assetCashShortfall,
-        uint256 nTokensToRedeem
-    ) internal {
+    function resolveCashShortfall(VaultConfig memory vaultConfig, int256 assetCashShortfall) internal {
         uint16 currencyId = vaultConfig.borrowCurrencyId;
-        // First attempt to redeem nTokens
-        (/* int256 actualNTokensRedeemed */, int256 assetCashRaised) = StakedNTokenSupplyLib.redeemNTokenToCoverShortfall(
-            currencyId,
-            SafeInt256.toInt(nTokensToRedeem),
-            assetCashShortfall,
-            block.timestamp
-        );
+        if (assetCashShortfall <= 0) return;
 
-        int256 remainingShortfall = assetCashRaised.sub(assetCashShortfall);
-        if (remainingShortfall > 0) {
-            // Then reduce the reserves
-            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
+        // Then reduce the reserves
+        (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
 
-            if (remainingShortfall <= reserveInternal) {
-                BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - remainingShortfall);
-            } else {
-                // At this point the protocol needs to raise funds from sNOTE
-                BalanceHandler.setReserveCashBalance(currencyId, 0);
-                // Disable the vault, users can still exit but no one can enter.
-                setVaultEnabledStatus(vaultConfig.vault, false);
-                emit ProtocolInsolvency(currencyId, vaultConfig.vault, remainingShortfall - reserveInternal);
-            }
+        if (assetCashShortfall <= reserveInternal) {
+            BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - assetCashShortfall);
+        } else {
+            // At this point the protocol needs to raise funds from sNOTE
+            BalanceHandler.setReserveCashBalance(currencyId, 0);
+            // Disable the vault, users can still exit but no one can enter.
+            setVaultEnabledStatus(vaultConfig.vault, false);
+            emit ProtocolInsolvency(currencyId, vaultConfig.vault, assetCashShortfall - reserveInternal);
         }
     }
 }

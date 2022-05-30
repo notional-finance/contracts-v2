@@ -13,7 +13,6 @@ import {DateTime} from "../markets/DateTime.sol";
 import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {TokenType, Token, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
-import {StakedNTokenSupplyLib} from "../nToken/staking/StakedNTokenSupply.sol";
 
 import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
 import {VaultStateLib, VaultState} from "./VaultState.sol";
