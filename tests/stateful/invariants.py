@@ -24,7 +24,6 @@ def get_all_markets(env, currencyId):
 def check_system_invariants(env, accounts):
     check_cash_balance(env, accounts)
     check_ntoken(env, accounts)
-    check_staked_ntoken(env, accounts)
     check_portfolio_invariants(env, accounts)
     check_account_context(env, accounts)
     check_token_incentive_balance(env, accounts)
@@ -99,20 +98,20 @@ def check_cash_balance(env, accounts):
             contractBalance = tokenBalance * 1e8 / 1e18
 
         accountBalances = 0
+        nTokenTotalBalances = 0
 
         for account in accounts:
-            (cashBalance, _, _) = env.notional.getAccountBalance(currencyId, account.address)
+            (cashBalance, nTokenBalance, _) = env.notional.getAccountBalance(
+                currencyId, account.address
+            )
             accountBalances += cashBalance
+            nTokenTotalBalances += nTokenBalance
 
         # Add nToken balances
         (cashBalance, _, _) = env.notional.getAccountBalance(
             currencyId, env.nToken[currencyId].address
         )
         accountBalances += cashBalance
-
-        # Add snToken cash profits
-        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
-        accountBalances += snToken["totalCashProfits"]
 
         # Loop markets to check for cashBalances
         markets = env.notional.getActiveMarkets(currencyId)
@@ -127,6 +126,8 @@ def check_cash_balance(env, accounts):
         assert pytest.approx(contractBalance, abs=5) == accountBalances
         # Ensure that the contract always retains more balance than the sum of accounts
         assert contractBalance >= accountBalances
+        # Check that total supply equals total balances
+        assert nTokenTotalBalances == env.nToken[currencyId].totalSupply()
 
 
 def check_ntoken(env, accounts):
@@ -135,10 +136,6 @@ def check_ntoken(env, accounts):
     for (currencyId, nToken) in env.nToken.items():
         totalSupply = nToken.totalSupply()
         totalTokensHeld = 0
-
-        # Get the staked nToken holdings
-        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
-        totalTokensHeld += snToken["nTokenBalance"]
 
         for account in accounts:
             (_, tokens, _) = env.notional.getAccountBalance(currencyId, account.address)
@@ -165,37 +162,6 @@ def check_ntoken(env, accounts):
 
         # Ensure that the FC of the nToken is gte 0
         assert env.notional.getFreeCollateral(nToken.address)[0] >= 0
-
-
-def check_staked_ntoken(env, accounts):
-    for (currencyId, nToken) in env.nToken.items():
-        snToken = env.notional.getStakedNTokenSupply(currencyId).dict()
-        totalSNTokensHeld = 0
-        unstakeMaturities = defaultdict(lambda: 0)
-
-        for account in accounts:
-            (
-                balance,
-                _,
-                _,
-                maturity,
-                snTokensToUnstake,
-                deposit,
-            ) = env.notional.getAccountStakedNTokens(account.address, currencyId)
-
-            totalSNTokensHeld += balance
-            # If the account has multiple signals where they lose their deposit then this will no
-            # longer be true
-            totalSNTokensHeld += deposit
-            unstakeMaturities[maturity] += snTokensToUnstake
-
-        for (maturity, totalSignal) in unstakeMaturities.items():
-            totalSignal = env.notional.getStakedNTokenUnstakeSignal(currencyId, maturity)
-            # If the account has multiple signals where they lose their deposit then this will no
-            # longer be true
-            assert unstakeMaturities[maturity] == totalSignal
-
-        assert totalSNTokensHeld == snToken["totalSupply"]
 
 
 def check_portfolio_invariants(env, accounts):

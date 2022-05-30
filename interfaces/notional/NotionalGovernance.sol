@@ -25,8 +25,6 @@ interface NotionalGovernance {
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
     event UpdateSecondaryIncentiveRewarder(uint16 indexed currencyId, address rewarder);
     event UpdateLendingPool(address pool);
-    event UpdateStakedIncentiveEmissionRate(uint16 currencyId, uint32 totalAnnualStakedEmission);
-    event DeployStakedNToken(uint16 currencyId, address stakedNTokenAddress);
 
     function transferOwnership(address newOwner, bool direct) external;
 

@@ -58,22 +58,7 @@ enum DepositActionType {
     RedeemNToken,
     // Converts specified amount of asset cash balance already in Notional to nTokens. depositActionAmount is specified in
     // Notional internal 8 decimal precision.
-    ConvertCashToNToken,
-
-    // Transfers depositActionAmount of nTokens into staked nTokens and mints them back to the user.
-    StakeNToken,
-    // Deposits asset tokens and uses them to mint nTokens, and then stake all of the nTokens minted
-    DepositAssetAndMintStakedNToken,
-    // Deposits underlying tokens and uses them to mint nTokens, and then stake all of the nTokens minted
-    DepositUnderlyingAndMintStakedNToken,
-    // Converts a cash balance to staked nTokens
-    ConvertCashToStakedNToken,
-
-    // Unstake staked nTokens and transfers the nToken claim into the account's portfolio.
-    UnstakeToNToken,
-    // Unstake staked nTokens and redeems them to a cash balance, which can then be withdrawn. DepositActionAmount
-    // equals the staked nTokens to redeem.
-    UnstakeAndRedeemNToken
+    ConvertCashToNToken
 }
 
 /// @notice Used internally for PortfolioHandler state
@@ -471,72 +456,4 @@ struct AccountBalance {
     int256 nTokenBalance;
     uint256 lastClaimTime;
     uint256 accountIncentiveDebt;
-}
-
-// A per account, per currency context object for Staked nTokens
-struct nTokenStakerStorage {
-    // Staked NToken balance for this account
-    uint88 snTokenBalance;
-    // Share of the NOTE incentives the account does not have a claim over, overflows
-    // at 720 million NOTE tokens (in 1e8 precision, only 100 million NOTE token supply)
-    uint56 accountIncentiveDebt;
-    // Accumulated NOTE incentives, overflows at 720 million NOTE tokens
-    // (in 1e8 precision, only 100 million NOTE token supply)
-    uint56 accumulatedNOTE;
-}
-
-struct nTokenUnstakeSignalStorage {
-    // Maturity when these staked nTokens will be able to unstake
-    uint32 unstakeMaturity;
-    // Staked nTokens signalled for unstaking
-    uint88 snTokensToUnstake;
-    // Withhold some snTokens as a deposit if the staker does not unstake
-    uint88 snTokenDeposit;
-}
-
-// In memory object for the staker context
-struct nTokenStaker {
-    uint256 snTokenBalance;
-    uint256 accountIncentiveDebt;
-    uint256 accumulatedNOTE;
-}
-
-// Stores relevant supply factors for a Staked NToken, maps to a single nToken
-struct StakedNTokenSupplyStorage {
-    // Total supply of this particular nToken
-    uint88 totalSupply;
-    // nTokens held by this Staked nToken
-    uint88 nTokenBalance;
-    // Holds the accrued cash profits that have not been minted to nTokens yet
-    uint80 totalCashProfits;
-}
-
-struct nTokenTotalUnstakeSignalStorage {
-    // Total snTokens that have signalled they will unstake in the following unstaking window.
-    uint88 totalUnstakeSignal;
-}
-
-struct StakedNTokenIncentivesStorage {
-    // Previous accumulated time for the staked emission
-    uint32 lastAccumulatedTime;
-    // This will overflow if a single nToken has accumulated 51.9 million NOTE which is basically impossible,
-    // there are only 100 million NOTE and many of those tokens have already been accrued to millions of nTokens
-    uint112 lastBaseAccumulatedNOTEPerNToken;
-    // Total accumulated NOTE per staked nToken
-    uint112 totalAccumulatedNOTEPerStaked;
-
-    // This starts a second storage slot, the first storage slot is updated more frequently as snTokens are minted
-    // and redeemed, this second storage slot is only updated by governance infrequently.
-    uint32 totalAnnualStakedEmission;
-}
-
-struct StakedNTokenAddressStorage {
-    address stakedNTokenAddress;
-}
-
-// Staked nToken supply in memory
-struct StakedNTokenSupply {
-    uint256 totalSupply;
-    uint256 nTokenBalance;
-    uint256 totalCashProfits;
 }

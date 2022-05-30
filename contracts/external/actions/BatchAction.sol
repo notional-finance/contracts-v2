@@ -364,6 +364,11 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // Converts a given amount of cash (denominated in internal precision) into nTokens
             int256 tokensMinted = nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(tokensMinted);
+
+            // Emits a Transfer(address(0), account, tokensMinted) event (if the proxy has this method),
+            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
+            // not have this method, it is only available in newer proxies.
+            try INTokenProxy(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
                 // prettier-ignore

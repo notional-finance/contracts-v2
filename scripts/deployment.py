@@ -21,8 +21,6 @@ from brownie import (
     PauseRouter,
     Router,
     SettleAssetsExternal,
-    StakedNTokenAction,
-    StakedNTokenERC20Proxy,
     TradingAction,
     TreasuryAction,
     UpgradeableBeacon,
@@ -97,9 +95,6 @@ def deployNotionalContracts(deployer, **kwargs):
     # Deploy nToken Beacon Contracts
     emptyImpl = EmptyProxy.deploy({"from": deployer})
     contracts["nTokenProxyBeacon"] = UpgradeableBeacon.deploy(emptyImpl.address, {"from": deployer})
-    contracts["StakedNTokenProxyBeacon"] = UpgradeableBeacon.deploy(
-        emptyImpl.address, {"from": deployer}
-    )
 
     # Deploy Libraries
     contracts["SettleAssetsExternal"] = SettleAssetsExternal.deploy({"from": deployer})
@@ -111,9 +106,7 @@ def deployNotionalContracts(deployer, **kwargs):
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy(
-        contracts["nTokenProxyBeacon"].address,
-        contracts["StakedNTokenProxyBeacon"].address,
-        {"from": deployer},
+        contracts["nTokenProxyBeacon"].address, {"from": deployer}
     )
 
     if network.show_active() in ["kovan", "mainnet"]:
@@ -134,7 +127,6 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
     contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
-    contracts["StakedNTokenAction"] = StakedNTokenAction.deploy({"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
@@ -185,15 +177,8 @@ def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WE
     nTokenProxyImplementation = nTokenERC20Proxy.deploy(
         proxy.address, WETH.address, {"from": deployer}
     )
-    StakedNTokenProxyImplementation = StakedNTokenERC20Proxy.deploy(
-        proxy.address, WETH.address, {"from": deployer}
-    )
     contracts["nTokenProxyBeacon"].upgradeTo(nTokenProxyImplementation.address, {"from": deployer})
-    contracts["StakedNTokenProxyBeacon"].upgradeTo(
-        StakedNTokenProxyImplementation.address, {"from": deployer}
-    )
     contracts["nTokenProxyBeacon"].transferOwnership(proxy.address, {"from": deployer})
-    contracts["StakedNTokenProxyBeacon"].transferOwnership(proxy.address, {"from": deployer})
 
     notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(

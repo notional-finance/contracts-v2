@@ -55,7 +55,6 @@ def test_non_callable_methods(environment, accounts):
         environment.notional.transferOwnership(accounts[1], True, {"from": accounts[1]})
 
         environment.notional.upgradeNTokenBeacon(accounts[1], {"from": accounts[1]})
-        environment.notional.upgradeStakedNTokenBeacon(accounts[1], {"from": accounts[1]})
 
         environment.notional.listCurrency(
             (environment.token["DAI"].address, False, 0, 18, 0),
@@ -89,11 +88,6 @@ def test_non_callable_methods(environment, accounts):
             "ETH",
             {"from": accounts[1]},
         )
-
-        environment.notional.enableStakedNToken(
-            1, 100_000, "Ethereum", "ETH", {"from": accounts[0]}
-        )
-        environment.notional.updateStakedNTokenIncentives(1, 100_000, {"from": accounts[0]})
 
         currencyId = 10
         environment.notional.updateDepositParameters(
@@ -141,19 +135,6 @@ def test_non_callable_methods(environment, accounts):
             1, 100e8, accounts[1], accounts[1], {"from": accounts[1]}
         )
         environment.notional.nTokenMintViaProxy(1, 100e8, accounts[1], {"from": accounts[1]})
-
-    # Test Staked nToken Proxy Authorization
-    with brownie.reverts("Unauthorized caller"):
-        environment.notional.stakedNTokenTransfer(
-            1, accounts[1], accounts[2], 100e8, {"from": accounts[1]}
-        )
-        environment.notional.stakedNTokenMintViaProxy(1, 100e8, accounts[1], {"from": accounts[1]})
-        environment.notional.stakedNTokenSignalUnstake(1, accounts[1], 100e8, {"from": accounts[1]})
-        environment.notional.stakedNTokenRedeemViaProxy(
-            1, 100e8, accounts[0], accounts[1], {"from": accounts[1]}
-        )
-        environment.notional.stakeNTokenViaBatch(accounts[0], 1, 100e8, {"from": accounts[1]})
-        environment.notional.unstakeNTokenViaBatch(accounts[0], 1, 100e8, {"from": accounts[1]})
 
 
 def test_prevent_duplicate_token_listing(environment, accounts):

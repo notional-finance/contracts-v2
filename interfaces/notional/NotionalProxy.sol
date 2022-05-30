@@ -4,7 +4,6 @@ pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
 import "./INTokenAction.sol";
-import "./IStakedNTokenAction.sol";
 import "./nERC1155Interface.sol";
 import "./NotionalGovernance.sol";
 import "./NotionalCalculations.sol";
@@ -13,7 +12,6 @@ import "./NotionalTreasury.sol";
 
 interface NotionalProxy is
     INTokenAction,
-    IStakedNTokenAction,
     nERC1155Interface,
     NotionalGovernance,
     NotionalTreasury,
