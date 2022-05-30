@@ -115,6 +115,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
         for (uint256 i = 0; i < actions.length; i++) {
             BatchLend calldata action = actions[i];
+            // msg.value will never be used in this method because it is non-payable
             if (i > 0) {
                 require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
             }
