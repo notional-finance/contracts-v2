@@ -34,8 +34,6 @@ interface NotionalGovernance {
 
     function upgradeNTokenBeacon(address newImplementation) external;
 
-    function upgradeStakedNTokenBeacon(address newImplementation) external;
-
     function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
     function listCurrency(
@@ -59,18 +57,6 @@ interface NotionalGovernance {
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
-    ) external;
-
-    function enableStakedNToken(
-        uint16 currencyId,
-        uint32 totalAnnualStakedEmission,
-        string calldata underlyingName,
-        string calldata underlyingSymbol
-    ) external;
-
-    function updateStakedNTokenIncentives(
-        uint16 currencyId,
-        uint32 totalAnnualStakedEmission
     ) external;
 
     function updateDepositParameters(

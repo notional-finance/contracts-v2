@@ -44,13 +44,7 @@ library LibStorage {
         ExchangeRate,
         nTokenTotalSupply,
         SecondaryIncentiveRewarder,
-        LendingPool,
-        nTokenStaker,
-        StakedNTokenSupply,
-        StakedNTokenIncentives,
-        StakedNTokenAddress,
-        StakedNTokenUnstakeSignal,
-        TotalUnstakeSignal
+        LendingPool
     }
 
     /// @dev Mapping from an account address to account context
@@ -205,41 +199,6 @@ library LibStorage {
     /// @dev Returns the address of the lending pool
     function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
         uint256 slot = _getStorageSlot(StorageId.LendingPool);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns object for an nTokenStaker, mapping is from account address to currency id to object
-    function getNTokenStaker() internal pure returns (mapping(address => mapping(uint256 => nTokenStakerStorage)) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.nTokenStaker);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns object for an StakedNTokenSupply, mapping is from currency id to object
-    function getStakedNTokenSupply() internal pure returns (mapping(uint256 => StakedNTokenSupplyStorage) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.StakedNTokenSupply);
-        assembly { store.slot := slot }
-    }
-
-    function getStakedNTokenIncentives() internal pure returns (mapping(uint256 => StakedNTokenIncentivesStorage) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.StakedNTokenIncentives);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns object for an StakedNTokenSupply, mapping is from currency id to object
-    function getStakedNTokenAddress() internal pure returns (mapping(uint256 => StakedNTokenAddressStorage) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.StakedNTokenAddress);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns unstake signal for an nTokenStaker, mapping is from account address to currency id to object
-    function getStakedNTokenUnstakeSignal() internal pure returns (mapping(address => mapping(uint256 => nTokenUnstakeSignalStorage)) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.StakedNTokenUnstakeSignal);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns unstake signal for an nTokenStaker, mapping is from currency id to maturity to object
-    function getStakedNTokenTotalUnstakeSignal() internal pure returns (mapping(uint256 => mapping(uint256 => nTokenTotalUnstakeSignalStorage)) storage store) {
-        uint256 slot = _getStorageSlot(StorageId.TotalUnstakeSignal);
         assembly { store.slot := slot }
     }
 

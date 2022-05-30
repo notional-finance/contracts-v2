@@ -35,7 +35,6 @@ contract Router is StorageLayoutV1 {
     address public immutable cETH;
     address public immutable TREASURY;
     address public immutable CALCULATION_VIEWS;
-    address public immutable STAKED_NTOKEN_ACTIONS;
     address private immutable DEPLOYER;
 
     struct RouterContracts {
@@ -51,7 +50,6 @@ contract Router is StorageLayoutV1 {
         address cETH;
         address treasury;
         address calculationViews;
-        address stakedNTokenActions;
     }
 
     constructor(RouterContracts memory contracts) {
@@ -67,7 +65,6 @@ contract Router is StorageLayoutV1 {
         cETH = contracts.cETH;
         TREASURY = contracts.treasury;
         CALCULATION_VIEWS = contracts.calculationViews;
-        STAKED_NTOKEN_ACTIONS = contracts.stakedNTokenActions;
 
         DEPLOYER = msg.sender;
         // This will lock everyone from calling initialize on the implementation contract
@@ -159,22 +156,6 @@ contract Router is StorageLayoutV1 {
         ) {
             return NTOKEN_ACTIONS;
         } else if (
-            sig == IStakedNTokenAction.stakedNTokenTotalSupply.selector ||
-            sig == IStakedNTokenAction.stakedNTokenBalanceOf.selector ||
-            sig == IStakedNTokenAction.stakedNTokenRedeemAllowed.selector ||
-            sig == IStakedNTokenAction.stakedNTokenTransfer.selector ||
-            sig == IStakedNTokenAction.stakedNTokenRedeemViaProxy.selector ||
-            sig == IStakedNTokenAction.stakedNTokenMintViaProxy.selector ||
-            sig == IStakedNTokenAction.stakedNTokenSignalUnstakeViaProxy.selector ||
-            sig == IStakedNTokenAction.stakedNTokenPresentValueUnderlyingExternal.selector ||
-            sig == IStakedNTokenAction.stakedNTokenPresentValueAssetInternal.selector ||
-            sig == IStakedNTokenAction.stakeNTokenViaBatch.selector ||
-            sig == IStakedNTokenAction.unstakeNTokenViaBatch.selector ||
-            sig == IStakedNTokenAction.signalUnstakeNToken.selector ||
-            sig == IStakedNTokenAction.claimStakedNTokenIncentives.selector
-        ) {
-            return STAKED_NTOKEN_ACTIONS;
-        } else if (
             sig == NotionalProxy.liquidateLocalCurrency.selector ||
             sig == NotionalProxy.liquidateCollateralCurrency.selector ||
             sig == NotionalProxy.calculateLocalCurrencyLiquidation.selector ||
@@ -210,9 +191,6 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
             sig == NotionalGovernance.setLendingPool.selector ||
             sig == NotionalGovernance.upgradeNTokenBeacon.selector ||
-            sig == NotionalGovernance.upgradeStakedNTokenBeacon.selector ||
-            sig == NotionalGovernance.enableStakedNToken.selector ||
-            sig == NotionalGovernance.updateStakedNTokenIncentives.selector ||
             sig == NotionalProxy.upgradeTo.selector ||
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {

@@ -133,18 +133,4 @@ library Constants {
     bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
-
-    // nToken Staking Parameters
-    
-    // Unstake signals begin 28 days before quarterly roll (tRef) and end 14 days before tRef
-    uint256 internal constant UNSTAKE_SIGNAL_WINDOW_BEGIN_OFFSET = DAY * 28;
-    uint256 internal constant UNSTAKE_SIGNAL_WINDOW_END_OFFSET = DAY * 14;
-    // Unstake windwos begin 1 day after tRef and end 8 days after tRef (total of 7 day window)
-    uint256 internal constant UNSTAKE_WINDOW_BEGIN_OFFSET = DAY;
-    uint256 internal constant UNSTAKE_WINDOW_END_OFFSET = DAY * 8;
-    // This is the percentage in RATE_PRECISION of the nTokensToUnstake that are withheld as a
-    // deposit between the unstake signal and the unstake window to protect against accounts
-    // always signalling that they will unstake even though they do not actually redeem their
-    // staked nTokens.
-    uint256 internal constant UNSTAKE_DEPOSIT_RATE = 50 * BASIS_POINT;
 }

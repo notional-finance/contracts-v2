@@ -19,7 +19,6 @@ import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "../../../interfaces/notional/NotionalGovernance.sol";
 import "./ActionGuards.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import {StakedNTokenSupplyLib} from "../../internal/nToken/staking/StakedNTokenSupply.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {
@@ -27,15 +26,8 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
     /// implementation upgraded which will change the implementation for all nToken proxies.
     /// Governance deploys  nBeaconProxies which point to this beacon.
     address public immutable NTOKEN_UPGRADEABLE_BEACON;
-    address public immutable STAKED_NTOKEN_UPGRADEABLE_BEACON;
 
-    constructor(
-        address nTokenBeacon,
-        address stakedNTokenBeacon
-    ) { 
-        NTOKEN_UPGRADEABLE_BEACON = nTokenBeacon;
-        STAKED_NTOKEN_UPGRADEABLE_BEACON = stakedNTokenBeacon;
-    }
+    constructor(address nTokenBeacon) { NTOKEN_UPGRADEABLE_BEACON = nTokenBeacon; }
 
     /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
     /// Can only be invoked by the current `owner`.
@@ -76,12 +68,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
     /// on all the nToken beacon proxies.
     function upgradeNTokenBeacon(address newImplementation) external override onlyOwner {
         UpgradeableBeacon(NTOKEN_UPGRADEABLE_BEACON).upgradeTo(newImplementation);
-    }
-
-    /// @notice Allows the owner to upgrade the nToken Beacon which will upgrade the implementation
-    /// on all the nToken beacon proxies.
-    function upgradeStakedNTokenBeacon(address newImplementation) external override onlyOwner {
-        UpgradeableBeacon(STAKED_NTOKEN_UPGRADEABLE_BEACON).upgradeTo(newImplementation);
     }
 
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
@@ -223,45 +209,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         nBeaconProxy proxy = new nBeaconProxy(NTOKEN_UPGRADEABLE_BEACON, initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
         emit DeployNToken(currencyId, address(proxy));
-    }
-
-    /// @notice Deploys a staked nToken proxy for interaction with staked nTokens.
-    /// @dev emit:DeployStakedNToken emit:UpdateStakedIncentiveEmissionRate
-    /// @param currencyId id of the currency to enable
-    /// @param totalAnnualStakedEmission the annual rate of incentives emitted to the staked nToken
-    /// @param underlyingName underlying token name for seeding staked nToken name
-    /// @param underlyingSymbol underlying token symbol for seeding staked nToken symbol (i.e. nDAI)
-    function enableStakedNToken(
-        uint16 currencyId,
-        uint32 totalAnnualStakedEmission,
-        string calldata underlyingName,
-        string calldata underlyingSymbol
-    ) external override onlyOwner {
-        StakedNTokenSupplyLib.setStakedNTokenEmissions(currencyId, totalAnnualStakedEmission, block.timestamp);
-        emit UpdateStakedIncentiveEmissionRate(currencyId, totalAnnualStakedEmission);
-
-        bytes memory initCallData = abi.encodeWithSignature(
-            "initialize(uint16,string,string)",
-            currencyId,
-            underlyingName,
-            underlyingSymbol
-        );
-
-        nBeaconProxy proxy = new nBeaconProxy(STAKED_NTOKEN_UPGRADEABLE_BEACON, initCallData);
-        StakedNTokenSupplyLib.setStakedNTokenAddress(currencyId, address(proxy));
-        emit DeployStakedNToken(currencyId, address(proxy));
-    }
-
-    /// @notice Updates the incentive emission rate for staked nTokens
-    /// @dev emit:UpdateStakedIncentiveEmissionRate
-    /// @param currencyId id of the currency to enable
-    /// @param totalAnnualStakedEmission the annual rate of incentives emitted to the staked nToken
-    function updateStakedNTokenIncentives(
-        uint16 currencyId,
-        uint32 totalAnnualStakedEmission
-    ) external override onlyOwner {
-        StakedNTokenSupplyLib.setStakedNTokenEmissions(currencyId, totalAnnualStakedEmission, block.timestamp);
-        emit UpdateStakedIncentiveEmissionRate(currencyId, totalAnnualStakedEmission);
     }
 
     /// @notice Updates the deposit parameters for an nToken

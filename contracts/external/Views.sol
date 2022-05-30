@@ -8,8 +8,6 @@ import "../internal/markets/CashGroup.sol";
 import "../internal/markets/AssetRate.sol";
 import "../internal/nToken/nTokenHandler.sol";
 import "../internal/nToken/nTokenSupply.sol";
-import {StakedNTokenSupplyLib} from "../internal/nToken/staking/StakedNTokenSupply.sol";
-import {nTokenStakerLib} from "../internal/nToken/staking/nTokenStaker.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../global/LibStorage.sol";
 import "../global/StorageLayoutV2.sol";
@@ -149,14 +147,6 @@ contract Views is StorageLayoutV2, NotionalViews {
             currencyId,
             maxMarketIndex
         );
-    }
-
-    /// @notice Returns nToken address for a given currency
-    function StakedNTokenAddress(uint16 currencyId) external view override returns (address) {
-        _checkValidCurrency(currencyId);
-        address snToken = StakedNTokenSupplyLib.getStakedNTokenAddress(currencyId);
-        require(snToken != address(0), "Not enabled");
-        return snToken;
     }
 
     /// @notice Returns nToken address for a given currency
@@ -349,33 +339,6 @@ contract Views is StorageLayoutV2, NotionalViews {
         ) = BalanceHandler.getBalanceStorage(tokenAddress, currencyId);
     }
 
-    function getStakedNTokenSupply(uint16 currencyId) external view override returns (
-        uint256 totalSupply,
-        uint256 nTokenBalance,
-        uint256 totalCashProfits,
-        uint256 lastAccumulatedTime,
-        uint256 totalAnnualStakedEmission,
-        uint256 lastBaseAccumulatedNOTEPerNToken,
-        uint256 totalAccumulatedNOTEPerStaked
-    ) {
-        StakedNTokenSupplyStorage storage supply = LibStorage.getStakedNTokenSupply()[currencyId];
-
-        totalSupply = supply.totalSupply;
-        nTokenBalance = supply.nTokenBalance;
-        totalCashProfits = supply.totalCashProfits;
-
-        StakedNTokenIncentivesStorage storage incentives = LibStorage.getStakedNTokenIncentives()[currencyId];
-
-        totalAccumulatedNOTEPerStaked = incentives.totalAccumulatedNOTEPerStaked;
-        lastAccumulatedTime = incentives.lastAccumulatedTime;
-        totalAnnualStakedEmission = incentives.totalAnnualStakedEmission;
-        lastBaseAccumulatedNOTEPerNToken = incentives.lastBaseAccumulatedNOTEPerNToken;
-    }
-
-    function getStakedNTokenUnstakeSignal(uint16 currencyId, uint32 maturity) external view override returns (uint256) {
-        return StakedNTokenSupplyLib.getStakedNTokenUnstakeSignal(currencyId, maturity);
-    }
-
     /** Account Specific View Methods **/
 
     /// @notice Returns all account details in a single view
@@ -484,22 +447,6 @@ contract Views is StorageLayoutV2, NotionalViews {
         } else {
             return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
         }
-    }
-
-    function getAccountStakedNTokens(address account, uint16 currencyId) external view override returns (
-        uint256 snTokenBalance,
-        uint256 accountIncentiveDebt,
-        uint256 accumulatedNOTE,
-        uint256 unstakeMaturity,
-        uint256 snTokensToUnstake,
-        uint256 snTokenDeposit
-    ) {
-        (unstakeMaturity, snTokensToUnstake, snTokenDeposit) = nTokenStakerLib.getUnstakeSignal(account, currencyId);
-
-        nTokenStakerStorage storage s = LibStorage.getNTokenStaker()[account][currencyId];
-        snTokenBalance = s.snTokenBalance;
-        accountIncentiveDebt = s.accountIncentiveDebt;
-        accumulatedNOTE = s.accumulatedNOTE;
     }
 
     /// @notice Returns the fCash amount at the specified maturity for a bitmapped portfolio

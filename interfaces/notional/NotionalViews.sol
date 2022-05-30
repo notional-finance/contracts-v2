@@ -46,8 +46,6 @@ interface NotionalViews {
         view
         returns (int256[] memory depositShares, int256[] memory leverageThresholds);
 
-    function StakedNTokenAddress(uint16 currencyId) external view returns (address);
-
     function nTokenAddress(uint16 currencyId) external view returns (address);
 
     function getNoteToken() external view returns (address);
@@ -108,18 +106,6 @@ interface NotionalViews {
             uint256 lastAccumulatedTime
         );
 
-    function getStakedNTokenSupply(uint16 currencyId) external view returns (
-        uint256 totalSupply,
-        uint256 nTokenBalance,
-        uint256 totalCashProfits,
-        uint256 lastAccumulatedTime,
-        uint256 totalAnnualStakedEmission,
-        uint256 lastBaseAccumulatedNOTEPerNToken,
-        uint256 totalAccumulatedNOTEPerStaked
-    );
-
-    function getStakedNTokenUnstakeSignal(uint16 currencyId, uint32 maturity) external view returns (uint256);
-
     function getAccount(address account)
         external
         view
@@ -141,15 +127,6 @@ interface NotionalViews {
         );
 
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
-
-    function getAccountStakedNTokens(address account, uint16 currencyId) external view returns (
-        uint256 snTokenBalance,
-        uint256 accountIncentiveDebt,
-        uint256 accumulatedNOTE,
-        uint256 unstakeMaturity,
-        uint256 snTokensToUnstake,
-        uint256 snTokenDeposit
-    );
 
     function getfCashNotional(
         address account,
