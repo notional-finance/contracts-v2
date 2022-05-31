@@ -102,6 +102,23 @@ library VaultConfiguration {
         store[vaultAddress] = vaultConfig;
     }
 
+    function authorizeCaller(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 onlyVaultFlag
+    ) internal view {
+        if (getFlag(vaultConfig, onlyVaultFlag)) {
+            // If the only vault method is flagged, then the sender must be the vault
+            require(msg.sender == vaultConfig.vault, "Unauthorized");
+        } else if (onlyVaultFlag == ONLY_VAULT_DELEVERAGE) {
+            // An account cannot liquidate itself
+            require(account != msg.sender, "Unauthorized");
+        } else {
+            // The base case is that the account must be the msg.sender
+            require(account == msg.sender, "Unauthorized");
+        }
+    }
+
     /**
      * @notice Returns that status of a given flagID
      */

@@ -16,11 +16,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using SafeInt256 for int256;
     using SafeMath for uint256;
 
-    modifier allowAccountOrVault(address account, address vault) {
-        require(msg.sender == account || msg.sender == vault, "Unauthorized");
-        _;
-    }
-
     /**
      * @notice Enters the account into the specified vault using the specified fCash
      * amount. Additional data is forwarded to the vault contract.
@@ -39,11 +34,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external allowAccountOrVault(account, vault) override nonReentrant { 
+    ) external override nonReentrant { 
         // Ensure that system level accounts cannot enter vaults
         requireValidAccount(account);
         // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ENTRY);
+
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
             "Cannot Enter"
@@ -88,8 +85,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 vaultSharesToRedeem,
         uint256 fCashToBorrow,
         RollVaultOpts calldata opts
-    ) external allowAccountOrVault(account, vault) override nonReentrant {
+    ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ROLL);
+
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         // Can only roll vaults that are in the current maturity
         uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
@@ -148,8 +147,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint32 minLendRate,
         bool useUnderlying,
         bytes calldata exitVaultData
-    ) external allowAccountOrVault(account, vault) override nonReentrant { 
+    ) external override nonReentrant { 
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_EXIT);
+
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         
         VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
@@ -186,8 +187,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 depositAmountExternal,
         bool useUnderlying
     ) external nonReentrant override returns (uint256 vaultSharesToLiquidator) {
-        require(account != msg.sender); // Cannot liquidate yourself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_DELEVERAGE);
+
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
