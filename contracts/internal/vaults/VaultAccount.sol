@@ -352,32 +352,7 @@ library VaultAccountLib {
             blockTime
         );
 
-        if (assetCashCostToLend < 0) {
-            // Net off the cash balance required and remove the fcash. It's possible
-            // that cash balance is negative here. If that is the case then we need to
-            // transfer in sufficient cash to get the balance up to 0.
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
-                .add(vaultAccount.escrowedAssetCash)
-                .add(assetCashCostToLend); // this is a negative number
-
-            // Update fCash state on the account and the vault
-            vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-            vaultState.totalfCash = vaultState.totalfCash.add(fCash);
-
-            if (vaultAccount.escrowedAssetCash > 0) {
-                // Apply the escrowed asset cash against the amount of fCash to exit. Depending
-                // on the amount of fCash the account is attempting to lend here, the collateral
-                // ratio may actually decrease (this would be the case where a lot of asset cash
-                // is held against debt from a previous exit but now the account attempts to exit
-                // a smaller amount of fCash and is successful). We don't want this to be the case
-                // because then an account may repeatedly put itself back at a lower collateral
-                // ratio when it should be deleveraged. To prevent this, we ensure that the account
-                // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
-                // temporary cash balance or lend the fCash down to zero.
-                require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
-                removeEscrowedAssetCash(vaultAccount, vaultState);
-            }
-        } else if (assetCashCostToLend == 0) {
+        if (assetCashCostToLend == 0) {
             // In this case, the lending has failed due to a lack of liquidity or negative interest rates. In this
             // case just just net off the the asset cash balance and the account will forgo any money market interest
             // accrued between now and maturity.
@@ -386,12 +361,36 @@ library VaultAccountLib {
             // the complexity of the solution and may result in more complex settlement dynamics. If this scenario were
             // to occur, it is most likely that interest rates are near zero suggesting that money market interest rates
             // are also near zero (therefore the account is really not giving up much by forgoing money market interest).
-            int256 assetCashDeposit = vaultConfig.assetRate.convertFromUnderlying(fCash); // this is a positive number
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
-            vaultAccount.fCash = 0;
+
+            assetCashCostToLend = vaultConfig.assetRate.convertFromUnderlying(fCash).neg(); // this is a negative number
+        }
+        require(assetCashCostToLend <= 0);
+
+        // Net off the cash balance required and remove the fcash. It's possible
+        // that cash balance is negative here. If that is the case then we need to
+        // transfer in sufficient cash to get the balance up to 0.
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashCostToLend);
+
+        // Update fCash state on the account and the vault
+        vaultAccount.fCash = vaultAccount.fCash.add(fCash);
+        vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+
+        if (vaultAccount.escrowedAssetCash == 0) {
+            // When there is no escrowed asset cash, the fCash must also be applied to the settlement
+            // requirement.
+            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
         } else {
-            // This should never be the case.
-            revert(); // dev: asset cash to lend is positive
+            // Apply the escrowed asset cash against the amount of fCash to exit. Depending
+            // on the amount of fCash the account is attempting to lend here, the collateral
+            // ratio may actually decrease (this would be the case where a lot of asset cash
+            // is held against debt from a previous exit but now the account attempts to exit
+            // a smaller amount of fCash and is successful). We don't want this to be the case
+            // because then an account may repeatedly put itself back at a lower collateral
+            // ratio when it should be deleveraged. To prevent this, we ensure that the account
+            // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
+            // temporary cash balance or lend the fCash down to zero.
+            require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
+            removeEscrowedAssetCash(vaultAccount, vaultState);
         }
     }
 
@@ -546,7 +545,11 @@ library VaultAccountLib {
         bool useUnderlying
     ) internal {
         Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
-        int256 netTransferAmountExternal = assetToken.convertToExternal(vaultAccount.tempCashBalance);
+        // If tempCashBalance > 0 then we want to transfer it back to the user, and the netTransferAmount will be < 0,
+        // considered from the Notional perspective.
+        // If tempCashBalance < 0 then we want to pull tokens from the account and then netTransferAmount will be > 0,
+        // considered from the Notional perspective.
+        int256 netTransferAmountExternal = assetToken.convertToExternal(vaultAccount.tempCashBalance.neg());
 
         if (netTransferAmountExternal < 0) {
             if (useUnderlying) {
@@ -560,7 +563,7 @@ library VaultAccountLib {
                 vaultAccount,
                 vaultAccount.account,
                 borrowCurrencyId,
-                uint256(vaultAccount.tempCashBalance), // overflow checked via if statement
+                netTransferAmountExternal.toUint(),
                 useUnderlying
             );
         }

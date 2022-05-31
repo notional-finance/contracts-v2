@@ -58,9 +58,9 @@ library VaultStateLib {
 
         require(vaultState.accountsRequiringSettlement <= type(uint32).max); // dev: accounts settlement overflow
         // There is always less totalfCashRequiringSettlement than totalfCash (both are negative)
-        require(vaultState.totalfCash <= vaultState.totalfCashRequiringSettlement); 
+        require(vaultState.totalfCash <= vaultState.totalfCashRequiringSettlement, "fCash"); 
 
-        s.totalfCashRequiringSettlement= safeUint80(vaultState.totalfCashRequiringSettlement.neg());
+        s.totalfCashRequiringSettlement = safeUint80(vaultState.totalfCashRequiringSettlement.neg());
         s.totalfCash = safeUint80(vaultState.totalfCash.neg());
         s.isFullySettled = vaultState.isFullySettled;
         s.accountsRequiringSettlement = uint32(vaultState.accountsRequiringSettlement);
