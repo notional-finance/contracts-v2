@@ -8,6 +8,9 @@ import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
 import {IVaultController} from "../../../interfaces/notional/IVaultController.sol";
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin-4.6/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ILendingPool} from "../../interfaces/aave/ILendingPool.sol";
+import {CErc20Interface} from "../../../../interfaces/compound/CErc20Interface.sol";
+import {CEtherInterface} from "../../../../interfaces/compound/CEtherInterface.sol";
 
 abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     using SafeERC20 for ERC20;
@@ -17,11 +20,20 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     function convertStrategyToUnderlying(uint256 strategyTokens) public view virtual returns (uint256 underlyingValue);
     function isInSettlement() external view virtual returns (bool);
     
+    // Vaults need to implement these two methods
+    function _depositFromNotional(uint256 deposit, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
+    function _redeemFromNotional(uint256 strategyTokens, bytes calldata data) internal virtual returns (uint256 assetTokensToTransfer);
 
     uint16 internal immutable BORROW_CURRENCY_ID;
+    bool internal immutable USE_UNDERLYING_TOKEN;
+    TokenType internal immutable ASSET_TOKEN_TYPE;
     ERC20 public immutable ASSET_TOKEN;
     ERC20 public immutable UNDERLYING_TOKEN;
     IVaultController public immutable NOTIONAL;
+    ILendingPool public immutable AAVE_LENDING_POOL;
+
+    // Return code for cTokens that represents no error
+    uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
     uint8 constant internal INTERNAL_TOKEN_DECIMALS = 8;
     function decimals() public view override returns (uint8) { return INTERNAL_TOKEN_DECIMALS; }
 
@@ -35,10 +47,14 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         string memory symbol_,
         address notional_,
         uint16 borrowCurrencyId_,
-        bool setApproval
+        bool setApproval,
+        bool useUnderlyingToken
     ) ERC20(name_, symbol_) {
         NOTIONAL = IVaultController(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
+        USE_UNDERLYING_TOKEN = useUnderlyingToken;
+        address lendingPool = NotionalProxy(notional_).getLendingPool(); 
+        AAVE_LENDING_POOL = ILendingPool(lendingPool);
 
         (
             Token memory assetToken,
@@ -48,13 +64,13 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         ) = NotionalProxy(notional_).getCurrencyAndRates(borrowCurrencyId_);
 
         ASSET_TOKEN = ERC20(assetToken.tokenAddress);
+        ASSET_TOKEN_TYPE = assetToken.tokenType;
         UNDERLYING_TOKEN = ERC20(underlyingToken.tokenAddress);
         if (setApproval && underlyingToken.tokenAddress != address(0)) {
             // If the parent wants to, set up token approvals for minting
             if (assetToken.tokenType == TokenType.cToken) {
                 ERC20(underlyingToken.tokenAddress).safeApprove(assetToken.tokenAddress, type(uint256).max);
             } else if (assetToken.tokenType == TokenType.aToken) {
-                address lendingPool = NotionalProxy(notional_).getLendingPool();
                 ERC20(underlyingToken.tokenAddress).safeApprove(lendingPool, type(uint256).max);
             }
         }
@@ -62,16 +78,60 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
 
     // External methods are authenticated to be just Notional
     function depositFromNotional(uint256 deposit, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
-        return _depositFromNotional(deposit, data);
+        uint256 tokenAmount = USE_UNDERLYING_TOKEN ? _redeemAssetTokens(deposit) : deposit;
+        return _depositFromNotional(tokenAmount, data);
     }
 
     function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external onlyNotional {
-        uint256 assetTokensToTransfer = _redeemFromNotional(strategyTokens, data);
+        uint256 tokensFromRedeem = _redeemFromNotional(strategyTokens, data);
+        uint256 assetTokensToTransfer = USE_UNDERLYING_TOKEN ? _mintAssetTokens(tokensFromRedeem) : tokensFromRedeem;
 
         ASSET_TOKEN.transfer(address(NOTIONAL), assetTokensToTransfer);
     }
 
-    // Vaults need to implement these two methods
-    function _depositFromNotional(uint256 deposit, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
-    function _redeemFromNotional(uint256 strategyTokens, bytes calldata data) internal virtual returns (uint256 assetTokensToTransfer);
+    function _redeemAssetTokens(uint256 assetTokens) internal returns (uint256 underlyingTokens) {
+        // In this case, there is no minting or redeeming required
+        if (ASSET_TOKEN_TYPE == TokenType.NonMintable) return assetTokens;
+
+        uint256 balanceBefore;
+        uint256 balanceAfter;
+        if (ASSET_TOKEN_TYPE == TokenType.cETH) {
+            // Special handling for ETH balance selector
+
+            balanceBefore = address(this).balance;
+            uint256 success = CErc20Interface(address(ASSET_TOKEN)).redeem(assetTokens);
+            require(success == COMPOUND_RETURN_CODE_NO_ERROR, "Redeem");
+            balanceAfter = address(this).balance;
+        } else {
+            balanceBefore = UNDERLYING_TOKEN.balanceOf(address(this));
+            if (ASSET_TOKEN_TYPE == TokenType.cToken) {
+                uint256 success = CErc20Interface(address(ASSET_TOKEN)).redeem(assetTokens);
+                require(success == COMPOUND_RETURN_CODE_NO_ERROR, "Redeem");
+            } else if (ASSET_TOKEN_TYPE == TokenType.aToken) {
+                AAVE_LENDING_POOL.withdraw(address(UNDERLYING_TOKEN), assetTokens, address(this));
+            }
+            balanceAfter = UNDERLYING_TOKEN.balanceOf(address(this));
+        }
+
+        return balanceAfter - balanceBefore;
+    }
+
+    function _mintAssetTokens(uint256 underlyingTokens) internal returns (uint256 assetTokens) {
+        // In this case, there is no minting or redeeming required
+        if (ASSET_TOKEN_TYPE == TokenType.NonMintable) return underlyingTokens;
+
+        uint256 balanceBefore = ASSET_TOKEN.balanceOf(address(this));
+        if (ASSET_TOKEN_TYPE == TokenType.cToken) {
+            uint256 success = CErc20Interface(address(ASSET_TOKEN)).mint(underlyingTokens);
+            require(success == COMPOUND_RETURN_CODE_NO_ERROR, "Mint");
+        } else if (ASSET_TOKEN_TYPE == TokenType.aToken) {
+            AAVE_LENDING_POOL.deposit(address(UNDERLYING_TOKEN), underlyingTokens, address(this), 0);
+        } else if (ASSET_TOKEN_TYPE == TokenType.cETH) {
+            // Reverts on error
+            CEtherInterface(address(ASSET_TOKEN)).mint{value: underlyingTokens}();
+        }
+        uint256 balanceAfter = ASSET_TOKEN.balanceOf(address(this));
+
+        return balanceAfter - balanceBefore;
+    }
 }
