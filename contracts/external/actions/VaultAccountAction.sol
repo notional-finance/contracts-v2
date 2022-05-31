@@ -255,7 +255,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         return VaultAccountLib.getVaultAccount(account, VaultConfiguration.getVaultConfigNoAssetRate(vault)).maturity;
     }
 
-    function getVaultAccountLeverage(address account, address vault) external override view returns (
+    function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
         int256 collateralRatio,
         int256 minCollateralRatio
     ) {

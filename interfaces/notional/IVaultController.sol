@@ -123,7 +123,7 @@ interface IVaultAccountAction {
 
     function getVaultAccount(address account, address vault) external view returns (VaultAccount memory);
     function getVaultAccountMaturity(address account, address vault) external view returns (uint256 maturity);
-    function getVaultAccountLeverage(address account, address vault) external view returns (
+    function getVaultAccountCollateralRatio(address account, address vault) external view returns (
         int256 collateralRatio,
         int256 minCollateralRatio
     );
