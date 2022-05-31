@@ -129,14 +129,13 @@ library VaultAccountLib {
                 vaultAccount.maturity,
                 blockTime
             );
-            settleEscrowedAccount(vaultAccount, vaultState, vaultConfig, settlementRate);
+            settleEscrowedAccount(vaultAccount, vaultState, settlementRate);
         }
     }
 
     function settleEscrowedAccount(
         VaultAccount memory vaultAccount,
         VaultState memory vaultState,
-        VaultConfig memory vaultConfig,
         AssetRateParameters memory settlementRate
     ) internal pure {
         // This is a positive number
@@ -253,7 +252,6 @@ library VaultAccountLib {
         uint256 blockTime
     ) private {
         require(fCash < 0); // dev: fcash must be negative
-        uint256 timeToMaturity = blockTime.sub(maturity);
 
         {
             int256 assetCashBorrowed  = _executeTrade(
@@ -277,6 +275,7 @@ library VaultAccountLib {
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
         // Will reduce the tempCashBalance based on the assessed vault fee
+        uint256 timeToMaturity = maturity.sub(blockTime);
         vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
 
         // This will check if the vault can sustain the total borrow capacity given the staked nToken value.

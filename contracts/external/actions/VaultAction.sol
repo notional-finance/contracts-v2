@@ -231,7 +231,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         );
 
         // fCash is zeroed out inside this method
-        vaultAccount.settleEscrowedAccount(vaultState, vaultConfig, settlementRate);
+        vaultAccount.settleEscrowedAccount(vaultState, settlementRate);
 
         if (vaultAccount.tempCashBalance >= 0) {
             // TODO: need to authenticate that there is not excess vault shares sold here...
