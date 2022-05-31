@@ -22,7 +22,6 @@ contract SimpleStrategyVault is BaseStrategyVault {
         uint256 deposit,
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
-        // TODO: convert deposit from asset cash denomination first, perhaps
         strategyTokensMinted = (deposit * _tokenExchangeRate / 1e18 / 1e10);
         _mint(address(NOTIONAL), strategyTokensMinted);
     }
@@ -32,7 +31,6 @@ contract SimpleStrategyVault is BaseStrategyVault {
         bytes calldata data
     ) internal override returns (uint256 assetTokensToTransfer) {
         _burn(address(NOTIONAL), strategyTokens);
-        // TODO: convert deposit from asset cash denomination first, perhaps
         return (strategyTokens * 1e10 * 1e18) / _tokenExchangeRate;
     }
 
@@ -41,7 +39,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function convertStrategyToUnderlying(uint256 strategyTokens) public view override returns (uint256 underlyingValue) {
-        return (strategyTokens * _tokenExchangeRate) / 1e18;
+        return (strategyTokens * _tokenExchangeRate * 1e10) / 1e18;
     }
 
     function isInSettlement() external view override returns (bool) { return _inSettlement; }
