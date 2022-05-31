@@ -50,16 +50,14 @@ def set_flags(flags, **kwargs):
         binList[0] = "1"
     if "ALLOW_REENTER" in kwargs:
         binList[1] = "1"
-    if "IS_INSURED" in kwargs:
-        binList[2] = "1"
     if "ONLY_VAULT_ENTRY" in kwargs:
-        binList[3] = "1"
+        binList[2] = "1"
     if "ONLY_VAULT_EXIT" in kwargs:
-        binList[4] = "1"
+        binList[3] = "1"
     if "ONLY_VAULT_ROLL" in kwargs:
-        binList[5] = "1"
+        binList[4] = "1"
     if "ONLY_VAULT_DELEVERAGE" in kwargs:
-        binList[6] = "1"
+        binList[5] = "1"
     return int("".join(reversed(binList)), 2)
 
 

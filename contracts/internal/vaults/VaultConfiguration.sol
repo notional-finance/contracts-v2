@@ -29,11 +29,10 @@ library VaultConfiguration {
 
     uint16 internal constant ENABLED                 = 1 << 0;
     uint16 internal constant ALLOW_REENTER           = 1 << 1;
-    uint16 internal constant IS_INSURED              = 1 << 2;
-    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 3;
-    uint16 internal constant ONLY_VAULT_EXIT         = 1 << 4;
-    uint16 internal constant ONLY_VAULT_ROLL         = 1 << 5;
-    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 6;
+    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 2;
+    uint16 internal constant ONLY_VAULT_EXIT         = 1 << 3;
+    uint16 internal constant ONLY_VAULT_ROLL         = 1 << 4;
+    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 5;
 
     function _getVaultConfig(
         address vaultAddress
