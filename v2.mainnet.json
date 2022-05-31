@@ -1,6 +1,9 @@
 {
     "actions": {
         "AccountAction": "0xddA3988fD40c83da8B630f963e3Bc7c8fa4d35Fc",
+        "BatchAction": "0x59074a5E588de093fc5f04A7173D86b2B48e9d39",
+        "CalculationViews": "0xbE4AbA25915BAd390edf83B7e1ca44b6145F261e",
+        "ERC1155Action": "0xBf12d7e41a25f449293AB8cd1364Fe74A175bFa5",
         "GovernanceAction": "0x38A4DfC0ff6588fD0c2142d14D4963A97356A245",
         "InitializeMarketsAction": "0xe3E38607A1E2d6881A32F1D78C5C232f14bdef22",
         "LiquidateCurrencyAction": "0xa3707CD595F6AB810a84d04C92D8adE5f7593Db5",
@@ -50,7 +53,10 @@
     "networkName": "mainnet",
     "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
-    "routers": {},
+    "routers": {
+        "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
+        "Router": "0x16eD130F7A6dcAc7e3B0617A7bafa4b470189962"
+    },
     "startBlock": 13094883,
     "tokens": {
         "DAI": {
