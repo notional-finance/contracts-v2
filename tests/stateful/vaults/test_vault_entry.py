@@ -1,36 +1,10 @@
 import brownie
 import pytest
 from brownie.convert.datatypes import HexString
-from tests.helpers import initialize_environment
+from fixtures import *
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 
 # from tests.stateful.invariants import check_system_invariants
-
-
-@pytest.fixture(scope="module", autouse=True)
-def environment(accounts):
-    env = initialize_environment(accounts)
-    env.token["DAI"].transfer(accounts[1], 100_000_000e18, {"from": accounts[0]})
-    env.token["USDC"].transfer(accounts[1], 100_000_000e6, {"from": accounts[0]})
-    env.token["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-    env.token["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-
-    env.cToken["DAI"].transfer(accounts[1], 10_000_000e8, {"from": accounts[0]})
-    env.cToken["USDC"].transfer(accounts[1], 10_000_000e8, {"from": accounts[0]})
-    env.cToken["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-    env.cToken["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-
-    return env
-
-
-@pytest.fixture(scope="module", autouse=True)
-def vault(SimpleStrategyVault, environment, accounts):
-    v = SimpleStrategyVault.deploy(
-        "Simple Strategy", "SIMP", environment.notional.address, 2, {"from": accounts[0]}
-    )
-    v.setExchangeRate(1e18)
-
-    return v
 
 
 @pytest.fixture(autouse=True)
@@ -215,17 +189,13 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     assert 122_000e18 < totalValue and totalValue < 125_000e18
 
 
+# def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
+# def test_enter_vault_with_matured_position(environment, accounts):
+# def test_enter_vault_with_escrowed_asset_cash(environment, accounts):
+
 # def test_enter_vault_with_cdai(environment, accounts):
 # def test_enter_vault_with_usdc(environment, accounts):
 # def test_enter_vault_with_cusdc(environment, accounts):
 # def test_enter_vault_with_frax(environment, accounts):
 # def test_enter_vault_with_afrax(environment, accounts):
 # def test_enter_vault_with_eth(environment, accounts):
-
-# def test_enter_vault_with_matured_position_unable_to_settle(environment, accounts):
-# def test_enter_vault_with_matured_position(environment, accounts):
-# def test_enter_vault_with_escrowed_asset_cash(environment, accounts):
-
-# def test_deleverage_account(environment, accounts):
-# def test_deleverage_account_sufficient_collateral(environment, accounts):
-# def test_deleverage_account_over_deleverage(environment, accounts):

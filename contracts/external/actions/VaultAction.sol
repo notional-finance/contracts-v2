@@ -2,12 +2,12 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
+import {ActionGuards} from "./ActionGuards.sol";
 import {IVaultAction} from "../../../../interfaces/notional/IVaultController.sol";
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
 import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
 contract VaultAction is ActionGuards, IVaultAction {
     using VaultConfiguration for VaultConfig;
@@ -16,7 +16,7 @@ contract VaultAction is ActionGuards, IVaultAction {
     using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     /**
      * @notice Updates or lists a deployed vault along with its configuration.
@@ -139,10 +139,12 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
 
         // Ensure that we are past maturity and the vault is able to settle
-        require(maturity <= block.timestamp);
-        require(settleAccounts.length == vaultSharesToRedeem.length);
-        // The vault will let us know when settlement can begin after maturity
-        require(IStrategyVault(vault).canSettleMaturity(maturity), "Vault Cannot Settle");
+        require(
+            maturity <= block.timestamp &&
+            settleAccounts.length == vaultSharesToRedeem.length &&
+            IStrategyVault(vault).canSettleMaturity(maturity),
+            "Cannot Settle"
+        );
 
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
         AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
@@ -318,11 +320,16 @@ contract VaultAction is ActionGuards, IVaultAction {
         // If this is prior to maturity, it will return the current asset rate. After maturity it will
         // return the settlement rate.
         AssetRateParameters memory ar = AssetRate.buildSettlementRateView(vaultConfig.borrowCurrencyId, maturity);
-        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCashRequiringSettlement);
+        
+        // If this is a positive number, there is more cash remaining to be settled.
+        // If this is a negative number, there is more cash than required to repay the debt
+        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCashRequiringSettlement)
+            .add(vaultState.totalAssetCash.toInt())
+            .neg();
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
         assetCashRequiredToSettle = assetToken.convertToExternal(assetCashInternal);
-        underlyingCashRequiredToSettle = underlyingToken.convertToExternal(vaultState.totalfCashRequiringSettlement);
+        underlyingCashRequiredToSettle = underlyingToken.convertToExternal(ar.convertToUnderlying(assetCashInternal));
     }
 }

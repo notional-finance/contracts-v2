@@ -29,7 +29,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     TokenType internal immutable ASSET_TOKEN_TYPE;
     ERC20 public immutable ASSET_TOKEN;
     ERC20 public immutable UNDERLYING_TOKEN;
-    IVaultController public immutable NOTIONAL;
+    NotionalProxy public immutable NOTIONAL;
     ILendingPool public immutable AAVE_LENDING_POOL;
 
     // Return code for cTokens that represents no error
@@ -50,7 +50,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
         bool setApproval,
         bool useUnderlyingToken
     ) ERC20(name_, symbol_) {
-        NOTIONAL = IVaultController(notional_);
+        NOTIONAL = NotionalProxy(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
         USE_UNDERLYING_TOKEN = useUnderlyingToken;
         address lendingPool = NotionalProxy(notional_).getLendingPool(); 

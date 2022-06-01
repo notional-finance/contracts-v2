@@ -35,7 +35,8 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function canSettleMaturity(uint256 maturity) external view override returns (bool) {
-        return false;
+        (int256 assetCashToSettle, /* */) = NOTIONAL.getCashRequiredToSettle(address(this), maturity);
+        return assetCashToSettle <= 0;
     }
 
     function convertStrategyToUnderlying(uint256 strategyTokens) public view override returns (uint256 underlyingValue) {

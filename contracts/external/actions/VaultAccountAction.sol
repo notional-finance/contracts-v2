@@ -264,9 +264,15 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
-
-        collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         minCollateralRatio = vaultConfig.minCollateralRatio;
+
+        if (vaultState.isFullySettled && vaultAccount.requiresSettlement() == false) {
+            // In this case, the maturity has been settled and although the vault account says that it has
+            // some fCash balance it does not actually owe any debt anymore.
+            collateralRatio = type(int256).max;
+        } else {
+            collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
+                vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+        }
     }
 }
