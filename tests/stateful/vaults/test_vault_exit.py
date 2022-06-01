@@ -1,33 +1,11 @@
 import brownie
 import pytest
+from brownie.network.state import Chain
+from fixtures import *
 from tests.helpers import initialize_environment
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 
-
-@pytest.fixture(scope="module", autouse=True)
-def environment(accounts):
-    env = initialize_environment(accounts)
-    env.token["DAI"].transfer(accounts[1], 100_000_000e18, {"from": accounts[0]})
-    env.token["USDC"].transfer(accounts[1], 100_000_000e6, {"from": accounts[0]})
-    env.token["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-    env.token["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-
-    env.cToken["DAI"].transfer(accounts[1], 10_000_000e8, {"from": accounts[0]})
-    env.cToken["USDC"].transfer(accounts[1], 10_000_000e8, {"from": accounts[0]})
-    env.cToken["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-    env.cToken["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
-
-    return env
-
-
-@pytest.fixture(scope="module", autouse=True)
-def vault(SimpleStrategyVault, environment, accounts):
-    v = SimpleStrategyVault.deploy(
-        "Simple Strategy", "SIMP", environment.notional.address, 2, {"from": accounts[0]}
-    )
-    v.setExchangeRate(1e18)
-
-    return v
+chain = Chain()
 
 
 @pytest.fixture(autouse=True)
@@ -74,6 +52,7 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
 
 
 # TODO: test useUnderlying
+@pytest.mark.only
 def test_exit_vault_transfer_from_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
@@ -89,6 +68,10 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
 
+    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, environment.notional.getCurrentVaultMaturity(vault), 0, chain.time()
+    )
+
     # If vault share value < exit cost then we need to transfer from the account
     environment.notional.exitVault(
         accounts[1], vault.address, 50_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
@@ -101,7 +84,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     )
     vaultState = environment.notional.getCurrentVaultState(vault).dict()
 
-    assert balanceAfter - balanceBefore < 0
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == amountAsset - 50_000e8 * 50
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0
@@ -116,6 +99,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
 
+@pytest.mark.only
 def test_exit_vault_transfer_to_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
@@ -131,6 +115,10 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts):
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
 
+    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, environment.notional.getCurrentVaultMaturity(vault), 0, chain.time()
+    )
+
     # If vault share value > exit cost then we transfer to the account
     environment.notional.exitVault(
         accounts[1], vault.address, 150_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
@@ -143,7 +131,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts):
     )
     vaultState = environment.notional.getCurrentVaultState(vault).dict()
 
-    assert balanceAfter - balanceBefore > 0
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e9) == 150_000e8 * 50 - amountAsset
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0
@@ -175,3 +163,7 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
 
 
 # def test_exit_vault_lending_fails(environment, accounts):
+
+# def test_exit_vault_after_settlement(environment, vault, accounts):
+# def test_exit_vault_during_settlement(environment, vault, accounts):
+# def test_exit_vault_with_escrowed_asset_cash(environment, vault, accounts):

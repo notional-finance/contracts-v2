@@ -291,7 +291,8 @@ library VaultAccountLib {
         bytes calldata vaultData
     ) internal returns (VaultState memory vaultState) {
         vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
-        // When an account exits 
+        // When an account exits the maturity pool it may get some asset cash credited to its temp
+        // cash balance and it will sell the strategy tokens it has a claim on.
         uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
 
         // Redeems and updates temp cash balance
