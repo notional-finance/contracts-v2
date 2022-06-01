@@ -227,6 +227,7 @@ library TradingAction {
                 blockTime,
                 trade
             );
+            require(cashAmount != 0, "Trade failed, liquidity");
 
             // This is a little ugly but required to deal with stack issues. We know the market is loaded
             // with the proper maturity inside _executeLendBorrowTrade
@@ -359,7 +360,6 @@ library TradingAction {
             market.maturity.sub(blockTime),
             marketIndex
         );
-        require(cashAmount != 0, "Trade failed, liquidity");
 
         uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
         if (rateLimit != 0) {

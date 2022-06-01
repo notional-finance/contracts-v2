@@ -1,10 +1,13 @@
 import brownie
 import pytest
 from brownie.convert.datatypes import HexString
+from brownie.network.state import Chain
 from fixtures import *
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 
 # from tests.stateful.invariants import check_system_invariants
+
+chain = Chain()
 
 
 @pytest.fixture(autouse=True)
@@ -189,9 +192,85 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     assert 122_000e18 < totalValue and totalValue < 125_000e18
 
 
-# def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
-# def test_enter_vault_with_matured_position(environment, accounts):
-# def test_enter_vault_with_escrowed_asset_cash(environment, accounts):
+def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+    environment.notional.redeemStrategyTokensToCash(maturity, 5_000e8, "", {"from": vault})
+
+    with brownie.reverts():
+        # An attempt to enter again will fail if the vault is holding asset cash
+        environment.notional.enterVault(
+            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+
+
+def test_enter_vault_with_matured_position(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+
+    # Settle the vault
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    chain.mine(1, timestamp=maturity)
+    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 0, True, 105_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+    vaultStateOld = environment.notional.getVaultState(vault, maturity)
+    vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
+    (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+
+    assert collateralRatioAfter < collateralRatioBefore
+    assert vaultStateOld["totalVaultShares"] == 0
+    assert vaultStateOld["totalStrategyTokens"] == 0
+    assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
+    assert vaultStateNew["totalStrategyTokens"] == vaultAccountAfter["vaultShares"]
+    assert vaultAccountAfter["fCash"] == -105_000e8
+    assert vaultAccountAfter["maturity"] == environment.notional.getCurrentVaultMaturity(vault)
+
+
+def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    chain.mine(1, timestamp=maturity)
+    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
+
+    # At this point the vault has not settled so we will revert
+    with brownie.reverts("Unable to Settle"):
+        environment.notional.enterVault(
+            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+
 
 # def test_enter_vault_with_cdai(environment, accounts):
 # def test_enter_vault_with_usdc(environment, accounts):

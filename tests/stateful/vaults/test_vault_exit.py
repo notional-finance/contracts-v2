@@ -52,7 +52,6 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
 
 
 # TODO: test useUnderlying
-@pytest.mark.only
 def test_exit_vault_transfer_from_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
@@ -84,7 +83,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     )
     vaultState = environment.notional.getCurrentVaultState(vault).dict()
 
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-9) == amountAsset - 50_000e8 * 50
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8) == amountAsset - 50_000e8 * 50
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0
@@ -99,7 +98,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
 
-@pytest.mark.only
+# TODO: test underlying
 def test_exit_vault_transfer_to_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
@@ -131,7 +130,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts):
     )
     vaultState = environment.notional.getCurrentVaultState(vault).dict()
 
-    assert pytest.approx(balanceAfter - balanceBefore, rel=1e9) == 150_000e8 * 50 - amountAsset
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e8 * 50 - amountAsset
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0
@@ -162,8 +161,144 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
         )
 
 
-# def test_exit_vault_lending_fails(environment, accounts):
+def test_exit_vault_lending_fails(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
+    )
 
-# def test_exit_vault_after_settlement(environment, vault, accounts):
-# def test_exit_vault_during_settlement(environment, vault, accounts):
-# def test_exit_vault_with_escrowed_asset_cash(environment, vault, accounts):
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    # Reduce liquidity in DAI
+    environment.notional.nTokenRedeem(accounts[0], 2, 49000000e8, True, True, {"from": accounts[0]})
+    (amountAsset, _, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, environment.notional.getCurrentVaultMaturity(vault), 0, chain.time()
+    )
+    assert amountAsset == 0
+
+    (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
+
+    environment.notional.exitVault(
+        accounts[1], vault.address, 10_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
+    )
+
+    balanceAfter = environment.cToken["DAI"].balanceOf(accounts[1])
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultState = environment.notional.getCurrentVaultState(vault).dict()
+
+    assert balanceBefore - balanceAfter == 90_000e8 * 50
+    assert collateralRatioBefore < collateralRatioAfter
+
+    assert vaultAccount["fCash"] == 0
+    assert vaultAccount["maturity"] == environment.notional.getCurrentVaultMaturity(vault)
+    assert vaultAccount["escrowedAssetCash"] == 0
+    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 10_000e8
+
+    assert vaultState["totalfCash"] == 0
+    assert vaultState["totalfCash"] == vaultState["totalfCashRequiringSettlement"]
+    assert vaultState["totalAssetCash"] == 0
+    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
+    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+
+
+def test_exit_vault_during_settlement(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+    environment.notional.redeemStrategyTokensToCash(maturity, 120_000e8, "", {"from": vault})
+    vault.setSettlement(True)
+
+    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+
+    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, maturity, 0, chain.time()
+    )
+    environment.notional.exitVault(
+        accounts[1], vault.address, 100_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
+    )
+
+    balanceAfter = environment.cToken["DAI"].balanceOf(accounts[1])
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+
+    assert vaultAccountAfter["fCash"] == 0
+    assert vaultAccountBefore["vaultShares"] - 100_000e8 == vaultAccountAfter["vaultShares"]
+    # Vault account keeps its current maturity since it still has vault shares
+    assert vaultAccountAfter["maturity"] == maturity
+
+    assert vaultStateAfter["totalfCash"] == 0
+    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
+    assert vaultStateAfter["totalVaultShares"] == vaultStateBefore["totalVaultShares"] - 100_000e8
+    tokensRedeemed = (
+        vaultStateBefore["totalStrategyTokens"] - vaultStateAfter["totalStrategyTokens"]
+    )
+
+    # Asset cash change nets off with the debt repayment and the amount transferred to the account
+    assert pytest.approx(vaultStateAfter["totalAssetCash"], rel=1e-8) == (
+        vaultStateBefore["totalAssetCash"]
+        - amountAsset
+        - (balanceAfter - balanceBefore - tokensRedeemed * 50)
+    )
+
+    # Check that we can still settle this vault even if fCash == 0
+    chain.mine(1, timestamp=maturity)
+    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
+    assert vaultStateAfter["isFullySettled"]
+
+
+def test_exit_vault_after_settlement(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+
+    chain.mine(1, timestamp=maturity)
+    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+
+    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+
+    environment.notional.exitVault(
+        accounts[1],
+        vault.address,
+        vaultAccountBefore["vaultShares"],
+        0,
+        0,
+        False,
+        "",
+        {"from": accounts[1]},
+    )
+
+    balanceAfter = environment.cToken["DAI"].balanceOf(accounts[1])
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+
+    assert balanceAfter - balanceBefore == vaultStateBefore["totalStrategyTokens"] * 50
+    assert vaultStateAfter["totalStrategyTokens"] == 0
+    assert vaultStateAfter["totalVaultShares"] == 0
+    assert vaultAccountAfter["vaultShares"] == 0
+    assert vaultAccountAfter["fCash"] == 0

@@ -167,7 +167,8 @@ contract MockVaultConfiguration {
         vaultAccount.settleVaultAccount(
             getVaultConfigView(vault),
             vaultState,
-            blockTime
+            blockTime,
+            vaultAccount.requiresSettlement()
         );
 
         return (vaultAccount, vaultState);
