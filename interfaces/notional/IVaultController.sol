@@ -15,6 +15,9 @@ interface IVaultAction {
     event VaultChange(address vaultAddress, bool enabled);
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address vaultAddress, bool enabled);
+    /// @notice Emitted when a vault has an insolvency that cannot be covered by the
+    /// cash reserve
+    event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
     /** Vault Action Methods */
 

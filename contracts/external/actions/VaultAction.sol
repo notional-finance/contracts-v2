@@ -152,20 +152,50 @@ contract VaultAction is ActionGuards, IVaultAction {
             maturity,
             block.timestamp
         );
-        int256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(vaultState.totalfCashRequiringSettlement.neg());
-        // This will revert if we have insufficient cash. Any remaining cash will be left behind on the vault for vault
-        // accounts to withdraw their share of.
 
-        // TODO: this shouldn't revert due to a shortfall
-        vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashRequiredToSettle));
+        // This settles any accounts passed into the method that have escrowed asset cash
+        int256 assetCashShortfall =  _settleAccountsLoop(
+            vaultState, vaultConfig, settlementRate, settleAccounts, vaultSharesToRedeem, redeemCallData
+        );
+
+        // This is how much it costs in asset cash to settle the pooled portion of the vault
+        uint256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(
+            vaultState.totalfCashRequiringSettlement.neg()
+        ).toUint();
+
+        if (vaultState.totalAssetCash >= assetCashRequiredToSettle) {
+            // In this case, we have sufficient cash to settle the pooled portion and perhaps
+            // some extra left to return to accounts
+            vaultState.totalAssetCash = vaultState.totalAssetCash - assetCashRequiredToSettle;
+        } else {
+            // Don't allow the pooled portion of the vault to have a cash shortfall unless all
+            // strategy tokens have been redeemed to asset cash. This implies that accounts with
+            // escrowed asset cash may end up paying for a broader insolvency in the vault.
+            //
+            // For the vault to be insolvent, it would be the case that one or more accounts
+            // inside the vault are insolvent. Insolvent accounts should be liquidated before
+            // settling the vault such that they can be individually settled inside the
+            // _settleAccountsLoop to isolate their vault shares. If all insolvent accounts are
+            // inside _settleAccountsLoop then there should be no shortfall in the pooled portion.
+            //
+            // If for some reason every account is insolvent in the vault, then we would still need
+            // to redeem all the tokens before we could declare a shortfall in the vault.
+            require(vaultState.totalStrategyTokens == 0, "Redeem all tokens");
+            assetCashShortfall = assetCashShortfall.add((assetCashRequiredToSettle - vaultState.totalAssetCash).toInt());
+            vaultState.totalAssetCash = 0;
+        }
+
+        // We always clear fCash requiring settlement because if there is a shortfall we will
+        // always attempt to resolve it before exiting the method.
         vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
         vaultState.totalfCashRequiringSettlement = 0;
 
-        int256 assetCashShortfall = _settleAccountsLoop(vaultState, vaultConfig, settlementRate,
-            settleAccounts, vaultSharesToRedeem, redeemCallData);
-
         if (assetCashShortfall > 0) {
             vaultConfig.resolveCashShortfall(assetCashShortfall);
+
+            // If there is any cash shortfall, we automatically disable the vault. Accounts can still
+            // exit but no one can enter. Governance can re-enable the vault.
+            VaultConfiguration.setVaultEnabledStatus(vaultConfig.vault, false);
         }
 
         // TODO: is this the correct behavior if we are in an insolvency
@@ -190,7 +220,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             for (uint i; i < vaultSharesToRedeem.length; i++) {
                 totalVaultShares = totalVaultShares.add(vaultSharesToRedeem[i]);
             }
-            (totalStrategyTokens, /* uint256 totalAssetCash */) = vaultState.getPoolShare(totalVaultShares);
+            (/* */, totalStrategyTokens) = vaultState.getPoolShare(totalVaultShares);
         }
         uint256 assetCashRedeemed = SafeInt256.toUint(vaultConfig.redeem(totalStrategyTokens, redeemCallData));
 

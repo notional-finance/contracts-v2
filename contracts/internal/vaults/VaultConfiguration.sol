@@ -397,8 +397,6 @@ library VaultConfiguration {
         } else {
             // At this point the protocol needs to raise funds from sNOTE
             BalanceHandler.setReserveCashBalance(currencyId, 0);
-            // Disable the vault, users can still exit but no one can enter.
-            setVaultEnabledStatus(vaultConfig.vault, false);
             emit ProtocolInsolvency(currencyId, vaultConfig.vault, assetCashShortfall - reserveInternal);
         }
     }
