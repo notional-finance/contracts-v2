@@ -6,7 +6,9 @@ import "../strategyVaults/BaseStrategyVault.sol";
 
 contract SimpleStrategyVault is BaseStrategyVault {
     bool internal _inSettlement;
+    bool internal _forceSettle;
     uint256 internal _tokenExchangeRate;
+    function setForceSettle(bool s) external { _forceSettle = s; }
     function setSettlement(bool s) external { _inSettlement = s; }
     function setExchangeRate(uint256 e) external { _tokenExchangeRate = e; }
 
@@ -22,7 +24,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
         uint256 deposit,
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
-        strategyTokensMinted = (deposit * _tokenExchangeRate / 1e18 / 1e10);
+        strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
         _mint(address(NOTIONAL), strategyTokensMinted);
     }
 
@@ -31,12 +33,14 @@ contract SimpleStrategyVault is BaseStrategyVault {
         bytes calldata data
     ) internal override returns (uint256 assetTokensToTransfer) {
         _burn(address(NOTIONAL), strategyTokens);
-        return (strategyTokens * 1e10 * 1e18) / _tokenExchangeRate;
+        return strategyTokens * _tokenExchangeRate * 1e10 / 1e18;
     }
 
     function canSettleMaturity(uint256 maturity) external view override returns (bool) {
+        if (_forceSettle) return true;
+
         (int256 assetCashToSettle, /* */) = NOTIONAL.getCashRequiredToSettle(address(this), maturity);
-        return assetCashToSettle <= 0;
+        return assetCashToSettle <= 0 || totalSupply() == 0;
     }
 
     function convertStrategyToUnderlying(uint256 strategyTokens) public view override returns (uint256 underlyingValue) {

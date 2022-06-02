@@ -13,30 +13,6 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.fixture()
-def escrowed_account(environment, accounts, vault):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(
-            currencyId=2,
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1),
-            minAccountBorrowSize=100,
-        ),
-    )
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    vault.setExchangeRate(0.95e18)
-
-    environment.notional.deleverageAccount(
-        accounts[1], vault.address, accounts[2], 25_000e18, True, "", {"from": accounts[2]}
-    )
-
-    return accounts[1]
-
-
 def test_deleverage_authentication(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
@@ -169,9 +145,8 @@ def test_deleverage_account(environment, accounts, vault):
     # 25_000e18 in asset cash terms
     assert vaultAccountAfter["escrowedAssetCash"] == 25_000e8 * 50
 
-    # Simple vault lets these redeem at par
     assert pytest.approx((balanceAfter - balanceBefore) / 1e10, rel=1e-08) == (
-        vaultSharesSold / 0.95 - 25_000e8
+        vaultSharesSold * 0.95 - 25_000e8
     )
     assert (
         vaultStateBefore["totalVaultShares"] - vaultStateAfter["totalVaultShares"]
@@ -234,7 +209,7 @@ def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_accou
 
     # Asset cash is used to re-enter the vault
     assert pytest.approx(vaultSharesGained, rel=1e-9) == (
-        (vaultAccountBefore["escrowedAssetCash"] / 50 + 10_000e8) * 0.95
+        (vaultAccountBefore["escrowedAssetCash"] / 50 + 10_000e8) / 0.95
     )
     assert (
         vaultStateAfter["totalVaultShares"] - vaultStateBefore["totalVaultShares"]
@@ -291,7 +266,6 @@ def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     assert vaultStateAfter["totalfCashRequiringSettlement"] == -50_000e8
 
 
-@pytest.mark.only
 def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_account):
     environment.notional.updateVault(
         vault.address,
@@ -347,4 +321,4 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     ) / 1e10 - vaultAccountBefore["escrowedAssetCash"] / 50
     netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
     # This is approx equal because there is no vault fee assessed
-    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed / 0.95
+    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed * 0.95
