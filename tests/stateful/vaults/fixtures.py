@@ -15,6 +15,16 @@ def environment(accounts):
     env.cToken["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
     env.cToken["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[1]})
 
+    env.token["DAI"].transfer(accounts[2], 100_000_000e18, {"from": accounts[0]})
+    env.token["USDC"].transfer(accounts[2], 100_000_000e6, {"from": accounts[0]})
+    env.token["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[2]})
+    env.token["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[2]})
+
+    env.cToken["DAI"].transfer(accounts[2], 10_000_000e8, {"from": accounts[0]})
+    env.cToken["USDC"].transfer(accounts[2], 10_000_000e8, {"from": accounts[0]})
+    env.cToken["DAI"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[2]})
+    env.cToken["USDC"].approve(env.notional.address, 2 ** 256 - 1, {"from": accounts[2]})
+
     return env
 
 

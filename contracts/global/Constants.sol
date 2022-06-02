@@ -136,4 +136,6 @@ library Constants {
 
     // Arbitrary start date for vault epochs (Wed Dec 29 2021 00:00:00 GMT+0000)
     uint256 internal constant VAULT_EPOCH_START = 1640736000;
+    // Maximum change to collateral ratio for a vault
+    int256 internal constant VAULT_DELEVERAGE_LIMIT = 1.3e9;
 }

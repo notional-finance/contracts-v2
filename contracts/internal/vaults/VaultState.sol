@@ -73,6 +73,7 @@ library VaultStateLib {
     /**
      * @notice Exits a maturity pool for an account given the shares to redeem. Asset cash will be credited
      * to tempCashBalance.
+     * @param vaultState the current state of the pool
      * @param vaultAccount will use the maturity on the vault account to choose which pool to exit
      * @param vaultSharesToRedeem amount of shares to redeem
      * @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
@@ -84,17 +85,31 @@ library VaultStateLib {
     ) internal pure returns (uint256 strategyTokensWithdrawn) {
         require(vaultAccount.maturity == vaultState.maturity);
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToRedeem);
-
-        // Calculate the claim on cash tokens and strategy tokens
         uint256 assetCashWithdrawn;
+        (assetCashWithdrawn, strategyTokensWithdrawn) = exitMaturityPoolDirect(vaultState, vaultSharesToRedeem);
+
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(SafeInt256.toInt(assetCashWithdrawn));
+    }
+
+    /**
+     * @notice Does the pool math for withdraws, used for the liquidator in deleverage because we redeem
+     * directly without touching the vault account.
+     * @param vaultState the current state of the pool
+     * @param vaultSharesToRedeem amount of shares to redeem
+     * @return assetCashWithdrawn asset cash withdrawn from the pool
+     * @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
+     */
+    function exitMaturityPoolDirect(
+        VaultState memory vaultState,
+        uint256 vaultSharesToRedeem
+    ) internal pure returns (uint256 assetCashWithdrawn, uint256 strategyTokensWithdrawn) {
+        // Calculate the claim on cash tokens and strategy tokens
         (assetCashWithdrawn, strategyTokensWithdrawn) = getPoolShare(vaultState, vaultSharesToRedeem);
 
-        // Remove tokens from the maturityPool and set the storage
+        // Remove tokens from the pool
         vaultState.totalAssetCash = vaultState.totalAssetCash.sub(assetCashWithdrawn);
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensWithdrawn);
         vaultState.totalVaultShares = vaultState.totalVaultShares.sub(vaultSharesToRedeem);
-
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(SafeInt256.toInt(assetCashWithdrawn));
     }
 
     /**

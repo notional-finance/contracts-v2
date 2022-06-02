@@ -421,16 +421,17 @@ library VaultAccountLib {
         int256 assetCashDeposit
     ) internal pure {
         require(assetCashDeposit > 0);
-        // Move the asset cash deposit into the escrowed asset cash
-        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
-
         if (requiresSettlement(vaultAccount) == false) {
             // If this flag is not set then on the account then we set it up for individual settlement. The
             // account's individual fCash is now removed from the pool and not considered for pooled settlement.
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
             vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
         }
+
+        // Move the asset cash deposit into the escrowed asset cash
+        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
+
     }
 
     /**

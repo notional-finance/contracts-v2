@@ -117,9 +117,11 @@ interface IVaultAccountAction {
     function deleverageAccount(
         address account,
         address vault,
+        address receiver,
         uint256 depositAmountExternal,
-        bool useUnderlying
-    ) external returns (uint256 vaultSharesToLiquidator);
+        bool useUnderlying,
+        bytes calldata redeemData
+    ) external returns (uint256 profitFromLiquidation);
 
     function getVaultAccount(address account, address vault) external view returns (VaultAccount memory);
     function getVaultAccountMaturity(address account, address vault) external view returns (uint256 maturity);

@@ -14,7 +14,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using VaultStateLib for VaultState;
     using TokenHandler for Token;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     /**
      * @notice Enters the account into the specified vault using the specified fCash
@@ -175,20 +175,30 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /**
      * @notice If an account is below the minimum collateral ratio, some amount of vault shares can be redeemed
      * such that they fall back under the minimum collateral ratio. A portion of the redemption will be paid
-     * to the msg.sender.
+     * to the receiver (an account specified by the caller).
      * @param account the address that will exit the vault
      * @param vault the vault to enter
+     * @param liquidator the address that will receive profits from liquidation
      * @param depositAmountExternal amount of cash to deposit
      * @param useUnderlying true if we should use the underlying token
+     * @param redeemData calldata sent to the vault when redeeming liquidator profits
      */
     function deleverageAccount(
         address account,
         address vault,
+        address liquidator,
         uint256 depositAmountExternal,
-        bool useUnderlying
-    ) external nonReentrant override returns (uint256 vaultSharesToLiquidator) {
+        bool useUnderlying,
+        bytes calldata redeemData
+    ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_DELEVERAGE);
+        // Authorization rules for deleveraging
+        if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
+            require(msg.sender == vault, "Unauthorized");
+        }
+        // Cannot liquidate self, if a vault needs to deleverage itself as a whole it has other methods 
+        // in VaultAction to do so.
+        require(account != msg.sender && account != liquidator, "Unauthorized");
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
@@ -199,53 +209,76 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Check that the collateral ratio is below the minimum allowed
         int256 collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
             vaultAccount.fCash, vaultAccount.escrowedAssetCash);
-        require(vaultConfig.minCollateralRatio < collateralRatio, "Sufficient Collateral");
+        require(collateralRatio < vaultConfig.minCollateralRatio , "Sufficient Collateral");
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
         // vault shares at a discount to the deposited amount
-        vaultAccount.depositIntoAccount(msg.sender, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
+        vaultAccount.depositIntoAccount(liquidator, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
         // The liquidator will purchase vault shares from the vault account at discount. The calculation is:
         // (cashDeposited / assetCashValueOfShares) * liquidationRate * vaultShares
         //      where cashDeposited / assetCashValueOfShares represents the share of the total vault share
         //      value the liquidator has deposited
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
-        (int256 assetCashValue, /* */) = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
-        vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
-            .mul(vaultConfig.liquidationRate)
-            .mul(vaultAccount.vaultShares)
-            .div(SafeInt256.toUint(assetCashValue))
-            .div(uint256(Constants.PERCENTAGE_DECIMALS));
+        uint256 vaultSharesToLiquidator;
+        {
+            (int256 assetCashValue, /* */) = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
+            vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
+                .mul(vaultConfig.liquidationRate)
+                .mul(vaultAccount.vaultShares)
+                .div(SafeInt256.toUint(assetCashValue))
+                .div(uint256(Constants.PERCENTAGE_DECIMALS));
+        }
 
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
         // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
         // fCash market against the account and put them in an insolvent position. All the cash balance deposited
         // goes into the escrowed asset cash balance.
         vaultAccount.increaseEscrowedAssetCash(vaultState, vaultAccount.tempCashBalance);
-        vaultState.setVaultState(vault);
 
         // Ensure that the collateral ratio does not increase too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
         // in that case.
         collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
             vaultAccount.fCash, vaultAccount.escrowedAssetCash);
-        require(collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(1.30e9) , "Over liquidation");
+        require(
+            collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(Constants.VAULT_DELEVERAGE_LIMIT),
+            "Over Deleverage Limit"
+        );
 
-        // Sets the vault account
+        // Sets the liquidated account account
         vaultAccount.setVaultAccount(vaultConfig);
 
-        // TODO: allow the liquidator to exit their vault shares at this point? we could just call redeem
-        // strategy tokens here...
+        // Redeems the vault shares for asset cash and transfers it to the designated address
+        return _exitLiquidatorProfits(liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData, useUnderlying);
+    }
 
-        // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
-        // leveraged position on then their collateral ratio will increase
-        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(msg.sender, vaultConfig);
-        // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
-        // vault at the same maturity).
-        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == vaultAccount.maturity);
-        liquidator.maturity = vaultAccount.maturity;
-        liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
-        liquidator.setVaultAccount(vaultConfig);
+    function _exitLiquidatorProfits(
+        address receiver,
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        uint256 vaultSharesToLiquidator,
+        bytes calldata redeemData,
+        bool useUnderlying
+    ) private returns (uint256) {
+        (uint256 assetCashWithdrawn, uint256 strategyTokensWithdrawn) = vaultState.exitMaturityPoolDirect(vaultSharesToLiquidator);
+        // Redeem returns an int, but we ensure that it is positive here
+        uint256 assetCashFromRedeem = vaultConfig.redeem(strategyTokensWithdrawn, redeemData).toUint();
+
+        vaultState.setVaultState(vaultConfig.vault);
+
+        uint256 totalProfits = assetCashWithdrawn.add(assetCashFromRedeem);
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        
+        // Both returned values are negative to signify that assets have left the protocol
+        int256 actualTransferExternal;
+        if (useUnderlying) {
+            actualTransferExternal = assetToken.redeem(vaultConfig.borrowCurrencyId, receiver, totalProfits);
+        } else {
+            actualTransferExternal = assetToken.transfer(receiver, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg());
+        }
+
+        return actualTransferExternal.neg().toUint();
     }
 
     /** View Methods **/
