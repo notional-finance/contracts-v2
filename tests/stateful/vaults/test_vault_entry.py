@@ -141,7 +141,7 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    with brownie.reverts("Trade failed, liquidity"):
+    with brownie.reverts("Borrow failed"):
         # Fails on liquidity
         environment.notional.enterVault(
             accounts[1], vault.address, 100_000e18, True, 10_000_000e8, 0, "", {"from": accounts[1]}

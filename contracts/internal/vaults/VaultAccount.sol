@@ -198,7 +198,6 @@ library VaultAccountLib {
         // trigger a collateral check at the end of the method because the collateral ratio of the account may
         // decrease as a result.
         if (vaultAccount.escrowedAssetCash > 0) {
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
             usedEscrowedAssetCash = true;
             removeEscrowedAssetCash(vaultAccount, vaultState);
         }
@@ -387,16 +386,8 @@ library VaultAccountLib {
             // requirement.
             vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
         } else {
-            // Apply the escrowed asset cash against the amount of fCash to exit. Depending
-            // on the amount of fCash the account is attempting to lend here, the collateral
-            // ratio may actually decrease (this would be the case where a lot of asset cash
-            // is held against debt from a previous exit but now the account attempts to exit
-            // a smaller amount of fCash and is successful). We don't want this to be the case
-            // because then an account may repeatedly put itself back at a lower collateral
-            // ratio when it should be deleveraged. To prevent this, we ensure that the account
-            // must lend sufficient fCash to use all of the escrowed asset cash balance plus any
-            // temporary cash balance or lend the fCash down to zero.
-            require(vaultAccount.tempCashBalance <= 0 || vaultAccount.fCash == 0); // dev: insufficient fCash lending
+            // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
+            // applications of escrowed asset cash because that complicates settlement dynamics.
             removeEscrowedAssetCash(vaultAccount, vaultState);
         }
     }
@@ -442,6 +433,7 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultState memory vaultState
     ) internal pure {
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
         vaultAccount.escrowedAssetCash = 0;
         vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.sub(1);
         // Add the account's remaining fCash back into the vault state for pooled settlement
