@@ -106,7 +106,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 underlyingCashRequiredToSettle
     ) {
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
-        int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, vaultData);
+        int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, maturity, vaultData);
         require(assetCashReceived > 0);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));
@@ -135,7 +135,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 
         int256 assetCashInternal = assetToken.convertToInternal(SafeInt256.toInt(assetCashToDepositExternal));
-        uint256 strategyTokensMinted = vaultConfig.deposit(assetCashInternal, vaultData);
+        uint256 strategyTokensMinted = vaultConfig.deposit(assetCashInternal, maturity, vaultData);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashInternal));
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);
@@ -171,16 +171,17 @@ contract VaultAction is ActionGuards, IVaultAction {
         bytes calldata redeemCallData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
 
         // Ensure that we are past maturity and the vault is able to settle
         require(
             maturity <= block.timestamp &&
             settleAccounts.length == vaultSharesToRedeem.length &&
+            vaultState.isFullySettled == false &&
             IStrategyVault(vault).canSettleMaturity(maturity),
             "Cannot Settle"
         );
 
-        VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
         AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
             vaultConfig.borrowCurrencyId,
             maturity,
@@ -245,18 +246,12 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256[] calldata vaultSharesToRedeem,
         bytes calldata redeemCallData
     ) private returns (int256 assetCashShortfall) {
-        // Calculate the total vault shares to redeem per account and then redeem all the strategy tokens
-        // in one call to the vault for gas efficiency. Will split the cash redeemed back to each account
-        // proportionately
-        uint256 totalStrategyTokens;
-        {
-            uint256 totalVaultShares;
-            for (uint i; i < vaultSharesToRedeem.length; i++) {
-                totalVaultShares = totalVaultShares.add(vaultSharesToRedeem[i]);
-            }
-            (/* */, totalStrategyTokens) = vaultState.getPoolShare(totalVaultShares);
-        }
-        uint256 assetCashRedeemed = SafeInt256.toUint(vaultConfig.redeem(totalStrategyTokens, redeemCallData));
+        (uint256 totalStrategyTokens, uint256 assetCashRedeemed) = _redeemVaultShares(
+            vaultState,
+            vaultConfig,
+            vaultSharesToRedeem,
+            redeemCallData
+        );
 
         for (uint i; i < settleAccounts.length; i++) {
             assetCashShortfall = assetCashShortfall.add(
@@ -271,6 +266,23 @@ contract VaultAction is ActionGuards, IVaultAction {
                 )
             );
         }
+    }
+
+    function _redeemVaultShares(
+        VaultState memory vaultState,
+        VaultConfig memory vaultConfig,
+        uint256[] calldata vaultSharesToRedeem,
+        bytes calldata redeemCallData
+    ) internal returns (uint256 totalStrategyTokens, uint256 assetCashRedeemed) {
+        // Calculate the total vault shares to redeem per account and then redeem all the strategy tokens
+        // in one call to the vault for gas efficiency. Will split the cash redeemed back to each account
+        // proportionately
+        uint256 totalVaultShares;
+        for (uint i; i < vaultSharesToRedeem.length; i++) {
+            totalVaultShares = totalVaultShares.add(vaultSharesToRedeem[i]);
+        }
+        (/* */, totalStrategyTokens) = vaultState.getPoolShare(totalVaultShares);
+        assetCashRedeemed = vaultConfig.redeem(totalStrategyTokens, vaultState.maturity, redeemCallData).toUint();
     }
 
     function _settleAccount(

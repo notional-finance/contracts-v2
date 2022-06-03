@@ -322,6 +322,7 @@ library VaultConfiguration {
      * Vaults cannot pull tokens from Notional (they are never granted approval) for security reasons.
      * @param vaultConfig vault config
      * @param cashToTransferInternal amount to transfer in internal precision
+     * @param maturity the maturity of the vault shares
      * @param data arbitrary data to pass to the vault
      * @return strategyTokensMinted the amount of strategy tokens minted and transferred back to the
      * Notional contract for escrow, will be credited back to the vault account.
@@ -329,6 +330,7 @@ library VaultConfiguration {
     function deposit(
         VaultConfig memory vaultConfig,
         int256 cashToTransferInternal,
+        uint256 maturity,
         bytes calldata data
     ) internal returns (uint256 strategyTokensMinted) {
         if (cashToTransferInternal == 0) return 0;
@@ -356,7 +358,7 @@ library VaultConfiguration {
         GenericToken.safeTransferOut(address(token), vault, transferAmount);
         uint256 balanceAfter = token.balanceOf(vault);
 
-        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(balanceAfter.sub(balanceBefore), data);
+        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(balanceAfter.sub(balanceBefore), maturity, data);
     }
 
     /**
@@ -364,6 +366,7 @@ library VaultConfiguration {
      * for asset tokens. The vault will transfer tokens to Notional.
      * @param vaultConfig vault config
      * @param strategyTokens amount of strategy tokens to redeem
+     * @param maturity the maturity of the vault shares
      * @param data arbitrary data to pass to the vault
      * @return assetCashInternalRaised the amount of asset cash (positive) that was raised as a result of redeeming
      * strategy tokens
@@ -371,6 +374,7 @@ library VaultConfiguration {
     function redeem(
         VaultConfig memory vaultConfig,
         uint256 strategyTokens,
+        uint256 maturity,
         bytes calldata data
     ) internal returns (int256 assetCashInternalRaised) {
         if (strategyTokens == 0) return 0;
@@ -379,7 +383,7 @@ library VaultConfiguration {
 
         uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
         // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
-        IStrategyVault(vaultConfig.vault).redeemFromNotional(strategyTokens, data);
+        IStrategyVault(vaultConfig.vault).redeemFromNotional(strategyTokens, maturity, data);
         uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
 
         // Subtraction is done inside uint256 so a negative amount will revert.

@@ -285,7 +285,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) private returns (uint256) {
         (uint256 assetCashWithdrawn, uint256 strategyTokensWithdrawn) = vaultState.exitMaturityPoolDirect(vaultSharesToLiquidator);
         // Redeem returns an int, but we ensure that it is positive here
-        uint256 assetCashFromRedeem = vaultConfig.redeem(strategyTokensWithdrawn, redeemData).toUint();
+        uint256 assetCashFromRedeem = vaultConfig.redeem(
+            strategyTokensWithdrawn, vaultState.maturity, redeemData
+        ).toUint();
 
         vaultState.setVaultState(vaultConfig.vault);
 

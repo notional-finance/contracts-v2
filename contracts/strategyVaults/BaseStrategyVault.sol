@@ -21,8 +21,8 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     function isInSettlement() external view virtual returns (bool);
     
     // Vaults need to implement these two methods
-    function _depositFromNotional(uint256 deposit, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
-    function _redeemFromNotional(uint256 strategyTokens, bytes calldata data) internal virtual returns (uint256 assetTokensToTransfer);
+    function _depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
+    function _redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) internal virtual returns (uint256 assetTokensToTransfer);
 
     uint16 internal immutable BORROW_CURRENCY_ID;
     bool internal immutable USE_UNDERLYING_TOKEN;
@@ -77,13 +77,13 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     }
 
     // External methods are authenticated to be just Notional
-    function depositFromNotional(uint256 deposit, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
+    function depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
         uint256 tokenAmount = USE_UNDERLYING_TOKEN ? _redeemAssetTokens(deposit) : deposit;
-        return _depositFromNotional(tokenAmount, data);
+        return _depositFromNotional(tokenAmount, maturity, data);
     }
 
-    function redeemFromNotional(uint256 strategyTokens, bytes calldata data) external onlyNotional {
-        uint256 tokensFromRedeem = _redeemFromNotional(strategyTokens, data);
+    function redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) external onlyNotional {
+        uint256 tokensFromRedeem = _redeemFromNotional(strategyTokens, maturity, data);
         uint256 assetTokensToTransfer = USE_UNDERLYING_TOKEN ? _mintAssetTokens(tokensFromRedeem) : tokensFromRedeem;
 
         ASSET_TOKEN.transfer(address(NOTIONAL), assetTokensToTransfer);

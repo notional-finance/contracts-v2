@@ -22,6 +22,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
     // Vaults need to implement these two methods
     function _depositFromNotional(
         uint256 deposit,
+        uint256 maturity,
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
         strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
@@ -30,6 +31,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     function _redeemFromNotional(
         uint256 strategyTokens,
+        uint256 maturity,
         bytes calldata data
     ) internal override returns (uint256 assetTokensToTransfer) {
         _burn(address(NOTIONAL), strategyTokens);

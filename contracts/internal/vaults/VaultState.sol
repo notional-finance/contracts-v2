@@ -151,7 +151,9 @@ library VaultStateLib {
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
         // to the current contract.
-        strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(vaultAccount.tempCashBalance, vaultData));
+        strategyTokenDeposit = strategyTokenDeposit.add(
+            vaultConfig.deposit(vaultAccount.tempCashBalance, vaultState.maturity, vaultData)
+        );
         // Clear the cash balance after the deposit
         vaultAccount.tempCashBalance = 0;
 

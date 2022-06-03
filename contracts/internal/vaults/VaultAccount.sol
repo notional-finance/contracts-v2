@@ -301,7 +301,9 @@ library VaultAccountLib {
         uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
 
         // Redeems and updates temp cash balance
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultConfig.redeem(strategyTokens, vaultData));
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+            vaultConfig.redeem(strategyTokens, vaultState.maturity, vaultData)
+        );
 
         if (vaultAccount.maturity <= block.timestamp) {
             settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp, requiresSettlementPrior);

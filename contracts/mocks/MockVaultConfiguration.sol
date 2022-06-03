@@ -78,17 +78,19 @@ contract MockVaultConfiguration {
     function deposit(
         address vault,
         int256 cashToTransferExternal,
+        uint256 maturity,
         bytes calldata data
     ) external returns (uint256 strategyTokensMinted) {
-        return VaultConfiguration.getVaultConfigView(vault).deposit(cashToTransferExternal, data);
+        return VaultConfiguration.getVaultConfigView(vault).deposit(cashToTransferExternal, maturity, data);
     }
 
     function redeem(
         address vault,
         uint256 strategyTokens,
+        uint256 maturity,
         bytes calldata data
     ) external returns (int256 assetCashInternalRaised) {
-        return VaultConfiguration.getVaultConfigView(vault).redeem(strategyTokens, data);
+        return VaultConfiguration.getVaultConfigView(vault).redeem(strategyTokens, maturity, data);
     }
     
 
