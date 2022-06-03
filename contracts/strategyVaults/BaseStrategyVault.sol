@@ -22,7 +22,7 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     
     // Vaults need to implement these two methods
     function _depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
-    function _redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) internal virtual returns (uint256 assetTokensToTransfer);
+    function _redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) internal virtual returns (uint256 tokensFromRedeem);
 
     uint16 internal immutable BORROW_CURRENCY_ID;
     bool internal immutable USE_UNDERLYING_TOKEN;
