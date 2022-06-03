@@ -250,10 +250,32 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.setVaultAccount(vaultConfig);
 
         // Redeems the vault shares for asset cash and transfers it to the designated address
-        return _exitLiquidatorProfits(liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData, useUnderlying);
+        if (vaultConfig.getFlag(VaultConfiguration.TRANSFER_SHARES_ON_DELEVERAGE)) {
+            return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
+        } else {
+            return _redeemLiquidatorProfits(liquidator, vaultConfig, vaultState, vaultSharesToLiquidator,
+                redeemData, useUnderlying);
+        }
     }
 
-    function _exitLiquidatorProfits(
+    function _transferLiquidatorProfits(
+        address receiver,
+        VaultConfig memory vaultConfig,
+        uint256 vaultSharesToLiquidator,
+        uint256 maturity
+    ) private returns (uint256) {
+        // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
+        // leveraged position on then their collateral ratio will increase
+        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(receiver, vaultConfig);
+        // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
+        // vault at the same maturity).
+        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == maturity);
+        liquidator.maturity = maturity;
+        liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
+        liquidator.setVaultAccount(vaultConfig);
+    }
+
+    function _redeemLiquidatorProfits(
         address receiver,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,

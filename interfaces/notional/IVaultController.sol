@@ -31,6 +31,14 @@ interface IVaultAction {
         bool enable
     ) external;
 
+    function reduceMaxBorrowCapacity(
+        address vaultAddress,
+        uint80 maxVaultBorrowCapacity,
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) external;
+
     function settleVault(
         address vault,
         uint256 maturity,

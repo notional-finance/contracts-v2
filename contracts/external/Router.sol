@@ -190,6 +190,7 @@ contract Router is StorageLayoutV1 {
         } else if (
             sig == IVaultAction.updateVault.selector ||
             sig == IVaultAction.setVaultPauseStatus.selector ||
+            sig == IVaultAction.reduceMaxBorrowCapacity.selector ||
             sig == IVaultAction.settleVault.selector ||
             sig == IVaultAction.depositVaultCashToStrategyTokens.selector ||
             sig == IVaultAction.redeemStrategyTokensToCash.selector ||

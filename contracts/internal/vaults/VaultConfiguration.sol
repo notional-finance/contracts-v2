@@ -25,14 +25,21 @@ library VaultConfiguration {
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
+    /// @notice Emitted when a vault is unable to repay its debt
     event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
-    uint16 internal constant ENABLED                 = 1 << 0;
-    uint16 internal constant ALLOW_REENTER           = 1 << 1;
-    uint16 internal constant ONLY_VAULT_ENTRY        = 1 << 2;
-    uint16 internal constant ONLY_VAULT_EXIT         = 1 << 3;
-    uint16 internal constant ONLY_VAULT_ROLL         = 1 << 4;
-    uint16 internal constant ONLY_VAULT_DELEVERAGE   = 1 << 5;
+    uint16 internal constant ENABLED                         = 1 << 0;
+    uint16 internal constant ALLOW_REENTER                   = 1 << 1;
+    // These flags switch the authentication on the vault methods such that all
+    // calls must come from the vault itself.
+    uint16 internal constant ONLY_VAULT_ENTRY                = 1 << 2;
+    uint16 internal constant ONLY_VAULT_EXIT                 = 1 << 3;
+    uint16 internal constant ONLY_VAULT_ROLL                 = 1 << 4;
+    uint16 internal constant ONLY_VAULT_DELEVERAGE           = 1 << 5;
+    // Some tokens may not be able to be redeemed until certain unlock times,
+    // when this is flag is set vaultShares will be transferred to the liquidator instead
+    // of redeemed
+    uint16 internal constant TRANSFER_SHARES_ON_DELEVERAGE   = 1 << 6;
 
     function _getVaultConfig(
         address vaultAddress
@@ -43,7 +50,7 @@ library VaultConfiguration {
         vaultConfig.vault = vaultAddress;
         vaultConfig.flags = s.flags;
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
-        vaultConfig.maxVaultBorrowSize = s.maxVaultBorrowSize;
+        vaultConfig.maxVaultBorrowCapacity = s.maxVaultBorrowCapacity;
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
@@ -72,10 +79,13 @@ library VaultConfiguration {
         vaultConfig.assetRate = AssetRate.buildAssetRateView(vaultConfig.borrowCurrencyId);
     }
 
-    function setVaultEnabledStatus(
-        address vaultAddress,
-        bool enable
-    ) internal {
+    function setMaxBorrowCapacity(address vaultAddress, uint80 maxVaultBorrowCapacity) internal {
+        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        VaultConfigStorage storage s = store[vaultAddress];
+        s.maxVaultBorrowCapacity = maxVaultBorrowCapacity;
+    }
+
+    function setVaultEnabledStatus(address vaultAddress, bool enable) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         VaultConfigStorage storage s = store[vaultAddress];
         uint16 flags = s.flags;
@@ -230,7 +240,7 @@ library VaultConfiguration {
         uint256 blockTime
     ) internal {
         int256 totalOutstandingDebt = getBorrowCapacity(vaultConfig, vaultState, blockTime);
-        require(totalOutstandingDebt <= vaultConfig.maxVaultBorrowSize, "Insufficient capacity");
+        require(totalOutstandingDebt <= vaultConfig.maxVaultBorrowCapacity, "Insufficient capacity");
     }
 
     function _netDebtOutstanding(

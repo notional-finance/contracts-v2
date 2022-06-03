@@ -464,7 +464,7 @@ struct VaultConfigStorage {
     uint16 borrowCurrencyId;
     // Absolute maximum vault size (fCash overflows at uint80)
     // NOTE: we can reduce this to uint48 to allow for a 281 trillion token vault (in whole 8 decimals)
-    uint80 maxVaultBorrowSize;
+    uint80 maxVaultBorrowCapacity;
     // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
     uint32 minAccountBorrowSize;
     // Minimum collateral ratio for a vault specified in basis points, valid values are greater than 10_000
@@ -486,7 +486,7 @@ struct VaultConfig {
     address vault;
     uint16 flags;
     uint16 borrowCurrencyId;
-    int256 maxVaultBorrowSize;
+    int256 maxVaultBorrowCapacity;
     int256 minAccountBorrowSize;
     uint256 termLengthInSeconds;
     int256 feeRate;

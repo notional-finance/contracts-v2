@@ -49,6 +49,29 @@ contract VaultAction is ActionGuards, IVaultAction {
     }
 
     /**
+     * @notice Allows the owner to reduce the max borrow capacity on the vault and force
+     * the redemption of strategy tokens to cash to reduce the overall risk of the vault.
+     * This method is intended to be used in emergencies to mitigate insolvency risk.
+     * @param vaultAddress address of the vault
+     * @param maxVaultBorrowCapacity the new max vault borrow capacity
+     * @param maturity the maturity to redeem tokens in, will generally be either the current
+     * maturity or the next maturity.
+     * @param strategyTokensToRedeem how many tokens we would want to redeem in the maturity
+     * @param vaultData vault data to pass to the vault
+     */
+    function reduceMaxBorrowCapacity(
+        address vaultAddress,
+        uint80 maxVaultBorrowCapacity,
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) external override onlyOwner {
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, maxVaultBorrowCapacity);
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
+    }
+
+    /**
      * @notice Strategy vaults can call this method to redeem strategy tokens to cash
      * and hold them as asset cash within the pool. This should typically be used
      * during settlement but can also be used for vault-wide deleveraging.
@@ -62,7 +85,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
-    ) external override nonReentrant returns (
+    ) external override returns (
         int256 assetCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
@@ -70,14 +93,25 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         // NOTE: if the msg.sender is not the vault itself this will revert
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+        return _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
+    }
 
-        VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
+    function _redeemStrategyTokensToCashInternal(
+        VaultConfig memory vaultConfig,
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) private nonReentrant returns (
+        int256 assetCashRequiredToSettle,
+        int256 underlyingCashRequiredToSettle
+    ) {
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
         int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, vaultData);
         require(assetCashReceived > 0);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensToRedeem);
-        vaultState.setVaultState(msg.sender);
+        vaultState.setVaultState(vaultConfig.vault);
 
         return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
