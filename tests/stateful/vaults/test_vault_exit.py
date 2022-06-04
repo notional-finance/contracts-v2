@@ -172,6 +172,7 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
+@pytest.mark.only
 def test_exit_vault_lending_fails(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
@@ -194,6 +195,8 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
 
+    # TODO: this adds 50_000_000e8 cDAI into the contract but there is no offsetting fCash position
+    # recorded, similarly, the fCash erased is not recorded anywhere either
     environment.notional.exitVault(
         accounts[1], vault.address, 10_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
     )
@@ -219,6 +222,10 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
+    # reserveBalance = environment.notional.getReserveBalance(2)
+    # environment.notional.setReserveCashBalance(
+    #     2, 5_000_000e8 + reserveBalance, {"from": accounts[0]}
+    # )
     check_system_invariants(environment, accounts, [vault])
 
 

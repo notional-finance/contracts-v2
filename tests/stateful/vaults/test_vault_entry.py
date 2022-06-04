@@ -103,7 +103,7 @@ def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            currencyId=2, maxVaultBorrowSize=100_000e8, flags=set_flags(0, ENABLED=True)
+            currencyId=2, maxVaultBorrowCapacity=100_000e8, flags=set_flags(0, ENABLED=True)
         ),
     )
 

@@ -13,12 +13,6 @@ def isolation(fn_isolation):
 def test_set_vault_config(vaultConfig, accounts):
     conf = get_vault_config()
     with brownie.reverts():
-        # Fails on leverage ratio less than 1
-        conf[4] = 100
-        vaultConfig.setVaultConfig(accounts[0], conf)
-
-    conf = get_vault_config()
-    with brownie.reverts():
         # Fails on liquidation ratio less than 100
         conf[7] = 99
         vaultConfig.setVaultConfig(accounts[0], conf)
@@ -30,7 +24,7 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["vault"] == accounts[0].address
     assert config["flags"] == conf[0]
     assert config["borrowCurrencyId"] == conf[1]
-    assert config["maxVaultBorrowSize"] == conf[2]
+    assert config["maxVaultBorrowCapacity"] == conf[2]
     assert config["minAccountBorrowSize"] == conf[3] * 1e8
     assert config["minCollateralRatio"] == conf[4] * BASIS_POINT
     assert config["termLengthInSeconds"] == conf[5] * 86400
@@ -118,7 +112,7 @@ def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts)
 
 def test_max_borrow_capacity_no_reenter(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
-        vault.address, get_vault_config(flags=set_flags(0), maxVaultBorrowSize=100_000_000e8)
+        vault.address, get_vault_config(flags=set_flags(0), maxVaultBorrowCapacity=100_000_000e8)
     )
 
     # Set current maturity
@@ -151,7 +145,9 @@ def test_max_borrow_capacity_no_reenter(vaultConfig, vault, accounts):
 def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
         vault.address,
-        get_vault_config(flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowSize=100_000_000e8),
+        get_vault_config(
+            flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowCapacity=100_000_000e8
+        ),
     )
 
     # Set current maturity
@@ -194,7 +190,9 @@ def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
 def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
         vault.address,
-        get_vault_config(flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowSize=100_000_000e8),
+        get_vault_config(
+            flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowCapacity=100_000_000e8
+        ),
     )
 
     # Set current maturity
@@ -236,28 +234,27 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
     assert totalDebt == totalDebt2
 
 
-def test_deposit_and_redeem_ctoken(vaultConfig, vault, accounts, cToken):
+def test_deposit_and_redeem_ctoken(vaultConfig, vault, accounts, cToken, underlying):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    vault.setExchangeRate(Wei(5e28))
+    vault.setExchangeRate(Wei(5e18))
 
     cToken.transfer(vaultConfig.address, 100_000e8, {"from": accounts[0]})
     balanceBefore = cToken.balanceOf(vaultConfig.address)
-    txn = vaultConfig.deposit(vault.address, 100e8, "", {"from": accounts[0]})
+    txn = vaultConfig.deposit(vault.address, 100e8, START_TIME_TREF, "", {"from": accounts[0]})
     balanceAfter = cToken.balanceOf(vaultConfig.address)
 
     assert balanceBefore - balanceAfter == 100e8
-    assert cToken.balanceOf(vault.address) == 100e8
-    assert vault.balanceOf(vaultConfig.address) == 500e8
-    assert cToken.allowance(vaultConfig.address, vault.address) == 0
-    assert txn.return_value == 500e8
+    assert cToken.balanceOf(vault.address) == 0
+    assert underlying.balanceOf(vault.address) == 2e18
+    assert vault.balanceOf(vaultConfig.address) == txn.return_value
 
-    txn = vaultConfig.redeem(vault.address, 250e8, "", {"from": accounts[0]})
+    txn = vaultConfig.redeem(vault.address, 0.2e8, START_TIME_TREF, "", {"from": accounts[0]})
     balanceAfterRedeem = cToken.balanceOf(vaultConfig.address)
 
-    assert cToken.balanceOf(vault.address) == 50e8
-    assert vault.balanceOf(vaultConfig.address) == 250e8
-    assert balanceAfterRedeem - balanceAfter == 50e8
-    assert txn.return_value == 50e8
+    assert cToken.balanceOf(vault.address) == 0
+    assert underlying.balanceOf(vault.address) == 1e18
+    assert vault.balanceOf(vaultConfig.address) == 0.2e8
+    assert balanceAfterRedeem - balanceAfter == txn.return_value
 
 
 # This would be useful for completeness but doesnt test any additional

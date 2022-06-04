@@ -10,9 +10,11 @@ def underlying(MockERC20, accounts):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def cToken(MockCToken, accounts):
+def cToken(MockCToken, accounts, underlying):
     token = MockCToken.deploy(8, {"from": accounts[0]})
+    underlying.transfer(token, 100_000_000e18, {"from": accounts[0]})
     token.setAnswer(0.02e28)
+    token.setUnderlying(underlying)
     return token
 
 
@@ -65,7 +67,7 @@ def get_vault_config(**kwargs):
     return [
         kwargs.get("flags", 0),  # 0: flags
         kwargs.get("currencyId", 1),  # 1: currency id
-        kwargs.get("maxVaultBorrowSize", 100_000_000e8),  # 2: max vault borrow size
+        kwargs.get("maxVaultBorrowCapacity", 100_000_000e8),  # 2: max vault borrow size
         kwargs.get("minAccountBorrowSize", 100_000),  # 3: min account borrow size
         kwargs.get("minCollateralRatioBPS", 2000),  # 4: 20% collateral ratio
         kwargs.get("termLengthInDays", 90),  # 5: 3 month term

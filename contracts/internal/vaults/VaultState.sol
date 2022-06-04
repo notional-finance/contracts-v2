@@ -130,7 +130,7 @@ library VaultStateLib {
         // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
         // event or the vault is in the process of settling debts. In both cases, we do not allow accounts to enter
         // the vault.
-        require(vaultAccount.tempCashBalance > 0 && vaultState.totalAssetCash == 0);
+        require(vaultAccount.tempCashBalance >= 0 && vaultState.totalAssetCash == 0);
 
         uint256 strategyTokenDeposit;
         if (vaultAccount.maturity == 0) {

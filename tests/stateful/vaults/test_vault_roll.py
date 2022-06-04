@@ -84,7 +84,7 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
         get_vault_config(
             flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1),
             currencyId=2,
-            maxVaultBorrowSize=200_000e8,
+            maxVaultBorrowCapacity=200_000e8,
         ),
     )
     vault.setSettlement(False)

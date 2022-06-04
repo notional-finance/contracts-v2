@@ -17,7 +17,7 @@ def test_cash_value_of_shares(vaultConfig, vault, accounts):
         totalVaultShares=100_000e8,
         totalStrategyTokens=100_000e8,
     )
-    vault.setExchangeRate(1.2e28)
+    vault.setExchangeRate(1.2e18)
 
     assetCashValue = vaultConfig.getCashValueOfShare(vault.address, state, 100e8)
 
@@ -92,7 +92,7 @@ def test_exit_maturity_pool(vaultConfig, vault):
 
 def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    tempCashBalance = 100e8
+    tempCashBalance = 500e8
     totalVaultShares = 100_000e8
     totalStrategyTokens = 100_000e8
 
@@ -105,7 +105,7 @@ def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
     )
 
     cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
-    vault.setExchangeRate(1.2e28)
+    vault.setExchangeRate(2e18)
 
     (newState, newAccount) = vaultConfig.enterMaturityPool(
         vault.address, state, account, ""
@@ -118,7 +118,7 @@ def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
     assert newState.dict()["totalAssetCash"] == 0
     assert newAccount.dict()["tempCashBalance"] == 0
     # Total Strategy Tokens Nets Off
-    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 120e8
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 5e8
 
     (assetCash, strategyTokens) = vaultConfig.getPoolShare(
         newState, newAccount.dict()["vaultShares"]
@@ -130,7 +130,7 @@ def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
 
 def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    tempCashBalance = 100e8
+    tempCashBalance = 500e8
     accountVaultShares = 500e8
     totalVaultShares = 100_000e8
     totalStrategyTokens = 100_000e8
@@ -148,7 +148,7 @@ def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts)
     )
 
     cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
-    vault.setExchangeRate(1.2e28)
+    vault.setExchangeRate(2e18)
 
     (newState, newAccount) = vaultConfig.enterMaturityPool(
         vault.address, state, account, ""
@@ -162,7 +162,7 @@ def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts)
     assert newState.dict()["totalAssetCash"] == 0
     assert newAccount.dict()["tempCashBalance"] == 0
     # Total Strategy Tokens Nets Off
-    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 120e8
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 5e8
 
     (assetCash, strategyTokens) = vaultConfig.getPoolShare(
         newState, newAccount.dict()["vaultShares"] - accountVaultShares
@@ -172,9 +172,10 @@ def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts)
     assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
 
 
+# TODO: this needs more test scenarios
 def test_enter_maturity_with_old_maturity(vaultConfig, vault, cToken, accounts):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    tempCashBalance = 100e8
+    tempCashBalance = 500e8
     accountVaultShares = 500e8
     totalVaultShares = 100_000e8
     totalStrategyTokens = 100_000e8
@@ -202,7 +203,7 @@ def test_enter_maturity_with_old_maturity(vaultConfig, vault, cToken, accounts):
     )
 
     cToken.transfer(vaultConfig.address, tempCashBalance + 1000e8, {"from": accounts[0]})
-    vault.setExchangeRate(1.2e28)
+    vault.setExchangeRate(2e18)
 
     (newState, newAccount) = vaultConfig.enterMaturityPool(
         vault.address, state, account, ""
@@ -214,8 +215,8 @@ def test_enter_maturity_with_old_maturity(vaultConfig, vault, cToken, accounts):
     # Total Cash Balance Nets Off
     assert newState.dict()["totalAssetCash"] == 0
     assert newAccount.dict()["tempCashBalance"] == 0
-    # Total Strategy Tokens Nets Off
-    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 1820e8
+    # Total Strategy Tokens Nets Off (receives 51e8 tokens from previous)
+    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 510e8 + 5e8
 
     (assetCash, strategyTokens) = vaultConfig.getPoolShare(
         newState, newAccount.dict()["vaultShares"]

@@ -49,6 +49,16 @@ contract MockCToken is ERC20 {
     function interestRateModel() external view returns (address) {
         return address(0);
     }
+
+    function mint(uint mintAmount) external returns (uint) {
+        ERC20(underlying).transferFrom(msg.sender, address(this), mintAmount);
+        _mint(msg.sender, (mintAmount * 1e18) / _answer);
+    }
+
+    function redeem(uint redeemTokens) external returns (uint) {
+        _burn(msg.sender, redeemTokens);
+        ERC20(underlying).transfer(msg.sender, (redeemTokens * _answer) / 1e18);
+    }
 }
 
 
