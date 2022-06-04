@@ -184,6 +184,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         
         // Transfers any net deposit or withdraw from the account
         vaultAccount.transferTempCashBalance(vaultConfig.borrowCurrencyId, useUnderlying);
+
+        if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0 && vaultAccount.escrowedAssetCash == 0) {
+            // If the account has no position in the vault at this point, set the maturity to zero as well
+            vaultAccount.maturity = 0;
+        }
         vaultAccount.setVaultAccount(vaultConfig);
     }
 
@@ -271,6 +276,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Redeems the vault shares for asset cash and transfers it to the designated address
         if (vaultConfig.getFlag(VaultConfiguration.TRANSFER_SHARES_ON_DELEVERAGE)) {
+            vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
         } else {
             return _redeemLiquidatorProfits(liquidator, vaultConfig, vaultState, vaultSharesToLiquidator,
@@ -288,11 +294,14 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // leveraged position on then their collateral ratio will increase
         VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(receiver, vaultConfig);
         // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
-        // vault at the same maturity).
-        require((liquidator.maturity == 0 && liquidator.fCash == 0)  || liquidator.maturity == maturity);
+        // vault at the same maturity). If the liquidator has fCash in the current maturity then their collateral
+        // ratio will increase as a result of the liquidation, no need to check their collateral position.
+        require(liquidator.maturity == 0 || liquidator.maturity == maturity, "Vault Shares Mismatch"); // dev: has vault shares
         liquidator.maturity = maturity;
         liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
         liquidator.setVaultAccount(vaultConfig);
+
+        return vaultSharesToLiquidator;
     }
 
     function _redeemLiquidatorProfits(
