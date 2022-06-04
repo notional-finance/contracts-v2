@@ -37,10 +37,15 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) external override nonReentrant { 
         // Ensure that system level accounts cannot enter vaults
         requireValidAccount(account);
-        // Vaults cannot be entered if they are paused
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ENTRY);
 
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
+        // Vaults cannot be entered if they are paused
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
             "Cannot Enter"
@@ -88,6 +93,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ROLL);
+
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         // Can only roll vaults that are in the current maturity
@@ -151,6 +161,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_EXIT);
 
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         
         VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
@@ -192,6 +207,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
         // Authorization rules for deleveraging
         if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
             require(msg.sender == vault, "Unauthorized");

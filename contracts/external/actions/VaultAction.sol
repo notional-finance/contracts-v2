@@ -105,6 +105,11 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 assetCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
         int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, maturity, vaultData);
         require(assetCashReceived > 0);
@@ -128,6 +133,11 @@ contract VaultAction is ActionGuards, IVaultAction {
         bytes calldata vaultData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
         // NOTE: if the msg.sender is not the vault itself this will revert
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
 
@@ -172,6 +182,11 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
+
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
 
         // Ensure that we are past maturity and the vault is able to settle
         require(

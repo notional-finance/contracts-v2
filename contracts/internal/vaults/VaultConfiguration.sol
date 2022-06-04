@@ -29,7 +29,7 @@ library VaultConfiguration {
     event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
     uint16 internal constant ENABLED                         = 1 << 0;
-    uint16 internal constant ALLOW_ROLL_POSITION                   = 1 << 1;
+    uint16 internal constant ALLOW_ROLL_POSITION             = 1 << 1;
     // These flags switch the authentication on the vault methods such that all
     // calls must come from the vault itself.
     uint16 internal constant ONLY_VAULT_ENTRY                = 1 << 2;
@@ -40,6 +40,9 @@ library VaultConfiguration {
     // when this is flag is set vaultShares will be transferred to the liquidator instead
     // of redeemed
     uint16 internal constant TRANSFER_SHARES_ON_DELEVERAGE   = 1 << 6;
+    // External vault methods will have re-entrancy protection on by default, however, some
+    // vaults may need to call back into Notional so we can whitelist them for re-entrancy.
+    uint16 internal constant ALLOW_REENTRANCY                = 1 << 7;
 
     function _getVaultConfig(
         address vaultAddress

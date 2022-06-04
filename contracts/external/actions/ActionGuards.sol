@@ -6,7 +6,7 @@ import "../../global/StorageLayoutV1.sol";
 import "../../internal/nToken/nTokenHandler.sol";
 
 abstract contract ActionGuards is StorageLayoutV1 {
-    uint256 private constant _NOT_ENTERED = 1;
+    uint256 internal constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
 
     function initializeReentrancyGuard() internal {
