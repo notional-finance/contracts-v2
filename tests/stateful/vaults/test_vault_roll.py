@@ -6,6 +6,7 @@ from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import get_lend_action
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -103,6 +104,8 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
         roll_account, vault, 25_000e8, 100_000e8, (0, 0, "", ""), {"from": roll_account}
     )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_roll_vault_success(environment, vault, roll_account, accounts):
     environment.notional.updateVault(
@@ -152,6 +155,8 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
     # This is approx equal because there is no vault fee assessed
     assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
@@ -211,3 +216,5 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
     # This is approx equal because there is no vault fee assessed
     assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed
+
+    check_system_invariants(environment, accounts, [vault])

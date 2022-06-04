@@ -4,8 +4,7 @@ from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
 from fixtures import *
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
-
-# from tests.stateful.invariants import check_system_invariants
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -31,6 +30,8 @@ def test_only_vault_entry(environment, vault, accounts):
     environment.notional.enterVault(
         accounts[1], vault.address, 100_000e18, True, 100_000e8, 0, "", {"from": vault.address}
     )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_no_system_level_accounts(environment, vault, accounts):
@@ -95,6 +96,8 @@ def test_enter_vault_in_settlement(environment, vault, accounts):
             accounts[1], vault.address, 100_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
     environment.notional.updateVault(
@@ -110,6 +113,8 @@ def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
             accounts[1], vault.address, 100_000e18, True, 100_001e8, 0, "", {"from": accounts[1]}
         )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_enter_vault_under_minimum_size(environment, vault, accounts):
     environment.notional.updateVault(
@@ -121,6 +126,8 @@ def test_enter_vault_under_minimum_size(environment, vault, accounts):
         environment.notional.enterVault(
             accounts[1], vault.address, 100_000e18, True, 99_000e8, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_borrowing_failure(environment, vault, accounts):
@@ -147,6 +154,8 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
             accounts[1], vault.address, 100_000e18, True, 10_000_000e8, 0, "", {"from": accounts[1]}
         )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_enter_vault_insufficient_deposit(environment, vault, accounts):
     environment.notional.updateVault(
@@ -162,6 +171,8 @@ def test_enter_vault_insufficient_deposit(environment, vault, accounts):
         environment.notional.enterVault(
             accounts[1], vault.address, 10_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_with_dai(environment, vault, accounts):
@@ -191,6 +202,8 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     totalValue = vault.convertStrategyToUnderlying(vaultState["totalStrategyTokens"])
     assert 122_000e18 < totalValue and totalValue < 125_000e18
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
     environment.notional.updateVault(
@@ -209,6 +222,8 @@ def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
         environment.notional.enterVault(
             accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_with_matured_position(environment, accounts, vault):
@@ -250,6 +265,8 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     assert vaultAccountAfter["fCash"] == -105_000e8
     assert vaultAccountAfter["maturity"] == environment.notional.getCurrentVaultMaturity(vault)
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
     environment.notional.updateVault(
@@ -270,6 +287,8 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
         environment.notional.enterVault(
             accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 # def test_enter_vault_with_cdai(environment, accounts):

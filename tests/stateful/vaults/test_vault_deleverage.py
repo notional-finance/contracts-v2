@@ -4,6 +4,7 @@ from brownie.network.state import Chain
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -70,6 +71,8 @@ def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
             accounts[1], vault.address, accounts[2], 25_000e18, True, "", {"from": accounts[2]}
         )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_deleverage_account_over_balance(environment, accounts, vault):
     environment.notional.updateVault(
@@ -88,6 +91,8 @@ def test_deleverage_account_over_balance(environment, accounts, vault):
             accounts[1], vault.address, accounts[2], 150_000e18, True, "", {"from": accounts[2]}
         )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_deleverage_account_over_deleverage(environment, accounts, vault):
     environment.notional.updateVault(
@@ -104,6 +109,8 @@ def test_deleverage_account_over_deleverage(environment, accounts, vault):
         environment.notional.deleverageAccount(
             accounts[1], vault.address, accounts[2], 100_000e18, True, "", {"from": accounts[2]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_deleverage_account(environment, accounts, vault):
@@ -152,9 +159,8 @@ def test_deleverage_account(environment, accounts, vault):
         vaultStateBefore["totalVaultShares"] - vaultStateAfter["totalVaultShares"]
         == vaultSharesSold
     )
-    assert vaultStateAfter["accountsRequiringSettlement"] == 1
-    assert vaultStateAfter["totalfCash"] == -100_000e8
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_with_escrowed_asset_cash_insufficient_collateral(
@@ -167,7 +173,9 @@ def test_enter_vault_with_escrowed_asset_cash_insufficient_collateral(
         )
 
 
-def test_enter_vault_with_escrowed_asset_cash_no_collateral(environment, vault, escrowed_account):
+def test_enter_vault_with_escrowed_asset_cash_no_collateral(
+    environment, vault, escrowed_account, accounts
+):
     # Can re-enter when exchange rate realigns
     vault.setExchangeRate(1e18)
     environment.notional.enterVault(
@@ -186,8 +194,10 @@ def test_enter_vault_with_escrowed_asset_cash_no_collateral(environment, vault, 
     assert vaultStateAfter["totalfCash"] == -100_000e8
     assert vaultStateAfter["totalfCashRequiringSettlement"] == -100_000e8
 
+    check_system_invariants(environment, accounts, [vault])
 
-def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_account):
+
+def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
     vaultAccountBefore = environment.notional.getVaultAccount(escrowed_account, vault)
     vaultStateBefore = environment.notional.getCurrentVaultState(vault)
 
@@ -221,6 +231,8 @@ def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_accou
     assert vaultStateAfter["totalfCash"] == -100_000e8
     assert vaultStateAfter["totalfCashRequiringSettlement"] == -100_000e8
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_exit_vault_with_escrowed_asset_cash_insufficient_collateral(
     environment, vault, escrowed_account
@@ -233,7 +245,7 @@ def test_exit_vault_with_escrowed_asset_cash_insufficient_collateral(
         )
 
 
-def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_account):
+def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
     vaultAccountBefore = environment.notional.getVaultAccount(escrowed_account, vault)
     balanceBefore = environment.cToken["DAI"].balanceOf(escrowed_account)
 
@@ -265,8 +277,10 @@ def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     assert vaultStateAfter["totalfCash"] == -50_000e8
     assert vaultStateAfter["totalfCashRequiringSettlement"] == -50_000e8
 
+    check_system_invariants(environment, accounts, [vault])
 
-def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_account):
+
+def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
@@ -322,3 +336,5 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
     # This is approx equal because there is no vault fee assessed
     assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed * 0.95
+
+    check_system_invariants(environment, accounts, [vault])

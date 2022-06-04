@@ -4,6 +4,7 @@ from brownie.network.state import Chain
 from fixtures import *
 from tests.helpers import initialize_environment
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -34,6 +35,8 @@ def test_only_vault_exit(environment, vault, accounts):
         accounts[1], vault.address, 50_000e8, 100_000e8, 0, False, "", {"from": vault.address}
     )
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_exit_vault_min_borrow(environment, vault, accounts):
     environment.notional.updateVault(
@@ -49,6 +52,8 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
         environment.notional.exitVault(
             accounts[1], vault.address, 50_000e8, 10_000e8, 0, False, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 # TODO: test useUnderlying
@@ -97,6 +102,8 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 # TODO: test underlying
 def test_exit_vault_transfer_to_account(environment, vault, accounts):
@@ -144,6 +151,8 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts):
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_exit_vault_insufficient_collateral(environment, vault, accounts):
     environment.notional.updateVault(
@@ -159,6 +168,8 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
         environment.notional.exitVault(
             accounts[1], vault.address, 10_000e8, 0, 0, False, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_exit_vault_lending_fails(environment, accounts, vault):
@@ -207,6 +218,8 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
     assert vaultState["totalAssetCash"] == 0
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_exit_vault_during_settlement(environment, vault, accounts):
@@ -262,6 +275,8 @@ def test_exit_vault_during_settlement(environment, vault, accounts):
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     assert vaultStateAfter["isFullySettled"]
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_exit_vault_after_settlement(environment, vault, accounts):
     environment.notional.updateVault(
@@ -302,3 +317,5 @@ def test_exit_vault_after_settlement(environment, vault, accounts):
     assert vaultStateAfter["totalVaultShares"] == 0
     assert vaultAccountAfter["vaultShares"] == 0
     assert vaultAccountAfter["fCash"] == 0
+
+    check_system_invariants(environment, accounts, [vault])

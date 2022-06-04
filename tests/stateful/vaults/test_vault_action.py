@@ -5,6 +5,7 @@ from brownie.network.state import Chain
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
+from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
 
@@ -104,14 +105,6 @@ def test_redeem_strategy_tokens(environment, vault, accounts):
     # Nothing about the vault account changes
     assert vaultAccountAfter == vaultAccountBefore
 
-    assert vaultStateBefore["totalfCash"] == vaultStateAfter["totalfCash"]
-    assert (
-        vaultStateBefore["totalfCashRequiringSettlement"]
-        == vaultStateAfter["totalfCashRequiringSettlement"]
-    )
-    assert not vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert vaultStateBefore["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
     assert vaultStateBefore["totalAssetCash"] == vaultStateAfter["totalAssetCash"] - 500_000e8
     assert (
         vaultStateBefore["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"] + 10_000e8
@@ -122,6 +115,8 @@ def test_redeem_strategy_tokens(environment, vault, accounts):
     )
     assert underlyingCash - 10_000e18 == underlyingCashAfter
     assert assetCash - 500_000e8 == assetCashAfter
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_deposit_asset_cash(environment, vault, accounts):
@@ -161,14 +156,6 @@ def test_deposit_asset_cash(environment, vault, accounts):
     # Nothing about the vault account changes
     assert vaultAccountAfter == vaultAccountBefore
 
-    assert vaultStateBefore["totalfCash"] == vaultStateAfter["totalfCash"]
-    assert (
-        vaultStateBefore["totalfCashRequiringSettlement"]
-        == vaultStateAfter["totalfCashRequiringSettlement"]
-    )
-    assert not vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert vaultStateBefore["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
     assert vaultStateBefore["totalAssetCash"] == vaultStateAfter["totalAssetCash"] + 250_000e8
     assert (
         vaultStateBefore["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"] - 5_000e8
@@ -179,6 +166,8 @@ def test_deposit_asset_cash(environment, vault, accounts):
     )
     assert underlyingCash + 5_000e18 == underlyingCashAfter
     assert assetCash + 250_000e8 == assetCashAfter
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_deposit_asset_cash_fails_collateral_ratio(environment, vault, accounts):
@@ -204,7 +193,10 @@ def test_deposit_asset_cash_fails_collateral_ratio(environment, vault, accounts)
             environment.notional.getCurrentVaultMaturity(vault), 250_000e8, "", {"from": vault}
         )
 
+    check_system_invariants(environment, accounts, [vault])
 
+
+@pytest.mark.only
 def test_settle_vault_vault_not_ready(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
@@ -226,6 +218,8 @@ def test_settle_vault_vault_not_ready(environment, accounts, vault):
     with brownie.reverts("Cannot Settle"):
         # Cannot if the vault is reporting insufficient cash
         environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_settle_vault_no_manual_accounts(environment, accounts, vault):
@@ -271,6 +265,8 @@ def test_settle_vault_no_manual_accounts(environment, accounts, vault):
     assert vaultStateAfter["totalAssetCash"] == 0
     assert vaultStateBefore["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"]
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_settle_vault_shortfall_failed_to_sell_tokens(environment, vault, accounts):
     environment.notional.updateVault(
@@ -296,6 +292,8 @@ def test_settle_vault_shortfall_failed_to_sell_tokens(environment, vault, accoun
         # There are still strategy tokens left to redeem
         environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
 
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_settle_vault_cover_shortfall_with_reserve_no_manual(environment, vault, accounts):
     environment.notional.updateVault(
@@ -317,7 +315,14 @@ def test_settle_vault_cover_shortfall_with_reserve_no_manual(environment, vault,
 
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
 
-    environment.notional.setReserveCashBalance(2, 5_000_000e8, {"from": accounts[0]})
+    reserveBalance = environment.notional.getReserveBalance(2)
+    environment.cToken["DAI"].transfer(
+        environment.notional.address, 5_000_000e8, {"from": accounts[0]}
+    )
+    environment.notional.setReserveCashBalance(
+        2, 5_000_000e8 + reserveBalance, {"from": accounts[0]}
+    )
+
     environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
 
     reserveBalance = environment.notional.getReserveBalance(2)
@@ -337,6 +342,8 @@ def test_settle_vault_cover_shortfall_with_reserve_no_manual(environment, vault,
         environment.notional.enterVault(
             accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_settle_vault_insolvent_no_manual_accounts(environment, vault, accounts):
@@ -362,7 +369,12 @@ def test_settle_vault_insolvent_no_manual_accounts(environment, vault, accounts)
         accounts[1], vault
     )
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    environment.notional.setReserveCashBalance(2, 50_000e8, {"from": accounts[0]})
+
+    reserveBalance = environment.notional.getReserveBalance(2)
+    environment.cToken["DAI"].transfer(
+        environment.notional.address, 50_000e8, {"from": accounts[0]}
+    )
+    environment.notional.setReserveCashBalance(2, 50_000e8 + reserveBalance, {"from": accounts[0]})
 
     txn = environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
 
@@ -385,6 +397,14 @@ def test_settle_vault_insolvent_no_manual_accounts(environment, vault, accounts)
             accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
 
+    # Transfer the shortfall amount in so that we can check all the other invariants
+    environment.cToken["DAI"].transfer(
+        environment.notional.address,
+        txn.events["ProtocolInsolvency"]["shortfall"],
+        {"from": accounts[0]},
+    )
+    check_system_invariants(environment, accounts, [vault])
+
 
 def test_settle_vault_manual_insufficient_shares_sold(
     environment, vault, escrowed_account, accounts
@@ -397,7 +417,8 @@ def test_settle_vault_manual_insufficient_shares_sold(
         environment.notional.settleVault(
             vault, maturity, [escrowed_account.address], [100e8], "", {"from": accounts[0]}
         )
-    pass
+
+    check_system_invariants(environment, accounts, [vault])
 
 
 def test_settle_vault_no_shortfall_manual_accounts(environment, vault, escrowed_account, accounts):
@@ -443,6 +464,7 @@ def test_settle_vault_no_shortfall_manual_accounts(environment, vault, escrowed_
         vaultAccountAfter["vaultShares"]
         == vaultAccount["vaultShares"] - vaultSharesRequiredToSettle
     )
+    check_system_invariants(environment, accounts, [vault])
 
 
 # def test_settle_vault_with_shortfall_manual_accounts(environment, vault, escrowed_account):
