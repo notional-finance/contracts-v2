@@ -32,20 +32,26 @@ library VaultAccountLib {
     // from an arbitrary start time before we've deployed this feature. This allows us to have 65536 epochs
     // which is plenty even with the smallest potential term length being 1 month (5461 years).
     function _convertEpochToMaturity(
-        uint256 vaultEpoch, uint256 termLengthInSeconds
+        uint256 vaultEpoch,
+        uint256 termLengthInSeconds,
+        uint256 termOffsetInSeconds
     ) private pure returns (uint256 maturity) {
         if (vaultEpoch == 0) return 0;
+        uint256 epochOffset = Constants.VAULT_EPOCH_START.add(termOffsetInSeconds);
 
-        maturity = vaultEpoch.mul(termLengthInSeconds).add(Constants.VAULT_EPOCH_START);
+        maturity = vaultEpoch.mul(termLengthInSeconds).add(epochOffset);
     }
 
     function _convertMaturityToEpoch(
-        uint256 maturity, uint256 termLengthInSeconds
+        uint256 maturity,
+        uint256 termLengthInSeconds,
+        uint256 termOffsetInSeconds
     ) private pure returns (uint16) {
         if (maturity == 0) return 0;
 
         require(maturity % termLengthInSeconds == 0);
-        uint256 vaultEpoch = maturity.sub(Constants.VAULT_EPOCH_START).div(termLengthInSeconds);
+        uint256 epochOffset = Constants.VAULT_EPOCH_START.add(termOffsetInSeconds);
+        uint256 vaultEpoch = maturity.sub(epochOffset).div(termLengthInSeconds);
         require(vaultEpoch <= type(uint16).max);
 
         return uint16(vaultEpoch);
@@ -64,7 +70,8 @@ library VaultAccountLib {
         // fCash is negative on the stack
         vaultAccount.fCash = -int256(uint256(s.fCash));
         vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
-        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch, vaultConfig.termLengthInSeconds);
+        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch,
+            vaultConfig.termLengthInSeconds, vaultConfig.termOffsetInSeconds);
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
@@ -87,7 +94,8 @@ library VaultAccountLib {
         s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
         s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
         s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
-        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity, vaultConfig.termLengthInSeconds);
+        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity,
+            vaultConfig.termLengthInSeconds, vaultConfig.termOffsetInSeconds);
     }
 
     /**

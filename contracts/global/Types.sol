@@ -457,6 +457,7 @@ struct AccountBalance {
     uint256 lastClaimTime;
     uint256 accountIncentiveDebt;
 }
+
 struct VaultConfigStorage {
     // Vault Flags (documented in VaultConfiguration.sol)
     uint16 flags;
@@ -472,6 +473,11 @@ struct VaultConfigStorage {
     uint16 minCollateralRatioBPS;
     // The number of days of each vault term (this is sufficient for 20 year vaults)
     uint16 termLengthInDays;
+    // Allows for a term to be offset by some number of days so that multiple vaults can have alternating
+    // terms within a longer term length. For example, two vaults can alternate 3mo and 6mo terms if they
+    // are both configured with 6mo term lengths and one vault has a 0 term offset and the other has a 3mo
+    // term offset. termOffsetInDays must be zero or divide evenly into termLengthInDays.
+    uint16 termOffsetInDays;
     // Allows up to a 12.75% annualized fee
     uint8 feeRate5BPS;
     // A percentage that represents the share of the cash raised that will go to the liquidator
@@ -489,6 +495,7 @@ struct VaultConfig {
     int256 maxVaultBorrowCapacity;
     int256 minAccountBorrowSize;
     uint256 termLengthInSeconds;
+    uint256 termOffsetInSeconds;
     int256 feeRate;
     int256 minCollateralRatio;
     uint256 liquidationRate;

@@ -1,8 +1,9 @@
 import brownie
 import pytest
 from brownie.convert.datatypes import Wei
+from brownie.test import given, strategy
 from fixtures import *
-from tests.constants import BASIS_POINT, SECONDS_IN_QUARTER, START_TIME_TREF
+from tests.constants import BASIS_POINT, SECONDS_IN_QUARTER, SECONDS_IN_YEAR, START_TIME_TREF
 
 
 @pytest.fixture(autouse=True)
@@ -11,10 +12,28 @@ def isolation(fn_isolation):
 
 
 def test_set_vault_config(vaultConfig, accounts):
-    conf = get_vault_config()
     with brownie.reverts():
         # Fails on liquidation ratio less than 100
-        conf[7] = 99
+        conf = get_vault_config()
+        conf[8] = 99
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        # Fails on reserve fee share over 100
+        conf = get_vault_config()
+        conf[9] = 102
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        # Fails on zero term length
+        conf = get_vault_config()
+        conf[5] = 0
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        # Fails on non-divisable term length
+        conf = get_vault_config()
+        conf[6] = 28
         vaultConfig.setVaultConfig(accounts[0], conf)
 
     conf = get_vault_config()
@@ -28,9 +47,10 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["minAccountBorrowSize"] == conf[3] * 1e8
     assert config["minCollateralRatio"] == conf[4] * BASIS_POINT
     assert config["termLengthInSeconds"] == conf[5] * 86400
-    assert config["feeRate"] == conf[6] * 5 * BASIS_POINT
-    assert config["liquidationRate"] == conf[7]
-    assert config["reserveFeeShare"] == conf[8]
+    assert config["termOffsetInSeconds"] == 0
+    assert config["feeRate"] == conf[7] * 5 * BASIS_POINT
+    assert config["liquidationRate"] == conf[8]
+    assert config["reserveFeeShare"] == conf[9]
 
 
 def test_pause_and_enable_vault(vaultConfig, accounts):
@@ -46,6 +66,39 @@ def test_current_maturity(vaultConfig, accounts):
 
     currentMaturity = vaultConfig.getCurrentMaturity(accounts[0], START_TIME_TREF)
     assert currentMaturity == START_TIME_TREF + SECONDS_IN_QUARTER
+
+
+@given(blockTimeOffset=strategy("uint", max_value=SECONDS_IN_QUARTER * 6))
+def test_alternating_3mo_vaults(vaultConfig, accounts, blockTimeOffset):
+    blockTime = START_TIME_TREF + blockTimeOffset
+    vaultConfig.setVaultConfig(accounts[0], get_vault_config())
+    vaultConfig.setVaultConfig(accounts[1], get_vault_config(termOffsetInDays=90))
+
+    assert (
+        abs(
+            vaultConfig.getCurrentMaturity(accounts[0], blockTime)
+            - vaultConfig.getCurrentMaturity(accounts[1], blockTime)
+        )
+        == SECONDS_IN_QUARTER
+    )
+
+
+@pytest.mark.only
+@given(blockTimeOffset=strategy("uint", max_value=SECONDS_IN_QUARTER * 12))
+def test_alternating_6mo_vaults(vaultConfig, accounts, blockTimeOffset):
+    blockTime = START_TIME_TREF + blockTimeOffset
+    vaultConfig.setVaultConfig(accounts[0], get_vault_config(termLengthInDays=360))
+    vaultConfig.setVaultConfig(
+        accounts[1], get_vault_config(termLengthInDays=360, termOffsetInDays=180)
+    )
+
+    assert (
+        abs(
+            vaultConfig.getCurrentMaturity(accounts[0], blockTime)
+            - vaultConfig.getCurrentMaturity(accounts[1], blockTime)
+        )
+        == SECONDS_IN_QUARTER * 2
+    )
 
 
 def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):

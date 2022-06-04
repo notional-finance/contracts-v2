@@ -71,9 +71,10 @@ def get_vault_config(**kwargs):
         kwargs.get("minAccountBorrowSize", 100_000),  # 3: min account borrow size
         kwargs.get("minCollateralRatioBPS", 2000),  # 4: 20% collateral ratio
         kwargs.get("termLengthInDays", 90),  # 5: 3 month term
-        kwargs.get("feeRate5BPS", 20),  # 6: 1% fee
-        kwargs.get("liquidationRate", 104),  # 7: 4% liquidation discount
-        kwargs.get("reserveFeeShare", 20),  # 8: 20% reserve fee share
+        kwargs.get("termOffsetInDays", 0),  # 6: 3 month term
+        kwargs.get("feeRate5BPS", 20),  # 7: 1% fee
+        kwargs.get("liquidationRate", 104),  # 8: 4% liquidation discount
+        kwargs.get("reserveFeeShare", 20),  # 9: 20% reserve fee share
     ]
 
 

@@ -53,6 +53,7 @@ library VaultConfiguration {
         vaultConfig.maxVaultBorrowCapacity = s.maxVaultBorrowCapacity;
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
+        vaultConfig.termOffsetInSeconds = uint256(s.termOffsetInDays).mul(Constants.DAY);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.liquidationRate = s.liquidationRate;
@@ -106,6 +107,12 @@ library VaultConfiguration {
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
+        require(vaultConfig.termLengthInDays != 0);
+        // This is required such that terms will repeat on a predictable cadence
+        require(
+            vaultConfig.termOffsetInDays == 0 ||
+            vaultConfig.termLengthInDays % vaultConfig.termOffsetInDays == 0
+        );
 
         store[vaultAddress] = vaultConfig;
     }
@@ -143,7 +150,7 @@ library VaultConfiguration {
         // NOTE: termLengthInSeconds cannot be 0
         uint256 offset = blockTimeUTC0 % vaultConfig.termLengthInSeconds;
 
-        return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds);
+        return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds).add(vaultConfig.termOffsetInSeconds);
     }
 
     /**

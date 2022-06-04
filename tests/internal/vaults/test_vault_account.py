@@ -44,13 +44,18 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         vaultConfig.setVaultAccount(account, vault.address)
 
 
-@given(epoch=strategy("uint16", min_value=1))
-def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+@given(epoch=strategy("uint16", min_value=1), hasTermOffset=strategy("bool"))
+def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch, hasTermOffset):
+    if hasTermOffset:
+        termOffsetInDays = 90
+    else:
+        termOffsetInDays = 0
 
-    account = get_vault_account(
-        fCash=-100_000e8, maturity=VAULT_EPOCH_START + epoch * SECONDS_IN_QUARTER
-    )
+    blockTime = VAULT_EPOCH_START + epoch * SECONDS_IN_QUARTER
+    vaultConfig.setVaultConfig(vault.address, get_vault_config(termOffsetInDays=termOffsetInDays))
+    maturity = vaultConfig.getCurrentMaturity(vault.address, blockTime)
+
+    account = get_vault_account(fCash=-100_000e8, maturity=maturity)
     vaultConfig.setVaultAccount(account, vault.address)
     assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
 
