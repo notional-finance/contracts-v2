@@ -113,6 +113,27 @@ def test_deleverage_account_over_deleverage(environment, accounts, vault):
     check_system_invariants(environment, accounts, [vault])
 
 
+@pytest.mark.only
+def test_cannot_deleverage_account_after_maturity(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+    )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    vault.setExchangeRate(0.85e18)
+    maturity = environment.notional.getCurrentVaultMaturity(vault)
+
+    chain.mine(1, timestamp=maturity)
+
+    with brownie.reverts():
+        environment.notional.deleverageAccount(
+            accounts[1], vault.address, accounts[2], 100_000e18, True, "", {"from": accounts[2]}
+        )
+
+
 def test_deleverage_account(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
@@ -285,7 +306,7 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
         vault.address,
         get_vault_config(
             currencyId=2,
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1),
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
             minAccountBorrowSize=100,
             feeRate5BPS=0,
         ),
