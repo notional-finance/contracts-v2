@@ -199,7 +199,7 @@ def test_max_borrow_capacity_with_reenter(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowCapacity=100_000_000e8
+            flags=set_flags(0, ALLOW_ROLL_POSITION=True), maxVaultBorrowCapacity=100_000_000e8
         ),
     )
 
@@ -244,7 +244,7 @@ def test_max_borrow_capacity_with_settlement_and_reenter(vaultConfig, vault, acc
     vaultConfig.setVaultConfig(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ALLOW_REENTER=True), maxVaultBorrowCapacity=100_000_000e8
+            flags=set_flags(0, ALLOW_ROLL_POSITION=True), maxVaultBorrowCapacity=100_000_000e8
         ),
     )
 

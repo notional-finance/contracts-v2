@@ -29,7 +29,7 @@ library VaultConfiguration {
     event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
 
     uint16 internal constant ENABLED                         = 1 << 0;
-    uint16 internal constant ALLOW_REENTER                   = 1 << 1;
+    uint16 internal constant ALLOW_ROLL_POSITION                   = 1 << 1;
     // These flags switch the authentication on the vault methods such that all
     // calls must come from the vault itself.
     uint16 internal constant ONLY_VAULT_ENTRY                = 1 << 2;
@@ -226,7 +226,7 @@ library VaultConfiguration {
         }
 
         // Next, handle the next vault state (if it allows re-enters)
-        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_REENTER)) {
+        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_ROLL_POSITION)) {
             uint256 nextMaturity = currentMaturity.add(vaultConfig.termLengthInSeconds);
             int256 nextMaturityDebt;
 

@@ -20,7 +20,7 @@ def isolation(fn_isolation):
 def roll_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1), currencyId=2),
+        get_vault_config(flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2),
     )
 
     environment.notional.enterVault(
@@ -82,7 +82,7 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1),
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
             currencyId=2,
             maxVaultBorrowCapacity=200_000e8,
         ),
@@ -111,7 +111,7 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1), currencyId=2, feeRate5BPS=0
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2, feeRate5BPS=0
         ),
     )
 
@@ -163,7 +163,7 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1), currencyId=2, feeRate5BPS=0
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2, feeRate5BPS=0
         ),
     )
 

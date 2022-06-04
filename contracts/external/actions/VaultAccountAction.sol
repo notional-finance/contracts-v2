@@ -96,7 +96,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Cannot roll unless all of these requirements are met
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) &&
-            vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTER) &&
+            vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) &&
             IStrategyVault(vault).isInSettlement() && // vault must be in its settlement period
             vaultAccount.maturity == currentMaturity && // must be in the active maturity
             fCashToBorrow > 0, // must borrow into the next maturity, if not, then they should just exit

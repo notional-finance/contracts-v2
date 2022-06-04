@@ -45,7 +45,7 @@ def escrowed_account(environment, accounts, vault):
         vault.address,
         get_vault_config(
             currencyId=2,
-            flags=set_flags(0, ENABLED=True, ALLOW_REENTER=1),
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
             minAccountBorrowSize=100,
         ),
     )

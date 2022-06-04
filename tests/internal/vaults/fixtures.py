@@ -50,7 +50,7 @@ def set_flags(flags, **kwargs):
     binList = list(format(flags, "b").rjust(16, "0"))
     if "ENABLED" in kwargs:
         binList[0] = "1"
-    if "ALLOW_REENTER" in kwargs:
+    if "ALLOW_ROLL_POSITION" in kwargs:
         binList[1] = "1"
     if "ONLY_VAULT_ENTRY" in kwargs:
         binList[2] = "1"
