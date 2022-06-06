@@ -1,6 +1,6 @@
 import json
 
-from brownie import accounts, cTokenV2Aggregator, network
+from brownie import accounts, cTokenLegacyAggregator, cTokenV2Aggregator, network
 from brownie.network.contract import Contract
 from brownie.project import ContractsV2Project
 
@@ -20,7 +20,12 @@ def main():
 
     for (i, symbol) in enumerate(["ETH", "DAI", "USDC", "WBTC"]):
         cTokenAddress = output["compound"]["ctokens"][symbol]["address"]
-        agg = cTokenV2Aggregator.deploy(cTokenAddress, {"from": deployer}, publish_source=True)
+        if symbol in ["ETH", "USDC"]:
+            agg = cTokenLegacyAggregator.deploy(
+                cTokenAddress, {"from": deployer}, publish_source=True
+            )
+        else:
+            agg = cTokenV2Aggregator.deploy(cTokenAddress, {"from": deployer}, publish_source=True)
         output["compound"]["ctokens"][symbol]["aggregator"] = agg.address
         print("Upgrade calldata:")
         print(notional.updateAssetRate.encode_input(i + 1, agg.address))
@@ -29,12 +34,12 @@ def main():
         json.dump(output, f, indent=4, sort_keys=True)
 
 
-# Transaction sent: 0x91e248d2497ef29d0454398175b1f6c65a88707bb1ab30545027d61a3303fa05
-#   Gas price: 12.973142188 gwei   Gas limit: 1030103   Nonce: 89
-#   cTokenV2Aggregator.constructor confirmed   Block: 14860547   Gas used: 936458 (90.91%)
-#   cTokenV2Aggregator deployed at: 0xE329E81800219Aefeef79D74DB35f8877fE1abdE
+# Transaction sent: 0x08c85498dffe74d6f192c8d72df67b19f02bbdd773e177c71d94d215aa47b15c
+#   Gas price: 38.233537603 gwei   Gas limit: 1030585   Nonce: 98
+#   cTokenLegacyAggregator.constructor confirmed   Block: 14914805   Gas used: 936896 (90.91%)
+#   cTokenLegacyAggregator deployed at: 0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6
 # Upgrade calldata:
-# 0xa508eca00000000000000000000000000000000000000000000000000000000000000001000000000000000000000000e329e81800219aefeef79d74db35f8877fe1abde
+# 0xa508eca000000000000000000000000000000000000000000000000000000000000000010000000000000000000000008e3d447ebe244db6d28e2303bca86ef3033cfad6
 
 # Transaction sent: 0xe8f2eb1c5e59f738326a885ce742e83e50cd5584833f3cc0684e5b76b4dc1cb9
 #   Gas price: 14.417036325 gwei   Gas limit: 1030177   Nonce: 90
@@ -43,13 +48,12 @@ def main():
 # Upgrade calldata:
 # 0xa508eca00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000719993e82974f5b5ea0c5eba25c260cd5af78e00
 
-# Transaction sent: 0x4ecbd0a5c59e90bff2a9b3ab0e39991f7fdd0e38c99013c98e4447d047004b8f
-#   Gas price: 13.379328858 gwei   Gas limit: 1030079   Nonce: 91
-#   cTokenV2Aggregator.constructor confirmed   Block: 14860564   Gas used: 936436 (90.91%)
-#   cTokenV2Aggregator deployed at: 0x7b0cc121ABd20ACd77482b5aa95126db2e597987
-
+# Transaction sent: 0x70a76d323a4885fd8bece917c54e6bf337456a285793d468f539075d8a9741d2
+#   Gas price: 33.223049001 gwei   Gas limit: 1030561   Nonce: 99
+#   cTokenLegacyAggregator.constructor confirmed   Block: 14914817   Gas used: 936874 (90.91%)
+#   cTokenLegacyAggregator deployed at: 0x612741825ACedC6F88D8709319fe65bCB015C693
 # Upgrade calldata:
-# 0xa508eca000000000000000000000000000000000000000000000000000000000000000030000000000000000000000007b0cc121abd20acd77482b5aa95126db2e597987
+# 0xa508eca00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000612741825acedc6f88d8709319fe65bcb015c693
 
 # Transaction sent: 0xbe614ac345903950ecde6003b94a73292e268a201534c1dff8aa0c4f28e916e2
 #   Gas price: 16.018622736 gwei   Gas limit: 1030201   Nonce: 92

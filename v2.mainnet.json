@@ -24,12 +24,12 @@
             },
             "ETH": {
                 "address": "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
-                "aggregator": "0xE329E81800219Aefeef79D74DB35f8877fE1abdE",
+                "aggregator": "0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6",
                 "oracle": "0x5fbf4539A89fBd1E5d784DB3f7Ba6c394AC450fC"
             },
             "USDC": {
                 "address": "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
-                "aggregator": "0x7b0cc121ABd20ACd77482b5aa95126db2e597987",
+                "aggregator": "0x612741825ACedC6F88D8709319fe65bCB015C693",
                 "oracle": "0x181900d998A8a922E68b3fc186CE0Fa525c3C424"
             },
             "WBTC": {
