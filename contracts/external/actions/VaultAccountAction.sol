@@ -183,7 +183,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
         
         // Transfers any net deposit or withdraw from the account
-        vaultAccount.transferTempCashBalance(vaultConfig.borrowCurrencyId, useUnderlying);
+        vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
 
         if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0 && vaultAccount.escrowedAssetCash == 0) {
             // If the account has no position in the vault at this point, set the maturity to zero as well

@@ -1,5 +1,9 @@
+import logging
+
 import brownie
 import pytest
+from brownie import MockCToken, MockERC20
+from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
@@ -148,16 +152,89 @@ def test_settle_account_escrowed_cash_insolvent(vaultConfig, accounts, vault):
     assert accountAfter.dict()["tempCashBalance"] == -10e8
 
 
+@given(
+    currencyId=strategy("uint16", min_value=1, max_value=3),
+    tempCashBalance=strategy("uint88", min_value=100_000e8, max_value=100_000_000e8),
+    useUnderlying=strategy("bool"),
+)
+def test_transfer_cash_underlying_positive(
+    cTokenVaultConfig, accounts, currencyId, useUnderlying, tempCashBalance
+):
+    account = get_vault_account(tempCashBalance=Wei(tempCashBalance))
+    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
+    cToken = MockCToken.at(assetToken["tokenAddress"])
+    cToken.transfer(cTokenVaultConfig.address, 125_000_000e8, {"from": accounts[0]})
+
+    if useUnderlying:
+        token = MockERC20.at(underlyingToken["tokenAddress"])
+        balanceBefore = token.balanceOf(accounts[0])
+        expectedBalanceChange = Wei((tempCashBalance * cToken.exchangeRateStored()) / 1e18)
+    else:
+        token = MockCToken.at(assetToken["tokenAddress"])
+        balanceBefore = token.balanceOf(accounts[0])
+        expectedBalanceChange = tempCashBalance
+
+    accountAfter = cTokenVaultConfig.transferTempCashBalance(
+        account, currencyId, useUnderlying
+    ).return_value
+    balanceAfter = token.balanceOf(accounts[0])
+
+    if useUnderlying and currencyId == 1:
+        assert pytest.approx(balanceAfter - balanceBefore, abs=1e11) == expectedBalanceChange
+    elif useUnderlying:
+        assert pytest.approx(balanceAfter - balanceBefore, abs=2) == expectedBalanceChange
+    else:
+        assert balanceAfter - balanceBefore == expectedBalanceChange
+
+    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
+    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
+    assert accountAfter["tempCashBalance"] == 0
+
+
+@given(
+    currencyId=strategy("uint16", min_value=1, max_value=3),
+    tempCashBalance=strategy("uint88", min_value=100_000e8, max_value=100_000_000e8),
+    useUnderlying=strategy("bool"),
+)
+def test_transfer_cash_underlying_negative(
+    cTokenVaultConfig, accounts, currencyId, useUnderlying, tempCashBalance
+):
+    account = get_vault_account(tempCashBalance=-Wei(tempCashBalance))
+    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
+
+    if useUnderlying:
+        token = MockERC20.at(underlyingToken["tokenAddress"])
+        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
+        balanceBefore = token.balanceOf(accounts[0])
+        cToken = MockCToken.at(assetToken["tokenAddress"])
+        expectedBalanceChange = Wei((tempCashBalance * cToken.exchangeRateStored()) / 1e18)
+    else:
+        token = MockCToken.at(assetToken["tokenAddress"])
+        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
+        balanceBefore = token.balanceOf(accounts[0])
+        expectedBalanceChange = tempCashBalance
+
+    accountAfter = cTokenVaultConfig.transferTempCashBalance(
+        account, currencyId, useUnderlying
+    ).return_value
+    balanceAfter = token.balanceOf(accounts[0])
+
+    if useUnderlying and currencyId == 1:
+        assert pytest.approx(balanceBefore - balanceAfter, abs=1e11) == expectedBalanceChange
+    elif useUnderlying:
+        assert pytest.approx(balanceBefore - balanceAfter, abs=2) == expectedBalanceChange
+    else:
+        assert balanceBefore - balanceAfter == expectedBalanceChange
+
+    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
+    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
+    assert accountAfter["tempCashBalance"] == 0
+
+
 # def test_deposit_asset_token_larger_decimals(vaultState):
 #     pass
 
 # def test_deposit_asset_token_smaller_decimals(vaultState):
-#     pass
-
-# def test_deposit_aave_token_larger_decimals(vaultState):
-#     pass
-
-# def test_deposit_aave_token_smaller_decimals(vaultState):
 #     pass
 
 # def test_deposit_underlying_token_larger_decimals(vaultState):
@@ -166,20 +243,16 @@ def test_settle_account_escrowed_cash_insolvent(vaultConfig, accounts, vault):
 # def test_deposit_underlying_token_smaller_decimals(vaultState):
 #     pass
 
-# def test_transfer_cash_asset_token_larger_decimals(vaultState):
+
+# def test_deposit_aave_token_larger_decimals(vaultState):
 #     pass
 
-# def test_transfer_cash_asset_token_smaller_decimals(vaultState):
+# def test_deposit_aave_token_smaller_decimals(vaultState):
 #     pass
+
 
 # def test_transfer_cash_aave_token_larger_decimals(vaultState):
 #     pass
 
 # def test_transfer_cash_aave_token_smaller_decimals(vaultState):
-#     pass
-
-# def test_transfer_cash_underlying_token_larger_decimals(vaultState):
-#     pass
-
-# def test_transfer_cash_underlying_token_smaller_decimals(vaultState):
 #     pass

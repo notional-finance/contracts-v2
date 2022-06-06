@@ -180,6 +180,29 @@ contract MockVaultConfiguration {
         return vaultAccount.requiresSettlement();
     }
 
+    function depositIntoAccount(
+        VaultAccount memory vaultAccount,
+        address transferFrom,
+        uint16 borrowCurrencyId,
+        uint256 _depositAmountExternal,
+        bool useUnderlying
+    ) external returns (VaultAccount memory) {
+        vaultAccount.depositIntoAccount(transferFrom, borrowCurrencyId, _depositAmountExternal, useUnderlying);
+        return vaultAccount;
+    }
+
+    function transferTempCashBalance(
+        VaultAccount memory vaultAccount,
+        uint16 borrowCurrencyId,
+        bool useUnderlying
+    ) external returns (VaultAccount memory) {
+        VaultConfig memory vaultConfig;
+        vaultConfig.borrowCurrencyId = borrowCurrencyId;
+        vaultConfig.assetRate = AssetRate.buildAssetRateStateful(borrowCurrencyId);
+        vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
+        return vaultAccount;
+    }
+
 
     /*** Set Other Globals ***/
 

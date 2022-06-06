@@ -34,6 +34,41 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenAggregator, accounts, unde
     return mockVaultConf
 
 
+@pytest.fixture(scope="module")
+def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenAggregator, MockERC20, accounts):
+    mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
+
+    for currencyId in range(1, 4):
+        cToken = MockCToken.deploy(8, {"from": accounts[0]})
+        if currencyId == 1:
+            underlying = MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
+            underlying.transfer(cToken, 100_000_000e18, {"from": accounts[0]})
+            cToken.setAnswer(0.02e28)
+        elif currencyId == 2:
+            underlying = MockERC20.deploy("TEST", "TEST", 8, 0, {"from": accounts[0]})
+            underlying.transfer(cToken, 100_000_000e8, {"from": accounts[0]})
+            cToken.setAnswer(0.02e18)
+        elif currencyId == 3:
+            underlying = MockERC20.deploy("USDC", "USDC", 6, 0, {"from": accounts[0]})
+            underlying.transfer(cToken, 100_000_000e6, {"from": accounts[0]})
+            cToken.setAnswer(0.02e16)
+
+        cToken.setUnderlying(underlying)
+        aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+
+        mockVaultConf.setToken(
+            currencyId,
+            aggregator.address,
+            underlying.decimals(),
+            (cToken.address, False, TokenType["cToken"], 8, 0),
+            (underlying.address, True, TokenType["UnderlyingToken"], underlying.decimals(), 0),
+            accounts[10 - currencyId].address,
+            {"from": accounts[0]},
+        )
+
+    return mockVaultConf
+
+
 @pytest.fixture(scope="module", autouse=True)
 def vault(SimpleStrategyVault, vaultConfig, accounts):
     return SimpleStrategyVault.deploy(

@@ -546,14 +546,15 @@ library VaultAccountLib {
     /**
      * @notice Transfers into and out of an account's temporary cash balance
      * @param vaultAccount vault account object
-     * @param borrowCurrencyId the currency id to transfer
+     * @param vaultConfig the current vault configuration
      * @param useUnderlying if true then use the underlying token
      */
     function transferTempCashBalance(
         VaultAccount memory vaultAccount,
-        uint16 borrowCurrencyId,
+        VaultConfig memory vaultConfig,
         bool useUnderlying
     ) internal {
+        uint16 borrowCurrencyId = vaultConfig.borrowCurrencyId;
         Token memory assetToken = TokenHandler.getAssetToken(borrowCurrencyId);
         // If tempCashBalance > 0 then we want to transfer it back to the user, and the netTransferAmount will be < 0,
         // considered from the Notional perspective.
@@ -569,14 +570,36 @@ library VaultAccountLib {
             }
             vaultAccount.tempCashBalance = 0;
         } else {
-            return depositIntoAccount(
+            int256 dustLimit = 0;
+            if (useUnderlying) {
+                Token memory underlyingToken = TokenHandler.getUnderlyingToken(borrowCurrencyId);
+                netTransferAmountExternal = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                    vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance.neg())
+                );
+
+                // There is the possibility of dust values accruing when using underlying tokens to
+                // deposit into the protocol due to rounding issues between native token precision and
+                // Notional 8 decimal internal precision.
+                // TODO: provide some more analysis and justification here
+                if (underlyingToken.decimals < Constants.INTERNAL_TOKEN_PRECISION) {
+                    dustLimit = 10_000;
+                } else {
+                    dustLimit = 100;
+                }
+            }
+
+            depositIntoAccount(
                 vaultAccount,
                 vaultAccount.account,
                 borrowCurrencyId,
                 netTransferAmountExternal.toUint(),
                 useUnderlying
             );
-        }
 
+            // Any dust cleared here will accrue to the protocol, it will always be greater than zero
+            // meaning that the protocol will never lose cash as a result.
+            require(0 <= vaultAccount.tempCashBalance && vaultAccount.tempCashBalance <= dustLimit);
+            vaultAccount.tempCashBalance = 0;
+        }
     }
 }

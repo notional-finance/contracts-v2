@@ -329,7 +329,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         if (vaultAccount.tempCashBalance >= 0) {
             // TODO: need to authenticate that there is not excess vault shares sold here...
             // Return excess asset cash to the account
-            vaultAccount.transferTempCashBalance(vaultConfig.borrowCurrencyId, false);
+            vaultAccount.transferTempCashBalance(vaultConfig, false);
         } else {
             // Account is insolvent here, add the balance to the shortfall required
             // and clear the account requiring settlement
