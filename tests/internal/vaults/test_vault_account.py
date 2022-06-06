@@ -231,17 +231,40 @@ def test_transfer_cash_underlying_negative(
     assert accountAfter["tempCashBalance"] == 0
 
 
-# def test_deposit_asset_token_larger_decimals(vaultState):
-#     pass
+@given(
+    currencyId=strategy("uint16", min_value=1, max_value=3),
+    depositAmount=strategy("uint88", min_value=100_000, max_value=100_000_000),
+    useUnderlying=strategy("bool"),
+)
+def test_deposit_into_account(
+    cTokenVaultConfig, accounts, currencyId, useUnderlying, depositAmount
+):
+    account = get_vault_account()
+    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
 
-# def test_deposit_asset_token_smaller_decimals(vaultState):
-#     pass
+    if useUnderlying:
+        token = MockERC20.at(underlyingToken["tokenAddress"])
+        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
+        balanceBefore = token.balanceOf(accounts[0])
+        cToken = MockCToken.at(assetToken["tokenAddress"])
+        depositAmount = depositAmount * (10 ** token.decimals())
+        expectedTempCash = Wei((depositAmount * 1e18) / cToken.exchangeRateStored())
+    else:
+        token = MockCToken.at(assetToken["tokenAddress"])
+        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
+        balanceBefore = token.balanceOf(accounts[0])
+        depositAmount = depositAmount * (10 ** token.decimals())
+        expectedTempCash = depositAmount
 
-# def test_deposit_underlying_token_larger_decimals(vaultState):
-#     pass
+    accountAfter = cTokenVaultConfig.depositIntoAccount(
+        account, accounts[0], currencyId, depositAmount, useUnderlying
+    ).return_value
+    balanceAfter = token.balanceOf(accounts[0])
+    assert balanceBefore - balanceAfter == depositAmount
 
-# def test_deposit_underlying_token_smaller_decimals(vaultState):
-#     pass
+    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
+    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
+    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == expectedTempCash
 
 
 # def test_deposit_aave_token_larger_decimals(vaultState):

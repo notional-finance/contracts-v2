@@ -12,7 +12,7 @@ contract MockCToken is ERC20 {
     event AccrueInterest(uint cashPrior, uint interestAccumulated, uint borrowIndex, uint totalBorrows);
 
     constructor(uint8 decimals_) ERC20("cMock", "cMock") {
-        _decimals = _decimals;
+        _decimals = decimals_;
         _mint(msg.sender, type(uint80).max);
     }
 
