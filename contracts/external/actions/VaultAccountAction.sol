@@ -361,4 +361,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
     }
+
+    function getLibInfo() external pure returns (address) {
+        return address(TradingAction);
+    }
 }

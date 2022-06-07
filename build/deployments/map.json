@@ -249,17 +249,24 @@
       "0x613f379A4D65A62B7843379a5E7071e52528631f"
     ],
     "Router": [
-      "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174",
-      "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9"
+      "0x5935CbbAc64aF695B8f29d23c561Fa310D4B374a",
+      "0x46f388C42b0FD4C3A47A9b8E5125Fe0258A3f6D9",
+      "0xf1DB1b2C62380Dd170906aA0d0Ea653A1AEdD174"
     ],
     "SettleAssetsExternal": [
       "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
     ],
     "TradingAction": [
-      "0x917F709CAb62163Ea9298cDfa3db485a7f0F091a"
+      "0x5D317279acad5D1234B9a43A8b104c5C2f6B028F"
     ],
     "TreasuryAction": [
       "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321"
+    ],
+    "VaultAccountAction": [
+      "0x3F18259648D24FDe155708fc78679FB9f0748Ae8"
+    ],
+    "VaultAction": [
+      "0x0e4ca92b71f283C6DfBffd21a05F7aDfC1b28D64"
     ],
     "Views": [
       "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",

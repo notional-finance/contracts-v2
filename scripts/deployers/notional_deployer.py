@@ -16,6 +16,8 @@ from brownie import (
     SettleAssetsExternal,
     TradingAction,
     TreasuryAction,
+    VaultAccountAction,
+    VaultAction,
     Views,
     nProxy,
     nTokenAction,
@@ -127,6 +129,8 @@ class NotionalDeployer:
         self._deployAction(deployer, LiquidateCurrencyAction)
         self._deployAction(deployer, LiquidatefCashAction)
         self._deployAction(deployer, TreasuryAction, [self.config["compound"]["comptroller"]])
+        self._deployAction(deployer, VaultAccountAction)
+        self._deployAction(deployer, VaultAction)
 
     def _deployRouter(self, deployer, contract, args=[]):
         if contract._name in self.routers:
@@ -163,18 +167,22 @@ class NotionalDeployer:
             deployer,
             Router,
             [
-                self.actions["GovernanceAction"],
-                self.actions["Views"],
-                self.actions["InitializeMarketsAction"],
-                self.actions["nTokenAction"],
-                self.actions["BatchAction"],
-                self.actions["AccountAction"],
-                self.actions["ERC1155Action"],
-                self.actions["LiquidateCurrencyAction"],
-                self.actions["LiquidatefCashAction"],
-                self.config["compound"]["ctokens"]["ETH"]["address"],
-                self.actions["TreasuryAction"],
-                self.actions["CalculationViews"],
+                (
+                    self.actions["GovernanceAction"],
+                    self.actions["Views"],
+                    self.actions["InitializeMarketsAction"],
+                    self.actions["nTokenAction"],
+                    self.actions["BatchAction"],
+                    self.actions["AccountAction"],
+                    self.actions["ERC1155Action"],
+                    self.actions["LiquidateCurrencyAction"],
+                    self.actions["LiquidatefCashAction"],
+                    self.config["compound"]["ctokens"]["ETH"]["address"],
+                    self.actions["TreasuryAction"],
+                    self.actions["CalculationViews"],
+                    self.actions["VaultAccountAction"],
+                    self.actions["VaultAction"],
+                )
             ],
         )
 
