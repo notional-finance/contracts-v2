@@ -94,6 +94,10 @@
         },
         "WETH": {
             "address": "0x04B9c40dF01bdc99dd2c31Ae4B232f20F4BBaC5B"
+        },
+        "wstETH": {
+            "address": "0x5Ca3cd3467e307D5841b81E8A6C6652F717229BF",
+            "oracle": "0xD803E586EDc74732539230B5CC383c8C66dEB3C3"
         }
     }
 }

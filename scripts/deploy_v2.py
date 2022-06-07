@@ -17,6 +17,7 @@ def deployTokens(deployer):
     tokens.deployERC20("Notional USDC", "USDC", 6, 0)
     tokens.deployERC20("Notional WBTC", "WBTC", 8, 0)
     tokens.deployERC20("Notional COMP", "COMP", 18, 0)
+    tokens.deployERC20("Notional wstETH", "wstETH", 18, 0)
 
 
 def deployCompound(deployer):
