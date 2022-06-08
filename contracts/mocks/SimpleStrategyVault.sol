@@ -14,10 +14,9 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     constructor(
         string memory name_,
-        string memory symbol_,
         address notional_,
         uint16 borrowCurrencyId_
-    ) BaseStrategyVault(name_, symbol_, notional_, borrowCurrencyId_, true, true) { }
+    ) BaseStrategyVault(name_, notional_, borrowCurrencyId_, true, true) { }
 
     // Vaults need to implement these two methods
     function _depositFromNotional(
@@ -26,7 +25,6 @@ contract SimpleStrategyVault is BaseStrategyVault {
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
         strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
-        _mint(address(NOTIONAL), strategyTokensMinted);
     }
 
     function _redeemFromNotional(
@@ -34,7 +32,6 @@ contract SimpleStrategyVault is BaseStrategyVault {
         uint256 maturity,
         bytes calldata data
     ) internal override returns (uint256 assetTokensToTransfer) {
-        _burn(address(NOTIONAL), strategyTokens);
         return strategyTokens * _tokenExchangeRate * 1e10 / 1e18;
     }
 
@@ -42,12 +39,12 @@ contract SimpleStrategyVault is BaseStrategyVault {
         if (_forceSettle) return true;
 
         (int256 assetCashToSettle, /* */) = NOTIONAL.getCashRequiredToSettle(address(this), maturity);
-        return assetCashToSettle <= 0 || totalSupply() == 0;
+        return assetCashToSettle <= 0;
     }
 
-    function convertStrategyToUnderlying(uint256 strategyTokens) public view override returns (uint256 underlyingValue) {
+    function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view override returns (uint256 underlyingValue) {
         return (strategyTokens * _tokenExchangeRate * 1e10) / 1e18;
     }
 
-    function isInSettlement() external view override returns (bool) { return _inSettlement; }
+    function isInSettlement(uint256 maturity) external view override returns (bool) { return _inSettlement; }
 }

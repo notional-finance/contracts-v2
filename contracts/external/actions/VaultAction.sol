@@ -193,6 +193,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             maturity <= block.timestamp &&
             settleAccounts.length == vaultSharesToRedeem.length &&
             vaultState.isFullySettled == false &&
+            // TODO: is this method necessary?
             IStrategyVault(vault).canSettleMaturity(maturity),
             "Cannot Settle"
         );
@@ -230,6 +231,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             //
             // If for some reason every account is insolvent in the vault, then we would still need
             // to redeem all the tokens before we could declare a shortfall in the vault.
+            // TODO: this will likely cause a partial settlement of accounts to fail...
             require(vaultState.totalStrategyTokens == 0, "Redeem all tokens");
             assetCashShortfall = assetCashShortfall.add((assetCashRequiredToSettle - vaultState.totalAssetCash).toInt());
             vaultState.totalAssetCash = 0;

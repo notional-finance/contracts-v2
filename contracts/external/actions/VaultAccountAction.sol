@@ -46,8 +46,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         // Vaults cannot be entered if they are paused
+        uint256 maturity = vaultConfig.getCurrentMaturity(block.timestamp);
         require(
-            vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(),
+            vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(maturity),
             "Cannot Enter"
         );
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
@@ -69,7 +70,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultAccount.fCash = 0;
         }
 
-        uint256 maturity = vaultConfig.getCurrentMaturity(block.timestamp);
         vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData);
     }
 
@@ -107,7 +107,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) &&
             vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) &&
-            IStrategyVault(vault).isInSettlement() && // vault must be in its settlement period
+            IStrategyVault(vault).isInSettlement(currentMaturity) && // vault must be in its settlement period
             vaultAccount.maturity == currentMaturity && // must be in the active maturity
             fCashToBorrow > 0, // must borrow into the next maturity, if not, then they should just exit
             "No Roll Allowed"

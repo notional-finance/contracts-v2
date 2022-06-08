@@ -191,7 +191,9 @@ library VaultStateLib {
     ) internal view returns (int256 assetCashValue, int256 assetCashHeld) {
         if (vaultShares == 0) return (0, 0);
         (uint256 _assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
-        uint256 underlyingValue = IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(strategyTokens);
+        uint256 underlyingValue = IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(
+            strategyTokens, vaultState.maturity
+        );
 
         // Generally speaking, asset cash held in the maturity pool is held in escrow for repaying the
         // vault debt. This may not always be the case, vaults may hold asset cash during a risk-off event

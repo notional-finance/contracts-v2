@@ -207,7 +207,7 @@ library VaultConfiguration {
         mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
 
         uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
-        bool isInSettlement = IStrategyVault(vaultConfig.vault).isInSettlement();
+        bool isInSettlement = IStrategyVault(vaultConfig.vault).isInSettlement(currentMaturity);
         
         // First, handle the current vault state
         if (currentMaturity == vaultState.maturity) {

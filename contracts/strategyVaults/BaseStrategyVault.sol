@@ -3,7 +3,7 @@ pragma solidity =0.8.11;
 pragma abicoder v2;
 
 import {Token, TokenType} from "../global/Types.sol";
-import {IStrategyVaultCustom} from "../../../interfaces/notional/IStrategyVault.sol";
+import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
 import {IVaultController} from "../../../interfaces/notional/IVaultController.sol";
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
@@ -12,13 +12,13 @@ import {ILendingPool} from "../../interfaces/aave/ILendingPool.sol";
 import {CErc20Interface} from "../../../../interfaces/compound/CErc20Interface.sol";
 import {CEtherInterface} from "../../../../interfaces/compound/CEtherInterface.sol";
 
-abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
+abstract contract BaseStrategyVault is IStrategyVault {
     using SafeERC20 for ERC20;
 
     /** These view methods need to be implemented by the vault */
     function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
-    function convertStrategyToUnderlying(uint256 strategyTokens) public view virtual returns (uint256 underlyingValue);
-    function isInSettlement() external view virtual returns (bool);
+    function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view virtual returns (uint256 underlyingValue);
+    function isInSettlement(uint256 maturity) external view virtual returns (bool);
     
     // Vaults need to implement these two methods
     function _depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
@@ -35,7 +35,8 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
     // Return code for cTokens that represents no error
     uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
     uint8 constant internal INTERNAL_TOKEN_DECIMALS = 8;
-    function decimals() public view override returns (uint8) { return INTERNAL_TOKEN_DECIMALS; }
+    string public override name;
+    function decimals() public view returns (uint8) { return INTERNAL_TOKEN_DECIMALS; }
 
     modifier onlyNotional() {
         require(msg.sender == address(NOTIONAL));
@@ -44,12 +45,12 @@ abstract contract BaseStrategyVault is ERC20, IStrategyVaultCustom {
 
     constructor(
         string memory name_,
-        string memory symbol_,
         address notional_,
         uint16 borrowCurrencyId_,
         bool setApproval,
         bool useUnderlyingToken
-    ) ERC20(name_, symbol_) {
+    ) {
+        name = name_;
         NOTIONAL = NotionalProxy(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
         USE_UNDERLYING_TOKEN = useUnderlyingToken;
