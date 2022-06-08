@@ -80,14 +80,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      *
      * @param account the address that will reenter the vault
      * @param vault the vault to reenter
-     * @param vaultSharesToRedeem the amount of vault shares to redeem for asset tokens
      * @param fCashToBorrow amount of fCash to borrow in the next maturity
      * @param opts struct with slippage limits and data to send to vault
      */
     function rollVaultPosition(
         address account,
         address vault,
-        uint256 vaultSharesToRedeem,
         uint256 fCashToBorrow,
         RollVaultOpts calldata opts
     ) external override nonReentrant {
@@ -117,7 +115,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // back into the cash balance.
         vaultAccount.redeemVaultSharesAndLend(
             vaultConfig,
-            vaultSharesToRedeem,
+            0, // Don't redeem vault shares when we roll a position
             // NOTE: the vault will receive its share of the asset cash held in escrow for settlement here
             vaultAccount.fCash.neg(), // must fully exit the fCash position
             opts.minLendRate,

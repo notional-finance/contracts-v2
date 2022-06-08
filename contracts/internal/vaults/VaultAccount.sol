@@ -119,11 +119,7 @@ library VaultAccountLib {
         if (requiresSettlementPrior == false) {
             // A vault must be fully settled for an account to settle. Most vaults should be able to settle
             // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
-            // they can settle (i.e. some vaults may be trading between two fCash currencies). Those vaults must
-            // be settled within 24 hours of maturity expiration and before the staked nToken unstaking window begins.
-            // For accounts that are within these vaults, they will face a period of time (< 24 hours) where they cannot
-            // exit until the vault is settled. Vault settlement should be permissionless so this should not create
-            // significant issues.
+            // they can settle (i.e. some vaults may be trading between two fCash currencies).
             require(vaultState.isFullySettled, "Vault not settled");
 
             // Update the vault account in memory
@@ -304,14 +300,16 @@ library VaultAccountLib {
         // prior to setting the vault account's fCash to zero. Save off the requiresSettlement flag
         // prior to strategyToken redemption.
         bool requiresSettlementPrior = requiresSettlement(vaultAccount);
-        // When an account exits the maturity pool it may get some asset cash credited to its temp
-        // cash balance and it will sell the strategy tokens it has a claim on.
-        uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+        if (vaultSharesToRedeem > 0) {
+            // When an account exits the maturity pool it may get some asset cash credited to its temp
+            // cash balance and it will sell the strategy tokens it has a claim on.
+            uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
 
-        // Redeems and updates temp cash balance
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-            vaultConfig.redeem(strategyTokens, vaultState.maturity, vaultData)
-        );
+            // Redeems and updates temp cash balance
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+                vaultConfig.redeem(strategyTokens, vaultState.maturity, vaultData)
+            );
+        }
 
         if (vaultAccount.maturity <= block.timestamp) {
             settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp, requiresSettlementPrior);

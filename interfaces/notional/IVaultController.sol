@@ -110,7 +110,6 @@ interface IVaultAccountAction {
     function rollVaultPosition(
         address account,
         address vault,
-        uint256 vaultSharesToRedeem,
         uint256 fCashToBorrow,
         RollVaultOpts calldata opts
     ) external;
