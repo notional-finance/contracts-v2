@@ -100,20 +100,25 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             "No Roll Allowed"
         );
 
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
+        // Exit the maturity pool by removing all the vault shares. All of the strategy tokens will be
+        // re-deposited into the new maturity
+        uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultAccount.vaultShares);
+
         // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
         // back into the cash balance.
-        vaultAccount.redeemVaultSharesAndLend(
+        vaultAccount.lendToExitVault(
             vaultConfig,
-            0, // Don't redeem vault shares when we roll a position
-            // NOTE: the vault will receive its share of the asset cash held in escrow for settlement here
+            vaultState,
             vaultAccount.fCash.neg(), // must fully exit the fCash position
             opts.minLendRate,
-            opts.exitVaultData
+            block.timestamp
         );
 
         // This should never be the case for a healthy vault account due to the mechanics of exiting the vault
         // above but we check it for safety here.
         require(vaultAccount.fCash == 0, "Failed Lend");
+        vaultState.setVaultState(vaultConfig.vault);
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
         vaultAccount.borrowAndEnterVault(
@@ -122,7 +127,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             fCashToBorrow,
             opts.maxBorrowRate,
             opts.enterVaultData,
-            0 // TODO: fix this
+            strategyTokens
         );
     }
 
@@ -167,12 +172,25 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultConfig.redeem(strategyTokens, maturity, exitVaultData)
             );
         } else {
-            VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
+            VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
+
+            if (vaultSharesToRedeem > 0) {
+                // When an account exits the maturity pool it may get some asset cash credited to its temp
+                // cash balance and it will sell the strategy tokens it has a claim on.
+                uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+
+                // Redeems and updates temp cash balance
+                vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+                    vaultConfig.redeem(strategyTokens, vaultState.maturity, exitVaultData)
+                );
+            }
+
+            vaultAccount.lendToExitVault(
                 vaultConfig,
-                vaultSharesToRedeem,
+                vaultState,
                 SafeInt256.toInt(fCashToLend),
                 minLendRate,
-                exitVaultData
+                block.timestamp
             );
                 
             if (vaultAccount.fCash < 0) {
@@ -181,6 +199,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash,
                     vaultAccount.escrowedAssetCash);
             }
+
+            vaultState.setVaultState(vaultConfig.vault);
         }
 
         // Transfers any net deposit or withdraw from the account
@@ -277,6 +297,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.setVaultAccount(vaultConfig);
 
         // Redeems the vault shares for asset cash and transfers it to the designated address
+        // TODO: turn this into an option
         if (vaultConfig.getFlag(VaultConfiguration.TRANSFER_SHARES_ON_DELEVERAGE)) {
             vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);

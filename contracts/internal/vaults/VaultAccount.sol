@@ -303,43 +303,6 @@ library VaultAccountLib {
         vaultConfig.checkTotalBorrowCapacity(vaultState, blockTime);
     }
 
-    function redeemVaultSharesAndLend(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        uint256 vaultSharesToRedeem,
-        int256 fCashToLend,
-        uint32 minLendRate,
-        bytes calldata vaultData
-    ) internal returns (VaultState memory vaultState) {
-        vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
-
-        if (vaultSharesToRedeem > 0) {
-            // When an account exits the maturity pool it may get some asset cash credited to its temp
-            // cash balance and it will sell the strategy tokens it has a claim on.
-            uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
-
-            // Redeems and updates temp cash balance
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                vaultConfig.redeem(strategyTokens, vaultState.maturity, vaultData)
-            );
-        }
-
-        _lendToExitVault(
-            vaultAccount,
-            vaultConfig,
-            vaultState,
-            fCashToLend,
-            minLendRate,
-            block.timestamp
-        );
-
-        vaultState.setVaultState(vaultConfig.vault);
-
-        // Don't set the account here, depending on roll or exit we have different mechanics. We also don't
-        // check collateral ratio here, during roll it will happen at the end. During exit it will happen just after
-        // this method completes
-    }
-
     /**
      * @notice Allows an account to exit a vault term prematurely by lending fCash.
      * @dev Updates vault fCash in storage, updates vaultAccount in memory.
@@ -350,14 +313,14 @@ library VaultAccountLib {
      * @param minLendRate minimum rate to lend at
      * @param blockTime current block time
      */
-    function _lendToExitVault(
+    function lendToExitVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         int256 fCash,
         uint32 minLendRate,
         uint256 blockTime
-    ) private {
+    ) internal {
         // Don't allow the vault to lend to positive fCash
         require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
         
