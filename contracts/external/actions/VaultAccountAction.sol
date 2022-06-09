@@ -53,24 +53,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         );
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
+        uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        if (vaultAccount.maturity < block.timestamp && vaultAccount.fCash != 0) {
-            // A matured vault account that still requires settlement has to be settled via a separate
-            // method and should not be able to reach this point. (Vaults requiring settlement that are not
-            // yet matured will bypass this if condition and can safely re-enter a vault). Additionally, the
-            // vault must be fully settled before we can clear the account's fCash debts.
-            // Code here is the same as VaultAccountLib.settleVaultAccount but does not do any settlement
-            // of of escrowed accounts and does not modify matured state.
-            VaultState memory maturedState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
-            require(vaultAccount.requiresSettlement() == false && maturedState.isFullySettled, "Unable to Settle");
-            vaultAccount.fCash = 0;
-        }
-
-        vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData);
+        vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens);
     }
 
     /**
@@ -124,7 +113,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // This should never be the case for a healthy vault account due to the mechanics of exiting the vault
         // above but we check it for safety here.
-        require(vaultAccount.fCash == 0 && vaultAccount.requiresSettlement() == false, "Failed Lend");
+        require(vaultAccount.fCash == 0, "Failed Lend");
 
         // Borrows into the vault, paying nToken fees and checks borrow capacity
         vaultAccount.borrowAndEnterVault(
@@ -132,7 +121,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
             fCashToBorrow,
             opts.maxBorrowRate,
-            opts.enterVaultData
+            opts.enterVaultData,
+            0 // TODO: fix this
         );
     }
 
@@ -165,21 +155,34 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
-        
-        VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
-            vaultConfig,
-            vaultSharesToRedeem,
-            SafeInt256.toInt(fCashToLend),
-            minLendRate,
-            exitVaultData
-        );
-            
-        if (vaultAccount.fCash < 0) {
-            // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
-            // will be increasing their collateral ratio here, so we check that this is the case).
-            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+
+        if (vaultAccount.maturity <= block.timestamp) {
+            // Safe this off because settleVaultAccount will clear the maturity
+            uint256 maturity = vaultAccount.maturity;
+            // Past maturity, a vault cannot lend anymore. When they exit they will just be settling.
+            uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
+
+            // Redeems all strategy tokens and updates temp cash balance
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+                vaultConfig.redeem(strategyTokens, maturity, exitVaultData)
+            );
+        } else {
+            VaultState memory vaultState = vaultAccount.redeemVaultSharesAndLend(
+                vaultConfig,
+                vaultSharesToRedeem,
+                SafeInt256.toInt(fCashToLend),
+                minLendRate,
+                exitVaultData
+            );
+                
+            if (vaultAccount.fCash < 0) {
+                // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
+                // will be increasing their collateral ratio here, so we check that this is the case).
+                vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash,
+                    vaultAccount.escrowedAssetCash);
+            }
         }
-        
+
         // Transfers any net deposit or withdraw from the account
         vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
 
@@ -257,7 +260,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
         // fCash market against the account and put them in an insolvent position. All the cash balance deposited
         // goes into the escrowed asset cash balance.
-        vaultAccount.increaseEscrowedAssetCash(vaultState, vaultAccount.tempCashBalance);
+        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
+        vaultAccount.tempCashBalance = 0;
 
         // Ensure that the collateral ratio does not increase too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete
@@ -350,7 +354,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
         minCollateralRatio = vaultConfig.minCollateralRatio;
 
-        if (vaultState.isFullySettled && vaultAccount.requiresSettlement() == false) {
+        if (vaultState.isSettled) {
             // In this case, the maturity has been settled and although the vault account says that it has
             // some fCash balance it does not actually owe any debt anymore.
             collateralRatio = type(int256).max;

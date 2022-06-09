@@ -117,9 +117,10 @@ contract MockVaultConfiguration {
         address vault,
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
+        uint256 strategyTokenDeposit,
         bytes calldata vaultData
     ) external returns (VaultState memory, VaultAccount memory) {
-        vaultState.enterMaturityPool(vaultAccount, getVaultConfigView(vault), vaultData);
+        vaultState.enterMaturityPool(vaultAccount, getVaultConfigView(vault), strategyTokenDeposit, vaultData);
         return (vaultState, vaultAccount);
     }
 
@@ -163,21 +164,11 @@ contract MockVaultConfiguration {
     function settleVaultAccount(
         address vault,
         VaultAccount memory vaultAccount,
-        VaultState memory vaultState,
         uint256 blockTime
-    ) external returns (VaultAccount memory, VaultState memory) {
-        vaultAccount.settleVaultAccount(
-            getVaultConfigView(vault),
-            vaultState,
-            blockTime,
-            vaultAccount.requiresSettlement()
-        );
+    ) external returns (VaultAccount memory, uint256) {
+        uint256 strategyTokens = vaultAccount.settleVaultAccount(getVaultConfigView(vault), blockTime);
 
-        return (vaultAccount, vaultState);
-    }
-
-    function requiresSettlement(VaultAccount memory vaultAccount) external pure returns (bool) {
-        return vaultAccount.requiresSettlement();
+        return (vaultAccount, strategyTokens);
     }
 
     function depositIntoAccount(

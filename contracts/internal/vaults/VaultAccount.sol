@@ -3,7 +3,7 @@ pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 import {VaultAccount, VaultAccountStorage, TradeActionType} from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
@@ -26,7 +26,7 @@ library VaultAccountLib {
     using Market for MarketParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     // As a storage optimization to keep VaultAccountStorage inside bytes32, we store the maturity as epochs
     // from an arbitrary start time before we've deployed this feature. This allows us to have 65536 epochs
@@ -99,87 +99,104 @@ library VaultAccountLib {
     }
 
     /**
-     * @notice Settles a vault account that has a position in a matured vault. This clears
-     * the fCash balance off both the vault account and the vault state, crediting back to
-     * the vault account any excess asset cash they have accrued since the settlement.
+     * @notice Settles a vault account that has a position in a matured vault.
      * @param vaultAccount the account's position in the vault
      * @param vaultConfig configuration for the given vault
      * @param blockTime current block time
+     * @return strategyTokenClaim the amount of strategy tokens the account has left over
      */
     function settleVaultAccount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime,
-        bool requiresSettlementPrior
-    ) internal {
-        // These conditions mean that the vault account does not require settlement
-        if (blockTime < vaultAccount.maturity || vaultAccount.fCash == 0) return;
+        uint256 blockTime
+    ) internal returns (uint256) {
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
+        require(vaultState.isSettled, "Not Settled");
 
-        if (requiresSettlementPrior == false) {
-            // A vault must be fully settled for an account to settle. Most vaults should be able to settle
-            // to be fully settled before maturity. However, some vaults may expect fCash to have matured before
-            // they can settle (i.e. some vaults may be trading between two fCash currencies).
-            require(vaultState.isFullySettled, "Vault not settled");
+        AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
+            vaultConfig.borrowCurrencyId,
+            vaultAccount.maturity,
+            blockTime
+        );
 
-            // Update the vault account in memory
-            vaultAccount.fCash = 0;
+        int256 totalStrategyTokenValueAtSettlement = vaultState.totalStrategyTokens.toInt()
+                .mul(vaultState.settlementStrategyTokenValue)
+                .div(Constants.INTERNAL_TOKEN_PRECISION);
 
-            // At this point, the account has cleared its fCash balance on the vault and can re-enter a new vault maturity.
-            // In all likelihood, it still has some balance of vaultShares on the vault. If it wants to re-enter a vault
-            // these shares will be considered as part of its netAssetValue for its collateral ratio.
-        } else {
-            AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
-                vaultConfig.borrowCurrencyId,
-                vaultAccount.maturity,
-                blockTime
-            );
-            settleEscrowedAccount(vaultAccount, vaultState, settlementRate);
-        }
-    }
+        int256 accountValueAtSettlement = _getAccountValueAtSettlement(
+            vaultAccount,
+            vaultState,
+            settlementRate,
+            totalStrategyTokenValueAtSettlement
+        );
 
-    function settleEscrowedAccount(
-        VaultAccount memory vaultAccount,
-        VaultState memory vaultState,
-        AssetRateParameters memory settlementRate
-    ) internal pure {
-        // This is a positive number
-        int256 assetCashToRepayfCash = settlementRate.convertFromUnderlying(vaultAccount.fCash).neg();
+        // Next, it will withdraw a proportional amount of strategy tokens and cash that remain after it has paid
+        // of its debts. Because different accounts will have different ratios of debts to assets, we cannot assume
+        // that the account is entitled to their full amount of vault shares after settlement.
 
-        // The temporary cash balance is now any cash remaining after repayment of the debt.
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance
-            .add(vaultAccount.escrowedAssetCash)
-            .sub(assetCashToRepayfCash);
+        // The account's proportional claim on the value of the vault is:
+        // proportionOfMaturedAssets = accountValueAtSettlement / residualSettlementVaultValue
+        //  where residualSettlementVaultValue = residualCashSnapshot * settlementRate 
+        //    + totalStrategyTokensAtSettlement * settlementStrategyTokenValue
+
+        // This is the amount of asset cash left over after paying off all the debts.
+        int256 settledVaultValue = settlementRate.convertToUnderlying(vaultState.totalAssetCash.toInt())
+            .sub(vaultState.totalfCash)
+            .add(totalStrategyTokenValueAtSettlement);
         
-        // This balance has now been applied to the account
-        vaultAccount.escrowedAssetCash = 0;
+        int256 strategyTokenClaim = accountValueAtSettlement.mul(vaultState.totalStrategyTokens.toInt())
+            .div(settledVaultValue);
+        int256 cashClaim = accountValueAtSettlement.mul(vaultState.totalAssetCash.toInt())
+            .div(settledVaultValue);
 
-        // In both cases remove the totalfCash from the vault state
-        vaultState.totalfCash = vaultState.totalfCash.sub(vaultAccount.fCash);
-        
-        // fCash is zeroed out here no matter what, the tempCashBalance will represent the net
-        // cash the account has a credit for or owes the protocol.
+        // Update the vault account in memory
         vaultAccount.fCash = 0;
+        vaultAccount.escrowedAssetCash = 0;
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(cashClaim);
+        vaultAccount.vaultShares = 0;
+        vaultAccount.maturity = 0;
 
-        if (vaultAccount.tempCashBalance < 0) {
-            // If there are vault shares left then this will revert, more vault shares
-            // need to be sold to exit the account's debt.
-            require(vaultAccount.vaultShares == 0);
+        // NOTE: we do not update vault state after it is settled since the totalStrategyToken
+        // and totalAssetCash values we use in this calculation should be snapshots of the state
+        // at settlement. The vault account is cleared of its positions. If exiting, the vault will
+        // redeem all of its strategyTokens to its temp cash balance. If entering, the strategyTokenClaim
+        // will be deposited into the target maturity.
+        return strategyTokenClaim.toUint();
+    }
+        
+    function _getAccountValueAtSettlement(
+        VaultAccount memory vaultAccount, 
+        VaultState memory vaultState, 
+        AssetRateParameters memory settlementRate,
+        int256 totalStrategyTokenValueAtSettlement
+    ) private pure returns (int256 accountValueAtSettlement) {
+        // When a vault account settles a matured position it will first net off its debt with the escrowedAssetCash
+        // it holds and the totalAssetCash held by the vault to zero out its fCash position.
+        int256 netDebtAtSettlement = settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
+            .add(vaultAccount.fCash);
 
-            // If there are no vault shares left at this point then we have an
-            // insolvency. The negative cash balance needs to be cleared via nToken
-            // redemption. The tempCashBalance will represent the amount the account
-            // has left to repay.
-
-            // If we are inside borrowIntoVault, it will revert since we do not
-            // clear the maturity here. That is the correct behavior.  If we are
-            // inside exitVault, then it will revert.
-        } else if (vaultState.accountsRequiringSettlement > 0) {
-            // If we reach this point the account has been cleared of needing settlement, we don't
-            // want to revert on underflow here, just floor the value at 0 in case we somehow miss
-            // an insolvent account in tracking.
-            vaultState.accountsRequiringSettlement -= 1;
+        if (netDebtAtSettlement > 0) {
+            // In this case, credit the temp cash balance with the surplus asset cash after full repayment of
+            // the fCash debt
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+                // This is the surplus asset cash after repayment of the entire fCash debt
+                vaultAccount.escrowedAssetCash.sub(settlementRate.convertFromUnderlying(vaultAccount.fCash))
+            );
         }
+
+        int256 settlementVaultShareValue = settlementRate.convertToUnderlying(
+                vaultState.totalAssetCash.toInt()
+            ).add(vaultState.totalfCash)
+            .add(totalStrategyTokenValueAtSettlement);
+
+        // The account's value at settlement is:
+        // totalAccountValue = vaultShares * settlementVaultShareValue + netDebtAtSettlement
+        accountValueAtSettlement = 
+            vaultAccount.vaultShares.toInt().mul(settlementVaultShareValue)
+                .div(vaultState.totalVaultShares.toInt())
+            .add(netDebtAtSettlement);
+
+        // TODO: what if this is negative?
     }
 
     function borrowAndEnterVault(
@@ -188,7 +205,8 @@ library VaultAccountLib {
         uint256 maturity,
         uint256 fCashToBorrow,
         uint32 maxBorrowRate,
-        bytes calldata vaultData
+        bytes calldata vaultData,
+        uint256 strategyTokenDeposit
     ) internal {
         // The vault account can only be increasing their borrow position or not have one set. If they
         // are increasing their position they will be in the current maturity. We won't update the
@@ -203,7 +221,7 @@ library VaultAccountLib {
         // decrease as a result.
         if (vaultAccount.escrowedAssetCash > 0) {
             usedEscrowedAssetCash = true;
-            removeEscrowedAssetCash(vaultAccount, vaultState);
+            removeEscrowedAssetCash(vaultAccount);
         }
 
         // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
@@ -221,7 +239,7 @@ library VaultAccountLib {
 
         // Migrates the account from its old pool to the new pool if required, updates the current
         // pool and deposits asset tokens into the vault
-        vaultState.enterMaturityPool(vaultAccount, vaultConfig, vaultData);
+        vaultState.enterMaturityPool(vaultAccount, vaultConfig, strategyTokenDeposit, vaultData);
 
         // Set the vault state and account in storage and check the vault's collateral ratio
         vaultState.setVaultState(vaultConfig.vault);
@@ -269,7 +287,6 @@ library VaultAccountLib {
 
             // Update the account and vault state to account for the borrowing
             vaultState.totalfCash = vaultState.totalfCash.add(fCash);
-            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
             vaultAccount.fCash = vaultAccount.fCash.add(fCash);
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashBorrowed);
         }
@@ -295,11 +312,7 @@ library VaultAccountLib {
         bytes calldata vaultData
     ) internal returns (VaultState memory vaultState) {
         vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
-        // If a vault is redeeming its entire vault shares balance after settlement it may trip the
-        // requiresSettlement check because its vaultShares is zero and it still has an fCash balance
-        // prior to setting the vault account's fCash to zero. Save off the requiresSettlement flag
-        // prior to strategyToken redemption.
-        bool requiresSettlementPrior = requiresSettlement(vaultAccount);
+
         if (vaultSharesToRedeem > 0) {
             // When an account exits the maturity pool it may get some asset cash credited to its temp
             // cash balance and it will sell the strategy tokens it has a claim on.
@@ -311,19 +324,14 @@ library VaultAccountLib {
             );
         }
 
-        if (vaultAccount.maturity <= block.timestamp) {
-            settleVaultAccount(vaultAccount, vaultConfig, vaultState, block.timestamp, requiresSettlementPrior);
-            require(requiresSettlement(vaultAccount) == false); // dev: unsuccessful settlement
-        } else if (fCashToLend > 0) {
-            _lendToExitVault(
-                vaultAccount,
-                vaultConfig,
-                vaultState,
-                fCashToLend,
-                minLendRate,
-                block.timestamp
-            );
-        }
+        _lendToExitVault(
+            vaultAccount,
+            vaultConfig,
+            vaultState,
+            fCashToLend,
+            minLendRate,
+            block.timestamp
+        );
 
         vaultState.setVaultState(vaultConfig.vault);
 
@@ -389,63 +397,18 @@ library VaultAccountLib {
         vaultAccount.fCash = vaultAccount.fCash.add(fCash);
         vaultState.totalfCash = vaultState.totalfCash.add(fCash);
 
-        if (vaultAccount.escrowedAssetCash == 0) {
-            // When there is no escrowed asset cash, the fCash must also be applied to the settlement
-            // requirement.
-            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(fCash);
-        } else {
-            // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
-            // applications of escrowed asset cash because that complicates settlement dynamics.
-            removeEscrowedAssetCash(vaultAccount, vaultState);
-        }
-    }
-
-    /**
-     * @notice An account requires settlement if it has escrowedAssetCash (has been liquidated or failed to lend to exit
-     * in an fCash market) or if it has fCash debt but no vault shares (it is insolvent).
-     */
-    function requiresSettlement(
-        VaultAccount memory vaultAccount
-    ) internal pure returns (bool) {
-        return vaultAccount.escrowedAssetCash > 0 || (vaultAccount.fCash < 0 && vaultAccount.vaultShares == 0) ;
-    }
-
-    /**
-     * @notice Called in the two places that would trigger an account to require settlement, during liquidation
-     * and in a failed lending attempt.
-     */
-    function increaseEscrowedAssetCash(
-        VaultAccount memory vaultAccount,
-        VaultState memory vaultState,
-        int256 assetCashDeposit
-    ) internal pure {
-        require(assetCashDeposit > 0);
-        if (requiresSettlement(vaultAccount) == false) {
-            // If this flag is not set then on the account then we set it up for individual settlement. The
-            // account's individual fCash is now removed from the pool and not considered for pooled settlement.
-            vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.sub(vaultAccount.fCash);
-            vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.add(1);
-        }
-
-        // Move the asset cash deposit into the escrowed asset cash
-        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(assetCashDeposit);
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(assetCashDeposit);
-
+        // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
+        // applications of escrowed asset cash because that complicates settlement dynamics.
+        removeEscrowedAssetCash(vaultAccount);
     }
 
     /**
      * @notice Called in the two places where escrowed cash is reduced on the account, when an account
      * re-enters a vault and when it is is able to successfully lend to exit the vault
      */
-    function removeEscrowedAssetCash(
-        VaultAccount memory vaultAccount,
-        VaultState memory vaultState
-    ) internal pure {
+    function removeEscrowedAssetCash(VaultAccount memory vaultAccount) internal pure {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
         vaultAccount.escrowedAssetCash = 0;
-        vaultState.accountsRequiringSettlement = vaultState.accountsRequiringSettlement.sub(1);
-        // Add the account's remaining fCash back into the vault state for pooled settlement
-        vaultState.totalfCashRequiringSettlement = vaultState.totalfCashRequiringSettlement.add(vaultAccount.fCash);
     }
 
     /**
@@ -535,7 +498,6 @@ library VaultAccountLib {
             );
         }
 
-        // TODO: potential off by one errors here in transfer temp cash balance
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
             assetToken.convertToInternal(assetAmountExternal)
         );

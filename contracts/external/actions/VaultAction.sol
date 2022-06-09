@@ -169,17 +169,8 @@ contract VaultAction is ActionGuards, IVaultAction {
      *
      * @param vault the vault to settle
      * @param maturity the maturity of the vault
-     * @param settleAccounts a list of accounts to manually settle (if any)
-     * @param vaultSharesToRedeem the amount of vault shares to settle on each account
-     * @param redeemCallData call data passed to redeem for all accounts being settled
      */
-    function settleVault(
-        address vault,
-        uint256 maturity,
-        address[] calldata settleAccounts,
-        uint256[] calldata vaultSharesToRedeem,
-        bytes calldata redeemCallData
-    ) external override nonReentrant {
+    function settleVault(address vault, uint256 maturity) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
 
@@ -191,8 +182,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // Ensure that we are past maturity and the vault is able to settle
         require(
             maturity <= block.timestamp &&
-            settleAccounts.length == vaultSharesToRedeem.length &&
-            vaultState.isFullySettled == false &&
+            vaultState.isSettled == false &&
             // TODO: is this method necessary?
             IStrategyVault(vault).canSettleMaturity(maturity),
             "Cannot Settle"
@@ -204,149 +194,43 @@ contract VaultAction is ActionGuards, IVaultAction {
             block.timestamp
         );
 
-        // This settles any accounts passed into the method that have escrowed asset cash
-        int256 assetCashShortfall =  _settleAccountsLoop(
-            vaultState, vaultConfig, settlementRate, settleAccounts, vaultSharesToRedeem, redeemCallData
-        );
-
         // This is how much it costs in asset cash to settle the pooled portion of the vault
         uint256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(
-            vaultState.totalfCashRequiringSettlement.neg()
+            vaultState.totalfCash.neg()
         ).toUint();
 
-        if (vaultState.totalAssetCash >= assetCashRequiredToSettle) {
-            // In this case, we have sufficient cash to settle the pooled portion and perhaps
-            // some extra left to return to accounts
-            vaultState.totalAssetCash = vaultState.totalAssetCash - assetCashRequiredToSettle;
-        } else {
+        if (vaultState.totalAssetCash < assetCashRequiredToSettle) {
             // Don't allow the pooled portion of the vault to have a cash shortfall unless all
-            // strategy tokens have been redeemed to asset cash. This implies that accounts with
-            // escrowed asset cash may end up paying for a broader insolvency in the vault.
-            //
-            // For the vault to be insolvent, it would be the case that one or more accounts
-            // inside the vault are insolvent. Insolvent accounts should be liquidated before
-            // settling the vault such that they can be individually settled inside the
-            // _settleAccountsLoop to isolate their vault shares. If all insolvent accounts are
-            // inside _settleAccountsLoop then there should be no shortfall in the pooled portion.
-            //
-            // If for some reason every account is insolvent in the vault, then we would still need
-            // to redeem all the tokens before we could declare a shortfall in the vault.
-            // TODO: this will likely cause a partial settlement of accounts to fail...
+            // strategy tokens have been redeemed to asset cash.
             require(vaultState.totalStrategyTokens == 0, "Redeem all tokens");
-            assetCashShortfall = assetCashShortfall.add((assetCashRequiredToSettle - vaultState.totalAssetCash).toInt());
-            vaultState.totalAssetCash = 0;
-        }
 
-        // We always clear fCash requiring settlement because if there is a shortfall we will
-        // always attempt to resolve it before exiting the method.
-        vaultState.totalfCash = vaultState.totalfCash.sub(vaultState.totalfCashRequiringSettlement);
-        vaultState.totalfCashRequiringSettlement = 0;
+            // After this point, we have a cash shortfall and will need to resolve it
+            int256 assetCashShortfall = vaultState.totalAssetCash.sub(assetCashRequiredToSettle).toInt();
+            uint16 currencyId = vaultConfig.borrowCurrencyId;
 
-        if (assetCashShortfall > 0) {
-            vaultConfig.resolveCashShortfall(assetCashShortfall);
+            // Attempt to resolve the cash balance using the reserve
+            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
+                Constants.RESERVE, currencyId
+            );
+
+            if (assetCashShortfall <= reserveInternal) {
+                BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - assetCashShortfall);
+                vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashShortfall.toUint());
+            } else {
+                // At this point the protocol needs to raise funds from sNOTE since the reserve is
+                // insufficient to cover
+                BalanceHandler.setReserveCashBalance(currencyId, 0);
+                vaultState.totalAssetCash = vaultState.totalAssetCash.add(reserveInternal.toUint());
+                emit ProtocolInsolvency(currencyId, vaultConfig.vault, assetCashShortfall - reserveInternal);
+            }
 
             // If there is any cash shortfall, we automatically disable the vault. Accounts can still
             // exit but no one can enter. Governance can re-enable the vault.
             VaultConfiguration.setVaultEnabledStatus(vaultConfig.vault, false);
+            vaultState.setVaultState(vault);
         }
 
-        // TODO: is this the correct behavior if we are in an insolvency
-        vaultState.isFullySettled = vaultState.totalfCash == 0 && vaultState.accountsRequiringSettlement == 0;
-        vaultState.setVaultState(vault);
-    }
-
-    function _settleAccountsLoop(
-        VaultState memory vaultState,
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory settlementRate,
-        address[] calldata settleAccounts,
-        uint256[] calldata vaultSharesToRedeem,
-        bytes calldata redeemCallData
-    ) private returns (int256 assetCashShortfall) {
-        (uint256 totalStrategyTokens, uint256 assetCashRedeemed) = _redeemVaultShares(
-            vaultState,
-            vaultConfig,
-            vaultSharesToRedeem,
-            redeemCallData
-        );
-
-        for (uint i; i < settleAccounts.length; i++) {
-            assetCashShortfall = assetCashShortfall.add(
-                _settleAccount(
-                    vaultState,
-                    vaultConfig,
-                    settlementRate,
-                    settleAccounts[i],
-                    vaultSharesToRedeem[i],
-                    assetCashRedeemed,
-                    totalStrategyTokens
-                )
-            );
-        }
-    }
-
-    function _redeemVaultShares(
-        VaultState memory vaultState,
-        VaultConfig memory vaultConfig,
-        uint256[] calldata vaultSharesToRedeem,
-        bytes calldata redeemCallData
-    ) internal returns (uint256 totalStrategyTokens, uint256 assetCashRedeemed) {
-        // Calculate the total vault shares to redeem per account and then redeem all the strategy tokens
-        // in one call to the vault for gas efficiency. Will split the cash redeemed back to each account
-        // proportionately
-        uint256 totalVaultShares;
-        for (uint i; i < vaultSharesToRedeem.length; i++) {
-            totalVaultShares = totalVaultShares.add(vaultSharesToRedeem[i]);
-        }
-        (/* */, totalStrategyTokens) = vaultState.getPoolShare(totalVaultShares);
-        assetCashRedeemed = vaultConfig.redeem(totalStrategyTokens, vaultState.maturity, redeemCallData).toUint();
-    }
-
-    function _settleAccount(
-        VaultState memory vaultState,
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory settlementRate,
-        address account,
-        uint256 vaultSharesToRedeem,
-        uint256 assetCashRedeemed,
-        uint256 totalStrategyTokens
-    ) private returns (int256 assetCashShortfall) {
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
-        require(
-            vaultState.maturity == vaultAccount.maturity &&
-            vaultAccount.requiresSettlement()
-        );
-        // Vaults must have some default behavior defined for redemptions and not rely on
-        // calldata to make redemption decisions.
-        uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
-
-        // Return the portion of the strategy token redemption that the account is owed
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-            SafeInt256.toInt(assetCashRedeemed.mul(strategyTokens).div(totalStrategyTokens))
-        );
-
-        // fCash is zeroed out inside this method
-        vaultAccount.settleEscrowedAccount(vaultState, settlementRate);
-
-        if (vaultAccount.tempCashBalance >= 0) {
-            // TODO: need to authenticate that there is not excess vault shares sold here...
-            // Return excess asset cash to the account
-            vaultAccount.transferTempCashBalance(vaultConfig, false);
-        } else {
-            // Account is insolvent here, add the balance to the shortfall required
-            // and clear the account requiring settlement
-            assetCashShortfall = vaultAccount.tempCashBalance.neg();
-
-            // Pre-emptive clear the vault account assuming the shortfall will be cleared
-            vaultAccount.tempCashBalance = 0;
-
-            if (vaultState.accountsRequiringSettlement > 0) {
-                // Don't revert on underflow here, just floor the value at 0 in case
-                // we somehow miss an insolvent account in tracking.
-                vaultState.accountsRequiringSettlement -= 1;
-            }
-        }
-        vaultAccount.setVaultAccount(vaultConfig);
+        VaultStateLib.setSettledVaultState(vault, maturity);
     }
 
     /** View Methods **/
@@ -416,7 +300,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         
         // If this is a positive number, there is more cash remaining to be settled.
         // If this is a negative number, there is more cash than required to repay the debt
-        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCashRequiringSettlement)
+        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCash)
             .add(vaultState.totalAssetCash.toInt())
             .neg();
 

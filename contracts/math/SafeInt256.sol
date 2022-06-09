@@ -83,6 +83,11 @@ library SafeInt256 {
         return int256(x);
     }
 
+    function toInt80(int256 x) internal pure returns (int80) {
+        require (int256(type(int80).min) <= x && x <= int256(type(int80).max)); // dev: toInt overflow
+        return int80(x);
+    }
+
     function max(int256 x, int256 y) internal pure returns (int256) {
         return x > y ? x : y;
     }

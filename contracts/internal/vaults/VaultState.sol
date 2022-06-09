@@ -10,7 +10,7 @@ import {
 } from "../../global/Types.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 import {Constants} from "../../global/Constants.sol";
 import {VaultConfiguration} from "./VaultConfiguration.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
@@ -28,7 +28,7 @@ library VaultStateLib {
     using AssetRate for AssetRateParameters;
     using VaultConfiguration for VaultConfig;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     function getVaultState(
         address vault,
@@ -39,35 +39,40 @@ library VaultStateLib {
 
         vaultState.maturity = maturity;
         // fCash debts are represented as negative integers on the stack
-        vaultState.totalfCashRequiringSettlement = -int256(int80(s.totalfCashRequiringSettlement));
         vaultState.totalfCash = -int256(int80(s.totalfCash));
-        vaultState.isFullySettled = s.isFullySettled;
-        vaultState.accountsRequiringSettlement = s.accountsRequiringSettlement;
-
+        vaultState.isSettled = s.isSettled;
         vaultState.totalAssetCash = s.totalAssetCash;
         vaultState.totalStrategyTokens = s.totalStrategyTokens;
         vaultState.totalVaultShares = s.totalVaultShares;
+        vaultState.settlementStrategyTokenValue = s.settlementStrategyTokenValue;
     }
 
-    function setVaultState(
-        VaultState memory vaultState,
-        address vault
-    ) internal {
+    function setVaultState(VaultState memory vaultState, address vault) internal {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
         VaultStateStorage storage s = store[vault][vaultState.maturity];
 
-        require(vaultState.accountsRequiringSettlement <= type(uint32).max); // dev: accounts settlement overflow
-        // There is always less totalfCashRequiringSettlement than totalfCash (both are negative)
-        require(vaultState.totalfCash <= vaultState.totalfCashRequiringSettlement, "fCash"); 
+        require(vaultState.isSettled == false); // dev: cannot update vault state after settled
 
-        s.totalfCashRequiringSettlement = safeUint80(vaultState.totalfCashRequiringSettlement.neg());
         s.totalfCash = safeUint80(vaultState.totalfCash.neg());
-        s.isFullySettled = vaultState.isFullySettled;
-        s.accountsRequiringSettlement = uint32(vaultState.accountsRequiringSettlement);
-
         s.totalAssetCash = safeUint80(vaultState.totalAssetCash);
         s.totalStrategyTokens = safeUint80(vaultState.totalStrategyTokens);
         s.totalVaultShares = safeUint80(vaultState.totalVaultShares);
+    }
+
+    function setSettledVaultState(address vault, uint256 maturity) internal {
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vault][maturity];
+
+        require(s.isSettled == false); // dev: cannot update vault state after settled
+        require(maturity <= block.timestamp); // dev: cannot set settled state before maturity
+
+        uint256 singleTokenValue = IStrategyVault(vault).convertStrategyToUnderlying(
+            uint256(Constants.INTERNAL_TOKEN_PRECISION), maturity
+        );
+
+        s.isSettled = true;
+        // Save off the value of a single strategy token at settlement
+        s.settlementStrategyTokenValue = singleTokenValue.toUint80();
     }
 
     /**
@@ -119,12 +124,14 @@ library VaultStateLib {
      * @param vaultAccount will update maturity and reduce tempCashBalance to zero
      * @param vaultConfig vault config
      * @param vaultState vault state for the maturity we are entering
+     * @param strategyTokenDeposit any existing amount of strategy tokens to deposit from settlement
      * @param vaultData calldata to pass to the vault
      */
     function enterMaturityPool(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
+        uint256 strategyTokenDeposit,
         bytes calldata vaultData
     ) internal {
         // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
@@ -132,22 +139,11 @@ library VaultStateLib {
         // the vault.
         require(vaultAccount.tempCashBalance >= 0 && vaultState.totalAssetCash == 0);
 
-        uint256 strategyTokenDeposit;
         if (vaultAccount.maturity == 0) {
             // If the vault account has no maturity, then set it here
             vaultAccount.maturity = vaultState.maturity;
             require(vaultAccount.vaultShares == 0);
-        } else if (vaultAccount.maturity < vaultState.maturity) {
-            // If the vault account is in an old maturity, we exit that pool move their shares
-            // into the new maturity and update their account
-            VaultState memory oldVaultState = getVaultState(vaultConfig.vault, vaultAccount.maturity);
-            strategyTokenDeposit = exitMaturityPool(oldVaultState, vaultAccount, vaultAccount.vaultShares);
-            setVaultState(oldVaultState, vaultConfig.vault);
-
-            vaultAccount.maturity = vaultState.maturity;
-            vaultAccount.vaultShares = 0;
         }
-
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
         // to the current contract.

@@ -290,17 +290,14 @@ library VaultConfiguration {
         // there is more fCash left to repay, if it is negative than we have more than enough asset cash
         // to repay the debt.
         int256 debtOutstanding = escrowedAssetCash
-            .add(assetCashHeld)
             .add(vaultConfig.assetRate.convertFromUnderlying(fCash))
             .neg();
 
-        // netAssetValue includes the value held in strategyTokens (vaultShareValue - assetCashHeld) net
+        // netAssetValue includes the value held in vaultShares (strategyTokenValue + assetCashHeld) net
         // off against the outstanding debt. netAssetValue can be either positive or negative here. If it
         // is positive (normal condition) then the account has more value than debt, if it is negative then
         // the account is insolvent (it cannot repay its debt if we sold all of its strategy tokens).
-        int256 netAssetValue = vaultShareValue
-            .sub(assetCashHeld)
-            .sub(debtOutstanding);
+        int256 netAssetValue = vaultShareValue.sub(debtOutstanding);
 
         // We calculate the collateral ratio (netAssetValue to debt ratio):
         //  if netAssetValue > 0 and debtOutstanding > 0: collateralRatio > 0, closer to zero means more risk, less than 1 is insolvent
@@ -409,19 +406,4 @@ library VaultConfiguration {
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 
-    function resolveCashShortfall(VaultConfig memory vaultConfig, int256 assetCashShortfall) internal {
-        uint16 currencyId = vaultConfig.borrowCurrencyId;
-        if (assetCashShortfall <= 0) return;
-
-        // Then reduce the reserves
-        (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
-
-        if (assetCashShortfall <= reserveInternal) {
-            BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - assetCashShortfall);
-        } else {
-            // At this point the protocol needs to raise funds from sNOTE
-            BalanceHandler.setReserveCashBalance(currencyId, 0);
-            emit ProtocolInsolvency(currencyId, vaultConfig.vault, assetCashShortfall - reserveInternal);
-        }
-    }
 }
