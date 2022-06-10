@@ -14,7 +14,13 @@ import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHand
 import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 
-import {VaultConfig, VaultAccount, VaultConfigStorage} from "../../global/Types.sol";
+import {
+    VaultConfig,
+    VaultAccount,
+    VaultConfigStorage,
+    VaultSecondaryBorrowCapacityStorage,
+    VaultSecondaryBorrowStorage
+} from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 

@@ -483,6 +483,18 @@ struct VaultConfigStorage {
     // 48 bytes left
 }
 
+struct VaultSecondaryBorrowCapacityStorage {
+    // Total fCash across all maturities that caps the secondary borrow capacity
+    uint80 maxSecondaryBorrowCapacity;
+    // Current usage of that total borrow capacity
+    uint80 totalUsedBorrowCapacity;
+}
+
+struct VaultSecondaryBorrowStorage {
+    // fCash borrowed for a specific maturity on a secondary currency
+    uint80 fCashBorrowed;
+}
+
 struct VaultConfig {
     address vault;
     uint16 flags;

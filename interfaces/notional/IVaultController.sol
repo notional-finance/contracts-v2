@@ -59,6 +59,20 @@ interface IVaultAction {
         int256 underlyingCashRequiredToSettle
     );
 
+    function borrowSecondaryCurrencyToVault(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 fCashToBorrow,
+        uint32 slippageLimit
+    ) external returns (uint256 underlyingTokensTransferred);
+
+    function repaySecondaryCurrencyFromVault(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 netfCash,
+        uint32 slippageLimit
+    ) external returns (uint256 assetTokensRequired);
+
     /// @notice Non-authenticated method that will set settlement values for a vault so that
     /// account holders can withdraw matured assets.
     function settleVault(address vault, uint256 maturity) external;
