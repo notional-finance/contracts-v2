@@ -45,6 +45,4 @@ contract SimpleStrategyVault is BaseStrategyVault {
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view override returns (uint256 underlyingValue) {
         return (strategyTokens * _tokenExchangeRate * 1e10) / 1e18;
     }
-
-    function isInSettlement(uint256 maturity) external view override returns (bool) { return _inSettlement; }
 }

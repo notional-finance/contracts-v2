@@ -18,7 +18,6 @@ abstract contract BaseStrategyVault is IStrategyVault {
     /** These view methods need to be implemented by the vault */
     function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view virtual returns (uint256 underlyingValue);
-    function isInSettlement(uint256 maturity) external view virtual returns (bool);
     
     // Vaults need to implement these two methods
     function _depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
