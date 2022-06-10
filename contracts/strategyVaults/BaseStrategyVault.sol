@@ -20,8 +20,19 @@ abstract contract BaseStrategyVault is IStrategyVault {
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view virtual returns (uint256 underlyingValue);
     
     // Vaults need to implement these two methods
-    function _depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) internal virtual returns (uint256 strategyTokensMinted);
-    function _redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) internal virtual returns (uint256 tokensFromRedeem);
+    function _depositFromNotional(
+        address account,
+        uint256 deposit,
+        uint256 maturity,
+        bytes calldata data
+    ) internal virtual returns (uint256 strategyTokensMinted);
+
+    function _redeemFromNotional(
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity,
+        bytes calldata data
+    ) internal virtual returns (uint256 tokensFromRedeem);
 
     uint16 internal immutable BORROW_CURRENCY_ID;
     bool internal immutable USE_UNDERLYING_TOKEN;
@@ -77,13 +88,23 @@ abstract contract BaseStrategyVault is IStrategyVault {
     }
 
     // External methods are authenticated to be just Notional
-    function depositFromNotional(uint256 deposit, uint256 maturity, bytes calldata data) external onlyNotional returns (uint256 strategyTokensMinted) {
+    function depositFromNotional(
+        address account,
+        uint256 deposit,
+        uint256 maturity,
+        bytes calldata data
+    ) external onlyNotional returns (uint256 strategyTokensMinted) {
         uint256 tokenAmount = USE_UNDERLYING_TOKEN ? _redeemAssetTokens(deposit) : deposit;
-        return _depositFromNotional(tokenAmount, maturity, data);
+        return _depositFromNotional(account, tokenAmount, maturity, data);
     }
 
-    function redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) external onlyNotional {
-        uint256 tokensFromRedeem = _redeemFromNotional(strategyTokens, maturity, data);
+    function redeemFromNotional(
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity,
+        bytes calldata data
+    ) external onlyNotional {
+        uint256 tokensFromRedeem = _redeemFromNotional(account, strategyTokens, maturity, data);
         uint256 assetTokensToTransfer = USE_UNDERLYING_TOKEN ? _mintAssetTokens(tokensFromRedeem) : tokensFromRedeem;
 
         ASSET_TOKEN.transfer(address(NOTIONAL), assetTokensToTransfer);

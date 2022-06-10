@@ -282,6 +282,7 @@ library VaultConfiguration {
      */
     function deposit(
         VaultConfig memory vaultConfig,
+        address account,
         int256 cashToTransferInternal,
         uint256 maturity,
         bytes calldata data
@@ -311,7 +312,9 @@ library VaultConfiguration {
         GenericToken.safeTransferOut(address(token), vault, transferAmount);
         uint256 balanceAfter = token.balanceOf(vault);
 
-        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(balanceAfter.sub(balanceBefore), maturity, data);
+        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(
+            account, balanceAfter.sub(balanceBefore), maturity, data
+        );
     }
 
     /**
@@ -326,6 +329,7 @@ library VaultConfiguration {
      */
     function redeem(
         VaultConfig memory vaultConfig,
+        address account,
         uint256 strategyTokens,
         uint256 maturity,
         bytes calldata data
@@ -336,7 +340,7 @@ library VaultConfiguration {
 
         uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
         // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
-        IStrategyVault(vaultConfig.vault).redeemFromNotional(strategyTokens, maturity, data);
+        IStrategyVault(vaultConfig.vault).redeemFromNotional(account, strategyTokens, maturity, data);
         uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
 
         // Subtraction is done inside uint256 so a negative amount will revert.

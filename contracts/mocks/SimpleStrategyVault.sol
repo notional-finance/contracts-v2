@@ -20,6 +20,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     // Vaults need to implement these two methods
     function _depositFromNotional(
+        address account,
         uint256 deposit,
         uint256 maturity,
         bytes calldata data
@@ -28,6 +29,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function _redeemFromNotional(
+        address account,
         uint256 strategyTokens,
         uint256 maturity,
         bytes calldata data

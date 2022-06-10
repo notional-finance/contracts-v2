@@ -111,7 +111,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
 
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
-        int256 assetCashReceived = vaultConfig.redeem(strategyTokensToRedeem, maturity, vaultData);
+        int256 assetCashReceived = vaultConfig.redeem(vaultConfig.vault, strategyTokensToRedeem, maturity, vaultData);
         require(assetCashReceived > 0);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));
@@ -145,7 +145,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 
         int256 assetCashInternal = assetToken.convertToInternal(SafeInt256.toInt(assetCashToDepositExternal));
-        uint256 strategyTokensMinted = vaultConfig.deposit(assetCashInternal, maturity, vaultData);
+        uint256 strategyTokensMinted = vaultConfig.deposit(vaultConfig.vault, assetCashInternal, maturity, vaultData);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashInternal));
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);

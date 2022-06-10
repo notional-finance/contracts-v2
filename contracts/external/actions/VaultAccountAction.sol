@@ -167,7 +167,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Redeems all strategy tokens and updates temp cash balance
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                vaultConfig.redeem(strategyTokens, maturity, exitVaultData)
+                vaultConfig.redeem(account, strategyTokens, maturity, exitVaultData)
             );
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
@@ -179,7 +179,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
                 // Redeems and updates temp cash balance
                 vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                    vaultConfig.redeem(strategyTokens, vaultState.maturity, exitVaultData)
+                    vaultConfig.redeem(account, strategyTokens, vaultState.maturity, exitVaultData)
                 );
             }
 
@@ -300,8 +300,20 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
         } else {
-            return _redeemLiquidatorProfits(liquidator, vaultConfig, vaultState, vaultSharesToLiquidator,
-                redeemData, useUnderlying);
+            uint256 totalProfits = _redeemLiquidatorProfits(
+                liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData
+            );
+            Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+            
+            // Both returned values are negative to signify that assets have left the protocol
+            int256 actualTransferExternal;
+            if (useUnderlying) {
+                actualTransferExternal = assetToken.redeem(vaultConfig.borrowCurrencyId, liquidator, totalProfits);
+            } else {
+                actualTransferExternal = assetToken.transfer(liquidator, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg());
+            }
+
+            return actualTransferExternal.neg().toUint();
         }
     }
 
@@ -330,29 +342,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 vaultSharesToLiquidator,
-        bytes calldata redeemData,
-        bool useUnderlying
+        bytes calldata redeemData
     ) private returns (uint256) {
-        (uint256 assetCashWithdrawn, uint256 strategyTokensWithdrawn) = vaultState.exitMaturityPoolDirect(vaultSharesToLiquidator);
+        (uint256 totalProfits, uint256 strategyTokensWithdrawn) = vaultState.exitMaturityPoolDirect(vaultSharesToLiquidator);
         // Redeem returns an int, but we ensure that it is positive here
-        uint256 assetCashFromRedeem = vaultConfig.redeem(
-            strategyTokensWithdrawn, vaultState.maturity, redeemData
-        ).toUint();
+        totalProfits = totalProfits.add(vaultConfig.redeem(
+            receiver, strategyTokensWithdrawn, vaultState.maturity, redeemData
+        ).toUint());
 
         vaultState.setVaultState(vaultConfig.vault);
-
-        uint256 totalProfits = assetCashWithdrawn.add(assetCashFromRedeem);
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        
-        // Both returned values are negative to signify that assets have left the protocol
-        int256 actualTransferExternal;
-        if (useUnderlying) {
-            actualTransferExternal = assetToken.redeem(vaultConfig.borrowCurrencyId, receiver, totalProfits);
-        } else {
-            actualTransferExternal = assetToken.transfer(receiver, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg());
-        }
-
-        return actualTransferExternal.neg().toUint();
+        return totalProfits;
     }
 
     /** View Methods **/

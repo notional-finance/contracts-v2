@@ -7,9 +7,20 @@ interface IStrategyVault {
     function name() external view returns (string memory);
 
     // Tells a vault to deposit some amount of tokens from Notional and mint strategy tokens with it.
-    function depositFromNotional(uint256 depositAmount, uint256 maturity, bytes calldata data) external returns (uint256 strategyTokensMinted);
+    function depositFromNotional(
+        address account,
+        uint256 depositAmount,
+        uint256 maturity,
+        bytes calldata data
+    ) external returns (uint256 strategyTokensMinted);
+
     // Tells a vault to redeem some amount of strategy tokens from Notional and transfer the resulting asset cash
-    function redeemFromNotional(uint256 strategyTokens, uint256 maturity, bytes calldata data) external;
+    function redeemFromNotional(
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity,
+        bytes calldata data
+    ) external;
 
     function canSettleMaturity(uint256 maturity) external view returns (bool);
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) external view returns (uint256 underlyingValue);
