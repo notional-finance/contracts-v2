@@ -162,6 +162,43 @@ contract VaultAction is ActionGuards, IVaultAction {
         vaultConfig.checkCollateralRatio(vaultState, vaultState.totalVaultShares, vaultState.totalfCash, 0);
     }
 
+    function executeSecondaryCurrencyTradeToVault(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 netfCash,
+        uint32 slippageLimit
+    ) external returns (uint256) {
+        // This method call must come from the vault
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+        require(currencyId != vaultConfig.borrowCurrencyId);
+
+        // TODO: authenticate the netfCash
+
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+        int256 netAssetCash = VaultAccountLib.executeTrade(
+            currencyId,
+            maturity,
+            netfCash,
+            slippageLimit,
+            vaultConfig.maxBorrowMarketIndex,
+            block.timestamp
+        );
+        require(netAssetCash == 0, "Trade Failed");
+
+        if (netAssetCash > 0) {
+            int256 netTokensTransferred = assetToken.redeem(
+                currencyId, msg.sender, assetToken.convertToExternal(netAssetCash).toUint()
+            );
+
+            return netTokensTransferred.neg().toUint();
+        } else {
+            // TODO: this is somewhat dangerous
+            // The vault MUST return exactly this amount of asset tokens to the vault
+            return netAssetCash.neg().toUint();
+        }
+    }
+
     /**
      * @notice Settles an entire vault, can only be called during an emergency stop out or during
      * the vault's defined settlement period. May be called multiple times during a vault term if

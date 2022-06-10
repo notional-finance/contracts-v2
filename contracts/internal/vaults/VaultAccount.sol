@@ -272,7 +272,7 @@ library VaultAccountLib {
         require(fCash < 0); // dev: fcash must be negative
 
         {
-            int256 assetCashBorrowed  = _executeTrade(
+            int256 assetCashBorrowed  = executeTrade(
                 vaultConfig.borrowCurrencyId,
                 maturity,
                 fCash,
@@ -326,7 +326,7 @@ library VaultAccountLib {
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
-        int256 assetCashCostToLend  = _executeTrade(
+        int256 assetCashCostToLend  = xecuteTrade(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
             fCash,
@@ -381,14 +381,14 @@ library VaultAccountLib {
      * @param blockTime current time
      * @return netAssetCash amount of cash to credit to the account
      */
-    function _executeTrade(
+    function executeTrade(
         uint16 currencyId,
         uint256 maturity,
         int256 netfCashToAccount,
         uint32 rateLimit,
         uint256 maxBorrowMarketIndex,
         uint256 blockTime
-    ) private returns (int256 netAssetCash) {
+    ) internal returns (int256 netAssetCash) {
         uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
         require(maxMarketIndex <= maxBorrowMarketIndex); // @dev: cannot borrow past market index
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
