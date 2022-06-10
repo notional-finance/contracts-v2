@@ -247,20 +247,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         vaultState = VaultStateLib.getVaultState(vault, maturity);
     }
 
-    function getCurrentVaultState(
-        address vault
-    ) external view override returns (VaultState memory vaultState) {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        vaultState = VaultStateLib.getVaultState(vault, vaultConfig.getCurrentMaturity(block.timestamp));
-    }
-
-    function getCurrentVaultMaturity(
-        address vault
-    ) external override view returns (uint256) {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        return vaultConfig.getCurrentMaturity(block.timestamp);
-    }
-
     function getCashRequiredToSettle(
         address vault,
         uint256 maturity
@@ -271,19 +257,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
         return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
-    }
-
-    function getCashRequiredToSettleCurrent(
-        address vault
-    ) external view override returns (
-        int256 assetCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    ) {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
-        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, currentMaturity);
-
-        return _getCashRequiredToSettle(vaultConfig, vaultState, currentMaturity);
     }
 
     function _getCashRequiredToSettle(

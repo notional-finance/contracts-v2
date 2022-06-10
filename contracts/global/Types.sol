@@ -471,21 +471,16 @@ struct VaultConfigStorage {
     // Minimum collateral ratio for a vault specified in basis points, valid values are greater than 10_000
     // where the largest minimum collateral ratio is 65_536 which is much higher than anything reasonable.
     uint16 minCollateralRatioBPS;
-    // The number of days of each vault term (this is sufficient for 20 year vaults)
-    uint16 termLengthInDays;
-    // Allows for a term to be offset by some number of days so that multiple vaults can have alternating
-    // terms within a longer term length. For example, two vaults can alternate 3mo and 6mo terms if they
-    // are both configured with 6mo term lengths and one vault has a 0 term offset and the other has a 3mo
-    // term offset. termOffsetInDays must be zero or divide evenly into termLengthInDays.
-    uint16 termOffsetInDays;
     // Allows up to a 12.75% annualized fee
     uint8 feeRate5BPS;
     // A percentage that represents the share of the cash raised that will go to the liquidator
     uint8 liquidationRate;
     // A percentage of the fee given to the protocol
     uint8 reserveFeeShare;
+    // Maximum market index where a vault can borrow from
+    uint8 maxBorrowMarketIndex;
 
-    // 56 bytes left
+    // 48 bytes left
 }
 
 struct VaultConfig {
@@ -494,12 +489,11 @@ struct VaultConfig {
     uint16 borrowCurrencyId;
     int256 maxVaultBorrowCapacity;
     int256 minAccountBorrowSize;
-    uint256 termLengthInSeconds;
-    uint256 termOffsetInSeconds;
     int256 feeRate;
     int256 minCollateralRatio;
     uint256 liquidationRate;
     int256 reserveFeeShare;
+    uint256 maxBorrowMarketIndex;
     AssetRateParameters assetRate;
 }
 
@@ -509,9 +503,8 @@ struct VaultStateStorage {
     // vault term. This value must equal the total fCash borrowed by all accounts
     // in the vault.
     uint80 totalfCash;
-    // TODO: we can move this to the other slot maybe and make it bigger
-    // The total amount of strategy tokens held in the pool
-    uint80 totalStrategyTokens;
+    // The total amount of asset cash in the pool held as prepayment for fCash
+    uint80 totalAssetCash;
     // Total vault shares in this maturity
     uint80 totalVaultShares;
     // Set to true if a vault has been fully settled and the cash can be pulled. Matured
@@ -520,8 +513,9 @@ struct VaultStateStorage {
     bool isSettled;
     // NOTE: 8 bits left
     // ----- This breaks into a new storage slot -------    
-    // The total amount of asset cash in the pool held as prepayment for fCash
-    uint80 totalAssetCash;
+    // TODO: potentially make total strategy tokens bigger...
+    // The total amount of strategy tokens held in the pool
+    uint80 totalStrategyTokens;
     // Valuation of a strategy token at settlement
     uint80 settlementStrategyTokenValue;
     // NOTE: 16 bits left

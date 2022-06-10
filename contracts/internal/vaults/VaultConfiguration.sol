@@ -55,12 +55,11 @@ library VaultConfiguration {
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
         vaultConfig.maxVaultBorrowCapacity = s.maxVaultBorrowCapacity;
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
-        vaultConfig.termLengthInSeconds = uint256(s.termLengthInDays).mul(Constants.DAY);
-        vaultConfig.termOffsetInSeconds = uint256(s.termOffsetInDays).mul(Constants.DAY);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.liquidationRate = s.liquidationRate;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
+        vaultConfig.maxBorrowMarketIndex = s.maxBorrowMarketIndex;
     }
 
     function getVaultConfigNoAssetRate(
@@ -110,12 +109,7 @@ library VaultConfiguration {
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
-        require(vaultConfig.termLengthInDays != 0);
-        // This is required such that terms will repeat on a predictable cadence
-        require(
-            vaultConfig.termOffsetInDays == 0 ||
-            vaultConfig.termLengthInDays % vaultConfig.termOffsetInDays == 0
-        );
+        require(vaultConfig.maxBorrowMarketIndex != 0);
 
         store[vaultAddress] = vaultConfig;
     }
@@ -139,21 +133,6 @@ library VaultConfiguration {
      */
     function getFlag(VaultConfig memory vaultConfig, uint16 flagID) internal pure returns (bool) {
         return (vaultConfig.flags & flagID) == flagID;
-    }
-
-    /**
-     * @notice Returns the current maturity based on the term length modulo the
-     * current time.
-     * @param vaultConfig vault configuration
-     * @param blockTime current block time
-     * @return the current maturity for the vault given the block time
-     */
-    function getCurrentMaturity(VaultConfig memory vaultConfig, uint256 blockTime) internal pure returns (uint256) {
-        uint256 blockTimeUTC0 = DateTime.getTimeUTC0(blockTime);
-        // NOTE: termLengthInSeconds cannot be 0
-        uint256 offset = blockTimeUTC0 % vaultConfig.termLengthInSeconds;
-
-        return blockTimeUTC0.sub(offset).add(vaultConfig.termLengthInSeconds).add(vaultConfig.termOffsetInSeconds);
     }
 
     /**
@@ -205,42 +184,19 @@ library VaultConfiguration {
         // This is a partially calculated storage slot for the vault's state. The mapping is from maturity
         // to vault state for this vault.
         mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
+        uint256 tRef = DateTime.getReferenceTime(blockTime);
 
-        uint256 currentMaturity = getCurrentMaturity(vaultConfig, blockTime);
-        bool isInSettlement = IStrategyVault(vaultConfig.vault).isInSettlement(currentMaturity);
-        
-        // First, handle the current vault state
-        if (currentMaturity == vaultState.maturity) {
-            totalOutstandingDebt = _netDebtOutstanding(
-                vaultConfig.assetRate,
-                vaultState.totalfCash, 
-                // Only account for asset cash when we're in settlement
-                isInSettlement ? SafeInt256.toInt(vaultState.totalAssetCash) : 0
+        for (uint i = 1; i <= vaultConfig.maxBorrowMarketIndex; i++) {
+            // Loop through all the potentially traded markets and get the net debt for the vault
+            VaultStateStorage storage s = vaultStore[tRef.add(DateTime.getTradedMarket(i))];
+
+            int256 totalfCash = -int256(uint256(s.totalfCash));
+            int256 totalAssetCash = int256(uint256(s.totalAssetCash));
+
+            // In this method totalOutstandingDebt is a positive number
+            totalOutstandingDebt = totalOutstandingDebt.add(
+                totalfCash.add(vaultConfig.assetRate.convertToUnderlying(totalAssetCash)).neg()
             );
-        } else {
-            // Fetch the current vault state's relevant data and do the math
-            VaultStateStorage storage s = vaultStore[currentMaturity];
-            totalOutstandingDebt = _netDebtOutstanding(
-                vaultConfig.assetRate,
-                -int256(uint256(s.totalfCash)), 
-                // Only account for asset cash when we're in settlement
-                isInSettlement ? int256(uint256(s.totalAssetCash)) : 0
-            );
-        }
-
-        // Next, handle the next vault state (if it allows re-enters)
-        if (getFlag(vaultConfig, VaultConfiguration.ALLOW_ROLL_POSITION)) {
-            uint256 nextMaturity = currentMaturity.add(vaultConfig.termLengthInSeconds);
-            int256 nextMaturityDebt;
-
-            if (nextMaturity == vaultState.maturity) {
-                nextMaturityDebt = vaultState.totalfCash.neg();
-            } else {
-                VaultStateStorage storage s = vaultStore[nextMaturity];
-                nextMaturityDebt = int256(uint256(s.totalfCash));
-            }
-
-            totalOutstandingDebt = totalOutstandingDebt.add(nextMaturityDebt);
         }
     }
 
@@ -251,16 +207,6 @@ library VaultConfiguration {
     ) internal {
         int256 totalOutstandingDebt = getBorrowCapacity(vaultConfig, vaultState, blockTime);
         require(totalOutstandingDebt <= vaultConfig.maxVaultBorrowCapacity, "Insufficient capacity");
-    }
-
-    function _netDebtOutstanding(
-        AssetRateParameters memory assetRate,
-        int256 totalfCash,
-        int256 totalAssetCash
-    ) private pure returns (int256) {
-        // NOTE: it is possible that totalAssetCash > 0 and therefore this would
-        // return a negative debt outstanding
-        return totalfCash.add(assetRate.convertToUnderlying(totalAssetCash)).neg();
     }
 
     /**

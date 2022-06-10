@@ -87,9 +87,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
-        // Can only roll vaults that are in the current maturity
-        uint256 currentMaturity = vaultConfig.getCurrentMaturity(block.timestamp);
-
         // Cannot roll unless all of these requirements are met
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) &&

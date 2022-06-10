@@ -65,24 +65,9 @@ interface IVaultAction {
         uint256 maturity
     ) external view returns (VaultState memory vaultState);
 
-    function getCurrentVaultState(
-        address vault
-    ) external view returns (VaultState memory vaultState);
-
-    function getCurrentVaultMaturity(
-        address vault
-    ) external view returns (uint256);
-
     function getCashRequiredToSettle(
         address vault,
         uint256 maturity
-    ) external view returns (
-        int256 assetCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    );
-
-    function getCashRequiredToSettleCurrent(
-        address vault
     ) external view returns (
         int256 assetCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle

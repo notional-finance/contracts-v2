@@ -38,10 +38,6 @@ contract MockVaultConfiguration {
         VaultConfiguration.setVaultConfig(vault, vaultConfig);
     }
 
-    function getCurrentMaturity(address vault, uint256 blockTime) external view returns (uint256) {
-        return VaultConfiguration.getVaultConfigView(vault).getCurrentMaturity(blockTime);
-    }
-
     function assessVaultFees(
         address vault,
         VaultAccount memory vaultAccount,

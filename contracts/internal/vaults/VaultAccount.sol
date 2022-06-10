@@ -31,27 +31,15 @@ library VaultAccountLib {
     // As a storage optimization to keep VaultAccountStorage inside bytes32, we store the maturity as epochs
     // from an arbitrary start time before we've deployed this feature. This allows us to have 65536 epochs
     // which is plenty even with the smallest potential term length being 1 month (5461 years).
-    function _convertEpochToMaturity(
-        uint256 vaultEpoch,
-        uint256 termLengthInSeconds,
-        uint256 termOffsetInSeconds
-    ) private pure returns (uint256 maturity) {
+    function _convertEpochToMaturity(uint256 vaultEpoch) private pure returns (uint256 maturity) {
         if (vaultEpoch == 0) return 0;
-        uint256 epochOffset = Constants.VAULT_EPOCH_START.add(termOffsetInSeconds);
-
-        maturity = vaultEpoch.mul(termLengthInSeconds).add(epochOffset);
+        maturity = vaultEpoch.mul(Constants.MONTH).add(Constants.VAULT_EPOCH_START);
     }
 
-    function _convertMaturityToEpoch(
-        uint256 maturity,
-        uint256 termLengthInSeconds,
-        uint256 termOffsetInSeconds
-    ) private pure returns (uint16) {
+    function _convertMaturityToEpoch(uint256 maturity) private pure returns (uint16) {
         if (maturity == 0) return 0;
-
-        require(maturity % termLengthInSeconds == 0);
-        uint256 epochOffset = Constants.VAULT_EPOCH_START.add(termOffsetInSeconds);
-        uint256 vaultEpoch = maturity.sub(epochOffset).div(termLengthInSeconds);
+        require(maturity % Constants.MONTH == 0);
+        uint256 vaultEpoch = maturity.sub(Constants.VAULT_EPOCH_START).div(Constants.MONTH);
         require(vaultEpoch <= type(uint16).max);
 
         return uint16(vaultEpoch);
@@ -70,8 +58,7 @@ library VaultAccountLib {
         // fCash is negative on the stack
         vaultAccount.fCash = -int256(uint256(s.fCash));
         vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
-        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch,
-            vaultConfig.termLengthInSeconds, vaultConfig.termOffsetInSeconds);
+        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch);
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
@@ -94,8 +81,7 @@ library VaultAccountLib {
         s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
         s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
         s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
-        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity,
-            vaultConfig.termLengthInSeconds, vaultConfig.termOffsetInSeconds);
+        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity);
     }
 
     /**
@@ -291,6 +277,7 @@ library VaultAccountLib {
                 maturity,
                 fCash,
                 maxBorrowRate,
+                vaultConfig.maxBorrowMarketIndex,
                 blockTime
             );
             require(assetCashBorrowed > 0, "Borrow failed");
@@ -344,6 +331,7 @@ library VaultAccountLib {
             vaultAccount.maturity,
             fCash,
             minLendRate,
+            vaultConfig.maxBorrowMarketIndex,
             blockTime
         );
 
@@ -398,9 +386,11 @@ library VaultAccountLib {
         uint256 maturity,
         int256 netfCashToAccount,
         uint32 rateLimit,
+        uint256 maxBorrowMarketIndex,
         uint256 blockTime
     ) private returns (int256 netAssetCash) {
         uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        require(maxMarketIndex <= maxBorrowMarketIndex); // @dev: cannot borrow past market index
         (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
         require(!isIdiosyncratic);
 
