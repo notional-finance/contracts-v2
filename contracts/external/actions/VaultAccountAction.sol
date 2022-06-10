@@ -30,6 +30,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address account,
         address vault,
         uint256 depositAmountExternal,
+        uint256 maturity,
         bool useUnderlying,
         uint256 fCash,
         uint32 maxBorrowRate,
@@ -46,17 +47,14 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         // Vaults cannot be entered if they are paused
-        uint256 maturity = vaultConfig.getCurrentMaturity(block.timestamp);
-        require(
-            vaultConfig.getFlag(VaultConfiguration.ENABLED) && !IStrategyVault(vault).isInSettlement(maturity),
-            "Cannot Enter"
-        );
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Cannot Enter");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
         uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.
+        // TODO: this should transfer directly to the vault...
         vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
         vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens);
@@ -70,12 +68,14 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * @param account the address that will reenter the vault
      * @param vault the vault to reenter
      * @param fCashToBorrow amount of fCash to borrow in the next maturity
+     * @param maturity new maturity to borrow at
      * @param opts struct with slippage limits and data to send to vault
      */
     function rollVaultPosition(
         address account,
         address vault,
         uint256 fCashToBorrow,
+        uint256 maturity,
         RollVaultOpts calldata opts
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
@@ -94,8 +94,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) &&
             vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) &&
-            IStrategyVault(vault).isInSettlement(currentMaturity) && // vault must be in its settlement period
-            vaultAccount.maturity == currentMaturity && // must be in the active maturity
+            block.timestamp < vaultAccount.maturity && // cannot have matured yet
+            vaultAccount.maturity < maturity && // new maturity must be forward in time
             fCashToBorrow > 0, // must borrow into the next maturity, if not, then they should just exit
             "No Roll Allowed"
         );
@@ -123,7 +123,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Borrows into the vault, paying nToken fees and checks borrow capacity
         vaultAccount.borrowAndEnterVault(
             vaultConfig,
-            currentMaturity.add(vaultConfig.termLengthInSeconds), // next maturity
+            maturity, // This is the new maturity to enter
             fCashToBorrow,
             opts.maxBorrowRate,
             opts.enterVaultData,
@@ -141,6 +141,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * @param fCashToLend amount of fCash to lend
      * @param minLendRate the minimum rate to lend at
      * @param useUnderlying if vault shares should be redeemed to underlying
+     * @param exitVaultData passed to the vault during exit
      */
     function exitVault(
         address account,

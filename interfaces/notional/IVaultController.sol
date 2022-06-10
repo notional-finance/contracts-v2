@@ -95,6 +95,7 @@ interface IVaultAccountAction {
         address account,
         address vault,
         uint256 depositAmountExternal,
+        uint256 maturity,
         bool useUnderlying,
         uint256 fCash,
         uint32 maxBorrowRate,
@@ -105,6 +106,7 @@ interface IVaultAccountAction {
         address account,
         address vault,
         uint256 fCashToBorrow,
+        uint256 maturity,
         RollVaultOpts calldata opts
     ) external;
 

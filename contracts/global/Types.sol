@@ -568,6 +568,5 @@ struct VaultAccount {
 struct RollVaultOpts {
     uint32 minLendRate;
     uint32 maxBorrowRate;
-    bytes exitVaultData;
     bytes enterVaultData;
 }
