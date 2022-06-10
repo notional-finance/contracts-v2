@@ -326,7 +326,7 @@ library VaultAccountLib {
         
         // Returns the cost in asset cash terms to lend an offsetting fCash position
         // so that the account can exit. assetCashRequired is negative here.
-        int256 assetCashCostToLend  = xecuteTrade(
+        int256 assetCashCostToLend  = executeTrade(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
             fCash,

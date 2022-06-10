@@ -17,12 +17,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using SafeUint256 for uint256;
 
     /**
-     * @notice Enters the account into the specified vault using the specified fCash
-     * amount. Additional data is forwarded to the vault contract.
+     * @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
+     * all plus the depositAmountExternal into the vault to mint strategy tokens.
      *
      * @param account the address that will enter the vault
      * @param vault the vault to enter
-     * @param fCash total amount of fCash to borrow to enter the vault
+     * @param depositAmountExternal some amount of additional collateral in the borrowed currency
+     * to be transferred to vault
+     * @param maturity the maturity to borrow at
+     * @param useUnderlying true if the account will transfer underlying tokens
+     * @param fCash amount to borrow
      * @param maxBorrowRate maximum interest rate to borrow at
      * @param vaultData additional data to pass to the vault contract
      */
@@ -61,9 +65,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     }
 
     /**
-     * @notice Re-enters the vault at a longer dated maturity. There is no way to
-     * partially re-enter a vault, the account's entire position will be rolled
-     * forward.
+     * @notice Re-enters the vault at a longer dated maturity. The account's existing borrow
+     * position will be closed and a new borrow position at the specified maturity will be
+     * opened. All strategy token holdings will be rolled forward.
      *
      * @param account the address that will reenter the vault
      * @param vault the vault to reenter
@@ -129,12 +133,17 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     }
 
     /**
-     * @notice Exits a vault by redeeming yield tokens, lending to offset fCash debt
-     * and then withdrawing any earnings back to the account.
+     * @notice Prior to maturity, allows an account to withdraw their position from the vault. Will
+     * redeem some number of vault shares to the borrow currency and close the borrow position by
+     * lending `fCashToLend`. Any shortfall in cash from lending will be transferred from the account,
+     * any excess profits will be transferred to the account.
+     *
+     * Post maturity, will net off the account's debt against vault cash balances and redeem all remaining
+     * strategy tokens back to the borrowed currency and transfer the profits to the account.
      *
      * @param account the address that will exit the vault
      * @param vault the vault to enter
-     * @param vaultSharesToRedeem amount of vault tokens to exit
+     * @param vaultSharesToRedeem amount of vault tokens to exit, only relevant when exiting pre-maturity
      * @param fCashToLend amount of fCash to lend
      * @param minLendRate the minimum rate to lend at
      * @param useUnderlying if vault shares should be redeemed to underlying
@@ -212,15 +221,17 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     }
 
     /**
-     * @notice If an account is below the minimum collateral ratio, some amount of vault shares can be redeemed
-     * such that they fall back under the minimum collateral ratio. A portion of the redemption will be paid
-     * to the receiver (an account specified by the caller).
+     * @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)
+     * that account. `depositAmountExternal` in the borrow currency will be transferred from the liquidator
+     * and used to offset the account's debt position. The liquidator will receive either vaultShares or
+     * cash depending on the vault's configuration.
      * @param account the address that will exit the vault
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
      * @param depositAmountExternal amount of cash to deposit
      * @param useUnderlying true if we should use the underlying token
      * @param redeemData calldata sent to the vault when redeeming liquidator profits
+     * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
      */
     function deleverageAccount(
         address account,
