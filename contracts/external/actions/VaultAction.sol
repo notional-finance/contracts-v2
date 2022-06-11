@@ -327,7 +327,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // automatically paused in the case of any shortfall, no accounts will be able to enter regardless
         // but we still want to maintain proper accounting of the borrow capacity.
         VaultConfiguration.updateUsedBorrowCapacity(vault, vaultConfig.borrowCurrencyId, vaultState.totalfCash);
-        VaultStateLib.setSettledVaultState(vault, maturity);
+        VaultStateLib.setSettledVaultState(vaultConfig, maturity, block.timestamp);
     }
 
     /** View Methods **/

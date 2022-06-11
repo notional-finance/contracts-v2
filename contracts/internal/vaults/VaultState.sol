@@ -9,6 +9,7 @@ import {
     VaultStateStorage
 } from "../../global/Types.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
+import {Token, TokenHandler} from "../balances/TokenHandler.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {Constants} from "../../global/Constants.sol";
@@ -26,6 +27,7 @@ import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
  */
 library VaultStateLib {
     using AssetRate for AssetRateParameters;
+    using TokenHandler for Token;
     using VaultConfiguration for VaultConfig;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
@@ -59,20 +61,27 @@ library VaultStateLib {
         s.totalVaultShares = safeUint80(vaultState.totalVaultShares);
     }
 
-    function setSettledVaultState(address vault, uint256 maturity) internal {
+    function setSettledVaultState(
+        VaultConfig memory vaultConfig,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vault][maturity];
+        VaultStateStorage storage s = store[vaultConfig.vault][maturity];
 
         require(s.isSettled == false); // dev: cannot update vault state after settled
-        require(maturity <= block.timestamp); // dev: cannot set settled state before maturity
+        require(maturity <= blockTime); // dev: cannot set settled state before maturity
 
-        uint256 singleTokenValue = IStrategyVault(vault).convertStrategyToUnderlying(
-            uint256(Constants.INTERNAL_TOKEN_PRECISION), maturity
+        int256 singleTokenValueInternal = _getStrategyTokenValueUnderlyingInternal(
+            vaultConfig.borrowCurrencyId,
+            vaultConfig.vault,
+            uint256(Constants.INTERNAL_TOKEN_PRECISION),
+            maturity
         );
 
         s.isSettled = true;
         // Save off the value of a single strategy token at settlement
-        s.settlementStrategyTokenValue = singleTokenValue.toUint80();
+        s.settlementStrategyTokenValue = singleTokenValueInternal.toUint().toUint80();
     }
 
     /**
@@ -181,29 +190,37 @@ library VaultStateLib {
         strategyTokens = vaultShares.mul(vaultState.totalStrategyTokens).div(vaultState.totalVaultShares);
     }
 
+    function _getStrategyTokenValueUnderlyingInternal(
+        uint16 currencyId,
+        address vault,
+        uint256 strategyTokens,
+        uint256 maturity
+    ) private view returns (int256) {
+        Token memory token = TokenHandler.getUnderlyingToken(currencyId);
+        // This will be true if the the token is "NonMintable" meaning that it does not have
+        // an underlying token, only an asset token
+        if (token.decimals == 0) token = TokenHandler.getAssetToken(currencyId);
+
+        return token.convertToInternal(
+            IStrategyVault(vault).convertStrategyToUnderlying(strategyTokens, maturity).toInt()
+        );
+    }
+
     /** @notice Returns the value in asset cash of a given amount of pool share */
     function getCashValueOfShare(
         VaultState memory vaultState,
         VaultConfig memory vaultConfig,
         uint256 vaultShares
-    ) internal view returns (int256 assetCashValue, int256 assetCashHeld) {
-        if (vaultShares == 0) return (0, 0);
-        (uint256 _assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
-        uint256 underlyingValue = IStrategyVault(vaultConfig.vault).convertStrategyToUnderlying(
-            strategyTokens, vaultState.maturity
+    ) internal view returns (int256 assetCashValue) {
+        if (vaultShares == 0) return 0;
+        (uint256 assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
+        int256 underlyingInternalStrategyTokenValue = _getStrategyTokenValueUnderlyingInternal(
+            vaultConfig.borrowCurrencyId, vaultConfig.vault, strategyTokens, vaultState.maturity
         );
 
-        // Generally speaking, asset cash held in the maturity pool is held in escrow for repaying the
-        // vault debt. This may not always be the case, vaults may hold asset cash during a risk-off event
-        // where they trade strategy tokens back to asset cash during a potentially volatile time. In both
-        // cases we use the asset cash held to net off against fCash debt.
-        assetCashHeld = SafeInt256.toInt(_assetCash);
-        
-        assetCashValue = vaultConfig.assetRate.convertFromUnderlying(
-            // Convert the underlying value to internal precision
-            SafeInt256.toInt(underlyingValue)
-                .mul(Constants.INTERNAL_TOKEN_PRECISION).div(vaultConfig.assetRate.underlyingDecimals)
-        ).add(assetCashHeld);
+        assetCashValue = vaultConfig.assetRate
+            .convertFromUnderlying(underlyingInternalStrategyTokenValue)
+            .add(assetCash.toInt());
     }
 
     function safeUint80(int256 x) internal pure returns (uint80) {

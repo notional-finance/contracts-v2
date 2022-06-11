@@ -101,6 +101,10 @@ contract MockVaultConfiguration {
         return vaultState.setVaultState(vault);
     }
 
+    function setSettledVaultState(address vault, uint256 maturity, uint256 blockTime) external {
+        return VaultStateLib.setSettledVaultState(getVaultConfigView(vault), maturity, blockTime);
+    }
+
     function exitMaturityPool(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
@@ -217,7 +221,7 @@ contract MockVaultConfiguration {
     function getCurrencyAndRates(uint16 currencyId) external view returns (
         Token memory assetToken,
         Token memory underlyingToken,
-        ETHRate memory ethRate,
+        ETHRate memory /* ethRate */,
         AssetRateParameters memory assetRate
     ) {
         assetToken = TokenHandler.getAssetToken(currencyId);
