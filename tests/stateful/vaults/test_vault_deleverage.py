@@ -14,6 +14,9 @@ def isolation(fn_isolation):
     pass
 
 
+# TODO: enforce min borrow on deleverage
+
+
 def test_deleverage_authentication(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,

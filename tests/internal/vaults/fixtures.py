@@ -19,9 +19,9 @@ def cToken(MockCToken, accounts, underlying):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def vaultConfig(MockVaultConfiguration, cToken, cTokenAggregator, accounts, underlying):
+def vaultConfig(MockVaultConfiguration, cToken, cTokenV2Aggregator, accounts, underlying):
     mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
-    aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
     mockVaultConf.setToken(
         1,
         aggregator.address,
@@ -35,7 +35,7 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenAggregator, accounts, unde
 
 
 @pytest.fixture(scope="module")
-def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenAggregator, MockERC20, accounts):
+def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, MockERC20, accounts):
     mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
 
     for currencyId in range(1, 4):
@@ -54,7 +54,7 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenAggregator, Mock
             cToken.setAnswer(0.02e16)
 
         cToken.setUnderlying(underlying)
-        aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
 
         mockVaultConf.setToken(
             currencyId,
@@ -72,7 +72,7 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenAggregator, Mock
 @pytest.fixture(scope="module", autouse=True)
 def vault(SimpleStrategyVault, vaultConfig, accounts):
     return SimpleStrategyVault.deploy(
-        "Simple Strategy", "SIMP", vaultConfig.address, 1, {"from": accounts[0]}
+        "Simple Strategy", vaultConfig.address, 1, {"from": accounts[0]}
     )
 
 
@@ -109,11 +109,10 @@ def get_vault_config(**kwargs):
         kwargs.get("maxVaultBorrowCapacity", 100_000_000e8),  # 2: max vault borrow size
         kwargs.get("minAccountBorrowSize", 100_000),  # 3: min account borrow size
         kwargs.get("minCollateralRatioBPS", 2000),  # 4: 20% collateral ratio
-        kwargs.get("termLengthInDays", 90),  # 5: 3 month term
-        kwargs.get("termOffsetInDays", 0),  # 6: 3 month term
-        kwargs.get("feeRate5BPS", 20),  # 7: 1% fee
-        kwargs.get("liquidationRate", 104),  # 8: 4% liquidation discount
-        kwargs.get("reserveFeeShare", 20),  # 9: 20% reserve fee share
+        kwargs.get("feeRate5BPS", 20),  # 5: 1% fee
+        kwargs.get("liquidationRate", 104),  # 6: 4% liquidation discount
+        kwargs.get("reserveFeeShare", 20),  # 7: 20% reserve fee share
+        kwargs.get("maxBorrowMarketIndex", 2),  # 8: 20% reserve fee share
     ]
 
 
@@ -121,12 +120,11 @@ def get_vault_state(**kwargs):
     return [
         kwargs.get("maturity", START_TIME_TREF + SECONDS_IN_QUARTER),
         kwargs.get("totalfCash", 0),
-        kwargs.get("totalfCashRequiringSettlement", 0),
-        kwargs.get("isFullySettled", False),
-        kwargs.get("accountsRequiringSettlement", 0),
+        kwargs.get("isSettled", False),
         kwargs.get("totalVaultShares", 0),
         kwargs.get("totalAssetCash", 0),
         kwargs.get("totalStrategyTokens", 0),
+        kwargs.get("settlementStrategyTokenValue", 0),
     ]
 
 

@@ -32,7 +32,7 @@ def environment(accounts):
 @pytest.fixture(scope="module", autouse=True)
 def vault(SimpleStrategyVault, environment, accounts):
     v = SimpleStrategyVault.deploy(
-        "Simple Strategy", "SIMP", environment.notional.address, 2, {"from": accounts[0]}
+        "Simple Strategy", environment.notional.address, 2, {"from": accounts[0]}
     )
     v.setExchangeRate(1e18)
 

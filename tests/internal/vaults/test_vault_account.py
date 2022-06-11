@@ -6,7 +6,7 @@ from brownie import MockCToken, MockERC20
 from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
-from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
+from tests.constants import SECONDS_IN_MONTH, SECONDS_IN_QUARTER, START_TIME_TREF
 
 VAULT_EPOCH_START = 1640736000
 
@@ -48,16 +48,10 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         vaultConfig.setVaultAccount(account, vault.address)
 
 
-@given(epoch=strategy("uint16", min_value=1), hasTermOffset=strategy("bool"))
-def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch, hasTermOffset):
-    if hasTermOffset:
-        termOffsetInDays = 90
-    else:
-        termOffsetInDays = 0
-
-    blockTime = VAULT_EPOCH_START + epoch * SECONDS_IN_QUARTER
-    vaultConfig.setVaultConfig(vault.address, get_vault_config(termOffsetInDays=termOffsetInDays))
-    maturity = vaultConfig.getCurrentMaturity(vault.address, blockTime)
+@given(epoch=strategy("uint16", min_value=1))
+def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch):
+    maturity = VAULT_EPOCH_START + epoch * SECONDS_IN_MONTH
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
 
     account = get_vault_account(fCash=-100_000e8, maturity=maturity)
     vaultConfig.setVaultAccount(account, vault.address)

@@ -5,11 +5,9 @@ pragma abicoder v2;
 import "../strategyVaults/BaseStrategyVault.sol";
 
 contract SimpleStrategyVault is BaseStrategyVault {
-    bool internal _inSettlement;
     bool internal _forceSettle;
     uint256 internal _tokenExchangeRate;
     function setForceSettle(bool s) external { _forceSettle = s; }
-    function setSettlement(bool s) external { _inSettlement = s; }
     function setExchangeRate(uint256 e) external { _tokenExchangeRate = e; }
 
     constructor(

@@ -143,6 +143,8 @@ library VaultStateLib {
             // If the vault account has no maturity, then set it here
             vaultAccount.maturity = vaultState.maturity;
             require(vaultAccount.vaultShares == 0);
+        } else {
+            require(vaultAccount.maturity == vaultState.maturity);
         }
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
