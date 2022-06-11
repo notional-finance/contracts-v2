@@ -15,13 +15,13 @@ def test_set_vault_config(vaultConfig, accounts):
     with brownie.reverts():
         # Fails on liquidation ratio less than 100
         conf = get_vault_config()
-        conf[6] = 99
+        conf[5] = 99
         vaultConfig.setVaultConfig(accounts[0], conf)
 
     with brownie.reverts():
         # Fails on reserve fee share over 100
         conf = get_vault_config()
-        conf[7] = 102
+        conf[6] = 102
         vaultConfig.setVaultConfig(accounts[0], conf)
 
     conf = get_vault_config()
@@ -31,13 +31,12 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["vault"] == accounts[0].address
     assert config["flags"] == conf[0]
     assert config["borrowCurrencyId"] == conf[1]
-    assert config["maxVaultBorrowCapacity"] == conf[2]
-    assert config["minAccountBorrowSize"] == conf[3] * 1e8
-    assert config["minCollateralRatio"] == conf[4] * BASIS_POINT
-    assert config["feeRate"] == conf[5] * 5 * BASIS_POINT
-    assert config["liquidationRate"] == conf[6]
-    assert config["reserveFeeShare"] == conf[7]
-    assert config["maxBorrowMarketIndex"] == conf[8]
+    assert config["minAccountBorrowSize"] == conf[2] * 1e8
+    assert config["minCollateralRatio"] == conf[3] * BASIS_POINT
+    assert config["feeRate"] == conf[4] * 5 * BASIS_POINT
+    assert config["liquidationRate"] == conf[5]
+    assert config["reserveFeeShare"] == conf[6]
+    assert config["maxBorrowMarketIndex"] == conf[7]
 
 
 def test_pause_and_enable_vault(vaultConfig, accounts):
@@ -110,26 +109,37 @@ def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts)
         lastNTokenCashBalance = nTokenCashBalance
 
 
-def test_max_borrow_capacity_no_reenter(vaultConfig, vault, accounts, maxMarkets):
-    vaultConfig.setVaultConfig(
-        vault.address, get_vault_config(flags=set_flags(0), maxVaultBorrowCapacity=100_000_000e8)
-    )
+def test_update_used_borrow_capacity_increases_with_borrowing(vaultConfig, vault):
+    vaultConfig.setMaxBorrowCapacity(vault.address, 1, 100_000e8)
 
-    # Set current maturity
-    vaultConfig.setVaultState(
-        vault.address,
-        get_vault_state(
-            maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
-            totalfCash=-90_000_000e8,
-            totalAssetCash=250_000_000e8,
-        ),
-    )
+    runningTotal = 0
+    for i in range(0, 5):
+        fCash = 22_000e8
+        runningTotal += fCash
 
-    totalDebt = vaultConfig.getBorrowCapacity(
-        vault.address, START_TIME_TREF + SECONDS_IN_QUARTER, START_TIME_TREF + 100
-    )
+        if runningTotal > 100_000e8:
+            with brownie.reverts("Max Capacity"):
+                vaultConfig.updateUsedBorrowCapacity(vault.address, 1, -fCash)
+        else:
+            assert (
+                runningTotal
+                == vaultConfig.updateUsedBorrowCapacity(vault.address, 1, -fCash).return_value
+            )
 
-    assert totalDebt == 85_000_000e8
+
+def test_update_used_borrow_capacity_decreases_with_lending(vaultConfig, vault):
+    vaultConfig.setMaxBorrowCapacity(vault.address, 1, 100_000e8)
+    vaultConfig.updateUsedBorrowCapacity(vault.address, 1, -100_000e8)
+
+    assert 90_000e8 == vaultConfig.updateUsedBorrowCapacity(vault.address, 1, 10_000e8).return_value
+
+    vaultConfig.setMaxBorrowCapacity(vault.address, 1, 50_000e8)
+
+    # Still allowed to decrease borrow capacity above max
+    assert 80_000e8 == vaultConfig.updateUsedBorrowCapacity(vault.address, 1, 10_000e8).return_value
+
+    with brownie.reverts("Max Capacity"):
+        vaultConfig.updateUsedBorrowCapacity(vault.address, 1, -1)
 
 
 def test_deposit_and_redeem_ctoken(vaultConfig, vault, accounts, cToken, underlying):

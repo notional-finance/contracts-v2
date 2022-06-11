@@ -240,14 +240,12 @@ library VaultAccountLib {
         // Set the vault state and account in storage and check the vault's collateral ratio
         vaultState.setVaultState(vaultConfig.vault);
         setVaultAccount(vaultAccount, vaultConfig);
-            
-        if (fCashToBorrow > 0 || usedEscrowedAssetCash) {
-            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
-        }
-
         // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
         // what the amount is the collateral ratio will increase. This is useful for accounts that want to quickly and cheaply
         // deleverage their account without paying down debts.
+        if (fCashToBorrow > 0 || usedEscrowedAssetCash) {
+            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+        }
     }
 
     /**
@@ -296,8 +294,8 @@ library VaultAccountLib {
         uint256 timeToMaturity = maturity.sub(blockTime);
         vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
 
-        // This will check if the vault can sustain the total borrow capacity given the staked nToken value.
-        vaultConfig.checkTotalBorrowCapacity(vaultState, blockTime);
+        // This will check if the vault can sustain the total borrow capacity
+        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
     }
 
     /**
@@ -361,6 +359,9 @@ library VaultAccountLib {
         // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
         // applications of escrowed asset cash because that complicates settlement dynamics.
         removeEscrowedAssetCash(vaultAccount);
+
+        // Reduces the total used borrow capacity
+        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
     }
 
     /**

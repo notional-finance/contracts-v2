@@ -8,10 +8,6 @@ import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
 import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
 
-import {
-    VaultSecondaryBorrowCapacityStorage,
-    VaultSecondaryBorrowStorage
-} from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
@@ -29,12 +25,15 @@ contract VaultAction is ActionGuards, IVaultAction {
      *
      * @param vaultAddress address of deployed vault
      * @param vaultConfig struct of vault configuration
+     * @param maxPrimaryBorrowCapacity maximum borrow capacity
      */
     function updateVault(
         address vaultAddress,
-        VaultConfigStorage calldata vaultConfig
+        VaultConfigStorage calldata vaultConfig,
+        uint80 maxPrimaryBorrowCapacity
     ) external override onlyOwner {
         VaultConfiguration.setVaultConfig(vaultAddress, vaultConfig);
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxPrimaryBorrowCapacity);
         bool enabled = (vaultConfig.flags & VaultConfiguration.ENABLED) == VaultConfiguration.ENABLED;
         emit VaultChange(vaultAddress, enabled);
     }
@@ -59,7 +58,7 @@ contract VaultAction is ActionGuards, IVaultAction {
      * the redemption of strategy tokens to cash to reduce the overall risk of the vault.
      * This method is intended to be used in emergencies to mitigate insolvency risk.
      * @param vaultAddress address of the vault
-     * @param maxVaultBorrowCapacity the new max vault borrow capacity
+     * @param maxVaultBorrowCapacity the new max vault borrow capacity on the primary currency
      * @param maturity the maturity to redeem tokens in, will generally be either the current
      * maturity or the next maturity.
      * @param strategyTokensToRedeem how many tokens we would want to redeem in the maturity
@@ -72,9 +71,27 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
     ) external override onlyOwner {
-        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, maxVaultBorrowCapacity);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxVaultBorrowCapacity);
         _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
+    }
+
+    /**
+     * @notice Whitelists a secondary borrow currency for a vault, vaults can borrow up to the capacity
+     * using the `borrowSecondaryCurrencyToVault` and `repaySecondaryCurrencyToVault` methods. Vaults that
+     * use a secondary currency must ALWAYS repay the secondary debt during redemption and handle accounting
+     * for the secondary currency themselves.
+     *
+     * @param vaultAddress address of deployed vault
+     * @param secondaryCurrencyId struct of vault configuration
+     * @param maxBorrowCapacity maximum borrow capacity
+     */
+    function updateSecondaryBorrowCapacity(
+        address vaultAddress,
+        uint16 secondaryCurrencyId,
+        uint80 maxBorrowCapacity
+    ) external override onlyOwner {
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
     }
 
     /**
@@ -197,22 +214,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
         require(currencyId != vaultConfig.borrowCurrencyId);
 
-        VaultSecondaryBorrowCapacityStorage storage cap = 
-            LibStorage.getVaultSecondaryBorrowCapacity()[msg.sender][currencyId];
-        // Update the total used borrow capacity, when borrowing this number will increase (netfCash < 0),
-        // when lending this number will decrease (netfCash > 0)
-        int256 totalUsedBorrowCapacity = int256(uint256(cap.totalUsedBorrowCapacity)).sub(netfCash);
-        if (netfCash < 0) {
-            // Always allow lending to reduce the total used borrow capacity to satisfy the case when the max borrow
-            // capacity has been reduced by governance below the totalUsedBorrowCapacity. When borrowing, it cannot
-            // go past the limit.
-            require(totalUsedBorrowCapacity <= int256(uint256(cap.maxSecondaryBorrowCapacity)));
-        }
-
-        // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
-        // of the total fCash borrowed.
-        cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
-
+        // This will revert if we overflow the maximum borrow capacity
+        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, currencyId, netfCash);
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[msg.sender][currencyId][maturity];
@@ -228,6 +231,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             vaultConfig.maxBorrowMarketIndex,
             block.timestamp
         );
+        // TODO: if trade fails on lend ask for the asset rate amount of tokens
         require(netAssetCash == 0, "Trade Failed");
 
         if (netAssetCash > 0) {
@@ -271,7 +275,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(
             maturity <= block.timestamp &&
             vaultState.isSettled == false &&
-            // TODO: is this method necessary?
+            // TODO: just authenticate this via the vault
+            // In some cases, the strategy vault may need to authorize settlement
             IStrategyVault(vault).canSettleMaturity(maturity),
             "Cannot Settle"
         );
@@ -318,6 +323,10 @@ contract VaultAction is ActionGuards, IVaultAction {
             vaultState.setVaultState(vault);
         }
 
+        // Clears the used borrow capacity regardless of the insolvency state of the vault. Since vaults are
+        // automatically paused in the case of any shortfall, no accounts will be able to enter regardless
+        // but we still want to maintain proper accounting of the borrow capacity.
+        VaultConfiguration.updateUsedBorrowCapacity(vault, vaultConfig.borrowCurrencyId, vaultState.totalfCash);
         VaultStateLib.setSettledVaultState(vault, maturity);
     }
 
@@ -333,6 +342,25 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity
     ) external view override returns (VaultState memory vaultState) {
         vaultState = VaultStateLib.getVaultState(vault, maturity);
+    }
+
+    function getBorrowCapacity(
+        address vault,
+        uint16 currencyId
+    ) external view override returns (
+        uint256 totalUsedBorrowCapacity,
+        uint256 maxBorrowCapacity
+    ) {
+        VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
+        totalUsedBorrowCapacity = cap.totalUsedBorrowCapacity;
+        maxBorrowCapacity = cap.maxBorrowCapacity;
+    }
+
+    function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
+        external view override returns (uint256 totalfCashBorrowed) {
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vault][currencyId][maturity];
+        totalfCashBorrowed = balance.fCashBorrowed;
     }
 
     function getCashRequiredToSettle(

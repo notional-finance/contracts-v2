@@ -24,7 +24,8 @@ interface IVaultAction {
     /// @notice Governance only method to whitelist a particular vault
     function updateVault(
         address vaultAddress,
-        VaultConfigStorage calldata vaultConfig
+        VaultConfigStorage calldata vaultConfig,
+        uint80 maxPrimaryBorrowCapacity
     ) external;
 
     /// @notice Governance only method to pause a particular vault
@@ -40,6 +41,13 @@ interface IVaultAction {
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
+    ) external;
+
+    /// @notice Governance only method to update a vault's secondary borrow capacity
+    function updateSecondaryBorrowCapacity(
+        address vaultAddress,
+        uint16 secondaryCurrencyId,
+        uint80 maxBorrowCapacity
     ) external;
 
     /// @notice Vault authenticated method that takes asset cash from the pool and mints strategy tokens
@@ -79,6 +87,12 @@ interface IVaultAction {
 
     /// @notice View method to get vault configuration
     function getVaultConfig(address vault) external view returns (VaultConfig memory vaultConfig);
+
+    function getBorrowCapacity(address vault, uint16 currencyId)
+        external view returns (uint256 totalUsedBorrowCapacity, uint256 maxBorrowCapacity);
+
+    function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
+        external view returns (uint256 totalfCashBorrowed);
 
     /// @notice View method to get vault state
     function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory vaultState);

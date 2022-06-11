@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
 
@@ -90,60 +91,24 @@ def test_exit_maturity_pool(vaultConfig, vault):
     assert totalStrategyTokens - newState.dict()["totalStrategyTokens"] == tokens
 
 
-def test_enter_maturity_pool_no_maturity(vaultConfig, vault, cToken, accounts):
+@given(
+    strategyTokenDeposit=strategy("uint", min_value=0, max_value=200_000e8),
+    isMaturity=strategy("bool"),
+)
+def test_enter_maturity(vaultConfig, vault, cToken, accounts, strategyTokenDeposit, isMaturity):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     tempCashBalance = 500e8
     totalVaultShares = 100_000e8
     totalStrategyTokens = 100_000e8
 
-    account = get_vault_account(tempCashBalance=tempCashBalance)
-
-    state = get_vault_state(
-        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
-        totalVaultShares=totalVaultShares,
-        totalStrategyTokens=totalStrategyTokens,
-    )
-
-    cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
-    vault.setExchangeRate(2e18)
-
-    (newState, newAccount) = vaultConfig.enterMaturityPool(
-        vault.address, state, account, 0, ""
-    ).return_value
-    # Total Vault Shares Net Off
-    assert (
-        newState.dict()["totalVaultShares"] - totalVaultShares == newAccount.dict()["vaultShares"]
-    )
-    # Total Cash Balance Nets Off
-    assert newState.dict()["totalAssetCash"] == 0
-    assert newAccount.dict()["tempCashBalance"] == 0
-    # Total Strategy Tokens Nets Off
-    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 5e8
-
-    (assetCash, strategyTokens) = vaultConfig.getPoolShare(
-        newState, newAccount.dict()["vaultShares"]
-    )
-    assert assetCash == 0
-    # Account has a claim on all new strategy tokens
-    assert strategyTokens == newState.dict()["totalStrategyTokens"] - totalStrategyTokens
-
-
-# TODO: test with strategy token deposit
-def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    tempCashBalance = 500e8
-    accountVaultShares = 500e8
-    totalVaultShares = 100_000e8
-    totalStrategyTokens = 100_000e8
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER if isMaturity else 0
+    accountVaultShares = 500e8 if isMaturity else 0
 
     account = get_vault_account(
-        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
-        tempCashBalance=tempCashBalance,
-        vaultShares=accountVaultShares,
+        maturity=maturity, tempCashBalance=tempCashBalance, vaultShares=accountVaultShares
     )
-
     state = get_vault_state(
-        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        maturity=maturity,
         totalVaultShares=totalVaultShares,
         totalStrategyTokens=totalStrategyTokens,
     )
@@ -152,7 +117,7 @@ def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts)
     vault.setExchangeRate(2e18)
 
     (newState, newAccount) = vaultConfig.enterMaturityPool(
-        vault.address, state, account, 0, ""
+        vault.address, state, account, strategyTokenDeposit, ""
     ).return_value
     # Total Vault Shares Net Off
     assert (
@@ -163,7 +128,9 @@ def test_enter_maturity_with_same_maturity(vaultConfig, vault, cToken, accounts)
     assert newState.dict()["totalAssetCash"] == 0
     assert newAccount.dict()["tempCashBalance"] == 0
     # Total Strategy Tokens Nets Off
-    assert newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 5e8
+    assert (
+        newState.dict()["totalStrategyTokens"] - totalStrategyTokens == 5e8 + strategyTokenDeposit
+    )
 
     (assetCash, strategyTokens) = vaultConfig.getPoolShare(
         newState, newAccount.dict()["vaultShares"] - accountVaultShares
@@ -179,6 +146,16 @@ def test_enter_maturity_with_old_maturity(vaultConfig, vault):
     state = get_vault_state(maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER)
 
     # Cannot enter a maturity pool with a mismatched maturity
+    with brownie.reverts():
+        vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
+
+
+def test_enter_maturity_with_asset_cash(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    account = get_vault_account(maturity=START_TIME_TREF + SECONDS_IN_QUARTER)
+    state = get_vault_state(maturity=START_TIME_TREF + SECONDS_IN_QUARTER, totalAssetCash=100_000e8)
+
+    # Cannot enter a maturity pool with asset cash
     with brownie.reverts():
         vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
 

@@ -106,13 +106,12 @@ def get_vault_config(**kwargs):
     return [
         kwargs.get("flags", 0),  # 0: flags
         kwargs.get("currencyId", 1),  # 1: currency id
-        kwargs.get("maxVaultBorrowCapacity", 100_000_000e8),  # 2: max vault borrow size
-        kwargs.get("minAccountBorrowSize", 100_000),  # 3: min account borrow size
-        kwargs.get("minCollateralRatioBPS", 2000),  # 4: 20% collateral ratio
-        kwargs.get("feeRate5BPS", 20),  # 5: 1% fee
-        kwargs.get("liquidationRate", 104),  # 6: 4% liquidation discount
-        kwargs.get("reserveFeeShare", 20),  # 7: 20% reserve fee share
-        kwargs.get("maxBorrowMarketIndex", 2),  # 8: 20% reserve fee share
+        kwargs.get("minAccountBorrowSize", 100_000),  # 2: min account borrow size
+        kwargs.get("minCollateralRatioBPS", 2000),  # 3: 20% collateral ratio
+        kwargs.get("feeRate5BPS", 20),  # 4: 1% fee
+        kwargs.get("liquidationRate", 104),  # 5: 4% liquidation discount
+        kwargs.get("reserveFeeShare", 20),  # 6: 20% reserve fee share
+        kwargs.get("maxBorrowMarketIndex", 2),  # 7: 20% reserve fee share
     ]
 
 

@@ -54,21 +54,20 @@ contract MockVaultConfiguration {
         return (vaultAccount, totalReserve, nTokenCashBalance);
     }
 
-    function getBorrowCapacity(
+    function setMaxBorrowCapacity(
         address vault,
-        uint256 maturity,
-        uint256 blockTime
-    ) external view returns (int256 totalOutstandingDebt) {
-        VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
-        return VaultConfiguration.getVaultConfigView(vault).getBorrowCapacity(vaultState, blockTime);
+        uint16 currencyId,
+        uint80 maxBorrowCapacity
+    ) external {
+        VaultConfiguration.setMaxBorrowCapacity(vault, currencyId, maxBorrowCapacity);
     }
 
-    function checkTotalBorrowCapacity(
+    function updateUsedBorrowCapacity(
         address vault,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) external {
-        VaultConfiguration.getVaultConfigView(vault).checkTotalBorrowCapacity(vaultState, blockTime);
+        uint16 currencyId,
+        int256 netfCash
+    ) external returns (int256 totalBorrowCapacity) {
+        return VaultConfiguration.updateUsedBorrowCapacity(vault, currencyId, netfCash);
     }
 
     function deposit(

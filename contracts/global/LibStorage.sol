@@ -48,7 +48,7 @@ library LibStorage {
         VaultConfig,
         VaultState,
         VaultAccount,
-        VaultSecondaryBorrowCapacity,
+        VaultBorrowCapacity,
         VaultSecondaryBorrow
     }
 
@@ -231,11 +231,11 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
-    /// @dev Returns object for a vault's SecondaryBorrowCapacity, mapping is from vault address to currency to SecondaryBorrowCapacity object
-    function getVaultSecondaryBorrowCapacity() internal pure returns (
-        mapping(address => mapping(uint256 => VaultSecondaryBorrowCapacityStorage)) storage store
+    /// @dev Returns object for a VaultBorrowCapacity, mapping is from vault address to currency to BorrowCapacity object
+    function getVaultBorrowCapacity() internal pure returns (
+        mapping(address => mapping(uint256 => VaultBorrowCapacityStorage)) storage store
     ) {
-        uint256 slot = _getStorageSlot(StorageId.VaultSecondaryBorrowCapacity);
+        uint256 slot = _getStorageSlot(StorageId.VaultBorrowCapacity);
         assembly { store.slot := slot }
     }
 

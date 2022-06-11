@@ -18,7 +18,7 @@ import {
     VaultConfig,
     VaultAccount,
     VaultConfigStorage,
-    VaultSecondaryBorrowCapacityStorage,
+    VaultBorrowCapacityStorage,
     VaultSecondaryBorrowStorage
 } from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
@@ -59,7 +59,6 @@ library VaultConfiguration {
         vaultConfig.vault = vaultAddress;
         vaultConfig.flags = s.flags;
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
-        vaultConfig.maxVaultBorrowCapacity = s.maxVaultBorrowCapacity;
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
@@ -88,12 +87,6 @@ library VaultConfiguration {
         vaultConfig.assetRate = AssetRate.buildAssetRateView(vaultConfig.borrowCurrencyId);
     }
 
-    function setMaxBorrowCapacity(address vaultAddress, uint80 maxVaultBorrowCapacity) internal {
-        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
-        VaultConfigStorage storage s = store[vaultAddress];
-        s.maxVaultBorrowCapacity = maxVaultBorrowCapacity;
-    }
-
     function setVaultEnabledStatus(address vaultAddress, bool enable) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         VaultConfigStorage storage s = store[vaultAddress];
@@ -118,6 +111,15 @@ library VaultConfiguration {
         require(vaultConfig.maxBorrowMarketIndex != 0);
 
         store[vaultAddress] = vaultConfig;
+    }
+
+    function setMaxBorrowCapacity(
+        address vault,
+        uint16 currencyId,
+        uint80 maxBorrowCapacity
+    ) internal {
+        VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
+        cap.maxBorrowCapacity = maxBorrowCapacity;
     }
 
     function authorizeCaller(
@@ -175,44 +177,36 @@ library VaultConfiguration {
     }
 
     /**
-     * @notice Checks the total borrow capacity for a vault across its active terms (the current term),
-     * and the next term. Ensures that the total debt is less than the capacity defined by nToken insurance.
-     * @param vaultConfig vault configuration
-     * @param vaultState the current vault state to get the total fCash debt
-     * @param blockTime current block time
-     * @return totalOutstandingDebt positively valued debt outstanding
+     * @notice Updates the total borrow capacity for a vault and a currency. Reverts if borrowing goes above
+     * the maximum allowed, always allows the total used to decrease. Called when borrowing, lending and settling
+     * a vault. Tracks all fCash usage across all maturities as a single number even though they are not strictly
+     * fungible with each other, this is just used as a heuristic for the total vault risk exposure.
+     * @param vault address of vault
+     * @param currencyId relevant currency id, all vaults will borrow in a primary currency, some vaults also borrow
+     * in secondary or perhaps even tertiary currencies.
+     * @param netfCash the net amount of fCash change (borrowing < 0, lending > 0)
+     * @return totalUsedBorrowCapacity positively valued debt outstanding
      */
-    function getBorrowCapacity(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) internal view returns (int256 totalOutstandingDebt) {
-        // This is a partially calculated storage slot for the vault's state. The mapping is from maturity
-        // to vault state for this vault.
-        mapping(uint256 => VaultStateStorage) storage vaultStore = LibStorage.getVaultState()[vaultConfig.vault];
-        uint256 tRef = DateTime.getReferenceTime(blockTime);
+    function updateUsedBorrowCapacity(
+        address vault,
+        uint16 currencyId,
+        int256 netfCash
+    ) internal returns (int256 totalUsedBorrowCapacity) {
+        VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
 
-        for (uint i = 1; i <= vaultConfig.maxBorrowMarketIndex; i++) {
-            // Loop through all the potentially traded markets and get the net debt for the vault
-            VaultStateStorage storage s = vaultStore[tRef.add(DateTime.getTradedMarket(i))];
-
-            int256 totalfCash = -int256(uint256(s.totalfCash));
-            int256 totalAssetCash = int256(uint256(s.totalAssetCash));
-
-            // In this method totalOutstandingDebt is a positive number
-            totalOutstandingDebt = totalOutstandingDebt.add(
-                totalfCash.add(vaultConfig.assetRate.convertToUnderlying(totalAssetCash)).neg()
-            );
+        // Update the total used borrow capacity, when borrowing this number will increase (netfCash < 0),
+        // when lending this number will decrease (netfCash > 0)
+        totalUsedBorrowCapacity = int256(uint256(cap.totalUsedBorrowCapacity)).sub(netfCash);
+        if (netfCash < 0) {
+            // Always allow lending to reduce the total used borrow capacity to satisfy the case when the max borrow
+            // capacity has been reduced by governance below the totalUsedBorrowCapacity. When borrowing, it cannot
+            // go past the limit.
+            require(totalUsedBorrowCapacity <= int256(uint256(cap.maxBorrowCapacity)), "Max Capacity");
         }
-    }
 
-    function checkTotalBorrowCapacity(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        uint256 blockTime
-    ) internal {
-        int256 totalOutstandingDebt = getBorrowCapacity(vaultConfig, vaultState, blockTime);
-        require(totalOutstandingDebt <= vaultConfig.maxVaultBorrowCapacity, "Insufficient capacity");
+        // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
+        // of the total fCash borrowed.
+        cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
     }
 
     /**
