@@ -289,8 +289,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
         // fCash market against the account and put them in an insolvent position. All the cash balance deposited
         // goes into the escrowed asset cash balance.
-        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
-        vaultAccount.tempCashBalance = 0;
+        vaultAccount.increaseEscrowedAssetCash(vaultState);
 
         // Ensure that the collateral ratio does not increase too much (we would over liquidate the account
         // in this case). If the account is still over leveraged we still allow the transaction to complete

@@ -123,6 +123,7 @@ def get_vault_state(**kwargs):
         kwargs.get("totalVaultShares", 0),
         kwargs.get("totalAssetCash", 0),
         kwargs.get("totalStrategyTokens", 0),
+        kwargs.get("totalEscrowedAssetCash", 0),
         kwargs.get("settlementStrategyTokenValue", 0),
     ]
 

@@ -290,7 +290,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // This is how much it costs in asset cash to settle the pooled portion of the vault
         uint256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(
             vaultState.totalfCash.neg()
-        ).toUint();
+        ).toUint().sub(vaultState.totalEscrowedAssetCash);
 
         if (vaultState.totalAssetCash < assetCashRequiredToSettle) {
             // Don't allow the pooled portion of the vault to have a cash shortfall unless all
@@ -391,6 +391,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // If this is a negative number, there is more cash than required to repay the debt
         int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCash)
             .add(vaultState.totalAssetCash.toInt())
+            .add(vaultState.totalEscrowedAssetCash.toInt())
             .neg();
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);

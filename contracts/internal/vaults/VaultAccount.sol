@@ -217,7 +217,7 @@ library VaultAccountLib {
         // decrease as a result.
         if (vaultAccount.escrowedAssetCash > 0) {
             usedEscrowedAssetCash = true;
-            removeEscrowedAssetCash(vaultAccount);
+            removeEscrowedAssetCash(vaultAccount, vaultState);
         }
 
         // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
@@ -358,7 +358,7 @@ library VaultAccountLib {
 
         // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
         // applications of escrowed asset cash because that complicates settlement dynamics.
-        removeEscrowedAssetCash(vaultAccount);
+        removeEscrowedAssetCash(vaultAccount, vaultState);
 
         // Reduces the total used borrow capacity
         VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
@@ -368,9 +368,21 @@ library VaultAccountLib {
      * @notice Called in the two places where escrowed cash is reduced on the account, when an account
      * re-enters a vault and when it is is able to successfully lend to exit the vault
      */
-    function removeEscrowedAssetCash(VaultAccount memory vaultAccount) internal pure {
+    function removeEscrowedAssetCash(VaultAccount memory vaultAccount, VaultState memory vaultState) internal pure {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
+        vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.sub(
+            vaultAccount.escrowedAssetCash.toUint()
+        );
         vaultAccount.escrowedAssetCash = 0;
+    }
+
+    /** @notice Called when deleveraging an account, we place cash to hold against fCash */
+    function increaseEscrowedAssetCash(VaultAccount memory vaultAccount, VaultState memory vaultState) internal pure {
+        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
+        vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.add(
+            vaultAccount.tempCashBalance.toUint()
+        );
+        vaultAccount.tempCashBalance = 0;
     }
 
     /**

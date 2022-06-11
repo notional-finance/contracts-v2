@@ -526,6 +526,8 @@ struct VaultStateStorage {
     // TODO: potentially make total strategy tokens bigger...
     // The total amount of strategy tokens held in the pool
     uint80 totalStrategyTokens;
+    // The total amount of escrowed asset cash held against fCash debt
+    uint80 totalEscrowedAssetCash;
     // Valuation of a strategy token at settlement
     uint80 settlementStrategyTokenValue;
     // NOTE: 16 bits left
@@ -538,6 +540,7 @@ struct VaultState {
     uint256 totalVaultShares;
     uint256 totalAssetCash;
     uint256 totalStrategyTokens;
+    uint256 totalEscrowedAssetCash;
     int256 settlementStrategyTokenValue;
 }
 

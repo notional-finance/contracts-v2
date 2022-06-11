@@ -46,6 +46,7 @@ library VaultStateLib {
         vaultState.totalAssetCash = s.totalAssetCash;
         vaultState.totalStrategyTokens = s.totalStrategyTokens;
         vaultState.totalVaultShares = s.totalVaultShares;
+        vaultState.totalEscrowedAssetCash = s.totalEscrowedAssetCash;
         vaultState.settlementStrategyTokenValue = s.settlementStrategyTokenValue;
     }
 
@@ -59,6 +60,7 @@ library VaultStateLib {
         s.totalAssetCash = safeUint80(vaultState.totalAssetCash);
         s.totalStrategyTokens = safeUint80(vaultState.totalStrategyTokens);
         s.totalVaultShares = safeUint80(vaultState.totalVaultShares);
+        s.totalEscrowedAssetCash = safeUint80(vaultState.totalEscrowedAssetCash);
     }
 
     function setSettledVaultState(
