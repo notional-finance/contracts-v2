@@ -223,7 +223,7 @@ library VaultConfiguration {
         int256 fCash,
         int256 escrowedAssetCash
     ) internal view returns (int256 collateralRatio) {
-        (int256 vaultShareValue, int256 assetCashHeld) = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
+        int256 vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
 
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very

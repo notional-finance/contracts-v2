@@ -126,7 +126,7 @@ contract MockVaultConfiguration {
         VaultState memory vaultState,
         uint256 vaultShares
     ) external view returns (int256 assetCashValue) {
-        (assetCashValue, /* */) = vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
+        assetCashValue = vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
     }
 
     function getPoolShare(

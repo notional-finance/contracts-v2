@@ -277,7 +277,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
         uint256 vaultSharesToLiquidator;
         {
-            (int256 assetCashValue, /* */) = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
+            int256 assetCashValue = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
             vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
                 .mul(vaultConfig.liquidationRate)
                 .mul(vaultAccount.vaultShares)

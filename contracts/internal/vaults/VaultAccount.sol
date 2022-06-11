@@ -182,13 +182,13 @@ library VaultAccountLib {
                 .div(vaultState.totalVaultShares.toInt())
             .add(netDebtAtSettlement);
 
-        // The only way for an account value to be negative in this instance is the case
-        // of a protocol insolvency where the maturity has been settled but there is not enough
-        // cash to repay the debts. In this case, there would be no strategy tokens remaining and
-        // so an insolvent account would not have a sufficient share of asset cash to net off its
-        // debts. Add this insolvency to the account's temp cash balance and zero out the value at
-        // settlement. If the account is attempting to enter or exit the vault, this will net off
-        // their insolvency against any deposit (attempt to have the account repay their own insolvency).
+        // The only way for an account value to be negative here is due to a protocol insolvency where
+        // the maturity has been settled but there is not enough cash to repay the debts. In this case,
+        // there would be no strategy tokens remaining and so an insolvent account would not have a sufficient
+        // share of asset cash to net off its debts. Add this insolvency to the account's temp cash balance
+        // and zero out the value at settlement. If the account is attempting to enter or exit the vault,
+        // this will net off their insolvency against any deposit (attempt to have the account repay their
+        // own insolvency).
         if (accountValueAtSettlement < 0) {
             vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(accountValueAtSettlement);
             accountValueAtSettlement = 0;
