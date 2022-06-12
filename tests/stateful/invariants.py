@@ -21,10 +21,10 @@ def get_all_markets(env, currencyId):
     return markets
 
 
-def check_system_invariants(env, accounts, vaults=[]):
+def check_system_invariants(env, accounts, vaults=[], vaultfCashOverrides=[]):
     check_cash_balance(env, accounts, vaults)
     check_ntoken(env, accounts)
-    check_portfolio_invariants(env, accounts, vaults)
+    check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides)
     check_account_context(env, accounts)
     check_token_incentive_balance(env, accounts)
     check_vault_invariants(env, accounts, vaults)
@@ -183,9 +183,14 @@ def check_ntoken(env, accounts):
         assert env.notional.getFreeCollateral(nToken.address)[0] >= 0
 
 
-def check_portfolio_invariants(env, accounts, vaults):
+def check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides=[]):
     fCash = defaultdict(dict)
     liquidityToken = defaultdict(dict)
+    for o in vaultfCashOverrides:
+        if (o["currencyId"], o["maturity"]) in fCash:
+            fCash[(o["currencyId"], o["maturity"])] += o["fCash"]
+        else:
+            fCash[(o["currencyId"], o["maturity"])] = o["fCash"]
 
     for account in accounts:
         env.notional.settleAccount(account.address)

@@ -84,34 +84,21 @@ def test_roll_vault_insufficient_collateral(environment, vault, roll_account):
 
 
 def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, accounts):
-    maturity1 = environment.notional.getActiveMarkets(2)[0][1]
     maturity2 = environment.notional.getActiveMarkets(2)[1][1]
     environment.notional.updateVault(
         vault.address,
         get_vault_config(flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2),
-        200_000e8,
-    )
-
-    environment.notional.enterVault(
-        accounts[0],
-        vault.address,
-        25_000e18,
-        maturity1,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[0]},
+        105_000e8,
     )
 
     with brownie.reverts("Max Capacity"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 150_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 110_000e8, maturity2, (0, 0, ""), {"from": roll_account}
         )
 
     # This should succeed because 100k fCash is repaid and then re-borrowed
     environment.notional.rollVaultPosition(
-        roll_account, vault, 100_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 105_000e8, maturity2, (0, 0, ""), {"from": roll_account}
     )
 
     check_system_invariants(environment, accounts, [vault])
@@ -137,14 +124,14 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
         borrowAmountAsset,
         _,
         _,
-    ) = environment.notional.getPrincipalFromfCashBorrow(2, 100_000e8, maturity2, 0, chain.time())
+    ) = environment.notional.getPrincipalFromfCashBorrow(2, 102_000e8, maturity2, 0, chain.time())
 
     environment.notional.rollVaultPosition(
-        roll_account, vault, 100_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 102_000e8, maturity2, (0, 0, ""), {"from": roll_account}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    vaultState1After = environment.notional.getVaultState(vault, maturity)
+    vaultState1After = environment.notional.getVaultState(vault, maturity1)
     vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
 
     assert vaultState1After["totalfCash"] == 0
@@ -152,16 +139,17 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     assert vaultState1After["totalAssetCash"] == 0
     assert vaultState1After["totalStrategyTokens"] == 0
 
-    assert vaultStateNew["totalfCash"] == -100_000e8
+    assert vaultStateNew["totalfCash"] == -102_000e8
     assert vaultStateNew["totalAssetCash"] == 0
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
 
     assert vaultAccountAfter["maturity"] == maturity2
 
-    rollBorrowLendCostInternal = (lendAmountUnderlying - borrowAmountUnderlying) / 1e10
-    netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
+    rollBorrowLendCostInternal = (borrowAmountUnderlying - lendAmountUnderlying) / 1e10
+    netSharesMinted = vaultAccountAfter["vaultShares"] - vaultAccountBefore["vaultShares"]
+    assert netSharesMinted > 0
     # This is approx equal because there is no vault fee assessed
-    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed
+    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesMinted
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -197,14 +185,14 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
         borrowAmountAsset,
         _,
         _,
-    ) = environment.notional.getPrincipalFromfCashBorrow(2, 100_000e8, maturity2, 0, chain.time())
+    ) = environment.notional.getPrincipalFromfCashBorrow(2, 103_000e8, maturity2, 0, chain.time())
 
     environment.notional.rollVaultPosition(
-        roll_account, vault, 100_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 103_000e8, maturity2, (0, 0, ""), {"from": roll_account}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    vaultState1After = environment.notional.getVaultState(vault, maturity)
+    vaultState1After = environment.notional.getVaultState(vault, maturity1)
     vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
 
     assert vaultState1After["totalfCash"] == 0
@@ -212,16 +200,22 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     assert vaultState1After["totalAssetCash"] == 0
     assert vaultState1After["totalStrategyTokens"] == 0
 
-    assert vaultStateNew["totalfCash"] == -100_000e8
+    assert vaultStateNew["totalfCash"] == -103_000e8
     assert vaultStateNew["totalAssetCash"] == 0
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
 
     assert vaultAccountAfter["maturity"] == maturity2
 
     lendAmountUnderlying = 100_000e18
-    rollBorrowLendCostInternal = (lendAmountUnderlying - borrowAmountUnderlying) / 1e10
-    netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
+    rollBorrowLendCostInternal = (borrowAmountUnderlying - lendAmountUnderlying) / 1e10
+    netSharesMinted = vaultAccountAfter["vaultShares"] - vaultAccountBefore["vaultShares"]
+    assert netSharesMinted > 0
     # This is approx equal because there is no vault fee assessed
-    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed
+    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesMinted
 
-    check_system_invariants(environment, accounts, [vault])
+    # Increase the reserve balance to account for the cash used to offset the fCash
+    environment.notional.setReserveCashBalance(
+        2, environment.notional.getReserveBalance(2) + 50_000_00e8
+    )
+    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity1, "fCash": -100_000e8}]
+    check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)

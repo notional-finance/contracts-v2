@@ -150,10 +150,16 @@ library VaultStateLib {
         // the vault.
         require(vaultAccount.tempCashBalance >= 0 && vaultState.totalAssetCash == 0);
 
-        if (vaultAccount.maturity == 0) {
-            // If the vault account has no maturity, then set it here
+        if (vaultAccount.maturity < vaultState.maturity) {
+            // This condition can occur in three scenarios:
+            //  - when an account is newly established
+            //  - when an account is entering a maturity after settlement
+            //  - when an account is rolling forward from a previous maturity
+            require(
+                vaultAccount.vaultShares == 0 &&
+                vaultAccount.escrowedAssetCash == 0
+            );
             vaultAccount.maturity = vaultState.maturity;
-            require(vaultAccount.vaultShares == 0);
         } else {
             require(vaultAccount.maturity == vaultState.maturity);
         }
