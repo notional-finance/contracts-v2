@@ -105,35 +105,47 @@ library VaultAccountLib {
             blockTime
         );
 
+        // Value of all strategy tokens at a snapshot price from settlement. The current spot price may be
+        // different but the spot price will be irrelevant post settlement. Settlement prices should be oracle
+        // prices and should not be manipulate-able via flash loans. This is a requirement in strategy vault design.
+        // Even if the settlement price was manipulated, it's not clear how it would be used to anyone's advantage
+        // here since all accounts in the pool will face the same price.
         int256 totalStrategyTokenValueAtSettlement = vaultState.totalStrategyTokens.toInt()
                 .mul(vaultState.settlementStrategyTokenValue)
                 .div(Constants.INTERNAL_TOKEN_PRECISION);
 
-        int256 accountValueAtSettlement = _getAccountValueAtSettlement(
+        int256 accountShareOfSettledPool = _getAccountShareOfSettledPool(
             vaultAccount,
             vaultState,
             settlementRate,
             totalStrategyTokenValueAtSettlement
         );
 
-        // Next, it will withdraw a proportional amount of strategy tokens and cash that remain after it has paid
-        // of its debts. Because different accounts will have different ratios of debts to assets, we cannot assume
-        // that the account is entitled to their full amount of vault shares after settlement.
-
-        // The account's proportional claim on the value of the vault is:
-        // proportionOfMaturedAssets = accountValueAtSettlement / residualSettlementVaultValue
-        //  where residualSettlementVaultValue = residualCashSnapshot * settlementRate 
-        //    + totalStrategyTokensAtSettlement * settlementStrategyTokenValue
-
-        // This is the amount of asset cash left over after paying off all the debts.
-        int256 settledVaultValue = settlementRate.convertToUnderlying(vaultState.totalAssetCash.toInt())
-            .sub(vaultState.totalfCash)
+        // Calculate the amount of strategy tokens and cash the account has a claim over. In order to do
+        // this we calculate two factors to determine the proportional claims of the account.
+        //   - residualAssetCashBalance is any asset cash above what is required to repay the
+        //     totalfCash debt. All accounts have a proportional claim on this relative to their value at
+        //     settlement.
+        //
+        //       residualAssetCashBalance = totalAssetCash + totalEscrowedAssetCash - totalfCash
+        //
+        //   - settledUnderlyingValue is the post settlement value of the vault. This is the total amount of
+        //     value that accounts can withdraw after settlement.
+        //
+        //       settledUnderlyingValue = totalAssetCash - totalfCash + strategyTokenValue
+    
+        int256 residualAssetCashBalance = vaultState.totalAssetCash.toInt()
+            .add(vaultState.totalEscrowedAssetCash.toInt())
+            .add(settlementRate.convertFromUnderlying(vaultState.totalfCash));
+            
+        int256 settledUnderlyingValue = settlementRate.convertToUnderlying(residualAssetCashBalance)
             .add(totalStrategyTokenValueAtSettlement);
         
-        int256 strategyTokenClaim = accountValueAtSettlement.mul(vaultState.totalStrategyTokens.toInt())
-            .div(settledVaultValue);
-        int256 cashClaim = accountValueAtSettlement.mul(vaultState.totalAssetCash.toInt())
-            .div(settledVaultValue);
+        int256 strategyTokenClaim = accountShareOfSettledPool
+            .mul(vaultState.totalStrategyTokens.toInt())
+            .div(settledUnderlyingValue);
+
+        int256 cashClaim = accountShareOfSettledPool.mul(residualAssetCashBalance).div(settledUnderlyingValue);
 
         // Update the vault account in memory
         vaultAccount.fCash = 0;
@@ -149,39 +161,44 @@ library VaultAccountLib {
         // will be deposited into the target maturity.
         return strategyTokenClaim.toUint();
     }
-        
-    function _getAccountValueAtSettlement(
+
+    function _getAccountShareOfSettledPool(
         VaultAccount memory vaultAccount, 
         VaultState memory vaultState, 
         AssetRateParameters memory settlementRate,
         int256 totalStrategyTokenValueAtSettlement
-    ) private pure returns (int256 accountValueAtSettlement) {
-        // When a vault account settles a matured position it will first net off its debt with the escrowedAssetCash
-        // it holds and the totalAssetCash held by the vault to zero out its fCash position.
-        int256 netDebtAtSettlement = settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash)
-            .add(vaultAccount.fCash);
+    ) private returns (int256 accountShareOfSettledPool) {
+        int256 escrowedUnderlyingCash = settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash);
+        if (escrowedUnderlyingCash > vaultAccount.fCash) {
+            // It is possible that an account has more escrowed asset cash than debt, causing totalAssetCash
+            // to be less than it should be. When we come in to settle other accounts, they will show as insolvent
+            // simply because we did not raise sufficient cash (excl. totalEscrowedAssetCash) to pay off the pooled
+            // debts. The contract is not actually insolvent here, it is just that the attribution is not correct.
 
-        if (netDebtAtSettlement > 0) {
-            // In this case, credit the temp cash balance with the surplus asset cash after full repayment of
-            // the fCash debt
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                // This is the surplus asset cash after repayment of the entire fCash debt
-                vaultAccount.escrowedAssetCash.sub(settlementRate.convertFromUnderlying(vaultAccount.fCash))
-            );
+            // In this case, the account can "sell" the excess escrowed asset cash back to the pool in exchange
+            // for strategy tokens. Unfortunately, this must be done in order for other accounts to settle
+            // properly.
+            // TODO: implement this, probably requires it to be a different method...
         }
 
-        int256 settlementVaultShareValue = settlementRate.convertToUnderlying(
-                vaultState.totalAssetCash.toInt()
-            ).add(vaultState.totalfCash)
-            .add(totalStrategyTokenValueAtSettlement);
+        // This is the total value of all vault shares at settlement as the sum of cash and strategy token
+        // assets held in the vault share pool using prices snapshot at settlement. Any future prices changes
+        // on these assets will not be relevant in our calculations so there is no incentive to "game" when
+        // users settle their positions.
 
-        // The account's value at settlement is:
-        // totalAccountValue = vaultShares * settlementVaultShareValue + netDebtAtSettlement
-        accountValueAtSettlement = 
+        int256 settlementVaultShareValue = totalStrategyTokenValueAtSettlement
+            .add(settlementRate.convertToUnderlying(vaultState.totalAssetCash.toInt()));
+
+        // The account's share of the settled pool is used to determine how much resulting shares of cash
+        // and strategy tokens it is allowed to withdraw from the pool of assets.
+        // accountShareOfSettledPool = vaultShares * settlementVaultShareValue + fCash (fCash is negative)
+        accountShareOfSettledPool = 
             vaultAccount.vaultShares.toInt().mul(settlementVaultShareValue)
                 .div(vaultState.totalVaultShares.toInt())
-            .add(netDebtAtSettlement);
+            .add(settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash))
+            .add(vaultAccount.fCash);
 
+        // TODO: re-examine this....
         // The only way for an account value to be negative here is due to a protocol insolvency where
         // the maturity has been settled but there is not enough cash to repay the debts. In this case,
         // there would be no strategy tokens remaining and so an insolvent account would not have a sufficient
@@ -189,9 +206,11 @@ library VaultAccountLib {
         // and zero out the value at settlement. If the account is attempting to enter or exit the vault,
         // this will net off their insolvency against any deposit (attempt to have the account repay their
         // own insolvency).
-        if (accountValueAtSettlement < 0) {
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(accountValueAtSettlement);
-            accountValueAtSettlement = 0;
+        if (accountShareOfSettledPool < 0) {
+            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+                settlementRate.convertFromUnderlying(accountShareOfSettledPool)
+            );
+            accountShareOfSettledPool = 0;
         }
     }
 

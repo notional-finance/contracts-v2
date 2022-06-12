@@ -58,92 +58,207 @@ def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch):
     assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
 
 
-def test_settle_account_normal_conditions(vaultConfig, accounts, vault):
+def test_settle_fails(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
-    state = get_vault_state(maturity=maturity)
+    account = get_vault_account(maturity=maturity, fCash=-100_00e8)
 
-    # No settlement (no fCash)
-    account = get_vault_account(maturity=START_TIME_TREF + SECONDS_IN_QUARTER, fCash=0)
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity + 100
-    ).return_value
-    assert account == accountAfter
-    assert state == stateAfter
-
-    # No settlement (before maturity)
-    account = get_vault_account(maturity=maturity, fCash=-100e8, vaultShares=100e8)
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity - 100
-    ).return_value
-    assert account == accountAfter
-    assert state == stateAfter
-
-    # Settlement fails, not fully settled
-    with brownie.reverts("Vault not settled"):
-        vaultConfig.settleVaultAccount(vault.address, account, state, maturity + 100)
-
-    # Settlement succeeds, fully settled
-    state = get_vault_state(maturity=maturity, isFullySettled=True)
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity + 100
-    ).return_value
-    assert accountAfter.dict()["fCash"] == 0
-    assert accountAfter.dict()["maturity"] == account[2]
-    assert state == stateAfter
-    assert not vaultConfig.requiresSettlement(accountAfter)
+    with brownie.reverts("Not Settled"):
+        vaultConfig.settleVaultAccount(
+            vault.address, account, START_TIME_TREF + SECONDS_IN_QUARTER + 100
+        )
 
 
-def test_settle_account_with_escrowed_asset_cash(vaultConfig, accounts, vault):
+def test_set_vault_settled_state(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
-    state = get_vault_state(maturity=maturity, accountsRequiringSettlement=1, totalfCash=-1000e8)
-    account = get_vault_account(maturity=maturity, fCash=-100e8, escrowedAssetCash=5010e8)
-
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity + 100
-    ).return_value
-    assert stateAfter.dict()["accountsRequiringSettlement"] == 0
-    assert stateAfter.dict()["totalfCash"] == -900e8
-    assert accountAfter.dict()["fCash"] == 0
-    assert accountAfter.dict()["escrowedAssetCash"] == 0
-    assert accountAfter.dict()["tempCashBalance"] == 10e8
-    assert not vaultConfig.requiresSettlement(accountAfter)
-
-    account = get_vault_account(maturity=maturity, fCash=-100e8, escrowedAssetCash=5010e8)
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity + 100
-    ).return_value
-    assert stateAfter.dict()["accountsRequiringSettlement"] == 0
-    assert stateAfter.dict()["totalfCash"] == -900e8
-    assert accountAfter.dict()["fCash"] == 0
-    assert accountAfter.dict()["escrowedAssetCash"] == 0
-    assert accountAfter.dict()["tempCashBalance"] == 10e8
-    assert not vaultConfig.requiresSettlement(accountAfter)
-
-
-def test_settle_account_escrowed_cash_insolvent(vaultConfig, accounts, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
-    state = get_vault_state(maturity=maturity, accountsRequiringSettlement=1, totalfCash=-1000e8)
-    account = get_vault_account(
-        maturity=maturity, fCash=-100e8, escrowedAssetCash=4990e8, vaultShares=100e8
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=100_000e8,  # This represents profits
+            totalAssetCash=50_000_000e8,
+            totalfCash=-1_000_000e8,
+        ),
     )
 
-    # Need to sell more shares
     with brownie.reverts():
-        vaultConfig.settleVaultAccount(vault.address, account, state, maturity + 100)
+        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 100)
+
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+    state = vaultConfig.getVaultState(vault.address, maturity)
+    assert state["isSettled"]
+    assert state["settlementStrategyTokenValue"] == 1e8
+
+    with brownie.reverts():
+        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 200)
+
+
+@pytest.mark.skip
+def test_settle_escrowed_cash_with_surplus(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=100_000e8,  # This represents profits
+            totalAssetCash=0,
+            totalfCash=-1_000_000e8,
+            totalEscrowedAssetCash=55_000_000e8,
+        ),
+    )
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
 
     account = get_vault_account(
-        maturity=maturity, fCash=-100e8, escrowedAssetCash=4990e8, vaultShares=0
+        maturity=maturity, fCash=-900_000e8, escrowedAssetCash=55_000_000e8, vaultShares=900_000e8
     )
-    (accountAfter, stateAfter) = vaultConfig.settleVaultAccount(
-        vault.address, account, state, maturity + 100
-    ).return_value
-    assert stateAfter.dict()["totalfCash"] == -900e8
-    assert accountAfter.dict()["fCash"] == 0
-    assert accountAfter.dict()["escrowedAssetCash"] == 0
-    assert accountAfter.dict()["tempCashBalance"] == -10e8
+
+    account2 = get_vault_account(
+        maturity=maturity, fCash=-100_000e8, escrowedAssetCash=0, vaultShares=100_000e8
+    )
+
+    txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
+    (accountAfter, strategyTokens) = txn1.return_value
+
+    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
+    (accountAfter2, strategyTokens2) = txn2.return_value
+    assert accountAfter["fCash"] == 0
+    assert accountAfter["maturity"] == 0
+    assert accountAfter["escrowedAssetCash"] == 0
+    assert accountAfter["vaultShares"] == 0
+    assert accountAfter2["fCash"] == 0
+    assert accountAfter2["maturity"] == 0
+    assert accountAfter2["escrowedAssetCash"] == 0
+    assert accountAfter2["vaultShares"] == 0
+
+    # Account gets their share of strategy tokens here, nothing else
+    assert strategyTokens + strategyTokens2 <= 100_000e8
+    assert pytest.approx(strategyTokens + strategyTokens2, abs=3) == 100_000e8
+    # Account gets their share of the residuals
+    assert accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"] <= residual
+    assert (
+        pytest.approx(accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"], abs=3)
+        == residual
+    )
+
+
+@given(
+    escrowedAssetCash=strategy("uint", min_value=100_000e8, max_value=500_000e8),
+    residual=strategy("uint", max_value=100_000e8),
+)
+def test_settle_escrowed_cash_with_residual(
+    vaultConfig, accounts, vault, escrowedAssetCash, residual
+):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=100_000e8,  # This represents profits
+            totalAssetCash=50_000_000e8 - escrowedAssetCash + residual,
+            totalfCash=-1_000_000e8,
+            totalEscrowedAssetCash=escrowedAssetCash,
+        ),
+    )
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+
+    account = get_vault_account(
+        maturity=maturity,
+        fCash=-10_000e8,
+        escrowedAssetCash=escrowedAssetCash,
+        vaultShares=10_000e8,
+    )
+
+    account2 = get_vault_account(
+        maturity=maturity,
+        fCash=-1_000_000e8 + 10_000e8,
+        escrowedAssetCash=0,
+        vaultShares=1_000_000e8 - 10_000e8,
+    )
+
+    txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
+    (accountAfter, strategyTokens) = txn1.return_value
+
+    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
+    (accountAfter2, strategyTokens2) = txn2.return_value
+    assert accountAfter["fCash"] == 0
+    assert accountAfter["maturity"] == 0
+    assert accountAfter["escrowedAssetCash"] == 0
+    assert accountAfter["vaultShares"] == 0
+    assert accountAfter2["fCash"] == 0
+    assert accountAfter2["maturity"] == 0
+    assert accountAfter2["escrowedAssetCash"] == 0
+    assert accountAfter2["vaultShares"] == 0
+
+    # Account gets their share of strategy tokens here, nothing else
+    assert strategyTokens + strategyTokens2 <= 100_000e8
+    assert pytest.approx(strategyTokens + strategyTokens2, abs=3) == 100_000e8
+    # Account gets their share of the residuals
+    assert accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"] <= residual
+    assert (
+        pytest.approx(accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"], abs=3)
+        == residual
+    )
+
+
+@pytest.mark.skip
+@given(escrowedAssetCash=strategy("uint", min_value=100_000e8, max_value=300_000e8))
+def test_settle_insolvent_account(vaultConfig, accounts, vault, escrowedAssetCash):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=100_000e8,  # This represents profits
+            totalAssetCash=50_000_000e8 - escrowedAssetCash,
+            totalfCash=-1_000_000e8,
+            totalEscrowedAssetCash=escrowedAssetCash,
+        ),
+    )
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+
+    account = get_vault_account(
+        maturity=maturity, fCash=-10_000e8, escrowedAssetCash=escrowedAssetCash, vaultShares=0
+    )
+    account2 = get_vault_account(
+        maturity=maturity,
+        fCash=-1_000_000e8 + 10_000e8,
+        escrowedAssetCash=0,
+        vaultShares=1_000_000e8,
+    )
+
+    txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
+    (accountAfter, strategyTokens) = txn1.return_value
+
+    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
+    (accountAfter2, strategyTokens2) = txn2.return_value
+
+    assert accountAfter["fCash"] == 0
+    assert accountAfter["maturity"] == 0
+    assert accountAfter["escrowedAssetCash"] == 0
+    assert accountAfter["vaultShares"] == 0
+    assert accountAfter2["fCash"] == 0
+    assert accountAfter2["maturity"] == 0
+    assert accountAfter2["escrowedAssetCash"] == 0
+    assert accountAfter2["vaultShares"] == 0
+
+    # Account gets their share of strategy tokens here, nothing else
+    assert strategyTokens == 0
+    assert strategyTokens2 == 100_000e8
+    # Account gets their share of the residuals
+    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8 + escrowedAssetCash
+    assert accountAfter2["tempCashBalance"] == 0
 
 
 @given(
