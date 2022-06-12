@@ -21,10 +21,20 @@ def test_deleverage_authentication(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True, ONLY_VAULT_DELEVERAGE=1)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
     vault.setExchangeRate(0.85e18)
     (cr, _) = environment.notional.getVaultAccountCollateralRatio(accounts[1], vault)
@@ -44,7 +54,9 @@ def test_deleverage_authentication(environment, accounts, vault):
 
     # Anyone can call deleverage now
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
 
     with brownie.reverts("Unauthorized"):
@@ -62,11 +74,22 @@ def test_deleverage_authentication(environment, accounts, vault):
 
 def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     with brownie.reverts("Sufficient Collateral"):
@@ -79,11 +102,22 @@ def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
 
 def test_deleverage_account_over_balance(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.85e18)
@@ -99,11 +133,22 @@ def test_deleverage_account_over_balance(environment, accounts, vault):
 
 def test_deleverage_account_over_deleverage(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.85e18)
@@ -118,16 +163,25 @@ def test_deleverage_account_over_deleverage(environment, accounts, vault):
 
 def test_cannot_deleverage_account_after_maturity(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.85e18)
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-
     chain.mine(1, timestamp=maturity)
 
     with brownie.reverts():
@@ -138,11 +192,22 @@ def test_cannot_deleverage_account_after_maturity(environment, accounts, vault):
 
 def test_deleverage_account(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.95e18)
@@ -151,7 +216,7 @@ def test_deleverage_account(environment, accounts, vault):
         accounts[1], vault
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-    vaultStateBefore = environment.notional.getCurrentVaultState(vault)
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     balanceBefore = environment.token["DAI"].balanceOf(accounts[2])
 
     environment.notional.deleverageAccount(
@@ -159,7 +224,7 @@ def test_deleverage_account(environment, accounts, vault):
     )
 
     balanceAfter = environment.token["DAI"].balanceOf(accounts[2])
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
@@ -189,22 +254,38 @@ def test_deleverage_account(environment, accounts, vault):
 def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True, TRANSFER_SHARES_ON_DELEVERAGE=True)
-        ),
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     # Set up the liquidator such that they have matured vault shares
     environment.notional.enterVault(
-        accounts[2], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[2]}
+        accounts[2],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[2]},
     )
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
 
     chain.mine(1, timestamp=maturity)
     environment.notional.initializeMarkets(2, False, {"from": accounts[0]})
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.95e18)
@@ -219,13 +300,21 @@ def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vaul
 def test_deleverage_account_transfer_shares(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True, TRANSFER_SHARES_ON_DELEVERAGE=True)
-        ),
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.95e18)
@@ -240,7 +329,7 @@ def test_deleverage_account_transfer_shares(environment, accounts, vault):
     )
 
     liquidatorAccount = environment.notional.getVaultAccount(accounts[2], vault)
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    # vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
@@ -255,7 +344,6 @@ def test_deleverage_account_transfer_shares(environment, accounts, vault):
     assert vaultAccountBefore["fCash"] == vaultAccountAfter["fCash"]
     # 25_000e18 in asset cash terms
     assert vaultAccountAfter["escrowedAssetCash"] == 25_000e8 * 50
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
 
     assert liquidatorAccount["maturity"] == vaultAccountAfter["maturity"]
     assert liquidatorAccount["vaultShares"] == vaultSharesSold
@@ -266,23 +354,25 @@ def test_deleverage_account_transfer_shares(environment, accounts, vault):
 def test_enter_vault_with_escrowed_asset_cash_insufficient_collateral(
     environment, vault, escrowed_account
 ):
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
     with brownie.reverts("Insufficient Collateral"):
         # Cannot immediately re-enter with escrowed asset cash
         environment.notional.enterVault(
-            escrowed_account, vault.address, 0, True, 0, 0, "", {"from": escrowed_account}
+            escrowed_account, vault.address, 0, maturity, True, 0, 0, "", {"from": escrowed_account}
         )
 
 
 def test_enter_vault_with_escrowed_asset_cash_no_collateral(
     environment, vault, escrowed_account, accounts
 ):
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
     # Can re-enter when exchange rate realigns
     vault.setExchangeRate(1e18)
     environment.notional.enterVault(
-        escrowed_account, vault.address, 0, True, 0, 0, "", {"from": escrowed_account}
+        escrowed_account, vault.address, 0, maturity, True, 0, 0, "", {"from": escrowed_account}
     )
 
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(escrowed_account, vault)
     (collateralRatioAfter, minRatio) = environment.notional.getVaultAccountCollateralRatio(
         escrowed_account, vault
@@ -290,24 +380,31 @@ def test_enter_vault_with_escrowed_asset_cash_no_collateral(
 
     assert collateralRatioAfter > minRatio
     assert vaultAccountAfter["escrowedAssetCash"] == 0
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
     assert vaultStateAfter["totalfCash"] == -100_000e8
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == -100_000e8
 
     check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
     vaultAccountBefore = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateBefore = environment.notional.getCurrentVaultState(vault)
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
 
     # Re-enter vault using escrowed asset cash
     environment.notional.enterVault(
-        escrowed_account, vault.address, 10_000e18, True, 0, 0, "", {"from": escrowed_account}
+        escrowed_account,
+        vault.address,
+        10_000e18,
+        maturity,
+        True,
+        0,
+        0,
+        "",
+        {"from": escrowed_account},
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     (collateralRatioAfter, minRatio) = environment.notional.getVaultAccountCollateralRatio(
         escrowed_account, vault
     )
@@ -325,11 +422,7 @@ def test_enter_vault_with_escrowed_asset_cash(environment, vault, escrowed_accou
         vaultStateAfter["totalVaultShares"] - vaultStateBefore["totalVaultShares"]
         == vaultSharesGained
     )
-
-    # fCash requiring settlement is re-instanted
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
     assert vaultStateAfter["totalfCash"] == -100_000e8
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == -100_000e8
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -346,11 +439,12 @@ def test_exit_vault_with_escrowed_asset_cash_insufficient_collateral(
 
 
 def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
     vaultAccountBefore = environment.notional.getVaultAccount(escrowed_account, vault)
     balanceBefore = environment.cToken["DAI"].balanceOf(escrowed_account)
 
     (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 50_000e8, environment.notional.getCurrentVaultMaturity(vault), 0, chain.time()
+        2, 50_000e8, maturity, 0, chain.time()
     )
 
     # This should clear the escrowed asset cash balance
@@ -360,7 +454,7 @@ def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
 
     balanceAfter = environment.cToken["DAI"].balanceOf(escrowed_account)
     vaultAccountAfter = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
 
     # Escrowed asset cash should be net off against the cost to lend
     assert (
@@ -371,11 +465,7 @@ def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     assert vaultAccountBefore["maturity"] == vaultAccountAfter["maturity"]
     assert vaultAccountAfter["fCash"] == -50_000e8
     assert vaultAccountAfter["escrowedAssetCash"] == 0
-
-    # fCash requiring settlement is re-instanted
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
     assert vaultStateAfter["totalfCash"] == -50_000e8
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == -50_000e8
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -389,10 +479,10 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
             minAccountBorrowSize=100,
             feeRate5BPS=0,
         ),
+        100_000_000e8,
     )
-
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
     vaultAccountBefore = environment.notional.getVaultAccount(escrowed_account, vault)
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
 
     (lendAmountUnderlying, amountLendAsset, _, _) = environment.notional.getDepositFromfCashLend(
         2, 100_000e8, maturity, 0, chain.time()
@@ -406,29 +496,26 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     ) = environment.notional.getPrincipalFromfCashBorrow(
         2, 50_000e8, maturity + SECONDS_IN_QUARTER, 0, chain.time()
     )
-    vault.setSettlement(True)
 
     environment.notional.rollVaultPosition(
         escrowed_account,
         vault.address,
         50_000e8,
-        50_000e8,
-        (0, 0, "", ""),
+        maturity + SECONDS_IN_QUARTER,
+        (0, 0, ""),
         {"from": escrowed_account},
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateAfter = environment.notional.getCurrentVaultState(vault)
+    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
 
     assert vaultAccountAfter["maturity"] == maturity + SECONDS_IN_QUARTER
     assert vaultAccountAfter["fCash"] == -50_000e8
     assert vaultAccountAfter["escrowedAssetCash"] == 0
 
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
     assert vaultStateAfter["totalVaultShares"] == 0
     assert vaultStateAfter["totalStrategyTokens"] == 0
     assert vaultStateAfter["totalfCash"] == 0
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
 
     rollBorrowLendCostInternal = (
         lendAmountUnderlying - borrowAmountUnderlying

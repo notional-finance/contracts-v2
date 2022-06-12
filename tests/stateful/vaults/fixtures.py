@@ -48,10 +48,20 @@ def escrowed_account(environment, accounts, vault):
             flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
             minAccountBorrowSize=100,
         ),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     vault.setExchangeRate(0.95e18)

@@ -114,16 +114,12 @@ def check_cash_balance(env, accounts, vaults):
             if config["borrowCurrencyId"] != currencyId:
                 break
 
-            currentMaturity = env.notional.getCurrentVaultMaturity(vault)
-            termLengthInSeconds = config["termLengthInSeconds"]
-
-            prevState = env.notional.getVaultState(vault, currentMaturity - termLengthInSeconds)
-            currentState = env.notional.getVaultState(vault, currentMaturity)
-            nextState = env.notional.getVaultState(vault, currentMaturity + termLengthInSeconds)
-
-            vaultBalances += prevState["totalAssetCash"]
-            vaultBalances += currentState["totalAssetCash"]
-            vaultBalances += nextState["totalAssetCash"]
+            maxMarkets = config["maxBorrowMarketIndex"]
+            markets = env.notional.getActiveMarkets(currencyId)
+            for i in range(0, maxMarkets):
+                maturity = markets[i][1]
+                state = env.notional.getVaultState(vault, maturity)
+                vaultBalances += state["totalAssetCash"]
 
             for account in accounts:
                 vaultAccount = env.notional.getVaultAccount(account, vault)
@@ -183,7 +179,7 @@ def check_ntoken(env, accounts):
         if nTokenAccount["cashBalance"] < 0:
             assert nToken.getPresentValueAssetDenominated() + nTokenAccount["cashBalance"] > 0
 
-        # Ensure that the FC of the nToken is gte 0
+        # TODO: this tests is spurious Ensure that the FC of the nToken is gte 0
         assert env.notional.getFreeCollateral(nToken.address)[0] >= 0
 
 
@@ -262,18 +258,13 @@ def check_portfolio_invariants(env, accounts, vaults):
     for vault in vaults:
         config = env.notional.getVaultConfig(vault)
         currencyId = config["borrowCurrencyId"]
+        maxMarkets = config["maxBorrowMarketIndex"]
+        markets = env.notional.getActiveMarkets(currencyId)
 
-        currentMaturity = env.notional.getCurrentVaultMaturity(vault)
-        termLengthInSeconds = config["termLengthInSeconds"]
-
-        prevState = env.notional.getVaultState(vault, currentMaturity - termLengthInSeconds)
-        fCash[(currencyId, prevState["maturity"])] += prevState["totalfCash"]
-
-        currentState = env.notional.getVaultState(vault, currentMaturity)
-        fCash[(currencyId, currentState["maturity"])] += currentState["totalfCash"]
-
-        nextState = env.notional.getVaultState(vault, currentMaturity + termLengthInSeconds)
-        fCash[(currencyId, nextState["maturity"])] += nextState["totalfCash"]
+        for i in range(0, maxMarkets):
+            maturity = markets[i][1]
+            state = env.notional.getVaultState(vault, maturity)
+            fCash[(currencyId, maturity)] += state["totalfCash"]
 
     for (_, netfCash) in fCash.items():
         # Assert that all fCash balances net off to zero
@@ -353,38 +344,45 @@ def check_token_incentive_balance(env, accounts):
 
 def check_vault_invariants(env, accounts, vaults):
     for vault in vaults:
-        maturities = set()
+        config = env.notional.getVaultConfig(vault)
+        currencyId = config["borrowCurrencyId"]
+        maxMarkets = config["maxBorrowMarketIndex"]
+
         totalfCashPerMaturity = defaultdict(lambda: 0)
         totalVaultSharesPerMaturity = defaultdict(lambda: 0)
-        accountsRequiringSettlementPerMaturity = defaultdict(lambda: 0)
-        nonPooledfCashPerMaturity = defaultdict(lambda: 0)
+        totalEscrowedAssetCashPerMaturity = defaultdict(lambda: 0)
+        totalfCashInVault = 0
+
+        markets = env.notional.getActiveMarkets(currencyId)
 
         for account in accounts:
             vaultAccount = env.notional.getVaultAccount(account, vault)
             if vaultAccount["maturity"] != 0:
-                maturities.add(vaultAccount["maturity"])
                 totalfCashPerMaturity[vaultAccount["maturity"]] += vaultAccount["fCash"]
                 totalVaultSharesPerMaturity[vaultAccount["maturity"]] += vaultAccount["vaultShares"]
+                totalEscrowedAssetCashPerMaturity[vaultAccount["maturity"]] += vaultAccount[
+                    "escrowedAssetCash"
+                ]
 
-                if vaultAccount["escrowedAssetCash"] > 0:
-                    accountsRequiringSettlementPerMaturity[vaultAccount["maturity"]] += 1
-                    nonPooledfCashPerMaturity[vaultAccount["maturity"]] += vaultAccount["fCash"]
-
-        for m in maturities:
-            state = env.notional.getVaultState(vault, m)
-            if state["isFullySettled"]:
+        for (i, m) in enumerate(markets):
+            maturity = m[1]
+            state = env.notional.getVaultState(vault, maturity)
+            if i + 1 > maxMarkets:
+                # Cannot have state past max markets
                 assert state["totalfCash"] == 0
-                assert state["totalfCashRequiringSettlement"] == 0
-                assert state["accountsRequiringSettlement"] == 0
+                assert state["totalAssetCash"] == 0
+                assert state["totalVaultShares"] == 0
+                assert state["totalStrategyTokens"] == 0
+                assert state["totalEscrowedAssetCash"] == 0
+                assert not state["isSettled"]
             else:
-                assert state["totalfCash"] == totalfCashPerMaturity[m]
+                assert state["totalfCash"] == totalfCashPerMaturity[maturity]
+                assert state["totalVaultShares"] == totalVaultSharesPerMaturity[maturity]
                 assert (
-                    state["totalfCashRequiringSettlement"]
-                    == totalfCashPerMaturity[m] - nonPooledfCashPerMaturity[m]
-                )
-                assert (
-                    state["accountsRequiringSettlement"]
-                    == accountsRequiringSettlementPerMaturity[m]
+                    state["totalEscrowedAssetCash"] == totalEscrowedAssetCashPerMaturity[maturity]
                 )
 
-            assert state["totalVaultShares"] == totalVaultSharesPerMaturity[m]
+                totalfCashInVault += state["totalfCash"]
+
+        (totalUsed, _) = env.notional.getBorrowCapacity(vault, currencyId)
+        assert totalfCashInVault == -totalUsed

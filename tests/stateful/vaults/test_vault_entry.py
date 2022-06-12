@@ -18,17 +18,35 @@ def test_only_vault_entry(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(flags=set_flags(0, ENABLED=True, ONLY_VAULT_ENTRY=1), currencyId=2),
+        100_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts("Unauthorized"):
         # User account cannot directly enter vault
         environment.notional.enterVault(
-            accounts[1], vault.address, 100_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     # Execution from vault is allowed
     environment.notional.enterVault(
-        accounts[1], vault.address, 100_000e18, True, 100_000e8, 0, "", {"from": vault.address}
+        accounts[1],
+        vault.address,
+        100_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": vault.address},
     )
 
     check_system_invariants(environment, accounts, [vault])
@@ -36,8 +54,11 @@ def test_only_vault_entry(environment, vault, accounts):
 
 def test_no_system_level_accounts(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2)
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts():
         # No Zero Address
@@ -45,6 +66,7 @@ def test_no_system_level_accounts(environment, vault, accounts):
             HexString(0, "bytes20"),
             vault.address,
             100_000e18,
+            maturity,
             True,
             100_000e8,
             0,
@@ -56,6 +78,7 @@ def test_no_system_level_accounts(environment, vault, accounts):
             environment.notional.address,
             vault.address,
             100_000e18,
+            maturity,
             True,
             100_000e8,
             0,
@@ -67,6 +90,7 @@ def test_no_system_level_accounts(environment, vault, accounts):
             environment.nToken["DAI"].address,
             vault.address,
             100_000e18,
+            maturity,
             True,
             100_000e8,
             0,
@@ -77,6 +101,7 @@ def test_no_system_level_accounts(environment, vault, accounts):
             environment.nToken["ETH"].address,
             vault.address,
             100_000e18,
+            maturity,
             True,
             100_000e8,
             0,
@@ -85,32 +110,24 @@ def test_no_system_level_accounts(environment, vault, accounts):
         )
 
 
-def test_enter_vault_in_settlement(environment, vault, accounts):
-    environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
-    )
-    vault.setSettlement(True)
-
-    with brownie.reverts("Cannot Enter"):
-        environment.notional.enterVault(
-            accounts[1], vault.address, 100_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-        )
-
-    check_system_invariants(environment, accounts, [vault])
-
-
 def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address,
-        get_vault_config(
-            currencyId=2, maxVaultBorrowCapacity=100_000e8, flags=set_flags(0, ENABLED=True)
-        ),
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)), 100_000e8
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
-    with brownie.reverts("Insufficient capacity"):
+    with brownie.reverts("Max Capacity"):
         # User account borrowing over max vault size
         environment.notional.enterVault(
-            accounts[1], vault.address, 100_000e18, True, 100_001e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            True,
+            100_001e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])
@@ -118,13 +135,24 @@ def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
 
 def test_enter_vault_under_minimum_size(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts("Min Borrow"):
         # User account borrowing under minimum size
         environment.notional.enterVault(
-            accounts[1], vault.address, 100_000e18, True, 99_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            True,
+            99_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])
@@ -132,8 +160,11 @@ def test_enter_vault_under_minimum_size(environment, vault, accounts):
 
 def test_enter_vault_borrowing_failure(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts("Trade failed, slippage"):
         # Fails on borrow slippage
@@ -141,6 +172,7 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
             accounts[1],
             vault.address,
             100_000e18,
+            maturity,
             True,
             100_000e8,
             0.01e9,
@@ -151,7 +183,15 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
     with brownie.reverts("Borrow failed"):
         # Fails on liquidity
         environment.notional.enterVault(
-            accounts[1], vault.address, 100_000e18, True, 10_000_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            True,
+            10_000_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])
@@ -159,17 +199,28 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
 
 def test_enter_vault_insufficient_deposit(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.enterVault(
-            accounts[1], vault.address, 0, True, 100_000e8, 0, "", {"from": accounts[1]}
+            accounts[1], vault.address, 0, maturity, True, 100_000e8, 0, "", {"from": accounts[1]}
         )
 
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.enterVault(
-            accounts[1], vault.address, 10_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            10_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])
@@ -177,29 +228,39 @@ def test_enter_vault_insufficient_deposit(environment, vault, accounts):
 
 def test_enter_vault_with_dai(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatio, _) = environment.notional.getVaultAccountCollateralRatio(accounts[1], vault)
-    vaultState = environment.notional.getCurrentVaultState(vault).dict()
+    vaultState = environment.notional.getVaultState(vault, maturity)
 
     assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
     assert vaultAccount["fCash"] == -100_000e8
-    assert vaultAccount["maturity"] == environment.notional.getCurrentVaultMaturity(vault)
+    assert vaultAccount["maturity"] == maturity
     assert vaultAccount["escrowedAssetCash"] == 0
 
     assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalfCash"] == vaultState["totalfCashRequiringSettlement"]
     assert vaultState["totalAssetCash"] == 0
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
-    totalValue = vault.convertStrategyToUnderlying(vaultState["totalStrategyTokens"])
+    totalValue = vault.convertStrategyToUnderlying(vaultState["totalStrategyTokens"], maturity)
     assert 122_000e18 < totalValue and totalValue < 125_000e18
 
     check_system_invariants(environment, accounts, [vault])
@@ -207,20 +268,38 @@ def test_enter_vault_with_dai(environment, vault, accounts):
 
 def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
     environment.notional.redeemStrategyTokensToCash(maturity, 5_000e8, "", {"from": vault})
 
     with brownie.reverts():
         # An attempt to enter again will fail if the vault is holding asset cash
         environment.notional.enterVault(
-            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            25_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])
@@ -228,11 +307,22 @@ def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
 
 def test_enter_vault_with_matured_position(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
     (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
@@ -240,14 +330,14 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     )
 
     # Settle the vault
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
     environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
     chain.mine(1, timestamp=maturity)
-    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 0, True, 105_000e8, 0, "", {"from": accounts[1]}
+        accounts[1], vault.address, 0, maturity, True, 105_000e8, 0, "", {"from": accounts[1]}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
@@ -263,29 +353,47 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
     assert vaultStateNew["totalStrategyTokens"] == vaultAccountAfter["vaultShares"]
     assert vaultAccountAfter["fCash"] == -105_000e8
-    assert vaultAccountAfter["maturity"] == environment.notional.getCurrentVaultMaturity(vault)
+    assert vaultAccountAfter["maturity"] == maturity
 
     check_system_invariants(environment, accounts, [vault])
 
 
 def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
     environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
     chain.mine(1, timestamp=maturity)
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
 
     # At this point the vault has not settled so we will revert
-    with brownie.reverts("Unable to Settle"):
+    with brownie.reverts("Not Settled"):
         environment.notional.enterVault(
-            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+            accounts[1],
+            vault.address,
+            25_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
     check_system_invariants(environment, accounts, [vault])

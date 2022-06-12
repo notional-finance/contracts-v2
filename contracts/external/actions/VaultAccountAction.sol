@@ -54,7 +54,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Cannot Enter");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
-        uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
+        uint256 strategyTokens;
+        if (vaultAccount.maturity != 0 && vaultAccount.maturity <= block.timestamp) {
+            strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
+        }
         // This will update the account's cash balance in memory, this will establish the amount of
         // collateral that the vault account has. This method only transfers from the account, so approvals
         // must be set accordingly.

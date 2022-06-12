@@ -191,15 +191,17 @@ contract Router is StorageLayoutV1 {
             sig == IVaultAction.updateVault.selector ||
             sig == IVaultAction.setVaultPauseStatus.selector ||
             sig == IVaultAction.reduceMaxBorrowCapacity.selector ||
-            sig == IVaultAction.settleVault.selector ||
+            sig == IVaultAction.updateSecondaryBorrowCapacity.selector ||
             sig == IVaultAction.depositVaultCashToStrategyTokens.selector ||
             sig == IVaultAction.redeemStrategyTokensToCash.selector ||
+            sig == IVaultAction.borrowSecondaryCurrencyToVault.selector ||
+            sig == IVaultAction.repaySecondaryCurrencyFromVault.selector ||
+            sig == IVaultAction.settleVault.selector ||
             sig == IVaultAction.getVaultConfig.selector ||
+            sig == IVaultAction.getBorrowCapacity.selector ||
+            sig == IVaultAction.getSecondaryBorrow.selector ||
             sig == IVaultAction.getVaultState.selector ||
-            sig == IVaultAction.getCurrentVaultState.selector ||
-            sig == IVaultAction.getCurrentVaultMaturity.selector ||
-            sig == IVaultAction.getCashRequiredToSettle.selector ||
-            sig == IVaultAction.getCashRequiredToSettleCurrent.selector
+            sig == IVaultAction.getCashRequiredToSettle.selector
         ) {
             return VAULT_ACTION;
         } else if (
