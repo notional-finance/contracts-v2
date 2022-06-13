@@ -37,37 +37,3 @@ def vault(SimpleStrategyVault, environment, accounts):
     v.setExchangeRate(1e18)
 
     return v
-
-
-@pytest.fixture(scope="module")
-def escrowed_account(environment, accounts, vault):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(
-            currencyId=2,
-            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
-            minAccountBorrowSize=100,
-        ),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
-    )
-
-    vault.setExchangeRate(0.95e18)
-
-    environment.notional.deleverageAccount(
-        accounts[1], vault.address, accounts[2], 25_000e18, True, "", {"from": accounts[2]}
-    )
-
-    return accounts[1]

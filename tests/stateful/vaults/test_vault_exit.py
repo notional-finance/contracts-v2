@@ -125,7 +125,6 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
 
     assert vaultAccount["fCash"] == 0
     assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["escrowedAssetCash"] == 0
     assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 50_000e8
 
     assert vaultState["totalfCash"] == 0
@@ -184,7 +183,6 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts):
 
     assert vaultAccount["fCash"] == 0
     assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["escrowedAssetCash"] == 0
     assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 150_000e8
 
     assert vaultState["totalfCash"] == 0
@@ -275,7 +273,6 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
 
     assert vaultAccount["fCash"] == 0
     assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["escrowedAssetCash"] == 0
     assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 10_000e8
 
     assert vaultState["totalfCash"] == 0

@@ -253,7 +253,6 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
     assert vaultAccount["fCash"] == -100_000e8
     assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["escrowedAssetCash"] == 0
 
     assert vaultState["totalfCash"] == -100_000e8
     assert vaultState["totalAssetCash"] == 0

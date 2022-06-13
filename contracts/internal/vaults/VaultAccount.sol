@@ -336,7 +336,6 @@ library VaultAccountLib {
     function calculateDeleverageAmount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
         int256 vaultShareValue
     ) internal view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
         // In the base case, the liquidator can deleverage an account up to minCollateralRatio * VAULT_DELEVERAGE_LIMIT

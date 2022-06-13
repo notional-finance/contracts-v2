@@ -135,11 +135,6 @@ def check_cash_balance(env, accounts, vaults):
                 state = env.notional.getVaultState(vault, maturity)
                 vaultBalances += state["totalAssetCash"]
 
-            for account in accounts:
-                vaultAccount = env.notional.getVaultAccount(account, vault)
-                if vaultAccount["escrowedAssetCash"]:
-                    vaultBalances += vaultAccount["escrowedAssetCash"]
-
         # Add nToken balances
         (cashBalance, _, _) = env.notional.getAccountBalance(
             currencyId, env.nToken[currencyId].address
@@ -369,7 +364,6 @@ def check_vault_invariants(env, accounts, vaults):
 
         totalfCashPerMaturity = defaultdict(lambda: 0)
         totalVaultSharesPerMaturity = defaultdict(lambda: 0)
-        totalEscrowedAssetCashPerMaturity = defaultdict(lambda: 0)
         totalfCashInVault = 0
 
         markets = env.notional.getActiveMarkets(currencyId)
@@ -379,9 +373,6 @@ def check_vault_invariants(env, accounts, vaults):
             if vaultAccount["maturity"] != 0:
                 totalfCashPerMaturity[vaultAccount["maturity"]] += vaultAccount["fCash"]
                 totalVaultSharesPerMaturity[vaultAccount["maturity"]] += vaultAccount["vaultShares"]
-                totalEscrowedAssetCashPerMaturity[vaultAccount["maturity"]] += vaultAccount[
-                    "escrowedAssetCash"
-                ]
 
         for (i, m) in enumerate(markets):
             maturity = m[1]
@@ -392,15 +383,10 @@ def check_vault_invariants(env, accounts, vaults):
                 assert state["totalAssetCash"] == 0
                 assert state["totalVaultShares"] == 0
                 assert state["totalStrategyTokens"] == 0
-                assert state["totalEscrowedAssetCash"] == 0
                 assert not state["isSettled"]
             else:
                 assert state["totalfCash"] == totalfCashPerMaturity[maturity]
                 assert state["totalVaultShares"] == totalVaultSharesPerMaturity[maturity]
-                assert (
-                    state["totalEscrowedAssetCash"] == totalEscrowedAssetCashPerMaturity[maturity]
-                )
-
                 totalfCashInVault += state["totalfCash"]
 
         (totalUsed, _) = env.notional.getBorrowCapacity(vault, currencyId)

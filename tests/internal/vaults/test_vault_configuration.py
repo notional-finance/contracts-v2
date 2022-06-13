@@ -3,7 +3,13 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
-from tests.constants import BASIS_POINT, SECONDS_IN_QUARTER, SECONDS_IN_YEAR, START_TIME_TREF
+from tests.constants import (
+    BASIS_POINT,
+    RATE_PRECISION,
+    SECONDS_IN_QUARTER,
+    SECONDS_IN_YEAR,
+    START_TIME_TREF,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +40,7 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["minAccountBorrowSize"] == conf[2] * 1e8
     assert config["minCollateralRatio"] == conf[3] * BASIS_POINT
     assert config["feeRate"] == conf[4] * 5 * BASIS_POINT
-    assert config["liquidationRate"] == conf[5]
+    assert config["liquidationRate"] == conf[5] * RATE_PRECISION / 100
     assert config["reserveFeeShare"] == conf[6]
     assert config["maxBorrowMarketIndex"] == conf[7]
 

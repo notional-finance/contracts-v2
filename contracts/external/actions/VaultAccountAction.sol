@@ -270,7 +270,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         depositAmountExternal =_calculateLiquidatorDeposit(
-            assetToken, vaultAccount, vaultConfig, vaultState, depositAmountExternal, vaultShareValue
+            assetToken, vaultAccount, vaultConfig, depositAmountExternal, vaultShareValue
         );
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
@@ -328,13 +328,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         Token memory assetToken,
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
         uint256 depositAmountExternal,
         int256 vaultShareValue
     ) private returns (uint256) {
         // Calculates the maximum deleverage amount
         (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
-            vaultConfig, vaultState, vaultShareValue
+            vaultConfig, vaultShareValue
         );
 
         uint256 maxLiquidatorDepositExternal;

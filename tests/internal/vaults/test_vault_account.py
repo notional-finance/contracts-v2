@@ -48,16 +48,6 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         vaultConfig.setVaultAccount(account, vault.address)
 
 
-@given(epoch=strategy("uint16", min_value=1))
-def test_maturities_and_epochs(vaultConfig, accounts, vault, epoch):
-    maturity = VAULT_EPOCH_START + epoch * SECONDS_IN_MONTH
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    account = get_vault_account(fCash=-100_000e8, maturity=maturity)
-    vaultConfig.setVaultAccount(account, vault.address)
-    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
-
-
 def test_settle_fails(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
@@ -96,8 +86,8 @@ def test_set_vault_settled_state(vaultConfig, accounts, vault):
         vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 200)
 
 
-@pytest.mark.skip
-def test_settle_escrowed_cash_with_surplus(vaultConfig, accounts, vault):
+@given(residual=strategy("uint", max_value=100_000e8))
+def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
     vault.setExchangeRate(1e18)
@@ -107,19 +97,16 @@ def test_settle_escrowed_cash_with_surplus(vaultConfig, accounts, vault):
             maturity=maturity,
             totalVaultShares=1_000_000e8,
             totalStrategyTokens=100_000e8,  # This represents profits
-            totalAssetCash=0,
+            totalAssetCash=50_000_000e8 + residual,
             totalfCash=-1_000_000e8,
-            totalEscrowedAssetCash=55_000_000e8,
         ),
     )
     vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
 
-    account = get_vault_account(
-        maturity=maturity, fCash=-900_000e8, escrowedAssetCash=55_000_000e8, vaultShares=900_000e8
-    )
+    account = get_vault_account(maturity=maturity, fCash=-10_000e8, vaultShares=10_000e8)
 
     account2 = get_vault_account(
-        maturity=maturity, fCash=-100_000e8, escrowedAssetCash=0, vaultShares=100_000e8
+        maturity=maturity, fCash=-1_000_000e8 + 10_000e8, vaultShares=1_000_000e8 - 10_000e8
     )
 
     txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
@@ -129,73 +116,9 @@ def test_settle_escrowed_cash_with_surplus(vaultConfig, accounts, vault):
     (accountAfter2, strategyTokens2) = txn2.return_value
     assert accountAfter["fCash"] == 0
     assert accountAfter["maturity"] == 0
-    assert accountAfter["escrowedAssetCash"] == 0
     assert accountAfter["vaultShares"] == 0
     assert accountAfter2["fCash"] == 0
     assert accountAfter2["maturity"] == 0
-    assert accountAfter2["escrowedAssetCash"] == 0
-    assert accountAfter2["vaultShares"] == 0
-
-    # Account gets their share of strategy tokens here, nothing else
-    assert strategyTokens + strategyTokens2 <= 100_000e8
-    assert pytest.approx(strategyTokens + strategyTokens2, abs=3) == 100_000e8
-    # Account gets their share of the residuals
-    assert accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"] <= residual
-    assert (
-        pytest.approx(accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"], abs=3)
-        == residual
-    )
-
-
-@given(
-    escrowedAssetCash=strategy("uint", min_value=100_000e8, max_value=500_000e8),
-    residual=strategy("uint", max_value=100_000e8),
-)
-def test_settle_escrowed_cash_with_residual(
-    vaultConfig, accounts, vault, escrowedAssetCash, residual
-):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
-    vault.setExchangeRate(1e18)
-    vaultConfig.setVaultState(
-        vault.address,
-        get_vault_state(
-            maturity=maturity,
-            totalVaultShares=1_000_000e8,
-            totalStrategyTokens=100_000e8,  # This represents profits
-            totalAssetCash=50_000_000e8 - escrowedAssetCash + residual,
-            totalfCash=-1_000_000e8,
-            totalEscrowedAssetCash=escrowedAssetCash,
-        ),
-    )
-    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
-
-    account = get_vault_account(
-        maturity=maturity,
-        fCash=-10_000e8,
-        escrowedAssetCash=escrowedAssetCash,
-        vaultShares=10_000e8,
-    )
-
-    account2 = get_vault_account(
-        maturity=maturity,
-        fCash=-1_000_000e8 + 10_000e8,
-        escrowedAssetCash=0,
-        vaultShares=1_000_000e8 - 10_000e8,
-    )
-
-    txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
-    (accountAfter, strategyTokens) = txn1.return_value
-
-    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
-    (accountAfter2, strategyTokens2) = txn2.return_value
-    assert accountAfter["fCash"] == 0
-    assert accountAfter["maturity"] == 0
-    assert accountAfter["escrowedAssetCash"] == 0
-    assert accountAfter["vaultShares"] == 0
-    assert accountAfter2["fCash"] == 0
-    assert accountAfter2["maturity"] == 0
-    assert accountAfter2["escrowedAssetCash"] == 0
     assert accountAfter2["vaultShares"] == 0
 
     # Account gets their share of strategy tokens here, nothing else

@@ -142,7 +142,14 @@ def test_enter_maturity(vaultConfig, vault, cToken, accounts, strategyTokenDepos
 
 def test_enter_maturity_with_old_maturity(vaultConfig, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    account = get_vault_account(maturity=START_TIME_TREF + SECONDS_IN_QUARTER)
+    account = get_vault_account(maturity=START_TIME_TREF + 3 * SECONDS_IN_QUARTER)
+    state = get_vault_state(maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER)
+
+    # Cannot enter a maturity pool with a mismatched maturity
+    with brownie.reverts():
+        vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
+
+    account = get_vault_account(maturity=START_TIME_TREF + SECONDS_IN_QUARTER, vaultShares=100e8)
     state = get_vault_state(maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER)
 
     # Cannot enter a maturity pool with a mismatched maturity
@@ -166,7 +173,6 @@ def get_collateral_ratio(vaultConfig, vault, **kwargs):
     account = get_vault_account(
         maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
         fCash=kwargs.get("fCash", -100_000e8),
-        escrowedAssetCash=kwargs.get("escrowedAssetCash", 0),
         tempCashBalance=kwargs.get("tempCashBalance", 100e8),
         vaultShares=kwargs.get("accountVaultShares", 100_000e8),
     )
@@ -203,19 +209,6 @@ def test_collateral_ratio_increases_with_exchange_rate(vaultConfig, vault):
     for i in range(0, 20):
         ratio = get_collateral_ratio(vaultConfig, vault, exchangeRate=exchangeRate)
         exchangeRate += increment
-        assert ratio > lastCollateral
-        lastCollateral = ratio
-
-
-def test_collateral_ratio_increases_with_escrowed_cash(vaultConfig, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    escrowedAssetCash = 0
-    increment = 1000e8
-    lastCollateral = 0
-    for i in range(0, 20):
-        ratio = get_collateral_ratio(vaultConfig, vault, escrowedAssetCash=escrowedAssetCash)
-        escrowedAssetCash += increment
         assert ratio > lastCollateral
         lastCollateral = ratio
 

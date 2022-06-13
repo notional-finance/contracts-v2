@@ -354,34 +354,27 @@ def test_settle_vault_authentication(environment, accounts, vault):
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_settle_vault_with_escrowed_asset_cash(environment, accounts, vault, escrowed_account):
-    # 25_000e8 in escrowed asset cash to start
+def test_settle_vault_shortfall(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True, ONLY_VAULT_SETTLE=True)),
+        100_000_000e8,
+    )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
 
-    vault.setExchangeRate(1e18)
-    environment.notional.redeemStrategyTokensToCash(maturity, 76_000e8, "", {"from": vault})
-    chain.mine(1, timestamp=maturity)
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
+    )
 
-    txn = environment.notional.settleVault(vault, maturity, {"from": vault})
-
-    vaultState = environment.notional.getVaultState(vault, maturity)
-    assert vaultState["isSettled"]
-    # Looks to be an off by one issue inside the compound contracts...
-    assert pytest.approx(vaultState["totalAssetCash"], abs=1) == 3_800_000e8
-    assert vaultState["totalEscrowedAssetCash"] == vaultStateBefore["totalEscrowedAssetCash"]
-    assert vaultState["settlementStrategyTokenValue"] == 1e8
-    assert "VaultShortfall" not in txn.events
-    assert "ProtocolInsolvency" not in txn.events
-    assert "VaultPauseStatus" not in txn.events
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_settle_vault_shortfall(environment, accounts, vault, escrowed_account):
-    # 25_000e8 in escrowed asset cash to start
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-    vault.setExchangeRate(0.778e18)
+    vault.setExchangeRate(0.808e18)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
 
     environment.notional.redeemStrategyTokensToCash(
@@ -399,7 +392,6 @@ def test_settle_vault_shortfall(environment, accounts, vault, escrowed_account):
 
     vaultState = environment.notional.getVaultState(vault, maturity)
     assert vaultState["isSettled"]
-    assert vaultState["settlementStrategyTokenValue"] == 0.778e8
     assert reserveBalanceAfter == reserveBalanceBefore - assetCashShortfall
 
     assert txn.events["VaultShortfall"]["currencyId"] == 2
@@ -427,8 +419,26 @@ def test_settle_vault_shortfall(environment, accounts, vault, escrowed_account):
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_settle_vault_insolvent(environment, accounts, vault, escrowed_account):
-    # 25_000e8 in escrowed asset cash to start
+def test_settle_vault_insolvent(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True, ONLY_VAULT_SETTLE=True)),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
+    )
+
     maturity = environment.notional.getActiveMarkets(1)[0][1]
     vault.setExchangeRate(0.75e18)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
@@ -479,3 +489,6 @@ def test_settle_vault_insolvent(environment, accounts, vault, escrowed_account):
         )
 
     check_system_invariants(environment, accounts, [vault])
+
+
+# def test_borrow_and_repay_secondary_currency()
